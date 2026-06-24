@@ -1,22 +1,31 @@
 package com.mkx.hrttracker.ui.journal
 
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -32,15 +41,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -48,23 +58,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
+import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
@@ -77,6 +91,7 @@ private const val JournalScreenListTestTag = "journal-screen-list"
 @Composable
 fun JournalScreen(
     onOpenMilestones: () -> Unit,
+    onAddDate: () -> Unit,
     onOpenAllNotes: () -> Unit,
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
@@ -85,16 +100,35 @@ fun JournalScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_note_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_note_delete_failed)
+    LaunchedEffect(uiState.noteMutationError) {
+        when (uiState.noteMutationError) {
+            JournalNoteMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            JournalNoteMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            null -> Unit
+        }
+    }
 
     JournalScreenContent(
         uiState = uiState,
         onOpenMilestones = onOpenMilestones,
+        onAddDate = onAddDate,
         onOpenAllNotes = onOpenAllNotes,
         onSaveTodayNote = viewModel::saveTodayNote,
         onSaveNote = viewModel::saveNote,
         onDeleteTodayNote = viewModel::deleteTodayNote,
         onDeleteNote = viewModel::deleteNote,
+        onAddDebugNotes = viewModel::addDebugSampleNotes,
         scrollToTopSignal = scrollToTopSignal,
+        noteSaveFailureToken = uiState.noteSaveFailureToken,
         modifier = modifier,
     )
 }
@@ -104,17 +138,23 @@ fun JournalScreen(
 fun JournalScreenContent(
     uiState: JournalUiState,
     onOpenMilestones: () -> Unit,
+    onAddDate: () -> Unit = onOpenMilestones,
     onOpenAllNotes: () -> Unit,
     onSaveTodayNote: (String) -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
     onDeleteTodayNote: () -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
+    onAddDebugNotes: () -> Unit = { },
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
+    noteSaveFailureToken: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     val timelineNotes = uiState.recentNotes.filter { it.date != uiState.today }
+    // One controller shared by the Today composer and the timeline rows: a single editor stays
+    // open at a time, and it resets to closed when this screen leaves composition.
+    val editorController = rememberNoteEditorController()
     ScrollToTopSignalEffect(
         signal = scrollToTopSignal,
         topAppBarState = scrollBehavior.state,
@@ -125,7 +165,13 @@ fun JournalScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.tab_journal)) },
+                title = {
+                    val title = stringResource(R.string.tab_journal)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 scrollBehavior = scrollBehavior,
             )
@@ -146,6 +192,9 @@ fun JournalScreenContent(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    // Shrink the list above the keyboard so the focused editor can scroll into the
+                    // visible area (paired with bringWholeFieldIntoView on the editor card).
+                    .imePadding()
                     .testTag(JournalScreenListTestTag),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
@@ -178,19 +227,43 @@ fun JournalScreenContent(
                             }
                         } else {
                             item {
-                                EmptyMilestonesCard(onAddDate = onOpenMilestones)
+                                EmptyMilestonesCard(
+                                    onOpenMilestones = onOpenMilestones,
+                                    onAddDate = onAddDate,
+                                )
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
+                // The Today composer is its own standalone section (count 1 -> fully
+                // rounded). The recent notes — or the empty-state message — form a
+                // separate section below it following the normal hrtSection grouping.
                 hrtSection(
-                    key = "journal-notes",
+                    key = "journal-today",
                     header = {
                         HrtSectionHeader(
                             text = stringResource(R.string.journal_notes_section),
                             trailing = {
-                                Text(text = stringResource(R.string.journal_notes_window_meta))
+                                Text(
+                                    text = stringResource(R.string.journal_notes_window_meta),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    // Debug-only: long-press this meta label to seed sample notes
+                                    // across the recent window, previous months, and prior years.
+                                    // No ripple — it's a hidden gesture on a plain text label.
+                                    modifier = if (BuildConfig.DEBUG) {
+                                        Modifier.combinedClickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {},
+                                            onLongClick = onAddDebugNotes,
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
+                                )
                             },
                         )
                     },
@@ -201,38 +274,64 @@ fun JournalScreenContent(
                             note = uiState.todayNote,
                             onSave = onSaveTodayNote,
                             onDelete = onDeleteTodayNote,
+                            editorController = editorController,
+                            saveFailureToken = noteSaveFailureToken,
                         )
                     }
-                    if (timelineNotes.isEmpty()) {
-                        item(key = "journal-notes-empty") {
-                            EmptyRecentNotesCard()
-                        }
-                    } else {
-                        timelineNotes.forEach { note ->
-                            item(key = "note-${note.id}") {
-                                NoteTimelineRow(
-                                    note = note,
-                                    onSave = onSaveNote,
-                                    onDelete = onDeleteNote,
-                                    today = uiState.today,
-                                )
-                            }
+                }
+
+                // Recent past notes form the rail; today lives in the composer above.
+                if (timelineNotes.isNotEmpty()) {
+                    item(key = "journal-notes-list-gap") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    }
+                    hrtSection(key = "journal-notes-list") {
+                        item(key = "journal-notes-timeline") {
+                            NotesTimeline(
+                                notes = timelineNotes,
+                                today = uiState.today,
+                                onSave = onSaveNote,
+                                onDelete = onDeleteNote,
+                                editorController = editorController,
+                                saveFailureToken = noteSaveFailureToken,
+                            )
                         }
                     }
                 }
 
+                // One terminal always closes the notes area so it never looks unfinished once
+                // the first note is written: "see all" when older notes exist beyond the
+                // window, otherwise an end card — the full empty hint when nothing is saved, or
+                // a quiet "no earlier notes" once today's or any recent note exists.
                 if (uiState.olderNotesCount > 0) {
                     item(key = "journal-see-all-notes", contentType = "journal-action") {
-                        HrtOutlinedButton(
-                            text = pluralStringResource(
-                                R.plurals.journal_see_all_notes_earlier,
-                                uiState.olderNotesCount,
-                                uiState.olderNotesCount,
-                            ),
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.journal_see_all_notes),
                             onClick = onOpenAllNotes,
+                            trailingIcon = Icons.Rounded.ChevronRight,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .padding(top = dimensionResource(R.dimen.padding_small)),
                         )
+                    }
+                } else {
+                    item(key = "journal-notes-end-gap") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    }
+                    hrtSection(key = "journal-notes-end") {
+                        item(key = "journal-notes-end-item") {
+                            if (uiState.todayNote == null && timelineNotes.isEmpty()) {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.journal_no_notes),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            } else {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.journal_no_earlier_notes),
+                                    painter = painterResource(R.drawable.ic_info),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -243,6 +342,7 @@ fun JournalScreenContent(
 @Composable
 fun MilestonesScreen(
     onNavigateBack: () -> Unit,
+    openAddDateOnLaunch: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: MilestonesViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -258,10 +358,38 @@ fun MilestonesScreen(
         editingAnchor = null
     }
 
+    // Arriving via the journal "Add a date" CTA opens the sheet straight away. The rememberSaveable
+    // guard makes this a true one-shot: it won't reopen on configuration change or after the user
+    // dismisses the sheet without leaving the screen.
+    var addDateLaunchConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (openAddDateOnLaunch && !addDateLaunchConsumed) {
+            addDateLaunchConsumed = true
+            isAddDateSheetOpen = true
+        }
+    }
+
     // Edit mode lives in the Activity-scoped ViewModel, so it would otherwise persist
     // across navigation. Reset it when leaving the screen so re-entry starts in view mode.
     DisposableEffect(Unit) {
         onDispose { viewModel.exitEditMode() }
+    }
+
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_date_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_date_delete_failed)
+    LaunchedEffect(uiState.dateMutationError) {
+        when (uiState.dateMutationError) {
+            MilestoneMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeDateMutationError()
+            }
+            MilestoneMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeDateMutationError()
+            }
+            null -> Unit
+        }
     }
 
     MilestonesScreenContent(
@@ -379,7 +507,13 @@ fun MilestonesScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.journal_since_you_started)) },
+                title = {
+                    val title = stringResource(R.string.journal_since_you_started)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -513,13 +647,29 @@ fun AllNotesScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val saveFailedMessage = stringResource(R.string.journal_note_save_failed)
+    val deleteFailedMessage = stringResource(R.string.journal_note_delete_failed)
+    LaunchedEffect(uiState.noteMutationError) {
+        when (uiState.noteMutationError) {
+            JournalNoteMutation.SAVE -> {
+                Toast.makeText(context, saveFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            JournalNoteMutation.DELETE -> {
+                Toast.makeText(context, deleteFailedMessage, Toast.LENGTH_SHORT).show()
+                viewModel.consumeNoteMutationError()
+            }
+            null -> Unit
+        }
+    }
 
     AllNotesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onSaveNote = viewModel::saveNote,
         onDeleteNote = viewModel::deleteNote,
-        today = uiState.today,
+        noteSaveFailureToken = uiState.noteSaveFailureToken,
         modifier = modifier,
     )
 }
@@ -531,23 +681,87 @@ fun AllNotesScreenContent(
     onNavigateBack: () -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
     onDeleteNote: (LocalDate) -> Unit = { },
-    today: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier,
+    noteSaveFailureToken: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
+    // Shared across every month's timeline so a single note edits at a time, reset on navigation.
+    val editorController = rememberNoteEditorController()
+    val appLocale = rememberAppLocale()
+
+    // Month filter (UI-only over the already-grouped notes): null shows every month. The picker is
+    // bounded to the months that actually have notes, so an active filter always lands on a
+    // non-empty month; a stale selection (its last note deleted) collapses back to "all".
+    val availableMonths = remember(uiState.monthGroups) { uiState.monthGroups.map { it.month } }
+    var selectedMonth by remember { mutableStateOf<YearMonth?>(null) }
+    var isMonthPickerVisible by remember { mutableStateOf(false) }
+    val activeMonth = selectedMonth?.takeIf { it in availableMonths }
+    val displayedGroups = if (activeMonth == null) {
+        uiState.monthGroups
+    } else {
+        uiState.monthGroups.filter { it.month == activeMonth }
+    }
+
+    if (isMonthPickerVisible && availableMonths.isNotEmpty()) {
+        MonthPickerDialog(
+            availableMonths = availableMonths,
+            selectedMonth = activeMonth ?: availableMonths.max(),
+            title = stringResource(R.string.journal_filter_by_month),
+            appLocale = appLocale,
+            onDismiss = { isMonthPickerVisible = false },
+            onConfirm = { month ->
+                isMonthPickerVisible = false
+                selectedMonth = month
+            },
+        )
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HazeTopAppBar(
-                title = { Text(text = stringResource(R.string.journal_all_notes)) },
+                title = {
+                    val title = stringResource(R.string.journal_all_notes)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    )
+                },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.navigate_back),
+                        )
+                    }
+                },
+                actions = {
+                    if (uiState.monthGroups.isNotEmpty()) {
+                        // Flip between "filter" (tap to pick a month) and "filter off" (tap to
+                        // clear), mirroring the History top bar's coin-flip action.
+                        FlipSlot(
+                            flipped = activeMonth != null,
+                            contentAlignment = Alignment.CenterEnd,
+                            front = {
+                                IconButton(onClick = { isMonthPickerVisible = true }) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_filter_list),
+                                        contentDescription =
+                                            stringResource(R.string.journal_filter_by_month),
+                                    )
+                                }
+                            },
+                            back = {
+                                IconButton(onClick = { selectedMonth = null }) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_filter_list_off),
+                                        contentDescription =
+                                            stringResource(R.string.journal_clear_month_filter),
+                                    )
+                                }
+                            },
                         )
                     }
                 },
@@ -568,46 +782,93 @@ fun AllNotesScreenContent(
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Lift the list above the keyboard so a focused note editor scrolls into view.
+                    .imePadding(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
-                if (uiState.monthGroups.isEmpty()) {
+                if (displayedGroups.isEmpty()) {
                     item(key = "all-notes-empty", contentType = "journal-empty") {
                         EmptyAllNotesCard()
                     }
                 } else {
-                    uiState.monthGroups.forEachIndexed { index, group ->
+                    displayedGroups.forEachIndexed { groupIndex, group ->
                         item(
-                            key = "all-notes-${group.month}",
-                            contentType = "journal-month-section",
+                            key = "all-notes-header-${group.month}",
+                            contentType = "journal-month-header",
                         ) {
-                            HrtSection(
-                                title = allNotesMonthLabel(group.month),
-                                topPadding = index != 0,
-                                headerTrailing = {
-                                    Text(
-                                        text = group.notes.size.toString(),
-                                        modifier = Modifier.alignByBaseline(),
+                            AllNotesMonthHeader(
+                                monthLabel = allNotesMonthLabel(group.month),
+                                noteCount = group.notes.size,
+                            )
+                        }
+
+                        itemsIndexed(
+                            items = group.notes,
+                            key = { _, note -> "all-notes-${note.id}" },
+                            contentType = { _, _ -> "journal-note-row" },
+                        ) { index, note ->
+                            AllNotesNoteRow(
+                                note = note,
+                                index = index,
+                                count = group.notes.size,
+                                controller = editorController,
+                                onSave = onSaveNote,
+                                onDelete = onDeleteNote,
+                                saveFailureToken = noteSaveFailureToken,
+                            )
+                            if (index < group.notes.lastIndex) {
+                                Spacer(
+                                    modifier = Modifier.height(
+                                        dimensionResource(R.dimen.list_segment_gap)
                                     )
-                                },
-                                headerTrailingAlignByBaseline = true,
-                            ) {
-                                group.notes.forEach { note ->
-                                    item {
-                                        NoteTimelineRow(
-                                            note = note,
-                                            today = today,
-                                            onSave = onSaveNote,
-                                            onDelete = onDeleteNote,
-                                        )
-                                    }
-                                }
+                                )
+                            }
+                        }
+
+                        if (groupIndex < displayedGroups.lastIndex) {
+                            item(key = "all-notes-gap-${group.month}") {
+                                Spacer(modifier = Modifier.height(16.dp))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+// Month section header for the All Notes list, matching the calibration screen's: an uppercased
+// month label, a hairline divider filling the row, and the month's note count on the trailing end.
+@Composable
+private fun AllNotesMonthHeader(
+    monthLabel: String,
+    noteCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp, top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = monthLabel.uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        )
+        Text(
+            text = noteCount.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 

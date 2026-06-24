@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
@@ -76,9 +77,12 @@ fun HrtFilledTonalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
+    iconPainter: Painter? = null,
     iconModifier: Modifier = Modifier,
     iconSpacing: Dp = 8.dp,
     iconContentDescription: String? = null,
+    trailingIcon: ImageVector? = null,
+    trailingIconContentDescription: String? = null,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
     compact: Boolean = false,
     contentPadding: PaddingValues? = null,
@@ -86,7 +90,7 @@ fun HrtFilledTonalButton(
     val resolvedContentPadding = contentPadding
         ?: ButtonDefaults.contentPaddingFor(
             buttonHeight = ButtonDefaults.MinHeight,
-            hasStartIcon = icon != null,
+            hasStartIcon = icon != null || iconPainter != null,
         )
 
     ButtonContainer(compact = compact) {
@@ -97,7 +101,14 @@ fun HrtFilledTonalButton(
             colors = colors,
             contentPadding = resolvedContentPadding,
         ) {
-            if (icon != null) {
+            if (iconPainter != null) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = iconContentDescription,
+                    modifier = iconModifier,
+                )
+                Spacer(modifier = Modifier.size(iconSpacing))
+            } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = iconContentDescription,
@@ -106,6 +117,13 @@ fun HrtFilledTonalButton(
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
             LocalizedButtonLabelText(text = text)
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.size(iconSpacing))
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = trailingIconContentDescription,
+                )
+            }
         }
     }
 }
@@ -120,6 +138,8 @@ fun HrtOutlinedButton(
     iconModifier: Modifier = Modifier,
     iconSpacing: Dp = 8.dp,
     iconContentDescription: String? = null,
+    trailingIcon: ImageVector? = null,
+    trailingIconContentDescription: String? = null,
     colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
     border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled = enabled),
     compact: Boolean = false,
@@ -149,6 +169,13 @@ fun HrtOutlinedButton(
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
             LocalizedButtonLabelText(text = text)
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.size(iconSpacing))
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = trailingIconContentDescription,
+                )
+            }
         }
     }
 }

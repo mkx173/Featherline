@@ -23,9 +23,11 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -241,6 +243,31 @@ class JournalViewModelTest {
     }
 
     @Test
+    fun addDebugSampleNotes_seedsNotesAcrossRecentMonthsAndYears() = runTest {
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(any(), any()) } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        viewModel.addDebugSampleNotes()
+        advanceUntilIdle()
+
+        // One date-stamped note lands in each of the three ranges: the recent window (timeline
+        // rail), a previous month (older-notes count / All Notes), and a prior year (All Notes
+        // spanning years) — 14 distinct dates in total.
+        val recent = today.minusDays(3)
+        val previousMonth = today.minusMonths(3).withDayOfMonth(15)
+        val previousYear = LocalDate.of(today.year - 2, 6, 15)
+        coVerify(exactly = 1) { repository.saveNoteForDate(recent, "Sample note for $recent") }
+        coVerify(exactly = 1) {
+            repository.saveNoteForDate(previousMonth, "Sample note for $previousMonth")
+        }
+        coVerify(exactly = 1) {
+            repository.saveNoteForDate(previousYear, "Sample note for $previousYear")
+        }
+        coVerify(exactly = 14) { repository.saveNoteForDate(any(), any()) }
+    }
+
+    @Test
     fun deleteTodayNote_usesCurrentLocalDateAfterRollover() = runTest {
         stubEmptyObservers()
         val tomorrow = LocalDate.of(2026, 6, 17)
@@ -265,6 +292,56 @@ class JournalViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.deleteNoteForDate(noteDate) }
+    }
+
+    @Test
+    fun saveNote_writeFailure_setsSaveErrorAndBumpsToken() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(noteDate, "boom") } throws IOException("disk full")
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
+
+        viewModel.saveNote(noteDate, "boom")
+        advanceUntilIdle()
+
+        assertEquals(JournalNoteMutation.SAVE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore + 1, viewModel.uiState.value.noteSaveFailureToken)
+
+        viewModel.consumeNoteMutationError()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.noteMutationError)
+    }
+
+    @Test
+    fun deleteNote_writeFailure_setsDeleteError() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
+        val viewModel = JournalViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
+
+        viewModel.deleteNote(noteDate)
+        advanceUntilIdle()
+
+        assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
+    }
+
+    @Test
+    fun saveNote_success_leavesErrorNull() = runTest {
+        val noteDate = LocalDate.of(2026, 6, 1)
+        stubEmptyObservers()
+        coEvery { repository.saveNoteForDate(noteDate, "ok") } returns Unit
+        val viewModel = JournalViewModel(repository, appTimeSource)
+
+        viewModel.saveNote(noteDate, "ok")
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.noteMutationError)
+        coVerify(exactly = 1) { repository.saveNoteForDate(noteDate, "ok") }
     }
 
     private fun stubEmptyObservers() {

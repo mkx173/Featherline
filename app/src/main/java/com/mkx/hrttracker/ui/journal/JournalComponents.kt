@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
 import android.animation.ValueAnimator
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -36,27 +37,38 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,11 +76,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,6 +93,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -87,12 +105,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
@@ -105,7 +127,10 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -114,7 +139,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.takeOrElse
 import androidx.compose.ui.util.lerp
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
 import com.mkx.hrttracker.R
@@ -128,8 +156,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.LocalSegmentPosition
@@ -143,6 +170,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.isAppInDarkTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
@@ -152,14 +180,17 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
-import java.time.format.TextStyle
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
+private const val NoteTimelineRowTestTagPrefix = "note-timeline-row-"
+private const val NoteTimelineDotTestTagPrefix = "note-timeline-dot-"
+private const val NoteTimelineLineBottomTestTagPrefix = "note-timeline-line-bottom-"
 internal const val SimpleHomeCardTestTag = "simple-home-card"
 
 // Shared by the timeline rail. The inter-card gap lives inside each row's
@@ -443,18 +474,68 @@ private fun PinnedDateRow(
     }
 }
 
+// The brand-new-user empty state for the Timeline section (no tracked dates at all): a centered
+// welcome with a tinted calendar glyph, an encouraging headline + subtitle, and an "Add a date"
+// button. Tapping the card opens the Milestones screen; tapping the button opens it and the
+// add-date sheet straight away.
 @Composable
 fun EmptyMilestonesCard(
+    onOpenMilestones: () -> Unit,
     onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    MilestonesEmptyCard(
-        icon = painterResource(R.drawable.ic_calendar_today),
-        title = stringResource(R.string.journal_no_dates),
-        subtitle = stringResource(R.string.journal_no_dates_subtitle),
-        onClick = onAddDate,
-        modifier = modifier,
-    )
+    val title = stringResource(R.string.journal_no_dates_welcome_title)
+    val subtitle = stringResource(R.string.journal_no_dates_subtitle)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = onOpenMilestones,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp, bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_event),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.cjkTextOffset(title),
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.cjkTextOffset(subtitle),
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            HrtFilledTonalButton(
+                text = stringResource(R.string.journal_add_date),
+                icon = Icons.Rounded.Add,
+                onClick = onAddDate,
+            )
+        }
+    }
 }
 
 @Composable
@@ -2202,6 +2283,40 @@ private fun TodayMarkerRow(
     }
 }
 
+// Coordinates which note editor is open across the Today composer and the timeline rows below
+// it. Holding the open note's identity in one place keeps a single editor open at a time —
+// opening another closes the previous. The open identity is persisted via [Saver] (it is always
+// a note id or "today-<date>" String), so an editor left open survives process death and
+// navigating away and back: the row reopens with its saved draft (draftText is itself
+// rememberSaveable). On restore the field reopens but is not focused, so the keyboard stays down
+// until the user taps it (see the focus gate in NoteEditorCard).
+@Stable
+class NoteEditorController(initialActiveEditorId: Any? = null) {
+    var activeEditorId by mutableStateOf(initialActiveEditorId)
+        private set
+
+    fun isEditing(identity: Any?): Boolean = activeEditorId != null && activeEditorId == identity
+
+    fun begin(identity: Any?) {
+        activeEditorId = identity
+    }
+
+    fun finish(identity: Any?) {
+        if (activeEditorId == identity) activeEditorId = null
+    }
+
+    companion object {
+        val Saver: Saver<NoteEditorController, String> = Saver(
+            save = { it.activeEditorId as? String },
+            restore = { NoteEditorController(initialActiveEditorId = it) },
+        )
+    }
+}
+
+@Composable
+fun rememberNoteEditorController(): NoteEditorController =
+    rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
+
 @Composable
 fun TodayComposer(
     today: LocalDate,
@@ -2209,138 +2324,464 @@ fun TodayComposer(
     onSave: (String) -> Unit,
     onDelete: () -> Unit = { },
     modifier: Modifier = Modifier,
+    editorController: NoteEditorController = rememberNoteEditorController(),
+    saveFailureToken: Int = 0,
 ) {
-    var isEditing by rememberSaveable(today.toString(), note?.id, note?.text) {
-        mutableStateOf(false)
-    }
-    var draftText by rememberSaveable(today.toString(), note?.id, note?.text) {
-        mutableStateOf(note?.text.orEmpty())
-    }
-    var isDeleteConfirmationVisible by rememberSaveable(today.toString(), note?.id) {
-        mutableStateOf(false)
-    }
-    val currentText = note?.text.orEmpty()
-
-    if (isEditing) {
-        TodayComposerEditor(
-            today = today,
-            text = draftText,
-            onTextChange = { draftText = it },
-            onCancel = {
-                draftText = currentText
-                isEditing = false
-            },
-            onSave = {
-                val text = draftText.trim()
-                if (text.isNotEmpty()) {
-                    onSave(text)
-                    isEditing = false
-                }
-            },
-            onDelete = note?.let {
-                {
-                    isDeleteConfirmationVisible = true
-                }
-            },
-            modifier = modifier,
+    EditorSegmentedListItem(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        NoteEditorCard(
+            modifier = Modifier.padding(bottom = 6.dp),
+            text = note?.text.orEmpty(),
+            identity = note?.id ?: "today-$today",
+            controller = editorController,
+            onSave = onSave,
+            onDelete = onDelete,
+            fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
+            reserveWritingHeight = true,
+            header = { TodayComposerHeader(today = today) },
+            prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
+            saveFailureToken = saveFailureToken,
         )
-        if (isDeleteConfirmationVisible) {
-            NoteDeleteConfirmationDialog(
-                onDismissRequest = { isDeleteConfirmationVisible = false },
-                onConfirm = {
-                    isDeleteConfirmationVisible = false
-                    isEditing = false
-                    onDelete()
-                },
-            )
-        }
-        return
+    }
+}
+
+// The composer's editable note surface, shared by the Today composer and the notes-timeline
+// rows. Owns the view<->edit state and the open/close animation: it hugs the saved [text] in
+// view mode and, when tapped, expands into a filled box with a minimum writing height and
+// Cancel/Save (+Delete) icon buttons that fade in on the spring. [header] renders above the
+// box (the Today title+date, or a row's date label). [prompt] is the view-mode affordance
+// shown when there is no text yet (Today's "write about today"); pass null where text always
+// exists (timeline rows). [identity] keys the edit state so it resets when the note changes.
+// [reserveWritingHeight] opens the field to a minimum writing height (the Today composer, where a
+// new note starts empty); leave it false where the field already has text to hug (timeline rows).
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun NoteEditorCard(
+    text: String,
+    identity: Any,
+    controller: NoteEditorController,
+    onSave: (String) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    fieldModifier: Modifier = Modifier,
+    reserveWritingHeight: Boolean = false,
+    header: (@Composable () -> Unit)? = null,
+    prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
+    saveFailureToken: Int = 0,
+) {
+    // The open/closed state is owned by the shared controller so only one card edits at a time
+    // and the open state is dropped on navigation away. The draft stays local and is re-seeded
+    // from [text] each time editing begins.
+    val isEditing = controller.isEditing(identity)
+    var draftText by rememberSaveable(identity, text) { mutableStateOf(text) }
+    var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
+    // Whether this edit targets text that already existed. Captured when editing begins and
+    // held for the whole session, including the closing animation. Saving a brand-new note
+    // flips the saved text from empty to non-empty right as the editor collapses, so deriving
+    // the delete button from it live would pop delete in mid-close; this keeps it hidden for a
+    // note first created in this session.
+    var editingExistingNote by remember { mutableStateOf(text.isNotEmpty()) }
+    // A brand-new note's saved [text] only flips non-empty after the save round-trips through the
+    // repository — a frame or more after the editor closes [isEditing] synchronously. Without this
+    // latch there's a window where neither isEditing nor text is truthy, so the field would collapse
+    // back to the prompt for a beat ("write about today…" blinking in) before the saved text lands.
+    // Set when a save is committed; released once the text catches up (see the effect below).
+    // rememberSaveable, not remember: if the card is disposed while the save is in flight (navigate
+    // away, or process death), the latch must survive so the reopened card holds the unsaved draft
+    // instead of letting the close-revert below mistake it for an abandoned edit and discard it.
+    var savePending by rememberSaveable(identity) { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    // A stable scope for the reveal scroll, deliberately separate from the keyed effect below.
+    // The reveal has to re-fire as the box grows and the keyboard rises, but a LaunchedEffect
+    // cancels its body whenever its keys change — so firing the scroll there cancels the in-flight
+    // animation every frame the keyboard ticks, and it only settles once the keyboard stops (a
+    // visible "catch-up" step after the expand). Launching into this scope instead leaves prior
+    // requests running; the bring-into-view responder folds them into one continuous scroll.
+    val revealScope = rememberCoroutineScope()
+    val fadeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val sizeSpec = MaterialTheme.motionScheme.defaultEffectsSpec<IntSize>()
+
+    // Reveal the whole editor — field plus the button row that grows in below it — above the IME.
+    // The reveal must re-fire as the box expands and as the keyboard rises (a single request on
+    // focus only catches the collapsed box, leaving the buttons under the IME), so it is keyed on
+    // both the measured box height and the IME inset. Only the open editor reads the IME inset, so
+    // idle rows don't recompose through the keyboard animation.
+    val density = LocalDensity.current
+    var editorBoxHeightPx by remember { mutableStateOf(0) }
+    val imeBottomPx = if (isEditing) WindowInsets.ime.getBottom(density) else 0
+
+    // The box stays mounted whenever text exists, so tapping to edit never shifts it; with no
+    // text yet the prompt stands in until the first edit.
+    val showField = isEditing || text.isNotEmpty() || savePending
+
+    val finishEditing = {
+        focusManager.clearFocus()
+        // Dismiss the keyboard on close, mirroring the calibration notes field's onDone
+        // (clearFocus + hide). Shared by Save/Cancel/IME action; a no-op when already hidden.
+        // NOTE: this dismiss can stutter (the focus change cancels the keyboard's slide); the
+        // calibration field has the same issue, to be fixed for both later.
+        keyboardController?.hide()
+        controller.finish(identity)
     }
 
-    PreferenceSegmentedListItem(
+    val beginEditing = {
+        draftText = text
+        editingExistingNote = text.isNotEmpty()
+        controller.begin(identity)
+    }
+
+    // Commit the draft and close the editor. Shared by the Save button and the IME "Done" action
+    // so both follow the same save-then-clear-focus path. A blank or unchanged draft writes
+    // nothing and just reverts to the saved text.
+    val saveEditing = {
+        val trimmed = draftText.trim()
+        if (trimmed.isNotEmpty() && trimmed != text.trim()) {
+            // Hold the field through the async save so the prompt doesn't blink back in while the
+            // committed text round-trips. Released by the effect below once [text] reflects the save.
+            savePending = true
+            onSave(trimmed)
+        } else if (text.isNotEmpty()) {
+            draftText = text
+        }
+        finishEditing()
+    }
+
+    // Discard the in-progress edit and close. Existing text stays mounted, so revert the draft to
+    // it; a brand-new note animates back to the prompt, so leave the draft alone (clearing it
+    // would blank the field mid-exit) and let the next open re-seed it. Shared by the Cancel button
+    // and the back gesture.
+    val cancelEditing = {
+        if (text.isNotEmpty()) draftText = text
+        finishEditing()
+    }
+
+    // While an editor is open, back cancels the edit and dismisses the keyboard instead of leaving
+    // the journal; once nothing is open the handler is disabled and back falls through to
+    // navigation (home). Only the open card has isEditing == true, so only its handler is enabled.
+    BackHandler(enabled = isEditing) { cancelEditing() }
+
+    Column(
         modifier = modifier,
-        title = stringResource(R.string.journal_today),
-        supportingText = note?.text ?: stringResource(R.string.journal_write_about_today),
-        onClick = {
-            draftText = currentText
-            isEditing = true
-        },
-    )
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        header?.invoke()
+        AnimatedContent(
+            targetState = showField,
+            transitionSpec = {
+                ContentTransform(
+                    targetContentEnter = fadeIn(fadeSpec),
+                    initialContentExit = fadeOut(fadeSpec),
+                    sizeTransform = SizeTransform { _, _ -> sizeSpec },
+                )
+            },
+            contentAlignment = Alignment.TopStart,
+            label = "note-editor",
+        ) { fieldShown ->
+            if (fieldShown) {
+                // One filled, rounded box holds the text field and—while editing—the buttons,
+                // so the editing surface reads as a single card that grows and shrinks. The
+                // field reserves a minimum height when editing and hugs the text otherwise; the
+                // buttons reveal below it on the same spring, so the box resizes as one motion.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.large)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        // Track the box's grown height and let the reveal scroll it (field + button
+                        // row) above the IME — see the bringIntoView effect below.
+                        .onSizeChanged { editorBoxHeightPx = it.height }
+                        .bringIntoViewRequester(bringIntoViewRequester)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                ) {
+                    ComposerTextField(
+                        value = draftText,
+                        onValueChange = { draftText = it },
+                        focusRequester = focusRequester,
+                        onFocused = {
+                            editingExistingNote = text.isNotEmpty()
+                            controller.begin(identity)
+                        },
+                        onImeAction = saveEditing,
+                        expanded = isEditing,
+                        reserveWritingHeight = reserveWritingHeight,
+                        modifier = fieldModifier.fillMaxWidth(),
+                    )
+                    AnimatedVisibility(
+                        visible = isEditing,
+                        // The box makes room on [sizeSpec]; the buttons fade on a slower spring
+                        // so the fade lags the height reveal (otherwise they snap to full
+                        // opacity while the box is still clipping them in, which reads as a
+                        // wipe, not a fade). On exit the fade leads the shrink so they fade out
+                        // before the box closes over them.
+                        enter = expandVertically(
+                            animationSpec = sizeSpec,
+                            expandFrom = Alignment.Top,
+                        ) + fadeIn(MaterialTheme.motionScheme.slowEffectsSpec()),
+                        exit = shrinkVertically(
+                            animationSpec = sizeSpec,
+                            shrinkTowards = Alignment.Top,
+                        ) + fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()),
+                    ) {
+                        TodayComposerControls(
+                            // Gap above the buttons, inside the reveal so it animates too.
+                            modifier = Modifier.padding(
+                                top = dimensionResource(R.dimen.padding_small),
+                            ),
+                            onDelete = if (editingExistingNote) {
+                                { isDeleteConfirmationVisible = true }
+                            } else {
+                                null
+                            },
+                            onCancel = cancelEditing,
+                            onSave = saveEditing,
+                        )
+                    }
+                }
+            } else {
+                prompt?.invoke(beginEditing)
+            }
+        }
+    }
+
+    // Focus the field (raising the IME) when edit mode begins from a tap this session. Tapping
+    // existing text's field already focuses it (that focus is what flips isEditing); this also
+    // covers expanding from the prompt, where the tap landed on the prompt rather than the field.
+    // An editor restored already-open (process death, or navigating away and back) is open on the
+    // first composition, so it reopens silently — draft shown, keyboard down — until the user taps.
+    // On close with no pending save, discard the in-progress draft so it can't linger: the collapsed
+    // row renders draftText, and re-opening goes through controller.begin (not beginEditing) without
+    // re-seeding, so an abandoned edit would otherwise resurface — and be re-savable — after
+    // switching to another card, cancelling, backing out, or confirming a delete (whose write may
+    // fail, leaving the row showing an unsaved draft as if persisted). A pending save keeps its
+    // draft: it is held through the round-trip and the failure-recovery reopen.
+    var firstCompositionSettled by remember { mutableStateOf(false) }
+    LaunchedEffect(isEditing) {
+        if (isEditing) {
+            if (firstCompositionSettled) runCatching { focusRequester.requestFocus() }
+        } else if (!savePending) {
+            draftText = text
+        }
+        firstCompositionSettled = true
+    }
+
+    // Release the save latch once the committed text lands — from here the field is held by
+    // text.isNotEmpty() and normal text-driven logic governs again (so a later delete can revert
+    // to the prompt). Until then savePending keeps the field mounted through the save round-trip.
+    LaunchedEffect(text) {
+        if (text.isNotEmpty()) savePending = false
+    }
+
+    // A failed save never round-trips text, so the savePending latch (and the held field showing the
+    // unsaved draft as if it closed) would otherwise stick forever. When the VM signals a save
+    // failure via a bumped token, re-open this editor so the unsaved draft stays editable for retry.
+    // The token is shared by every note composer, but only the one that actually saved has
+    // savePending set, so only it reacts; the initial token (0) is a no-op because savePending is
+    // false then. controller.begin(identity) is used directly (not beginEditing) so draftText is NOT
+    // re-seeded — the typed text is preserved.
+    //
+    // Only reclaim the editor when nothing else is open. If the user has since opened another card,
+    // reopening this one would steal the shared controller from it, flipping it closed so its
+    // close-revert wipes the draft the user is actively typing. In that case keep savePending set so
+    // this card's field stays held with its own unsaved draft, recoverable when the user taps it.
+    LaunchedEffect(saveFailureToken) {
+        if (savePending && controller.activeEditorId == null) {
+            savePending = false
+            controller.begin(identity)
+        }
+    }
+
+    // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
+    // height and IME-inset change so the final, fully-expanded box (field + button row) clears the
+    // keyboard. Each request is launched into [revealScope] rather than run in this effect's own
+    // (keyed, cancel-on-rekey) coroutine, so a new request never cancels the in-flight scroll —
+    // the responder coalesces them into one motion that rides up with the keyboard instead of
+    // snapping into place after it settles.
+    LaunchedEffect(isEditing, editorBoxHeightPx, imeBottomPx) {
+        if (isEditing) revealScope.launch { runCatching { bringIntoViewRequester.bringIntoView() } }
+    }
+
+    if (isDeleteConfirmationVisible) {
+        NoteDeleteConfirmationDialog(
+            onDismissRequest = { isDeleteConfirmationVisible = false },
+            onConfirm = {
+                isDeleteConfirmationVisible = false
+                finishEditing()
+                onDelete()
+            },
+        )
+    }
 }
 
 @Composable
-private fun TodayComposerEditor(
+private fun TodayComposerHeader(
     today: LocalDate,
-    text: String,
-    onTextChange: (String) -> Unit,
-    onCancel: () -> Unit,
-    onSave: () -> Unit,
-    onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val canSave = text.isNotBlank()
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
+        medicationGroupScheduleDateFormatter(appLocale, today)
     }
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_edit_note),
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
 
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Column {
-                Text(
-                    text = stringResource(R.string.journal_today),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = dateFormatter(today),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        val journalTodayLabel = stringResource(R.string.journal_today)
+        Text(
+            text = journalTodayLabel,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(journalTodayLabel),
+        )
+        // Trailing date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue").
+        val todayLabel = dateFormatter(today)
+        Text(
+            text = todayLabel,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.alignByBaseline().cjkTextOffset(todayLabel)
+        )
+    }
+}
+
+@Composable
+private fun TodayComposerControls(
+    onDelete: (() -> Unit)?,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onDelete != null) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.journal_delete_note),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedTextField(
-                value = text,
-                onValueChange = onTextChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(TodayComposerTextFieldTestTag),
-                placeholder = {
-                    Text(text = stringResource(R.string.journal_write_about_today))
-                },
-                minLines = 3,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+        } else {
+            Spacer(modifier = Modifier.width(1.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onCancel) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.cancel),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            FilledTonalIconButton(
+                onClick = onSave,
             ) {
-                if (onDelete != null) {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.journal_delete_note),
-                        onClick = onDelete,
-                        compact = true,
-                    )
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
-                }
-                Row {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = onCancel,
-                        compact = true,
-                    )
-                    Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = onSave,
-                        enabled = canSave,
-                        compact = true,
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = stringResource(R.string.save),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
             }
         }
     }
+}
+
+// Collapsed "write about today" affordance — a filled inset that reads as a tappable field.
+@Composable
+private fun TodayComposerPrompt(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .padding(dimensionResource(R.dimen.padding_medium)),
+        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Add,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val journalWriteAboutTodayLabel = stringResource(R.string.journal_write_about_today)
+        Text(
+            text = journalWriteAboutTodayLabel,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.cjkTextOffset(journalWriteAboutTodayLabel)
+        )
+    }
+}
+
+// Borderless multiline input for the composer. The parent draws the filled, rounded box and
+// its padding; this just lays out the text and reserves a minimum writing height while
+// editing. Gaining focus (a tap) signals edit mode via [onFocused]; the parent drives
+// [focusRequester] when edit mode is entered some other way (the prompt).
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ComposerTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    focusRequester: FocusRequester,
+    onFocused: () -> Unit,
+    onImeAction: () -> Unit,
+    modifier: Modifier = Modifier,
+    expanded: Boolean = false,
+    reserveWritingHeight: Boolean = false,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    // When [reserveWritingHeight] is set (the Today composer), edit mode opens ~3 lines of writing
+    // room so a fresh, empty note starts comfortable; otherwise (timeline rows, which already have
+    // text) the field just hugs its text. Animating the min height (rather than toggling minLines)
+    // grows/shrinks smoothly instead of snapping, and doesn't re-animate on every keystroke. Uses
+    // the motionScheme effects spring — the same one the buttons reveal on — so the field and
+    // buttons move together as one resize.
+    val minHeight by animateDpAsState(
+        targetValue = if (expanded && reserveWritingHeight) 72.dp else 0.dp,
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Dp>(),
+        label = "composer-field-min-height",
+    )
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .onFocusChanged { if (it.isFocused) onFocused() },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface),
+        cursorBrush = SolidColor(colorScheme.primary),
+        // The keyboard's action key saves and dismisses (commit + clearFocus + hide) — the same
+        // path as the Save button, matching the calibration notes field's onDone. The field stays
+        // multiline for display.
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onImeAction() }),
+        decorationBox = { innerTextField ->
+            Box(modifier = Modifier.fillMaxWidth().heightIn(min = minHeight)) {
+                innerTextField()
+            }
+        },
+    )
 }
 
 @Composable
@@ -2350,155 +2791,214 @@ fun NotesTimeline(
     onSave: (LocalDate, String) -> Unit,
     onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
+    editorController: NoteEditorController = rememberNoteEditorController(),
+    saveFailureToken: Int = 0,
 ) {
-    Column(modifier = modifier) {
-        if (notes.isEmpty()) {
-            EmptyRecentNotesCard()
-        } else {
-            notes.forEach { note ->
-                NoteTimelineRow(
-                    note = note,
-                    onSave = onSave,
-                    onDelete = onDelete,
-                    today = today,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun NoteTimelineRow(
-    note: Note,
-    onSave: (LocalDate, String) -> Unit,
-    onDelete: (LocalDate) -> Unit = { },
-    modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
-) {
-    var isEditing by rememberSaveable(note.id, note.date.toString(), note.text) {
-        mutableStateOf(false)
-    }
-    var draftText by rememberSaveable(note.id, note.date.toString(), note.text) {
-        mutableStateOf(note.text)
-    }
-    var isDeleteConfirmationVisible by rememberSaveable(note.id, note.date.toString()) {
-        mutableStateOf(false)
-    }
-    val dateLabel = noteTimelineDateLabel(note.date, today)
-
-    if (isEditing) {
-        NoteTimelineRowEditor(
-            note = note,
-            dateLabel = dateLabel,
-            text = draftText,
-            onTextChange = { draftText = it },
-            onCancel = {
-                draftText = note.text
-                isEditing = false
-            },
-            onSave = {
-                val text = draftText.trim()
-                if (text.isNotEmpty()) {
-                    onSave(note.date, text)
-                    isEditing = false
-                }
-            },
-            onDelete = {
-                isDeleteConfirmationVisible = true
-            },
-            modifier = modifier,
-        )
-        if (isDeleteConfirmationVisible) {
-            NoteDeleteConfirmationDialog(
-                onDismissRequest = { isDeleteConfirmationVisible = false },
-                onConfirm = {
-                    isDeleteConfirmationVisible = false
-                    isEditing = false
-                    onDelete(note.date)
-                },
-            )
-        }
+    if (notes.isEmpty()) {
         return
     }
-
-    PreferenceSegmentedListItem(
-        modifier = modifier,
-        title = dateLabel,
-        supportingText = note.text,
-        onClick = {
-            draftText = note.text
-            isEditing = true
-        },
-        leadingContent = { NoteTimelineMarker() },
-        titleTextStyle = MaterialTheme.typography.labelMedium,
-        supportingTextStyle = MaterialTheme.typography.bodyMedium,
-        titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-@Composable
-private fun NoteTimelineRowEditor(
-    note: Note,
-    dateLabel: String,
-    text: String,
-    onTextChange: (String) -> Unit,
-    onCancel: () -> Unit,
-    onSave: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val trimmedText = text.trim()
-    val canSave = trimmedText.isNotEmpty() && trimmedText != note.text.trim()
-
-    EditorSegmentedListItem(modifier = modifier.fillMaxWidth()) {
-        Row {
-            NoteTimelineMarker()
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-            ) {
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // A continuous rail of accent dots (mirroring MilestonesTimeline) with each day's note as
+    // an editable card to its right. Every note here is past-dated — today lives in the
+    // composer above — so there is no past/today/future split and no Today divider.
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = TimelineDotInset, vertical = 16.dp),
+        ) {
+            notes.forEachIndexed { index, note ->
+                NoteTimelineRow(
+                    note = note,
+                    isFirst = index == 0,
+                    isLast = index == notes.lastIndex,
+                    today = today,
+                    controller = editorController,
+                    onSave = onSave,
+                    onDelete = onDelete,
+                    saveFailureToken = saveFailureToken,
                 )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
-                    minLines = 3,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.journal_delete_note),
-                        onClick = onDelete,
-                        compact = true,
-                    )
-                    Row {
-                        HrtOutlinedButton(
-                            text = stringResource(R.string.cancel),
-                            onClick = onCancel,
-                            compact = true,
-                        )
-                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                        HrtButton(
-                            text = stringResource(R.string.save),
-                            onClick = onSave,
-                            enabled = canSave,
-                            compact = true,
-                        )
-                    }
-                }
             }
         }
     }
+}
+
+@Composable
+private fun NoteTimelineRow(
+    note: Note,
+    isFirst: Boolean,
+    isLast: Boolean,
+    today: LocalDate,
+    controller: NoteEditorController,
+    onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+    saveFailureToken: Int = 0,
+) {
+    val dateLabel = noteTimelineDateLabel(note.date, today)
+    val dateLabelStyle = MaterialTheme.typography.labelLarge
+    var dateLabelHeightPx by remember(dateLabel) { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val outgoingLineBottomInset = with(density) {
+        val dateLabelHeight = if (dateLabelHeightPx > 0) {
+            dateLabelHeightPx.toFloat()
+        } else {
+            dateLabelStyle.lineHeight.takeOrElse { dateLabelStyle.fontSize }.toPx()
+        }
+        val dotTopInDateLabel = (dateLabelHeight - TimelineNodeSize.toPx()) / 2f
+        val insetPx = (TimelineNodeGap.toPx() - dotTopInDateLabel)
+            .coerceAtLeast(0f)
+            .toInt()
+        insetPx.toDp()
+    }
+    val labelGap = dimensionResource(R.dimen.padding_small)
+    val railColor = MaterialTheme.colorScheme.outlineVariant
+    // ConstraintLayout so the dot is anchored to the date label (not the row), keeping it put
+    // when the card below expands into the editor. The connector segments run from the row
+    // edges to the dot, abutting the neighbouring rows into one continuous rail.
+    ConstraintLayout(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
+    ) {
+        val (lineTop, lineBottom, dot, header, card) = createRefs()
+        val contentStart = createGuidelineFromStart(TimelineRailWidth)
+
+        Text(
+            text = dateLabel,
+            style = dateLabelStyle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .onSizeChanged { dateLabelHeightPx = it.height }
+                .constrainAs(header) {
+                    top.linkTo(parent.top)
+                    start.linkTo(contentStart)
+                }
+                .cjkTextOffset(dateLabel),
+        )
+        Box(
+            modifier = Modifier
+                .constrainAs(card) {
+                    top.linkTo(header.bottom, margin = labelGap)
+                    start.linkTo(contentStart)
+                    end.linkTo(parent.end)
+                    width = Dimension.fillToConstraints
+                }
+                // 8dp between this note's text field and the next row's date string; dropped on
+                // the last row since nothing follows it.
+                .padding(bottom = if (isLast) 0.dp else dimensionResource(R.dimen.padding_small)),
+        ) {
+            NoteEditorCard(
+                text = note.text,
+                identity = note.id,
+                controller = controller,
+                onSave = { onSave(note.date, it) },
+                onDelete = { onDelete(note.date) },
+                fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+                saveFailureToken = saveFailureToken,
+            )
+        }
+        // Accent dot, vertically centred on the date label.
+        Box(
+            modifier = Modifier
+                .constrainAs(dot) {
+                    start.linkTo(parent.start)
+                    top.linkTo(header.top)
+                    bottom.linkTo(header.bottom)
+                }
+                .size(TimelineNodeSize)
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                .testTag("$NoteTimelineDotTestTagPrefix${note.id}"),
+        )
+        if (!isFirst) {
+            Box(
+                modifier = Modifier
+                    .constrainAs(lineTop) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(dot.top, margin = TimelineNodeGap)
+                        start.linkTo(dot.start)
+                        end.linkTo(dot.end)
+                        height = Dimension.fillToConstraints
+                    }
+                    .width(TimelineRailStroke)
+                    .background(railColor, RoundedCornerShape(TimelineRailStroke / 2)),
+            )
+        }
+        if (!isLast) {
+            Box(
+                modifier = Modifier
+                    .constrainAs(lineBottom) {
+                        top.linkTo(dot.bottom, margin = TimelineNodeGap)
+                        bottom.linkTo(parent.bottom, margin = outgoingLineBottomInset)
+                        start.linkTo(dot.start)
+                        end.linkTo(dot.end)
+                        height = Dimension.fillToConstraints
+                    }
+                    .width(TimelineRailStroke)
+                    .background(railColor, RoundedCornerShape(TimelineRailStroke / 2))
+                    .testTag("$NoteTimelineLineBottomTestTagPrefix${note.id}"),
+            )
+        }
+    }
+}
+
+// A single past note on the All Notes screen: its own segmented list card, the date label as
+// the card's title above the editable text field. Unlike [NotesTimeline] (the journal top page),
+// the all-notes list drops the timeline rail and groups notes as plain segmented cards, mirroring
+// the calibration screen's month sections. [index]/[count] drive the card's segmented corners.
+@Composable
+fun AllNotesNoteRow(
+    note: Note,
+    index: Int,
+    count: Int,
+    controller: NoteEditorController,
+    onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+    saveFailureToken: Int = 0,
+) {
+    val dateLabel = noteDateLabelWithoutYear(note.date)
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
+    ) {
+        NoteEditorCard(
+            modifier = Modifier.padding(bottom = 6.dp),
+            text = note.text,
+            identity = note.id,
+            controller = controller,
+            onSave = { onSave(note.date, it) },
+            onDelete = { onDelete(note.date) },
+            fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
+            saveFailureToken = saveFailureToken,
+            header = {
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .cjkTextOffset(dateLabel),
+                )
+            },
+        )
+    }
+}
+
+// A filled accent dot for a note's day. Notes carry no medication palette, so every dot is
+// the app's primary accent (unlike MilestoneNode, which colours by palette / future state).
+@Composable
+private fun NoteNode() {
+    Box(
+        modifier = Modifier
+            .size(TimelineNodeSize)
+            .background(MaterialTheme.colorScheme.primary, CircleShape),
+    )
 }
 
 @Composable
@@ -2527,60 +3027,30 @@ private fun NoteDeleteConfirmationDialog(
 }
 
 @Composable
-private fun NoteTimelineMarker(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .width(16.dp)
-            .height(48.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.outlineVariant),
-        )
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(MaterialTheme.colorScheme.primary, CircleShape),
-        )
-    }
-}
-
-@Composable
 private fun noteTimelineDateLabel(
     date: LocalDate,
     today: LocalDate,
 ): String {
     val appLocale = rememberAppLocale()
     val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
+        medicationGroupScheduleDateFormatter(appLocale, today)
     }
-    val todayLabel = stringResource(R.string.journal_today)
-    val yesterdayLabel = stringResource(R.string.journal_yesterday)
-    val label = when (date) {
-        today -> todayLabel
-        today.minusDays(1) -> yesterdayLabel
-        else -> stringResource(
-            R.string.journal_note_date_weekday_pattern,
-            date.dayOfWeek.getDisplayName(TextStyle.FULL, appLocale),
-            dateFormatter(date),
-        )
-    }
-
-    return label.uppercase(appLocale)
+    // Exact date with a short weekday, year shown only for past years (e.g. "Jun 15 Sun",
+    // "Jun 15, 2025 Sun", "6月15日 周三"). No relative "Today"/"Yesterday" labels.
+    return dateFormatter(date)
 }
 
+// Date + short weekday without the year (e.g. "Jun 15 Sun", "6月15日 周三"). Used by the All Notes
+// list, where each row already sits under a month-and-year section header, so repeating the year
+// per row is redundant. Reuse the schedule formatter with the note's own date as the reference so
+// it never crosses into the "other year" branch.
 @Composable
-fun EmptyRecentNotesCard(
-    modifier: Modifier = Modifier,
-) {
-    PreferenceSegmentedListItem(
-        modifier = modifier,
-        title = stringResource(R.string.journal_notes_window_meta),
-        supportingText = stringResource(R.string.journal_write_about_today),
-    )
+private fun noteDateLabelWithoutYear(date: LocalDate): String {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale, date) {
+        medicationGroupScheduleDateFormatter(appLocale, today = date)
+    }
+    return dateFormatter(date)
 }
 
 @Composable
@@ -2590,7 +3060,6 @@ fun EmptyAllNotesCard(
     PreferenceSegmentedListItem(
         modifier = modifier,
         title = stringResource(R.string.journal_no_notes),
-        supportingText = stringResource(R.string.journal_all_notes_empty),
     )
 }
 
@@ -2739,10 +3208,17 @@ private fun MilestonesTimelineEditPreview() {
 @Composable
 private fun JournalEmptyStatesPreview() {
     JournalComponentPreview {
-        EmptyMilestonesCard(onAddDate = {})
+        EmptyMilestonesCard(onOpenMilestones = {}, onAddDate = {})
         EmptyPinnedMilestonesCard(onClick = {})
-        EmptyRecentNotesCard()
         EmptyAllNotesCard()
+    }
+}
+
+@Preview(name = "EmptyMilestonesCard (welcome)", showBackground = true, widthDp = 420)
+@Composable
+private fun EmptyMilestonesWelcomeCardPreview() {
+    JournalComponentPreview {
+        EmptyMilestonesCard(onOpenMilestones = {}, onAddDate = {})
     }
 }
 

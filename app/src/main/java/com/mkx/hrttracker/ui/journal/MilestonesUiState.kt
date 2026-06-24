@@ -10,6 +10,10 @@ data class TimelineNodeUiState(
     val isPinned: Boolean,
 )
 
+// One-shot tracked-date mutation failure. SAVE covers add/update/pin/reorder/background; DELETE
+// covers deleteDate — all the copy distinguishes.
+enum class MilestoneMutation { SAVE, DELETE }
+
 data class MilestonesUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
@@ -19,6 +23,7 @@ data class MilestonesUiState(
     val timeline: List<TimelineNodeUiState> = emptyList(),
     val todayDividerIndex: Int = 0,
     val isEditMode: Boolean = false,
+    val dateMutationError: MilestoneMutation? = null,
 )
 
 data class NextMilestoneUiState(

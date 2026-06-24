@@ -19,6 +19,10 @@ data class AnchorRowUiState(
     val heroBackground: HeroBackground = HeroBackground.None,
 )
 
+// One-shot note mutation failure, collapsed to save-vs-delete granularity (all the copy
+// distinguishes). Shared by JournalViewModel and AllNotesViewModel.
+enum class JournalNoteMutation { SAVE, DELETE }
+
 data class JournalUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
@@ -28,6 +32,12 @@ data class JournalUiState(
     val recentNotes: List<Note> = emptyList(),
     val todayNote: Note? = null,
     val olderNotesCount: Int = 0,
+    // One-shot note write failure (consumed by the screen Toast). Imperatively set; not derived
+    // from the data combine.
+    val noteMutationError: JournalNoteMutation? = null,
+    // Monotonic counter bumped on every note SAVE failure; the composer watches it to recover its
+    // unsaved draft after a failed save.
+    val noteSaveFailureToken: Int = 0,
 ) {
     val hasAnchors: Boolean get() = pinnedAnchors.isNotEmpty()
 }
