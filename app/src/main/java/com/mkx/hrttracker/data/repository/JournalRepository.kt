@@ -360,11 +360,7 @@ class JournalRepository @Inject constructor(
 
     suspend fun deleteNotesForDates(dates: Set<LocalDate>) {
         if (dates.isEmpty()) return
-        val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            dates.forEach { dao.deleteNoteForDate(it.toString()) }
-        }
+        databaseHolder.get().journalDao().deleteNotesForDates(dates.map { it.toString() })
     }
 }
 

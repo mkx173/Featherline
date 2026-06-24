@@ -80,6 +80,9 @@ interface JournalDao {
     @Query("DELETE FROM notes WHERE dateIso = :dateIso")
     suspend fun deleteNoteForDate(dateIso: String)
 
+    @Query("DELETE FROM notes WHERE dateIso IN (:dateIsos)")
+    suspend fun deleteNotesForDates(dateIsos: List<String>)
+
     @Transaction
     suspend fun upsertNote(entity: NoteEntity) {
         val existingForDate = getNoteForDate(entity.dateIso)

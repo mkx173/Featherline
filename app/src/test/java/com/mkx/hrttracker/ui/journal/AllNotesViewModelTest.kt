@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -126,7 +127,9 @@ class AllNotesViewModelTest {
     @Test
     fun deleteSelectedNotes_success_clearsSelectionAndCallsRepo() = runTest {
         val date = LocalDate.of(2026, 6, 1)
-        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
         coEvery { repository.deleteNotesForDates(setOf(date)) } returns Unit
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
@@ -149,7 +152,9 @@ class AllNotesViewModelTest {
     @Test
     fun deleteSelectedNotes_failure_retainsSelectionSetsDeleteErrorKeepsToken() = runTest {
         val date = LocalDate.of(2026, 6, 1)
-        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
         coEvery { repository.deleteNotesForDates(setOf(date)) } throws IOException("io")
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
@@ -170,7 +175,9 @@ class AllNotesViewModelTest {
     @Test
     fun toggleSelection_togglesDateAndSelectionMode() = runTest {
         val date = LocalDate.of(2026, 6, 1)
-        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
 
@@ -189,7 +196,12 @@ class AllNotesViewModelTest {
     fun selectDates_unionsDisplayedDates_clearSelectionEmpties() = runTest {
         val may = LocalDate.of(2026, 5, 20)
         val june = LocalDate.of(2026, 6, 1)
-        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(
+                note(id = "may-20", date = may, text = "May 20"),
+                note(id = "june-1", date = june, text = "June 1"),
+            )
+        )
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
 
@@ -200,6 +212,29 @@ class AllNotesViewModelTest {
 
         viewModel.clearSelection()
         advanceUntilIdle()
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+    }
+
+    @Test
+    fun selection_dropsDatesWhoseNoteDisappeared() = runTest {
+        val date = LocalDate.of(2026, 6, 1)
+        val notes = MutableStateFlow(listOf(note(id = "june-1", date = date, text = "June 1")))
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns notes
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.toggleSelection(date)
+        advanceUntilIdle()
+        assertEquals(setOf(date), viewModel.uiState.value.selectedDates)
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+
+        // The selected note disappears (deleted elsewhere while this activity-scoped VM kept the
+        // selection): the exposed selection must drop it rather than strand selection mode on a row
+        // that no longer exists.
+        notes.value = emptyList()
+        advanceUntilIdle()
+
         assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
         assertFalse(viewModel.uiState.value.isSelectionMode)
     }

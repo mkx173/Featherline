@@ -760,7 +760,7 @@ fun AllNotesScreenContent(
     val selectionFabHideThresholdPx = remember(density) { with(density) { 48.dp.roundToPx() } }
     val selectionFabShowThresholdPx = remember(density) { with(density) { 24.dp.roundToPx() } }
 
-    var isDeleteSelectedConfirmationVisible by remember { mutableStateOf(false) }
+    var isDeleteSelectedConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var isSelectionFabVisible by remember { mutableStateOf(true) }
 
     // Latched count so the title doesn't blink to 0 during the 220ms flip-out (mirror History).
@@ -770,7 +770,7 @@ fun AllNotesScreenContent(
     }
 
     // All dates currently displayed (respecting an active month filter), for select-all + its enablement.
-    val displayedDates = remember(displayedGroups) {
+    val displayedDates = remember(uiState.monthGroups, activeMonth) {
         displayedGroups.flatMap { it.notes }.map { it.date }.toSet()
     }
     val selectAllEnabled = remember { mutableStateOf(false) }
@@ -817,7 +817,9 @@ fun AllNotesScreenContent(
 
     BackHandler(enabled = uiState.isSelectionMode) { onCancelSelection() }
 
-    if (isDeleteSelectedConfirmationVisible) {
+    // Gate on a non-empty selection so the dialog auto-dismisses if the selection drains out from
+    // under it (e.g. the selected note vanished while away), instead of showing "Delete 0 notes?".
+    if (isDeleteSelectedConfirmationVisible && uiState.selectedDates.isNotEmpty()) {
         HazeAlertDialog(
             onDismissRequest = {
                 if (!uiState.isDeletingSelected) isDeleteSelectedConfirmationVisible = false
@@ -863,7 +865,9 @@ fun AllNotesScreenContent(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    if (uiState.selectedDates.isNotEmpty()) isDeleteSelectedConfirmationVisible = true
+                    if (uiState.selectedDates.isNotEmpty() && !uiState.isDeletingSelected) {
+                        isDeleteSelectedConfirmationVisible = true
+                    }
                 },
                 modifier = Modifier
                     .padding(bottom = LocalAppContentBottomInset.current)

@@ -468,8 +468,8 @@ Seven DAO interfaces, each backing the entities in its namesake area.
   first pinned Home anchor; one-note-per-day upserts;
   `upsertTrackedDate` / `upsertNote`; targeted `updatePinnedOrder` /
   `updateHeroBackground` changes for pin/reorder/hero operations; note
-  deletes by date or UUID; and restore helpers that bulk insert or
-  delete all journal rows.
+  deletes by date, by a set of dates, or by UUID; and restore
+  helpers that bulk insert or delete all journal rows.
 - [`HomeDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HomeDao.kt)
   — the composite queries feeding the home screen:
   `observeActiveGroups`, `observeScheduleEntries`,
