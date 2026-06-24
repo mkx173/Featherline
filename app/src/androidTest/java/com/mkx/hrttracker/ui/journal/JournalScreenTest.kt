@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
@@ -56,6 +57,11 @@ class JournalScreenTest {
     private fun tapTimelineRow(noteId: String) {
         val tag = "$NoteTimelineTextFieldTagPrefix$noteId"
         repeat(10) {
+            // A previously-opened editor leaves the soft keyboard up, which can cover a target row
+            // that the tall header pushed below the fold (so it stays not-displayed no matter how
+            // far we scroll). Dismiss it; the editor stays open — its open state is controller-
+            // driven, not focus/IME-driven — so the behaviour under test is unaffected.
+            Espresso.closeSoftKeyboard()
             composeRule.onNodeWithTag(JournalScreenListTag).performScrollToNode(hasTestTag(tag))
             if (runCatching { composeRule.onNodeWithTag(tag).assertIsDisplayed() }.isSuccess) {
                 composeRule.onNodeWithTag(tag).performClick()
