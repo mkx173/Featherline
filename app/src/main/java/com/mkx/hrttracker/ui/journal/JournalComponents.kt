@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.ExitTransition
@@ -57,9 +58,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -2952,6 +2955,32 @@ private fun NoteTimelineRow(
 // the all-notes list drops the timeline rail and groups notes as plain segmented cards, mirroring
 // the calibration screen's month sections. [index]/[count] drive the card's segmented corners.
 @Composable
+private fun SelectionIndicator(
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val selectedDescription = stringResource(R.string.journal_note_selected)
+    val unselectedDescription = stringResource(R.string.journal_select_note)
+    Crossfade(targetState = isSelected, label = "note-selection-indicator") { selected ->
+        if (selected) {
+            Icon(
+                imageVector = Icons.Rounded.CheckCircle,
+                contentDescription = selectedDescription,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = modifier.size(24.dp),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = unselectedDescription,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = modifier.size(24.dp),
+            )
+        }
+    }
+}
+
+@Composable
 fun AllNotesNoteRow(
     note: Note,
     index: Int,
@@ -2961,14 +2990,51 @@ fun AllNotesNoteRow(
     onDelete: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
     saveFailureToken: Int = 0,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: (LocalDate) -> Unit = {},
+    onEnterSelection: (LocalDate) -> Unit = {},
 ) {
     val dateLabel = noteDateLabelWithoutYear(note.date)
+    val isEditingThisRow = controller.isEditing(note.id)
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        label = "all-notes-row-container",
+    )
+    // In selection mode the row toggles selection; otherwise tap begins editing and long-press
+    // enters selection. While this row is editing, the enabled field owns gestures, so the list
+    // item is static (onClick/onLongClick null).
+    val rowOnClick: (() -> Unit)? = when {
+        isSelectionMode -> { { onToggleSelection(note.date) } }
+        isEditingThisRow -> null
+        else -> { { controller.begin(note.id) } }
+    }
+    val rowOnLongClick: (() -> Unit)? = when {
+        isSelectionMode -> { { onToggleSelection(note.date) } }
+        isEditingThisRow -> null
+        else -> { { onEnterSelection(note.date) } }
+    }
     EditorSegmentedListItem(
         index = index,
         count = count,
         modifier = modifier
             .fillMaxWidth()
             .testTag("$NoteTimelineRowTestTagPrefix${note.id}"),
+        onClick = rowOnClick,
+        onLongClick = rowOnLongClick,
+        containerColor = containerColor,
+        leadingContent = {
+            AnimatedVisibility(visible = isSelectionMode) {
+                SelectionIndicator(
+                    isSelected = isSelected,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
+            }
+        },
     ) {
         NoteEditorCard(
             modifier = Modifier.padding(bottom = 6.dp),
@@ -2979,6 +3045,7 @@ fun AllNotesNoteRow(
             onDelete = { onDelete(note.date) },
             fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
             saveFailureToken = saveFailureToken,
+            rowGestureSelectable = true,
             header = {
                 Text(
                     text = dateLabel,
