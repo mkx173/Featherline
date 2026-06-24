@@ -396,6 +396,44 @@ class AllNotesScreenTest {
         }
     }
 
+    @Test
+    fun leavingScreenContent_invokesOnCancelSelectionAfterDisposal() {
+        val firstDate = LocalDate.of(2026, 6, 15)
+        val showContent = mutableStateOf(true)
+        var cancelled = false
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                if (showContent.value) {
+                    AllNotesScreenContent(
+                        uiState = AllNotesUiState(
+                            isLoading = false,
+                            monthGroups = listOf(
+                                MonthGroupUiState(
+                                    month = YearMonth.of(2026, 6),
+                                    notes = listOf(note("june-15", firstDate, "June note")),
+                                ),
+                            ),
+                            selectedDates = setOf(firstDate),
+                        ),
+                        onNavigateBack = { },
+                        onSaveNote = { _, _ -> },
+                        onDeleteNote = { },
+                        onCancelSelection = { cancelled = true },
+                    )
+                }
+            }
+        }
+
+        composeRule.runOnIdle {
+            assertEquals(false, cancelled)
+            showContent.value = false
+        }
+        composeRule.runOnIdle {
+            assertTrue(cancelled)
+        }
+    }
+
     private fun rowTag(noteId: String): String = "note-timeline-row-$noteId"
 
     private fun monthLabel(month: YearMonth, locale: java.util.Locale): String {

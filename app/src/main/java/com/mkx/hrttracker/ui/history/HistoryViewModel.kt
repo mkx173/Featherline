@@ -186,6 +186,8 @@ class HistoryViewModel @Inject constructor(
             YearMonth.from(currentDateTime.value.toLocalDate()),
             clearSelection = true
         )
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
     }
 
     fun toggleSelectedDate(date: LocalDate) {

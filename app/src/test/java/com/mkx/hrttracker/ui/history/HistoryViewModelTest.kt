@@ -443,6 +443,40 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun resetCalendarViewport_clearsEntrySelectionOnCurrentMonth() = runTest {
+        val entry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.toggleEntrySelection(entry.uuid)
+        advanceUntilIdle()
+
+        assertEquals(setOf(entry.uuid), viewModel.uiState.value.selectedEntryIds)
+
+        viewModel.resetCalendarViewport()
+        advanceUntilIdle()
+
+        assertEquals(emptySet<UUID>(), viewModel.uiState.value.selectedEntryIds)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+    }
+
+    @Test
     fun hiddenArchivedGroupRecords_areCountedForDeleteAllWarning() = runTest {
         val settingsState = MutableStateFlow(
             SettingsState(

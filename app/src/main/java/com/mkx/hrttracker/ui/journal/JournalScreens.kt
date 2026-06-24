@@ -729,6 +729,10 @@ fun AllNotesScreenContent(
     val editorController = rememberNoteEditorController()
     val appLocale = rememberAppLocale()
 
+    DisposableEffect(Unit) {
+        onDispose { onCancelSelection() }
+    }
+
     // Month filter (UI-only over the already-grouped notes): null shows every month. The picker is
     // bounded to the months that actually have notes, so an active filter always lands on a
     // non-empty month; a stale selection (its last note deleted) collapses back to "all".
