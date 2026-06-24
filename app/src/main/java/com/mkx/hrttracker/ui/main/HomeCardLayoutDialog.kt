@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -53,14 +58,22 @@ fun HomeCardLayoutDialog(
     var draftHidden by remember { mutableStateOf(layout.hidden) }
 
     // Mirror the pinned tray's settle gate: onDragStopped fires at release, BEFORE
-    // ReorderableColumn's onSettle applies the new order. Gating Done on this flag
-    // stops a drag-then-immediately-tap-Done from committing a stale (pre-settle) order.
+    // ReorderableColumn's onSettle applies the new order. Done stays enabled; a tap
+    // during settle is buffered (confirmPending) and fired once the order settles, so
+    // the committed order is never the stale (pre-settle) one.
     var settlingAfterDrag by remember { mutableStateOf(false) }
+    var confirmPending by remember { mutableStateOf(false) }
     LaunchedEffect(settlingAfterDrag) {
         if (settlingAfterDrag) {
             // Safety net for a drop with no reorder (onSettle never fires).
             delay(1000)
             settlingAfterDrag = false
+        }
+    }
+    LaunchedEffect(settlingAfterDrag, confirmPending) {
+        if (confirmPending && !settlingAfterDrag) {
+            onConfirm(draftOrder, draftHidden)
+            confirmPending = false
         }
     }
 
@@ -84,13 +97,16 @@ fun HomeCardLayoutDialog(
                         HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
                     )
                 },
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) { index, type, isDragging ->
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap),
+                ),
+            ) { index, type, _ ->
                 key(type) {
                     val rowInteraction = remember { MutableInteractionSource() }
                     val gripInteraction = remember { MutableInteractionSource() }
                     val onDragStopped: (Float) -> Unit = { settlingAfterDrag = true }
                     val name = stringResource(homeCardNameRes(type))
+                    val leadingPainter = homeCardLeadingPainter(type)
                     val hidden = type in draftHidden
                     val moveActions = homeCardMoveActions(
                         name = name,
@@ -101,8 +117,8 @@ fun HomeCardLayoutDialog(
                     )
                     HomeCardLayoutRow(
                         name = name,
+                        leadingPainter = leadingPainter,
                         hidden = hidden,
-                        isDragging = isDragging,
                         onToggleHidden = {
                             draftHidden = if (hidden) draftHidden - type else draftHidden + type
                         },
@@ -123,8 +139,12 @@ fun HomeCardLayoutDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !settlingAfterDrag,
-                onClick = { onConfirm(draftOrder, draftHidden) },
+                onClick = {
+                    // Always enabled: if a drag is still settling, buffer the commit
+                    // until onSettle (or the safety net) clears the gate.
+                    if (settlingAfterDrag) confirmPending = true
+                    else onConfirm(draftOrder, draftHidden)
+                },
             ) {
                 Text(stringResource(R.string.journal_done))
             }
@@ -140,16 +160,17 @@ fun HomeCardLayoutDialog(
 @Composable
 private fun HomeCardLayoutRow(
     name: String,
+    leadingPainter: Painter,
     hidden: Boolean,
-    isDragging: Boolean,
     onToggleHidden: () -> Unit,
     gripModifier: Modifier,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (isDragging) {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+    // Container reflects visibility: shown -> secondaryContainer, hidden -> surfaceContainerHighest.
+    val containerColor = if (hidden) {
+        MaterialTheme.colorScheme.surfaceContainerHighest
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.secondaryContainer
     }
     Surface(
         modifier = modifier,
@@ -163,6 +184,13 @@ private fun HomeCardLayoutRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Leading icon mirrors the card's own header icon (card identity).
+            Icon(
+                painter = leadingPainter,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
             Text(
                 text = name,
                 style = MaterialTheme.typography.bodyLarge,
@@ -203,6 +231,15 @@ private fun homeCardNameRes(type: HomeCardType): Int = when (type) {
     HomeCardType.E2_CHART -> R.string.home_card_name_e2_chart
     HomeCardType.ANTIANDROGEN -> R.string.home_card_name_antiandrogen
     HomeCardType.TIMELINE -> R.string.home_card_name_timeline
+}
+
+@Composable
+private fun homeCardLeadingPainter(type: HomeCardType): Painter = when (type) {
+    HomeCardType.LOW_STOCK -> painterResource(R.drawable.ic_inventory_2)
+    HomeCardType.E2_HERO -> rememberVectorPainter(Icons.Rounded.MonitorHeart)
+    HomeCardType.E2_CHART -> rememberVectorPainter(Icons.AutoMirrored.Rounded.ShowChart)
+    HomeCardType.ANTIANDROGEN -> painterResource(R.drawable.ic_medication)
+    HomeCardType.TIMELINE -> painterResource(R.drawable.ic_event)
 }
 
 @Composable
