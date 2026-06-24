@@ -2369,6 +2369,7 @@ private fun NoteEditorCard(
     header: (@Composable () -> Unit)? = null,
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
     saveFailureToken: Int = 0,
+    rowGestureSelectable: Boolean = false,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
     // and the open state is dropped on navigation away. The draft stays local and is re-seeded
@@ -2508,6 +2509,7 @@ private fun NoteEditorCard(
                         onImeAction = saveEditing,
                         expanded = isEditing,
                         reserveWritingHeight = reserveWritingHeight,
+                        enabled = !rowGestureSelectable || isEditing,
                         modifier = fieldModifier.fillMaxWidth(),
                     )
                     AnimatedVisibility(
@@ -2750,6 +2752,7 @@ private fun ComposerTextField(
     modifier: Modifier = Modifier,
     expanded: Boolean = false,
     reserveWritingHeight: Boolean = false,
+    enabled: Boolean = true,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     // When [reserveWritingHeight] is set (the Today composer), edit mode opens ~3 lines of writing
@@ -2766,6 +2769,7 @@ private fun ComposerTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() },
