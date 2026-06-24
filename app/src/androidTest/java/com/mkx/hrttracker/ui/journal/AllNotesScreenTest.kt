@@ -1,12 +1,17 @@
 package com.mkx.hrttracker.ui.journal
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.Note
@@ -181,6 +186,217 @@ class AllNotesScreenTest {
             .performClick()
         composeRule.onNodeWithText("May note").assertIsDisplayed()
     }
+
+    @Test
+    fun longPress_entersSelectionMode_showsCountAndCloseAndIndicator() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val firstDate = LocalDate.of(2026, 6, 15)
+        val secondDate = LocalDate.of(2026, 6, 1)
+        var enteredDate: LocalDate? = null
+
+        val groups = listOf(
+            MonthGroupUiState(
+                month = YearMonth.of(2026, 6),
+                notes = listOf(
+                    note("june-15", firstDate, "June note"),
+                    note("june-1", secondDate, "Earlier June"),
+                ),
+            ),
+        )
+        // Drive the stateless content from a holder so we can long-press in normal mode, then
+        // re-render in selection mode (as the VM would) to assert the chrome.
+        val uiState = mutableStateOf(AllNotesUiState(isLoading = false, monthGroups = groups))
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = uiState.value,
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                    onEnterSelection = { enteredDate = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(rowTag("june-15")).performTouchInput { longClick() }
+        composeRule.runOnIdle {
+            assertEquals(firstDate, enteredDate)
+        }
+
+        composeRule.runOnUiThread {
+            uiState.value = AllNotesUiState(
+                isLoading = false,
+                monthGroups = groups,
+                selectedDates = setOf(firstDate),
+            )
+        }
+
+        val title = context.resources.getQuantityString(R.plurals.journal_selected_notes_title, 1, 1)
+        composeRule.onNodeWithText(title).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_cancel_selection))
+            .assertIsDisplayed()
+        // The selected row shows the "selected" indicator; the unselected row shows the "select" one.
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_note_selected))
+            .assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_select_note))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun tapInSelectionMode_togglesSelection() {
+        val firstDate = LocalDate.of(2026, 6, 15)
+        val secondDate = LocalDate.of(2026, 6, 1)
+        val toggledDates = mutableListOf<LocalDate>()
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(
+                                    note("june-15", firstDate, "June note"),
+                                    note("june-1", secondDate, "Earlier June"),
+                                ),
+                            ),
+                        ),
+                        selectedDates = setOf(firstDate),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                    onToggleSelection = { toggledDates += it },
+                )
+            }
+        }
+
+        // Tapping the unselected row toggles its date on; tapping the selected row toggles it off.
+        composeRule.onNodeWithTag(rowTag("june-1")).performClick()
+        composeRule.onNodeWithTag(rowTag("june-15")).performClick()
+        composeRule.runOnIdle {
+            assertEquals(listOf(secondDate, firstDate), toggledDates)
+        }
+    }
+
+    @Test
+    fun selectAll_invokesOnSelectAllWithDisplayedDates() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val firstDate = LocalDate.of(2026, 6, 15)
+        val secondDate = LocalDate.of(2026, 6, 1)
+        var selectedAll: Set<LocalDate>? = null
+
+        // One of two notes selected, so select-all is enabled and should report every displayed date.
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(
+                                    note("june-15", firstDate, "June note"),
+                                    note("june-1", secondDate, "Earlier June"),
+                                ),
+                            ),
+                        ),
+                        selectedDates = setOf(firstDate),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                    onSelectAll = { selectedAll = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_select_all))
+            .performClick()
+        composeRule.runOnIdle {
+            assertEquals(setOf(firstDate, secondDate), selectedAll)
+        }
+    }
+
+    @Test
+    fun deleteFab_opensConfirmation_thenConfirmInvokesOnDeleteSelected() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val firstDate = LocalDate.of(2026, 6, 15)
+        var deleteSelectedCount = 0
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(note("june-15", firstDate, "June note")),
+                            ),
+                        ),
+                        selectedDates = setOf(firstDate),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                    onDeleteSelected = { deleteSelectedCount++ },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(
+            context.getString(R.string.journal_delete_selected_notes_fab)
+        ).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_selected_notes_title))
+            .assertIsDisplayed()
+        // The dialog only requests the delete on confirm.
+        composeRule.runOnIdle {
+            assertEquals(0, deleteSelectedCount)
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm))
+            .performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, deleteSelectedCount)
+        }
+    }
+
+    @Test
+    fun systemBackInSelectionMode_invokesOnCancelSelection() {
+        val firstDate = LocalDate.of(2026, 6, 15)
+        var cancelled = false
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(note("june-15", firstDate, "June note")),
+                            ),
+                        ),
+                        selectedDates = setOf(firstDate),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                    onCancelSelection = { cancelled = true },
+                )
+            }
+        }
+
+        Espresso.pressBack()
+        composeRule.runOnIdle {
+            assertTrue(cancelled)
+        }
+    }
+
+    private fun rowTag(noteId: String): String = "note-timeline-row-$noteId"
 
     private fun monthLabel(month: YearMonth, locale: java.util.Locale): String {
         return monthHeaderFormatter(locale, currentYear = Int.MIN_VALUE)(month.atDay(1))
