@@ -421,7 +421,7 @@
         <item quantity="one">Delete all %1$d record related to this group? The group will not be deleted.</item>
         <item quantity="other">Delete all %1$d records related to this group? The group will not be deleted.</item>
     </plurals>
-    <string name="delete_group_medication_title">Delete medication</string>
+    <string name="delete_group_medication_title">Remove medication</string>
     <string name="delete_group_medication_confirmation">Remove %1$s from this group?</string>
     <string name="archive_medication_group">Archive group</string>
     <string name="archive_medication_group_title">Archive group</string>

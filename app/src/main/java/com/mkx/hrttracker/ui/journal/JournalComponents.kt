@@ -18,9 +18,11 @@ import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -2967,14 +2969,14 @@ private fun SelectionIndicator(
                 imageVector = Icons.Rounded.CheckCircle,
                 contentDescription = selectedDescription,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = modifier.size(24.dp),
+                modifier = modifier.size(20.dp),
             )
         } else {
             Icon(
                 imageVector = Icons.Rounded.RadioButtonUnchecked,
                 contentDescription = unselectedDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier.size(24.dp),
+                modifier = modifier.size(20.dp),
             )
         }
     }
@@ -3027,14 +3029,9 @@ fun AllNotesNoteRow(
         onClick = rowOnClick,
         onLongClick = rowOnLongClick,
         containerColor = containerColor,
-        leadingContent = {
-            AnimatedVisibility(visible = isSelectionMode) {
-                SelectionIndicator(
-                    isSelected = isSelected,
-                    modifier = Modifier.padding(end = 4.dp),
-                )
-            }
-        },
+        // No leadingContent: the selection indicator lives inside the header next to the date so
+        // only the date shifts when it appears (the editor field below stays put), and the list
+        // item keeps no reserved leading inset that would pad every row's start.
     ) {
         NoteEditorCard(
             modifier = Modifier.padding(bottom = 6.dp),
@@ -3047,15 +3044,30 @@ fun AllNotesNoteRow(
             saveFailureToken = saveFailureToken,
             rowGestureSelectable = true,
             header = {
-                Text(
-                    text = dateLabel,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
-                    modifier = Modifier
-                        .padding(bottom = 6.dp)
-                        .cjkTextOffset(dateLabel),
-                )
+                // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                ) {
+                    // Grows in horizontally from the start edge so the indicator slides in from the
+                    // left and pushes only the date right — the field below never moves.
+                    AnimatedVisibility(
+                        visible = isSelectionMode,
+                        enter = expandHorizontally(expandFrom = Alignment.Start) + fadeIn(),
+                        exit = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut(),
+                    ) {
+                        SelectionIndicator(
+                            isSelected = isSelected,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
+                    Text(
+                        text = dateLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.cjkTextOffset(dateLabel),
+                    )
+                }
             },
         )
     }

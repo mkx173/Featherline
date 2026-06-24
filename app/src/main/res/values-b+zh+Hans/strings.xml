@@ -397,7 +397,7 @@
     <plurals name="delete_group_related_records_confirmation">
         <item quantity="other">要删除全部 %1$d 条与此分组相关的记录吗？分组不会被删除</item>
     </plurals>
-    <string name="delete_group_medication_title">删除药物</string>
+    <string name="delete_group_medication_title">移除药物</string>
     <string name="delete_group_medication_confirmation">要将 %1$s 从这个分组中移除吗？</string>
     <string name="archive_medication_group">归档分组</string>
     <string name="archive_medication_group_title">归档分组</string>
