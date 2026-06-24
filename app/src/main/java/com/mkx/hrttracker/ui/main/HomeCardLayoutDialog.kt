@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -173,6 +174,7 @@ private fun HomeCardLayoutRow(
         MaterialTheme.colorScheme.secondaryContainer
     }
     Surface(
+        onClick = onToggleHidden,
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
         color = containerColor,
@@ -193,7 +195,9 @@ private fun HomeCardLayoutRow(
             Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyLarge,
+                // Same text style as the real card titles (labelLarge + SemiBold).
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .weight(1f)
                     .cjkTextOffset(name),

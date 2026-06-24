@@ -95,10 +95,10 @@ class HomeCardLayoutDialogTest {
         // CustomActions is keyed to a List<CustomAccessibilityAction>, not an AccessibilityAction,
         // so the action is read from the node config and invoked directly on the UI thread —
         // the two-arg performSemanticsAction block overload does not apply to CustomActions.
-        // The actions live on the row, the parent of the matched Timeline text node.
+        // The row is a clickable (tap-to-toggle) Surface, so its semantics merge: the Timeline
+        // text node IS the row node that carries the custom actions.
         val action = composeRule.onNodeWithText(timelineName)
             .fetchSemanticsNode()
-            .parent!!
             .config[SemanticsActions.CustomActions]
             .first { it.label == moveTimelineToTop }
         composeRule.runOnUiThread { action.action() }
