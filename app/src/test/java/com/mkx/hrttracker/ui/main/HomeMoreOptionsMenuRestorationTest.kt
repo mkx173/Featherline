@@ -32,6 +32,7 @@ class HomeMoreOptionsMenuRestorationTest {
             HomeMoreOptionsMenu(
                 selectedUnit = BloodUnitKey.PG_ML,
                 onUnitSelected = {},
+                onCustomizeCards = {},
             )
         }
 

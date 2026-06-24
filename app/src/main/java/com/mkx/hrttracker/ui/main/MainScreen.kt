@@ -135,6 +135,7 @@ fun MainScreen(
     val highlightRequest by viewModel.highlightRequest.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
     var highlightFlashReady by remember { mutableStateOf(false) }
+    var showCardLayoutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(highlightRequest, highlightEffectsEnabled) {
         val activeRequest = highlightRequest
@@ -213,6 +214,7 @@ fun MainScreen(
                     HomeMoreOptionsMenu(
                         selectedUnit = uiState.homeE2DisplayUnit,
                         onUnitSelected = viewModel::setHomeE2DisplayUnit,
+                        onCustomizeCards = { showCardLayoutDialog = true },
                     )
                 },
                 scrollBehavior = scrollBehavior
@@ -238,6 +240,17 @@ fun MainScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+
+    if (showCardLayoutDialog) {
+        HomeCardLayoutDialog(
+            layout = uiState.homeCardLayout,
+            onConfirm = { order, hidden ->
+                viewModel.setHomeCardLayout(order, hidden)
+                showCardLayoutDialog = false
+            },
+            onDismiss = { showCardLayoutDialog = false },
+        )
     }
 }
 
@@ -287,6 +300,7 @@ internal fun HomeMoreOptionsMenuState.toHomeMoreOptionsMenuExpansion(): HomeMore
 internal fun HomeMoreOptionsMenu(
     selectedUnit: BloodUnitKey,
     onUnitSelected: (BloodUnitKey) -> Unit,
+    onCustomizeCards: () -> Unit,
 ) {
     // Deliberately not rememberSaveable: the menu is transient chrome and must
     // not re-present on tab return / restoration (PR #60 finding 10).
@@ -340,6 +354,21 @@ internal fun HomeMoreOptionsMenu(
                             modifier = Modifier.size(MenuDefaults.TrailingIconSize),
                         )
                     },
+                )
+
+                val customizeCardsText = stringResource(R.string.home_card_layout_menu)
+                DropdownMenuItem(
+                    onClick = {
+                        dismissMenus()
+                        onCustomizeCards()
+                    },
+                    text = {
+                        Text(
+                            text = customizeCardsText,
+                            modifier = Modifier.cjkTextOffset(customizeCardsText),
+                        )
+                    },
+                    shape = MaterialTheme.shapes.medium,
                 )
             }
         }
