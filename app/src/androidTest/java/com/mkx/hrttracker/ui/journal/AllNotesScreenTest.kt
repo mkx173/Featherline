@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.journal
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -10,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
@@ -434,7 +437,40 @@ class AllNotesScreenTest {
         }
     }
 
+    @Test
+    fun tapPastNoteText_beginsEditingWithCursorAtTap() {
+        val noteDate = LocalDate.of(2026, 6, 15)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AllNotesScreenContent(
+                    uiState = AllNotesUiState(
+                        isLoading = false,
+                        monthGroups = listOf(
+                            MonthGroupUiState(
+                                month = YearMonth.of(2026, 6),
+                                notes = listOf(note("june-15", noteDate, "Hello")),
+                            ),
+                        ),
+                    ),
+                    onNavigateBack = { },
+                    onSaveNote = { _, _ -> },
+                    onDeleteNote = { },
+                )
+            }
+        }
+
+        // Tapping past the end of the note text must begin editing with the cursor at the tapped
+        // character (here: the end), so a typed character APPENDS. The old fixed-offset-0 behaviour
+        // would prepend ("!Hello"), so this asserts the cursor follows the tap rather than resetting.
+        composeRule.onNodeWithText("Hello").performTouchInput { click(centerRight) }
+        composeRule.onNodeWithTag(fieldTag("june-15")).performTextInput("!")
+        composeRule.onNodeWithTag(fieldTag("june-15")).assertTextContains("Hello!")
+    }
+
     private fun rowTag(noteId: String): String = "note-timeline-row-$noteId"
+
+    private fun fieldTag(noteId: String): String = "note-timeline-text-field-$noteId"
 
     private fun monthLabel(month: YearMonth, locale: java.util.Locale): String {
         return monthHeaderFormatter(locale, currentYear = Int.MIN_VALUE)(month.atDay(1))

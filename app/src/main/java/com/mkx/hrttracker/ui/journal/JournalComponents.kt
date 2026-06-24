@@ -29,6 +29,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -85,6 +86,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -113,6 +115,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -128,10 +131,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -2372,12 +2378,21 @@ private fun NoteEditorCard(
     prompt: (@Composable (onClick: () -> Unit) -> Unit)? = null,
     saveFailureToken: Int = 0,
     rowGestureSelectable: Boolean = false,
+    // When non-null (an All Notes row that is idle and not yet in selection mode), the idle text
+    // owns its own gestures: a tap begins editing with the cursor at the tapped character, and a
+    // long-press invokes this to enter selection. Null (Today/timeline, or a row already in
+    // selection mode) leaves the idle text transparent so the enclosing row handles taps.
+    onIdleLongPress: (() -> Unit)? = null,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
     // and the open state is dropped on navigation away. The draft stays local and is re-seeded
     // from [text] each time editing begins.
     val isEditing = controller.isEditing(identity)
-    var draftText by rememberSaveable(identity, text) { mutableStateOf(text) }
+    // TextFieldValue (not a bare String) so editing can begin with the cursor at the tapped
+    // character (see [beginEditingAtCursor]); its selection also survives process death via the Saver.
+    var draft by rememberSaveable(identity, text, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(text, TextRange(text.length)))
+    }
     var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
     // Whether this edit targets text that already existed. Captured when editing begins and
     // held for the whole session, including the closing animation. Saving a brand-new note
@@ -2415,6 +2430,8 @@ private fun NoteEditorCard(
     // idle rows don't recompose through the keyboard animation.
     val density = LocalDensity.current
     var editorBoxHeightPx by remember { mutableStateOf(0) }
+    // The idle text's layout, so a tap position can be mapped to a character index for the cursor.
+    var idleTextLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val imeBottomPx = if (isEditing) WindowInsets.ime.getBottom(density) else 0
 
     // The box stays mounted whenever text exists, so tapping to edit never shifts it; with no
@@ -2431,24 +2448,33 @@ private fun NoteEditorCard(
         controller.finish(identity)
     }
 
-    val beginEditing = {
-        draftText = text
+    // Open the editor with the cursor at [cursorOffset] — a tap into the idle text maps the tap
+    // position to a character index. Null parks the cursor at the end, the natural spot for the
+    // prompt and for any tap that doesn't land on the text itself.
+    val beginEditingAtCursor = { cursorOffset: Int? ->
+        val offset = (cursorOffset ?: text.length).coerceIn(0, text.length)
+        draft = TextFieldValue(text, TextRange(offset))
         editingExistingNote = text.isNotEmpty()
         controller.begin(identity)
     }
+    val beginEditing = { beginEditingAtCursor(null) }
+    // The idle text's gesture detector outlives recompositions; read the latest callbacks through
+    // these so a fresh [onIdleLongPress]/[beginEditingAtCursor] lambda doesn't restart it each frame.
+    val currentBeginEditingAtCursor by rememberUpdatedState(beginEditingAtCursor)
+    val currentIdleLongPress by rememberUpdatedState(onIdleLongPress)
 
     // Commit the draft and close the editor. Shared by the Save button and the IME "Done" action
     // so both follow the same save-then-clear-focus path. A blank or unchanged draft writes
     // nothing and just reverts to the saved text.
     val saveEditing = {
-        val trimmed = draftText.trim()
+        val trimmed = draft.text.trim()
         if (trimmed.isNotEmpty() && trimmed != text.trim()) {
             // Hold the field through the async save so the prompt doesn't blink back in while the
             // committed text round-trips. Released by the effect below once [text] reflects the save.
             savePending = true
             onSave(trimmed)
         } else if (text.isNotEmpty()) {
-            draftText = text
+            draft = TextFieldValue(text, TextRange(text.length))
         }
         finishEditing()
     }
@@ -2458,7 +2484,7 @@ private fun NoteEditorCard(
     // would blank the field mid-exit) and let the next open re-seed it. Shared by the Cancel button
     // and the back gesture.
     val cancelEditing = {
-        if (text.isNotEmpty()) draftText = text
+        if (text.isNotEmpty()) draft = TextFieldValue(text, TextRange(text.length))
         finishEditing()
     }
 
@@ -2500,20 +2526,57 @@ private fun NoteEditorCard(
                         .bringIntoViewRequester(bringIntoViewRequester)
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
-                    ComposerTextField(
-                        value = draftText,
-                        onValueChange = { draftText = it },
-                        focusRequester = focusRequester,
-                        onFocused = {
-                            editingExistingNote = text.isNotEmpty()
-                            controller.begin(identity)
-                        },
-                        onImeAction = saveEditing,
-                        expanded = isEditing,
-                        reserveWritingHeight = reserveWritingHeight,
-                        enabled = !rowGestureSelectable || isEditing,
-                        modifier = fieldModifier.fillMaxWidth(),
-                    )
+                    // A gesture-selectable row (All Notes) shows its saved note as static, readable
+                    // text while not editing, so the row owns tap/long-press (begin edit, or
+                    // enter/toggle selection) and screen readers read plain content instead of a
+                    // disabled field. The live field mounts only once this row is editing. Other
+                    // callers (Today, the timeline) keep the live field — tapping it is how they
+                    // begin editing.
+                    if (rowGestureSelectable && !isEditing) {
+                        // When this idle row drives selection ([onIdleLongPress] non-null), the
+                        // static text owns one gesture detector: a tap begins editing with the
+                        // cursor at the tapped character, a long-press enters selection. It has no
+                        // built-in gestures of its own to race, so the split is clean. In selection
+                        // mode the callback is null and the text stays transparent, so the enclosing
+                        // row's onClick toggles the row instead.
+                        val gestureModifier = if (onIdleLongPress != null) {
+                            Modifier.pointerInput(Unit) {
+                                detectTapGestures(
+                                    onLongPress = { currentIdleLongPress?.invoke() },
+                                    onTap = { position ->
+                                        currentBeginEditingAtCursor(
+                                            idleTextLayout?.getOffsetForPosition(position)
+                                        )
+                                    },
+                                )
+                            }
+                        } else {
+                            Modifier
+                        }
+                        Text(
+                            text = draft.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            onTextLayout = { idleTextLayout = it },
+                            modifier = fieldModifier
+                                .fillMaxWidth()
+                                .then(gestureModifier),
+                        )
+                    } else {
+                        ComposerTextField(
+                            value = draft,
+                            onValueChange = { draft = it },
+                            focusRequester = focusRequester,
+                            onFocused = {
+                                editingExistingNote = text.isNotEmpty()
+                                controller.begin(identity)
+                            },
+                            onImeAction = saveEditing,
+                            expanded = isEditing,
+                            reserveWritingHeight = reserveWritingHeight,
+                            modifier = fieldModifier.fillMaxWidth(),
+                        )
+                    }
                     AnimatedVisibility(
                         visible = isEditing,
                         // The box makes room on [sizeSpec]; the buttons fade on a slower spring
@@ -2557,7 +2620,7 @@ private fun NoteEditorCard(
     // An editor restored already-open (process death, or navigating away and back) is open on the
     // first composition, so it reopens silently — draft shown, keyboard down — until the user taps.
     // On close with no pending save, discard the in-progress draft so it can't linger: the collapsed
-    // row renders draftText, and re-opening goes through controller.begin (not beginEditing) without
+    // row renders the draft, and re-opening goes through controller.begin (not beginEditing) without
     // re-seeding, so an abandoned edit would otherwise resurface — and be re-savable — after
     // switching to another card, cancelling, backing out, or confirming a delete (whose write may
     // fail, leaving the row showing an unsaved draft as if persisted). A pending save keeps its
@@ -2567,7 +2630,7 @@ private fun NoteEditorCard(
         if (isEditing) {
             if (firstCompositionSettled) runCatching { focusRequester.requestFocus() }
         } else if (!savePending) {
-            draftText = text
+            draft = TextFieldValue(text, TextRange(text.length))
         }
         firstCompositionSettled = true
     }
@@ -2746,15 +2809,14 @@ private fun TodayComposerPrompt(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ComposerTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onImeAction: () -> Unit,
     modifier: Modifier = Modifier,
     expanded: Boolean = false,
     reserveWritingHeight: Boolean = false,
-    enabled: Boolean = true,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     // When [reserveWritingHeight] is set (the Today composer), edit mode opens ~3 lines of writing
@@ -2771,7 +2833,6 @@ private fun ComposerTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        enabled = enabled,
         modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() },
@@ -3014,9 +3075,11 @@ fun AllNotesNoteRow(
         },
         label = "all-notes-row-container",
     )
-    // In selection mode the row toggles selection; otherwise tap begins editing and long-press
-    // enters selection. While this row is editing, the enabled field owns gestures, so the list
-    // item is static (onClick/onLongClick null).
+    // These handle taps on the row CHROME (the date header, padding) — over the note text the idle
+    // text owns its own gesture (tap begins editing at the tapped character, long-press selects;
+    // see [NoteEditorCard.onIdleLongPress]). In selection mode the idle text is transparent so the
+    // row toggles for taps anywhere. While editing, the live field owns gestures, so the list item
+    // is static (onClick/onLongClick null).
     val rowOnClick: (() -> Unit)? = when {
         isSelectionMode -> { { onToggleSelection(note.date) } }
         isEditingThisRow -> null
@@ -3050,6 +3113,11 @@ fun AllNotesNoteRow(
             fieldModifier = Modifier.testTag("$NoteTimelineTextFieldTestTagPrefix${note.id}"),
             saveFailureToken = saveFailureToken,
             rowGestureSelectable = true,
+            // Only an idle, not-yet-selecting row lets its text drive begin-edit/enter-selection;
+            // in selection mode the text goes transparent so the row toggles instead.
+            onIdleLongPress = if (isSelectionMode) null else {
+                { onEnterSelection(note.date) }
+            },
             header = {
                 // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
                 Row(
