@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.IMPORTED_INJECTION_ESTER_KEYS
@@ -307,6 +308,7 @@ class BackupRestoreService @Inject constructor(
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
             stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
             stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
+            homeCardLayout = validatedSnapshot.settings.homeCardLayout,
         )
 
         // Restore REPLACES the default appearance wholesale, including hue, saturation
@@ -976,6 +978,8 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
             ?: throw IllegalArgumentException("Invalid widget appearance payload.")
     }
 
+    val homeCardLayout = HomeCardLayout.decode(homeCardOrder, homeCardHidden)
+
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
         adaptiveColorEnabled = adaptiveColorEnabled,
@@ -1005,6 +1009,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         firstDayOfWeekOption = firstDayOfWeekOption,
         stockNudgeEnabled = stockNudgeEnabled,
         stockNudgeUserEnabled = stockNudgeUserEnabled,
+        homeCardLayout = homeCardLayout,
     )
 }
 
@@ -1647,6 +1652,7 @@ internal data class ValidatedBackupSettings(
     val firstDayOfWeekOption: FirstDayOfWeekOption,
     val stockNudgeEnabled: Boolean,
     val stockNudgeUserEnabled: Boolean,
+    val homeCardLayout: HomeCardLayout,
 )
 
 private data class ValidatedMedicationData(

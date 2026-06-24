@@ -27,6 +27,8 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -113,7 +115,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(),
+                any(), any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
@@ -179,7 +181,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(),
+                any(), any(),
             )
         }
     }
@@ -1003,7 +1005,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(),
+                any(), any(),
             )
         }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
@@ -1305,6 +1307,107 @@ class BackupRestoreServiceTest {
         assertEquals(2.0, restoredMedicine.stockUnitsLastTotal!!, 1e-9)
     }
 
+    @Test
+    fun restoreBackupBytes_appliesHomeCardLayout() = runTest {
+        val base = emptySnapshot()
+        val snapshot = base.copy(
+            settings = base.settings.copy(
+                homeCardOrder = listOf("TIMELINE", "E2_HERO", "E2_CHART", "ANTIANDROGEN", "LOW_STOCK"),
+                homeCardHidden = listOf("E2_CHART"),
+            )
+        )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
+        )
+        val layoutSlot = slot<HomeCardLayout>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), capture(layoutSlot),
+            )
+        }
+        assertEquals(HomeCardType.TIMELINE, layoutSlot.captured.order.first())
+        assertEquals(setOf(HomeCardType.E2_CHART), layoutSlot.captured.hidden)
+    }
+
+    @Test
+    fun restoreBackupBytes_legacyBackupWithoutLayoutAppliesDefault() = runTest {
+        // emptySnapshot()'s settings omit nothing at the Kotlin level, but the JSON it
+        // encodes carries the defaulted homeCard* fields; to simulate a legacy backup,
+        // force the default values explicitly (decoder maps empty/absent -> default order).
+        val base = emptySnapshot()
+        val snapshot = base.copy(
+            settings = base.settings.copy(
+                homeCardOrder = emptyList(),
+                homeCardHidden = emptyList(),
+            )
+        )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
+        )
+        val layoutSlot = slot<HomeCardLayout>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), capture(layoutSlot),
+            )
+        }
+        assertEquals(HomeCardLayout(), layoutSlot.captured)
+    }
+
+    @Test
+    fun restoreBackupBytes_normalizesUnknownAndDuplicateLayoutNames() = runTest {
+        val base = emptySnapshot()
+        val snapshot = base.copy(
+            settings = base.settings.copy(
+                homeCardOrder = listOf("E2_HERO", "E2_HERO", "GHOST", "LOW_STOCK"),
+                homeCardHidden = listOf("LOW_STOCK", "NOPE"),
+            )
+        )
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(snapshot),
+            password = "password".toCharArray(),
+        )
+        val layoutSlot = slot<HomeCardLayout>()
+
+        service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
+
+        coVerify {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), capture(layoutSlot),
+            )
+        }
+        assertEquals(
+            listOf(
+                HomeCardType.E2_HERO,
+                HomeCardType.LOW_STOCK,
+                HomeCardType.E2_CHART,
+                HomeCardType.ANTIANDROGEN,
+                HomeCardType.TIMELINE,
+            ),
+            layoutSlot.captured.order,
+        )
+        assertEquals(setOf(HomeCardType.LOW_STOCK), layoutSlot.captured.hidden)
+    }
+
     private fun snapshotWithWidgetContentScale(scale: Float): BackupSnapshot {
         val base = emptySnapshot()
         return base.copy(settings = base.settings.copy(widgetContentScale = scale))
@@ -1349,6 +1452,7 @@ class BackupRestoreServiceTest {
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
+        every { exportSettingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
         coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery {
             exportWidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
