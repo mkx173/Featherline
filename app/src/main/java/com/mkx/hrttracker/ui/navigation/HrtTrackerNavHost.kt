@@ -315,7 +315,7 @@ internal data class NavigationItemContent(
 internal val topLevelNavigationItems = listOf(
     NavigationItemContent(Screen.Main, R.drawable.ic_home),
     NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month),
-    NavigationItemContent(Screen.Journal, R.drawable.ic_menu_book),
+    NavigationItemContent(Screen.Journal, R.drawable.ic_book_ribbon),
     NavigationItemContent(Screen.Settings, R.drawable.ic_settings),
 )
 

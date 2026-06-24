@@ -196,11 +196,12 @@
     <string name="journal_delete_note_confirmation">要删除这条笔记吗？</string>
     <string name="journal_since_you_started">时间线</string>
     <string name="journal_no_dates">暂无追踪的日期</string>
+    <string name="journal_no_dates_welcome_title">开始记录你的时间线</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
     <string name="journal_today">今天</string>
-    <string name="journal_write_about_today">记录今天...</string>
-    <string name="journal_no_dates_subtitle">添加第一个日期</string>
+    <string name="journal_write_about_today">随手记下这一刻...</string>
+    <string name="journal_no_dates_subtitle">添加一个日期，记录重要的瞬间</string>
     <string name="journal_nothing_pinned_title">暂无已固定的日期</string>
     <string name="journal_nothing_pinned_subtitle">已固定的日期会显示在这里</string>
     <string name="journal_open">打开</string>

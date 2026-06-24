@@ -204,11 +204,12 @@
     <string name="journal_delete_note_confirmation">Delete this note?</string>
     <string name="journal_since_you_started">Timeline</string>
     <string name="journal_no_dates">No tracked dates yet</string>
+    <string name="journal_no_dates_welcome_title">Start your timeline</string>
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
     <string name="journal_today">Today</string>
-    <string name="journal_write_about_today">Write about today...</string>
-    <string name="journal_no_dates_subtitle">Add your first date.</string>
+    <string name="journal_write_about_today">Write about this moment...</string>
+    <string name="journal_no_dates_subtitle">Add a date to see how far you\'ve come.</string>
     <string name="journal_nothing_pinned_title">No pinned dates yet</string>
     <string name="journal_nothing_pinned_subtitle">Pinned dates appear here.</string>
     <string name="journal_open">Open</string>

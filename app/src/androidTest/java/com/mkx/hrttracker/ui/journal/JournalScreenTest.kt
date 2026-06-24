@@ -69,7 +69,9 @@ class JournalScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
+        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates_welcome_title))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_add_date))
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText(context.getString(R.string.journal_see_all_notes))
@@ -104,7 +106,7 @@ class JournalScreenTest {
 
         composeRule.onNodeWithText(context.getString(R.string.journal_nothing_pinned_title))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates))
+        composeRule.onNodeWithText(context.getString(R.string.journal_no_dates_welcome_title))
             .assertIsNotDisplayed()
     }
 

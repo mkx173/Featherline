@@ -130,6 +130,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -155,6 +156,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.LocalSegmentPosition
@@ -472,18 +474,66 @@ private fun PinnedDateRow(
     }
 }
 
+// The brand-new-user empty state for the Timeline section (no tracked dates at all): a centered
+// welcome with a tinted calendar glyph, an encouraging headline + subtitle, and a primary
+// "Add a date" button. Unlike the compact MilestonesEmptyCard row, the action lives on the button
+// rather than the whole surface, giving first-time users a single, obvious tap target.
 @Composable
 fun EmptyMilestonesCard(
     onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    MilestonesEmptyCard(
-        icon = painterResource(R.drawable.ic_calendar_today),
-        title = stringResource(R.string.journal_no_dates),
-        subtitle = stringResource(R.string.journal_no_dates_subtitle),
-        onClick = onAddDate,
-        modifier = modifier,
-    )
+    val title = stringResource(R.string.journal_no_dates_welcome_title)
+    val subtitle = stringResource(R.string.journal_no_dates_subtitle)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp, bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_event),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.cjkTextOffset(title),
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.cjkTextOffset(subtitle),
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            HrtFilledTonalButton(
+                text = stringResource(R.string.journal_add_date),
+                icon = Icons.Rounded.Add,
+                onClick = onAddDate,
+            )
+        }
+    }
 }
 
 @Composable
@@ -3151,6 +3201,14 @@ private fun JournalEmptyStatesPreview() {
         EmptyMilestonesCard(onAddDate = {})
         EmptyPinnedMilestonesCard(onClick = {})
         EmptyAllNotesCard()
+    }
+}
+
+@Preview(name = "EmptyMilestonesCard (welcome)", showBackground = true, widthDp = 420)
+@Composable
+private fun EmptyMilestonesWelcomeCardPreview() {
+    JournalComponentPreview {
+        EmptyMilestonesCard(onAddDate = {})
     }
 }
 
