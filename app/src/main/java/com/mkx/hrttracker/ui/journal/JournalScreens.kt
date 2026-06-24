@@ -227,7 +227,10 @@ fun JournalScreenContent(
                             }
                         } else {
                             item {
-                                EmptyMilestonesCard(onAddDate = onAddDate)
+                                EmptyMilestonesCard(
+                                    onOpenMilestones = onOpenMilestones,
+                                    onAddDate = onAddDate,
+                                )
                             }
                         }
                     }

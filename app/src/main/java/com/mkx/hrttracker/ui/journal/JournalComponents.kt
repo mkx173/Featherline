@@ -475,11 +475,12 @@ private fun PinnedDateRow(
 }
 
 // The brand-new-user empty state for the Timeline section (no tracked dates at all): a centered
-// welcome with a tinted calendar glyph, an encouraging headline + subtitle, and a primary
-// "Add a date" button. Unlike the compact MilestonesEmptyCard row, the action lives on the button
-// rather than the whole surface, giving first-time users a single, obvious tap target.
+// welcome with a tinted calendar glyph, an encouraging headline + subtitle, and an "Add a date"
+// button. Tapping the card opens the Milestones screen; tapping the button opens it and the
+// add-date sheet straight away.
 @Composable
 fun EmptyMilestonesCard(
+    onOpenMilestones: () -> Unit,
     onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -489,6 +490,7 @@ fun EmptyMilestonesCard(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = onOpenMilestones,
     ) {
         Column(
             modifier = Modifier
@@ -3198,7 +3200,7 @@ private fun MilestonesTimelineEditPreview() {
 @Composable
 private fun JournalEmptyStatesPreview() {
     JournalComponentPreview {
-        EmptyMilestonesCard(onAddDate = {})
+        EmptyMilestonesCard(onOpenMilestones = {}, onAddDate = {})
         EmptyPinnedMilestonesCard(onClick = {})
         EmptyAllNotesCard()
     }
@@ -3208,7 +3210,7 @@ private fun JournalEmptyStatesPreview() {
 @Composable
 private fun EmptyMilestonesWelcomeCardPreview() {
     JournalComponentPreview {
-        EmptyMilestonesCard(onAddDate = {})
+        EmptyMilestonesCard(onOpenMilestones = {}, onAddDate = {})
     }
 }
 
