@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,11 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -39,10 +45,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -51,6 +59,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -66,13 +75,16 @@ import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
+import com.mkx.hrttracker.ui.components.SelectionFabScrollState
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.hrtSection
@@ -80,11 +92,13 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 private const val JournalScreenListTestTag = "journal-screen-list"
 
@@ -670,11 +684,16 @@ fun AllNotesScreen(
         onSaveNote = viewModel::saveNote,
         onDeleteNote = viewModel::deleteNote,
         noteSaveFailureToken = uiState.noteSaveFailureToken,
+        onToggleSelection = viewModel::toggleSelection,
+        onEnterSelection = viewModel::toggleSelection,
+        onSelectAll = viewModel::selectDates,
+        onCancelSelection = viewModel::clearSelection,
+        onDeleteSelected = viewModel::deleteSelectedNotes,
         modifier = modifier,
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AllNotesScreenContent(
     uiState: AllNotesUiState,
@@ -683,6 +702,11 @@ fun AllNotesScreenContent(
     onDeleteNote: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     noteSaveFailureToken: Int = 0,
+    onToggleSelection: (LocalDate) -> Unit = {},
+    onEnterSelection: (LocalDate) -> Unit = {},
+    onSelectAll: (Set<LocalDate>) -> Unit = {},
+    onCancelSelection: () -> Unit = {},
+    onDeleteSelected: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
@@ -717,53 +741,217 @@ fun AllNotesScreenContent(
         )
     }
 
+    val density = LocalDensity.current
+    val selectionFabHideThresholdPx = remember(density) { with(density) { 48.dp.roundToPx() } }
+    val selectionFabShowThresholdPx = remember(density) { with(density) { 24.dp.roundToPx() } }
+
+    var isDeleteSelectedConfirmationVisible by remember { mutableStateOf(false) }
+    var isSelectionFabVisible by remember { mutableStateOf(true) }
+
+    // Latched count so the title doesn't blink to 0 during the 220ms flip-out (mirror History).
+    val displayedSelectedNoteCount = remember { mutableIntStateOf(uiState.selectedDates.size) }
+    if (uiState.isSelectionMode) {
+        displayedSelectedNoteCount.intValue = uiState.selectedDates.size
+    }
+
+    // All dates currently displayed (respecting an active month filter), for select-all + its enablement.
+    val displayedDates = remember(displayedGroups) {
+        displayedGroups.flatMap { it.notes }.map { it.date }.toSet()
+    }
+    val selectAllEnabled = remember { mutableStateOf(false) }
+    if (uiState.isSelectionMode) {
+        selectAllEnabled.value = displayedDates.any { it !in uiState.selectedDates }
+    }
+
+    // Entering selection mode finishes any open editor so a row is never both editing and selectable.
+    LaunchedEffect(uiState.isSelectionMode) {
+        if (uiState.isSelectionMode) {
+            editorController.finish(editorController.activeEditorId)
+        }
+    }
+
+    // Scroll-hide the FAB while in selection mode (mirror History HistoryScreen.kt:435-476).
+    LaunchedEffect(listState, uiState.isSelectionMode, selectionFabHideThresholdPx, selectionFabShowThresholdPx) {
+        if (!uiState.isSelectionMode) {
+            isSelectionFabVisible = true
+            return@LaunchedEffect
+        }
+        var fabScrollState = SelectionFabScrollState(visible = true)
+        isSelectionFabVisible = true
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) ->
+                val visibleItems = listState.layoutInfo.visibleItemsInfo
+                fabScrollState = updateSelectionFabScrollState(
+                    state = fabScrollState,
+                    previousIndex = previousIndex,
+                    previousOffset = previousOffset,
+                    index = index,
+                    offset = offset,
+                    estimatedItemSizePx = if (visibleItems.isEmpty()) 0 else visibleItems.sumOf { it.size } / visibleItems.size,
+                    hideThresholdPx = selectionFabHideThresholdPx,
+                    showThresholdPx = selectionFabShowThresholdPx,
+                )
+                isSelectionFabVisible = fabScrollState.visible
+                previousIndex = index
+                previousOffset = offset
+            }
+    }
+
+    BackHandler(enabled = uiState.isSelectionMode) { onCancelSelection() }
+
+    if (isDeleteSelectedConfirmationVisible) {
+        HazeAlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingSelected) isDeleteSelectedConfirmationVisible = false
+            },
+            title = { Text(text = stringResource(R.string.journal_delete_selected_notes_title)) },
+            text = {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.journal_delete_selected_notes_confirmation,
+                        uiState.selectedDates.size,
+                        uiState.selectedDates.size,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (uiState.isDeletingSelected) return@TextButton
+                        isDeleteSelectedConfirmationVisible = false
+                        onDeleteSelected()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        if (!uiState.isDeletingSelected) isDeleteSelectedConfirmationVisible = false
+                    },
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    if (uiState.selectedDates.isNotEmpty()) isDeleteSelectedConfirmationVisible = true
+                },
+                modifier = Modifier
+                    .padding(bottom = LocalAppContentBottomInset.current)
+                    .animateFloatingActionButton(
+                        visible = uiState.isSelectionMode && isSelectionFabVisible,
+                        alignment = Alignment.BottomEnd,
+                    ),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.journal_delete_selected_notes_fab),
+                )
+            }
+        },
         topBar = {
             HazeTopAppBar(
                 title = {
-                    val title = stringResource(R.string.journal_all_notes)
-                    Text(
-                        text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
+                        contentAlignment = Alignment.CenterStart,
+                        front = {
+                            val title = stringResource(R.string.journal_all_notes)
+                            Text(
+                                text = title,
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                            )
+                        },
+                        back = {
+                            val title = pluralStringResource(
+                                R.plurals.journal_selected_notes_title,
+                                displayedSelectedNoteCount.intValue,
+                                displayedSelectedNoteCount.intValue,
+                            )
+                            Text(
+                                text = title,
+                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
+                            )
+                        },
                     )
                 },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_back),
-                        )
-                    }
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
+                        front = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back),
+                                )
+                            }
+                        },
+                        back = {
+                            IconButton(onClick = onCancelSelection) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.journal_cancel_selection),
+                                )
+                            }
+                        },
+                    )
                 },
                 actions = {
-                    if (uiState.monthGroups.isNotEmpty()) {
-                        // Flip between "filter" (tap to pick a month) and "filter off" (tap to
-                        // clear), mirroring the History top bar's coin-flip action.
-                        FlipSlot(
-                            flipped = activeMonth != null,
-                            contentAlignment = Alignment.CenterEnd,
-                            front = {
-                                IconButton(onClick = { isMonthPickerVisible = true }) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_filter_list),
-                                        contentDescription =
-                                            stringResource(R.string.journal_filter_by_month),
-                                    )
-                                }
-                            },
-                            back = {
-                                IconButton(onClick = { selectedMonth = null }) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_filter_list_off),
-                                        contentDescription =
-                                            stringResource(R.string.journal_clear_month_filter),
-                                    )
-                                }
-                            },
-                        )
-                    }
+                    FlipSlot(
+                        flipped = uiState.isSelectionMode,
+                        contentAlignment = Alignment.CenterEnd,
+                        front = {
+                            if (uiState.monthGroups.isNotEmpty()) {
+                                // Flip between "filter" (tap to pick a month) and "filter off" (tap to
+                                // clear), mirroring the History top bar's coin-flip action.
+                                FlipSlot(
+                                    flipped = activeMonth != null,
+                                    contentAlignment = Alignment.CenterEnd,
+                                    front = {
+                                        IconButton(onClick = { isMonthPickerVisible = true }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_filter_list),
+                                                contentDescription =
+                                                    stringResource(R.string.journal_filter_by_month),
+                                            )
+                                        }
+                                    },
+                                    back = {
+                                        IconButton(onClick = { selectedMonth = null }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_filter_list_off),
+                                                contentDescription =
+                                                    stringResource(R.string.journal_clear_month_filter),
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        },
+                        back = {
+                            IconButton(
+                                enabled = selectAllEnabled.value,
+                                onClick = { onSelectAll(displayedDates) },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SelectAll,
+                                    contentDescription = stringResource(R.string.journal_select_all),
+                                )
+                            }
+                        },
+                    )
                 },
                 scrollBehavior = scrollBehavior,
             )
@@ -817,6 +1005,10 @@ fun AllNotesScreenContent(
                                 onSave = onSaveNote,
                                 onDelete = onDeleteNote,
                                 saveFailureToken = noteSaveFailureToken,
+                                isSelectionMode = uiState.isSelectionMode,
+                                isSelected = note.date in uiState.selectedDates,
+                                onToggleSelection = onToggleSelection,
+                                onEnterSelection = onEnterSelection,
                             )
                             if (index < group.notes.lastIndex) {
                                 Spacer(
