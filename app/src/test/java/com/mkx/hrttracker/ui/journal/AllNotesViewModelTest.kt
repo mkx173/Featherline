@@ -150,6 +150,36 @@ class AllNotesViewModelTest {
     }
 
     @Test
+    fun deleteSelectedNotes_usesReconciledVisibleSelection() = runTest {
+        val visibleDate = LocalDate.of(2026, 6, 1)
+        val vanishedDate = LocalDate.of(2026, 5, 20)
+        val notes = MutableStateFlow(
+            listOf(
+                note(id = "june-1", date = visibleDate, text = "June 1"),
+                note(id = "may-20", date = vanishedDate, text = "May 20"),
+            )
+        )
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns notes
+        coEvery { repository.deleteNotesForDates(any()) } returns Unit
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.selectDates(setOf(visibleDate, vanishedDate))
+        advanceUntilIdle()
+        notes.value = listOf(note(id = "june-1", date = visibleDate, text = "June 1"))
+        advanceUntilIdle()
+        assertEquals(setOf(visibleDate), viewModel.uiState.value.selectedDates)
+
+        viewModel.deleteSelectedNotes()
+        advanceUntilIdle()
+
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertEquals(1, viewModel.uiState.value.deleteSelectedSuccessCount)
+        coVerify(exactly = 1) { repository.deleteNotesForDates(setOf(visibleDate)) }
+        coVerify(exactly = 0) { repository.deleteNotesForDates(setOf(visibleDate, vanishedDate)) }
+    }
+
+    @Test
     fun deleteSelectedNotes_failure_retainsSelectionSetsDeleteErrorKeepsToken() = runTest {
         val date = LocalDate.of(2026, 6, 1)
         every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(

@@ -1169,6 +1169,19 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun reconcileHistoryEntrySelection_dropsIdsWithoutVisibleEntries() {
+        val visibleEntry = entryAt(LocalDateTime.of(2026, 4, 11, 8, 0))
+        val vanishedEntryId = UUID.fromString("7e96ac74-7177-4ef0-b2cc-81230f89f78d")
+
+        val selection = reconcileHistoryEntrySelection(
+            selectedEntryIds = setOf(visibleEntry.uuid, vanishedEntryId),
+            entries = listOf(visibleEntry),
+        )
+
+        assertEquals(setOf(visibleEntry.uuid), selection)
+    }
+
+    @Test
     fun historyEntryTapAction_opens_editor_only_when_selection_mode_is_inactive() {
         assertEquals(
             HistoryEntryTapAction.OPEN_EDITOR,

@@ -29,3 +29,15 @@ internal fun toggleNoteSelection(current: Set<LocalDate>, date: LocalDate): Set<
 
 internal fun selectAllNoteDates(current: Set<LocalDate>, dates: Set<LocalDate>): Set<LocalDate> =
     current + dates
+
+internal fun reconcileNoteSelection(
+    selectedDates: Set<LocalDate>,
+    monthGroups: List<MonthGroupUiState>,
+): Set<LocalDate> {
+    if (selectedDates.isEmpty()) return emptySet()
+
+    val existingDates = monthGroups.flatMapTo(mutableSetOf()) { group ->
+        group.notes.map { it.date }
+    }
+    return selectedDates intersect existingDates
+}

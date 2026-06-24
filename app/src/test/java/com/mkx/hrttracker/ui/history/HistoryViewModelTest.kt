@@ -250,6 +250,57 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun deleteSelectedEntries_usesReconciledVisibleSelection() = runTest {
+        val visibleEntry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        val vanishedEntry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
+        )
+        val entries = MutableStateFlow(listOf(visibleEntry, vanishedEntry))
+        val visibleEntryIds = setOf(visibleEntry.uuid)
+        val rawEntryIds = setOf(visibleEntry.uuid, vanishedEntry.uuid)
+        every { medicationLogRepository.observeEntries() } returns entries
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteEntries(any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.selectEntries(rawEntryIds)
+        advanceUntilIdle()
+        entries.value = listOf(visibleEntry)
+        advanceUntilIdle()
+        assertEquals(visibleEntryIds, viewModel.uiState.value.selectedEntryIds)
+
+        viewModel.deleteSelectedEntries()
+        advanceUntilIdle()
+
+        assertEquals(
+            HistoryDeleteSelectedEntriesResult.Success(deletedEntryCount = 1),
+            viewModel.uiState.value.deleteSelectedEntriesResult,
+        )
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(visibleEntryIds) }
+        coVerify(exactly = 0) { medicationLogRepository.deleteEntries(rawEntryIds) }
+    }
+
+    @Test
     fun deleteSelectedEntries_whenSchedulerFails_stillReportsSuccessAndClearsSelection() = runTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),

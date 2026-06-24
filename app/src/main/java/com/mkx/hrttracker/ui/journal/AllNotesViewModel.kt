@@ -69,13 +69,13 @@ class AllNotesViewModel @Inject constructor(
         // activity-scoped, so the selection outlives navigating off this screen and deleting the
         // note elsewhere — is dropped, so the count never inflates and selection mode can't strand
         // on a row that no longer exists.
-        val existingDates = state.monthGroups.flatMapTo(mutableSetOf()) { group ->
-            group.notes.map { it.date }
-        }
         state.copy(
             noteMutationError = error,
             noteSaveFailureToken = token,
-            selectedDates = selection.selectedDates intersect existingDates,
+            selectedDates = reconcileNoteSelection(
+                selectedDates = selection.selectedDates,
+                monthGroups = state.monthGroups,
+            ),
             isDeletingSelected = selection.isDeletingSelected,
             deleteSelectedSuccessCount = selection.deleteSelectedSuccessCount,
         )
@@ -108,7 +108,10 @@ class AllNotesViewModel @Inject constructor(
     }
 
     fun deleteSelectedNotes() = viewModelScope.launch {
-        val snapshot = selectedDates.value
+        val snapshot = reconcileNoteSelection(
+            selectedDates = selectedDates.value,
+            monthGroups = uiState.value.monthGroups,
+        )
         if (snapshot.isEmpty() || isDeletingSelected.value) return@launch
         isDeletingSelected.value = true
         try {

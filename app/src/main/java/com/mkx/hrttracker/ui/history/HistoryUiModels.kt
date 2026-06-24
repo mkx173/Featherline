@@ -442,6 +442,16 @@ internal fun reverseHistoryEntrySelection(
     return preservedSelection + reversedVisibleSelection
 }
 
+internal fun reconcileHistoryEntrySelection(
+    selectedEntryIds: Set<UUID>,
+    entries: List<MedicationLogEntry>,
+): Set<UUID> {
+    if (selectedEntryIds.isEmpty()) return emptySet()
+
+    val existingEntryIds = entries.mapTo(mutableSetOf()) { entry -> entry.uuid }
+    return selectedEntryIds intersect existingEntryIds
+}
+
 internal fun historyEntryTapAction(
     selectedEntryIds: Set<UUID>
 ): HistoryEntryTapAction {
