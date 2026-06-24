@@ -34,6 +34,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
@@ -42,6 +44,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.journal.SimpleHomeCard
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.displayZoneOf
@@ -49,8 +52,28 @@ import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.zoneDisplayName
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+
+/**
+ * Whether [type]'s card has data to render. Mirrors each card's pre-existing
+ * data-availability guard so a "visible but empty" card renders nothing — same as
+ * the legacy hard-coded layout. The single source of truth for both the render
+ * filter and the inter-card spacing.
+ */
+fun homeCardHasData(uiState: MainUiState, type: HomeCardType): Boolean = when (type) {
+    HomeCardType.LOW_STOCK -> uiState.stockWarnings.isNotEmpty()
+    HomeCardType.E2_HERO -> true
+    HomeCardType.E2_CHART -> true
+    HomeCardType.ANTIANDROGEN -> uiState.antiandrogenCards.isNotEmpty()
+    HomeCardType.TIMELINE -> uiState.homeAnchor != null
+}
+
+/** Configured order, minus hidden cards, minus cards with no data to show. */
+fun visibleHomeCards(layout: HomeCardLayout, uiState: MainUiState): List<HomeCardType> =
+    layout.order.filter { it !in layout.hidden && homeCardHasData(uiState, it) }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -120,55 +143,23 @@ fun MainContent(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            MainLowStockSection(
-                warnings = uiState.stockWarnings,
-                expanded = uiState.lowStockSectionExpanded,
-                onExpandedChange = onLowStockSectionExpandedChange,
-                onMedicineClick = onMedicineDetailClick,
-            )
-            if (uiState.stockWarnings.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            MainE2HeroCard(
-                section = uiState.e2Hero,
-                now = uiState.now,
-                displayUnit = uiState.homeE2DisplayUnit,
-                trendReady = uiState.e2TrendReady,
-                hideReferenceRanges = uiState.hideReferenceRanges,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            MainE2ChartCard(
-                section = uiState.e2Chart,
-                now = uiState.now,
-                appLocale = appLocale,
-                unit = uiState.e2Hero.unit,
-                displayUnit = uiState.homeE2DisplayUnit,
-                targetRangeLow = uiState.e2Hero.targetMin,
-                targetRangeHigh = uiState.e2Hero.targetMax,
-                trendReady = uiState.e2TrendReady,
-                hideReferenceRanges = uiState.hideReferenceRanges,
-                onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
-                claimIntroAnimation = claimE2ChartIntroAnimation,
-            )
-
-            if (uiState.antiandrogenCards.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                MainAntiandrogenCard(
-                    cards = uiState.antiandrogenCards,
-                    now = uiState.now,
+            val visibleCards = visibleHomeCards(uiState.homeCardLayout, uiState)
+            visibleCards.forEachIndexed { index, type ->
+                if (index > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                RenderHomeCard(
+                    type = type,
+                    uiState = uiState,
+                    appLocale = appLocale,
+                    today = today,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
-                )
-            }
-
-            uiState.homeAnchor?.let { anchor ->
-                Spacer(modifier = Modifier.height(8.dp))
-                SimpleHomeCard(
-                    anchor = anchor,
-                    today = today,
-                    onClick = onOpenTimeline,
+                    onMedicineDetailClick = onMedicineDetailClick,
+                    onLowStockSectionExpandedChange = onLowStockSectionExpandedChange,
+                    onE2ChartWindowOptionSelected = onE2ChartWindowOptionSelected,
+                    claimE2ChartIntroAnimation = claimE2ChartIntroAnimation,
+                    onOpenTimeline = onOpenTimeline,
                 )
             }
 
@@ -220,6 +211,67 @@ fun MainContent(
                 MedicalDisclaimerSets.home
             }
             MedicalDisclaimerText(kinds = disclaimerKinds)
+        }
+    }
+}
+
+@Composable
+private fun RenderHomeCard(
+    type: HomeCardType,
+    uiState: MainUiState,
+    appLocale: Locale,
+    today: LocalDate,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter,
+    onMedicineDetailClick: (UUID) -> Unit,
+    onLowStockSectionExpandedChange: (Boolean) -> Unit,
+    onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit,
+    claimE2ChartIntroAnimation: () -> Boolean,
+    onOpenTimeline: () -> Unit,
+) {
+    when (type) {
+        HomeCardType.LOW_STOCK -> MainLowStockSection(
+            warnings = uiState.stockWarnings,
+            expanded = uiState.lowStockSectionExpanded,
+            onExpandedChange = onLowStockSectionExpandedChange,
+            onMedicineClick = onMedicineDetailClick,
+        )
+
+        HomeCardType.E2_HERO -> MainE2HeroCard(
+            section = uiState.e2Hero,
+            now = uiState.now,
+            displayUnit = uiState.homeE2DisplayUnit,
+            trendReady = uiState.e2TrendReady,
+            hideReferenceRanges = uiState.hideReferenceRanges,
+        )
+
+        HomeCardType.E2_CHART -> MainE2ChartCard(
+            section = uiState.e2Chart,
+            now = uiState.now,
+            appLocale = appLocale,
+            unit = uiState.e2Hero.unit,
+            displayUnit = uiState.homeE2DisplayUnit,
+            targetRangeLow = uiState.e2Hero.targetMin,
+            targetRangeHigh = uiState.e2Hero.targetMax,
+            trendReady = uiState.e2TrendReady,
+            hideReferenceRanges = uiState.hideReferenceRanges,
+            onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
+            claimIntroAnimation = claimE2ChartIntroAnimation,
+        )
+
+        HomeCardType.ANTIANDROGEN -> MainAntiandrogenCard(
+            cards = uiState.antiandrogenCards,
+            now = uiState.now,
+            dateFormatter = dateFormatter,
+            timeFormatter = timeFormatter,
+        )
+
+        HomeCardType.TIMELINE -> uiState.homeAnchor?.let { anchor ->
+            SimpleHomeCard(
+                anchor = anchor,
+                today = today,
+                onClick = onOpenTimeline,
+            )
         }
     }
 }
