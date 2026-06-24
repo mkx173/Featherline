@@ -189,18 +189,17 @@
     <string name="journal_milestones_section">时间线</string>
     <string name="journal_notes_section">笔记</string>
     <string name="journal_notes_window_meta">最近 30 天</string>
-    <string name="journal_no_notes">还没有笔记</string>
-    <string name="journal_all_notes_empty">保存的每日笔记会显示在这里。</string>
+    <string name="journal_no_notes">暂无已保存的笔记</string>
     <string name="journal_no_earlier_notes">没有更早的笔记</string>
     <string name="journal_delete_note">删除笔记</string>
-    <string name="journal_delete_note_title">要删除笔记吗？</string>
-    <string name="journal_delete_note_confirmation">这会删除这一天的笔记。</string>
+    <string name="journal_delete_note_title">删除笔记</string>
+    <string name="journal_delete_note_confirmation">要删除这条笔记吗？</string>
     <string name="journal_since_you_started">时间线</string>
     <string name="journal_no_dates">暂无追踪的日期</string>
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
     <string name="journal_today">今天</string>
-    <string name="journal_write_about_today">记录今天…</string>
+    <string name="journal_write_about_today">记录今天...</string>
     <string name="journal_no_dates_subtitle">添加第一个日期</string>
     <string name="journal_nothing_pinned_title">暂无已固定的日期</string>
     <string name="journal_nothing_pinned_subtitle">已固定的日期会显示在这里</string>
@@ -209,10 +208,10 @@
     <string name="journal_timeline_section">所有日期</string>
     <string name="journal_all_notes">全部笔记</string>
     <string name="journal_filter_by_month">按月份筛选</string>
-    <string name="journal_note_save_failed">无法保存笔记，请重试。</string>
-    <string name="journal_note_delete_failed">无法删除笔记，请重试。</string>
-    <string name="journal_date_save_failed">无法保存更改，请重试。</string>
-    <string name="journal_date_delete_failed">无法删除日期，请重试。</string>
+    <string name="journal_note_save_failed">无法保存笔记</string>
+    <string name="journal_note_delete_failed">无法删除笔记</string>
+    <string name="journal_date_save_failed">无法保存更改</string>
+    <string name="journal_date_delete_failed">无法删除日期</string>
     <string name="journal_clear_month_filter">显示全部笔记</string>
     <string name="journal_edit">编辑</string>
     <string name="journal_done">完成</string>
@@ -272,7 +271,7 @@
     <string name="journal_anchor_icon_star">亮点</string>
     <string name="journal_delete_date">删除</string>
     <string name="journal_delete_date_title">删除日期</string>
-    <string name="journal_delete_date_confirmation">要删除这个日期吗</string>
+    <string name="journal_delete_date_confirmation">要删除这个日期吗？</string>
     <plurals name="journal_milestone_label_days">
         <item quantity="other">%1$d 天</item>
     </plurals>

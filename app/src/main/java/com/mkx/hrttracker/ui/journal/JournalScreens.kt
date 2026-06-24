@@ -316,7 +316,6 @@ fun JournalScreenContent(
                             if (uiState.todayNote == null && timelineNotes.isEmpty()) {
                                 SupportMessageListItem(
                                     text = stringResource(R.string.journal_no_notes),
-                                    supportingText = stringResource(R.string.journal_all_notes_empty),
                                     painter = painterResource(R.drawable.ic_info),
                                 )
                             } else {

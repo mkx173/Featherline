@@ -3000,7 +3000,6 @@ fun EmptyAllNotesCard(
     PreferenceSegmentedListItem(
         modifier = modifier,
         title = stringResource(R.string.journal_no_notes),
-        supportingText = stringResource(R.string.journal_all_notes_empty),
     )
 }
 
