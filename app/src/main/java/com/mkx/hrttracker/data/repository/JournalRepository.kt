@@ -357,6 +357,15 @@ class JournalRepository @Inject constructor(
     suspend fun deleteNoteForDate(date: LocalDate) {
         databaseHolder.get().journalDao().deleteNoteForDate(date.toString())
     }
+
+    suspend fun deleteNotesForDates(dates: Set<LocalDate>) {
+        if (dates.isEmpty()) return
+        val database = databaseHolder.get()
+        database.withTransaction {
+            val dao = database.journalDao()
+            dates.forEach { dao.deleteNoteForDate(it.toString()) }
+        }
+    }
 }
 
 // Terminal catch guards Room/SQLCipher flow failures during restore or database
