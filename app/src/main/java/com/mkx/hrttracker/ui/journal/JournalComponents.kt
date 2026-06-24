@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.ExitTransition
@@ -60,11 +59,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditNote
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -2963,23 +2960,33 @@ private fun SelectionIndicator(
 ) {
     val selectedDescription = stringResource(R.string.journal_note_selected)
     val unselectedDescription = stringResource(R.string.journal_select_note)
-    Crossfade(targetState = isSelected, label = "note-selection-indicator") { selected ->
-        if (selected) {
+    // Size to the date label's line height (the same method HeaderOverflowMenu uses) so the
+    // indicator never exceeds the header height and scales with the user's font-size setting.
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val density = LocalDensity.current
+    val indicatorSize = with(density) {
+        labelStyle.lineHeight.takeOrElse { labelStyle.fontSize }.toDp()
+    }
+    FlipSlot(
+        flipped = isSelected,
+        modifier = modifier,
+        front = {
             Icon(
-                imageVector = Icons.Rounded.CheckCircle,
-                contentDescription = selectedDescription,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = modifier.size(20.dp),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Rounded.RadioButtonUnchecked,
+                painter = painterResource(R.drawable.ic_radio_button_unchecked),
                 contentDescription = unselectedDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier.size(20.dp),
+                modifier = Modifier.size(indicatorSize),
             )
-        }
-    }
+        },
+        back = {
+            Icon(
+                painter = painterResource(R.drawable.ic_check_circle_filled),
+                contentDescription = selectedDescription,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(indicatorSize),
+            )
+        },
+    )
 }
 
 @Composable

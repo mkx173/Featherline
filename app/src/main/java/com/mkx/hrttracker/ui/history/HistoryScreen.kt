@@ -650,7 +650,10 @@ private fun HistoryScreenContent(
                         if (!uiState.isDeletingSelectedEntries) onDeleteConfirm()
                     },
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
@@ -706,7 +709,10 @@ private fun HistoryScreenContent(
                         onDeleteAllClick()
                     }
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
