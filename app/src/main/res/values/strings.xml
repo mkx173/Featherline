@@ -219,6 +219,20 @@
     <string name="journal_filter_by_month">Filter by month</string>
     <string name="journal_note_save_failed">Unable to save note.</string>
     <string name="journal_note_delete_failed">Unable to delete note.</string>
+    <plurals name="journal_selected_notes_title">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="journal_cancel_selection">Cancel selection</string>
+    <string name="journal_select_all">Select all</string>
+    <string name="journal_delete_selected_notes_title">Delete notes?</string>
+    <plurals name="journal_delete_selected_notes_confirmation">
+        <item quantity="one">Delete %1$d note?</item>
+        <item quantity="other">Delete %1$d notes?</item>
+    </plurals>
+    <string name="journal_delete_selected_notes_fab">Delete selected notes</string>
+    <string name="journal_select_note">Select note</string>
+    <string name="journal_note_selected">Note selected</string>
     <string name="journal_date_save_failed">Unable to save changes.</string>
     <string name="journal_date_delete_failed">Unable to delete date.</string>
     <string name="journal_clear_month_filter">Show all notes</string>
