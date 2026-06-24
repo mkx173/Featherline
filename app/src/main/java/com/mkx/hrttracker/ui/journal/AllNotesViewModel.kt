@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -32,6 +33,11 @@ class AllNotesViewModel @Inject constructor(
     private val noteMutationError = MutableStateFlow<JournalNoteMutation?>(null)
     private val noteSaveFailureToken = MutableStateFlow(0)
 
+    private val selectedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
+    private val isDeletingSelected = MutableStateFlow(false)
+
+    // Five sources sit within Kotlin's typed `combine` overload limit, so no sub-flow nesting is
+    // needed beyond the existing notes+today inner combine.
     val uiState: StateFlow<AllNotesUiState> = combine(
         combine(
             journalRepository.observeNotesOnOrAfter(LocalDate.MIN),
@@ -52,8 +58,15 @@ class AllNotesViewModel @Inject constructor(
         },
         noteMutationError,
         noteSaveFailureToken,
-    ) { state, error, token ->
-        state.copy(noteMutationError = error, noteSaveFailureToken = token)
+        selectedDates,
+        isDeletingSelected,
+    ) { state, error, token, selected, deletingSelected ->
+        state.copy(
+            noteMutationError = error,
+            noteSaveFailureToken = token,
+            selectedDates = selected,
+            isDeletingSelected = deletingSelected,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -68,6 +81,31 @@ class AllNotesViewModel @Inject constructor(
     fun deleteNote(date: LocalDate) = viewModelScope.launch {
         runCatching { withContext(NonCancellable) { journalRepository.deleteNoteForDate(date) } }
             .onFailure { failNoteWrite(it, JournalNoteMutation.DELETE) }
+    }
+
+    fun toggleSelection(date: LocalDate) {
+        selectedDates.update { toggleNoteSelection(it, date) }
+    }
+
+    fun selectDates(dates: Set<LocalDate>) {
+        selectedDates.update { selectAllNoteDates(it, dates) }
+    }
+
+    fun clearSelection() {
+        selectedDates.value = emptySet()
+    }
+
+    fun deleteSelectedNotes() = viewModelScope.launch {
+        val snapshot = selectedDates.value
+        if (snapshot.isEmpty() || isDeletingSelected.value) return@launch
+        isDeletingSelected.value = true
+        try {
+            runCatching { withContext(NonCancellable) { journalRepository.deleteNotesForDates(snapshot) } }
+                .onSuccess { selectedDates.value = emptySet() }
+                .onFailure { failNoteWrite(it, JournalNoteMutation.DELETE) }
+        } finally {
+            isDeletingSelected.value = false
+        }
     }
 
     fun consumeNoteMutationError() {
