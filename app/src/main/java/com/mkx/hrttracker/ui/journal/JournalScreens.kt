@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,6 +91,7 @@ private const val JournalScreenListTestTag = "journal-screen-list"
 @Composable
 fun JournalScreen(
     onOpenMilestones: () -> Unit,
+    onAddDate: () -> Unit,
     onOpenAllNotes: () -> Unit,
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
@@ -118,6 +120,7 @@ fun JournalScreen(
     JournalScreenContent(
         uiState = uiState,
         onOpenMilestones = onOpenMilestones,
+        onAddDate = onAddDate,
         onOpenAllNotes = onOpenAllNotes,
         onSaveTodayNote = viewModel::saveTodayNote,
         onSaveNote = viewModel::saveNote,
@@ -135,6 +138,7 @@ fun JournalScreen(
 fun JournalScreenContent(
     uiState: JournalUiState,
     onOpenMilestones: () -> Unit,
+    onAddDate: () -> Unit = onOpenMilestones,
     onOpenAllNotes: () -> Unit,
     onSaveTodayNote: (String) -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
@@ -223,7 +227,7 @@ fun JournalScreenContent(
                             }
                         } else {
                             item {
-                                EmptyMilestonesCard(onAddDate = onOpenMilestones)
+                                EmptyMilestonesCard(onAddDate = onAddDate)
                             }
                         }
                     }
@@ -335,6 +339,7 @@ fun JournalScreenContent(
 @Composable
 fun MilestonesScreen(
     onNavigateBack: () -> Unit,
+    openAddDateOnLaunch: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: MilestonesViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -348,6 +353,17 @@ fun MilestonesScreen(
     val closeDateSheet = {
         isAddDateSheetOpen = false
         editingAnchor = null
+    }
+
+    // Arriving via the journal "Add a date" CTA opens the sheet straight away. The rememberSaveable
+    // guard makes this a true one-shot: it won't reopen on configuration change or after the user
+    // dismisses the sheet without leaving the screen.
+    var addDateLaunchConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (openAddDateOnLaunch && !addDateLaunchConsumed) {
+            addDateLaunchConsumed = true
+            isAddDateSheetOpen = true
+        }
     }
 
     // Edit mode lives in the Activity-scoped ViewModel, so it would otherwise persist

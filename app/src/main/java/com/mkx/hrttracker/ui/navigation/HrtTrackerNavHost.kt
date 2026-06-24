@@ -114,13 +114,16 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Plan : Screen("plan", R.string.tab_plan)
     data object Journal : Screen("journal", R.string.tab_journal)
     data object JournalMilestones : Screen(
-        "journal_milestones?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        "journal_milestones?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}&$OPEN_ADD_DATE_ARG={$OPEN_ADD_DATE_ARG}",
         R.string.journal_since_you_started
     ) {
         const val baseRoute = "journal_milestones"
 
-        fun createRoute(topLevelParentRoute: String = Journal.route): String =
-            "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        fun createRoute(
+            topLevelParentRoute: String = Journal.route,
+            openAddDate: Boolean = false,
+        ): String =
+            "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute&$OPEN_ADD_DATE_ARG=$openAddDate"
     }
 
     data object JournalAllNotes : Screen(
@@ -962,6 +965,14 @@ fun HrtTrackerNavHost(
                                     Screen.JournalMilestones.createRoute(Screen.Journal.route)
                                 )
                             },
+                            onAddDate = {
+                                navController.navigate(
+                                    Screen.JournalMilestones.createRoute(
+                                        Screen.Journal.route,
+                                        openAddDate = true,
+                                    )
+                                )
+                            },
                             onOpenAllNotes = {
                                 navController.navigate(
                                     Screen.JournalAllNotes.createRoute(Screen.Journal.route)
@@ -974,11 +985,15 @@ fun HrtTrackerNavHost(
                 }
                 composable(
                     route = Screen.JournalMilestones.route,
-                    arguments = topLevelParentArgs(Screen.Journal.route),
+                    arguments = topLevelParentArgs(Screen.Journal.route) + navArgument(OPEN_ADD_DATE_ARG) {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
                 ) {
                     RoutedTopChromeHazeProvider(navController, it) {
                         MilestonesScreen(
                             onNavigateBack = { navController.popBackStackSafely() },
+                            openAddDateOnLaunch = it.arguments?.getBoolean(OPEN_ADD_DATE_ARG) == true,
                             modifier = modifier,
                         )
                     }
@@ -1444,6 +1459,7 @@ private fun topLevelParentArgs(defaultValue: String) = listOf(
 )
 
 internal const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+internal const val OPEN_ADD_DATE_ARG = "openAddDate"
 private const val SLOT_RESULT_KEY_ARG = "slotResultKey"
 private const val ADD_ENTRY_SLOT_RESULT_KEY = "addEntrySlotResult"
 private const val GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX = "groupSlot_"

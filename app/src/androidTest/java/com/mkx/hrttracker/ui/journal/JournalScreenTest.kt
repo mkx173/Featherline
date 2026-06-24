@@ -51,7 +51,7 @@ class JournalScreenTest {
     @Test
     fun emptyAnchors_showsCtaAndSeeAllNotesCallbacks() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        var milestonesOpened = false
+        var addDateRequested = false
         var allNotesOpened = false
 
         composeRule.setContent {
@@ -61,7 +61,8 @@ class JournalScreenTest {
                         isLoading = false,
                         olderNotesCount = 2,
                     ),
-                    onOpenMilestones = { milestonesOpened = true },
+                    onOpenMilestones = {},
+                    onAddDate = { addDateRequested = true },
                     onOpenAllNotes = { allNotesOpened = true },
                     onSaveTodayNote = {},
                     onSaveNote = { _, _ -> },
@@ -71,6 +72,8 @@ class JournalScreenTest {
 
         composeRule.onNodeWithText(context.getString(R.string.journal_no_dates_welcome_title))
             .assertIsDisplayed()
+        // The welcome CTA routes through onAddDate (navigate + open the add-date sheet), not the
+        // plain onOpenMilestones used by the hero/pinned cards.
         composeRule.onNodeWithText(context.getString(R.string.journal_add_date))
             .assertIsDisplayed()
             .performClick()
@@ -79,7 +82,7 @@ class JournalScreenTest {
             .performClick()
 
         composeRule.runOnIdle {
-            assertTrue(milestonesOpened)
+            assertTrue(addDateRequested)
             assertTrue(allNotesOpened)
         }
     }
