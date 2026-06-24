@@ -2387,7 +2387,10 @@ private fun NoteEditorCard(
     // latch there's a window where neither isEditing nor text is truthy, so the field would collapse
     // back to the prompt for a beat ("write about today…" blinking in) before the saved text lands.
     // Set when a save is committed; released once the text catches up (see the effect below).
-    var savePending by remember(identity) { mutableStateOf(false) }
+    // rememberSaveable, not remember: if the card is disposed while the save is in flight (navigate
+    // away, or process death), the latch must survive so the reopened card holds the unsaved draft
+    // instead of letting the close-revert below mistake it for an abandoned edit and discard it.
+    var savePending by rememberSaveable(identity) { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
@@ -2574,13 +2577,18 @@ private fun NoteEditorCard(
 
     // A failed save never round-trips text, so the savePending latch (and the held field showing the
     // unsaved draft as if it closed) would otherwise stick forever. When the VM signals a save
-    // failure via a bumped token, release the latch and re-open this editor so the unsaved draft
-    // stays editable for retry. The token is shared by every note composer, but only the one that
-    // actually saved has savePending set, so only it reacts; the initial token (0) is a no-op
-    // because savePending is false then. controller.begin(identity) is used directly (not
-    // beginEditing) so draftText is NOT re-seeded — the typed text is preserved.
+    // failure via a bumped token, re-open this editor so the unsaved draft stays editable for retry.
+    // The token is shared by every note composer, but only the one that actually saved has
+    // savePending set, so only it reacts; the initial token (0) is a no-op because savePending is
+    // false then. controller.begin(identity) is used directly (not beginEditing) so draftText is NOT
+    // re-seeded — the typed text is preserved.
+    //
+    // Only reclaim the editor when nothing else is open. If the user has since opened another card,
+    // reopening this one would steal the shared controller from it, flipping it closed so its
+    // close-revert wipes the draft the user is actively typing. In that case keep savePending set so
+    // this card's field stays held with its own unsaved draft, recoverable when the user taps it.
     LaunchedEffect(saveFailureToken) {
-        if (savePending) {
+        if (savePending && controller.activeEditorId == null) {
             savePending = false
             controller.begin(identity)
         }

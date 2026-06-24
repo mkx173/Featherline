@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import com.mkx.hrttracker.model.journal.Note
@@ -63,5 +64,41 @@ class NoteEditorRestorationTest {
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertTextContains("Half-typed entry")
         // ...but it did not grab focus, so the keyboard stays down until the user taps the field.
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsNotFocused()
+    }
+
+    /**
+     * Committing an edit hands the write to the repository and closes the editor, but the result
+     * lands a frame or more later. If the card is disposed in that window — the user navigates away
+     * (or the process dies) before the write returns — the in-flight draft is still the user's
+     * unsaved work and must survive the round-trip. Regression guard: the "save pending" latch used
+     * to live in plain [remember], so it was dropped on disposal and the reopened card reverted the
+     * draft to the stale saved text, silently destroying the edit the user was retrying.
+     */
+    @Test
+    fun pendingSaveDisposedBeforeResult_keepsDraftNotSavedText() {
+        val today = LocalDate.of(2026, 6, 16)
+        val restorationTester = StateRestorationTester(composeRule)
+        restorationTester.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                TodayComposer(
+                    today = today,
+                    note = Note(id = "june-16", date = today, text = "Saved text"),
+                    // The write is in flight: it has not fed the committed text back this frame.
+                    onSave = {},
+                )
+            }
+        }
+
+        // Open the editor, replace the saved text with an unsaved draft, and commit it (Done).
+        composeRule.onNodeWithText("Saved text").performClick()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextClearance()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Half-typed entry")
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
+
+        // The card is disposed and recreated while the save is still pending (navigate away / death).
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        // The pending draft must survive — not be reverted to the saved text as if the save resolved.
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertTextContains("Half-typed entry")
     }
 }
