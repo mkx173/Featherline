@@ -16,3 +16,9 @@ data class AllNotesUiState(
     val noteMutationError: JournalNoteMutation? = null,
     val noteSaveFailureToken: Int = 0,
 )
+
+internal fun toggleNoteSelection(current: Set<LocalDate>, date: LocalDate): Set<LocalDate> =
+    if (date in current) current - date else current + date
+
+internal fun selectAllNoteDates(current: Set<LocalDate>, dates: Set<LocalDate>): Set<LocalDate> =
+    current + dates
