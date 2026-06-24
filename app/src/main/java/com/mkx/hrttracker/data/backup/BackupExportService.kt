@@ -16,6 +16,7 @@ import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
+import com.mkx.hrttracker.model.home.DEFAULT_HOME_CARD_ORDER
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -167,6 +168,7 @@ class BackupExportService @Inject constructor(
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
+        val homeCardLayout = settingsRepository.homeCardLayoutFlow.first()
         // Export must not snapshot Default while un-migrated legacy values still exist
         // (the fire-and-forget startup migration may have failed); idempotent, so
         // awaiting it here is safe — same pattern as WidgetConfigActivity. Let a
@@ -225,6 +227,11 @@ class BackupExportService @Inject constructor(
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
                 stockNudgeEnabled = stockNudgeEnabled,
                 stockNudgeUserEnabled = stockNudgeUserEnabled,
+                homeCardOrder = homeCardLayout.order.map { it.name },
+                // Stable hidden serialization: default-order filtered by membership, so
+                // exports are deterministic regardless of Set iteration order.
+                homeCardHidden = DEFAULT_HOME_CARD_ORDER.filter { it in homeCardLayout.hidden }
+                    .map { it.name },
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = userProfile.weightKg,

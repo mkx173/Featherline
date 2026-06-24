@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.backup
 
+import com.mkx.hrttracker.model.home.DEFAULT_HOME_CARD_ORDER
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
@@ -56,6 +57,8 @@ data class BackupSettingsSnapshot(
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
     val stockNudgeEnabled: Boolean = true,
     val stockNudgeUserEnabled: Boolean = false,
+    val homeCardOrder: List<String> = DEFAULT_HOME_CARD_ORDER.map { it.name },
+    val homeCardHidden: List<String> = emptyList(),
 )
 
 
