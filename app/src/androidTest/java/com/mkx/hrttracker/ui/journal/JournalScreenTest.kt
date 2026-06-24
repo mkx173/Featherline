@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -811,9 +812,16 @@ class JournalScreenTest {
             .performTextInput("Abandoned edit")
 
         // Switch to row B without saving — the shared controller closes A without its cancel path.
+        // Scroll it into view first: with A's editor open the IME is up and the Timeline header can
+        // push the second row below the fold, so it is composed but not displayed (and a tap on an
+        // off-screen node never lands, so the editor never switches).
+        composeRule.onNodeWithTag(JournalScreenListTag)
+            .performScrollToNode(hasText("Earlier note"))
         composeRule.onNodeWithText("Earlier note").performClick()
 
         // Re-open A: the abandoned draft must NOT survive; the field shows the persisted text.
+        composeRule.onNodeWithTag(JournalScreenListTag)
+            .performScrollToNode(hasTestTag("${NoteTimelineTextFieldTagPrefix}june-15"))
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performClick()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .assertTextContains("Yesterday note")
