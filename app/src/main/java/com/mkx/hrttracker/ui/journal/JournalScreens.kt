@@ -677,6 +677,21 @@ fun AllNotesScreen(
             null -> Unit
         }
     }
+    val deleteSelectedSuccessCount = uiState.deleteSelectedSuccessCount
+    LaunchedEffect(deleteSelectedSuccessCount) {
+        if (deleteSelectedSuccessCount != null) {
+            Toast.makeText(
+                context,
+                context.resources.getQuantityString(
+                    R.plurals.journal_delete_selected_notes_success,
+                    deleteSelectedSuccessCount,
+                    deleteSelectedSuccessCount,
+                ),
+                Toast.LENGTH_SHORT,
+            ).show()
+            viewModel.consumeDeleteSelectedSuccess()
+        }
+    }
 
     AllNotesScreenContent(
         uiState = uiState,

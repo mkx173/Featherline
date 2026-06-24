@@ -225,10 +225,14 @@
     </plurals>
     <string name="journal_cancel_selection">Cancel selection</string>
     <string name="journal_select_all">Select all</string>
-    <string name="journal_delete_selected_notes_title">Delete notes?</string>
+    <string name="journal_delete_selected_notes_title">Delete note</string>
     <plurals name="journal_delete_selected_notes_confirmation">
-        <item quantity="one">Delete %1$d note?</item>
-        <item quantity="other">Delete %1$d notes?</item>
+        <item quantity="one">Delete %1$d selected note?</item>
+        <item quantity="other">Delete %1$d selected notes?</item>
+    </plurals>
+    <plurals name="journal_delete_selected_notes_success">
+        <item quantity="one">Deleted %1$d note.</item>
+        <item quantity="other">Deleted %1$d notes.</item>
     </plurals>
     <string name="journal_delete_selected_notes_fab">Delete selected notes</string>
     <string name="journal_select_note">Select note</string>

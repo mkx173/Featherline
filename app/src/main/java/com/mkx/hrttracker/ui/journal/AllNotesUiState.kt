@@ -17,6 +17,9 @@ data class AllNotesUiState(
     val noteSaveFailureToken: Int = 0,
     val selectedDates: Set<LocalDate> = emptySet(),
     val isDeletingSelected: Boolean = false,
+    // Non-null right after a successful bulk delete, carrying the count for the success Toast
+    // (mirrors History's deleteSelectedEntriesResult). Consumed back to null once the Toast fires.
+    val deleteSelectedSuccessCount: Int? = null,
 ) {
     val isSelectionMode: Boolean get() = selectedDates.isNotEmpty()
 }

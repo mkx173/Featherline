@@ -35,9 +35,11 @@ class AllNotesViewModel @Inject constructor(
 
     private val selectedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
     private val isDeletingSelected = MutableStateFlow(false)
+    private val deleteSelectedSuccessCount = MutableStateFlow<Int?>(null)
 
-    // Five sources sit within Kotlin's typed `combine` overload limit, so no sub-flow nesting is
-    // needed beyond the existing notes+today inner combine.
+    // The three selection/delete flows are grouped into one inner combine so the outer combine
+    // stays within Kotlin's typed `combine` overload limit (max 5 sources) alongside the
+    // notes+today and error/token flows.
     val uiState: StateFlow<AllNotesUiState> = combine(
         combine(
             journalRepository.observeNotesOnOrAfter(LocalDate.MIN),
@@ -58,14 +60,16 @@ class AllNotesViewModel @Inject constructor(
         },
         noteMutationError,
         noteSaveFailureToken,
-        selectedDates,
-        isDeletingSelected,
-    ) { state, error, token, selected, deletingSelected ->
+        combine(selectedDates, isDeletingSelected, deleteSelectedSuccessCount) { selected, deletingSelected, successCount ->
+            NoteSelectionUiState(selected, deletingSelected, successCount)
+        },
+    ) { state, error, token, selection ->
         state.copy(
             noteMutationError = error,
             noteSaveFailureToken = token,
-            selectedDates = selected,
-            isDeletingSelected = deletingSelected,
+            selectedDates = selection.selectedDates,
+            isDeletingSelected = selection.isDeletingSelected,
+            deleteSelectedSuccessCount = selection.deleteSelectedSuccessCount,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -101,7 +105,10 @@ class AllNotesViewModel @Inject constructor(
         isDeletingSelected.value = true
         try {
             runCatching { withContext(NonCancellable) { journalRepository.deleteNotesForDates(snapshot) } }
-                .onSuccess { selectedDates.value = emptySet() }
+                .onSuccess {
+                    selectedDates.value = emptySet()
+                    deleteSelectedSuccessCount.value = snapshot.size
+                }
                 .onFailure { failNoteWrite(it, JournalNoteMutation.DELETE) }
         } finally {
             isDeletingSelected.value = false
@@ -110,6 +117,10 @@ class AllNotesViewModel @Inject constructor(
 
     fun consumeNoteMutationError() {
         noteMutationError.value = null
+    }
+
+    fun consumeDeleteSelectedSuccess() {
+        deleteSelectedSuccessCount.value = null
     }
 
     private fun failNoteWrite(error: Throwable, mutation: JournalNoteMutation) {
@@ -121,3 +132,11 @@ class AllNotesViewModel @Inject constructor(
         }
     }
 }
+
+// Groups the three selection/delete flows so the outer uiState combine stays within the typed
+// `combine` arity limit (mirrors History's private HistoryDeletionUiState grouping).
+private data class NoteSelectionUiState(
+    val selectedDates: Set<LocalDate>,
+    val isDeletingSelected: Boolean,
+    val deleteSelectedSuccessCount: Int?,
+)

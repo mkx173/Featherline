@@ -216,9 +216,12 @@
     </plurals>
     <string name="journal_cancel_selection">取消选择</string>
     <string name="journal_select_all">全选</string>
-    <string name="journal_delete_selected_notes_title">删除笔记？</string>
+    <string name="journal_delete_selected_notes_title">删除笔记</string>
     <plurals name="journal_delete_selected_notes_confirmation">
-        <item quantity="other">删除 %1$d 条笔记？</item>
+        <item quantity="other">要删除已选择的 %1$d 条笔记吗？</item>
+    </plurals>
+    <plurals name="journal_delete_selected_notes_success">
+        <item quantity="other">已删除 %1$d 条笔记</item>
     </plurals>
     <string name="journal_delete_selected_notes_fab">删除所选笔记</string>
     <string name="journal_select_note">选择笔记</string>

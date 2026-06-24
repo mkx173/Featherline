@@ -142,6 +142,7 @@ class AllNotesViewModelTest {
         assertFalse(viewModel.uiState.value.isSelectionMode)
         assertFalse(viewModel.uiState.value.isDeletingSelected)
         assertNull(viewModel.uiState.value.noteMutationError)
+        assertEquals(1, viewModel.uiState.value.deleteSelectedSuccessCount)
         coVerify(exactly = 1) { repository.deleteNotesForDates(setOf(date)) }
     }
 
@@ -163,6 +164,7 @@ class AllNotesViewModelTest {
         assertFalse(viewModel.uiState.value.isDeletingSelected)
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
         assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
+        assertNull(viewModel.uiState.value.deleteSelectedSuccessCount)
     }
 
     @Test
