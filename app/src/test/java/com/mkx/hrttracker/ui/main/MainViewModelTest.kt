@@ -6,6 +6,9 @@ import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.DEFAULT_HOME_CARD_ORDER
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
@@ -84,6 +87,8 @@ class MainViewModelTest {
         )
         coEvery { settingsRepository.setHomeLowStockSectionFoldState(any(), any()) } returns Unit
         coEvery { settingsRepository.clearHomeLowStockAcknowledgedWarningStates() } returns Unit
+        every { settingsRepository.homeCardLayoutFlow } returns MutableStateFlow(HomeCardLayout())
+        coEvery { settingsRepository.setHomeCardLayout(any(), any()) } returns Unit
     }
 
     @After
@@ -172,6 +177,59 @@ class MainViewModelTest {
         assertEquals(LocalDate.of(2024, 4, 1), anchor?.date)
         assertEquals(806L, anchor?.dayMagnitude)
         assertFalse(anchor?.isFuture ?: true)
+    }
+
+    @Test
+    fun uiStateExposesHomeCardLayoutFromRepository() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        val customLayout = HomeCardLayout(
+            order = listOf(
+                HomeCardType.TIMELINE,
+                HomeCardType.E2_HERO,
+                HomeCardType.E2_CHART,
+                HomeCardType.ANTIANDROGEN,
+                HomeCardType.LOW_STOCK,
+            ),
+            hidden = setOf(HomeCardType.LOW_STOCK),
+        )
+        every { settingsRepository.homeCardLayoutFlow } returns MutableStateFlow(customLayout)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.ROOM, homeAnchor = null)
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(customLayout, viewModel.uiState.value.homeCardLayout)
+    }
+
+    @Test
+    fun setHomeCardLayout_persistsThroughRepository() = runTest {
+        val now = LocalDateTime.of(2026, 6, 16, 12, 0)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = now, source = HomeInputSource.ROOM, homeAnchor = null)
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(now),
+            defaultDispatcher = dispatcher,
+        )
+        val order = DEFAULT_HOME_CARD_ORDER.reversed()
+        val hidden = setOf(HomeCardType.E2_CHART)
+
+        viewModel.setHomeCardLayout(order, hidden)
+        advanceUntilIdle()
+
+        coVerify { settingsRepository.setHomeCardLayout(order, hidden) }
     }
 
     @Test
