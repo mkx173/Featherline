@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -121,6 +122,151 @@ class AllNotesViewModelTest {
 
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
         assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
+    }
+
+    @Test
+    fun deleteSelectedNotes_success_clearsSelectionAndCallsRepo() = runTest {
+        val date = LocalDate.of(2026, 6, 1)
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
+        coEvery { repository.deleteNotesForDates(setOf(date)) } returns Unit
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.toggleSelection(date)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+
+        viewModel.deleteSelectedNotes()
+        advanceUntilIdle()
+
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+        assertFalse(viewModel.uiState.value.isDeletingSelected)
+        assertNull(viewModel.uiState.value.noteMutationError)
+        assertEquals(1, viewModel.uiState.value.deleteSelectedSuccessCount)
+        coVerify(exactly = 1) { repository.deleteNotesForDates(setOf(date)) }
+    }
+
+    @Test
+    fun deleteSelectedNotes_usesReconciledVisibleSelection() = runTest {
+        val visibleDate = LocalDate.of(2026, 6, 1)
+        val vanishedDate = LocalDate.of(2026, 5, 20)
+        val notes = MutableStateFlow(
+            listOf(
+                note(id = "june-1", date = visibleDate, text = "June 1"),
+                note(id = "may-20", date = vanishedDate, text = "May 20"),
+            )
+        )
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns notes
+        coEvery { repository.deleteNotesForDates(any()) } returns Unit
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.selectDates(setOf(visibleDate, vanishedDate))
+        advanceUntilIdle()
+        notes.value = listOf(note(id = "june-1", date = visibleDate, text = "June 1"))
+        advanceUntilIdle()
+        assertEquals(setOf(visibleDate), viewModel.uiState.value.selectedDates)
+
+        viewModel.deleteSelectedNotes()
+        advanceUntilIdle()
+
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertEquals(1, viewModel.uiState.value.deleteSelectedSuccessCount)
+        coVerify(exactly = 1) { repository.deleteNotesForDates(setOf(visibleDate)) }
+        coVerify(exactly = 0) { repository.deleteNotesForDates(setOf(visibleDate, vanishedDate)) }
+    }
+
+    @Test
+    fun deleteSelectedNotes_failure_retainsSelectionSetsDeleteErrorKeepsToken() = runTest {
+        val date = LocalDate.of(2026, 6, 1)
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
+        coEvery { repository.deleteNotesForDates(setOf(date)) } throws IOException("io")
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
+
+        viewModel.toggleSelection(date)
+        viewModel.deleteSelectedNotes()
+        advanceUntilIdle()
+
+        assertEquals(setOf(date), viewModel.uiState.value.selectedDates)
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+        assertFalse(viewModel.uiState.value.isDeletingSelected)
+        assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
+        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
+        assertNull(viewModel.uiState.value.deleteSelectedSuccessCount)
+    }
+
+    @Test
+    fun toggleSelection_togglesDateAndSelectionMode() = runTest {
+        val date = LocalDate.of(2026, 6, 1)
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(note(id = "june-1", date = date, text = "June 1"))
+        )
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.toggleSelection(date)
+        advanceUntilIdle()
+        assertEquals(setOf(date), viewModel.uiState.value.selectedDates)
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+
+        viewModel.toggleSelection(date)
+        advanceUntilIdle()
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+    }
+
+    @Test
+    fun selectDates_unionsDisplayedDates_clearSelectionEmpties() = runTest {
+        val may = LocalDate.of(2026, 5, 20)
+        val june = LocalDate.of(2026, 6, 1)
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
+            listOf(
+                note(id = "may-20", date = may, text = "May 20"),
+                note(id = "june-1", date = june, text = "June 1"),
+            )
+        )
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.toggleSelection(may)
+        viewModel.selectDates(setOf(may, june))
+        advanceUntilIdle()
+        assertEquals(setOf(may, june), viewModel.uiState.value.selectedDates)
+
+        viewModel.clearSelection()
+        advanceUntilIdle()
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+    }
+
+    @Test
+    fun selection_dropsDatesWhoseNoteDisappeared() = runTest {
+        val date = LocalDate.of(2026, 6, 1)
+        val notes = MutableStateFlow(listOf(note(id = "june-1", date = date, text = "June 1")))
+        every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns notes
+        val viewModel = AllNotesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        viewModel.toggleSelection(date)
+        advanceUntilIdle()
+        assertEquals(setOf(date), viewModel.uiState.value.selectedDates)
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+
+        // The selected note disappears (deleted elsewhere while this activity-scoped VM kept the
+        // selection): the exposed selection must drop it rather than strand selection mode on a row
+        // that no longer exists.
+        notes.value = emptyList()
+        advanceUntilIdle()
+
+        assertEquals(emptySet<LocalDate>(), viewModel.uiState.value.selectedDates)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
     }
 
     private fun note(

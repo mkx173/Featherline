@@ -383,7 +383,10 @@ private fun CalibrationScreenContent(
                         onDeleteAllCalibrationEntries()
                     }
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {

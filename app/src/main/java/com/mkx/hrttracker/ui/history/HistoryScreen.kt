@@ -118,12 +118,14 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.SelectionFabScrollState
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -443,7 +445,7 @@ private fun HistoryScreenContent(
             return@LaunchedEffect
         }
 
-        var currentFabScrollState = HistorySelectionFabScrollState(visible = true)
+        var currentFabScrollState = SelectionFabScrollState(visible = true)
         isSelectionFabVisible = true
         var previousIndex = listState.firstVisibleItemIndex
         var previousOffset = listState.firstVisibleItemScrollOffset
@@ -454,7 +456,7 @@ private fun HistoryScreenContent(
             .distinctUntilChanged()
             .collect { (index, offset) ->
                 val visibleItems = listState.layoutInfo.visibleItemsInfo
-                currentFabScrollState = updateHistorySelectionFabScrollState(
+                currentFabScrollState = updateSelectionFabScrollState(
                     state = currentFabScrollState,
                     previousIndex = previousIndex,
                     previousOffset = previousOffset,
@@ -648,7 +650,10 @@ private fun HistoryScreenContent(
                         if (!uiState.isDeletingSelectedEntries) onDeleteConfirm()
                     },
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
@@ -704,7 +709,10 @@ private fun HistoryScreenContent(
                         onDeleteAllClick()
                     }
                 ) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+                    Text(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {

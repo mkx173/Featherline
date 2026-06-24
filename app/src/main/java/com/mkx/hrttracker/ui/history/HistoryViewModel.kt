@@ -131,8 +131,10 @@ class HistoryViewModel @Inject constructor(
             ?: currentMonth
         val calendarEndMonth = currentMonth
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
-        val visibleSelection = deletionUiState.selectedEntryIds
-            .intersect(entries.mapTo(mutableSetOf()) { it.uuid })
+        val visibleSelection = reconcileHistoryEntrySelection(
+            selectedEntryIds = deletionUiState.selectedEntryIds,
+            entries = entries,
+        )
         HistoryUiState(
             isLoading = isLoading,
             today = today,
@@ -184,6 +186,8 @@ class HistoryViewModel @Inject constructor(
             YearMonth.from(currentDateTime.value.toLocalDate()),
             clearSelection = true
         )
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
     }
 
     fun toggleSelectedDate(date: LocalDate) {
@@ -256,7 +260,10 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun deleteSelectedEntries() {
-        val entryIdsToDelete = selectedEntryIds.value
+        val entryIdsToDelete = reconcileHistoryEntrySelection(
+            selectedEntryIds = selectedEntryIds.value,
+            entries = uiState.value.entries,
+        )
         if (entryIdsToDelete.isEmpty() || isDeletingSelectedEntries.value) {
             return
         }
