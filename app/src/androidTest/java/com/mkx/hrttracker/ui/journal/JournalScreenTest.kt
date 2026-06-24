@@ -49,6 +49,23 @@ class JournalScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    // Tapping a timeline row that sits below the fold while another editor's IME is up is racy:
+    // performScrollToNode brings it into view, but the IME animation and the open editor's
+    // bring-into-view can scroll it back out before the tap lands, and the LazyColumn then disposes
+    // it (so the tap finds no node). Re-scroll until the row is stably displayed, then tap by tag.
+    private fun tapTimelineRow(noteId: String) {
+        val tag = "$NoteTimelineTextFieldTagPrefix$noteId"
+        repeat(10) {
+            composeRule.onNodeWithTag(JournalScreenListTag).performScrollToNode(hasTestTag(tag))
+            if (runCatching { composeRule.onNodeWithTag(tag).assertIsDisplayed() }.isSuccess) {
+                composeRule.onNodeWithTag(tag).performClick()
+                return
+            }
+            composeRule.waitForIdle()
+        }
+        composeRule.onNodeWithTag(tag).performClick()
+    }
+
     @Test
     fun emptyAnchors_showsCtaAndSeeAllNotesCallbacks() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -806,23 +823,16 @@ class JournalScreenTest {
         }
 
         // Edit row A's text but don't save it.
-        composeRule.onNodeWithText("Yesterday note").performClick()
+        tapTimelineRow("june-15")
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Abandoned edit")
 
         // Switch to row B without saving — the shared controller closes A without its cancel path.
-        // Scroll it into view first: with A's editor open the IME is up and the Timeline header can
-        // push the second row below the fold, so it is composed but not displayed (and a tap on an
-        // off-screen node never lands, so the editor never switches).
-        composeRule.onNodeWithTag(JournalScreenListTag)
-            .performScrollToNode(hasText("Earlier note"))
-        composeRule.onNodeWithText("Earlier note").performClick()
+        tapTimelineRow("june-14")
 
         // Re-open A: the abandoned draft must NOT survive; the field shows the persisted text.
-        composeRule.onNodeWithTag(JournalScreenListTag)
-            .performScrollToNode(hasTestTag("${NoteTimelineTextFieldTagPrefix}june-15"))
-        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performClick()
+        tapTimelineRow("june-15")
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .assertTextContains("Yesterday note")
         composeRule.onAllNodesWithText("Abandoned edit").assertCountEquals(0)
@@ -940,9 +950,7 @@ class JournalScreenTest {
 
         // Opening the past note's editor must close Today's: a single note edits at a time, so
         // exactly one Save control is ever present — never one per opened card.
-        composeRule.onNodeWithTag(JournalScreenListTag)
-            .performScrollToNode(hasText("Yesterday entry"))
-        composeRule.onNodeWithText("Yesterday entry").performClick()
+        tapTimelineRow("june-15")
 
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .assertIsDisplayed()
