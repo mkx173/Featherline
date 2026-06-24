@@ -273,12 +273,12 @@
     <string name="journal_anchor_icon_medication">药物</string>
     <string name="journal_anchor_icon_pill">胶囊</string>
     <string name="journal_anchor_icon_vaccines">注射</string>
-    <string name="journal_anchor_icon_bloodtype">水滴</string>
+    <string name="journal_anchor_icon_water_drops">凝胶</string>
     <string name="journal_anchor_icon_labs">检验</string>
     <string name="journal_anchor_icon_monitor_weight">体重</string>
-    <string name="journal_anchor_icon_schedule">时长</string>
+    <string name="journal_anchor_icon_mic">语音</string>
     <string name="journal_anchor_icon_flag">目标</string>
-    <string name="journal_anchor_icon_bookmark">书签</string>
+    <string name="journal_anchor_icon_passport">身份证明</string>
     <string name="journal_anchor_icon_home_health">医院</string>
     <string name="journal_anchor_icon_favorite">个人</string>
     <string name="journal_anchor_icon_stethoscope">就诊</string>

@@ -10,12 +10,12 @@ fun anchorIconRes(icon: AnchorIcon): Int = when (icon) {
     AnchorIcon.MEDICATION -> R.drawable.ic_medication
     AnchorIcon.PILL -> R.drawable.ic_pill
     AnchorIcon.VACCINES -> R.drawable.ic_vaccines
-    AnchorIcon.BLOODTYPE -> R.drawable.ic_bloodtype
+    AnchorIcon.WATER_DROPS -> R.drawable.ic_water_drops
     AnchorIcon.LABS -> R.drawable.ic_labs
     AnchorIcon.MONITOR_WEIGHT -> R.drawable.ic_monitor_weight
-    AnchorIcon.SCHEDULE -> R.drawable.ic_schedule_filled
+    AnchorIcon.MIC -> R.drawable.ic_mic
     AnchorIcon.FLAG -> R.drawable.ic_flag
-    AnchorIcon.BOOKMARK -> R.drawable.ic_bookmark
+    AnchorIcon.PASSPORT -> R.drawable.ic_passport
     AnchorIcon.HOME_HEALTH -> R.drawable.ic_local_hospital
     AnchorIcon.FAVORITE -> R.drawable.ic_favorite
     AnchorIcon.STETHOSCOPE -> R.drawable.ic_stethoscope

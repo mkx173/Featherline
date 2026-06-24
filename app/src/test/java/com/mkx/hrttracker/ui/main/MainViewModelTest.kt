@@ -227,7 +227,7 @@ class MainViewModelTest {
             homeAnchor = TrackedDate(
                 id = "voice-start",
                 name = "Voice training",
-                icon = AnchorIcon.SCHEDULE,
+                icon = AnchorIcon.MIC,
                 date = LocalDate.of(2026, 6, 1),
                 palette = MedicationGroupColorKey.TEAL,
                 pinnedOrder = 0,

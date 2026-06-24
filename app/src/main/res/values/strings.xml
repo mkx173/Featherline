@@ -287,12 +287,12 @@
     <string name="journal_anchor_icon_medication">Medication</string>
     <string name="journal_anchor_icon_pill">Pill</string>
     <string name="journal_anchor_icon_vaccines">Injection</string>
-    <string name="journal_anchor_icon_bloodtype">Waterdrop</string>
+    <string name="journal_anchor_icon_water_drops">Gel</string>
     <string name="journal_anchor_icon_labs">Labs</string>
     <string name="journal_anchor_icon_monitor_weight">Weight</string>
-    <string name="journal_anchor_icon_schedule">Duration</string>
+    <string name="journal_anchor_icon_mic">Voice</string>
     <string name="journal_anchor_icon_flag">Goal</string>
-    <string name="journal_anchor_icon_bookmark">Bookmark</string>
+    <string name="journal_anchor_icon_passport">Personal ID</string>
     <string name="journal_anchor_icon_home_health">Hospital</string>
     <string name="journal_anchor_icon_favorite">Personal</string>
     <string name="journal_anchor_icon_stethoscope">Appointment</string>

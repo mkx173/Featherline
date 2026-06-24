@@ -134,7 +134,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2026, 3, 1), pinnedOrder = 0,
         )
         val todayAnchor = trackedDate(
-            id = "today", name = "Blood test", icon = AnchorIcon.BLOODTYPE,
+            id = "today", name = "Blood test", icon = AnchorIcon.WATER_DROPS,
             date = today, pinnedOrder = null,
         )
         val future = trackedDate(
@@ -323,7 +323,7 @@ class MilestonesViewModelTest {
             repository.updateTrackedDate(
                 "date-1",
                 "Updated labs",
-                AnchorIcon.BLOODTYPE.storageKey,
+                AnchorIcon.WATER_DROPS.storageKey,
                 updateDate,
                 null,
             )
@@ -337,7 +337,7 @@ class MilestonesViewModelTest {
         viewModel.updateDate(
             id = "date-1",
             name = "Updated labs",
-            icon = AnchorIcon.BLOODTYPE.storageKey,
+            icon = AnchorIcon.WATER_DROPS.storageKey,
             date = updateDate,
             paletteKey = null,
         )
@@ -353,7 +353,7 @@ class MilestonesViewModelTest {
             repository.updateTrackedDate(
                 "date-1",
                 "Updated labs",
-                AnchorIcon.BLOODTYPE.storageKey,
+                AnchorIcon.WATER_DROPS.storageKey,
                 updateDate,
                 null,
             )

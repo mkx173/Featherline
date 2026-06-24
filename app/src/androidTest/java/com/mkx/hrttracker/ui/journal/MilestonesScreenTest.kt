@@ -306,7 +306,7 @@ class MilestonesScreenTest {
         val todayAnchor = AnchorRowUiState(
             id = "t",
             name = "Blood test",
-            icon = AnchorIcon.BLOODTYPE,
+            icon = AnchorIcon.WATER_DROPS,
             palette = MedicationGroupColorKey.TEAL,
             date = today,
             dayMagnitude = 0,
@@ -534,7 +534,7 @@ class MilestonesScreenTest {
         val todayAnchor = AnchorRowUiState(
             id = "today",
             name = "Blood test",
-            icon = AnchorIcon.BLOODTYPE,
+            icon = AnchorIcon.WATER_DROPS,
             palette = MedicationGroupColorKey.TEAL,
             date = today,
             dayMagnitude = 0,
