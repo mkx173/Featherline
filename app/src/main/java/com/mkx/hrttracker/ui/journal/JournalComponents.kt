@@ -245,24 +245,16 @@ fun PinnedDatesCard(
         dateLabelFormatter(appLocale, today)
     }
 
-    // Inherit the segment position from the enclosing HrtSection so this card and the
-    // hero above it round into a single grouped stack (the hero is index 0, this card
-    // the last segment); a standalone card outside a section stays fully rounded.
-    val position = LocalSegmentPosition.current ?: SegmentPosition(0, 1)
-
-    Surface(
+    // No index/count, so EditorSegmentedListItem inherits the segment position from the enclosing
+    // HrtSection: this card and the hero above it round into a single grouped stack (the hero is
+    // index 0, this card the last segment); a standalone card outside a section stays fully
+    // rounded. Its default container color (surfaceContainerLow) and content inset (16dp/10dp)
+    // match the values this card used by hand.
+    EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
-        shape = segmentedListItemShape(
-            index = position.index,
-            count = position.count,
-            cornerShape = MaterialTheme.shapes.large,
-        ),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
         onClick = onClick,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
+        Column {
             PinnedDatesCardHeader(
                 modifier = Modifier.padding(vertical = 6.dp),
             )
@@ -640,23 +632,11 @@ fun JournalHeroCard(
     // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
     val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
 
-    // Inherit the segment position from the enclosing HrtSection so the hero rounds into
-    // a grouped stack with the PinnedDatesCard below it (hero index 0); a standalone hero
-    // (no pinned card) stays fully rounded.
-    val position = LocalSegmentPosition.current ?: SegmentPosition(0, 1)
-
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         cornerShape = MaterialTheme.shapes.large,
-        // Pin the pressed shape to the resting segmented shape so SegmentedListItem's
-        // default press morph doesn't reshape the edge-to-edge wash on tap.
-        pressedShape = segmentedListItemShape(
-            index = position.index,
-            count = position.count,
-            cornerShape = MaterialTheme.shapes.large,
-        ),
         // Drawn edge-to-edge so the wash bleeds into the corners; the row re-applies its inset.
         contentPadding = PaddingValues(0.dp),
     ) {
