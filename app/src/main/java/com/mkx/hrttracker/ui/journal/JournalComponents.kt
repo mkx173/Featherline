@@ -668,7 +668,7 @@ fun JournalHeroCard(
                     modifier = Modifier
                         .matchParentSize()
                         .hazeEffect(heroHazeState) {
-                            inputScale = HazeInputScale.Auto
+                            // inputScale = HazeInputScale.Auto
                             blurEffect { this.style = frostStyle }
                         },
                 )
@@ -928,7 +928,7 @@ private fun HeroViewLayout(
                     modifier = Modifier
                         .matchParentSize()
                         .hazeEffect(heroHazeState) {
-                            inputScale = HazeInputScale.Auto
+                            // inputScale = HazeInputScale.Auto
                             blurEffect { this.style = frostStyle }
                         },
                 )
@@ -1147,7 +1147,7 @@ private fun BoxScope.HeroBackgroundWatermark(
                 drawImage(image = iconMask, blendMode = BlendMode.DstIn)
             }
             .hazeEffect(hazeState) {
-                inputScale = HazeInputScale.Auto
+                // inputScale = HazeInputScale.Auto
                 blurEffect { this.style = watermarkStyle }
             },
     )

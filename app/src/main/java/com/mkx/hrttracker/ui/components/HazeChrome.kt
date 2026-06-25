@@ -189,7 +189,7 @@ fun Modifier.hazeChrome(
     return hazeEffect(state = state) {
         // Blur a downscaled copy of the source — Auto picks the factor from the blur
         // radius, where the lost detail is imperceptible. Cuts the per-frame GPU cost.
-        inputScale = HazeInputScale.Auto
+        // inputScale = HazeInputScale.Auto
         blurEffect {
             this.style = style
             if (alpha != null) {
@@ -254,7 +254,7 @@ fun Modifier.hazeBottomSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     )
     return hazeEffect(state = state) {
-        inputScale = HazeInputScale.Auto
+        // inputScale = HazeInputScale.Auto
         blurEffect {
             this.style = style
         }
@@ -273,7 +273,7 @@ fun Modifier.hazeDialog(
     )
     return this.clip(shape)
         .hazeEffect(state = state) {
-            inputScale = HazeInputScale.Auto
+            // inputScale = HazeInputScale.Auto
             blurEffect {
                 this.style = style
                 blurredEdgeTreatment = BlurredEdgeTreatment(shape)
@@ -309,7 +309,7 @@ fun Modifier.hazeSheetSurface(
     val style = HazeMaterials.thick(containerColor = containerColor)
     return this.clip(shape)
         .hazeEffect(state = state) {
-            inputScale = HazeInputScale.Auto
+            // inputScale = HazeInputScale.Auto
             blurEffect {
                 this.style = style
                 blurredEdgeTreatment = BlurredEdgeTreatment(shape)
