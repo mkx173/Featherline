@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -62,6 +63,7 @@ data class MainUiState(
     val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
     val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
     val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
+    val homeCardLayout: HomeCardLayout = HomeCardLayout(),
 ) {
     val splashReady: Boolean
         get() = homeDataReady

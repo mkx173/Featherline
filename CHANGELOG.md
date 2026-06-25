@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-25
+
 ### Added
 
 - You can now import your dose history and blood test results from another HRT tracker's exported file.
 - A new Journal tab lets you track meaningful dates, each with a custom icon and color, and see how long it has been on a timeline with upcoming milestones.
 - You can write a short note for each day from the Journal tab, then browse, edit, or delete past notes.
+- You can now reorder and hide the home-screen cards from a "Customize cards" option in the top-bar menu.
 
 ### Fixed
 

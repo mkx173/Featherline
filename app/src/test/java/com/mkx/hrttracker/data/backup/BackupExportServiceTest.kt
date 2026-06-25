@@ -16,6 +16,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -88,6 +90,7 @@ class BackupExportServiceTest {
         every { context.cacheDir } returns cacheDir
         every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { settingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
+        every { settingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
         coEvery {
             widgetAppearanceRepository.currentEffective(null)
         } returns WidgetAppearance.Default
@@ -140,6 +143,40 @@ class BackupExportServiceTest {
         )!!
 
         assertEquals(false, snapshot.settings.stockNudgeEnabled)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_exportsHomeCardLayout() = runTest {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        every { settingsRepository.homeCardLayoutFlow } returns flowOf(
+            HomeCardLayout(
+                order = listOf(
+                    HomeCardType.TIMELINE,
+                    HomeCardType.E2_HERO,
+                    HomeCardType.E2_CHART,
+                    HomeCardType.ANTIANDROGEN,
+                    HomeCardType.LOW_STOCK,
+                ),
+                hidden = setOf(HomeCardType.E2_CHART),
+            )
+        )
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        assertEquals(
+            listOf("TIMELINE", "E2_HERO", "E2_CHART", "ANTIANDROGEN", "LOW_STOCK"),
+            snapshot.settings.homeCardOrder,
+        )
+        assertEquals(listOf("E2_CHART"), snapshot.settings.homeCardHidden)
     }
 
     @Test

@@ -18,6 +18,8 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -91,6 +93,8 @@ class SettingsRepository @Inject constructor(
         booleanPreferencesKey("home_low_stock_section_expanded")
     private val homeLowStockAcknowledgedWarningStatesKey =
         stringSetPreferencesKey("home_low_stock_acknowledged_warning_states")
+    private val homeCardOrderKey = stringPreferencesKey("home_card_order")
+    private val homeCardHiddenKey = stringSetPreferencesKey("home_card_hidden")
     private val stockNudgeEnabledKey = booleanPreferencesKey("stock_nudge_enabled")
     private val stockNudgeDismissCountKey = intPreferencesKey("stock_nudge_dismiss_count")
     private val stockNudgeUserEnabledKey = booleanPreferencesKey("stock_nudge_user_enabled")
@@ -125,6 +129,16 @@ class SettingsRepository @Inject constructor(
 
     val homeLowStockSectionExpandedFlow: Flow<Boolean> = storedPreferences
         .map { it[homeLowStockSectionExpandedKey] ?: true }
+        .distinctUntilChanged()
+
+    val homeCardLayoutFlow: Flow<HomeCardLayout> = storedPreferences
+        .map { preferences ->
+            val orderNames = preferences[homeCardOrderKey]
+                ?.split(",")
+                ?.filter { it.isNotEmpty() }
+                ?: emptyList()
+            HomeCardLayout.decode(orderNames, preferences[homeCardHiddenKey].orEmpty())
+        }
         .distinctUntilChanged()
 
     val homeLowStockAcknowledgedWarningStatesFlow: Flow<Map<String, MedicineStockState>> =
@@ -259,6 +273,13 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[homeLowStockAcknowledgedWarningStatesKey] = encodedWarningStates
             }
+        }
+    }
+
+    suspend fun setHomeCardLayout(order: List<HomeCardType>, hidden: Set<HomeCardType>) {
+        activeDataStore().edit { preferences ->
+            preferences[homeCardOrderKey] = order.joinToString(",") { it.name }
+            preferences[homeCardHiddenKey] = hidden.map { it.name }.toSet()
         }
     }
 
@@ -432,6 +453,7 @@ class SettingsRepository @Inject constructor(
         firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
         stockNudgeEnabled: Boolean = true,
         stockNudgeUserEnabled: Boolean = false,
+        homeCardLayout: HomeCardLayout = HomeCardLayout(),
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -488,6 +510,9 @@ class SettingsRepository @Inject constructor(
             preferences.remove(stockNudgeDismissCountKey)
 
             preferences.remove(homeLowStockAcknowledgedWarningStatesKey)
+
+            preferences[homeCardOrderKey] = homeCardLayout.order.joinToString(",") { it.name }
+            preferences[homeCardHiddenKey] = homeCardLayout.hidden.map { it.name }.toSet()
         }
 
         setAppLanguageOption(appLanguageOption)

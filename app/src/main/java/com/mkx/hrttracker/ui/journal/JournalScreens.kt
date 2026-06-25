@@ -259,10 +259,11 @@ fun JournalScreenContent(
                     header = {
                         HrtSectionHeader(
                             text = stringResource(R.string.journal_notes_section),
+                            trailingAlignByBaseline = true,
                             trailing = {
                                 Text(
-                                    text = stringResource(R.string.journal_notes_window_meta),
-                                    style = MaterialTheme.typography.titleSmall,
+                                    text = stringResource(R.string.journal_notes_window_meta).uppercase(),
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     // Debug-only: long-press this meta label to seed sample notes
                                     // across the recent window, previous months, and prior years.
@@ -274,8 +275,9 @@ fun JournalScreenContent(
                                             onClick = {},
                                             onLongClick = onAddDebugNotes,
                                         )
+                                            .alignByBaseline()
                                     } else {
-                                        Modifier
+                                        Modifier.alignByBaseline()
                                     },
                                 )
                             },

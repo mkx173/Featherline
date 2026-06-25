@@ -10,6 +10,7 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
@@ -114,7 +115,7 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        return combine(
+        val homeStateFlow = combine(
             keyedInputsFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
@@ -156,6 +157,13 @@ class MainViewModel @Inject constructor(
             }
         }
             .filterNotNull()
+
+        return combine(
+            homeStateFlow,
+            settingsRepository.homeCardLayoutFlow,
+        ) { state, layout ->
+            state.copy(homeCardLayout = layout)
+        }
     }
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
@@ -214,6 +222,12 @@ class MainViewModel @Inject constructor(
     fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
         viewModelScope.launch {
             settingsRepository.setHomeE2ChartWindowOption(option)
+        }
+    }
+
+    fun setHomeCardLayout(order: List<HomeCardType>, hidden: Set<HomeCardType>) {
+        viewModelScope.launch {
+            settingsRepository.setHomeCardLayout(order, hidden)
         }
     }
 

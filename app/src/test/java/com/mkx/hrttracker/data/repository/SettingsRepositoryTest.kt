@@ -5,10 +5,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
+import com.mkx.hrttracker.model.home.HomeCardLayout
+import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -471,6 +474,54 @@ class SettingsRepositoryTest {
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
         )
     }
+
+    @Test
+    fun `homeCardLayoutFlow defaults to HomeCardLayout when unset`() =
+        runTest(testDispatcher) {
+            assertEquals(HomeCardLayout(), settingsRepository.homeCardLayoutFlow.first())
+        }
+
+    @Test
+    fun `setHomeCardLayout round-trips order and hidden`() =
+        runTest(testDispatcher) {
+            val order = listOf(
+                HomeCardType.TIMELINE,
+                HomeCardType.E2_HERO,
+                HomeCardType.E2_CHART,
+                HomeCardType.ANTIANDROGEN,
+                HomeCardType.LOW_STOCK,
+            )
+            val hidden = setOf(HomeCardType.E2_CHART, HomeCardType.LOW_STOCK)
+
+            settingsRepository.setHomeCardLayout(order, hidden)
+
+            val restored = settingsRepository.homeCardLayoutFlow.first()
+            assertEquals(order, restored.order)
+            assertEquals(hidden, restored.hidden)
+        }
+
+    @Test
+    fun `homeCardLayoutFlow appends missing enum values and ignores unknown names`() =
+        runTest(testDispatcher) {
+            // Write a partial, dirty order string directly (simulates an older/forward version).
+            dataStore.edit { prefs ->
+                prefs[stringPreferencesKey("home_card_order")] = "TIMELINE,GHOST,TIMELINE,E2_HERO"
+            }
+
+            val layout = settingsRepository.homeCardLayoutFlow.first()
+
+            assertEquals(
+                listOf(
+                    HomeCardType.TIMELINE,
+                    HomeCardType.E2_HERO,
+                    HomeCardType.LOW_STOCK,
+                    HomeCardType.E2_CHART,
+                    HomeCardType.ANTIANDROGEN,
+                ),
+                layout.order,
+            )
+            assertEquals(emptySet<HomeCardType>(), layout.hidden)
+        }
 
     private suspend fun restoreSettingsWithStockNudgeEnabled(
         enabled: Boolean,

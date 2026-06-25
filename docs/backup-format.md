@@ -134,8 +134,9 @@ flattened into the parent's JSON.
   last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
-  suffix default group names, and the stock-tracking-nudge flags
-  `stockNudgeEnabled` / `stockNudgeUserEnabled`). The legacy
+  suffix default group names, the stock-tracking-nudge flags
+  `stockNudgeEnabled` / `stockNudgeUserEnabled`, and the home-card layout
+  `homeCardOrder` / `homeCardHidden`). The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
   versions can read new backups; on restore, a present `widgetAppearance`
@@ -391,7 +392,7 @@ incompatible files are rejected at the cheapest detection point.
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
-`homeE2ChartWindow`, `archivedAtLocalIso`,
+`homeE2ChartWindow`, `homeCardOrder` / `homeCardHidden`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
