@@ -4,19 +4,23 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -64,9 +68,15 @@ fun HomeCardLayoutDialog(
     // the committed order is never the stale (pre-settle) one.
     var settlingAfterDrag by remember { mutableStateOf(false) }
     var confirmPending by remember { mutableStateOf(false) }
+    // A drag only reorders (and defers an onSettle) if the dragged row crossed a
+    // neighbour, which always fires onMove first. So arm the settle gate only when a
+    // move actually happened: a long-press released without crossing leaves draftOrder
+    // already final, and Done commits instantly instead of waiting on the backstop below.
+    var movedDuringDrag by remember { mutableStateOf(false) }
     LaunchedEffect(settlingAfterDrag) {
         if (settlingAfterDrag) {
-            // Safety net for a drop with no reorder (onSettle never fires).
+            // Backstop for a drag that crossed a neighbour but returned to its origin
+            // (moved, yet onSettle never fires). Rare; draftOrder is already final.
             delay(1000)
             settlingAfterDrag = false
         }
@@ -93,6 +103,7 @@ fun HomeCardLayoutDialog(
                     settlingAfterDrag = false
                 },
                 onMove = {
+                    movedDuringDrag = true
                     ViewCompat.performHapticFeedback(
                         view,
                         HapticFeedbackConstantsCompat.SEGMENT_FREQUENT_TICK,
@@ -105,7 +116,10 @@ fun HomeCardLayoutDialog(
                 key(type) {
                     val rowInteraction = remember { MutableInteractionSource() }
                     val gripInteraction = remember { MutableInteractionSource() }
-                    val onDragStopped: (Float) -> Unit = { settlingAfterDrag = true }
+                    val onDragStopped: (Float) -> Unit = {
+                        settlingAfterDrag = movedDuringDrag
+                        movedDuringDrag = false
+                    }
                     val name = stringResource(homeCardNameRes(type))
                     val leadingPainter = homeCardLeadingPainter(type)
                     val hidden = type in draftHidden
@@ -184,15 +198,14 @@ private fun HomeCardLayoutRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             // 8.dp matches the leading icon -> title gap used by the real cards.
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // Leading icon mirrors the card's own header: an 18.dp slot holding the
             // card's actual glyph size (low-stock is 16.dp, the rest 18.dp).
             Box(
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -201,37 +214,57 @@ private fun HomeCardLayoutRow(
                     modifier = Modifier.size(leadingIconSize),
                 )
             }
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = name,
                 // Same text style as the real card titles (labelLarge + SemiBold).
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Normal,
                 modifier = Modifier
                     .weight(1f)
                     .cjkTextOffset(name),
             )
-            // Visibility toggle first, then drag grip — same cluster order/styling as the
-            // journal pinned tray's unpin -> grip cluster (EditTrailingCluster).
-            IconButton(onClick = onToggleHidden) {
-                Icon(
-                    painter = painterResource(
-                        if (hidden) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
-                    ),
-                    contentDescription = stringResource(
-                        if (hidden) R.string.home_card_show else R.string.home_card_hide,
-                        name,
-                    ),
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Spacer(modifier = Modifier.width(12.dp))
+            CompositionLocalProvider(
+                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+            ) {
+                // Visibility toggle first, then drag grip — same cluster order/styling as the
+                // journal pinned tray's unpin -> grip cluster (EditTrailingCluster).
+                IconButton(
+                    onClick = onToggleHidden,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                if (hidden) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
+                            ),
+                            contentDescription = stringResource(
+                                if (hidden) R.string.home_card_show else R.string.home_card_hide,
+                                name,
+                            ),
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // DragGrip replicated inline (JournalComponents.DragGrip is private).
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_drag_indicator),
+                        contentDescription = null,
+                        modifier = gripModifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            // DragGrip replicated inline (JournalComponents.DragGrip is private).
-            Icon(
-                painter = painterResource(R.drawable.ic_drag_indicator),
-                contentDescription = null,
-                modifier = gripModifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -255,8 +288,8 @@ private fun homeCardLeadingPainter(type: HomeCardType): Painter = when (type) {
 
 /** Glyph size mirroring each real card's leading icon; low-stock renders at 16.dp, the rest 18.dp. */
 private fun homeCardLeadingIconSize(type: HomeCardType): Dp = when (type) {
-    HomeCardType.LOW_STOCK -> 16.dp
-    else -> 18.dp
+    HomeCardType.LOW_STOCK -> 20.dp
+    else -> 22.dp
 }
 
 @Composable

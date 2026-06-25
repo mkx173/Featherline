@@ -63,6 +63,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -486,6 +487,7 @@ private fun PinnedDateRow(
 // welcome with a tinted calendar glyph, an encouraging headline + subtitle, and an "Add a date"
 // button. Tapping the card opens the Milestones screen; tapping the button opens it and the
 // add-date sheet straight away.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EmptyMilestonesCard(
     onOpenMilestones: () -> Unit,
@@ -540,6 +542,10 @@ fun EmptyMilestonesCard(
             HrtFilledTonalButton(
                 text = stringResource(R.string.journal_add_date),
                 icon = Icons.Rounded.Add,
+                iconModifier = Modifier.size(
+                    ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                ),
+                iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
                 onClick = onAddDate,
             )
         }
