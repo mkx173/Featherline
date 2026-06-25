@@ -93,7 +93,13 @@ class MilestonesViewModel @Inject constructor(
         pending: PendingEdits,
     ): MilestonesUiState {
         val effective = applyPendingEdits(all, pending)
-        val sorted = effective.sortedWith(compareBy<TrackedDate> { it.date }.thenBy { it.name })
+        // Same-day dates tie-break by creation time (then id), matching pinnedSorted and
+        // JournalRepository — not by name, which scrambled the order users added them in.
+        val sorted = effective.sortedWith(
+            compareBy<TrackedDate> { it.date }
+                .thenBy { it.createdAtEpochMillis }
+                .thenBy { it.id }
+        )
         val pinned = pinnedSorted(effective)
         val pinnedIds = pinned.map { it.id }.toSet()
         val hero = pinned.firstOrNull()

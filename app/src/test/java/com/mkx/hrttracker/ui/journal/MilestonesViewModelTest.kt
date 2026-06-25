@@ -156,6 +156,32 @@ class MilestonesViewModelTest {
     }
 
     @Test
+    fun uiState_sameDayTimelineDatesSortByCreationTime() = runTest {
+        // Two dates on the same day whose alphabetical order is the REVERSE of their
+        // creation order. The All-dates timeline must tie-break same-day entries by
+        // creation time (matching the pinned tray and JournalRepository), not by name —
+        // so the earlier-created "Zebra" comes before the later-created "Apple".
+        val earlier = trackedDate(
+            id = "earlier", name = "Zebra", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2026, 3, 1), pinnedOrder = null, createdAtEpochMillis = 100,
+        )
+        val later = trackedDate(
+            id = "later", name = "Apple", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2026, 3, 1), pinnedOrder = null, createdAtEpochMillis = 200,
+        )
+        // Supply them in the name-sorted order so a name tie-break would leave them as-is.
+        stubTrackedDates(all = listOf(later, earlier), pinned = emptyList())
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("Zebra", "Apple"),
+            viewModel.uiState.value.timeline.map { it.anchor.name },
+        )
+    }
+
+    @Test
     fun uiState_futureHeroHasNoNextMilestoneLabel() = runTest {
         val futureHero = trackedDate(
             id = "surgery",
@@ -232,8 +258,10 @@ class MilestonesViewModelTest {
             listOf("Z created first", "Z id first", "A id second", "A later date"),
             state.pinnedTray.map { it.name },
         )
+        // Same-day timeline order now matches the pinned tie-break (createdAt, then id),
+        // so it mirrors pinnedTray above plus the unpinned "Consult".
         assertEquals(
-            listOf("A id second", "Z created first", "Z id first", "A later date", "Consult"),
+            listOf("Z created first", "Z id first", "A id second", "A later date", "Consult"),
             state.timeline.map { it.anchor.name },
         )
         assertEquals(listOf(true, true, true, true, false), state.timeline.map { it.isPinned })
