@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -335,6 +336,13 @@ private fun AnchorIconGrid(
     val maxTile = 44.dp
     // The chosen colour's scheme fills the selected tile so the grid echoes the colour pick.
     val scheme = rememberMedicationGroupColorScheme(colorKey = selectedPalette)
+    // Defer the tiles off the sheet's first frame: each tile inflates a vector drawable,
+    // and composing all of AnchorIcon.entries at once is the bulk of the sheet's
+    // first-frame cost (the jank when it opens). The grid still reserves its full
+    // footprint with equally-sized empty cells below, so filling the glyphs one frame
+    // later doesn't resize the sheet mid-open.
+    var tilesReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { tilesReady = true }
     Column(
         verticalArrangement = Arrangement.spacedBy(gap),
     ) {
@@ -355,13 +363,19 @@ private fun AnchorIconGrid(
                         horizontalArrangement = Arrangement.spacedBy(gap),
                     ) {
                         rowIcons.forEach { icon ->
-                            AnchorIconTile(
-                                icon = icon,
-                                selected = icon == selectedIcon,
-                                scheme = scheme,
-                                onClick = { onIconSelected(icon) },
-                                modifier = Modifier.weight(1f),
-                            )
+                            if (tilesReady) {
+                                AnchorIconTile(
+                                    icon = icon,
+                                    selected = icon == selectedIcon,
+                                    scheme = scheme,
+                                    onClick = { onIconSelected(icon) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            } else {
+                                // Same footprint as a tile (aspectRatio 1) so the grid's
+                                // height matches before and after the glyphs land.
+                                Spacer(modifier = Modifier.weight(1f).aspectRatio(1f))
+                            }
                         }
                         // Pad a short final row with empty cells so its tiles keep the same
                         // size as the full rows instead of stretching to fill the width.

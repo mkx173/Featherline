@@ -181,6 +181,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
@@ -667,6 +668,7 @@ fun JournalHeroCard(
                     modifier = Modifier
                         .matchParentSize()
                         .hazeEffect(heroHazeState) {
+                            inputScale = HazeInputScale.Auto
                             blurEffect { this.style = frostStyle }
                         },
                 )
@@ -926,6 +928,7 @@ private fun HeroViewLayout(
                     modifier = Modifier
                         .matchParentSize()
                         .hazeEffect(heroHazeState) {
+                            inputScale = HazeInputScale.Auto
                             blurEffect { this.style = frostStyle }
                         },
                 )
@@ -1144,6 +1147,7 @@ private fun BoxScope.HeroBackgroundWatermark(
                 drawImage(image = iconMask, blendMode = BlendMode.DstIn)
             }
             .hazeEffect(hazeState) {
+                inputScale = HazeInputScale.Auto
                 blurEffect { this.style = watermarkStyle }
             },
     )
