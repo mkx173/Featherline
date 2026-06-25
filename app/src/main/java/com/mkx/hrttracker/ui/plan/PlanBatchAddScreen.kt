@@ -6,6 +6,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -21,13 +22,17 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerFormatter
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DateRangePickerDefaults
+import androidx.compose.material3.DateRangePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -48,12 +53,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +98,7 @@ import com.mkx.hrttracker.util.dateRangeLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 @Composable
@@ -648,6 +657,7 @@ private fun PlanBatchDateRangePickerDialog(
             }
         },
     ) {
+        val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
         val current = MaterialTheme.typography
         MaterialTheme(
             typography = current.copy(
@@ -660,6 +670,7 @@ private fun PlanBatchDateRangePickerDialog(
                 state = state,
                 modifier = Modifier.fillMaxWidth(),
                 colors = colors,
+                dateFormatter = dateFormatter,
                 title = {
                     DateRangePickerDefaults.DateRangePickerTitle(
                         displayMode = state.displayMode,
@@ -668,15 +679,72 @@ private fun PlanBatchDateRangePickerDialog(
                     )
                 },
                 headline = {
-                    DateRangePickerDefaults.DateRangePickerHeadline(
-                        selectedStartDateMillis = state.selectedStartDateMillis,
-                        selectedEndDateMillis = state.selectedEndDateMillis,
-                        displayMode = state.displayMode,
-                        dateFormatter = remember { DatePickerDefaults.dateFormatter() },
-                        modifier = Modifier.padding(PaddingValues(start = 16.dp, bottom = 12.dp)),
+                    AutoSizeDateRangeHeadline(
+                        state = state,
+                        dateFormatter = dateFormatter,
+                        sampleYear = startDate.year,
                         contentColor = DatePickerDefaults.colors().headlineContentColor,
                     )
                 }
+            )
+        }
+    }
+}
+
+/**
+ * The default DateRangePicker headline lays out the start/end dates in a Row whose inner Texts wrap
+ * to a second line when the formatted range is wider than the header. To keep any range on one
+ * line, we shrink the headline font (capped at the ambient style) so the widest possible range for
+ * the locale's date format fits the measured header width — and since the size is derived from that
+ * worst case, every range renders at the same non-wrapping size.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AutoSizeDateRangeHeadline(
+    state: DateRangePickerState,
+    dateFormatter: DatePickerFormatter,
+    sampleYear: Int,
+    contentColor: Color,
+) {
+    val baseStyle = LocalTextStyle.current
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val locale = LocalConfiguration.current.locales[0]
+
+    BoxWithConstraints {
+        // maxWidth is the headline slot's width; subtract our start padding plus a small margin
+        // for the Row's delimiter/spacing that the single-string measurement below approximates.
+        val availablePx = with(density) { (maxWidth - 16.dp - 8.dp).toPx() }
+        val fontSize = remember(availablePx, baseStyle, dateFormatter, locale, sampleYear) {
+            // Widest single date for this format: month names / 2-digit parts vary across months.
+            val widestDate = (1..12)
+                .mapNotNull { month ->
+                    val millis = LocalDate.of(sampleYear, month, 28)
+                        .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                    dateFormatter.formatDate(millis, locale)
+                }
+                .maxByOrNull { measurer.measure(it, baseStyle).size.width }
+                ?: ""
+            val cap = baseStyle.fontSize.value
+            val worstWidth = measurer.measure(
+                text = "$widestDate - $widestDate",
+                style = baseStyle.copy(fontSize = cap.sp),
+                softWrap = false,
+                maxLines = 1,
+            ).size.width
+            // Text width scales ~linearly with font size, so one measurement gives the fit factor.
+            val fitted = if (worstWidth <= availablePx) cap else cap * availablePx / worstWidth
+            fitted.coerceIn(12f, cap).sp // ponytail: 12sp floor, two dates always fit a picker width
+        }
+
+        ProvideTextStyle(baseStyle.copy(fontSize = fontSize)) {
+            DateRangePickerDefaults.DateRangePickerHeadline(
+                selectedStartDateMillis = state.selectedStartDateMillis,
+                selectedEndDateMillis = state.selectedEndDateMillis,
+                displayMode = state.displayMode,
+                dateFormatter = dateFormatter,
+                modifier = Modifier.padding(PaddingValues(start = 16.dp, bottom = 12.dp)),
+                contentColor = contentColor,
             )
         }
     }
