@@ -45,9 +45,8 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 private val SwatchTouchTargetSize = 48.dp
 private val SwatchVisualSize = 44.dp
-// Selection ring, scaled 1.5x off ColorPaletteSwatch's 2dp/2dp to suit the larger swatch.
-private val SwatchSelectionRingWidth = 3.dp
-private val SwatchSelectionRingInset = 3.dp
+private val SwatchSelectionRingWidth = 2.dp
+private val SwatchSelectionRingInset = 2.dp
 // A swatch reads as a circle when idle and morphs to a rounded square once picked. Corners are
 // expressed as a percent so the same shape fits both the 48dp touch target and the 44dp visual.
 private const val SwatchCircleCornerPercent = 50

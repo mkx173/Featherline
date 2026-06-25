@@ -1512,7 +1512,7 @@ private fun AnchorIconChip(
             Icon(
                 painter = painterResource(anchorIconRes(anchor.icon)),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
