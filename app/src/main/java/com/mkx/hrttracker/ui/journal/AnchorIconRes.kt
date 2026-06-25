@@ -21,5 +21,5 @@ fun anchorIconRes(icon: AnchorIcon): Int = when (icon) {
     AnchorIcon.STETHOSCOPE -> R.drawable.ic_stethoscope
     AnchorIcon.TRAVEL -> R.drawable.ic_travel
     AnchorIcon.CAKE -> R.drawable.ic_cake
-    AnchorIcon.STAR -> R.drawable.ic_star
+    AnchorIcon.STAR -> R.drawable.ic_kid_star
 }

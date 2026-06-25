@@ -313,13 +313,14 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 internal data class NavigationItemContent(
     val screen: Screen,
     @param:DrawableRes val icon: Int,
+    @param:DrawableRes val iconAlt: Int,
 )
 
 internal val topLevelNavigationItems = listOf(
-    NavigationItemContent(Screen.Main, R.drawable.ic_home),
-    NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month),
-    NavigationItemContent(Screen.Journal, R.drawable.ic_book_ribbon),
-    NavigationItemContent(Screen.Settings, R.drawable.ic_settings),
+    NavigationItemContent(Screen.Main, R.drawable.ic_home, R.drawable.ic_home_alt),
+    NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month, R.drawable.ic_calendar_month_alt),
+    NavigationItemContent(Screen.Journal, R.drawable.ic_book_ribbon, R.drawable.ic_book_ribbon_alt),
+    NavigationItemContent(Screen.Settings, R.drawable.ic_settings, R.drawable.ic_settings_alt),
 )
 
 internal enum class TopLevelNavigationTapAction {
@@ -727,8 +728,11 @@ fun HrtTrackerNavHost(
                         }
                     },
                     icon = {
+                        val isSelected = selectedBottomScreen == navItem.screen
                         Icon(
-                            painter = painterResource(navItem.icon),
+                            painter = painterResource(
+                                if (isSelected) navItem.icon else navItem.iconAlt
+                            ),
                             contentDescription = stringResource(navItem.screen.label)
                         )
                     },
