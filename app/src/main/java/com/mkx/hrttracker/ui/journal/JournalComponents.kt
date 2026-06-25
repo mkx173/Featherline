@@ -13,7 +13,6 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
@@ -112,7 +111,6 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -190,9 +188,6 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import sh.calvin.reorderable.ReorderableColumn
 import java.time.LocalDate
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -989,24 +984,38 @@ private fun HeroViewLayout(
     }
 }
 
-// The hero colour background: an "aurora band" — flag hues normalised by [HeroBackgroundColors],
-// hue-sorted, and laid out as a soft linear spectrum sweep across the top-end, masked so the wash
-// fades down before it reaches the text. A slow "breathing" glow (a gentle opacity + scale pulse
-// anchored at the top-end) animates it, dropped to a static rest under the system "remove
-// animations" setting. See the hero-background-placements design (Aurora band).
-// Default linear-sweep angle: rightward, tilted slightly down. 90° = straight rightward; above 90
-// tilts the sweep downward, below 90 tilts it up. Per-call overridable (the date wash uses its own).
-private const val AuroraAngleDegrees = 110.0
+// The hero colour background: an "aurora bloom" — each flag hue (normalised by [HeroBackgroundColors],
+// hue-sorted) is laid out as its own soft radial bloom across the top edge, masked so the wash fades
+// down before it reaches the text. Each bloom "breathes" on its own clock — a phase stagger plus a
+// small period drift — so the colours swell and fade out of sync, reading as a live aurora rather
+// than one block pulsing together. Dropped to a static rest under the system "remove animations"
+// setting. See the hero-background-placements design (Aurora band).
+
+// Blooms are spread left→right starting at this inset across this fraction of the width, drifting
+// downward by [AuroraBloomTilt] of the height from the first bloom to the last (the band's gentle
+// tilt). Each bloom's radius is this fraction of the width — wide enough that neighbours overlap.
+private const val AuroraBloomSpanStart = 0.12f
+private const val AuroraBloomSpanWidth = 0.76f
+private const val AuroraBloomBandTop = 0.16f
+private const val AuroraBloomTilt = 0.14f
+private const val AuroraBloomRadius = 0.42f
+
 private const val AuroraMaskOpaqueStop = 0.32f // fully visible from the top down to here…
 private const val AuroraMaskFadeStop = 0.78f   // …then faded out by here, clearing the text below
-private const val AuroraPulseDurationMillis = 6000
-// "Breathing" amplitude: opacity dips to this floor (peaking at 1f) and the band zooms to this scale
-// (resting at 1f). Wide enough to read as a live glow rather than a static wash.
-private const val AuroraPulseMinAlpha = 0.55f
-private const val AuroraPulseScale = 1.12f
-// The mono-hue date wash uses a flatter, near-horizontal sweep so both seeds read across the whole
-// top edge instead of one hue dominating a corner the way the steeper flag angle would.
-private const val DateAuroraAngleDegrees = 95.0
+
+// One bloom's full breath cycle (dim→bright→dim); per bloom it's drifted by ±[AuroraBreathDrift] so
+// the blooms slide apart over time instead of locking into a shared rhythm.
+private const val AuroraBreathPeriodMillis = 8333.0
+// "Breathing" amplitude, applied per bloom: opacity dips to this fraction of the bloom's resting
+// alpha (peaking at full) and its radius swells to this scale (resting at 1f).
+private const val AuroraBreathMinAlpha = 0.5f
+private const val AuroraBreathScale = 1.28f
+// How desynced the blooms are. Bloom i is phase-shifted by i·φ·spread (φ = golden ratio, for a
+// non-repeating stagger) and its period drifts by up to ±[AuroraBreathDrift]·spread. 0 = all breathe
+// together; 1 = fully staggered.
+private const val AuroraPhaseSpread = 0.6f
+private const val AuroraBreathDrift = 0.18
+private const val AuroraGoldenFraction = 0.618f
 
 @Composable
 private fun HeroColorBackground(flag: PrideFlag, modifier: Modifier = Modifier) {
@@ -1037,32 +1046,26 @@ private fun HeroDateColorBackground(colorScheme: ColorScheme, modifier: Modifier
             blurred = blurred,
         ).asReversed().map { Color(it).copy(alpha = alpha) }
     }
-    HeroAuroraBackground(colors = colors, angleDegrees = DateAuroraAngleDegrees, modifier = modifier)
+    HeroAuroraBackground(colors = colors, modifier = modifier)
 }
 
 @Composable
 private fun HeroAuroraBackground(
     colors: List<Color>,
     modifier: Modifier = Modifier,
-    angleDegrees: Double = AuroraAngleDegrees,
 ) {
-    // "Breathing": opacity dips to AuroraPulseMinAlpha and the band zooms to AuroraPulseScale,
-    // anchored top-end. Honour the system animator setting ("remove animations" /
-    // animator-duration-scale 0) by resting static.
+    // Each colour breathes on its own clock (see [auroraBreath]). Honour the system animator setting
+    // ("remove animations" / animator-duration-scale 0) by resting static.
     val animatorsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
-    // Drive the pulse off the monotonic animation clock rather than a rememberInfiniteTransition, so
-    // the breath stays phase-continuous: navigating away disposes this composable, but the clock
-    // keeps running, so on return the wash resumes mid-breath instead of restarting from its dim
-    // floor. A 0..1 eased triangle over a full in+out period reproduces the old Reverse-mode curve.
-    val pulse = produceState(initialValue = 1f, animatorsEnabled) {
+    // Drive the blooms off the monotonic animation clock rather than a rememberInfiniteTransition, so
+    // the breath stays phase-continuous: navigating away disposes this composable, but the clock keeps
+    // running, so on return the wash resumes mid-breath instead of restarting from rest. The raw frame
+    // time is read inside drawBehind (a draw-phase snapshot read) so each frame only re-runs the draw
+    // and invalidates this layer, instead of recomposing the whole composable ~60fps.
+    val clockMillis = produceState(0L, animatorsEnabled) {
         if (!animatorsEnabled) return@produceState
-        val periodMillis = AuroraPulseDurationMillis * 2
         while (true) {
-            withInfiniteAnimationFrameMillis { frameMillis ->
-                val phase = (frameMillis % periodMillis).toFloat() / periodMillis
-                val triangle = if (phase < 0.5f) phase * 2f else (1f - phase) * 2f
-                value = EaseInOut.transform(triangle)
-            }
+            withInfiniteAnimationFrameMillis { value = it }
         }
     }
     // Vertical fade mask: opaque across the top, gone before the text. Applied via DstIn below.
@@ -1076,39 +1079,48 @@ private fun HeroAuroraBackground(
     }
     Box(
         modifier = modifier
-            .graphicsLayer {
-                // Read the pulse inside the layer block (a deferred snapshot read) so each
-                // animation frame only re-runs this lambda and invalidates the layer, instead
-                // of recomposing the whole composable ~60fps.
-                val p = if (animatorsEnabled) pulse.value else 1f
-                this.alpha = if (animatorsEnabled) lerp(AuroraPulseMinAlpha, 1f, p) else 1f
-                val scale = if (animatorsEnabled) lerp(1f, AuroraPulseScale, p) else 1f
-                scaleX = scale
-                scaleY = scale
-                transformOrigin = TransformOrigin(0.8f, 0f)
-                // Offscreen so the DstIn mask clips the band instead of punching through behind.
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
+            // Offscreen so the DstIn mask clips the blooms instead of punching through behind.
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawBehind {
                 if (colors.isEmpty()) return@drawBehind
-                // CSS linear-gradient angle -> a start/end line through the centre; the gradient
-                // length |w·sinθ| + |h·cosθ| lands the end stops at the box's projection.
-                val rad = Math.toRadians(angleDegrees)
-                val dx = sin(rad)
-                val dy = -cos(rad)
-                val half = (abs(size.width * dx) + abs(size.height * dy)).toFloat() / 2f
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val start = Offset(center.x - (dx * half).toFloat(), center.y - (dy * half).toFloat())
-                val end = Offset(center.x + (dx * half).toFloat(), center.y + (dy * half).toFloat())
-                val band = if (colors.size == 1) {
-                    Brush.linearGradient(listOf(colors.first(), colors.first()), start = start, end = end)
-                } else {
-                    Brush.linearGradient(colors = colors, start = start, end = end)
+                val ms = clockMillis.value // deferred read → redraw each frame while animating
+                val lastIndex = colors.size - 1
+                colors.forEachIndexed { i, color ->
+                    val t = if (lastIndex == 0) 0.5f else i.toFloat() / lastIndex
+                    val center = Offset(
+                        x = (AuroraBloomSpanStart + AuroraBloomSpanWidth * t) * size.width,
+                        y = (AuroraBloomBandTop + AuroraBloomTilt * t) * size.height,
+                    )
+                    val p = if (animatorsEnabled) auroraBreath(ms, i) else 1f
+                    val alpha = if (animatorsEnabled) lerp(AuroraBreathMinAlpha, 1f, p) else 1f
+                    val radius = AuroraBloomRadius * size.width *
+                        if (animatorsEnabled) lerp(1f, AuroraBreathScale, p) else 1f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            0f to color.copy(alpha = color.alpha * alpha),
+                            1f to color.copy(alpha = 0f),
+                            center = center,
+                            radius = radius,
+                        ),
+                        radius = radius,
+                        center = center,
+                    )
                 }
-                drawRect(brush = band)
                 drawRect(brush = fadeMask, blendMode = BlendMode.DstIn)
             },
     )
+}
+
+// 0→1→0 eased breath for bloom [index] at monotonic clock [frameMillis]: an eased triangle over
+// [AuroraBreathPeriodMillis] (drifted per index) so each bloom swells then fades, phase-shifted per
+// index so neighbours desync. φ-based stagger gives a non-repeating spread across the palette.
+private fun auroraBreath(frameMillis: Long, index: Int): Float {
+    val drift = 1.0 + ((index % 3) - 1) * AuroraBreathDrift * AuroraPhaseSpread
+    val phase = (index * AuroraGoldenFraction * AuroraPhaseSpread) % 1f
+    val cycle = frameMillis / (AuroraBreathPeriodMillis * drift) + phase
+    val p = cycle % 1.0 // fractional part, 0..1 (cycle ≥ 0)
+    val triangle = if (p < 0.5) p * 2.0 else (1.0 - p) * 2.0
+    return (triangle * triangle * (3.0 - 2.0 * triangle)).toFloat() // smoothstep ease
 }
 
 // The large corner glyph as a frosted, icon-shaped haze: a haze region the size of the watermark,
