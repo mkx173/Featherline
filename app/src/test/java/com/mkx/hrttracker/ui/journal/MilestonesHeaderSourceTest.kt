@@ -19,7 +19,10 @@ class MilestonesHeaderSourceTest {
             "The pinned section should own an explicit HrtSectionHeader, matching StockSection's " +
                 "header-then-content structure.",
             pinnedSection.contains("HrtSectionHeader(") &&
-                pinnedSection.contains("text = stringResource(R.string.journal_pinned_section)") &&
+                pinnedSection.contains(
+                    "val pinnedTitle = stringResource(R.string.journal_pinned_section)",
+                ) &&
+                pinnedSection.contains("text = pinnedTitle") &&
                 pinnedSection.contains("trailing = if (uiState.hero != null)"),
         )
         assertFalse(
@@ -37,9 +40,6 @@ class MilestonesHeaderSourceTest {
         ).readText()
         val pinnedSection = source.substringAfter("item(key = \"milestones-pinned\"")
             .substringBefore("item(key = \"milestones-pinned-timeline-spacer\"")
-        val iconSizeModifierCount = Regex("""modifier = Modifier\.size\(iconSize\)""")
-            .findAll(pinnedSection)
-            .count()
 
         assertTrue(
             "The hero background wand should suppress Material's default minimum touch target, " +
@@ -47,9 +47,9 @@ class MilestonesHeaderSourceTest {
             pinnedSection.contains("LocalMinimumInteractiveComponentSize provides Dp.Unspecified"),
         )
         assertTrue(
-            "The wand button and icon should both match the section title line height.",
+            "The wand button should be sized to the section title line height.",
             pinnedSection.contains("IconButton(") &&
-                iconSizeModifierCount >= 2 &&
+                pinnedSection.contains(".size(iconSize)") &&
                 pinnedSection.contains("Icon("),
         )
         assertFalse(

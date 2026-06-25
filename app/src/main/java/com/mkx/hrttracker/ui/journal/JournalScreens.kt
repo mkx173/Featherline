@@ -603,7 +603,9 @@ fun MilestonesScreenContent(
                                                 contentDescription = stringResource(
                                                     R.string.journal_hero_background_action,
                                                 ),
-                                                modifier = Modifier.size(18.dp),
+                                                // Glyph tracks the button (title line height) so it
+                                                // scales with the user's font-size setting.
+                                                modifier = Modifier.size(iconSize * 0.85f),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }

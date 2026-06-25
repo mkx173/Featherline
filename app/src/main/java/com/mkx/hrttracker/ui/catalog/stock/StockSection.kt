@@ -142,7 +142,9 @@ private fun HeaderOverflowMenu(
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
                     contentDescription = stringResource(R.string.stock_section_more_options),
-                    modifier = Modifier.size(20.dp),
+                    // Glyph tracks the button (title line height) so it scales
+                    // with the user's font-size setting.
+                    modifier = Modifier.size(iconSize * 0.9f),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
