@@ -2,12 +2,11 @@ package com.mkx.hrttracker.ui.main
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.rounded.MonitorHeart
@@ -36,6 +35,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
@@ -119,6 +119,7 @@ fun HomeCardLayoutDialog(
                     HomeCardLayoutRow(
                         name = name,
                         leadingPainter = leadingPainter,
+                        leadingIconSize = homeCardLeadingIconSize(type),
                         hidden = hidden,
                         onToggleHidden = {
                             draftHidden = if (hidden) draftHidden - type else draftHidden + type
@@ -162,6 +163,7 @@ fun HomeCardLayoutDialog(
 private fun HomeCardLayoutRow(
     name: String,
     leadingPainter: Painter,
+    leadingIconSize: Dp,
     hidden: Boolean,
     onToggleHidden: () -> Unit,
     gripModifier: Modifier,
@@ -184,15 +186,21 @@ private fun HomeCardLayoutRow(
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            // 8.dp matches the leading icon -> title gap used by the real cards.
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Leading icon mirrors the card's own header icon (card identity).
-            Icon(
-                painter = leadingPainter,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+            // Leading icon mirrors the card's own header: an 18.dp slot holding the
+            // card's actual glyph size (low-stock is 16.dp, the rest 18.dp).
+            Box(
+                modifier = Modifier.size(18.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = leadingPainter,
+                    contentDescription = null,
+                    modifier = Modifier.size(leadingIconSize),
+                )
+            }
             Text(
                 text = name,
                 // Same text style as the real card titles (labelLarge + SemiBold).
@@ -203,7 +211,7 @@ private fun HomeCardLayoutRow(
                     .cjkTextOffset(name),
             )
             // Visibility toggle first, then drag grip — same cluster order/styling as the
-            // journal pinned tray's unpin -> grip cluster (EditTrailingCluster). No row dimming.
+            // journal pinned tray's unpin -> grip cluster (EditTrailingCluster).
             IconButton(onClick = onToggleHidden) {
                 Icon(
                     painter = painterResource(
@@ -217,7 +225,6 @@ private fun HomeCardLayoutRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_xsmall)))
             // DragGrip replicated inline (JournalComponents.DragGrip is private).
             Icon(
                 painter = painterResource(R.drawable.ic_drag_indicator),
@@ -244,6 +251,12 @@ private fun homeCardLeadingPainter(type: HomeCardType): Painter = when (type) {
     HomeCardType.E2_CHART -> rememberVectorPainter(Icons.AutoMirrored.Rounded.ShowChart)
     HomeCardType.ANTIANDROGEN -> painterResource(R.drawable.ic_medication)
     HomeCardType.TIMELINE -> painterResource(R.drawable.ic_event)
+}
+
+/** Glyph size mirroring each real card's leading icon; low-stock renders at 16.dp, the rest 18.dp. */
+private fun homeCardLeadingIconSize(type: HomeCardType): Dp = when (type) {
+    HomeCardType.LOW_STOCK -> 16.dp
+    else -> 18.dp
 }
 
 @Composable
