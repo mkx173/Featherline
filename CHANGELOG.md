@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - You can now import your dose history and blood test results from another HRT tracker's exported file.
 - A new Journal tab lets you track meaningful dates, each with a custom icon and color, and see how long it has been on a timeline with upcoming milestones.
 - You can write a short note for each day from the Journal tab, then browse, edit, or delete past notes.
-- You can now reorder and hide the home-screen cards from a "Customize cards" option in the top-bar menu, and your layout is included in backups.
+- You can now reorder and hide the home-screen cards from a "Customize cards" option in the top-bar menu.
 
 ### Fixed
 
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - On Android 12+, the top app bar, bottom navigation bar, bottom sheets, and dialogs now show a translucent blur of the content behind them, with an appearance setting ("Background blur effect") to turn it off.
-- The home-screen widget's theme can now be customized in Settings or the widget editor: accent color, saturation, and light balance, with a button in the editor to preview both the light and dark look.
+- The home-screen widget's theme can now be customized in Settings or the widget editor: accent color, saturation, and light balance, with a button in the editor to preview both the light and dark look. The chosen appearance is included in backups.
 
 ### Changed
 
