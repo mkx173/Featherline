@@ -270,7 +270,7 @@ fun PinnedDatesCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp, bottom = 6.dp),
+                    .padding(top = 8.dp, bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             ) {
                 anchors.forEachIndexed { index, anchor ->
@@ -748,6 +748,7 @@ private fun JournalHeroPills(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         size = HrtPillSize.Small,
+        fontWeight = FontWeight.SemiBold,
         icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
     )
 }
@@ -1379,6 +1380,7 @@ private fun HomeTag(modifier: Modifier = Modifier) {
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         size = HrtPillSize.Small,
+        fontWeight = FontWeight.SemiBold,
         modifier = modifier,
         icon = { Icon(painterResource(R.drawable.ic_home), null, iconModifier) },
     )
@@ -1403,6 +1405,7 @@ private fun HeroChips(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             size = HrtPillSize.Small,
+            fontWeight = FontWeight.SemiBold,
             icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
         )
         HomeTag()
@@ -1414,6 +1417,7 @@ private fun HeroChips(
                 contentColor = colorScheme.onPrimaryContainer,
                 labelColor = colorScheme.onPrimaryFixed,
                 size = HrtPillSize.Small,
+                fontWeight = FontWeight.SemiBold,
                 icon = { Icon(painterResource(R.drawable.ic_flag), null, iconModifier) },
             )
         }
@@ -2501,7 +2505,7 @@ private fun NoteEditorCard(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         header?.invoke()
         AnimatedContent(
@@ -3125,10 +3129,8 @@ fun AllNotesNoteRow(
                 { onEnterSelection(note.date) }
             },
             header = {
-                // 6dp here plus the editor Column's 2dp gap matches the old rail's 8dp label gap.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 6.dp),
                 ) {
                     // Grows in horizontally from the start edge so the indicator slides in from the
                     // left and pushes only the date right — the field below never moves.

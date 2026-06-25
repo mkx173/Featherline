@@ -1137,7 +1137,7 @@ internal fun MainE2ChartCard(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .padding(bottom = 6.dp)
@@ -2881,7 +2881,7 @@ internal fun MainAntiandrogenCard(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .padding(bottom = 6.dp)

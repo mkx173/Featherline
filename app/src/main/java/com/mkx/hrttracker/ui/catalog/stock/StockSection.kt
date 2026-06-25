@@ -77,10 +77,12 @@ fun StockSection(
     }
 
     Column(modifier = modifier) {
+        val title = stringResource(R.string.stock_section_title)
         HrtSectionHeader(
-            text = stringResource(R.string.stock_section_title),
+            text = title,
             trailing = {
                 HeaderOverflowMenu(
+                    title = title,
                     preparation = projection.medicine.preparation,
                     // Hide the edit-container item until a vial/container is open;
                     // before promotion there's nothing to edit. Disable tracking is
@@ -103,6 +105,7 @@ fun StockSection(
 
 @Composable
 private fun HeaderOverflowMenu(
+    title: String,
     preparation: MedicinePreparation,
     onEditOpenContainer: (() -> Unit)?,
     onDisableTracking: () -> Unit,
@@ -129,12 +132,17 @@ private fun HeaderOverflowMenu(
         ) {
             IconButton(
                 onClick = { expanded = true },
-                modifier = Modifier.size(buttonSize),
+                modifier = Modifier
+                    .size(buttonSize)
+                    // Same font-metric issue as cjkTextOffset: the bottom-aligned
+                    // icon sits above the title glyphs. Nudge the icon down
+                    // (title stays constant).
+                    .cjkTextOffset(text = title, amount = 1.dp),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
                     contentDescription = stringResource(R.string.stock_section_more_options),
-                    modifier = Modifier.size(iconSize),
+                    modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

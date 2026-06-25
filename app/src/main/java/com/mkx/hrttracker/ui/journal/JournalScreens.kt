@@ -575,9 +575,10 @@ fun MilestonesScreenContent(
             ) {
                 item(key = "milestones-pinned", contentType = "journal-section") {
                     Column {
+                        val pinnedTitle = stringResource(R.string.journal_pinned_section)
                         HrtSectionHeader(
                             topPadding = false,
-                            text = stringResource(R.string.journal_pinned_section),
+                            text = pinnedTitle,
                             trailing = if (uiState.hero != null) {
                                 {
                                     val titleStyle = MaterialTheme.typography.titleSmall
@@ -590,14 +591,19 @@ fun MilestonesScreenContent(
                                     ) {
                                         IconButton(
                                             onClick = onOpenHeroBackground,
-                                            modifier = Modifier.size(iconSize),
+                                            modifier = Modifier
+                                                .size(iconSize)
+                                                // Same font-metric issue as cjkTextOffset: the
+                                                // bottom-aligned icon sits above the title glyphs.
+                                                // Nudge the icon down (title stays constant).
+                                                .cjkTextOffset(text = pinnedTitle, amount = 2.dp),
                                         ) {
                                             Icon(
                                                 painter = painterResource(R.drawable.ic_wand_stars),
                                                 contentDescription = stringResource(
                                                     R.string.journal_hero_background_action,
                                                 ),
-                                                modifier = Modifier.size(iconSize),
+                                                modifier = Modifier.size(18.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }

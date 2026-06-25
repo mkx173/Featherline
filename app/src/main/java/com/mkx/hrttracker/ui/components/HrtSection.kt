@@ -220,7 +220,7 @@ fun HrtSectionHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp, top = if (topPadding) 4.dp else 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Bottom,
     ) {
         Text(
             text = text.uppercase(),
