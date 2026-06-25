@@ -111,6 +111,7 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -1045,7 +1046,7 @@ private fun HistoryScreenContent(
                                     .padding(top = 12.dp),
                                 horizontalArrangement = Arrangement.Center
                             ) {
-                                HrtOutlinedButton(
+                                HrtFilledTonalButton(
                                     text = stringResource(R.string.history_clear_selection),
                                     onClick = {
                                         val selectedDate = uiState.selectedDate
@@ -1056,13 +1057,11 @@ private fun HistoryScreenContent(
                                         }
                                     },
                                     icon = Icons.Rounded.Close,
-                                    iconModifier = Modifier.size(14.dp),
-                                    iconSpacing = 6.dp,
-                                    compact = true,
+                                    iconModifier = Modifier.size(
+                                        ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                                    ),
+                                    iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary,
-                                    )
                                 )
                             }
                         }

@@ -1476,7 +1476,6 @@ private fun MedicationGroupEditorScreenContent(
                                     ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
                                 ),
                                 iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                                compact = true,
                             )
                         }
                     }

@@ -745,8 +745,8 @@ private fun JournalHeroPills(
 ) {
     HrtPill(
         label = stringResource(R.string.journal_since_date, dateLabel),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         size = HrtPillSize.Small,
         fontWeight = FontWeight.SemiBold,
         icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
@@ -1377,8 +1377,8 @@ private fun EditTrailingCluster(
 private fun HomeTag(modifier: Modifier = Modifier) {
     HrtPill(
         label = stringResource(R.string.journal_home_tag),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         size = HrtPillSize.Small,
         fontWeight = FontWeight.SemiBold,
         modifier = modifier,
@@ -1402,8 +1402,8 @@ private fun HeroChips(
     ) {
         HrtPill(
             label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             size = HrtPillSize.Small,
             fontWeight = FontWeight.SemiBold,
             icon = { Icon(painterResource(R.drawable.ic_event), null, iconModifier) },
