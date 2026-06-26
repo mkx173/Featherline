@@ -211,7 +211,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/mkx173/Featherline/compare/v1.1.4...v1.3.0
 [1.2.0]: https://github.com/mkx173/Featherline/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/mkx173/Featherline/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/mkx173/Featherline/compare/v1.1.2...v1.1.3
