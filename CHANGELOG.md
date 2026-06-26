@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.3.1] - 2026-06-27
+
+### Fixed
+
+- The year selector in date pickers no longer turns see-through, showing the calendar behind it, when the background blur effect is enabled. Dialogs no longer use the blur effect as a result.
+- Switching a date picker between its calendar and text-entry modes no longer stutters.
+
 ## [1.3.0] - 2026-06-25
 
 ### Added
@@ -211,7 +218,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/mkx173/Featherline/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/mkx173/Featherline/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/mkx173/Featherline/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/mkx173/Featherline/compare/v1.1.3...v1.1.4
