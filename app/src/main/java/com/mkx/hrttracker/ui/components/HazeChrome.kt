@@ -302,9 +302,12 @@ fun hazeSheetBlurActive(): Boolean {
 fun Modifier.hazeSheetSurface(
     containerColor: Color,
     shape: Shape,
+    // Defaults to the bottom-sheet gate; a haze dialog (which has no
+    // LocalHazeBottomSheet) passes its own gate so its rows get the same blur.
+    active: Boolean = hazeSheetBlurActive(),
     state: HazeState? = LocalChromeHazeState.current,
 ): Modifier {
-    if (!hazeSheetBlurActive() || state == null) return this
+    if (!active || state == null) return this
 
     val style = HazeMaterials.thick(containerColor = containerColor)
     return this.clip(shape)

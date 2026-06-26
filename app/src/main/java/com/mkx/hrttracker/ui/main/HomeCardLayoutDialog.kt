@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalView
@@ -47,7 +49,10 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.hazeSheetSurface
 import kotlinx.coroutines.delay
 import sh.calvin.reorderable.ReorderableColumn
 
@@ -183,17 +188,39 @@ private fun HomeCardLayoutRow(
     gripModifier: Modifier,
     modifier: Modifier = Modifier,
 ) {
-    // Container reflects visibility: shown -> secondaryContainer, hidden -> surfaceContainerHighest.
-    val containerColor = if (hidden) {
-        MaterialTheme.colorScheme.surfaceContainerHighest
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer
-    }
+    // Container + content cross-fade as visibility toggles: shown ->
+    // secondaryContainer/onSecondaryContainer, hidden -> surfaceContainerHighest/onSurfaceVariant.
+    val containerColor by animateColorAsState(
+        targetValue = if (hidden) {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer
+        },
+        label = "homeCardRowContainer",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (hidden) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        },
+        label = "homeCardRowContent",
+    )
+    // On a haze dialog the row keeps its container color as the tint of a thick
+    // blur and draws its actual container transparent so the blur shows through,
+    // mirroring EditorSegmentedListItem on haze sheets.
+    val hazeBlur = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null
+    val shape = MaterialTheme.shapes.large
     Surface(
         onClick = onToggleHidden,
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = containerColor,
+        modifier = modifier.hazeSheetSurface(
+            containerColor = containerColor,
+            shape = shape,
+            active = hazeBlur,
+        ),
+        shape = shape,
+        color = if (hazeBlur) Color.Transparent else containerColor,
+        contentColor = contentColor,
     ) {
         Row(
             modifier = Modifier
@@ -247,7 +274,6 @@ private fun HomeCardLayoutRow(
                                 name,
                             ),
                             modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -261,7 +287,6 @@ private fun HomeCardLayoutRow(
                         painter = painterResource(R.drawable.ic_drag_indicator),
                         contentDescription = null,
                         modifier = gripModifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
