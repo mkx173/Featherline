@@ -88,6 +88,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.hazeDatePickerColors
+import com.mkx.hrttracker.ui.components.hazeDatePickerDialogColors
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -630,11 +631,10 @@ private fun PlanBatchDateRangePickerDialog(
         initialSelectedEndDate = endDate,
         selectableDates = selectableDates,
     )
-    val colors = hazeDatePickerColors()
 
     HazeDatePickerDialog(
         onDismissRequest = onDismiss,
-        colors = colors,
+        colors = hazeDatePickerDialogColors(),
         confirmButton = {
             TextButton(
                 enabled = state.getSelectedStartDate() != null &&
@@ -669,7 +669,7 @@ private fun PlanBatchDateRangePickerDialog(
             DateRangePicker(
                 state = state,
                 modifier = Modifier.fillMaxWidth(),
-                colors = colors,
+                colors = hazeDatePickerColors(),
                 dateFormatter = dateFormatter,
                 title = {
                     DateRangePickerDefaults.DateRangePickerTitle(

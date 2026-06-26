@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
@@ -22,9 +22,11 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.datepicker.HazeDatePicker
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -54,11 +56,10 @@ fun DatePickerModal(
         initialSelectedDate = initialSelectedDate,
         selectableDates = selectableDates,
     )
-    val colors = hazeDatePickerColors()
 
     HazeDatePickerDialog(
         onDismissRequest = onDismiss,
-        colors = colors,
+        colors = hazeDatePickerDialogColors(),
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -100,12 +101,13 @@ fun DatePickerModal(
             }
         },
     ) {
-        DatePicker(
+        HazeDatePicker(
             state = datePickerState,
-            colors = colors,
+            colors = hazeDatePickerColors(),
             modifier = Modifier.verticalScroll(
                 rememberScrollState()
-            )
+            ),
+            hazeState = LocalChromeHazeState.current,
         )
     }
 }

@@ -266,12 +266,6 @@ fun Modifier.hazeDialog(
     state: HazeState? = LocalChromeHazeState.current,
     shape: Shape = AlertDialogDefaults.shape,
 ): Modifier {
-    // Haze dialog blur disabled for now. Material3's DatePicker year-selector
-    // overlay paints its background with the (translucent) container color, so the
-    // blur made it see-through over the calendar. Disabled app-wide; re-enable by
-    // restoring the body below (also hazeDialogContainerColor / hazeDatePickerColors).
-    return this
-    /*
     if (!LocalHazeBlurEnabled.current || state == null) return this
 
     val style = HazeMaterials.regular(
@@ -285,7 +279,6 @@ fun Modifier.hazeDialog(
                 blurredEdgeTreatment = BlurredEdgeTreatment(shape)
             }
         }
-    */
 }
 
 /**
@@ -344,28 +337,32 @@ fun hazeDialogContainerColor(
     enabled: Boolean = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null,
     containerColor: Color = AlertDialogDefaults.containerColor,
 ): Color {
-    // Haze dialog translucency disabled (see hazeDialog). Keep the container opaque.
-    return containerColor
-    /*
     if (!enabled) return containerColor
 
     return containerColor.copy(alpha = 0.2f)
-    */
 }
 
 @Composable
-fun hazeDatePickerColors(
+fun hazeDatePickerDialogColors(
     colors: DatePickerColors = DatePickerDefaults.colors(),
 ): DatePickerColors {
-    // Haze date-picker translucency disabled (see hazeDialog). Use colors as-is.
-    return colors
-    /*
     return colors.copy(
         containerColor = hazeDialogContainerColor(
             containerColor = colors.containerColor,
         ),
     )
-    */
+}
+
+@Composable
+fun hazeDatePickerColors(
+    enabled: Boolean = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null,
+    colors: DatePickerColors = DatePickerDefaults.colors(),
+) : DatePickerColors {
+    if (!enabled) return colors
+
+    return colors.copy(
+        containerColor = Color.Transparent,
+    )
 }
 
 // Whether the route hosting a modal is still the current back-stack
@@ -611,7 +608,7 @@ fun HazeDatePickerDialog(
     properties: DialogProperties = DialogProperties(usePlatformDefaultWidth = false),
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val hazeColors = hazeDatePickerColors(colors)
+    val hazeColors = hazeDatePickerDialogColors(colors)
 
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
