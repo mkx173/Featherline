@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.3.2] - 2026-06-27
+
+### Changed
+
+- Re-enabled background blur effect for dialogs by forking material3 DatePicker
+- Added background blur effect for HomeCardLayoutRow
+
 ## [1.3.1] - 2026-06-27
 
 ### Fixed
@@ -218,7 +225,8 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/mkx173/Featherline/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/mkx173/Featherline/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/mkx173/Featherline/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/mkx173/Featherline/compare/v1.1.4...v1.2.0
