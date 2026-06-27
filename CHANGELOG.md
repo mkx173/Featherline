@@ -7,9 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Fixed the wording for future-dated journal timeline milestones, which now read "Planned for <date>" instead of "Since <date>".
+_Nothing yet._
 
 ## [1.3.2] - 2026-06-27
 
@@ -17,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Re-enabled background blur effect for dialogs by forking material3 DatePicker
 - Added background blur effect for HomeCardLayoutRow
+
+### Fixed
+
+- Fixed the wording for future-dated journal timeline milestones, which now read "Planned for <date>" instead of "Since <date>".
 
 ## [1.3.1] - 2026-06-27
 
