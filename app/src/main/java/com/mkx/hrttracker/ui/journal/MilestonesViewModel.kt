@@ -110,6 +110,7 @@ class MilestonesViewModel @Inject constructor(
             hero = heroRow,
             heroNextMilestone = hero?.let { nextMilestoneUiState(it.date, today) },
             pinnedTray = pinned.map { it.toAnchorRowUiState(today) },
+            anchors = sorted,
             timeline = sorted.map {
                 TimelineNodeUiState(
                     anchor = it.toAnchorRowUiState(today),

@@ -945,6 +945,8 @@
     </plurals>
     <string name="anchor_selector_empty">Add a date first</string>
     <string name="anchor_selector_add_date">Add a date</string>
+    <string name="anchor_pin_folder_icon">Pin a folder icon</string>
+    <string name="more_options">More options</string>
     <string name="anchor_selector_days">%1$d days</string>
     <string name="widget_all_done">All done</string>
     <string name="widget_all_logged">All logged</string>

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -48,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -76,10 +79,13 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
@@ -93,7 +99,9 @@ import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.widget.AnchorShortcutManager
 import com.mkx.hrttracker.util.monthHeaderFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -355,6 +363,7 @@ fun JournalScreenContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MilestonesScreen(
     onNavigateBack: () -> Unit,
@@ -373,6 +382,10 @@ fun MilestonesScreen(
         isAddDateSheetOpen = false
         editingAnchor = null
     }
+
+    var isPinSheetOpen by remember { mutableStateOf(false) }
+    val pinScope = rememberCoroutineScope()
+    val pinSheetState = rememberModalBottomSheetState()
 
     // Arriving via the journal "Add a date" CTA opens the sheet straight away. The rememberSaveable
     // guard makes this a true one-shot: it won't reopen on configuration change or after the user
@@ -419,6 +432,7 @@ fun MilestonesScreen(
         onOpenHeroBackground = {
             heroBackgroundDialogTargetId = uiState.hero?.id
         },
+        onPinFolderIcon = { isPinSheetOpen = true },
         modifier = modifier,
     )
 
@@ -468,6 +482,30 @@ fun MilestonesScreen(
         )
     }
 
+    if (isPinSheetOpen) {
+        HazeModalBottomSheet(
+            sheetState = pinSheetState,
+            onDismissRequest = { isPinSheetOpen = false },
+        ) {
+            AnchorSelectorList(
+                anchors = uiState.anchors,
+                today = uiState.today,
+                onSelect = { anchorId ->
+                    uiState.anchors.firstOrNull { it.id == anchorId }?.let { anchor ->
+                        AnchorShortcutManager.pin(context, anchor)
+                    }
+                    hideBottomSheet(pinScope, pinSheetState) { isPinSheetOpen = false }
+                },
+                onAddDate = {
+                    hideBottomSheet(pinScope, pinSheetState) {
+                        isPinSheetOpen = false
+                        isAddDateSheetOpen = true
+                    }
+                },
+            )
+        }
+    }
+
     HeroBackgroundDialogHost(
         hero = uiState.hero,
         targetHeroId = heroBackgroundDialogTargetId,
@@ -514,6 +552,7 @@ fun MilestonesScreenContent(
     onAddDate: () -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
     onOpenHeroBackground: () -> Unit,
+    onPinFolderIcon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -552,6 +591,28 @@ fun MilestonesScreenContent(
                         modifier = Modifier.padding(end = 8.dp),
                         enabled = uiState.timeline.isNotEmpty(),
                     )
+                    var overflowExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { overflowExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.more_options),
+                            )
+                        }
+                        HrtDropdownMenu(
+                            expanded = overflowExpanded,
+                            onDismissRequest = { overflowExpanded = false },
+                            items = listOf(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.anchor_pin_folder_icon),
+                                    onClick = {
+                                        overflowExpanded = false
+                                        onPinFolderIcon()
+                                    },
+                                ),
+                            ),
+                        )
+                    }
                 },
                 scrollBehavior = scrollBehavior,
             )
@@ -1159,6 +1220,7 @@ private fun MilestonesScreenContentPreview() {
             onAddDate = {},
             onUpdateDate = {},
             onOpenHeroBackground = {},
+            onPinFolderIcon = {},
         )
     }
 }
