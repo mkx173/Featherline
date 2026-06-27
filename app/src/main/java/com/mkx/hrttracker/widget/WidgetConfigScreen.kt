@@ -101,12 +101,13 @@ import kotlin.math.roundToInt
 @Composable
 internal fun WidgetConfigScreen(
     initialAppearance: WidgetAppearance,
-    isMediumWidget: Boolean,
+    configType: WidgetConfigType,
     appWidgetId: Int,
     snapshot: WidgetSnapshotRecord?,
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
+    val isMediumWidget = configType == WidgetConfigType.MEDIUM
     val sanitizedInitial = remember(initialAppearance) { initialAppearance.sanitized() }
     var seedHue by rememberSaveable { mutableStateOf(sanitizedInitial.seedHue) }
     var saturation by rememberSaveable {
@@ -151,7 +152,7 @@ internal fun WidgetConfigScreen(
     // Resolved through the same path the render itself uses, so the wallpaper window
     // can reserve the preview's final footprint on the first frame — before the first
     // async render lands — without the two sizes ever diverging.
-    val previewPlaceholderSizeDp = remember(isMediumWidget, appWidgetId) {
+    val previewPlaceholderSizeDp = remember(configType, appWidgetId) {
         widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
     }
     // A very tall widget (e.g. a large instance on a tall layout) would otherwise scale the
@@ -161,7 +162,7 @@ internal fun WidgetConfigScreen(
         LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        isMediumWidget, appWidgetId, snapshot,
+        configType, appWidgetId, snapshot,
     ) {
         // Conflated live rendering: always render the LATEST control values, but never
         // queue more than one render. While a render is in flight, slider ticks only
@@ -679,7 +680,7 @@ private fun WidgetConfigScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         WidgetConfigScreen(
             initialAppearance = WidgetAppearance.Default.copy(backgroundAlpha = 0.8f),
-            isMediumWidget = true,
+            configType = WidgetConfigType.MEDIUM,
             appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID,
             snapshot = null,
             onSave = {},

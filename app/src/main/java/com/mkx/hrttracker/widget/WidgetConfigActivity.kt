@@ -78,8 +78,8 @@ class WidgetConfigActivity : AppCompatActivity() {
             Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
         )
         // getAppWidgetInfo is null for INVALID_APPWIDGET_ID or direct/malformed launches
-        // (the activity is exported); isMediumWidgetProvider falls back to medium then.
-        val isMediumWidget = isMediumWidgetProvider(
+        // (the activity is exported); widgetConfigTypeForProvider falls back to medium then.
+        val configType = widgetConfigTypeForProvider(
             AppWidgetManager.getInstance(this)
                 .getAppWidgetInfo(appWidgetId)?.provider?.className,
         )
@@ -141,7 +141,7 @@ class WidgetConfigActivity : AppCompatActivity() {
                     ) {
                         WidgetConfigScreen(
                             initialAppearance = loaded.appearance,
-                            isMediumWidget = isMediumWidget,
+                            configType = configType,
                             appWidgetId = appWidgetId,
                             snapshot = loaded.snapshot,
                             onSave = { appearance ->
@@ -218,9 +218,13 @@ private data class LoadedConfigState(
     val snapshot: WidgetSnapshotRecord?,
 )
 
-// Resolves the launching widget's size from its provider class. Anything that is not
-// explicitly the large receiver — including a null provider from a malformed or direct
-// launch (the activity is exported and tolerates INVALID_APPWIDGET_ID) — falls back to
-// the medium preview rather than failing.
-internal fun isMediumWidgetProvider(providerClassName: String?): Boolean =
-    providerClassName != HrtWidgetLargeReceiver::class.java.name
+enum class WidgetConfigType { MEDIUM, LARGE, ANCHOR }
+
+// Resolves the launching widget's config type from its provider class. A null/unknown
+// provider (malformed or direct launch — the activity is exported) falls back to MEDIUM,
+// matching the prior isMediumWidgetProvider behaviour.
+internal fun widgetConfigTypeForProvider(providerClassName: String?): WidgetConfigType = when (providerClassName) {
+    HrtWidgetLargeReceiver::class.java.name -> WidgetConfigType.LARGE
+    HrtAnchorWidgetReceiver::class.java.name -> WidgetConfigType.ANCHOR
+    else -> WidgetConfigType.MEDIUM
+}
