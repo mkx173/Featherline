@@ -1008,5 +1008,6 @@
     <string name="stock_disable_body">这会清除库存信息</string>
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
+    <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
 </resources>
