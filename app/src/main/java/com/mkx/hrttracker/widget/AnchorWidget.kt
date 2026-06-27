@@ -195,6 +195,27 @@ internal fun AnchorWidgetContent(
     }
 }
 
+// Live anchor preview for the config screen — the dose-widget twin of
+// composeWidgetPreviewRemoteViews, reusing the same HrtWidgetThemed + AnchorWidgetContent
+// the real widget renders, at the fixed 2×1 preview size. anchor == null renders the
+// empty/"choose a date" state (Save stays disabled until a real anchor is picked).
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+internal suspend fun composeAnchorPreviewRemoteViews(
+    context: Context,
+    appearance: WidgetAppearance,
+    anchor: TrackedDate?,
+    appWidgetId: Int,
+): WidgetConfigPreviewRender {
+    val size = ANCHOR_WIDGET_PREVIEW_SIZE
+    val remoteViews = androidx.glance.appwidget.GlanceRemoteViews()
+        .compose(context = context, size = size) {
+            HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
+                AnchorWidgetContent(anchor = anchor, hasSelection = anchor != null)
+            }
+        }.remoteViews
+    return WidgetConfigPreviewRender(remoteViews, size)
+}
+
 // Opens this widget instance's config so the user can pick/replace its anchor. Falls back
 // to the app's Milestones screen when no valid id is available (e.g. the picker preview).
 fun anchorReconfigureIntent(context: Context, appWidgetId: Int): android.content.Intent =

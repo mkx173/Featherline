@@ -33,11 +33,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -74,12 +77,16 @@ import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.journal.AnchorSelectorList
+import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -98,12 +105,17 @@ import kotlin.math.roundToInt
 // supplied by windowShowWallpaper in Theme.HrtTracker.WidgetConfig — with the live
 // widget preview centered in it, and the appearance controls as HrtSection rows below.
 // Deliberately does NOT reuse the in-app WidgetAppearanceDialog.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WidgetConfigScreen(
     initialAppearance: WidgetAppearance,
     configType: WidgetConfigType,
     appWidgetId: Int,
     snapshot: WidgetSnapshotRecord?,
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate> = emptyList(),
+    initialAnchorId: String? = null,
+    today: java.time.LocalDate = java.time.LocalDate.now(),
+    onSaveAnchor: (appearance: WidgetAppearance, anchorId: String) -> Unit = { _, _ -> },
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -139,6 +151,14 @@ internal fun WidgetConfigScreen(
     }
     var previewDark by rememberSaveable { mutableStateOf(initialSystemDark) }
 
+    // ANCHOR mode only: the per-instance anchor selection (null until chosen — Save stays
+    // disabled meanwhile) plus the picker-sheet plumbing. Inert/unused in MEDIUM/LARGE.
+    var selectedAnchorId by rememberSaveable { mutableStateOf(initialAnchorId) }
+    var isAnchorSheetOpen by rememberSaveable { mutableStateOf(false) }
+    val anchorSheetScope = rememberCoroutineScope()
+    val anchorSheetState = rememberModalBottomSheetState()
+    val selectedAnchor = anchors.firstOrNull { it.id == selectedAnchorId }
+
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
         saturation = saturation,
@@ -153,7 +173,11 @@ internal fun WidgetConfigScreen(
     // can reserve the preview's final footprint on the first frame — before the first
     // async render lands — without the two sizes ever diverging.
     val previewPlaceholderSizeDp = remember(configType, appWidgetId) {
-        widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
+        if (configType == WidgetConfigType.ANCHOR) {
+            ANCHOR_WIDGET_PREVIEW_SIZE
+        } else {
+            widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
+        }
     }
     // A very tall widget (e.g. a large instance on a tall layout) would otherwise scale the
     // preview up until it crowds the controls out. Cap the window so it never exceeds a
@@ -162,7 +186,7 @@ internal fun WidgetConfigScreen(
         LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        configType, appWidgetId, snapshot,
+        configType, appWidgetId, snapshot, selectedAnchorId,
     ) {
         // Conflated live rendering: always render the LATEST control values, but never
         // queue more than one render. While a render is in flight, slider ticks only
@@ -192,13 +216,22 @@ internal fun WidgetConfigScreen(
             .conflate()
             .collect { appearance ->
                 value = try {
-                    composeWidgetPreviewRemoteViews(
-                        context = context.applicationContext,
-                        isMedium = isMediumWidget,
-                        appearance = appearance,
-                        snapshot = snapshot,
-                        appWidgetId = appWidgetId,
-                    )
+                    if (configType == WidgetConfigType.ANCHOR) {
+                        composeAnchorPreviewRemoteViews(
+                            context = context.applicationContext,
+                            appearance = appearance,
+                            anchor = selectedAnchor,
+                            appWidgetId = appWidgetId,
+                        )
+                    } else {
+                        composeWidgetPreviewRemoteViews(
+                            context = context.applicationContext,
+                            isMedium = isMediumWidget,
+                            appearance = appearance,
+                            snapshot = snapshot,
+                            appWidgetId = appWidgetId,
+                        )
+                    }
                 } catch (cancellation: CancellationException) {
                     throw cancellation
                 } catch (_: Exception) {
@@ -312,6 +345,27 @@ internal fun WidgetConfigScreen(
                             .verticalScroll(rememberScrollState()),
                     ) {
                         HrtSection(title = null) {
+                            if (configType == WidgetConfigType.ANCHOR) {
+                                item {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.anchor_config_row_title,
+                                        ),
+                                        supportingText = selectedAnchor?.name
+                                            ?: stringResource(R.string.anchor_config_choose),
+                                        onClick = { isAnchorSheetOpen = true },
+                                        leadingContent = {
+                                            RowLeadingIcon(
+                                                painterResource(
+                                                    selectedAnchor?.let { anchorIconRes(it.icon) }
+                                                        ?: R.drawable.ic_event
+                                                ),
+                                                size = 24.dp,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
                             item {
                                 Box {
                                     PreferenceSegmentedListItem(
@@ -416,13 +470,46 @@ internal fun WidgetConfigScreen(
                         )
                         HrtButton(
                             text = stringResource(R.string.save),
-                            onClick = { onSave(liveAppearance) },
+                            onClick = {
+                                if (configType == WidgetConfigType.ANCHOR) {
+                                    selectedAnchorId?.let { onSaveAnchor(liveAppearance, it) }
+                                } else {
+                                    onSave(liveAppearance)
+                                }
+                            },
+                            enabled = configType != WidgetConfigType.ANCHOR ||
+                                selectedAnchorId != null,
                             modifier = Modifier.weight(1f),
                             compact = true
                         )
                     }
                 }
             }
+        }
+    }
+
+    if (isAnchorSheetOpen) {
+        HazeModalBottomSheet(
+            sheetState = anchorSheetState,
+            onDismissRequest = { isAnchorSheetOpen = false },
+        ) {
+            AnchorSelectorList(
+                anchors = anchors,
+                today = today,
+                onSelect = { id ->
+                    selectedAnchorId = id
+                    hideBottomSheet(anchorSheetScope, anchorSheetState) {
+                        isAnchorSheetOpen = false
+                    }
+                },
+                onAddDate = {
+                    // No add-date flow inside the config Activity; closing returns the user
+                    // to the picker. The selector still lists every existing anchor.
+                    hideBottomSheet(anchorSheetScope, anchorSheetState) {
+                        isAnchorSheetOpen = false
+                    }
+                },
+            )
         }
     }
 }

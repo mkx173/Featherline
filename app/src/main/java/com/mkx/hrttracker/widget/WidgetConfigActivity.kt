@@ -25,6 +25,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -52,6 +53,9 @@ class WidgetConfigActivity : AppCompatActivity() {
 
     @Inject
     lateinit var widgetSnapshotStore: WidgetSnapshotStore
+
+    @Inject
+    lateinit var journalRepository: com.mkx.hrttracker.data.repository.JournalRepository
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
@@ -117,6 +121,27 @@ class WidgetConfigActivity : AppCompatActivity() {
                         },
                         snapshot = runCatching { widgetSnapshotStore.readSnapshot() }
                             .getOrNull(),
+                        anchors = if (configType == WidgetConfigType.ANCHOR) {
+                            runCatching { journalRepository.observeTrackedDates().first() }
+                                .getOrDefault(emptyList())
+                        } else emptyList(),
+                        initialAnchorId = if (configType == WidgetConfigType.ANCHOR) {
+                            runCatching {
+                                val glanceId = androidx.glance.appwidget.GlanceAppWidgetManager(
+                                    this@WidgetConfigActivity,
+                                ).getGlanceIdBy(appWidgetId)
+                                // Read via getAppWidgetState — NOT getDataStore with a guessed
+                                // fileKey. appWidgetId.toString() is not Glance's actual file
+                                // key, so that path always reads an empty store and reconfigure
+                                // never pre-selects. getAppWidgetState resolves the real store
+                                // from the glanceId.
+                                androidx.glance.appwidget.state.getAppWidgetState(
+                                    this@WidgetConfigActivity,
+                                    androidx.glance.state.PreferencesGlanceStateDefinition,
+                                    glanceId,
+                                ).anchorId()
+                            }.getOrNull()
+                        } else null,
                     )
                 } catch (cancellation: CancellationException) {
                     throw cancellation
@@ -144,6 +169,36 @@ class WidgetConfigActivity : AppCompatActivity() {
                             configType = configType,
                             appWidgetId = appWidgetId,
                             snapshot = loaded.snapshot,
+                            anchors = loaded.anchors,
+                            initialAnchorId = loaded.initialAnchorId,
+                            today = java.time.LocalDate.now(),
+                            onSaveAnchor = { appearance, anchorId ->
+                                setResult(
+                                    RESULT_OK,
+                                    Intent().putExtra(
+                                        AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId,
+                                    ),
+                                )
+                                appScope.launch {
+                                    try {
+                                        runCatching {
+                                            widgetAppearanceRepository.setDefault(appearance)
+                                        }
+                                        runCatching {
+                                            val glanceId = androidx.glance.appwidget
+                                                .GlanceAppWidgetManager(this@WidgetConfigActivity)
+                                                .getGlanceIdBy(appWidgetId)
+                                            writeAnchorId(
+                                                this@WidgetConfigActivity, glanceId, anchorId,
+                                            )
+                                            HrtAnchorWidget()
+                                                .update(this@WidgetConfigActivity, glanceId)
+                                        }
+                                    } finally {
+                                        withContext(NonCancellable + Dispatchers.Main) { finish() }
+                                    }
+                                }
+                            },
                             onSave = { appearance ->
                                 setResult(
                                     RESULT_OK,
@@ -212,10 +267,13 @@ class WidgetConfigActivity : AppCompatActivity() {
 }
 
 // Both one-shot loads the screen seeds from, resolved together so the UI renders once.
+// anchors/initialAnchorId are populated only in ANCHOR mode (empty/null otherwise).
 private data class LoadedConfigState(
     val settings: SettingsState,
     val appearance: WidgetAppearance,
     val snapshot: WidgetSnapshotRecord?,
+    val anchors: List<com.mkx.hrttracker.model.journal.TrackedDate> = emptyList(),
+    val initialAnchorId: String? = null,
 )
 
 enum class WidgetConfigType { MEDIUM, LARGE, ANCHOR }
