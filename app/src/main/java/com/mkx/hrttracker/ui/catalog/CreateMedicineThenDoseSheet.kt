@@ -185,7 +185,7 @@ fun CreateMedicineThenDoseSheet(
         if (
             requiresEditableDoseInstructionForm(activePreparationType)
         ) {
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             DoseInstructionForm(
                 medicineDraft = uiState.medicineDraft,
                 doseInstructionDraft = uiState.doseInstructionDraft,

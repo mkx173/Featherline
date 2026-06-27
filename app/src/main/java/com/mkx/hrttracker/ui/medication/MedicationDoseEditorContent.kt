@@ -151,7 +151,7 @@ internal fun MedicationEditorContent(
     if (doseInstructionDraft != null &&
         requiresEditableDoseInstructionForm(activePreparationType)
     ) {
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         DoseInstructionForm(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
