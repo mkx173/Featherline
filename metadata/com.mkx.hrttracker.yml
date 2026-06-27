@@ -15,7 +15,7 @@ Binaries:
 
 Builds:
   - versionName: 1.3.3
-    versionCode: 2054
+    versionCode: 2057
     commit: v1.3.3
     patch:
       - remove-foojay-resolver.patch
@@ -33,4 +33,4 @@ AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
 UpdateCheckData: fdroid-version.properties|VERSION_CODE=(\d+)|.|VERSION_NAME=(.+)
 CurrentVersion: 1.3.3
-CurrentVersionCode: 2054
+CurrentVersionCode: 2057

@@ -133,6 +133,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // F-Droid rejects the AGP-added "Dependency metadata" APK signing block.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     buildFeatures {
         buildConfig = true
         compose = true
