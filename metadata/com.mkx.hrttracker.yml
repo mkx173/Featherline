@@ -10,7 +10,7 @@ AutoName: Featherline
 
 RepoType: git
 Repo: https://github.com/mkx173/Featherline.git
-Binaries:
+Binaries: 
   https://github.com/mkx173/Featherline/releases/download/v%v/featherline-arm64-v8a-%v-%c.apk
 
 Builds:
@@ -21,7 +21,7 @@ Builds:
       - remove-foojay-resolver.patch
     gradle:
       - arm64
-    output:
+    output: 
       app/build/outputs/apk/arm64/release/featherline-arm64-v8a-$$VERSION$$-$$VERCODE$$.apk
     ndk: 28.2.13676358
     gradleprops:
