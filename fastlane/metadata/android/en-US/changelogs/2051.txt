@@ -1,0 +1,4 @@
+- Added a new Journal tab to track meaningful dates on a timeline, with milestones and a short note for each day
+- Added support for importing dose history and blood test results from another HRT tracker's exported file
+- Added options to reorder and hide the home-screen cards
+- Bug fixes and improvements
