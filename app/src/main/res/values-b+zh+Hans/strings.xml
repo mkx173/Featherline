@@ -895,6 +895,9 @@
     <plurals name="anchor_widget_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
+    <string name="anchor_selector_empty">请先添加日期</string>
+    <string name="anchor_selector_add_date">添加日期</string>
+    <string name="anchor_selector_days">%1$d 天</string>
     <string name="widget_all_done">全部完成</string>
     <string name="widget_all_logged">已全部记录</string>
     <string name="widget_nothing_more_today">没有更多计划</string>
