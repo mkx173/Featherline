@@ -355,10 +355,7 @@ fun SimpleHomeCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.cjkTextOffset(anchor.name),
                 )
-                val supportingTextLabel = stringResource(
-                    R.string.journal_since_date,
-                    dateFormatter(anchor.date),
-                )
+                val supportingTextLabel = anchorDateLabel(anchor.isFuture, dateFormatter(anchor.date))
                 Text(
                     text = supportingTextLabel,
                     style = MaterialTheme.typography.bodySmall,
@@ -695,6 +692,7 @@ fun JournalHeroCard(
                     }
                     JournalHeroPills(
                         dateLabel = dateFormatter(hero.date),
+                        isFuture = hero.isFuture,
                     )
                 }
                 Row(
@@ -719,9 +717,10 @@ fun JournalHeroCard(
 @Composable
 private fun JournalHeroPills(
     dateLabel: String,
+    isFuture: Boolean,
 ) {
     HrtPill(
-        label = stringResource(R.string.journal_since_date, dateLabel),
+        label = anchorDateLabel(isFuture, dateLabel),
         containerColor = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         size = HrtPillSize.Small,
@@ -1397,7 +1396,7 @@ private fun HeroChips(
         modifier = Modifier.fillMaxWidth()
     ) {
         HrtPill(
-            label = stringResource(R.string.journal_since_date, dateFormatter(hero.date)),
+            label = anchorDateLabel(hero.isFuture, dateFormatter(hero.date)),
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             size = HrtPillSize.Small,
@@ -3224,6 +3223,16 @@ fun EmptyAllNotesCard(
         title = stringResource(R.string.journal_no_notes),
     )
 }
+
+// The hero/timeline date pill copy: past and today anchors read "Since <date>" (counting up
+// from a start); future anchors read "Planned for <date>". Switches purely on isFuture, so today
+// (isFuture = false) stays on "Since".
+@Composable
+private fun anchorDateLabel(isFuture: Boolean, dateLabel: String): String =
+    stringResource(
+        if (isFuture) R.string.journal_planned_date else R.string.journal_since_date,
+        dateLabel,
+    )
 
 @Composable
 private fun AnchorRowUiState.dayCountLabel(): String {

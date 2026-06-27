@@ -252,6 +252,7 @@
         <item quantity="other">天</item>
     </plurals>
     <string name="journal_since_date">开始于 %1$s</string>
+    <string name="journal_planned_date">计划于 %1$s</string>
     <string name="journal_unpin_anchor">取消固定 %1$s</string>
     <string name="journal_move_anchor_up">上移 %1$s</string>
     <string name="journal_move_anchor_down">下移 %1$s</string>

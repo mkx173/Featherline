@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- Fixed the wording for future-dated journal timeline milestones, which now read "Planned for <date>" instead of "Since <date>".
 
 ## [1.3.2] - 2026-06-27
 
