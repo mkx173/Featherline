@@ -934,6 +934,15 @@
 
     <string name="widget_medium_description">Dose summary</string>
     <string name="widget_large_description">Dose list</string>
+    <string name="widget_anchor_description">A date with its day count</string>
+    <string name="anchor_widget_empty">Tap to choose a date</string>
+    <string name="anchor_widget_removed">Date removed — tap to choose</string>
+    <string name="anchor_widget_since">Since %1$s</string>
+    <string name="anchor_widget_planned_for">Planned for %1$s</string>
+    <plurals name="anchor_widget_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
     <string name="widget_all_done">All done</string>
     <string name="widget_all_logged">All logged</string>
     <string name="widget_nothing_more_today">Nothing more today</string>

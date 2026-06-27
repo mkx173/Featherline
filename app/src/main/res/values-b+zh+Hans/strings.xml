@@ -887,6 +887,14 @@
     <string name="select_time">选择时间</string>
     <string name="widget_medium_description">剂量概览</string>
     <string name="widget_large_description">剂量列表</string>
+    <string name="widget_anchor_description">日期及其天数</string>
+    <string name="anchor_widget_empty">点按以选择日期</string>
+    <string name="anchor_widget_removed">日期已删除 — 点按以选择</string>
+    <string name="anchor_widget_since">自 %1$s</string>
+    <string name="anchor_widget_planned_for">预定于 %1$s</string>
+    <plurals name="anchor_widget_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
     <string name="widget_all_done">全部完成</string>
     <string name="widget_all_logged">已全部记录</string>
     <string name="widget_nothing_more_today">没有更多计划</string>

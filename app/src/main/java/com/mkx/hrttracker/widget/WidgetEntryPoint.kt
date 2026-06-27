@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -18,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 interface WidgetEntryPoint {
     fun widgetSnapshotStore(): WidgetSnapshotStore
     fun homeSnapshotRepository(): HomeSnapshotRepository
+    fun journalRepository(): JournalRepository
     fun medicationGroupRepository(): MedicationGroupRepository
     fun medicationLogRepository(): MedicationLogRepository
     fun medicineStockRepository(): MedicineStockRepository

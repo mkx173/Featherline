@@ -120,7 +120,7 @@ private suspend fun GlanceAppWidget.provideHrtContent(
 // session-backed provideContent path and by the synchronous GlanceRemoteViews.compose
 // path (pushHrtWidgets), so the two render identically.
 @Composable
-private fun HrtWidgetThemed(
+internal fun HrtWidgetThemed(
     context: Context,
     snapshot: WidgetSnapshotRecord?,
     appearance: WidgetAppearance,
