@@ -31,6 +31,8 @@ fun signingValue(name: String): String? {
         ?: System.getenv(name)
 }
 
+val isFdroidBuild = providers.gradleProperty("fdroid").isPresent
+
 android {
     namespace = "com.mkx.hrttracker"
     compileSdk = 37
@@ -58,7 +60,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = gitCommitCount
-        versionName = "1.3.2"
+        versionName = "1.3.3"
 
         buildConfigField(
             "String",
@@ -102,7 +104,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (!isFdroidBuild) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

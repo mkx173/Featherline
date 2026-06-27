@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
+## [1.3.3] - 2026-06-27
+
+### Added
+
+- Added F-Droid listing metadata and a reproducible release build path for F-Droid verification.
+
 ## [1.3.2] - 2026-06-27
 
 ### Changed
