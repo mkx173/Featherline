@@ -433,6 +433,7 @@ private fun RoutedTopChromeHazeProvider(
 fun HrtTrackerNavHost(
     navController: NavHostController,
     homeDeepLinkSignal: Int = 0,
+    milestonesDeepLinkSignal: Int = 0,
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -616,6 +617,20 @@ fun HrtTrackerNavHost(
                     selectedBottomScreen = selectedBottomScreen,
                 )
             }
+        }
+    }
+
+    var lastHandledMilestonesSignal by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(milestonesDeepLinkSignal) {
+        if (milestonesDeepLinkSignal <= lastHandledMilestonesSignal) return@LaunchedEffect
+        lastHandledMilestonesSignal = milestonesDeepLinkSignal
+        // Avoid stacking duplicates if the user re-taps while already on the screen.
+        // currentRoute is the registered route *pattern* — it carries the query-arg
+        // template ("journal_milestones?top_level_parent={…}&open_add_date={…}"), so a
+        // `!= baseRoute` check never matches and the guard would be dead. Compare with
+        // startsWith against the bare baseRoute instead.
+        if (currentRoute?.startsWith(Screen.JournalMilestones.baseRoute) != true) {
+            navController.navigate(Screen.JournalMilestones.createRoute())
         }
     }
 

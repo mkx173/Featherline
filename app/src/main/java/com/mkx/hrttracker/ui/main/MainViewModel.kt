@@ -172,6 +172,13 @@ class MainViewModel @Inject constructor(
     private val _homeDeepLinkSignal = MutableStateFlow(0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
 
+    private val _milestonesDeepLinkSignal = MutableStateFlow(0)
+    val milestonesDeepLinkSignal: StateFlow<Int> = _milestonesDeepLinkSignal.asStateFlow()
+
+    fun requestMilestonesDeepLink() {
+        _milestonesDeepLinkSignal.update { it + 1 }
+    }
+
     fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
         if (keys.isEmpty()) {
             return

@@ -78,6 +78,7 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
 import java.util.Locale
@@ -237,6 +238,8 @@ class MainActivity : AppCompatActivity() {
                     val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
                     val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
                     val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
+                    val milestonesDeepLinkSignal by
+                        mainViewModel.milestonesDeepLinkSignal.collectAsStateWithLifecycle()
                     val context = LocalContext.current
                     val density = LocalDensity.current
                     val layoutDirection = LocalLayoutDirection.current
@@ -376,6 +379,7 @@ class MainActivity : AppCompatActivity() {
                                     HrtTrackerApp(
                                         navController = navController,
                                         homeDeepLinkSignal = homeDeepLinkSignal,
+                                        milestonesDeepLinkSignal = milestonesDeepLinkSignal,
                                         highlightEffectsEnabled = highlightEffectsEnabled,
                                     )
                                 }
@@ -548,6 +552,9 @@ class MainActivity : AppCompatActivity() {
         val keys = parseDoseRowHighlightIntent(intent)
         if (keys.isNotEmpty()) {
             mainViewModel.requestDoseRowHighlight(keys)
+        }
+        if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)) {
+            mainViewModel.requestMilestonesDeepLink()
         }
     }
 
