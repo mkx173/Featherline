@@ -37,6 +37,11 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
         entryPoint.homeSnapshotRepository()
             .refreshHomeSnapshotIfNeeded(force = true)
+        // Anchor surfaces read the journal directly (not the dose snapshot), so the home
+        // refresh above does not update them. Refresh them on the same immediate path so a
+        // midnight / clock / timezone / reboot event updates them without a polling worker.
+        updateAllAnchorWidgets(context.applicationContext)
+        AnchorShortcutManager.refreshAll(context.applicationContext)
         diagnosticsLogger.info(TAG, "widget_date_receiver_complete action=$action")
     }
 
