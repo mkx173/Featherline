@@ -2,10 +2,12 @@ package com.mkx.hrttracker.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,20 +18,27 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
+import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.state.GlanceStateDefinition
@@ -37,7 +46,9 @@ import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.ui.journal.anchorIconRes
@@ -78,11 +89,14 @@ class HrtAnchorWidget : GlanceAppWidget() {
             val anchors by remember(journalRepository) { journalRepository.observeTrackedDates() }
                 .collectAsState(initial = journalRepository.getCachedTrackedDates().orEmpty())
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
+            val backgroundFlag = currentState(BACKGROUND_FLAG_KEY)
+                ?.let { name -> PrideFlag.entries.firstOrNull { it.name == name } }
             HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
                 AnchorWidgetContent(
                     anchor = anchor,
                     hasSelection = anchorId != null,
                     appWidgetId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID,
+                    backgroundFlag = backgroundFlag,
                 )
             }
         }
@@ -114,6 +128,7 @@ internal fun AnchorWidgetContent(
     anchor: TrackedDate?,
     hasSelection: Boolean,
     appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
+    backgroundFlag: PrideFlag? = null,
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
@@ -134,7 +149,7 @@ internal fun AnchorWidgetContent(
         ) {
             Text(
                 text = message,
-                style = TextStyle(color = colors.onSurfaceVariant, fontSize = 15.sp),
+                style = TextStyle(color = colors.onSurfaceVariant, fontSize = (15f * scale).sp),
             )
         }
         return
@@ -154,10 +169,34 @@ internal fun AnchorWidgetContent(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
     )
 
-    WidgetShell(
-        scale = scale,
-        onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
-    ) {
+    // A gradient flag (chosen in the widget config) replaces the appearance card entirely
+    // (mutually exclusive): bake it to a rounded bitmap (memoized; runs in Glance's off-main
+    // composition) with neutral frost text on top. No flag → the appearance-themed WidgetShell card.
+    val forcedDark = LocalWidgetForcedDark.current
+    // forcedDark is null when the widget follows the system; resolve a concrete dark flag for the
+    // frost (base colour + bloom params) from the widget process' night-mode configuration.
+    val isDark = forcedDark ?: (context.resources.configuration.uiMode and
+        Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
+    val backgroundAlpha = LocalWidgetAlpha.current
+    val size = LocalSize.current
+    val density = context.resources.displayMetrics.density
+    val widthPx = (size.width.value * density).toInt().coerceAtLeast(1)
+    val heightPx = (size.height.value * density).toInt().coerceAtLeast(1)
+    val frost = remember(backgroundFlag, isDark, backgroundAlpha, widthPx, heightPx) {
+        backgroundFlag?.let { flag ->
+            renderAnchorFrostBitmap(
+                widthPx, heightPx, WidgetRoundedShape.Shell.radius.value * density, isDark,
+                backgroundAlpha, flagBloomColors(flag, isDark),
+            )
+        }
+    }
+
+    val onSurface =
+        if (frost != null) ColorProvider(Color(frostOnSurface(isDark))) else colors.onSurface
+    val onSurfaceVariant =
+        if (frost != null) ColorProvider(Color(frostOnSurfaceVariant(isDark))) else colors.onSurfaceVariant
+
+    val cardBody: @Composable () -> Unit = {
         Row(
             modifier = GlanceModifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
@@ -165,35 +204,58 @@ internal fun AnchorWidgetContent(
             Image(
                 provider = ImageProvider(anchorIconRes(anchor.icon)),
                 contentDescription = null,
-                modifier = GlanceModifier.size(36.dp),
-                colorFilter = ColorFilter.tint(
-                    groupAccentColor(anchor.palette, LocalWidgetForcedDark.current)
-                ),
+                modifier = GlanceModifier.size((36f * scale).dp),
+                colorFilter = ColorFilter.tint(groupAccentColor(anchor.palette, forcedDark)),
             )
             Spacer(GlanceModifier.width(14.dp))
-            // name + since/planned-for stack; the big day count sits at the trailing end so
-            // a 2×1 has the vertical room for both text lines without clipping the date.
+            // name + since/planned-for stack; the big day count sits at the trailing end so a
+            // 2×1 has the vertical room for both text lines without clipping the date.
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = anchor.name,
-                    style = TextStyle(color = colors.onSurface, fontSize = 15.sp,
+                    style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
                         fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
                 Spacer(GlanceModifier.height(2.dp))
                 Text(
                     text = directionLine,
-                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = 12.sp),
+                    style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
                     maxLines = 1,
                 )
             }
             Spacer(GlanceModifier.width(12.dp))
             Text(
                 text = daysText,
-                style = TextStyle(color = colors.onSurface, fontSize = 26.sp,
+                style = TextStyle(color = onSurface, fontSize = (26f * scale).sp,
                     fontWeight = FontWeight.Bold),
                 maxLines = 1,
             )
+        }
+    }
+
+    if (frost != null) {
+        Box(
+            modifier = GlanceModifier.fillMaxSize()
+                .appWidgetBackground()
+                .cornerRadius(WidgetRoundedShape.Shell.radius)
+                .clickable(actionStartActivity(anchorOpenMilestonesIntent(context))),
+        ) {
+            Image(
+                provider = ImageProvider(frost),
+                contentDescription = null,
+                modifier = GlanceModifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds,
+            )
+            // 12.dp matches WidgetShell's inset so the frost and appearance cards align.
+            Box(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) { cardBody() }
+        }
+    } else {
+        WidgetShell(
+            scale = scale,
+            onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
+        ) {
+            cardBody()
         }
     }
 }
@@ -207,13 +269,18 @@ internal suspend fun composeAnchorPreviewRemoteViews(
     context: Context,
     appearance: WidgetAppearance,
     anchor: TrackedDate?,
+    backgroundFlag: PrideFlag?,
     appWidgetId: Int,
 ): WidgetConfigPreviewRender {
     val size = ANCHOR_WIDGET_PREVIEW_SIZE
     val remoteViews = androidx.glance.appwidget.GlanceRemoteViews()
         .compose(context = context, size = size) {
             HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
-                AnchorWidgetContent(anchor = anchor, hasSelection = anchor != null)
+                AnchorWidgetContent(
+                    anchor = anchor,
+                    hasSelection = anchor != null,
+                    backgroundFlag = backgroundFlag,
+                )
             }
         }.remoteViews
     return WidgetConfigPreviewRender(remoteViews, size)

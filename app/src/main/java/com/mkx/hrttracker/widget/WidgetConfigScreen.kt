@@ -12,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -31,6 +33,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,11 +79,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.journal.AnchorSelectorList
+import com.mkx.hrttracker.ui.journal.FlagSwatch
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
@@ -105,7 +112,11 @@ import kotlin.math.roundToInt
 // supplied by windowShowWallpaper in Theme.HrtTracker.WidgetConfig — with the live
 // widget preview centered in it, and the appearance controls as HrtSection rows below.
 // Deliberately does NOT reuse the in-app WidgetAppearanceDialog.
-@OptIn(ExperimentalMaterial3Api::class)
+// Background source for an anchor widget — the colour controls (seed/saturation/balance) or a
+// pride-flag gradient wash. Mutually exclusive; scale + opacity apply to both.
+private enum class WidgetBackgroundMode { COLOUR, GRADIENT }
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun WidgetConfigScreen(
     initialAppearance: WidgetAppearance,
@@ -114,8 +125,13 @@ internal fun WidgetConfigScreen(
     snapshot: WidgetSnapshotRecord?,
     anchors: List<com.mkx.hrttracker.model.journal.TrackedDate> = emptyList(),
     initialAnchorId: String? = null,
+    initialBackgroundFlag: PrideFlag? = null,
     today: java.time.LocalDate = java.time.LocalDate.now(),
-    onSaveAnchor: (appearance: WidgetAppearance, anchorId: String) -> Unit = { _, _ -> },
+    onSaveAnchor: (
+        appearance: WidgetAppearance,
+        anchorId: String,
+        backgroundFlag: PrideFlag?,
+    ) -> Unit = { _, _, _ -> },
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -158,6 +174,10 @@ internal fun WidgetConfigScreen(
     val anchorSheetScope = rememberCoroutineScope()
     val anchorSheetState = rememberModalBottomSheetState()
     val selectedAnchor = anchors.firstOrNull { it.id == selectedAnchorId }
+    // Gradient-flag selection (ANCHOR mode). Non-null = gradient mode (mutually exclusive with the
+    // colour controls); null = colour mode. Stored by name so rememberSaveable can persist it.
+    var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
+    val selectedFlag = selectedFlagName?.let { n -> PrideFlag.entries.firstOrNull { it.name == n } }
 
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
@@ -186,7 +206,7 @@ internal fun WidgetConfigScreen(
         LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        configType, appWidgetId, snapshot, selectedAnchorId,
+        configType, appWidgetId, snapshot, selectedAnchorId, selectedFlagName,
     ) {
         // Conflated live rendering: always render the LATEST control values, but never
         // queue more than one render. While a render is in flight, slider ticks only
@@ -221,6 +241,7 @@ internal fun WidgetConfigScreen(
                             context = context.applicationContext,
                             appearance = appearance,
                             anchor = selectedAnchor,
+                            backgroundFlag = selectedFlag,
                             appWidgetId = appWidgetId,
                         )
                     } else {
@@ -418,39 +439,98 @@ internal fun WidgetConfigScreen(
                                     onValueChange = { backgroundAlpha = snapToWholePercent(it) },
                                 )
                             }
-                            item {
-                                HueSliderRow(
-                                    label = stringResource(R.string.widget_config_seed_hue),
-                                    icon = painterResource(R.drawable.ic_palette),
-                                    hue = seedHue,
-                                    restingHue = remember { defaultSeedHue() },
-                                    onHueChange = { seedHue = it },
-                                    resetLabel = stringResource(
-                                        R.string.widget_config_seed_dynamic,
-                                    ),
-                                    onReset = { seedHue = null },
-                                )
+                            // ANCHOR mode: choose the background's source. Colour = the seed/
+                            // saturation/balance controls below; Gradient = a pride-flag wash
+                            // (mutually exclusive). Scale + opacity above apply to both.
+                            if (configType == WidgetConfigType.ANCHOR) {
+                                item {
+                                    ConnectedButtonGroup(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        options = WidgetBackgroundMode.entries,
+                                        selectedOption = if (selectedFlag == null) {
+                                            WidgetBackgroundMode.COLOUR
+                                        } else {
+                                            WidgetBackgroundMode.GRADIENT
+                                        },
+                                        optionLabel = { mode ->
+                                            stringResource(
+                                                if (mode == WidgetBackgroundMode.COLOUR) {
+                                                    R.string.widget_config_bg_colour
+                                                } else {
+                                                    R.string.widget_config_bg_gradient
+                                                },
+                                            )
+                                        },
+                                        onOptionSelected = { mode ->
+                                            selectedFlagName =
+                                                if (mode == WidgetBackgroundMode.GRADIENT) {
+                                                    selectedFlagName
+                                                        ?: PrideFlag.entries.first().name
+                                                } else {
+                                                    null
+                                                }
+                                        },
+                                        layout = ConnectedButtonGroupLayout.ROW,
+                                        expandOptions = true,
+                                    )
+                                }
                             }
-                            item {
-                                SliderRow(
-                                    label = stringResource(R.string.widget_config_saturation),
-                                    icon = painterResource(R.drawable.ic_colors),
-                                    iconSize = 18.dp,
-                                    value = saturation,
-                                    valueRange = 0f..1f,
-                                    onValueChange = { saturation = snapToWholePercent(it) },
-                                )
-                            }
-                            item {
-                                SliderRow(
-                                    label = stringResource(R.string.widget_config_balance),
-                                    icon = painterResource(R.drawable.ic_contrast_circle),
-                                    iconSize = 18.dp,
-                                    value = balance,
-                                    valueRange = 0f..1f,
-                                    onValueChange = { balance = snapToWholePercent(it) },
-                                    centered = true,
-                                )
+                            if (selectedFlag == null) {
+                                item {
+                                    HueSliderRow(
+                                        label = stringResource(R.string.widget_config_seed_hue),
+                                        icon = painterResource(R.drawable.ic_palette),
+                                        hue = seedHue,
+                                        restingHue = remember { defaultSeedHue() },
+                                        onHueChange = { seedHue = it },
+                                        resetLabel = stringResource(
+                                            R.string.widget_config_seed_dynamic,
+                                        ),
+                                        onReset = { seedHue = null },
+                                    )
+                                }
+                                item {
+                                    SliderRow(
+                                        label = stringResource(R.string.widget_config_saturation),
+                                        icon = painterResource(R.drawable.ic_colors),
+                                        iconSize = 18.dp,
+                                        value = saturation,
+                                        valueRange = 0f..1f,
+                                        onValueChange = { saturation = snapToWholePercent(it) },
+                                    )
+                                }
+                                item {
+                                    SliderRow(
+                                        label = stringResource(R.string.widget_config_balance),
+                                        icon = painterResource(R.drawable.ic_contrast_circle),
+                                        iconSize = 18.dp,
+                                        value = balance,
+                                        valueRange = 0f..1f,
+                                        onValueChange = { balance = snapToWholePercent(it) },
+                                        centered = true,
+                                    )
+                                }
+                            } else {
+                                item {
+                                    FlowRow(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                                            .selectableGroup(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        PrideFlag.entries.forEach { flag ->
+                                            FlagSwatch(
+                                                flag = flag,
+                                                selected = flag == selectedFlag,
+                                                onClick = { selectedFlagName = flag.name },
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -472,7 +552,7 @@ internal fun WidgetConfigScreen(
                             text = stringResource(R.string.save),
                             onClick = {
                                 if (configType == WidgetConfigType.ANCHOR) {
-                                    selectedAnchorId?.let { onSaveAnchor(liveAppearance, it) }
+                                    selectedAnchorId?.let { onSaveAnchor(liveAppearance, it, selectedFlag) }
                                 } else {
                                     onSave(liveAppearance)
                                 }

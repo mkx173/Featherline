@@ -142,6 +142,18 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 ).anchorId()
                             }.getOrNull()
                         } else null,
+                        initialBackgroundFlag = if (configType == WidgetConfigType.ANCHOR) {
+                            runCatching {
+                                val glanceId = androidx.glance.appwidget.GlanceAppWidgetManager(
+                                    this@WidgetConfigActivity,
+                                ).getGlanceIdBy(appWidgetId)
+                                androidx.glance.appwidget.state.getAppWidgetState(
+                                    this@WidgetConfigActivity,
+                                    androidx.glance.state.PreferencesGlanceStateDefinition,
+                                    glanceId,
+                                ).backgroundFlag()
+                            }.getOrNull()
+                        } else null,
                     )
                 } catch (cancellation: CancellationException) {
                     throw cancellation
@@ -171,8 +183,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                             snapshot = loaded.snapshot,
                             anchors = loaded.anchors,
                             initialAnchorId = loaded.initialAnchorId,
+                            initialBackgroundFlag = loaded.initialBackgroundFlag,
                             today = java.time.LocalDate.now(),
-                            onSaveAnchor = { appearance, anchorId ->
+                            onSaveAnchor = { appearance, anchorId, backgroundFlag ->
                                 setResult(
                                     RESULT_OK,
                                     Intent().putExtra(
@@ -190,6 +203,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                                                 .getGlanceIdBy(appWidgetId)
                                             writeAnchorId(
                                                 this@WidgetConfigActivity, glanceId, anchorId,
+                                            )
+                                            writeBackgroundFlag(
+                                                this@WidgetConfigActivity, glanceId, backgroundFlag,
                                             )
                                             HrtAnchorWidget()
                                                 .update(this@WidgetConfigActivity, glanceId)
@@ -274,6 +290,7 @@ private data class LoadedConfigState(
     val snapshot: WidgetSnapshotRecord?,
     val anchors: List<com.mkx.hrttracker.model.journal.TrackedDate> = emptyList(),
     val initialAnchorId: String? = null,
+    val initialBackgroundFlag: com.mkx.hrttracker.model.journal.PrideFlag? = null,
 )
 
 enum class WidgetConfigType { MEDIUM, LARGE, ANCHOR }
