@@ -16,7 +16,6 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
-import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -31,7 +30,6 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
-import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.state.GlanceStateDefinition
@@ -119,6 +117,7 @@ internal fun AnchorWidgetContent(
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
+    val scale = LocalWidgetScale.current
 
     if (anchor == null) {
         // No selection yet, or the selected anchor was deleted: distinct copy, both tap to
@@ -128,12 +127,10 @@ internal fun AnchorWidgetContent(
         } else {
             context.getString(R.string.anchor_widget_empty)
         }
-        Column(
-            modifier = GlanceModifier.fillMaxSize()
-                .padding(16.dp)
-                .clickable(actionStartActivity(anchorReconfigureIntent(context, appWidgetId))),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalAlignment = Alignment.CenterHorizontally,
+        WidgetShell(
+            scale = scale,
+            contentAlignment = Alignment.Center,
+            onClick = actionStartActivity(anchorReconfigureIntent(context, appWidgetId)),
         ) {
             Text(
                 text = message,
@@ -157,38 +154,44 @@ internal fun AnchorWidgetContent(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
     )
 
-    Row(
-        modifier = GlanceModifier.fillMaxSize()
-            .padding(16.dp)
-            .clickable(actionStartActivity(anchorOpenMilestonesIntent(context))),
-        verticalAlignment = Alignment.CenterVertically,
+    WidgetShell(
+        scale = scale,
+        onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
     ) {
-        Image(
-            provider = ImageProvider(anchorIconRes(anchor.icon)),
-            contentDescription = null,
-            modifier = GlanceModifier.size(36.dp),
-            colorFilter = ColorFilter.tint(
-                groupAccentColor(anchor.palette, LocalWidgetForcedDark.current)
-            ),
-        )
-        Spacer(GlanceModifier.width(14.dp))
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            Text(
-                text = anchor.name,
-                style = TextStyle(color = colors.onSurface, fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium),
-                maxLines = 1,
+        Row(
+            modifier = GlanceModifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                provider = ImageProvider(anchorIconRes(anchor.icon)),
+                contentDescription = null,
+                modifier = GlanceModifier.size(36.dp),
+                colorFilter = ColorFilter.tint(
+                    groupAccentColor(anchor.palette, LocalWidgetForcedDark.current)
+                ),
             )
+            Spacer(GlanceModifier.width(14.dp))
+            // name + since/planned-for stack; the big day count sits at the trailing end so
+            // a 2×1 has the vertical room for both text lines without clipping the date.
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                Text(
+                    text = anchor.name,
+                    style = TextStyle(color = colors.onSurface, fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    text = directionLine,
+                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = 12.sp),
+                    maxLines = 1,
+                )
+            }
+            Spacer(GlanceModifier.width(12.dp))
             Text(
                 text = daysText,
                 style = TextStyle(color = colors.onSurface, fontSize = 26.sp,
                     fontWeight = FontWeight.Bold),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.height(2.dp))
-            Text(
-                text = directionLine,
-                style = TextStyle(color = colors.onSurfaceVariant, fontSize = 12.sp),
                 maxLines = 1,
             )
         }

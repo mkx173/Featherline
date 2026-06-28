@@ -21,6 +21,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.action.Action
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -163,6 +164,9 @@ internal fun RoundedBackgroundRow(
 internal fun WidgetShell(
     scale: Float,
     contentAlignment: Alignment = Alignment.TopStart,
+    // Whole-shell tap target. Defaults to opening the app (dose widgets); the anchor
+    // widget passes its own (open Milestones / reconfigure this instance).
+    onClick: Action? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalWidgetColors.current
@@ -175,7 +179,7 @@ internal fun WidgetShell(
                     .background(colors.widgetBackground)
                     .cornerRadius(WidgetRoundedShape.Shell.radius)
                     .clickable(
-                        onClick = actionStartActivity<MainActivity>(),
+                        onClick = onClick ?: actionStartActivity<MainActivity>(),
                         rippleOverride = WidgetRoundedShape.Shell.rippleRes,
                     )
                     .padding(WidgetShellPadding),
@@ -188,7 +192,7 @@ internal fun WidgetShell(
                 modifier = GlanceModifier
                     .fillMaxSize()
                     .clickable(
-                        onClick = actionStartActivity<MainActivity>(),
+                        onClick = onClick ?: actionStartActivity<MainActivity>(),
                         rippleOverride = WidgetRoundedShape.Shell.rippleRes,
                     ),
                 contentAlignment = contentAlignment,
