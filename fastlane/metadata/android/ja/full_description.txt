@@ -1,0 +1,34 @@
+Featherline is a thoughtful medication tracker built for people on long-term hormone therapy who want to keep their personal records private.
+
+Everything you log — doses, schedules, personal notes — stays in an encrypted database on your device, under your control.
+
+Track your routine, the way you actually live it
+
+Build a personal medication schedule, daily or weekly. Get reminders at dose times, with quick actions to mark doses as taken, log them later, or note when you've taken something outside your plan. Your schedule, your records, your pace.
+
+Visualize your routine
+
+Featherline shows you how your dose timing flows across the day and week — a 7-day visualization helps you see patterns in your routine. Set your own personal target ranges, mark your doses on a timeline, and check changes over the past 24 hours when you want a closer look. You can also record personal test results to keep your visualization meaningful to you.
+
+Designed with privacy in mind
+
+- Local encrypted storage — your data stays on your device by default
+- Optional app lock with biometrics or device password
+- Optional screen content hiding for screenshots and recent apps
+- Password-encrypted backup files you control — bring your records to a new device or keep an external copy
+
+Features at a glance
+
+- Custom medication schedules, daily or weekly
+- Smart reminders with batch logging
+- 7-day routine visualization
+- Month-view history with personal summaries
+- Personal record logging with built-in and custom fields
+- Set you body weight for more personalized visualization
+- Home screen widget — see your next dose and mark it taken right from your home screen
+- Medication stock tracking — keep count of what you have on hand, with low-stock reminders and a runway estimate so you can reorder before you run out
+- Daily journal — note how any day went and track meaningful dates with milestones
+
+About Featherline
+
+Featherline is a personal tracking tool, not a medical device. The visualizations are based on the times and amounts you've logged, calculated using publicly available models. They're meant to help you stay organized and aware of your own routine. For any health decisions or interpretations, always consult your healthcare provider.
