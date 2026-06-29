@@ -1,34 +1,34 @@
-Featherline is a thoughtful medication tracker built for people on long-term hormone therapy who want to keep their personal records private.
+Featherlineは、ホルモン補充療法を継続している方が個人の記録をプライベートに管理するための、薬剤・投与記録アプリです。
 
-Everything you log — doses, schedules, personal notes — stays in an encrypted database on your device, under your control.
+投与量、スケジュール、メモなど、記録した内容はすべて暗号化され、お使いの端末上に保存されます。データはご自身の管理下に置かれます。
 
-Track your routine, the way you actually live it
+生活リズムに合わせてルーティンを記録
 
-Build a personal medication schedule, daily or weekly. Get reminders at dose times, with quick actions to mark doses as taken, log them later, or note when you've taken something outside your plan. Your schedule, your records, your pace.
+毎日・毎週の投与スケジュールを、自分に合わせて作成できます。投与時刻にはリマインダーを受け取り、投与済みとして記録したり、あとから入力したり、予定外の投与内容をメモしたりできます。自分の予定、自分の記録、自分のペースで。
 
-Visualize your routine
+ルーティンをグラフで確認
 
-Featherline shows you how your dose timing flows across the day and week — a 7-day visualization helps you see patterns in your routine. Set your own personal target ranges, mark your doses on a timeline, and check changes over the past 24 hours when you want a closer look. You can also record personal test results to keep your visualization meaningful to you.
+Featherlineでは、1日・1週間の中で投与タイミングがどのように推移しているかをグラフで確認できます。7日間の推移グラフで日々のパターンを把握し、自分の状況に合わせた目標範囲を設定できます。詳しく見たいときは、過去24時間の変化もチェックできます。検査結果を記録することで、グラフをより自分に合った内容に調整できます。
 
-Designed with privacy in mind
+プライバシーに配慮した設計
 
-- Local encrypted storage — your data stays on your device by default
-- Optional app lock with biometrics or device password
-- Optional screen content hiding for screenshots and recent apps
-- Password-encrypted backup files you control — bring your records to a new device or keep an external copy
+- データはローカルで暗号化して保存ーー初期設定では,お使いの端末上にのみ保存されます
+- スクリーンショットや最近使ったアプリ画面に内容を表示しないように設定できます
+ - 生体認証または端末のパスワードによるアプリロックを設定できます
+- バックアップファイルはパスワードで暗号化され、自分で管理でき、新しい端末への移行や、外部コピーの保管に利用できます
 
-Features at a glance
+主な機能
 
-- Custom medication schedules, daily or weekly
-- Smart reminders with batch logging
-- 7-day routine visualization
-- Month-view history with personal summaries
-- Personal record logging with built-in and custom fields
-- Set you body weight for more personalized visualization
-- Home screen widget — see your next dose and mark it taken right from your home screen
-- Medication stock tracking — keep count of what you have on hand, with low-stock reminders and a runway estimate so you can reorder before you run out
-- Daily journal — note how any day went and track meaningful dates with milestones
+- 毎日・毎週のカスタム投与スケジュール
+- まとめて記録できるスマートリマインダー
+- 7日間のルーティン推移グラフ
+- 個人サマリー付きの月間履歴
+- 標準項目・カスタム項目に対応した個人記録
+- 体重設定による、より自分に合った推定グラフ
+- ホーム画面ウィジェット：次の投与予定を確認し、そのまま投与済みに記録
+- 薬剤在庫管理：在庫数、低下リマインダー、残り日数の見積もりに対応
+- 日記：その日の様子をメモし、大切な記念日や節目を記録
 
-About Featherline
+Featherlineについて
 
-Featherline is a personal tracking tool, not a medical device. The visualizations are based on the times and amounts you've logged, calculated using publicly available models. They're meant to help you stay organized and aware of your own routine. For any health decisions or interpretations, always consult your healthcare provider.
+Featherlineは個人用の記録ツールであり、医療機器ではありません。グラフは、あなたが記録した投与時刻と投与量をもとに、公開されているモデルを使って計算されます。自分のルーティンを整理し、把握しやすくするためのものです。健康に関する判断や解釈については、必ず医療専門家に相談してください。
