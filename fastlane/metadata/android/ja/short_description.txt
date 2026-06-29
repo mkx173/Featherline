@@ -1,1 +1,1 @@
-Private medication tracker for HRT routines — plans, reminders, personal logs
+ホルモン補充療法を継続している方が個人の記録を管理するための、薬剤・投与記録アプリーー予定、リマインダー、メモに対応
