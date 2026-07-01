@@ -7,7 +7,6 @@
 [English](README.md) · **简体中文**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Play Store](https://img.shields.io/badge/Play_Store-available-success)](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
 [![Build](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml/badge.svg)](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml)
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
@@ -20,11 +19,15 @@ Featherline 支持注射、贴剂、凝胶、口服、舌下五种给药途径�
 
 ## 获取应用
 
-- **Play 商店**（首选）：[链接](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
+<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/zh-cn_badge_web_generic.png" alt="在 Google Play 获取" height="80"></a>
+<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on-zh-cn.png" alt="Get it on F-Droid" height="80"></a>
+
+- **Play 商店**：[链接](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
+- **F-Droid**：[链接](https://f-droid.org/packages/com.mkx.hrttracker)
 - **GitHub Releases**（可侧载的签名 APK）：[发布页](https://github.com/mkx173/Featherline/releases)
 - 或从源码构建：参见 [docs/building.md](docs/building.md)
 
-> **提示：** 推荐使用 Play 商店版本。由于本应用不申请网络权限，GitHub APK 无法自动检查更新——如需获取新版本，请手动关注发布页。
+> **提示：** 推荐使用 Play 商店或 F-Droid 版本。由于本应用不申请网络权限，GitHub APK 无法自动检查更新——如需获取新版本，请手动关注发布页。
 
 ## 功能
 
@@ -70,7 +73,7 @@ Featherline 是一个基于 Kotlin 与 Jetpack Compose 的单模块 Android 应�
 - 用更通用的多药物模型替换当前药代引擎
 - 基于个人化验数据校准的个体化药代参数
 - 可选的端到端加密云备份（默认关闭）
-- 更多语言——欢迎翻译贡献（请参阅 [docs/localization.md](docs/localization.md)）
+- 更多语言——欢迎通过 [Hosted Weblate](https://hosted.weblate.org/projects/featherline/) 贡献翻译（请参阅 [docs/localization.md](docs/localization.md)）
 
 ## 技术栈
 
@@ -85,6 +88,8 @@ Kotlin、Jetpack Compose 与 Material 3、Hilt 依赖注入、Room + SQLCipher �
 ## 参与贡献
 
 欢迎贡献。请先阅读 [行为准则](CODE_OF_CONDUCT.md)，再阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发流程、分支规范以及提交变更的方式。
+
+也欢迎通过 [Hosted Weblate](https://hosted.weblate.org/projects/featherline/) 贡献翻译。
 
 ## 隐私
 

@@ -9,7 +9,6 @@
 HRT medication tracker for Android with PK projections and lab tracking. On-device, encrypted, no account required.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Play Store](https://img.shields.io/badge/Play_Store-available-success)](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
 [![Build](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml/badge.svg)](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml)
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
@@ -20,11 +19,15 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## Get the app
 
-- **Play Store** (primary): [Link](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
+<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80"></a>
+<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
+
+- **Play Store**: [Link](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
+- **F-Droid**: [Link](https://f-droid.org/packages/com.mkx.hrttracker)
 - **GitHub Releases** (signed APK for sideload): [releases page](https://github.com/mkx173/Featherline/releases)
 - Or build from source: see [docs/building.md](docs/building.md)
 
-> **Note:** The Play Store version is recommended. The app holds no internet permission, so the GitHub APK cannot check for updates — you will need to monitor the releases page manually for new versions.
+> **Note:** The Play Store or F-Droid version is recommended. The app holds no internet permission, so the GitHub APK cannot check for updates — you will need to monitor the releases page manually for new versions.
 
 ## Features
 
@@ -70,7 +73,7 @@ The full architecture, data model, and reminder pipeline are documented in [docs
 - Replace the pharmacokinetic engine with a more general multi-medication model
 - Personal-PK calibration tuned from your own lab results
 - Optional encrypted cloud backup (off by default, end-to-end encrypted)
-- Additional languages — translation contributions welcomed (see [docs/localization.md](docs/localization.md))
+- Additional languages — translation contributions welcomed on [Hosted Weblate](https://hosted.weblate.org/projects/featherline/) (see [docs/localization.md](docs/localization.md))
 
 ## Tech stack
 
@@ -85,6 +88,8 @@ Detailed instructions, flavors, and CI behavior: see [docs/building.md](docs/bui
 ## Contributing
 
 Contributions are welcome. Read the [Code of Conduct](CODE_OF_CONDUCT.md) first, then see [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, branching conventions, and how to propose changes.
+
+Translation contributions are welcome on [Hosted Weblate](https://hosted.weblate.org/projects/featherline/).
 
 ## Privacy
 
