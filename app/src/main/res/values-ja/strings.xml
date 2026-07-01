@@ -260,7 +260,7 @@
     <string name="journal_reorder_anchor">%1$sを並べ替え</string>
     <string name="journal_move_anchor_to_top">%1$sを一番上へ移動</string>
     <string name="journal_pin_to_home_content_description">ホームにピン留め</string>
-    <string name="journal_pin_date">この日付をピン留め</string>
+    <string name="journal_pin_date">このノートをピン留め</string>
     <string name="journal_hero_background_action">背景をカスタマイズ</string>
     <string name="journal_hero_background_title">背景色</string>
     <string name="journal_hero_background_none">なし</string>
@@ -274,8 +274,8 @@
     <string name="journal_pride_flag_asexual">アセクシュアル</string>
     <string name="journal_pride_flag_genderfluid">ジェンダーフルイド</string>
     <string name="journal_pride_flag_agender">アジェンダー</string>
-    <string name="journal_date_sheet_add_title">日付を追加</string>
-    <string name="journal_date_sheet_edit_title">日付を編集</string>
+    <string name="journal_date_sheet_add_title">ノートを追加</string>
+    <string name="journal_date_sheet_edit_title">ノートを編集</string>
     <string name="journal_date_name_label">名前</string>
     <string name="journal_date_date_label">日付</string>
     <string name="journal_select_date">日付を選択</string>
@@ -299,5 +299,5 @@
     <string name="journal_anchor_icon_cake">誕生日</string>
     <string name="journal_anchor_icon_star">ハイライト</string>
     <string name="journal_delete_date">削除</string>
-    <string name="journal_delete_date_title">日付削除</string>
+    <string name="journal_delete_date_title">日記を削除</string>
 </resources>
