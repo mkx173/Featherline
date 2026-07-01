@@ -19,8 +19,8 @@ Featherline 支持注射、贴剂、凝胶、口服、舌下五种给药途径�
 
 ## 获取应用
 
-<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src=".github/GetItOnGooglePlay_Badge_Web_color_Chinese-China.png" alt="在 Google Play 获取" height="80"></a>
-<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on-zh-cn.png" alt="Get it on F-Droid" height="80"></a>
+<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src=".github/GetItOnGooglePlay_Badge_Web_color_Chinese-China.png" alt="在 Google Play 获取" height="54" align="middle"></a>
+<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on-zh-cn.png" alt="Get it on F-Droid" height="80" align="middle"></a>
 
 - **Play 商店**：[链接](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
 - **F-Droid**：[链接](https://f-droid.org/packages/com.mkx.hrttracker)

@@ -19,8 +19,8 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## Get the app
 
-<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src=".github/GetItOnGooglePlay_Badge_Web_color_English.png" alt="Get it on Google Play" height="80"></a>
-<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
+<a href="https://play.google.com/store/apps/details?id=com.mkx.hrttracker"><img src=".github/GetItOnGooglePlay_Badge_Web_color_English.png" alt="Get it on Google Play" height="54" align="middle"></a>
+<a href="https://f-droid.org/packages/com.mkx.hrttracker"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80" align="middle"></a>
 
 - **Play Store**: [Link](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
 - **F-Droid**: [Link](https://f-droid.org/packages/com.mkx.hrttracker)
