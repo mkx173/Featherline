@@ -18,6 +18,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.MilestoneUnit
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -128,6 +129,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -149,6 +151,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -173,6 +176,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -194,6 +198,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -322,6 +327,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -354,6 +360,53 @@ class MilestonesScreenTest {
     }
 
     @Test
+    fun anchorSelectorList_usesMilestoneCardsAndSelectsAnchor() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val today = LocalDate.of(2026, 6, 17)
+        val injectionDate = LocalDate.of(2026, 3, 1)
+        val injectionDateLabel = dateLabelFormatter(
+            locale = context.resources.configuration.locales[0],
+            today = today,
+        )(injectionDate)
+        var selectedAnchorId: String? = null
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                AnchorSelectorList(
+                    anchors = listOf(
+                        TrackedDate(
+                            id = "i",
+                            name = "First injection",
+                            icon = AnchorIcon.VACCINES,
+                            date = injectionDate,
+                            palette = MedicationGroupColorKey.INDIGO,
+                            pinnedOrder = null,
+                        ),
+                        TrackedDate(
+                            id = "s",
+                            name = "Surgery",
+                            icon = AnchorIcon.FLAG,
+                            date = LocalDate.of(2026, 9, 15),
+                            palette = MedicationGroupColorKey.SAGE,
+                            pinnedOrder = null,
+                        ),
+                    ),
+                    today = today,
+                    onSelect = { selectedAnchorId = it },
+                    onAddDate = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("First injection").assertIsDisplayed()
+        composeRule.onNodeWithText(injectionDateLabel).assertIsDisplayed()
+
+        composeRule.onNodeWithText("First injection").performClick()
+
+        assertEquals("i", selectedAnchorId)
+    }
+
+    @Test
     fun timeline_todayNodeShowsTodayAndDate() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         // The fixture's today is 2026-06-17 and carries no today-dated anchor, so
@@ -375,6 +428,7 @@ class MilestonesScreenTest {
                     onNavigateBack = {}, onToggleEdit = {}, onSetPinned = { _, _ -> },
                     onReorder = {}, onAddDate = {}, onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -616,6 +670,7 @@ class MilestonesScreenTest {
                     onAddDate = { addRequests += 1 },
                     onUpdateDate = { },
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }

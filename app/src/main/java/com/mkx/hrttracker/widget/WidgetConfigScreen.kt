@@ -42,7 +42,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -54,7 +53,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -81,8 +79,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.settings.DarkModeOption
-import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.journal.AnchorSelectorList
+import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -93,7 +90,6 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
-import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -171,8 +167,6 @@ internal fun WidgetConfigScreen(
     // disabled meanwhile) plus the picker-sheet plumbing. Inert/unused in MEDIUM/LARGE.
     var selectedAnchorId by rememberSaveable { mutableStateOf(initialAnchorId) }
     var isAnchorSheetOpen by rememberSaveable { mutableStateOf(false) }
-    val anchorSheetScope = rememberCoroutineScope()
-    val anchorSheetState = rememberModalBottomSheetState()
     val selectedAnchor = anchors.firstOrNull { it.id == selectedAnchorId }
     // Gradient-flag selection (ANCHOR mode). Non-null = gradient mode (mutually exclusive with the
     // colour controls); null = colour mode. Stored by name so rememberSaveable can persist it.
@@ -569,28 +563,15 @@ internal fun WidgetConfigScreen(
     }
 
     if (isAnchorSheetOpen) {
-        HazeModalBottomSheet(
-            sheetState = anchorSheetState,
+        AnchorSelectorSheet(
+            title = stringResource(R.string.anchor_config_choose),
+            anchors = anchors,
+            today = today,
             onDismissRequest = { isAnchorSheetOpen = false },
-        ) {
-            AnchorSelectorList(
-                anchors = anchors,
-                today = today,
-                onSelect = { id ->
-                    selectedAnchorId = id
-                    hideBottomSheet(anchorSheetScope, anchorSheetState) {
-                        isAnchorSheetOpen = false
-                    }
-                },
-                onAddDate = {
-                    // No add-date flow inside the config Activity; closing returns the user
-                    // to the picker. The selector still lists every existing anchor.
-                    hideBottomSheet(anchorSheetScope, anchorSheetState) {
-                        isAnchorSheetOpen = false
-                    }
-                },
-            )
-        }
+            onSelect = { id -> selectedAnchorId = id },
+            // No add-date flow inside the config Activity; closing returns the user to the picker.
+            onAddDate = {},
+        )
     }
 }
 

@@ -55,6 +55,7 @@ class HeroBackgroundEntranceTest {
                     onAddDate = {},
                     onUpdateDate = {},
                     onOpenHeroBackground = { opened = true },
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -88,6 +89,7 @@ class HeroBackgroundEntranceTest {
                     onAddDate = {},
                     onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }
@@ -111,6 +113,7 @@ class HeroBackgroundEntranceTest {
                     onAddDate = {},
                     onUpdateDate = {},
                     onOpenHeroBackground = {},
+                    onPinFolderIcon = {},
                 )
             }
         }

@@ -41,7 +41,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -50,7 +49,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -79,7 +77,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
-import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -99,7 +96,6 @@ import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
-import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.widget.AnchorShortcutManager
 import com.mkx.hrttracker.util.monthHeaderFormatter
@@ -384,8 +380,6 @@ fun MilestonesScreen(
     }
 
     var isPinSheetOpen by remember { mutableStateOf(false) }
-    val pinScope = rememberCoroutineScope()
-    val pinSheetState = rememberModalBottomSheetState()
 
     // Arriving via the journal "Add a date" CTA opens the sheet straight away. The rememberSaveable
     // guard makes this a true one-shot: it won't reopen on configuration change or after the user
@@ -483,27 +477,18 @@ fun MilestonesScreen(
     }
 
     if (isPinSheetOpen) {
-        HazeModalBottomSheet(
-            sheetState = pinSheetState,
+        AnchorSelectorSheet(
+            title = stringResource(R.string.anchor_pin_folder_icon),
+            anchors = uiState.anchors,
+            today = uiState.today,
             onDismissRequest = { isPinSheetOpen = false },
-        ) {
-            AnchorSelectorList(
-                anchors = uiState.anchors,
-                today = uiState.today,
-                onSelect = { anchorId ->
-                    uiState.anchors.firstOrNull { it.id == anchorId }?.let { anchor ->
-                        AnchorShortcutManager.pin(context, anchor)
-                    }
-                    hideBottomSheet(pinScope, pinSheetState) { isPinSheetOpen = false }
-                },
-                onAddDate = {
-                    hideBottomSheet(pinScope, pinSheetState) {
-                        isPinSheetOpen = false
-                        isAddDateSheetOpen = true
-                    }
-                },
-            )
-        }
+            onSelect = { anchorId ->
+                uiState.anchors.firstOrNull { it.id == anchorId }?.let { anchor ->
+                    AnchorShortcutManager.pin(context, anchor)
+                }
+            },
+            onAddDate = { isAddDateSheetOpen = true },
+        )
     }
 
     HeroBackgroundDialogHost(
