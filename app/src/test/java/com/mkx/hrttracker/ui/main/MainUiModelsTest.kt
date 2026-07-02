@@ -1983,6 +1983,147 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainComingUpSection_returnsTomorrowOvernightRowsDuringEveningWindow() {
+        val today = LocalDate.of(2026, 4, 18)
+        val tomorrow = today.plusDays(1)
+        val group = medicationGroup(
+            uuid = UUID.fromString("736fc5b8-3ecb-4934-a511-184f9b88d3dc"),
+            name = "Overnight estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(
+                    LocalTime.of(0, 30),
+                    LocalTime.of(5, 30),
+                    LocalTime.of(6, 0),
+                    LocalTime.of(8, 0),
+                )
+            )
+        )
+        val now = LocalDateTime.of(today, LocalTime.of(23, 55))
+
+        val comingUpSection = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertEquals(tomorrow, comingUpSection.date)
+        assertEquals(0, comingUpSection.doneCount)
+        assertEquals(2, comingUpSection.totalCount)
+        assertEquals(0, comingUpSection.manualCount)
+        assertEquals(
+            listOf(
+                LocalDateTime.of(tomorrow, LocalTime.of(0, 30)),
+                LocalDateTime.of(tomorrow, LocalTime.of(5, 30)),
+            ),
+            comingUpSection.rows.map { row -> row.scheduledAt }
+        )
+        assertEquals(
+            MainTodayDoseStatus.DUE_SOON,
+            comingUpSection.rows.first().status,
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+        )
+
+        assertEquals(MainUpcomingSectionTitle.TOMORROW, upcomingSection.title)
+        assertEquals(tomorrow, upcomingSection.anchorDate)
+        assertEquals(
+            listOf(
+                LocalDateTime.of(tomorrow, LocalTime.of(6, 0)),
+                LocalDateTime.of(tomorrow, LocalTime.of(8, 0)),
+            ),
+            upcomingSection.rows.map { row -> row.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildMainComingUpSection_isEmptyBeforeEveningWindow() {
+        val today = LocalDate.of(2026, 4, 18)
+        val tomorrow = today.plusDays(1)
+        val group = medicationGroup(
+            uuid = UUID.fromString("3e2d1de7-1e14-41f0-b9ea-df446506c67f"),
+            name = "Overnight estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(0, 30), LocalTime.of(8, 0))
+            )
+        )
+        val now = LocalDateTime.of(today, LocalTime.of(17, 59))
+
+        val comingUpSection = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId
+        )
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+        )
+
+        assertNull(comingUpSection.date)
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), comingUpSection.rows)
+        assertEquals(
+            listOf(
+                LocalDateTime.of(tomorrow, LocalTime.of(0, 30)),
+                LocalDateTime.of(tomorrow, LocalTime.of(8, 0)),
+            ),
+            upcomingSection.rows.map { row -> row.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildMainComingUpSection_isEmptyAfterMidnightWhenRowsBelongToToday() {
+        val today = LocalDate.of(2026, 4, 19)
+        val group = medicationGroup(
+            uuid = UUID.fromString("e92c107f-f0cd-490b-8829-3120da0c3d63"),
+            name = "Overnight estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(0, 30))
+            )
+        )
+        val now = LocalDateTime.of(today, LocalTime.of(0, 30))
+
+        val comingUpSection = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId
+        )
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertNull(comingUpSection.date)
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), comingUpSection.rows)
+        assertEquals(
+            listOf(LocalDateTime.of(today, LocalTime.of(0, 30))),
+            todaySection.rows.map { row -> row.scheduledAt }
+        )
+    }
+
+    @Test
     fun buildMainUpcomingSection_returns_tomorrow_rows_when_tomorrow_has_unfulfilled_slots() {
         val group = medicationGroup(
             uuid = UUID.fromString("1ec1b1bf-f3ff-4104-9ed5-68d5aa7e5a47"),

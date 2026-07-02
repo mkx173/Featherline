@@ -996,10 +996,15 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(viewModel.uiState.value.includePastScheduledSlots)
         assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+        assertNull(viewModel.uiState.value.createPastScheduledSlotRecordsEnabledAt)
 
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
         assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 25, 10, 0),
+            viewModel.uiState.value.createPastScheduledSlotRecordsEnabledAt,
+        )
 
         viewModel.updateIncludePastScheduledSlots(false)
 
@@ -1008,6 +1013,9 @@ class MedicationGroupEditorLoadStateTest {
         assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         // ...but the checkbox choice is retained as ViewModel-owned memory.
         assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
+        assertNull(viewModel.uiState.value.createPastScheduledSlotRecordsEnabledAt)
+
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 25, 10, 5))
 
         viewModel.updateIncludePastScheduledSlots(true)
 
@@ -1015,6 +1023,10 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         // Re-enabling "Show past" restores the remembered choice.
         assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 25, 10, 5),
+            viewModel.uiState.value.createPastScheduledSlotRecordsEnabledAt,
+        )
     }
 
     @Test

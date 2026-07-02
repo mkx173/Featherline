@@ -389,6 +389,14 @@ class MainViewModel @Inject constructor(
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
             ),
+            comingUpSection = buildMainComingUpSection(
+                groups = scheduleGroups,
+                entries = visibleEntries,
+                now = now,
+                zoneId = zoneId,
+                includeUnloggedArchivedSlots = false,
+                unloggedArchivedSlotCutoff = now,
+            ),
             upcomingSection = buildMainUpcomingSection(
                 groups = inputs.activeGroups,
                 entries = homeEntries,

@@ -287,9 +287,9 @@ internal fun mainDoseRowHighlightScrollTargetKey(
     if (highlightRequest == null) return null
 
     // First matching row in rendered order (last-night -> today by time range ->
-    // upcoming). The first match is the scroll target so it lands at the highlight
-    // anchor (see LocalBringIntoViewSpec in MainContent); any later matches then
-    // sit below it.
+    // coming-up -> upcoming). The first match is the scroll target so it lands at
+    // the highlight anchor (see LocalBringIntoViewSpec in MainContent); any later
+    // matches then sit below it.
     uiState.lastNightSection.rows.forEach { row ->
         if (highlightRequest.matches(row)) {
             return mainTodayDoseRowCompositionKey(row)
@@ -300,6 +300,11 @@ internal fun mainDoseRowHighlightScrollTargetKey(
             if (highlightRequest.matches(row)) {
                 return mainTodayDoseRowCompositionKey(row)
             }
+        }
+    }
+    uiState.comingUpSection.rows.forEach { row ->
+        if (highlightRequest.matches(row)) {
+            return mainTodayDoseRowCompositionKey(row)
         }
     }
     uiState.upcomingSection.rows.forEach { row ->
@@ -3250,6 +3255,67 @@ internal fun MainLastNightSection(
     Column(modifier = modifier.fillMaxWidth()) {
         MainSectionHeader(
             title = stringResource(R.string.main_last_night_title),
+            summary = sectionSummary
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+        ) {
+            section.rows.forEachIndexed { index, row ->
+                val rowKey = mainTodayDoseRowCompositionKey(row)
+                val matchesHighlight =
+                    highlightRequest?.matches(row) == true && highlightEffectsEnabled
+                key(rowKey) {
+                    MainTodayDoseRow(
+                        row = row,
+                        index = index,
+                        itemCount = section.rows.size,
+                        now = now,
+                        timeFormatter = timeFormatter,
+                        isHighlighted = matchesHighlight,
+                        isHighlightFlashReady = matchesHighlight && highlightFlashReady,
+                        isHighlightScrollTarget = rowKey == highlightScrollTargetKey,
+                        onQuickLogDoseClick = onQuickLogDoseClick,
+                        onEntryClick = onEntryClick
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MainComingUpSection(
+    section: MainComingUpSectionUiState,
+    now: LocalDateTime,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter,
+    highlightRequest: DoseRowHighlightRequest? = null,
+    highlightEffectsEnabled: Boolean = true,
+    highlightFlashReady: Boolean = true,
+    highlightScrollTargetKey: String? = null,
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
+    onEntryClick: (MainEditEntryRequest) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (section.rows.isEmpty()) return
+
+    val countLabel = mainTodayCountLabel(
+        doneCount = section.doneCount,
+        totalCount = section.totalCount,
+        manualCount = section.manualCount,
+        doneLabel = stringResource(R.string.main_today_summary_done_label),
+        manualLabel = stringResource(R.string.main_today_summary_manual_label)
+    )
+    val sectionSummary = listOfNotNull(
+        section.date?.let(dateFormatter),
+        countLabel
+    ).joinToString(separator = " · ")
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        MainSectionHeader(
+            title = stringResource(R.string.main_coming_up_title),
             summary = sectionSummary
         )
 

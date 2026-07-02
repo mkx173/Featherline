@@ -61,6 +61,7 @@ data class MainUiState(
         date = now.toLocalDate()
     ),
     val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
+    val comingUpSection: MainComingUpSectionUiState = MainComingUpSectionUiState(),
     val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
     val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
     val homeCardLayout: HomeCardLayout = HomeCardLayout(),
@@ -78,6 +79,14 @@ data class MainTodaySectionUiState(
 )
 
 data class MainLastNightSectionUiState(
+    val date: LocalDate? = null,
+    val doneCount: Int = 0,
+    val totalCount: Int = 0,
+    val manualCount: Int = 0,
+    val rows: List<MainTodayDoseRowUiState> = emptyList(),
+)
+
+data class MainComingUpSectionUiState(
     val date: LocalDate? = null,
     val doneCount: Int = 0,
     val totalCount: Int = 0,
@@ -714,6 +723,41 @@ internal fun buildMainLastNightSection(
     )
 }
 
+internal fun buildMainComingUpSection(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
+): MainComingUpSectionUiState {
+    if (!mainIsEveningComingUpWindow(now.toLocalTime())) {
+        return MainComingUpSectionUiState()
+    }
+    val tomorrow = now.toLocalDate().plusDays(1)
+    val entriesByUuid = entries.associateBy { it.uuid }
+    val comingUpRows = buildMainTodayRowsForDate(
+        date = tomorrow,
+        groups = groups,
+        entries = entries,
+        entriesByUuid = entriesByUuid,
+        now = now,
+        zoneId = zoneId,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+    ).filter { row -> mainIsOvernightTime(row.scheduledAt.toLocalTime()) }
+    val rows = (comingUpRows.scheduledRows + comingUpRows.manualRows)
+        .sortedWith(mainTodayDoseRowComparator)
+
+    return MainComingUpSectionUiState(
+        date = tomorrow,
+        doneCount = comingUpRows.scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
+        totalCount = comingUpRows.scheduledRows.size,
+        manualCount = comingUpRows.manualRows.size,
+        rows = rows
+    )
+}
+
 internal fun formatMainE2TrendDeltaValue(
     changeSinceYesterday: Double,
     displayUnit: BloodUnitKey,
@@ -911,6 +955,10 @@ private fun mainIsLastNightTime(time: LocalTime): Boolean {
     return !time.isBefore(MainLastNightStartTime)
 }
 
+private fun mainIsEveningComingUpWindow(time: LocalTime): Boolean {
+    return !time.isBefore(MainLastNightStartTime)
+}
+
 private val mainTodayDoseRowComparator =
     compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
         .thenBy { row -> if (row.isManualRecord) 1 else 0 }
@@ -925,12 +973,15 @@ internal fun buildMainUpcomingSection(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val tomorrow = now.toLocalDate().plusDays(1)
+    val shouldExcludeTomorrowOvernightRows = mainIsEveningComingUpWindow(now.toLocalTime())
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
         entries = entries,
         zoneId = zoneId
-    )
+    ).filterNot { row ->
+        shouldExcludeTomorrowOvernightRows && mainIsOvernightTime(row.scheduledAt.toLocalTime())
+    }
 
     if (tomorrowRows.isNotEmpty()) {
         return MainUpcomingSectionUiState(

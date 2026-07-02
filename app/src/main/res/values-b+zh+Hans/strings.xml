@@ -14,6 +14,7 @@
     <string name="archived_medication_group">已归档的分组</string>
     <string name="main_today_title">今天</string>
     <string name="main_last_night_title">昨晚</string>
+    <string name="main_coming_up_title">今晚</string>
     <string name="main_tomorrow_title">明天</string>
     <string name="main_upcoming_title">即将到来</string>
     <string name="main_today_summary_done_label">已完成</string>

@@ -14,6 +14,7 @@
     <string name="archived_medication_group">Archived group</string>
     <string name="main_today_title">Today</string>
     <string name="main_last_night_title">Last night</string>
+    <string name="main_coming_up_title">Tonight</string>
     <string name="main_tomorrow_title">Tomorrow</string>
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_summary_done_label">DONE</string>

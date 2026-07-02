@@ -1515,6 +1515,80 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun saveNewGroup_withCreatePastRecordsEnabledBeforeMidnight_doesNotBackfillSlotThatElapsedBeforeSave() =
+        runTest {
+            val enabledAt = LocalDateTime.of(2026, 4, 25, 23, 55)
+            val savedAt = LocalDateTime.of(2026, 4, 26, 0, 2)
+            val savedGroupUuid = UUID.fromString("35827481-eafa-4be3-8337-07e1f29c7ce1")
+            val savedGroup = testMedicationGroup(savedGroupUuid).copy(
+                schedule = MedicationGroupSchedule(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 26),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(0, 0)),
+                ),
+                createdAt = Instant.parse("2026-04-25T15:55:00Z"),
+                updatedAt = Instant.parse("2026-04-25T15:55:00Z"),
+            )
+
+            appTimeSource.setCurrentMinute(enabledAt)
+            every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+            every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+            coEvery {
+                medicationGroupRepository.saveGroup(
+                    uuid = null,
+                    name = any(),
+                    colorKey = any(),
+                    schedule = any(),
+                    medications = any(),
+                    notificationsEnabled = any(),
+                    includePastScheduledSlots = any(),
+                    replacesGroupUuid = any(),
+                    now = any(),
+                )
+            } returns savedGroupUuid
+            coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
+            coEvery { medicationLogRepository.getEntries() } returns emptyList()
+            coEvery {
+                medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+            } returns Unit
+            coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+            val viewModel = MedicationGroupEditorViewModel(
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                medicineRepository = medicineRepository,
+                settingsRepository = settingsRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+                context = context,
+                savedStateHandle = SavedStateHandle(),
+                appTimeSource = appTimeSource,
+            )
+            advanceUntilIdle()
+            addPickedMedication(viewModel)
+            viewModel.updateCreatePastScheduledSlotRecords(true)
+
+            appTimeSource.setCurrentMinute(savedAt)
+            viewModel.saveGroup()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isSaving)
+            assertTrue(viewModel.uiState.value.isSaved)
+            assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
+            assertNull(viewModel.uiState.value.createPastScheduledSlotRecordsResult)
+            assertNull(viewModel.uiState.value.createdPastScheduledSlotRecordCount)
+            assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
+
+            coVerify(exactly = 0) { medicationLogRepository.getEntries() }
+            coVerify(exactly = 0) {
+                medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+            }
+            coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
+        }
+
+    @Test
     fun saveNewGroup_withCreatePastRecordsEnabled_emitsCompletionEventBeforeRecordGenerationCompletes() =
         runTest {
             val savedGroupUuid = UUID.fromString("466d303d-4627-4a1e-bd53-4f24e6b63e49")

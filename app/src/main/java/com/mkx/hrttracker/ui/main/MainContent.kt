@@ -193,6 +193,22 @@ fun MainContent(
                 onEntryClick = onEntryClick
             )
 
+            if (uiState.comingUpSection.rows.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                MainComingUpSection(
+                    section = uiState.comingUpSection,
+                    now = uiState.now,
+                    dateFormatter = dayHeaderDateFormatter,
+                    timeFormatter = timeFormatter,
+                    highlightRequest = highlightRequest,
+                    highlightEffectsEnabled = highlightEffectsEnabled,
+                    highlightFlashReady = highlightFlashReady,
+                    highlightScrollTargetKey = highlightScrollTargetKey,
+                    onQuickLogDoseClick = onQuickLogDoseClick,
+                    onEntryClick = onEntryClick
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             MainUpcomingSection(
                 section = uiState.upcomingSection,
