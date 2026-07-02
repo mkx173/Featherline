@@ -46,6 +46,7 @@ import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
@@ -134,6 +135,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var startupPreloaderProvider: Provider<StartupPreloader>
+
+    @Inject
+    lateinit var databaseHolder: DatabaseHolder
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
@@ -554,6 +558,11 @@ class MainActivity : AppCompatActivity() {
             mainViewModel.requestDoseRowHighlight(keys)
         }
         if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)) {
+            // Milestones needs Room data to replace its snapshot seed, but the SQLCipher
+            // open is normally deferred until after the first home frame (StartupPreloader).
+            // Start it now so it runs in parallel with compose init instead of after it.
+            // Async and a no-op when the database is already open.
+            databaseHolder.warmUp()
             mainViewModel.requestMilestonesDeepLink()
         }
     }
