@@ -75,6 +75,7 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
     }
@@ -133,6 +134,7 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = transactionClock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
 
@@ -655,6 +657,7 @@ class JournalRepositoryTest {
             databaseHolder = holder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
 

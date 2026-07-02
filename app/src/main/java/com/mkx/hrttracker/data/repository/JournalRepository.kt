@@ -19,9 +19,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -38,6 +41,7 @@ class JournalRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val clock: Clock,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val anchorSnapshotStore: AnchorSnapshotStore,
     @AppScope appScope: CoroutineScope,
 ) {
     // Warm, synchronously-readable caches of the journal's reactive sources.
@@ -105,6 +109,20 @@ class JournalRepository @Inject constructor(
     // does not force the database open — emissions start once something else opens it.
     fun observeLoadedTrackedDates(): Flow<List<TrackedDate>> = trackedDatesCache.filterNotNull()
 
+    // Cold-start read for the Milestones timeline: emit the persisted snapshot (last-known
+    // anchors) while the database is still opening, then hand over to the live cache. Never
+    // emits the fake empty list from the not-loaded window, and never lets the snapshot
+    // shadow loaded data — the cache re-check after the file read closes that race.
+    fun observeTrackedDatesWithSnapshotSeed(): Flow<List<TrackedDate>> = flow {
+        if (trackedDatesCache.value == null) {
+            val snapshot = runCatching { anchorSnapshotStore.read() }.getOrNull()
+            if (snapshot != null && trackedDatesCache.value == null) {
+                emit(snapshot)
+            }
+        }
+        emitAll(trackedDatesCache.filterNotNull())
+    }
+
     fun getCachedPinnedTrackedDates(): List<TrackedDate>? = pinnedTrackedDatesCache.value
 
     fun getCachedNotes(): List<Note>? = notesCache.value
@@ -135,6 +153,17 @@ class JournalRepository @Inject constructor(
                     homeSnapshotRepository.invalidateHomeSnapshot()
                     homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
                 }.onFailure { if (it is CancellationException) throw it }
+            }
+        }
+
+        // Persist every loaded tracked-dates emission so the next cold start can seed the
+        // Milestones timeline before the database opens. Overwrite-on-change also clears
+        // the snapshot when the journal empties. write() is best-effort by contract
+        // (logs and swallows failures), so a DataStore/keystore failure can neither fail
+        // the journal write nor tear down this long-lived collector.
+        appScope.launch {
+            trackedDatesCache.filterNotNull().distinctUntilChanged().collect { dates ->
+                anchorSnapshotStore.write(dates)
             }
         }
     }
