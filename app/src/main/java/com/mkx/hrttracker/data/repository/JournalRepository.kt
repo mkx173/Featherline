@@ -14,6 +14,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ class JournalRepository @Inject constructor(
     private val clock: Clock,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val anchorSnapshotStore: AnchorSnapshotStore,
-    @AppScope appScope: CoroutineScope,
+    @param:AppScope private val appScope: CoroutineScope,
 ) {
     // Warm, synchronously-readable caches of the journal's reactive sources.
     // Eagerly shared on appScope (the repository is constructed at app start via
@@ -115,13 +116,31 @@ class JournalRepository @Inject constructor(
     // shadow loaded data — the cache re-check after the file read closes that race.
     fun observeTrackedDatesWithSnapshotSeed(): Flow<List<TrackedDate>> = flow {
         if (trackedDatesCache.value == null) {
-            val snapshot = runCatching { anchorSnapshotStore.read() }.getOrNull()
+            val snapshot = anchorSnapshotSeed.value
+                ?: runCatching { anchorSnapshotStore.read() }.getOrNull()
             if (snapshot != null && trackedDatesCache.value == null) {
                 emit(snapshot)
             }
         }
         emitAll(trackedDatesCache.filterNotNull())
     }
+
+    // In-memory copy of the persisted anchor snapshot, filled by the deep-link preload so
+    // MilestonesViewModel's synchronous initialValue seed can render real data on the very
+    // first composed frame (the async seeded-flow emission alone leaves a loading frame).
+    private val anchorSnapshotSeed = MutableStateFlow<List<TrackedDate>?>(null)
+
+    // Called from MainActivity's milestones deep-link branch, before compose init: the
+    // snapshot file read then runs in parallel with activity/compose startup instead of
+    // after the ViewModel is built. No-op when live data or a previous preload is ready.
+    fun preloadAnchorSnapshotSeed() {
+        appScope.launch {
+            if (trackedDatesCache.value != null || anchorSnapshotSeed.value != null) return@launch
+            anchorSnapshotSeed.value = runCatching { anchorSnapshotStore.read() }.getOrNull()
+        }
+    }
+
+    fun getPreloadedAnchorSnapshot(): List<TrackedDate>? = anchorSnapshotSeed.value
 
     fun getCachedPinnedTrackedDates(): List<TrackedDate>? = pinnedTrackedDatesCache.value
 

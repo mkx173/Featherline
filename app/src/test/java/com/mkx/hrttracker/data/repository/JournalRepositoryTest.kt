@@ -228,6 +228,55 @@ class JournalRepositoryTest {
             }
         }
 
+    // Intent: the deep-link preload makes the snapshot synchronously readable before the
+    // ViewModel exists, so the first composed frame can seed real data (no loading flash).
+    @Test
+    fun `preload exposes the persisted snapshot for synchronous reads`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
+                coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
+            }
+            val repository = repository(databaseHolder, snapshotStore)
+
+            repository.preloadAnchorSnapshotSeed()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("snap-1"),
+                repository.getPreloadedAnchorSnapshot()?.map { it.id },
+            )
+        }
+
+    // Intent: a warm process must not pay the snapshot-file read — live cache data is
+    // already the better seed, so the preload is a no-op.
+    @Test
+    fun `preload skips the snapshot read when the cache is already loaded`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val dao = mockk<JournalDao> {
+                every { observeTrackedDates() } returns flowOf(listOf(trackedDate("live-1")))
+                every { observePinnedTrackedDates() } returns flowOf(emptyList())
+                every { observeNotes() } returns flowOf(emptyList())
+            }
+            val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
+            val repository = repository(databaseHolder, snapshotStore)
+            databaseState.value = database
+            advanceUntilIdle() // let the eager cache load
+
+            repository.preloadAnchorSnapshotSeed()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { snapshotStore.read() }
+        }
+
     // appScope runs on the test scheduler as foreground work: backgroundScope tasks are
     // not advanced by advanceUntilIdle, which would leave the repository's eager caches
     // and snapshot writer permanently dormant (same pattern as MedicationLogRepositoryTest).

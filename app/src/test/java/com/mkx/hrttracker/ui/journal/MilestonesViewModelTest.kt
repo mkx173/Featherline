@@ -50,6 +50,7 @@ class MilestonesViewModelTest {
         // Default to a cold warm-cache so the initial state seeds the loading placeholder;
         // tests exercising the seed override this.
         every { repository.getCachedTrackedDates() } returns null
+        every { repository.getPreloadedAnchorSnapshot() } returns null
     }
 
     @After
@@ -125,6 +126,33 @@ class MilestonesViewModelTest {
         assertEquals("On estradiol", initial.hero?.name)
         assertEquals(listOf("On estradiol", "Surgery"), initial.timeline.map { it.anchor.name })
         assertEquals(1, initial.todayDividerIndex)
+    }
+
+    // Cold-start deep link: the warm cache is null (database not open), but MainActivity
+    // preloaded the persisted anchor snapshot into memory. The synchronous initialValue
+    // seed must fall back to it so the loading indicator never composes — the async
+    // seeded-flow emission alone still left a loading frame on screen.
+    @Test
+    fun uiState_seedsFromPreloadedSnapshot_whenWarmCacheIsCold() = runTest {
+        val estradiol = trackedDate(
+            id = "estradiol",
+            name = "On estradiol",
+            icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1),
+            palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        stubTrackedDates(all = listOf(estradiol), pinned = listOf(estradiol))
+        every { repository.getCachedTrackedDates() } returns null
+        every { repository.getPreloadedAnchorSnapshot() } returns listOf(estradiol)
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+
+        // Read the initial value before the cold combine advances: it must already be loaded.
+        val initial = viewModel.uiState.value
+        assertFalse(initial.isLoading)
+        assertEquals("On estradiol", initial.hero?.name)
+        assertEquals(listOf("On estradiol"), initial.timeline.map { it.anchor.name })
     }
 
     @Test

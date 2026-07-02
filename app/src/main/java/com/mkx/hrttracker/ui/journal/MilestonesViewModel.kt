@@ -83,7 +83,11 @@ class MilestonesViewModel @Inject constructor(
     )
 
     private fun seedUiState(today: LocalDate): MilestonesUiState {
+        // Warm cache first (live truth), then the deep-link-preloaded anchor snapshot: at
+        // cold start the cache is null, and without the snapshot fallback the loading
+        // indicator composes for the frames until the async seeded flow lands.
         val cached = journalRepository.getCachedTrackedDates()
+            ?: journalRepository.getPreloadedAnchorSnapshot()
             ?: return MilestonesUiState(today = today)
         return buildUiState(cached, today, PendingEdits())
     }
