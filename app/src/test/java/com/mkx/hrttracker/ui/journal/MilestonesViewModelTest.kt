@@ -404,7 +404,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -429,7 +429,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -456,7 +456,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -484,7 +484,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -521,7 +521,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 6, 1), pinnedOrder = 2,
         )
         val dates = MutableStateFlow(listOf(a, b, c))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b, c))
         // The repository's separate warm cache lags the screen's observed flow — here it
         // never advances past the original {a,b,c}. Reconciliation must use the observed
@@ -561,7 +561,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
         coEvery { repository.setPinned(any(), any()) } returns Unit
 
@@ -586,7 +586,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a))
         coEvery { repository.setPinned(any(), any()) } returns Unit
 
@@ -619,7 +619,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
 
@@ -652,7 +652,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
 
@@ -689,7 +689,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
         coEvery { repository.setPinned(any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -715,7 +715,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -736,7 +736,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -758,7 +758,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -811,7 +811,7 @@ class MilestonesViewModelTest {
         all: List<TrackedDate> = emptyList(),
         pinned: List<TrackedDate> = emptyList(),
     ) {
-        every { repository.observeTrackedDates() } returns flowOf(all)
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns flowOf(all)
         every { repository.observePinnedTrackedDates() } returns flowOf(pinned)
     }
 

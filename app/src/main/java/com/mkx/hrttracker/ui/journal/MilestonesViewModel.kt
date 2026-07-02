@@ -55,7 +55,10 @@ class MilestonesViewModel @Inject constructor(
     // editMode so that toggling edit mode — a pure UI flag — doesn't re-sort and rebuild the
     // whole node list; only a real dates/today/pendingEdits change recomputes this.
     private val core = combine(
-        journalRepository.observeTrackedDates()
+        // The snapshot-seeded flow renders last-known anchors at cold start before the
+        // database opens, and never emits the raw flow's fake empty list from the
+        // not-loaded window (which flashed a false "empty journal" frame).
+        journalRepository.observeTrackedDatesWithSnapshotSeed()
             .onEach { all ->
                 latestTrackedDates = all
                 pendingEdits.update { reconcilePendingEdits(it, all) }
