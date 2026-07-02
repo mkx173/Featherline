@@ -94,14 +94,17 @@ class HazeChromeIntegrationTest {
     @Test
     fun top_app_bar_haze_transparent_colors_preserve_theme_rgb_channels() {
         val hazeChromeText = hazeChromeText()
+        val topAppBarColorsText = hazeChromeText
+            .substringAfter("private fun hazeTopAppBarColors()")
+            .substringBefore("@Composable\nfun hazeNavigationSuiteColors")
 
         assertTrue(
             "Top app bar Haze colors should keep the default theme RGB channels and only " +
                     "clear alpha. Animating from Color.Transparent uses transparent black, " +
                     "which can flash black when blur is toggled off.",
-            hazeChromeText.contains("copy(alpha = 0f)") &&
-                    !hazeChromeText.contains("containerColor = Color.Transparent") &&
-                    !hazeChromeText.contains("scrolledContainerColor = Color.Transparent"),
+            topAppBarColorsText.contains("copy(alpha = 0f)") &&
+                    !topAppBarColorsText.contains("containerColor = Color.Transparent") &&
+                    !topAppBarColorsText.contains("scrolledContainerColor = Color.Transparent"),
         )
     }
 
@@ -346,13 +349,11 @@ class HazeChromeIntegrationTest {
 
         assertTrue(
             "DatePicker and DateRangePicker draw their own container background, so picker " +
-                    "content must receive the same translucent Haze date picker colors as " +
-                    "the outer DatePickerDialog surface.",
-            materialPickerText.contains("val colors = hazeDatePickerColors()") &&
-                    materialPickerText.contains("DatePicker(state = datePickerState, colors = colors)") &&
-                    planBatchAddText.contains("val colors = hazeDatePickerColors()") &&
+                    "content must receive the dedicated Haze date picker colors.",
+            materialPickerText.contains("HazeDatePicker(") &&
+                    materialPickerText.contains("colors = hazeDatePickerColors()") &&
                     planBatchAddText.contains("DateRangePicker(") &&
-                    planBatchAddText.contains("colors = colors"),
+                    planBatchAddText.contains("colors = hazeDatePickerColors()"),
         )
     }
 

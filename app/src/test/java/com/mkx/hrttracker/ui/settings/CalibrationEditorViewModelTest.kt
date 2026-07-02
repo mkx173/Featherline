@@ -242,8 +242,9 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
 
         val uiState = viewModel.uiState.value
+        val panelZoneId = ZoneId.of("Asia/Tokyo")
         val expectedCollectedDateTime = Instant.parse("2026-04-24T00:30:00Z")
-            .atZone(ZoneId.systemDefault())
+            .atZone(panelZoneId)
             .toLocalDateTime()
         assertTrue(uiState.isEditing)
         assertFalse(uiState.isLoading)
@@ -252,6 +253,7 @@ class CalibrationEditorViewModelTest {
             expectedCollectedDateTime.toLocalTime().withSecond(0).withNano(0),
             uiState.collectedTime
         )
+        assertEquals(panelZoneId, uiState.collectedZoneId)
         assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),
