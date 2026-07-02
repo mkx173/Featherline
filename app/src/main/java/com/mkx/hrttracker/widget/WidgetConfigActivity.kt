@@ -25,7 +25,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -122,7 +121,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                         snapshot = runCatching { widgetSnapshotStore.readSnapshot() }
                             .getOrNull(),
                         anchors = if (configType == WidgetConfigType.ANCHOR) {
-                            runCatching { journalRepository.observeTrackedDates().first() }
+                            // awaitTrackedDates: a reconfigure launched into a cold process
+                            // must not see the not-loaded window as an empty anchor list.
+                            runCatching { journalRepository.awaitTrackedDates() }
                                 .getOrDefault(emptyList())
                         } else emptyList(),
                         initialAnchorId = if (configType == WidgetConfigType.ANCHOR) {

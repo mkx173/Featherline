@@ -79,6 +79,12 @@ class HrtAnchorWidget : GlanceAppWidget() {
         val initialAppearance = runCatching {
             appearanceRepository.currentEffective(appWidgetId)
         }.getOrDefault(WidgetAppearance.Default)
+        // Await real journal rows before composing: the cache/raw-flow cold-start window
+        // reads as an empty journal, which rendered "Date removed — tap to choose" on a
+        // widget whose anchor is fine.
+        val initialAnchors = runCatching {
+            journalRepository.awaitTrackedDates()
+        }.getOrDefault(emptyList())
 
         provideContent {
             val anchorId = currentState(ANCHOR_ID_KEY)
@@ -86,8 +92,8 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 appearanceRepository.effectiveFor(appWidgetId)
             }
             val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
-            val anchors by remember(journalRepository) { journalRepository.observeTrackedDates() }
-                .collectAsState(initial = journalRepository.getCachedTrackedDates().orEmpty())
+            val anchors by remember(journalRepository) { journalRepository.observeLoadedTrackedDates() }
+                .collectAsState(initial = initialAnchors)
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
             val backgroundFlag = currentState(BACKGROUND_FLAG_KEY)
                 ?.let { name -> PrideFlag.entries.firstOrNull { it.name == name } }

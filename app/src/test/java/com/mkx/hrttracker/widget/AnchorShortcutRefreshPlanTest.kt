@@ -33,4 +33,26 @@ class AnchorShortcutRefreshPlanTest {
         assertEquals(emptySet<String>(), plan.toUpdate)
         assertEquals(setOf("a", "b"), plan.toDisable)
     }
+
+    @Test fun `re-enables disabled pinned ids whose anchor still lives`() {
+        // Intent: disableShortcuts is sticky and updateShortcuts never re-enables, so a
+        // shortcut wrongly disabled (e.g. by a past cold-start race) must heal on the
+        // next refresh once its anchor is confirmed live.
+        val plan = anchorShortcutRefreshPlan(
+            pinnedIds = setOf("a", "b"),
+            liveAnchorIds = setOf("a", "b"),
+            disabledPinnedIds = setOf("a"),
+        )
+        assertEquals(setOf("a"), plan.toEnable)
+    }
+
+    @Test fun `disabled pin whose anchor was deleted stays disabled`() {
+        val plan = anchorShortcutRefreshPlan(
+            pinnedIds = setOf("a"),
+            liveAnchorIds = emptySet(),
+            disabledPinnedIds = setOf("a"),
+        )
+        assertEquals(emptySet<String>(), plan.toEnable)
+        assertEquals(setOf("a"), plan.toDisable)
+    }
 }

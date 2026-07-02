@@ -8,7 +8,6 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.TrackedDate
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
-import kotlinx.coroutines.flow.first
 
 // The pinned-shortcut surface. No new persistence: the set of pinned anchor shortcuts is
 // ShortcutManager.pinnedShortcuts whose id matches a live anchor id. shortcutId == anchor.id
@@ -27,23 +26,32 @@ object AnchorShortcutManager {
     }
 
     // Daily / on-change refresh: regenerate the bitmap for every pinned id that still maps
-    // to a live anchor, and disable orphaned pins. Reads anchors live by id.
+    // to a live anchor, re-enable wrongly-disabled pins, and disable orphaned ones.
+    // awaitTrackedDates (never the cache / raw observe) so the cold-start not-loaded
+    // window can't read as "all anchors deleted" and mass-disable the pins.
     suspend fun refreshAll(context: Context) {
         val journalRepository = EntryPointAccessors
             .fromApplication(context, WidgetEntryPoint::class.java)
             .journalRepository()
-        val liveAnchors = journalRepository.getCachedTrackedDates()
-            ?: journalRepository.observeTrackedDates().first()
-        val liveById = liveAnchors.associateBy { it.id }
+        val liveById = journalRepository.awaitTrackedDates().associateBy { it.id }
 
-        val pinnedIds = ShortcutManagerCompat
+        val pinnedShortcuts = ShortcutManagerCompat
             .getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
-            .map { it.id }
-            .toSet()
 
-        val plan = anchorShortcutRefreshPlan(pinnedIds, liveById.keys)
+        val plan = anchorShortcutRefreshPlan(
+            pinnedIds = pinnedShortcuts.map { it.id }.toSet(),
+            liveAnchorIds = liveById.keys,
+            disabledPinnedIds = pinnedShortcuts.filterNot { it.isEnabled }.map { it.id }.toSet(),
+        )
 
         val today = LocalDate.now()
+        if (plan.toEnable.isNotEmpty()) {
+            ShortcutManagerCompat.enableShortcuts(
+                context,
+                plan.toEnable.mapNotNull { id -> liveById[id] }
+                    .map { anchor -> buildShortcut(context, anchor, today) },
+            )
+        }
         val updated = plan.toUpdate.mapNotNull { id -> liveById[id] }
             .map { anchor -> buildShortcut(context, anchor, today) }
         if (updated.isNotEmpty()) {

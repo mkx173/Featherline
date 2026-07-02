@@ -16,13 +16,17 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -87,6 +91,19 @@ class JournalRepository @Inject constructor(
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
     fun getCachedTrackedDates(): List<TrackedDate>? = trackedDatesCache.value
+
+    // The anchor home surfaces (widget, pinned shortcuts, config picker) must never read
+    // the not-yet-loaded window as "the journal is empty" — that is what disables pinned
+    // shortcuts and blanks widgets at cold start. This forces the database open and waits
+    // for the first real row set; after it returns, an empty list genuinely means empty.
+    suspend fun awaitTrackedDates(): List<TrackedDate> {
+        withContext(Dispatchers.IO) { databaseHolder.get() }
+        return trackedDatesCache.filterNotNull().first()
+    }
+
+    // Like observeTrackedDates but skips the not-loaded (null-cache) window entirely, and
+    // does not force the database open — emissions start once something else opens it.
+    fun observeLoadedTrackedDates(): Flow<List<TrackedDate>> = trackedDatesCache.filterNotNull()
 
     fun getCachedPinnedTrackedDates(): List<TrackedDate>? = pinnedTrackedDatesCache.value
 

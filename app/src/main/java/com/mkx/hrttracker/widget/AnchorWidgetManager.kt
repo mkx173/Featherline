@@ -30,7 +30,11 @@ class AnchorWidgetManager @Inject constructor(
     fun start() {
         if (!started.compareAndSet(false, true)) return
         appScope.launch {
-            journalRepository.observeTrackedDates()
+            // Loaded flow only: the not-loaded window must not reach the surfaces (it reads
+            // as "all anchors deleted"), and this collector must not force the DB open on
+            // every process spawn — the first emission arrives once the UI or a widget
+            // refresh opens it.
+            journalRepository.observeLoadedTrackedDates()
                 // De-dupe on the whole list: every field the surfaces render — name, icon,
                 // palette, date — must trigger a refresh, so compare full TrackedDates
                 // (data-class equality), never a (id, date) projection that would silently
