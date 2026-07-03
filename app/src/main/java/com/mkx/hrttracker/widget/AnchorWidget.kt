@@ -8,10 +8,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -48,8 +48,8 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
+import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.mkx.hrttracker.ui.journal.anchorIconRes
-import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -239,24 +239,31 @@ internal fun AnchorWidgetContent(
     }
 
     // Glyph watermark bled off the top-right corner, baked to a bitmap (Glance has no
-    // alpha/offset modifiers) and layered under the padded content. Accent-tinted on the
-    // appearance card; neutral over a flag frost, matching the in-app hero's "keep the
-    // glyph neutral on the wash" rule.
-    val watermark = remember(anchor.icon, anchor.palette, isDark, widthPx, heightPx, frost != null) {
-        val tint = if (frost != null) {
-            frostOnSurfaceVariant(isDark)
-        } else {
-            val palette = MedicationGroupPalettes.getValue(anchor.palette)
-            (if (isDark) palette.darkAccent else palette.lightAccent).toArgb()
-        }
+    // alpha/offset modifiers) and layered under the padded content. The bitmap is white ink;
+    // the colour comes from the ColorFilter below so the launcher resolves day/night at
+    // RemoteViews apply time and the widget flips with the system without a recompose.
+    val watermark = remember(anchor.icon, widthPx, heightPx) {
         renderAnchorWatermarkBitmap(
             context = context,
             iconRes = anchorIconRes(anchor.icon),
             widthPx = widthPx,
             heightPx = heightPx,
             cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
-            tintArgb = tint,
         )
+    }
+    // Accent-tinted on the appearance card; neutral over a flag frost, matching the in-app
+    // hero's "keep the glyph neutral on the wash" rule.
+    val watermarkTint = if (frost != null) {
+        if (forcedDark != null) {
+            fixedColorProvider(Color(frostOnSurfaceVariant(forcedDark)))
+        } else {
+            DayNightColorProvider(
+                day = Color(frostOnSurfaceVariant(false)),
+                night = Color(frostOnSurfaceVariant(true)),
+            )
+        }
+    } else {
+        groupAccentColor(anchor.palette, forcedDark)
     }
     val watermarkImage: @Composable () -> Unit = {
         Image(
@@ -264,6 +271,7 @@ internal fun AnchorWidgetContent(
             contentDescription = null,
             modifier = GlanceModifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds,
+            colorFilter = ColorFilter.tint(watermarkTint),
         )
     }
 

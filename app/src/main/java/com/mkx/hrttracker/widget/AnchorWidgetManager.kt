@@ -1,6 +1,11 @@
 package com.mkx.hrttracker.widget
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
+import androidx.core.content.ContextCompat
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -54,9 +59,37 @@ class AnchorWidgetManager @Inject constructor(
                     }
                 }
         }
+        // The flag-frost card is one baked bitmap, so unlike the colour-provider chrome it
+        // can't day/night-flip at RemoteViews apply time — re-render when the night bit
+        // changes. ponytail: only works while the process is alive; a dead process heals at
+        // its next re-render (journal edit, daily refresh, app open).
+        var wasNight = context.isNightMode()
+        ContextCompat.registerReceiver(
+            context,
+            object : BroadcastReceiver() {
+                override fun onReceive(receiverContext: Context, intent: Intent) {
+                    val night = receiverContext.isNightMode()
+                    if (night == wasNight) return
+                    wasNight = night
+                    appScope.launch {
+                        runCatching { updateAllAnchorWidgets(context) }
+                            .onFailure { throwable ->
+                                if (throwable is CancellationException) throw throwable
+                                diagnosticsLogger.warning(TAG, "anchor_night_refresh_failed", throwable)
+                            }
+                    }
+                }
+            },
+            IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     private companion object {
         const val TAG = "AnchorWidgetManager"
     }
 }
+
+private fun Context.isNightMode(): Boolean =
+    resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+        Configuration.UI_MODE_NIGHT_YES

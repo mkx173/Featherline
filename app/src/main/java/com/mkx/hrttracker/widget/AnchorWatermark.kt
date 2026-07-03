@@ -18,17 +18,19 @@ private const val GLYPH_HEIGHT_FRACTION = 1.1f
 private const val GLYPH_OVERHANG_FRACTION = 0.2f
 private const val GLYPH_ALPHA = 26 // 10% - matches the in-app hero watermark
 
-// Bakes the hero watermark for the anchor widget: the anchor glyph, accent-tinted at 10%
-// alpha, bleeding off the card's top-right corner, on a TRANSPARENT backdrop clipped to the
-// card's rounded corners. Glance can't offset/alpha a composable, so this bitmap is the
-// card's backdrop layer (spec section 2); same bake pattern as renderAnchorFrostBitmap.
+// Bakes the hero watermark for the anchor widget: the anchor glyph at 10% alpha, bleeding
+// off the card's top-right corner, on a TRANSPARENT backdrop clipped to the card's rounded
+// corners. Glance can't offset/alpha a composable, so this bitmap is the card's backdrop
+// layer (spec section 2); same bake pattern as renderAnchorFrostBitmap. Baked WHITE and
+// colour-tinted by the composable's ColorFilter so the launcher resolves the day/night tint
+// at RemoteViews apply time — baking a colour here would leave it stuck in whichever uiMode
+// the process composed in (same rule as the dose widgets' progress ring).
 internal fun renderAnchorWatermarkBitmap(
     context: Context,
     iconRes: Int,
     widthPx: Int,
     heightPx: Int,
     cornerRadiusPx: Float,
-    tintArgb: Int,
 ): Bitmap {
     val bitmap = createBitmap(widthPx, heightPx)
     val canvas = Canvas(bitmap)
@@ -40,7 +42,7 @@ internal fun renderAnchorWatermarkBitmap(
     drawable
         ?.mutate()
         ?.let { drawable ->
-            DrawableCompat.setTint(drawable, tintArgb)
+            DrawableCompat.setTint(drawable, android.graphics.Color.WHITE)
             drawable.alpha = GLYPH_ALPHA
             val glyphSize = (heightPx * GLYPH_HEIGHT_FRACTION).toInt()
             val overhang = (glyphSize * GLYPH_OVERHANG_FRACTION).toInt()

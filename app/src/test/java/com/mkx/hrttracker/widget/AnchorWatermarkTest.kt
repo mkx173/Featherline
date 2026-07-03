@@ -22,7 +22,6 @@ class AnchorWatermarkTest {
         widthPx = 306,
         heightPx = 100,
         cornerRadiusPx = 24f,
-        tintArgb = 0xFF2E5F6E.toInt(),
     )
 
     // Intent: the watermark is a top-right decoration on an otherwise transparent
@@ -67,7 +66,6 @@ class AnchorWatermarkTest {
             widthPx = 37,
             heightPx = 23,
             cornerRadiusPx = 8f,
-            tintArgb = 0xFF2E5F6E.toInt(),
         )
 
         assertEquals(37, bitmap.width)
