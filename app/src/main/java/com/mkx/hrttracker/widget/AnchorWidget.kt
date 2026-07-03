@@ -189,11 +189,11 @@ internal fun AnchorWidgetContent(
     val backgroundAlpha = LocalWidgetAlpha.current
     val widthPx = (size.width.value * density).toInt().coerceAtLeast(1)
     val heightPx = (size.height.value * density).toInt().coerceAtLeast(1)
-    val blooms = remember(backgroundFlag, isDark, widthPx, heightPx) {
+    val blooms = remember(backgroundFlag, isDark, backgroundAlpha, widthPx, heightPx) {
         backgroundFlag?.let { flag ->
             renderAnchorBloomsBitmap(
                 widthPx, heightPx, WidgetRoundedShape.Shell.radius.value * density,
-                flagBloomColors(flag, isDark),
+                flagBloomColors(flag, isDark, backgroundAlpha),
             )
         }
     }

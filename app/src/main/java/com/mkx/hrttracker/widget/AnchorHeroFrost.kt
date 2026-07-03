@@ -87,11 +87,18 @@ internal fun frostScrimProvider(forcedDark: Boolean?, backgroundAlpha: Float): C
     return frostColorProvider(forcedDark) { ColorUtils.setAlphaComponent(frostBaseColor(it), alpha) }
 }
 
+// The widget wash reads stronger than the in-app hero's (smaller card, no real blur), so it
+// runs at this fraction of the hero bloom alpha. Tune visually.
+private const val WIDGET_BLOOM_ALPHA_SCALE = 0.75f
+
 // The selected flag's bloom colours (ARGB with the bloom alpha baked in). Uses the blurred bloom
 // params on every API: the upscale supplies the diffusion the in-app Haze provides. Flags only —
 // the widget config offers the flag palette, not the in-app None/DateColor options.
-internal fun flagBloomColors(flag: PrideFlag, isDark: Boolean): List<Int> {
-    val alpha = HeroBackgroundColors.bloomParams(isDark, blurred = true).alpha
+// backgroundAlpha: the opacity slider, so the wash fades together with the base instead of
+// staying at full strength on a see-through card.
+internal fun flagBloomColors(flag: PrideFlag, isDark: Boolean, backgroundAlpha: Float): List<Int> {
+    val alpha = HeroBackgroundColors.bloomParams(isDark, blurred = true).alpha *
+        WIDGET_BLOOM_ALPHA_SCALE * backgroundAlpha.coerceIn(0f, 1f)
     return HeroBackgroundColors.bloomColors(flag.seeds, isDark, blurred = true)
         .map { ColorUtils.setAlphaComponent(it, (alpha * 255f).toInt().coerceIn(0, 255)) }
 }
@@ -100,8 +107,8 @@ internal fun flagBloomColors(flag: PrideFlag, isDark: Boolean): List<Int> {
 // radial blooms (faded down) → bilinear upscale (the "blur") → rounded clip. The neutral
 // base UNDER it and the frost scrim OVER it are separate day/night colour-provider layers
 // (frostBaseProvider/frostScrimProvider) so they flip with the system at RemoteViews apply
-// time; only this bloom wash is baked (its light/dark tuning refreshes on the next
-// re-render — AnchorWidgetManager's night receiver while the process is alive).
+// time; only this bloom wash is baked. Its light/dark tuning refreshes on the next
+// re-render — accepted as visually close enough not to chase (resolved micro-decision).
 internal fun renderAnchorBloomsBitmap(
     widthPx: Int,
     heightPx: Int,
