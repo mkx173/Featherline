@@ -8,10 +8,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -37,10 +37,9 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
-import androidx.glance.layout.size
-import androidx.glance.layout.width
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
@@ -52,10 +51,9 @@ import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.ui.journal.anchorIconRes
+import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 
 // 2×1 anchor widget. Per-instance state is just the anchorId (Task 4); name/icon/palette/
@@ -126,9 +124,10 @@ suspend fun updateAllAnchorWidgets(context: Context) {
     HrtAnchorWidget().glanceUpdateAll(context)
 }
 
-// glyph · name · big day count · since/planned-for line. Empty / removed states route to
-// the config Activity (re-pick) or the app. Rolls to full days past a year (resolved
-// micro-decision); only the shortcut icon rolls to "Ny".
+// Hero stack: name + since/planned-for top-left, day count bottom-right, with the glyph as
+// a baked watermark backdrop. Empty / removed states route to the config Activity (re-pick)
+// or the app. Rolls to full days past a year (resolved micro-decision); only the shortcut
+// icon rolls to "Ny".
 @Composable
 internal fun AnchorWidgetContent(
     anchor: TrackedDate?,
@@ -163,15 +162,42 @@ internal fun AnchorWidgetContent(
 
     val today = LocalDate.now()
     val count = dayCount(date = anchor.date, today = today)
-    val dateText = anchor.date.format(
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-    )
-    val directionLine = if (count.isFuture) {
-        context.getString(R.string.anchor_widget_planned_for, dateText)
+    val prefixTemplate = if (count.isFuture) {
+        context.getString(R.string.anchor_widget_planned_for)
     } else {
-        // Same wording as the in-app Milestones screen (spec section 3). The fit ladder
-        // replaces this plain format in the hero-layout task.
-        context.getString(R.string.journal_since_date, dateText)
+        // Same wording as the in-app Milestones screen (spec section 3).
+        context.getString(R.string.journal_since_date)
+    }
+    val size = LocalSize.current
+    val density = context.resources.displayMetrics.density
+    val scaledDensity = context.resources.displayMetrics.scaledDensity
+    val locale = context.resources.configuration.locales[0]
+    // Longest since-line variant that fits the content width (spec section 3): measured with
+    // Paint at the rendered px size; 0.95 covers Paint-vs-TextView measurement drift.
+    // ponytail: estimate, not a layout pass - revisit only if a locale clips in practice.
+    val directionLine = remember(
+        anchor.date,
+        count.isFuture,
+        size,
+        scale,
+        prefixTemplate,
+        locale,
+        density,
+        scaledDensity,
+    ) {
+        val contentWidthPx = (size.width.value - 24f) * density * 0.95f
+        val paint = android.graphics.Paint().apply {
+            textSize = 12f * scale * scaledDensity
+        }
+        fitSinceLine(
+            candidates = sinceLineCandidates(
+                prefixTemplate,
+                anchor.date,
+                locale,
+            ),
+            maxWidthPx = contentWidthPx,
+            measure = { paint.measureText(it) },
+        )
     }
     val daysText = context.resources.getQuantityString(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
@@ -186,8 +212,6 @@ internal fun AnchorWidgetContent(
     val isDark = forcedDark ?: (context.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
     val backgroundAlpha = LocalWidgetAlpha.current
-    val size = LocalSize.current
-    val density = context.resources.displayMetrics.density
     val widthPx = (size.width.value * density).toInt().coerceAtLeast(1)
     val heightPx = (size.height.value * density).toInt().coerceAtLeast(1)
     val frost = remember(backgroundFlag, isDark, backgroundAlpha, widthPx, heightPx) {
@@ -204,45 +228,37 @@ internal fun AnchorWidgetContent(
     val onSurfaceVariant =
         if (frost != null) ColorProvider(Color(frostOnSurfaceVariant(isDark))) else colors.onSurfaceVariant
 
+    // Hero stack (spec section 2): name + since-line top-left, day count bottom-right; the
+    // glyph is the backdrop watermark, no longer an inline row item.
     val cardBody: @Composable () -> Unit = {
-        Row(
-            modifier = GlanceModifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Image(
-                provider = ImageProvider(anchorIconRes(anchor.icon)),
-                contentDescription = null,
-                modifier = GlanceModifier.size((36f * scale).dp),
-                colorFilter = ColorFilter.tint(groupAccentColor(anchor.palette, forcedDark)),
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            Text(
+                text = anchor.name,
+                style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
+                    fontWeight = FontWeight.Medium),
+                maxLines = 1,
             )
-            Spacer(GlanceModifier.width(14.dp))
-            // name + since/planned-for stack; the big day count sits at the trailing end so a
-            // 2×1 has the vertical room for both text lines without clipping the date.
-            Column(modifier = GlanceModifier.defaultWeight()) {
+            Spacer(GlanceModifier.height(2.dp))
+            Text(
+                text = directionLine,
+                style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
+                maxLines = 1,
+            )
+            Spacer(GlanceModifier.defaultWeight())
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                Spacer(GlanceModifier.defaultWeight())
                 Text(
-                    text = anchor.name,
-                    style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
-                        fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                )
-                Spacer(GlanceModifier.height(2.dp))
-                Text(
-                    text = directionLine,
-                    style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
+                    text = daysText,
+                    style = TextStyle(color = onSurface, fontSize = (26f * scale).sp,
+                        fontWeight = FontWeight.Bold),
                     maxLines = 1,
                 )
             }
-            Spacer(GlanceModifier.width(12.dp))
-            Text(
-                text = daysText,
-                style = TextStyle(color = onSurface, fontSize = (26f * scale).sp,
-                    fontWeight = FontWeight.Bold),
-                maxLines = 1,
-            )
         }
     }
 
     if (frost != null) {
+        // Flag frost stays the sole background - no watermark on top (spec section 2).
         Box(
             modifier = GlanceModifier.fillMaxSize()
                 .appWidgetBackground()
@@ -259,9 +275,30 @@ internal fun AnchorWidgetContent(
             Box(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) { cardBody() }
         }
     } else {
+        // Accent-tinted glyph watermark bled off the top-right corner, baked to a bitmap
+        // (Glance has no alpha/offset modifiers) and layered under the padded content.
+        val watermark = remember(anchor.icon, anchor.palette, isDark, widthPx, heightPx) {
+            val palette = MedicationGroupPalettes.getValue(anchor.palette)
+            renderAnchorWatermarkBitmap(
+                context = context,
+                iconRes = anchorIconRes(anchor.icon),
+                widthPx = widthPx,
+                heightPx = heightPx,
+                cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
+                tintArgb = (if (isDark) palette.darkAccent else palette.lightAccent).toArgb(),
+            )
+        }
         WidgetShell(
             scale = scale,
             onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
+            backdrop = {
+                Image(
+                    provider = ImageProvider(watermark),
+                    contentDescription = null,
+                    modifier = GlanceModifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds,
+                )
+            },
         ) {
             cardBody()
         }

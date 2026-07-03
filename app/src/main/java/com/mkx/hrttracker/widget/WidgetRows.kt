@@ -167,6 +167,9 @@ internal fun WidgetShell(
     // Whole-shell tap target. Defaults to opening the app (dose widgets); the anchor
     // widget passes its own (open Milestones / reconfigure this instance).
     onClick: Action? = null,
+    // Full-bleed layer under the padded content (the anchor widget's baked watermark).
+    // The shell's padding moves to an inner box so this can reach the card edges.
+    backdrop: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalWidgetColors.current
@@ -181,11 +184,18 @@ internal fun WidgetShell(
                     .clickable(
                         onClick = onClick ?: actionStartActivity<MainActivity>(),
                         rippleOverride = WidgetRoundedShape.Shell.rippleRes,
-                    )
-                    .padding(WidgetShellPadding),
+                    ),
                 contentAlignment = contentAlignment,
             ) {
-                content()
+                backdrop?.invoke()
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .padding(WidgetShellPadding),
+                    contentAlignment = contentAlignment,
+                ) {
+                    content()
+                }
             }
         } else {
             Box(
@@ -204,6 +214,7 @@ internal fun WidgetShell(
                         .fillMaxSize()
                         .appWidgetBackground(),
                 )
+                backdrop?.invoke()
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
