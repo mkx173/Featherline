@@ -15,6 +15,7 @@ fun HrtTrackerApp(
     navController: NavHostController,
     homeDeepLinkSignal: Int,
     milestonesDeepLinkSignal: Int = 0,
+    onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean,
 ) {
     // The post-log stock snackbar is hosted inside HrtTrackerNavHost so it sits
@@ -23,6 +24,7 @@ fun HrtTrackerApp(
         navController = navController,
         homeDeepLinkSignal = homeDeepLinkSignal,
         milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+        onMilestonesDeepLinkSettled = onMilestonesDeepLinkSettled,
         highlightEffectsEnabled = highlightEffectsEnabled,
     )
 }

@@ -131,6 +131,12 @@ class MainActivity : AppCompatActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
 
+    // True while a cold-start milestones deep link is waiting for its screen to settle;
+    // read by the splash keep-on-screen condition (polled per frame — a plain field
+    // suffices) and cleared by the NavHost's settle callback.
+    @Volatile
+    private var awaitingMilestonesEntry = false
+
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
@@ -160,6 +166,12 @@ class MainActivity : AppCompatActivity() {
         // Hilt-injected settingsRepository, which is only available once Hilt
         // has injected during super.onCreate().
         applyEdgeToEdgeSystemBars()
+        // Cold start straight into Milestones (widget/shortcut): hold the splash until
+        // the NavHost has built the synthesized back stack (home → journal → milestones)
+        // and the milestones screen has settled, so neither the home frame nor the push
+        // transition is ever visible. Recreations restore the nav stack themselves.
+        awaitingMilestonesEntry = savedInstanceState == null &&
+                intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
         parseWidgetHighlightIntent(intent)
         diagnosticsLogger.info(
             TAG,
@@ -172,7 +184,8 @@ class MainActivity : AppCompatActivity() {
             val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
             !appLockState.isReady ||
                     !onboardingState.isLoaded ||
-                    (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
+                    (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady) ||
+                    (shouldWaitForHomeShell && awaitingMilestonesEntry)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
         settingsRepository.refreshAppLanguageOption()
@@ -388,6 +401,9 @@ class MainActivity : AppCompatActivity() {
                                         navController = navController,
                                         homeDeepLinkSignal = homeDeepLinkSignal,
                                         milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+                                        onMilestonesDeepLinkSettled = {
+                                            awaitingMilestonesEntry = false
+                                        },
                                         highlightEffectsEnabled = highlightEffectsEnabled,
                                     )
                                 }
