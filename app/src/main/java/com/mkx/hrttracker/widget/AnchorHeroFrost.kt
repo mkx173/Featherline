@@ -9,26 +9,22 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
-import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.createBitmap
-import androidx.glance.color.ColorProvider as DayNightColorProvider
-import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
 
-// Baked "frosted aurora" background for the anchor widget — the home-screen mirror of the
-// in-app hero wash. Glance can't draw a Compose brush, blur, or animate, so we bake the same
+// Baked "frosted aurora" wash for the anchor widget — the home-screen mirror of the in-app
+// hero wash. Glance can't draw a Compose brush, blur, or animate, so we bake the same
 // HeroBackgroundColors the in-app hero uses into a small radial-bloom bitmap and upscale it
 // with bilinear filtering: a low-res upscale of a smooth gradient is visually indistinguishable
 // from a Gaussian blur, for free (frost-workaround design, 2026-06-27).
 //
-// This background is MUTUALLY EXCLUSIVE with the appearance colour system: when a flag is chosen
-// in the widget config the frost replaces the card (neutral base + aurora + scrim) and the
-// seed/saturation/balance controls do not apply. Scale and opacity still apply — the base honours
-// backgroundAlpha. The card is LAYERED: base and scrim are day/night colour providers (flip with
-// the system at apply time); only the aurora blooms are a baked bitmap, tuned to the composing
-// mode and re-tuned on the next re-render.
+// The blooms LAYER OVER the appearance colour system's seeded card (base under, widgetScrim
+// over — both day/night colour providers that flip with the system at apply time), so the
+// seed/saturation/balance sliders tint the background under the wash, matching the in-app
+// hero which draws these blooms over the app's themed surface. Only the blooms are a baked
+// bitmap, tuned to the composing mode and re-tuned on the next re-render.
 
 // Aurora band geometry, mirrored from JournalComponents.HeroAuroraBackground so the widget wash
 // matches the in-app placement: blooms spread left→right across the top, tilting gently down,
@@ -43,49 +39,6 @@ private const val MASK_FADE_STOP = 0.78f   // …then gone by here, clearing the
 
 // ~1/6 of the target is enough diffusion for a smooth wash and keeps the RemoteViews bitmap cheap.
 private const val SMALL_DIVISOR = 6
-
-// Neutral frost surface + foreground, picked by dark mode (NOT the seeded appearance colour —
-// the two systems are mutually exclusive). ponytail: flat constants, tune visually.
-private const val BASE_DARK = 0xFF1C1B22.toInt()
-private const val BASE_LIGHT = 0xFFF3F0F6.toInt()
-private const val ON_DARK = 0xFFEDEDF2.toInt()
-private const val ON_LIGHT = 0xFF1B1B1F.toInt()
-private const val ON_VARIANT_DARK = 0xFFBFBDC7.toInt()
-private const val ON_VARIANT_LIGHT = 0xFF49454E.toInt()
-private const val SCRIM_ALPHA = 0.16f // translucent base tint over the blooms → frosted read
-
-internal fun frostBaseColor(isDark: Boolean): Int = if (isDark) BASE_DARK else BASE_LIGHT
-internal fun frostOnSurface(isDark: Boolean): Int = if (isDark) ON_DARK else ON_LIGHT
-internal fun frostOnSurfaceVariant(isDark: Boolean): Int =
-    if (isDark) ON_VARIANT_DARK else ON_VARIANT_LIGHT
-
-// Frost roles as Glance colour providers: fixed when the appearance forces a mode, day/night
-// otherwise — so the launcher flips the frost card's chrome at RemoteViews apply time with no
-// recompose, like every provider-driven widget colour. Only the bloom bitmap stays baked.
-private fun frostColorProvider(forcedDark: Boolean?, color: (Boolean) -> Int): ColorProvider =
-    if (forcedDark != null) {
-        ColorProvider(Color(color(forcedDark)))
-    } else {
-        DayNightColorProvider(day = Color(color(false)), night = Color(color(true)))
-    }
-
-internal fun frostOnSurfaceProvider(forcedDark: Boolean?): ColorProvider =
-    frostColorProvider(forcedDark, ::frostOnSurface)
-
-internal fun frostOnSurfaceVariantProvider(forcedDark: Boolean?): ColorProvider =
-    frostColorProvider(forcedDark, ::frostOnSurfaceVariant)
-
-// The frosted card surface under the blooms; honours the opacity slider like the colour card.
-internal fun frostBaseProvider(forcedDark: Boolean?, backgroundAlpha: Float): ColorProvider {
-    val alpha = (backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt()
-    return frostColorProvider(forcedDark) { ColorUtils.setAlphaComponent(frostBaseColor(it), alpha) }
-}
-
-// Faint neutral wash over the blooms so they read as frosted, not painted.
-internal fun frostScrimProvider(forcedDark: Boolean?, backgroundAlpha: Float): ColorProvider {
-    val alpha = (SCRIM_ALPHA * backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt()
-    return frostColorProvider(forcedDark) { ColorUtils.setAlphaComponent(frostBaseColor(it), alpha) }
-}
 
 // The widget wash reads stronger than the in-app hero's (smaller card, no real blur), so it
 // runs at this fraction of the hero bloom alpha. Tune visually.
@@ -104,11 +57,11 @@ internal fun flagBloomColors(flag: PrideFlag, isDark: Boolean, backgroundAlpha: 
 }
 
 // Bake the bloom colours into a TRANSPARENT, rounded-corner bitmap sized to the widget:
-// radial blooms (faded down) → bilinear upscale (the "blur") → rounded clip. The neutral
-// base UNDER it and the frost scrim OVER it are separate day/night colour-provider layers
-// (frostBaseProvider/frostScrimProvider) so they flip with the system at RemoteViews apply
-// time; only this bloom wash is baked. Its light/dark tuning refreshes on the next
-// re-render — accepted as visually close enough not to chase (resolved micro-decision).
+// radial blooms (faded down) → bilinear upscale (the "blur") → rounded clip. The seeded
+// card UNDER it and the shell-tinted scrim OVER it (widgetScrim) are separate day/night
+// colour-provider layers, so they flip with the system at RemoteViews apply time; only
+// this bloom wash is baked. Its light/dark tuning refreshes on the next re-render —
+// accepted as visually close enough not to chase (resolved micro-decision).
 internal fun renderAnchorBloomsBitmap(
     widthPx: Int,
     heightPx: Int,

@@ -4,10 +4,12 @@ import android.appwidget.AppWidgetManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +39,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -44,6 +49,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -58,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.BlendMode
@@ -76,15 +83,16 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.glance.layout.Spacer
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
+import com.mkx.hrttracker.ui.journal.NoneSwatch
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
-import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
@@ -108,9 +116,6 @@ import kotlin.math.roundToInt
 // supplied by windowShowWallpaper in Theme.HrtTracker.WidgetConfig — with the live
 // widget preview centered in it, and the appearance controls as HrtSection rows below.
 // Deliberately does NOT reuse the in-app WidgetAppearanceDialog.
-// Background source for an anchor widget — the colour controls (seed/saturation/balance) or a
-// pride-flag gradient wash. Mutually exclusive; scale + opacity apply to both.
-private enum class WidgetBackgroundMode { COLOUR, GRADIENT }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -168,10 +173,13 @@ internal fun WidgetConfigScreen(
     var selectedAnchorId by rememberSaveable { mutableStateOf(initialAnchorId) }
     var isAnchorSheetOpen by rememberSaveable { mutableStateOf(false) }
     val selectedAnchor = anchors.firstOrNull { it.id == selectedAnchorId }
-    // Gradient-flag selection (ANCHOR mode). Non-null = gradient mode (mutually exclusive with the
-    // colour controls); null = colour mode. Stored by name so rememberSaveable can persist it.
+    // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
+    // seeded card; null = plain card. Stored by name so rememberSaveable can persist it.
     var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
     val selectedFlag = selectedFlagName?.let { n -> PrideFlag.entries.firstOrNull { it.name == n } }
+    // Fold state for the gradient swatch grid; collapsed by default so the common case
+    // (no gradient) stays one row tall.
+    var isGradientExpanded by rememberSaveable { mutableStateOf(false) }
 
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
@@ -359,8 +367,86 @@ internal fun WidgetConfigScreen(
                             .weight(1f)
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        HrtSection(title = null) {
-                            if (configType == WidgetConfigType.ANCHOR) {
+                        if (configType == WidgetConfigType.ANCHOR) {
+                            HrtSection(title = null) {
+                                item {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.widget_config_bg_gradient,
+                                        ),
+                                        onClick = {
+                                            isGradientExpanded = !isGradientExpanded
+                                        },
+                                        leadingContent = {
+                                            RowLeadingIcon(
+                                                painterResource(R.drawable.ic_format_paint),
+                                                size = 24.dp,
+                                            )
+                                        },
+                                        trailingContent = {
+                                            // Same rotating chevron as MainLowStockSection's
+                                            // expandable header.
+                                            val chevronRotation = animateFloatAsState(
+                                                targetValue = if (isGradientExpanded) {
+                                                    180f
+                                                } else {
+                                                    0f
+                                                },
+                                                label = "GradientExpandChevronRotation",
+                                            ).value
+                                            Row(
+                                                verticalAlignment =
+                                                    Alignment.CenterVertically,
+                                                horizontalArrangement =
+                                                    Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                GradientSelectionSwatch(selectedFlag)
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ExpandMore,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme
+                                                        .onSurfaceVariant,
+                                                    modifier = Modifier.graphicsLayer {
+                                                        rotationZ = chevronRotation
+                                                    },
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+                                animatedItem(visible = isGradientExpanded) {
+                                    // None + 9 flags = 10 swatches → a centred 2×5 grid.
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                                    ) {
+                                        FlowRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 16.dp)
+                                                .selectableGroup(),
+                                            maxItemsInEachRow = 5,
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                12.dp,
+                                                Alignment.CenterHorizontally,
+                                            ),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        ) {
+                                            NoneSwatch(
+                                                selected = selectedFlag == null,
+                                                onClick = { selectedFlagName = null },
+                                            )
+                                            PrideFlag.entries.forEach { flag ->
+                                                FlagSwatch(
+                                                    flag = flag,
+                                                    selected = flag == selectedFlag,
+                                                    onClick = { selectedFlagName = flag.name },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                                 item {
                                     PreferenceSegmentedListItem(
                                         title = stringResource(
@@ -371,16 +457,18 @@ internal fun WidgetConfigScreen(
                                         onClick = { isAnchorSheetOpen = true },
                                         leadingContent = {
                                             RowLeadingIcon(
-                                                painterResource(
-                                                    selectedAnchor?.let { anchorIconRes(it.icon) }
-                                                        ?: R.drawable.ic_event
-                                                ),
+                                                painterResource(R.drawable.ic_event),
                                                 size = 24.dp,
                                             )
                                         },
                                     )
                                 }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+
+                        HrtSection(title = null) {
                             item {
                                 Box {
                                     PreferenceSegmentedListItem(
@@ -433,98 +521,39 @@ internal fun WidgetConfigScreen(
                                     onValueChange = { backgroundAlpha = snapToWholePercent(it) },
                                 )
                             }
-                            // ANCHOR mode: choose the background's source. Colour = the seed/
-                            // saturation/balance controls below; Gradient = a pride-flag wash
-                            // (mutually exclusive). Scale + opacity above apply to both.
-                            if (configType == WidgetConfigType.ANCHOR) {
-                                item {
-                                    ConnectedButtonGroup(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        options = WidgetBackgroundMode.entries,
-                                        selectedOption = if (selectedFlag == null) {
-                                            WidgetBackgroundMode.COLOUR
-                                        } else {
-                                            WidgetBackgroundMode.GRADIENT
-                                        },
-                                        optionLabel = { mode ->
-                                            stringResource(
-                                                if (mode == WidgetBackgroundMode.COLOUR) {
-                                                    R.string.widget_config_bg_colour
-                                                } else {
-                                                    R.string.widget_config_bg_gradient
-                                                },
-                                            )
-                                        },
-                                        onOptionSelected = { mode ->
-                                            selectedFlagName =
-                                                if (mode == WidgetBackgroundMode.GRADIENT) {
-                                                    selectedFlagName
-                                                        ?: PrideFlag.entries.first().name
-                                                } else {
-                                                    null
-                                                }
-                                        },
-                                        layout = ConnectedButtonGroupLayout.ROW,
-                                        expandOptions = true,
-                                    )
-                                }
+                            item {
+                                HueSliderRow(
+                                    label = stringResource(R.string.widget_config_seed_hue),
+                                    icon = painterResource(R.drawable.ic_palette),
+                                    hue = seedHue,
+                                    restingHue = remember { defaultSeedHue() },
+                                    onHueChange = { seedHue = it },
+                                    resetLabel = stringResource(
+                                        R.string.widget_config_seed_dynamic,
+                                    ),
+                                    onReset = { seedHue = null },
+                                )
                             }
-                            if (selectedFlag == null) {
-                                item {
-                                    HueSliderRow(
-                                        label = stringResource(R.string.widget_config_seed_hue),
-                                        icon = painterResource(R.drawable.ic_palette),
-                                        hue = seedHue,
-                                        restingHue = remember { defaultSeedHue() },
-                                        onHueChange = { seedHue = it },
-                                        resetLabel = stringResource(
-                                            R.string.widget_config_seed_dynamic,
-                                        ),
-                                        onReset = { seedHue = null },
-                                    )
-                                }
-                                item {
-                                    SliderRow(
-                                        label = stringResource(R.string.widget_config_saturation),
-                                        icon = painterResource(R.drawable.ic_colors),
-                                        iconSize = 18.dp,
-                                        value = saturation,
-                                        valueRange = 0f..1f,
-                                        onValueChange = { saturation = snapToWholePercent(it) },
-                                    )
-                                }
-                                item {
-                                    SliderRow(
-                                        label = stringResource(R.string.widget_config_balance),
-                                        icon = painterResource(R.drawable.ic_contrast_circle),
-                                        iconSize = 18.dp,
-                                        value = balance,
-                                        valueRange = 0f..1f,
-                                        onValueChange = { balance = snapToWholePercent(it) },
-                                        centered = true,
-                                    )
-                                }
-                            } else {
-                                item {
-                                    FlowRow(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                                            .selectableGroup(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                                    ) {
-                                        PrideFlag.entries.forEach { flag ->
-                                            FlagSwatch(
-                                                flag = flag,
-                                                selected = flag == selectedFlag,
-                                                onClick = { selectedFlagName = flag.name },
-                                            )
-                                        }
-                                    }
-                                }
+                            item {
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_saturation),
+                                    icon = painterResource(R.drawable.ic_colors),
+                                    iconSize = 18.dp,
+                                    value = saturation,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { saturation = snapToWholePercent(it) },
+                                )
+                            }
+                            item {
+                                SliderRow(
+                                    label = stringResource(R.string.widget_config_balance),
+                                    icon = painterResource(R.drawable.ic_contrast_circle),
+                                    iconSize = 18.dp,
+                                    value = balance,
+                                    valueRange = 0f..1f,
+                                    onValueChange = { balance = snapToWholePercent(it) },
+                                    centered = true,
+                                )
                             }
                         }
                     }
@@ -700,6 +729,50 @@ private fun HueSliderRow(
                 // The track IS the hue spectrum, so the thumb reads directly as the hue.
                 track = { sliderState -> WidgetHueSpectrumTrack(sliderState) },
             )
+        }
+    }
+}
+
+// The Gradient row's trailing "current selection" indicator: the selected flag's chromatic
+// strips in a circle (same paletteSeeds as the grid's FlagSwatch so the two never diverge),
+// or the None swatch's block glyph when no flag is set. Purely indicative — the row itself
+// toggles the fold.
+private val GradientSelectionSwatchSize = 22.dp
+
+@Composable
+private fun GradientSelectionSwatch(flag: PrideFlag?) {
+    if (flag == null) {
+        Box(
+            modifier = Modifier
+                .size(GradientSelectionSwatchSize)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_block),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    } else {
+        val strips = remember(flag) {
+            HeroBackgroundColors.paletteSeeds(flag.seeds).map { Color(it) }
+        }
+        Row(
+            modifier = Modifier
+                .size(GradientSelectionSwatchSize)
+                .clip(CircleShape),
+        ) {
+            strips.forEach { color ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(color),
+                )
+            }
         }
     }
 }

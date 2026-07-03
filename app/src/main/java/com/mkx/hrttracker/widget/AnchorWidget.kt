@@ -18,15 +18,12 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
-import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.PreviewSizeMode
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
-import androidx.glance.appwidget.appWidgetBackground
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
@@ -36,7 +33,6 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
-import androidx.glance.layout.padding
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
@@ -176,10 +172,10 @@ internal fun AnchorWidgetContent(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
     )
 
-    // A gradient flag (chosen in the widget config) replaces the appearance card entirely
-    // (mutually exclusive): a LAYERED frost card — day/night base + baked bloom bitmap +
-    // day/night scrim — so everything but the blooms flips with the system at apply time.
-    // No flag → the appearance-themed WidgetShell card.
+    // A gradient flag (chosen in the widget config) layers a baked bloom bitmap plus a
+    // shell-tinted scrim over the appearance-seeded card, so the colour sliders tint the
+    // background under the wash. Everything but the blooms is a day/night colour provider
+    // that flips with the system at apply time.
     val forcedDark = LocalWidgetForcedDark.current
     // forcedDark is null when the widget follows the system; resolve a concrete dark flag for
     // the bloom bake (light/dark bloom tuning) from the widget process' night-mode
@@ -198,11 +194,6 @@ internal fun AnchorWidgetContent(
         }
     }
 
-    val onSurface =
-        if (blooms != null) frostOnSurfaceProvider(forcedDark) else colors.onSurface
-    val onSurfaceVariant =
-        if (blooms != null) frostOnSurfaceVariantProvider(forcedDark) else colors.onSurfaceVariant
-
     // Hero stack (spec section 2): name + since-line top-left, day count bottom-right; the
     // glyph is the backdrop watermark, no longer an inline row item. The count is a
     // bottom-end-aligned overlay, NOT the column's last child: pinned to the bottom edge it
@@ -212,14 +203,14 @@ internal fun AnchorWidgetContent(
             Column {
                 Text(
                     text = anchor.name,
-                    style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (15f * scale).sp,
                         fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
                 Spacer(GlanceModifier.height(2.dp))
                 Text(
                     text = directionLine,
-                    style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
+                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = (12f * scale).sp),
                     maxLines = 1,
                 )
             }
@@ -229,7 +220,7 @@ internal fun AnchorWidgetContent(
             ) {
                 Text(
                     text = daysText,
-                    style = TextStyle(color = onSurface, fontSize = (26f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (26f * scale).sp,
                         fontWeight = FontWeight.Bold),
                     maxLines = 1,
                 )
@@ -250,37 +241,12 @@ internal fun AnchorWidgetContent(
             cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
         )
     }
-    // Mirrors the in-app hero's tint rule: the theme's primary on a plain card (follows the
-    // appearance seed instead of clashing with it), neutral over a flag wash.
-    val watermarkTint = if (blooms != null) {
-        frostOnSurfaceVariantProvider(forcedDark)
-    } else {
-        colors.primary
-    }
-    val watermarkImage: @Composable () -> Unit = {
-        Image(
-            provider = ImageProvider(watermark),
-            contentDescription = null,
-            modifier = GlanceModifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds,
-            colorFilter = ColorFilter.tint(watermarkTint),
-        )
-    }
-
-    if (blooms != null) {
-        // Layered frost card: day/night base → baked blooms → day/night scrim → watermark →
-        // content. The provider layers flip with the system; only the blooms are baked.
-        Box(
-            modifier = GlanceModifier.fillMaxSize()
-                .appWidgetBackground()
-                .cornerRadius(WidgetRoundedShape.Shell.radius)
-                .clickable(actionStartActivity(anchorOpenMilestonesIntent(context))),
-        ) {
-            RoundedBackgroundBox(
-                modifier = GlanceModifier.fillMaxSize(),
-                color = frostBaseProvider(forcedDark, backgroundAlpha),
-                shape = WidgetRoundedShape.Shell,
-            )
+    // The theme's primary, mirroring the in-app hero's tint rule: follows the appearance
+    // seed instead of clashing with it, and stays legible under the translucent wash.
+    // The full-bleed backdrop stacks under the shell's padded content: blooms → scrim →
+    // watermark on a flag card, just the watermark on a plain one.
+    val backdrop: @Composable () -> Unit = {
+        if (blooms != null) {
             Image(
                 provider = ImageProvider(blooms),
                 contentDescription = null,
@@ -289,21 +255,25 @@ internal fun AnchorWidgetContent(
             )
             RoundedBackgroundBox(
                 modifier = GlanceModifier.fillMaxSize(),
-                color = frostScrimProvider(forcedDark, backgroundAlpha),
+                color = colors.widgetScrim,
                 shape = WidgetRoundedShape.Shell,
             )
-            watermarkImage()
-            // 12.dp matches WidgetShell's inset so the frost and appearance cards align.
-            Box(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) { cardBody() }
         }
-    } else {
-        WidgetShell(
-            scale = scale,
-            onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
-            backdrop = watermarkImage,
-        ) {
-            cardBody()
-        }
+        Image(
+            provider = ImageProvider(watermark),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds,
+            colorFilter = ColorFilter.tint(colors.primary),
+        )
+    }
+
+    WidgetShell(
+        scale = scale,
+        onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
+        backdrop = backdrop,
+    ) {
+        cardBody()
     }
 }
 

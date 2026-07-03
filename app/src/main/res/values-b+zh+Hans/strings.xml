@@ -612,7 +612,6 @@
     <string name="widget_config_seed_dynamic">动态</string>
     <string name="widget_config_saturation">饱和度</string>
     <string name="widget_config_balance">明暗平衡</string>
-    <string name="widget_config_bg_colour">颜色</string>
     <string name="widget_config_bg_gradient">渐变</string>
     <string name="widget_config_preview_toggle">切换预览明暗</string>
     <string name="settings_display">显示</string>

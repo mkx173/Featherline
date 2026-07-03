@@ -639,7 +639,6 @@
     <string name="widget_config_seed_dynamic">Dynamic</string>
     <string name="widget_config_saturation">Saturation</string>
     <string name="widget_config_balance">Light balance</string>
-    <string name="widget_config_bg_colour">Color</string>
     <string name="widget_config_bg_gradient">Gradient</string>
     <string name="widget_config_preview_toggle">Toggle preview between light and dark</string>
     <string name="settings_display">Display</string>

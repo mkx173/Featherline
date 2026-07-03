@@ -27,6 +27,10 @@ internal data class WidgetColorScheme(
     val onSurfaceVariant: ColorProvider,
     val widgetContainer: ColorProvider,
     val widgetBackground: ColorProvider,
+    // Faint wash of the shell colour drawn OVER the anchor widget's flag blooms so they read
+    // as frosted, tinted by the seed instead of grayed by a neutral. Scales with the opacity
+    // slider like the shell itself.
+    val widgetScrim: ColorProvider,
     val onSurface: ColorProvider,
     val outline: ColorProvider,
     val outlineVariant: ColorProvider,
@@ -77,6 +81,10 @@ internal fun containerAlpha(backgroundAlpha: Float): Float {
         (CONTAINER_ALPHA_FACTOR_FLOOR + (CONTAINER_ALPHA_FACTOR_HIGH - CONTAINER_ALPHA_FACTOR_FLOOR) * t)
 }
 
+// Translucent shell tint over the anchor widget's flag blooms → frosted read (was the frost
+// card's neutral scrim before the blooms moved onto the seeded card).
+private const val SCRIM_ALPHA = 0.16f
+
 // Builds the widget's day/night ColorProvider scheme from explicit light & dark Material 3
 // schemes. The source is chosen upstream: the live system palette (mirrors AndroidX) on API
 // 31+ with adaptive color on, or a DefaultSeedColor MaterialKolor scheme otherwise. Widgets
@@ -126,6 +134,10 @@ internal fun widgetColorScheme(
         widgetBackground = provider(
             lightSurfaces.shell.copy(alpha = alpha),
             darkSurfaces.shell.copy(alpha = alpha),
+        ),
+        widgetScrim = provider(
+            lightSurfaces.shell.copy(alpha = SCRIM_ALPHA * alpha),
+            darkSurfaces.shell.copy(alpha = SCRIM_ALPHA * alpha),
         ),
         onSurface = provider(lightSurfaces.onSurface, darkSurfaces.onSurface),
         // No widget composable consumes the plain `outline` role (only outlineVariant);
