@@ -250,12 +250,12 @@ internal fun AnchorWidgetContent(
             cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
         )
     }
-    // Accent-tinted on the appearance card; neutral over a flag frost, matching the in-app
-    // hero's "keep the glyph neutral on the wash" rule.
+    // Mirrors the in-app hero's tint rule: the theme's primary on a plain card (follows the
+    // appearance seed instead of clashing with it), neutral over a flag wash.
     val watermarkTint = if (blooms != null) {
         frostOnSurfaceVariantProvider(forcedDark)
     } else {
-        groupAccentColor(anchor.palette, forcedDark)
+        colors.primary
     }
     val watermarkImage: @Composable () -> Unit = {
         Image(
