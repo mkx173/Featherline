@@ -892,8 +892,7 @@
     <string name="widget_large_description">剂量列表</string>
     <string name="widget_anchor_description">日期及其天数</string>
     <string name="anchor_widget_empty">点按以选择日期</string>
-    <string name="anchor_widget_removed">日期已删除 — 点按以选择</string>
-    <string name="anchor_widget_since">自 %1$s</string>
+    <string name="anchor_widget_removed">日期已删除，点按以选择</string>
     <string name="anchor_widget_planned_for">预定于 %1$s</string>
     <plurals name="anchor_widget_days">
         <item quantity="other">%1$d 天</item>

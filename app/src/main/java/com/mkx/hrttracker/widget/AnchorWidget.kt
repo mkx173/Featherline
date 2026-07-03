@@ -169,7 +169,9 @@ internal fun AnchorWidgetContent(
     val directionLine = if (count.isFuture) {
         context.getString(R.string.anchor_widget_planned_for, dateText)
     } else {
-        context.getString(R.string.anchor_widget_since, dateText)
+        // Same wording as the in-app Milestones screen (spec section 3). The fit ladder
+        // replaces this plain format in the hero-layout task.
+        context.getString(R.string.journal_since_date, dateText)
     }
     val daysText = context.resources.getQuantityString(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()

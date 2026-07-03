@@ -940,7 +940,6 @@
     <string name="widget_anchor_description">A date with its day count</string>
     <string name="anchor_widget_empty">Tap to choose a date</string>
     <string name="anchor_widget_removed">Date removed — tap to choose</string>
-    <string name="anchor_widget_since">Since %1$s</string>
     <string name="anchor_widget_planned_for">Planned for %1$s</string>
     <plurals name="anchor_widget_days">
         <item quantity="one">%1$d day</item>
