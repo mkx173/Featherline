@@ -459,8 +459,15 @@ private fun resolveWidgetRenderSize(
     options: Bundle?,
     isMedium: Boolean,
 ): WidgetRenderSize = if (options != null) {
+    // Options not yet reported (e.g. freshly added widget): fall back to a sane size so the
+    // one-shot compose still produces a usable layout. The height matches the baseline
+    // reference, so if this fallback happens to be the first render to capture the device
+    // baseline, it resolves to scale 1.0 rather than a slightly-off value. Widths are
+    // nominal — content fills the launcher-allocated cell width regardless.
+    val fallbackHeight = WIDGET_BASELINE_REFERENCE_DP.dp
+    val fallback = if (isMedium) DpSize(280.dp, fallbackHeight) else DpSize(483.dp, fallbackHeight)
     WidgetRenderSize(
-        sizeDp = currentWidgetSizeDp(context, options, isMedium),
+        sizeDp = currentWidgetSizeDp(context, options, fallback),
         deviceBaselineHeightDp = portraitBaselineHeightDp(options),
     )
 } else {
@@ -472,11 +479,12 @@ private fun resolveWidgetRenderSize(
 
 // The widget size for the current orientation, derived from the launcher's options.
 // Portrait uses (minWidth, maxHeight); landscape uses (maxWidth, minHeight) — matching
-// how SizeMode.Exact picks the size Glance composes against.
+// how SizeMode.Exact picks the size Glance composes against. Zero/absent dimensions
+// (options not yet reported) fall back to the caller's reference size.
 private fun currentWidgetSizeDp(
     context: Context,
     options: Bundle,
-    isMedium: Boolean,
+    fallback: DpSize,
 ): DpSize {
     val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
     val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
@@ -489,14 +497,16 @@ private fun currentWidgetSizeDp(
     if (widthDp > 0 && heightDp > 0) {
         return DpSize(widthDp.dp, heightDp.dp)
     }
-    // Options not yet reported (e.g. freshly added widget): fall back to a sane size so the
-    // one-shot compose still produces a usable layout. The height matches the baseline
-    // reference, so if this fallback happens to be the first render to capture the device
-    // baseline, it resolves to scale 1.0 rather than a slightly-off value. Widths are
-    // nominal — content fills the launcher-allocated cell width regardless.
-    val fallbackHeight = WIDGET_BASELINE_REFERENCE_DP.dp
-    return if (isMedium) DpSize(280.dp, fallbackHeight) else DpSize(483.dp, fallbackHeight)
+    return fallback
 }
+
+// The anchor preview's compose size: the instance's ACTUAL launcher cell size when live
+// options are available — the same derivation the dose widgets' preview uses, so the
+// config preview matches the placed widget — else the fixed reference preview size.
+internal fun anchorWidgetPreviewSizeDp(context: Context, appWidgetId: Int): DpSize =
+    widgetOptionsOrNull(context, appWidgetId)
+        ?.let { currentWidgetSizeDp(context, it, fallback = ANCHOR_WIDGET_PREVIEW_SIZE) }
+        ?: ANCHOR_WIDGET_PREVIEW_SIZE
 
 // The launcher's portrait target-cell height (OPTION_APPWIDGET_MAX_HEIGHT) in dp, used as
 // the device baseline. It is the same value regardless of the current orientation, so

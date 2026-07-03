@@ -188,7 +188,7 @@ internal fun WidgetConfigScreen(
     // async render lands — without the two sizes ever diverging.
     val previewPlaceholderSizeDp = remember(configType, appWidgetId) {
         if (configType == WidgetConfigType.ANCHOR) {
-            ANCHOR_WIDGET_PREVIEW_SIZE
+            anchorWidgetPreviewSizeDp(context, appWidgetId)
         } else {
             widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
         }

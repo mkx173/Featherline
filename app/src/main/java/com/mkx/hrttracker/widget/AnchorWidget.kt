@@ -294,8 +294,9 @@ internal fun AnchorWidgetContent(
 
 // Live anchor preview for the config screen — the dose-widget twin of
 // composeWidgetPreviewRemoteViews, reusing the same HrtWidgetThemed + AnchorWidgetContent
-// the real widget renders, at the fixed 2×1 preview size. anchor == null renders the
-// empty/"choose a date" state (Save stays disabled until a real anchor is picked).
+// the real widget renders, at the instance's live launcher size (reference 2×1 size when
+// unavailable). anchor == null renders the empty/"choose a date" state (Save stays
+// disabled until a real anchor is picked).
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 internal suspend fun composeAnchorPreviewRemoteViews(
     context: Context,
@@ -304,7 +305,9 @@ internal suspend fun composeAnchorPreviewRemoteViews(
     backgroundFlag: PrideFlag?,
     appWidgetId: Int,
 ): WidgetConfigPreviewRender {
-    val size = ANCHOR_WIDGET_PREVIEW_SIZE
+    // Live launcher options → the instance's actual cell size (WYSIWYG, matching the dose
+    // widgets' preview); invalid id / no options → the fixed reference preview size.
+    val size = anchorWidgetPreviewSizeDp(context, appWidgetId)
     val remoteViews = androidx.glance.appwidget.GlanceRemoteViews()
         .compose(context = context, size = size) {
             HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
