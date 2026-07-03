@@ -59,10 +59,11 @@ class AnchorWidgetManager @Inject constructor(
                     }
                 }
         }
-        // The flag-frost card is one baked bitmap, so unlike the colour-provider chrome it
-        // can't day/night-flip at RemoteViews apply time — re-render when the night bit
-        // changes. ponytail: only works while the process is alive; a dead process heals at
-        // its next re-render (journal edit, daily refresh, app open).
+        // The frost card's chrome flips with the system via day/night colour providers; only
+        // its baked aurora-bloom bitmap keeps the composing mode's light/dark tuning.
+        // Re-render on a night flip so the blooms re-tune. ponytail: only works while the
+        // process is alive; a dead process just shows the other mode's (still readable)
+        // bloom tuning until its next re-render (journal edit, daily refresh, app open).
         var wasNight = context.isNightMode()
         ContextCompat.registerReceiver(
             context,

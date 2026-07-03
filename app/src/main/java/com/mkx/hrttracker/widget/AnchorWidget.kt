@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,12 +42,10 @@ import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
-import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
@@ -180,29 +177,31 @@ internal fun AnchorWidgetContent(
     )
 
     // A gradient flag (chosen in the widget config) replaces the appearance card entirely
-    // (mutually exclusive): bake it to a rounded bitmap (memoized; runs in Glance's off-main
-    // composition) with neutral frost text on top. No flag → the appearance-themed WidgetShell card.
+    // (mutually exclusive): a LAYERED frost card — day/night base + baked bloom bitmap +
+    // day/night scrim — so everything but the blooms flips with the system at apply time.
+    // No flag → the appearance-themed WidgetShell card.
     val forcedDark = LocalWidgetForcedDark.current
-    // forcedDark is null when the widget follows the system; resolve a concrete dark flag for the
-    // frost (base colour + bloom params) from the widget process' night-mode configuration.
+    // forcedDark is null when the widget follows the system; resolve a concrete dark flag for
+    // the bloom bake (light/dark bloom tuning) from the widget process' night-mode
+    // configuration. Only the blooms depend on it — the provider layers carry both modes.
     val isDark = forcedDark ?: (context.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
     val backgroundAlpha = LocalWidgetAlpha.current
     val widthPx = (size.width.value * density).toInt().coerceAtLeast(1)
     val heightPx = (size.height.value * density).toInt().coerceAtLeast(1)
-    val frost = remember(backgroundFlag, isDark, backgroundAlpha, widthPx, heightPx) {
+    val blooms = remember(backgroundFlag, isDark, widthPx, heightPx) {
         backgroundFlag?.let { flag ->
-            renderAnchorFrostBitmap(
-                widthPx, heightPx, WidgetRoundedShape.Shell.radius.value * density, isDark,
-                backgroundAlpha, flagBloomColors(flag, isDark),
+            renderAnchorBloomsBitmap(
+                widthPx, heightPx, WidgetRoundedShape.Shell.radius.value * density,
+                flagBloomColors(flag, isDark),
             )
         }
     }
 
     val onSurface =
-        if (frost != null) ColorProvider(Color(frostOnSurface(isDark))) else colors.onSurface
+        if (blooms != null) frostOnSurfaceProvider(forcedDark) else colors.onSurface
     val onSurfaceVariant =
-        if (frost != null) ColorProvider(Color(frostOnSurfaceVariant(isDark))) else colors.onSurfaceVariant
+        if (blooms != null) frostOnSurfaceVariantProvider(forcedDark) else colors.onSurfaceVariant
 
     // Hero stack (spec section 2): name + since-line top-left, day count bottom-right; the
     // glyph is the backdrop watermark, no longer an inline row item. The count is a
@@ -253,15 +252,8 @@ internal fun AnchorWidgetContent(
     }
     // Accent-tinted on the appearance card; neutral over a flag frost, matching the in-app
     // hero's "keep the glyph neutral on the wash" rule.
-    val watermarkTint = if (frost != null) {
-        if (forcedDark != null) {
-            fixedColorProvider(Color(frostOnSurfaceVariant(forcedDark)))
-        } else {
-            DayNightColorProvider(
-                day = Color(frostOnSurfaceVariant(false)),
-                night = Color(frostOnSurfaceVariant(true)),
-            )
-        }
+    val watermarkTint = if (blooms != null) {
+        frostOnSurfaceVariantProvider(forcedDark)
     } else {
         groupAccentColor(anchor.palette, forcedDark)
     }
@@ -275,18 +267,30 @@ internal fun AnchorWidgetContent(
         )
     }
 
-    if (frost != null) {
+    if (blooms != null) {
+        // Layered frost card: day/night base → baked blooms → day/night scrim → watermark →
+        // content. The provider layers flip with the system; only the blooms are baked.
         Box(
             modifier = GlanceModifier.fillMaxSize()
                 .appWidgetBackground()
                 .cornerRadius(WidgetRoundedShape.Shell.radius)
                 .clickable(actionStartActivity(anchorOpenMilestonesIntent(context))),
         ) {
+            RoundedBackgroundBox(
+                modifier = GlanceModifier.fillMaxSize(),
+                color = frostBaseProvider(forcedDark, backgroundAlpha),
+                shape = WidgetRoundedShape.Shell,
+            )
             Image(
-                provider = ImageProvider(frost),
+                provider = ImageProvider(blooms),
                 contentDescription = null,
                 modifier = GlanceModifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds,
+            )
+            RoundedBackgroundBox(
+                modifier = GlanceModifier.fillMaxSize(),
+                color = frostScrimProvider(forcedDark, backgroundAlpha),
+                shape = WidgetRoundedShape.Shell,
             )
             watermarkImage()
             // 12.dp matches WidgetShell's inset so the frost and appearance cards align.

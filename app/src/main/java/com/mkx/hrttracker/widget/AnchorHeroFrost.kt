@@ -9,8 +9,11 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.createBitmap
+import androidx.glance.color.ColorProvider as DayNightColorProvider
+import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
 
@@ -21,9 +24,11 @@ import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
 // from a Gaussian blur, for free (frost-workaround design, 2026-06-27).
 //
 // This background is MUTUALLY EXCLUSIVE with the appearance colour system: when a flag is chosen
-// in the widget config the frost is the whole card (neutral base + aurora + scrim) and the
+// in the widget config the frost replaces the card (neutral base + aurora + scrim) and the
 // seed/saturation/balance controls do not apply. Scale and opacity still apply — the base honours
-// backgroundAlpha; dark mode selects the base/bloom tones.
+// backgroundAlpha. The card is LAYERED: base and scrim are day/night colour providers (flip with
+// the system at apply time); only the aurora blooms are a baked bitmap, tuned to the composing
+// mode and re-tuned on the next re-render.
 
 // Aurora band geometry, mirrored from JournalComponents.HeroAuroraBackground so the widget wash
 // matches the in-app placement: blooms spread left→right across the top, tilting gently down,
@@ -54,6 +59,34 @@ internal fun frostOnSurface(isDark: Boolean): Int = if (isDark) ON_DARK else ON_
 internal fun frostOnSurfaceVariant(isDark: Boolean): Int =
     if (isDark) ON_VARIANT_DARK else ON_VARIANT_LIGHT
 
+// Frost roles as Glance colour providers: fixed when the appearance forces a mode, day/night
+// otherwise — so the launcher flips the frost card's chrome at RemoteViews apply time with no
+// recompose, like every provider-driven widget colour. Only the bloom bitmap stays baked.
+private fun frostColorProvider(forcedDark: Boolean?, color: (Boolean) -> Int): ColorProvider =
+    if (forcedDark != null) {
+        ColorProvider(Color(color(forcedDark)))
+    } else {
+        DayNightColorProvider(day = Color(color(false)), night = Color(color(true)))
+    }
+
+internal fun frostOnSurfaceProvider(forcedDark: Boolean?): ColorProvider =
+    frostColorProvider(forcedDark, ::frostOnSurface)
+
+internal fun frostOnSurfaceVariantProvider(forcedDark: Boolean?): ColorProvider =
+    frostColorProvider(forcedDark, ::frostOnSurfaceVariant)
+
+// The frosted card surface under the blooms; honours the opacity slider like the colour card.
+internal fun frostBaseProvider(forcedDark: Boolean?, backgroundAlpha: Float): ColorProvider {
+    val alpha = (backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt()
+    return frostColorProvider(forcedDark) { ColorUtils.setAlphaComponent(frostBaseColor(it), alpha) }
+}
+
+// Faint neutral wash over the blooms so they read as frosted, not painted.
+internal fun frostScrimProvider(forcedDark: Boolean?, backgroundAlpha: Float): ColorProvider {
+    val alpha = (SCRIM_ALPHA * backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt()
+    return frostColorProvider(forcedDark) { ColorUtils.setAlphaComponent(frostBaseColor(it), alpha) }
+}
+
 // The selected flag's bloom colours (ARGB with the bloom alpha baked in). Uses the blurred bloom
 // params on every API: the upscale supplies the diffusion the in-app Haze provides. Flags only —
 // the widget config offers the flag palette, not the in-app None/DateColor options.
@@ -63,15 +96,16 @@ internal fun flagBloomColors(flag: PrideFlag, isDark: Boolean): List<Int> {
         .map { ColorUtils.setAlphaComponent(it, (alpha * 255f).toInt().coerceIn(0, 255)) }
 }
 
-// Bake the bloom colours into an opaque, rounded-corner card bitmap sized to the widget:
-// neutral base → radial blooms (faded down) → frost scrim → bilinear upscale (the "blur") →
-// rounded clip. Self-contained: this IS the card.
-internal fun renderAnchorFrostBitmap(
+// Bake the bloom colours into a TRANSPARENT, rounded-corner bitmap sized to the widget:
+// radial blooms (faded down) → bilinear upscale (the "blur") → rounded clip. The neutral
+// base UNDER it and the frost scrim OVER it are separate day/night colour-provider layers
+// (frostBaseProvider/frostScrimProvider) so they flip with the system at RemoteViews apply
+// time; only this bloom wash is baked (its light/dark tuning refreshes on the next
+// re-render — AnchorWidgetManager's night receiver while the process is alive).
+internal fun renderAnchorBloomsBitmap(
     widthPx: Int,
     heightPx: Int,
     cornerRadiusPx: Float,
-    isDark: Boolean,
-    backgroundAlpha: Float,
     bloomColors: List<Int>,
 ): Bitmap {
     val smallW = (widthPx / SMALL_DIVISOR).coerceAtLeast(2)
@@ -79,12 +113,7 @@ internal fun renderAnchorFrostBitmap(
     val small = createBitmap(smallW, smallH)
     val canvas = Canvas(small)
 
-    // Neutral base — the frosted card surface the wash sits on. Honours the opacity slider
-    // (backgroundAlpha) so the gradient card lets the wallpaper through, like the colour card.
-    val baseAlpha = (backgroundAlpha.coerceIn(0f, 1f) * 255f).toInt()
-    canvas.drawColor(ColorUtils.setAlphaComponent(frostBaseColor(isDark), baseAlpha))
-
-    // Blooms drawn on their own layer so the vertical fade clips only the wash, not the base.
+    // Blooms drawn on their own layer so the vertical fade clips only the wash.
     val bloomPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     val layer = canvas.saveLayer(0f, 0f, smallW.toFloat(), smallH.toFloat(), null)
     val lastIndex = bloomColors.size - 1
@@ -113,13 +142,6 @@ internal fun renderAnchorFrostBitmap(
     }
     canvas.drawRect(0f, 0f, smallW.toFloat(), smallH.toFloat(), maskPaint)
     canvas.restoreToCount(layer)
-
-    // Frost scrim — a faint neutral wash over the blooms so they read as frosted, not painted.
-    canvas.drawColor(
-        ColorUtils.setAlphaComponent(
-            frostBaseColor(isDark), (SCRIM_ALPHA * backgroundAlpha * 255f).toInt(),
-        ),
-    )
 
     // Bilinear upscale — a smooth wash makes this indistinguishable from a real blur.
     val upscaled = Bitmap.createScaledBitmap(small, widthPx, heightPx, true)
