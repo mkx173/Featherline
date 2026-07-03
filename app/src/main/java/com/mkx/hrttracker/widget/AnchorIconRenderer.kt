@@ -3,10 +3,13 @@ package com.mkx.hrttracker.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.drawable.DrawableCompat
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.ui.journal.anchorIconRes
@@ -14,12 +17,13 @@ import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
 import java.time.LocalDate
 
 // Draws the pinned-shortcut adaptive bitmap. The launcher masks the 432×432 canvas to its
-// own shape (circle/squircle/teardrop), so the background is full-bleed and all meaningful
-// content stays inside the inner 66% safe zone. Pure given (anchor, today): no I/O, no
-// shared state — safe to call from the refresh worker. Validated on-device by the probe.
+// own shape (circle/squircle/teardrop), so the gradient background is full-bleed, the glyph
+// is a decorative corner peek, and the number stays inside the inner 66% safe zone. Pure
+// given (anchor, today): no I/O, no shared state — safe to call from the refresh worker.
+// Validated on-device by the probe.
 object AnchorIconRenderer {
     // Adaptive-icon canvas: 108dp @ 4x. The launcher's mask keeps ~66% of the diameter
-    // visible regardless of shape, so labels/glyphs must live within that inner box.
+    // visible regardless of shape, so the number must live within that inner box.
     private const val SIZE = 432
     private const val SAFE_FRACTION = 0.66f
     private val SAFE_INSET = (SIZE * (1f - SAFE_FRACTION) / 2f) // ≈ 73px each side
@@ -29,22 +33,35 @@ object AnchorIconRenderer {
         val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // Full-bleed background in the anchor's palette accent so every launcher mask
-        // stays filled. lightAccent is the vivid tone; the label/glyph are white on top.
+        // Diagonal accent gradient (top-left +15% white -> bottom-right +15% black) keeps
+        // every launcher mask filled while giving the flat fill some depth (spec section 1).
         val accent = MedicationGroupPalettes.getValue(anchor.palette).lightAccent.toArgb()
-        canvas.drawColor(accent)
+        val gradientPaint = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, SIZE.toFloat(), SIZE.toFloat(),
+                ColorUtils.blendARGB(accent, android.graphics.Color.WHITE, 0.15f),
+                ColorUtils.blendARGB(accent, android.graphics.Color.BLACK, 0.15f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(0f, 0f, SIZE.toFloat(), SIZE.toFloat(), gradientPaint)
 
-        // Watermark glyph: the anchor's vector drawable, white, low alpha, centred and
-        // sized to the safe box so the launcher mask never clips it.
+        // Glyph peek: white, ~14% alpha, tucked into the bottom-right corner and deliberately
+        // overhanging the canvas so the launcher mask half-clips it. Decoration only - the
+        // safe zone applies to the number, not to this (spec section 1).
         ResourcesCompat.getDrawable(context.resources, anchorIconRes(anchor.icon), context.theme)
             ?.mutate()
             ?.let { drawable ->
                 DrawableCompat.setTint(drawable, android.graphics.Color.WHITE)
-                drawable.alpha = 56 // ~22% — a backdrop behind the number, not competing with it
-                val half = (SAFE_BOX * 0.5f).toInt()
-                val cx = SIZE / 2
-                val cy = SIZE / 2
-                drawable.setBounds(cx - half, cy - half, cx + half, cy + half)
+                drawable.alpha = 36 // ~14%
+                val glyphSize = (SIZE * 0.79f).toInt()
+                val overhang = (SIZE * 0.19f).toInt()
+                drawable.setBounds(
+                    SIZE + overhang - glyphSize,
+                    SIZE + overhang - glyphSize,
+                    SIZE + overhang,
+                    SIZE + overhang,
+                )
                 drawable.draw(canvas)
             }
 
