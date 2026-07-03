@@ -54,6 +54,8 @@ import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.ui.theme.MedicationGroupPalettes
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 
 // 2×1 anchor widget. Per-instance state is just the anchorId (Task 4); name/icon/palette/
@@ -162,43 +164,19 @@ internal fun AnchorWidgetContent(
 
     val today = LocalDate.now()
     val count = dayCount(date = anchor.date, today = today)
-    val prefixTemplate = if (count.isFuture) {
-        context.getString(R.string.anchor_widget_planned_for)
+    val dateText = anchor.date.format(
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+    )
+    // In the hero stack the line has the card's full content width, so no fit ladder —
+    // Glance ellipsizes on extreme launcher resizes.
+    val directionLine = if (count.isFuture) {
+        context.getString(R.string.anchor_widget_planned_for, dateText)
     } else {
         // Same wording as the in-app Milestones screen (spec section 3).
-        context.getString(R.string.journal_since_date)
+        context.getString(R.string.journal_since_date, dateText)
     }
     val size = LocalSize.current
     val density = context.resources.displayMetrics.density
-    val scaledDensity = context.resources.displayMetrics.scaledDensity
-    val locale = context.resources.configuration.locales[0]
-    // Longest since-line variant that fits the content width (spec section 3): measured with
-    // Paint at the rendered px size; 0.95 covers Paint-vs-TextView measurement drift.
-    // ponytail: estimate, not a layout pass - revisit only if a locale clips in practice.
-    val directionLine = remember(
-        anchor.date,
-        count.isFuture,
-        size,
-        scale,
-        prefixTemplate,
-        locale,
-        density,
-        scaledDensity,
-    ) {
-        val contentWidthPx = (size.width.value - 24f) * density * 0.95f
-        val paint = android.graphics.Paint().apply {
-            textSize = 12f * scale * scaledDensity
-        }
-        fitSinceLine(
-            candidates = sinceLineCandidates(
-                prefixTemplate,
-                anchor.date,
-                locale,
-            ),
-            maxWidthPx = contentWidthPx,
-            measure = { paint.measureText(it) },
-        )
-    }
     val daysText = context.resources.getQuantityString(
         R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
     )
@@ -257,8 +235,36 @@ internal fun AnchorWidgetContent(
         }
     }
 
+    // Glyph watermark bled off the top-right corner, baked to a bitmap (Glance has no
+    // alpha/offset modifiers) and layered under the padded content. Accent-tinted on the
+    // appearance card; neutral over a flag frost, matching the in-app hero's "keep the
+    // glyph neutral on the wash" rule.
+    val watermark = remember(anchor.icon, anchor.palette, isDark, widthPx, heightPx, frost != null) {
+        val tint = if (frost != null) {
+            frostOnSurfaceVariant(isDark)
+        } else {
+            val palette = MedicationGroupPalettes.getValue(anchor.palette)
+            (if (isDark) palette.darkAccent else palette.lightAccent).toArgb()
+        }
+        renderAnchorWatermarkBitmap(
+            context = context,
+            iconRes = anchorIconRes(anchor.icon),
+            widthPx = widthPx,
+            heightPx = heightPx,
+            cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
+            tintArgb = tint,
+        )
+    }
+    val watermarkImage: @Composable () -> Unit = {
+        Image(
+            provider = ImageProvider(watermark),
+            contentDescription = null,
+            modifier = GlanceModifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds,
+        )
+    }
+
     if (frost != null) {
-        // Flag frost stays the sole background - no watermark on top (spec section 2).
         Box(
             modifier = GlanceModifier.fillMaxSize()
                 .appWidgetBackground()
@@ -271,34 +277,15 @@ internal fun AnchorWidgetContent(
                 modifier = GlanceModifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds,
             )
+            watermarkImage()
             // 12.dp matches WidgetShell's inset so the frost and appearance cards align.
             Box(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) { cardBody() }
         }
     } else {
-        // Accent-tinted glyph watermark bled off the top-right corner, baked to a bitmap
-        // (Glance has no alpha/offset modifiers) and layered under the padded content.
-        val watermark = remember(anchor.icon, anchor.palette, isDark, widthPx, heightPx) {
-            val palette = MedicationGroupPalettes.getValue(anchor.palette)
-            renderAnchorWatermarkBitmap(
-                context = context,
-                iconRes = anchorIconRes(anchor.icon),
-                widthPx = widthPx,
-                heightPx = heightPx,
-                cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
-                tintArgb = (if (isDark) palette.darkAccent else palette.lightAccent).toArgb(),
-            )
-        }
         WidgetShell(
             scale = scale,
             onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
-            backdrop = {
-                Image(
-                    provider = ImageProvider(watermark),
-                    contentDescription = null,
-                    modifier = GlanceModifier.fillMaxSize(),
-                    contentScale = ContentScale.FillBounds,
-                )
-            },
+            backdrop = watermarkImage,
         ) {
             cardBody()
         }

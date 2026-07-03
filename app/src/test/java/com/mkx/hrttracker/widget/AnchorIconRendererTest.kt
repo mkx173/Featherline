@@ -36,17 +36,19 @@ class AnchorIconRendererTest {
             anchor,
             today = LocalDate.of(2026, 7, 3),
         )
-        // Sample just inside the corners, away from the number and the corner glyph.
+        // Sample just inside the corners, away from the number and the top-right glyph peek
+        // (whose faint white ink would skew a top-right sample). Left edge + bottom-right
+        // still pin the diagonal: TL is the bright end, BR the dark end, BL midway.
         val topLeft = ColorUtils.calculateLuminance(bitmap.getPixel(20, 20))
-        val topRight = ColorUtils.calculateLuminance(bitmap.getPixel(411, 20))
         val bottomLeft = ColorUtils.calculateLuminance(bitmap.getPixel(20, 411))
-        assertTrue(
-            "expected top-left ($topLeft) brighter than top-right ($topRight)",
-            topLeft > topRight,
-        )
+        val bottomRight = ColorUtils.calculateLuminance(bitmap.getPixel(411, 411))
         assertTrue(
             "expected top-left ($topLeft) brighter than bottom-left ($bottomLeft)",
             topLeft > bottomLeft,
+        )
+        assertTrue(
+            "expected bottom-left ($bottomLeft) brighter than bottom-right ($bottomRight)",
+            bottomLeft > bottomRight,
         )
         // Every sampled pixel is opaque: the gradient must stay full-bleed for the launcher mask.
         assertEquals("top-left alpha", 255, Color.alpha(bitmap.getPixel(2, 2)))

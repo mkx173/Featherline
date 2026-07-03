@@ -46,9 +46,11 @@ object AnchorIconRenderer {
         }
         canvas.drawRect(0f, 0f, SIZE.toFloat(), SIZE.toFloat(), gradientPaint)
 
-        // Glyph peek: white, ~14% alpha, tucked into the bottom-right corner and deliberately
-        // overhanging the canvas so the launcher mask half-clips it. Decoration only - the
-        // safe zone applies to the number, not to this (spec section 1).
+        // Glyph peek: white, ~14% alpha, tucked into the top-right corner and deliberately
+        // overhanging the canvas so the launcher mask half-clips it. Top-right keeps it out
+        // from under the launcher's pinned-shortcut app badge (bottom-right) and matches the
+        // in-app hero watermark. Decoration only - the safe zone applies to the number, not
+        // to this (spec section 1).
         ResourcesCompat.getDrawable(context.resources, anchorIconRes(anchor.icon), context.theme)
             ?.mutate()
             ?.let { drawable ->
@@ -58,9 +60,9 @@ object AnchorIconRenderer {
                 val overhang = (SIZE * 0.19f).toInt()
                 drawable.setBounds(
                     SIZE + overhang - glyphSize,
-                    SIZE + overhang - glyphSize,
+                    -overhang,
                     SIZE + overhang,
-                    SIZE + overhang,
+                    glyphSize - overhang,
                 )
                 drawable.draw(canvas)
             }
