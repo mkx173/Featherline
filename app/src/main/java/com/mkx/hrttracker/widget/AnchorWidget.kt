@@ -34,10 +34,8 @@ import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
-import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
-import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.state.GlanceStateDefinition
@@ -207,24 +205,29 @@ internal fun AnchorWidgetContent(
         if (frost != null) ColorProvider(Color(frostOnSurfaceVariant(isDark))) else colors.onSurfaceVariant
 
     // Hero stack (spec section 2): name + since-line top-left, day count bottom-right; the
-    // glyph is the backdrop watermark, no longer an inline row item.
+    // glyph is the backdrop watermark, no longer an inline row item. The count is a
+    // bottom-end-aligned overlay, NOT the column's last child: pinned to the bottom edge it
+    // grows UPWARD when the appearance scale inflates it, instead of clipping below the card.
     val cardBody: @Composable () -> Unit = {
-        Column(modifier = GlanceModifier.fillMaxSize()) {
-            Text(
-                text = anchor.name,
-                style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
-                    fontWeight = FontWeight.Medium),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.height(2.dp))
-            Text(
-                text = directionLine,
-                style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.defaultWeight())
-            Row(modifier = GlanceModifier.fillMaxWidth()) {
-                Spacer(GlanceModifier.defaultWeight())
+        Box(modifier = GlanceModifier.fillMaxSize()) {
+            Column {
+                Text(
+                    text = anchor.name,
+                    style = TextStyle(color = onSurface, fontSize = (15f * scale).sp,
+                        fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    text = directionLine,
+                    style = TextStyle(color = onSurfaceVariant, fontSize = (12f * scale).sp),
+                    maxLines = 1,
+                )
+            }
+            Box(
+                modifier = GlanceModifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomEnd,
+            ) {
                 Text(
                     text = daysText,
                     style = TextStyle(color = onSurface, fontSize = (26f * scale).sp,
