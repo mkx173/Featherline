@@ -48,7 +48,8 @@ class MilestonesViewModel @Inject constructor(
     // uiState is built from. reconcilePendingAgainstSource() reconciles against this
     // (not the repository's separate warm cache, which can lag or be null and so miss
     // a pin-set change the screen already saw). Main-confined: written in onEach and
-    // read from the post-write continuation, both on viewModelScope.
+    // read by the combine transform and the post-write continuation, all on
+    // viewModelScope.
     private var latestTrackedDates: List<TrackedDate>? = null
 
     // The date-derived state (sort, pinned set, timeline nodes, hero). Kept separate from
@@ -66,7 +67,14 @@ class MilestonesViewModel @Inject constructor(
         todayFlow,
         pendingEdits,
     ) { all, today, pending ->
-        buildUiState(all, today, pending)
+        // combine gives no ordering guarantee between its inputs: when onEach above
+        // retires a pending edit, the cleared pendingEdits can reach this transform
+        // before the source list that justified the clearing, building one frame from
+        // (stale list, no overlay) — the pre-edit state (the hero-watermark blink).
+        // latestTrackedDates and pendingEdits are only ever updated together (both
+        // main-confined), so building from latestTrackedDates keeps the pair
+        // consistent; `all` then just drives collection and first-emission gating.
+        buildUiState(latestTrackedDates ?: all, today, pending)
     }
 
     val uiState: StateFlow<MilestonesUiState> = combine(core, editMode, dateMutationError) { state, isEdit, error ->

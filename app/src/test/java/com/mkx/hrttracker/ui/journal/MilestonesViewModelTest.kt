@@ -15,7 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -528,6 +530,51 @@ class MilestonesViewModelTest {
         dates.value = listOf(hero.copy(heroBackground = HeroBackground.DateColor))
         advanceUntilIdle()
         assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
+    }
+
+    // The overlay retires inside the source flow's onEach, but combine gives no ordering
+    // guarantee between its inputs: the cleared pendingEdits can reach the transform
+    // before the source list that justified the clearing, building one frame from
+    // (old list, no overlay) — the pre-edit icon. That frame is what blinked the hero
+    // watermark on the Milestones page. The state must never regress to the pre-edit
+    // value while the write's emission catches up.
+    @Test
+    fun updateDate_heroIconNeverRegressesWhileSourceCatchesUp() = runTest {
+        val hero = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(hero))
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+        coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        val icons = mutableListOf<AnchorIcon?>()
+        val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { icons += it.hero?.icon }
+        }
+
+        viewModel.updateDate(
+            id = "a",
+            name = "Anchor A",
+            icon = AnchorIcon.WATER_DROPS.storageKey,
+            date = LocalDate.of(2024, 4, 1),
+            paletteKey = null,
+        )
+        advanceUntilIdle()
+        // The write lands: the source catches up and the overlay retires.
+        dates.value = listOf(hero.copy(icon = AnchorIcon.WATER_DROPS))
+        advanceUntilIdle()
+        collector.cancel()
+
+        val afterEdit = icons.dropWhile { it != AnchorIcon.WATER_DROPS }
+        assertTrue(
+            "hero icon regressed after the edit: $icons",
+            afterEdit.isNotEmpty() && afterEdit.all { it == AnchorIcon.WATER_DROPS },
+        )
     }
 
     // A reorder can be rejected by the repository (the pinned set changed underneath,
