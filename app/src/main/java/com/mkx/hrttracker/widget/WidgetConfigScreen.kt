@@ -172,7 +172,11 @@ internal fun WidgetConfigScreen(
     // disabled meanwhile) plus the picker-sheet plumbing. Inert/unused in MEDIUM/LARGE.
     var selectedAnchorId by rememberSaveable { mutableStateOf(initialAnchorId) }
     var isAnchorSheetOpen by rememberSaveable { mutableStateOf(false) }
-    val selectedAnchor = anchors.firstOrNull { it.id == selectedAnchorId }
+    // A persisted id can be DANGLING — its anchor was deleted in-app after the widget was
+    // configured — in which case this resolves to null: the selector row shows no
+    // selection AND Save stays disabled (below), so a stale id can never be rewritten to
+    // leave the widget stuck on its empty state.
+    val selectedAnchor = resolveSelectedAnchor(anchors, selectedAnchorId)
     // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
     // seeded card; null = plain card. Stored by name so rememberSaveable can persist it.
     var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
@@ -575,13 +579,13 @@ internal fun WidgetConfigScreen(
                             text = stringResource(R.string.save),
                             onClick = {
                                 if (configType == WidgetConfigType.ANCHOR) {
-                                    selectedAnchorId?.let { onSaveAnchor(liveAppearance, it, selectedFlag) }
+                                    selectedAnchor?.let { onSaveAnchor(liveAppearance, it.id, selectedFlag) }
                                 } else {
                                     onSave(liveAppearance)
                                 }
                             },
                             enabled = configType != WidgetConfigType.ANCHOR ||
-                                selectedAnchorId != null,
+                                selectedAnchor != null,
                             modifier = Modifier.weight(1f),
                             compact = true
                         )
@@ -874,6 +878,16 @@ private fun WidgetPreview(
 // Mirrors SettingsScreen.snapToWholePercent (private there): keeps the saved value
 // identical to the displayed "NN%" label.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
+
+// Resolves a persisted per-widget anchor id against the currently loaded anchors. A
+// dangling id (its anchor was deleted after the widget was configured) resolves to null,
+// which both leaves the selector unselected and keeps Save disabled — so a stale id can
+// never be rewritten to leave the widget stuck on its empty state.
+internal fun resolveSelectedAnchor(
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate>,
+    selectedAnchorId: String?,
+): com.mkx.hrttracker.model.journal.TrackedDate? =
+    anchors.firstOrNull { it.id == selectedAnchorId }
 
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
 
