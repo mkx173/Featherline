@@ -186,6 +186,18 @@ class WidgetConfigActivity : AppCompatActivity() {
                     finish()
                     return@produceState
                 }
+                // Keep the anchor list LIVE after the one-shot seed. This window is
+                // singleTop in its own task, so a second widget tap can resume a retained
+                // instance without recreating it — a one-shot list captured before the
+                // user added their first date would leave the picker on "No tracked dates
+                // yet." forever. Settings/appearance stay one-shot by design (see above);
+                // only the anchors may re-seed. The DB is already open here
+                // (awaitTrackedDates above), so this flow emits immediately.
+                if (configType == WidgetConfigType.ANCHOR) {
+                    journalRepository.observeLoadedTrackedDates().collect { dates ->
+                        value = value?.copy(anchors = dates)
+                    }
+                }
             }
             loadedState?.let { loaded ->
                 HrtTrackerTheme(
