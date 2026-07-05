@@ -393,7 +393,6 @@ class MilestonesScreenTest {
                     ),
                     today = today,
                     onSelect = { selectedAnchorId = it },
-                    onAddDate = {},
                 )
             }
         }

@@ -889,18 +889,16 @@
     <string name="select_time">选择时间</string>
     <string name="widget_medium_description">剂量概览</string>
     <string name="widget_large_description">剂量列表</string>
-    <string name="widget_anchor_description">日期及其天数</string>
-    <string name="anchor_widget_empty">点按以选择日期</string>
-    <string name="anchor_widget_removed">日期已删除，点按以选择</string>
-    <string name="anchor_widget_planned_for">预定于 %1$s</string>
+    <string name="widget_anchor_description">时间线</string>
+    <string name="anchor_widget_empty">请选择一个日期</string>
+    <string name="anchor_widget_planned_for">计划于 %1$s</string>
     <plurals name="anchor_widget_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
-    <string name="anchor_selector_empty">请先添加日期</string>
-    <string name="anchor_selector_add_date">添加日期</string>
+    <string name="anchor_selector_empty_state">暂无追踪的日期</string>
     <string name="anchor_config_row_title">日期</string>
     <string name="anchor_config_choose">选择日期</string>
-    <string name="anchor_pin_folder_icon">固定文件夹图标</string>
+    <string name="anchor_pin_folder_icon">创建快捷方式</string>
     <string name="more_options">更多选项</string>
     <string name="anchor_selector_days">%1$d 天</string>
     <string name="widget_all_done">全部完成</string>

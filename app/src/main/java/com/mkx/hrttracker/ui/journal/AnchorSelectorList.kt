@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -22,12 +20,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.hideBottomSheet
 import java.time.LocalDate
 
@@ -39,7 +38,6 @@ fun AnchorSelectorSheet(
     today: LocalDate,
     onDismissRequest: () -> Unit,
     onSelect: (String) -> Unit,
-    onAddDate: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -59,12 +57,6 @@ fun AnchorSelectorSheet(
                 onSelect(anchorId)
                 hideBottomSheet(scope, sheetState, onDismissRequest)
             },
-            onAddDate = {
-                hideBottomSheet(scope, sheetState) {
-                    onDismissRequest()
-                    onAddDate()
-                }
-            },
         )
     }
 }
@@ -76,7 +68,6 @@ private fun AnchorSelectorSheetContent(
     today: LocalDate,
     onDismissRequest: () -> Unit,
     onSelect: (String) -> Unit,
-    onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -110,35 +101,25 @@ private fun AnchorSelectorSheetContent(
             anchors = anchors,
             today = today,
             onSelect = onSelect,
-            onAddDate = onAddDate,
         )
     }
 }
 
 // Shared anchor picker content. One implementation, two hosts (timeline overflow sheet,
-// widget config sheet). Empty list routes to the add-date flow when the host has one.
+// widget config sheet). Empty list shows the standard info-row empty state.
 @Composable
 fun AnchorSelectorList(
     anchors: List<TrackedDate>,
     today: LocalDate,
     onSelect: (String) -> Unit,
-    onAddDate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (anchors.isEmpty()) {
-        Column(
-            modifier = modifier.fillMaxWidth().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.anchor_selector_empty),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Spacer(Modifier.size(8.dp))
-            TextButton(onClick = onAddDate) {
-                Text(stringResource(R.string.anchor_selector_add_date))
-            }
-        }
+        SupportMessageListItem(
+            text = stringResource(R.string.anchor_selector_empty_state),
+            painter = painterResource(R.drawable.ic_info),
+            modifier = modifier.fillMaxWidth(),
+        )
         return
     }
 

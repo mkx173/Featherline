@@ -598,8 +598,6 @@ internal fun WidgetConfigScreen(
             today = today,
             onDismissRequest = { isAnchorSheetOpen = false },
             onSelect = { id -> selectedAnchorId = id },
-            // No add-date flow inside the config Activity; closing returns the user to the picker.
-            onAddDate = {},
         )
     }
 }

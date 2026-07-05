@@ -487,7 +487,6 @@ fun MilestonesScreen(
                     AnchorShortcutManager.pin(context, anchor)
                 }
             },
-            onAddDate = { isAddDateSheetOpen = true },
         )
     }
 

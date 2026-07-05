@@ -108,7 +108,6 @@ class HrtAnchorWidget : GlanceAppWidget() {
             ) {
                 AnchorWidgetContent(
                     anchor = anchor,
-                    hasSelection = anchorId != null,
                     appWidgetId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID,
                     backgroundFlag = backgroundFlag,
                 )
@@ -125,7 +124,7 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 CompositionLocalProvider(
                     LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
                 ) {
-                    AnchorWidgetContent(anchor = null, hasSelection = false)
+                    AnchorWidgetContent(anchor = null)
                 }
             }
         }
@@ -141,13 +140,12 @@ suspend fun updateAllAnchorWidgets(context: Context) {
 }
 
 // Hero stack: name + since/planned-for top-left, day count bottom-right, with the glyph as
-// a baked watermark backdrop. Empty / removed states route to the config Activity (re-pick)
-// or the app. Rolls to full days past a year (resolved micro-decision); only the shortcut
-// icon rolls to "Ny".
+// a baked watermark backdrop. A null anchor (never chosen, or since deleted) shows one
+// select-a-date state that taps to the config Activity. Always shows full days, even past
+// a year.
 @Composable
 internal fun AnchorWidgetContent(
     anchor: TrackedDate?,
-    hasSelection: Boolean,
     appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
     backgroundFlag: PrideFlag? = null,
 ) {
@@ -156,13 +154,9 @@ internal fun AnchorWidgetContent(
     val scale = widgetScale(WIDGET_BASELINE_KEY_ANCHOR, ANCHOR_WIDGET_BASELINE_REFERENCE_DP)
 
     if (anchor == null) {
-        // No selection yet, or the selected anchor was deleted: distinct copy, both tap to
-        // the config Activity for this instance so the user can (re)choose.
-        val message = if (hasSelection) {
-            context.getString(R.string.anchor_widget_removed)
-        } else {
-            context.getString(R.string.anchor_widget_empty)
-        }
+        // No selection yet, or the selected anchor was deleted: tap opens the config
+        // Activity for this instance so the user can (re)choose.
+        val message = context.getString(R.string.anchor_widget_empty)
         WidgetShell(
             scale = scale,
             contentAlignment = Alignment.Center,
@@ -170,7 +164,7 @@ internal fun AnchorWidgetContent(
         ) {
             Text(
                 text = message,
-                style = TextStyle(color = colors.onSurfaceVariant, fontSize = (15f * scale).sp),
+                style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
             )
         }
         return
@@ -328,7 +322,6 @@ internal suspend fun composeAnchorPreviewRemoteViews(
             ) {
                 AnchorWidgetContent(
                     anchor = anchor,
-                    hasSelection = anchor != null,
                     backgroundFlag = backgroundFlag,
                 )
             }
