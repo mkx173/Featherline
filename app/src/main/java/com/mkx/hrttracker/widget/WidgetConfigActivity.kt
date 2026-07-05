@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,7 +18,11 @@ import androidx.compose.ui.graphics.toArgb
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.SettingsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
+import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockScreen
+import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -65,6 +70,12 @@ class WidgetConfigActivity : AppCompatActivity() {
     @AppScope
     lateinit var appScope: CoroutineScope
 
+    // This activity is exported and launcher-reachable (reconfigure / first placement)
+    // and renders journal data — anchor names and dates in the picker, plus the dose
+    // snapshot preview — so it must honor the in-app lock exactly like MainActivity:
+    // the content composes only once the lock state is ready and unlocked.
+    private val appLockViewModel: AppLockViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         applyEdgeToEdgeSystemBars()
         super.onCreate(savedInstanceState)
@@ -88,6 +99,15 @@ class WidgetConfigActivity : AppCompatActivity() {
         )
 
         setContent {
+            // Collected (and the prompt effect installed) outside the loaded gate below so
+            // the biometric prompt can run concurrently with the settings/anchors load
+            // instead of serializing behind it.
+            val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+            AppAuthenticationPromptEffect(
+                request = appLockUiState.pendingPrompt,
+                onAuthenticated = appLockViewModel::onAuthenticationSucceeded,
+                onError = appLockViewModel::onAuthenticationError,
+            )
             // One-shot read of the PERSISTED settings. We must NOT seed from
             // settingsRepository.settingsState: its eager initialValue is a placeholder
             // (scale/alpha 1.0, dark FOLLOW_SYSTEM) emitted before DataStore loads, and the
@@ -177,7 +197,17 @@ class WidgetConfigActivity : AppCompatActivity() {
                     CompositionLocalProvider(
                         LocalCjkTextOffsetEnabled provides loaded.settings.cjkTextOffsetEnabled,
                     ) {
-                        WidgetConfigScreen(
+                        when {
+                        // Lock state not yet known: stay blank (same as the pre-load
+                        // window) rather than flashing anchors that may need to hide.
+                        !appLockUiState.isReady -> Unit
+
+                        appLockUiState.shouldShowLockScreen -> AppLockScreen(
+                            errorMessageRes = appLockUiState.errorMessageRes,
+                            onUnlockClick = appLockViewModel::requestUnlock,
+                        )
+
+                        else -> WidgetConfigScreen(
                             initialAppearance = loaded.appearance,
                             configType = configType,
                             appWidgetId = appWidgetId,
@@ -257,10 +287,25 @@ class WidgetConfigActivity : AppCompatActivity() {
                             },
                             onCancel = { finish() },
                         )
+                        }
                     }
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        appLockViewModel.onForegrounded()
+    }
+
+    override fun onStop() {
+        // Mirrors MainActivity: a configuration change is not a real backgrounding, so it
+        // must not re-lock (the grace period would otherwise punish a font-scale change).
+        if (!isChangingConfigurations) {
+            appLockViewModel.onBackgrounded()
+        }
+        super.onStop()
     }
 
     private fun applyEdgeToEdgeSystemBars() {
