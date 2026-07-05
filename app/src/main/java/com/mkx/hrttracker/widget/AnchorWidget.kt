@@ -55,6 +55,12 @@ import androidx.glance.appwidget.updateAll as glanceUpdateAll
 // comes from the shared widget appearance via HrtWidgetThemed.
 internal val ANCHOR_WIDGET_PREVIEW_SIZE = DpSize(306.dp, 138.dp)
 
+// Ceiling for the blocking tracked-dates load in provideGlance: long enough for a cold
+// SQLCipher open + first query in a widget-only process, short enough that a failed open
+// falls back to the snapshot well within Glance's render budget instead of hanging.
+// ponytail: fixed knob; revisit if slow devices fall back to the snapshot on cold render.
+private const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
+
 // The anchor is one cell tall, so scale == 1.0 resolves against its own preview viewport
 // height rather than the dose widgets' 276dp reference.
 private val ANCHOR_WIDGET_BASELINE_REFERENCE_DP = ANCHOR_WIDGET_PREVIEW_SIZE.height.value
@@ -77,10 +83,13 @@ class HrtAnchorWidget : GlanceAppWidget() {
         }.getOrDefault(WidgetAppearance.Default)
         // Await real journal rows before composing: the cache/raw-flow cold-start window
         // reads as an empty journal, which rendered "Date removed — tap to choose" on a
-        // widget whose anchor is fine.
-        val initialAnchors = runCatching {
-            journalRepository.awaitTrackedDates()
-        }.getOrDefault(emptyList())
+        // widget whose anchor is fine. Bounded with a snapshot fallback: a widget-only
+        // process is the only opener here (observeLoadedTrackedDates never emits on its own),
+        // so on a failed/slow open we fall back to the last-known snapshot rather than
+        // blanking a configured widget to the empty "choose a date" state, and never hang the
+        // render forever. Empty only as a final resort (a genuine fresh install has no snapshot).
+        val initialAnchors =
+            journalRepository.awaitTrackedDatesOrSnapshot(ANCHOR_WIDGET_AWAIT_TIMEOUT_MS)
 
         provideContent {
             val anchorId = currentState(ANCHOR_ID_KEY)

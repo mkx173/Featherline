@@ -40,8 +40,21 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // Anchor surfaces read the journal directly (not the dose snapshot), so the home
         // refresh above does not update them. Refresh them on the same immediate path so a
         // midnight / clock / timezone / reboot event updates them without a polling worker.
-        updateAllAnchorWidgets(context.applicationContext)
-        AnchorShortcutManager.refreshAll(context.applicationContext)
+        // Guard each independently: both can throw (SQLCipher open failure via databaseHolder,
+        // ShortcutManager rate limits / IllegalArgumentException), and an uncaught throw from
+        // this root coroutine would crash the process on every midnight/boot/timezone
+        // broadcast while the condition holds. Mirrors AnchorWidgetManager's runCatching pair;
+        // one failing must not skip the other (nor, via the finally, pendingResult.finish()).
+        runCatching { updateAllAnchorWidgets(context.applicationContext) }
+            .onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                diagnosticsLogger.warning(TAG, "anchor_widget_refresh_failed action=$action", it)
+            }
+        runCatching { AnchorShortcutManager.refreshAll(context.applicationContext) }
+            .onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                diagnosticsLogger.warning(TAG, "anchor_shortcut_refresh_failed action=$action", it)
+            }
         diagnosticsLogger.info(TAG, "widget_date_receiver_complete action=$action")
     }
 

@@ -12,6 +12,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -64,6 +65,7 @@ class JournalRepositoryTest {
             val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -89,6 +91,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -123,6 +126,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             val repository = repository(databaseHolder, snapshotStore)
@@ -150,6 +154,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns null
@@ -186,6 +191,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             repository(databaseHolder, snapshotStore)
@@ -214,6 +220,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             repository(databaseHolder, snapshotStore)
@@ -236,6 +243,7 @@ class JournalRepositoryTest {
             val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -265,6 +273,7 @@ class JournalRepositoryTest {
             val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             val repository = repository(databaseHolder, snapshotStore)
@@ -275,6 +284,126 @@ class JournalRepositoryTest {
             advanceUntilIdle()
 
             coVerify(exactly = 0) { snapshotStore.read() }
+        }
+
+    // Intent: a recoverable post-open read error is the same failure that used to blank the
+    // journal to emptyList — mass-disabling pins and overwriting the snapshot with empty. The
+    // cache must now map it to null (not usable), so the snapshot writer (filterNotNull) never
+    // runs on it: a transient read failure can't erase last-known anchors nor look like empty.
+    @Test
+    fun `a recoverable read error is not persisted as an empty snapshot`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val dao = mockk<JournalDao> {
+                every { observeTrackedDates() } returns flow { throw RuntimeException("read failed") }
+                every { observePinnedTrackedDates() } returns flowOf(emptyList())
+                every { observeNotes() } returns flowOf(emptyList())
+            }
+            val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+                every { openFailed } returns MutableStateFlow(false)
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
+            repository(databaseHolder, snapshotStore)
+            databaseState.value = database
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { snapshotStore.write(any()) }
+            coVerify(exactly = 0) { snapshotStore.clear() }
+        }
+
+    // Intent: the broadcast refresh path bounds the (now error-window-waiting) await and must
+    // read a failed open as "couldn't load — skip", never as an empty journal that disables
+    // every pinned shortcut.
+    @Test
+    fun `awaitTrackedDatesOrNull returns null when the database open fails`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+                every { get() } throws IllegalStateException("cannot open")
+            }
+            val repository = repository(databaseHolder, mockk(relaxed = true))
+
+            assertEquals(null, repository.awaitTrackedDatesOrNull(timeoutMs = 1_000))
+        }
+
+    // Intent: a configured widget must not blank to the "choose a date" empty state on a
+    // failed/slow open — it falls back to the last-known snapshot instead.
+    @Test
+    fun `awaitTrackedDatesOrSnapshot falls back to the snapshot when the open fails`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+                every { get() } throws IllegalStateException("cannot open")
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
+                coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
+            }
+            val repository = repository(databaseHolder, snapshotStore)
+
+            val result = repository.awaitTrackedDatesOrSnapshot(timeoutMs = 1_000)
+
+            assertEquals(listOf("snap-1"), result.map { it.id })
+        }
+
+    // Intent: a failed overwrite must not leave the previous snapshot in place — the next cold
+    // start would seed Milestones with stale/deleted anchors. The store clears instead.
+    @Test
+    fun `a failed snapshot write clears the stale snapshot`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val dao = mockk<JournalDao> {
+                every { observeTrackedDates() } returns flowOf(listOf(trackedDate("a1")))
+                every { observePinnedTrackedDates() } returns flowOf(emptyList())
+                every { observeNotes() } returns flowOf(emptyList())
+            }
+            val database = mockk<HrtTrackerDatabase> { every { journalDao() } returns dao }
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
+                coEvery { write(any()) } returns false // overwrite fails
+            }
+            repository(databaseHolder, snapshotStore)
+            databaseState.value = database
+            advanceUntilIdle()
+
+            coVerify { snapshotStore.clear() }
+        }
+
+    // Intent: on a fresh install with no snapshot AND a database that can never open, the
+    // Milestones screen must leave its loading state — one genuine empty journal, not an
+    // eternal spinner. The terminal openFailed signal drives that single emptyList.
+    @Test
+    fun `seeded flow emits an empty journal when the open terminally fails with no snapshot`() =
+        runTest {
+            val databaseState = MutableStateFlow<HrtTrackerDatabase?>(null)
+            val openFailedFlow = MutableStateFlow(false)
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns databaseState
+                every { openFailed } returns openFailedFlow
+            }
+            val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
+                coEvery { read() } returns null
+            }
+            val repository = repository(databaseHolder, snapshotStore)
+
+            val emissions = mutableListOf<List<String>>()
+            val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                repository.observeTrackedDatesWithSnapshotSeed().collect { dates ->
+                    emissions.add(dates.map { it.id })
+                }
+            }
+            advanceUntilIdle()
+            assertEquals(emptyList<List<String>>(), emissions) // still loading, not a false empty
+            openFailedFlow.value = true
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(listOf(emptyList<String>()), emissions)
         }
 
     // appScope runs on the test scheduler as foreground work: backgroundScope tasks are

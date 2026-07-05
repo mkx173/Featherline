@@ -15,6 +15,11 @@ import java.time.LocalDate
 // disableShortcuts (re-pinning reuses the stale cached icon — probe gotcha).
 object AnchorShortcutManager {
 
+    // Ceiling for the tracked-dates load on the broadcast/on-change refresh path. Generous
+    // enough for a cold SQLCipher open + first query, short enough to keep a goAsync broadcast
+    // well inside its ~10s budget. ponytail: fixed knob; revisit if slow devices skip refreshes.
+    private const val REFRESH_AWAIT_TIMEOUT_MS = 5_000L
+
     fun isSupported(context: Context): Boolean =
         ShortcutManagerCompat.isRequestPinShortcutSupported(context)
 
@@ -27,13 +32,18 @@ object AnchorShortcutManager {
 
     // Daily / on-change refresh: regenerate the bitmap for every pinned id that still maps
     // to a live anchor, re-enable wrongly-disabled pins, and disable orphaned ones.
-    // awaitTrackedDates (never the cache / raw observe) so the cold-start not-loaded
-    // window can't read as "all anchors deleted" and mass-disable the pins.
+    // Bounded await (never the cache / raw observe) so neither the cold-start not-loaded
+    // window nor a recoverable read-error window can read as "all anchors deleted" and
+    // mass-disable the pins. null = couldn't load within the budget (slow/failed open, or a
+    // persistent error window that the unbounded await would hang on): SKIP the whole
+    // refresh — never disable a pin on an inability to confirm its anchor is gone. A later
+    // successful refresh (on-change or next broadcast) heals any genuinely-orphaned pins.
     suspend fun refreshAll(context: Context) {
         val journalRepository = EntryPointAccessors
             .fromApplication(context, WidgetEntryPoint::class.java)
             .journalRepository()
-        val liveById = journalRepository.awaitTrackedDates().associateBy { it.id }
+        val liveById = (journalRepository.awaitTrackedDatesOrNull(REFRESH_AWAIT_TIMEOUT_MS)
+            ?: return).associateBy { it.id }
 
         val pinnedShortcuts = ShortcutManagerCompat
             .getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)

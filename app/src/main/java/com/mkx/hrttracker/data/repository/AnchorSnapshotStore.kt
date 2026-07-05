@@ -145,7 +145,9 @@ class AnchorSnapshotStore @Inject constructor(
 
     // Best-effort by contract: a DataStore/keystore failure is logged and swallowed so no
     // caller can be failed by the snapshot (it is an optimization, never a source of truth).
-    suspend fun write(dates: List<TrackedDate>) {
+    // Returns true on success; false lets the caller degrade a failed overwrite to a clear()
+    // so the previous snapshot can't survive and seed stale/deleted anchors next cold start.
+    suspend fun write(dates: List<TrackedDate>): Boolean =
         runCatching {
             context.anchorSnapshotDataStore.updateData {
                 AnchorSnapshotState(AnchorSnapshotRecord(ANCHOR_SNAPSHOT_SCHEMA_VERSION, dates))
@@ -157,6 +159,17 @@ class AnchorSnapshotStore @Inject constructor(
                 "anchor_snapshot_write_failed count=${dates.size}",
                 throwable
             )
+        }.isSuccess
+
+    // Best-effort clear, mirroring write's contract. Writes AnchorSnapshotState.Empty, whose
+    // null record makes the serializer emit zero bytes (skipping the crypto path entirely),
+    // so read() then returns null (no seed) — the safe degrade after a failed overwrite.
+    suspend fun clear() {
+        runCatching {
+            context.anchorSnapshotDataStore.updateData { AnchorSnapshotState.Empty }
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
+            diagnosticsLogger.warning(TAG, "anchor_snapshot_clear_failed", throwable)
         }
     }
 }

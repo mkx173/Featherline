@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,11 +21,19 @@ import javax.inject.Singleton
 class DatabaseHolder @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val databasePassphraseProvider: DatabasePassphraseProvider,
+    private val diagnosticsLogger: AppDiagnosticsLogger,
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _databaseFlow = MutableStateFlow<HrtTrackerDatabase?>(null)
     val databaseFlow: StateFlow<HrtTrackerDatabase?> = _databaseFlow.asStateFlow()
+
+    // Terminal open-failure signal. warmUp swallows a build/open exception (so it can't crash
+    // startup), which would otherwise leave databaseFlow null forever and spin the Milestones
+    // screen on a fresh install with no snapshot. Flips true so the journal's seeded flow can
+    // fall through to an empty journal exactly when the open genuinely can't succeed.
+    private val _openFailed = MutableStateFlow(false)
+    val openFailed: StateFlow<Boolean> = _openFailed.asStateFlow()
 
     fun get(): HrtTrackerDatabase {
         _databaseFlow.value?.let { return it }
@@ -41,6 +50,11 @@ class DatabaseHolder @Inject constructor(
                     _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
                 }
                 database.openHelper.writableDatabase
+            }.onFailure { throwable ->
+                // Swallowed by contract (warm-up must never crash startup), but recorded so
+                // the seeded flow can leave its loading state and the failure is diagnosable.
+                diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
+                _openFailed.value = true
             }
         }
     }
@@ -85,6 +99,7 @@ class DatabaseHolder @Inject constructor(
     }
 
     private companion object {
+        private const val TAG = "DatabaseHolder"
         private const val DATABASE_NAME = "hrt_tracker.db"
         private val SQL_CIPHER_LOAD_LOCK = Any()
 

@@ -22,15 +22,18 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
@@ -50,8 +53,14 @@ class JournalRepository @Inject constructor(
     // HomeRepository), so they hold real data long before the user opens the
     // Journal tab. The Journal ViewModel seeds its first frame from these to
     // avoid flashing the loading indicator while its own cold combine spins up.
-    // null = not yet loaded (the genuine cold-start loading state); the live
-    // observe* flows below are unchanged and remain the UI's reactive source.
+    // null = "not usable": either the not-yet-loaded cold-start window (db still
+    // null) OR a recoverable post-open read error — deliberately mapped to null,
+    // NOT emptyList, so an error is indistinguishable from a genuine empty journal
+    // nowhere downstream (an empty list here means the journal really is empty).
+    // Every consumer reads null as "wait / skip": filterNotNull below skips it, so
+    // awaitTrackedDates waits past an error window and the snapshot writer never
+    // persists an error as an empty journal. The live observe* flows below keep
+    // their own emptyList fallback and remain the UI's reactive source.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val trackedDatesCache: StateFlow<List<TrackedDate>?> =
         databaseHolder.databaseFlow.flatMapLatest { db ->
@@ -63,7 +72,7 @@ class JournalRepository @Inject constructor(
                     .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
                         rows.map { it.toModel() }
                     }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .catchRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
@@ -78,7 +87,7 @@ class JournalRepository @Inject constructor(
                     .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
                         rows.map { it.toModel() }
                     }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .catchRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
@@ -91,20 +100,49 @@ class JournalRepository @Inject constructor(
                 db.journalDao()
                     .observeNotes()
                     .map<List<NoteEntity>, List<Note>?> { rows -> rows.map { it.toModel() } }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .catchRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
     fun getCachedTrackedDates(): List<TrackedDate>? = trackedDatesCache.value
 
     // The anchor home surfaces (widget, pinned shortcuts, config picker) must never read
-    // the not-yet-loaded window as "the journal is empty" — that is what disables pinned
-    // shortcuts and blanks widgets at cold start. This forces the database open and waits
-    // for the first real row set; after it returns, an empty list genuinely means empty.
+    // the not-yet-loaded OR error window as "the journal is empty" — that is what disables
+    // pinned shortcuts and blanks widgets at cold start. This forces the database open and
+    // waits for the first real row set; after it returns, an empty list genuinely means
+    // empty. Because the cache now maps recoverable read errors to null (not emptyList),
+    // this also waits past an error window — but that means it can suspend indefinitely on a
+    // persistently-broken database, so callers that can't hang bound it via the two helpers
+    // below rather than calling this directly.
     suspend fun awaitTrackedDates(): List<TrackedDate> {
         withContext(Dispatchers.IO) { databaseHolder.get() }
         return trackedDatesCache.filterNotNull().first()
     }
+
+    // Bounded await for surfaces that must not hang (the broadcast refresh, the widget
+    // render). null means "couldn't load within the budget" — a slow/failed open or a
+    // persistent read-error window — and is NEVER a genuine empty journal, so callers skip
+    // their action instead of treating it as "all anchors deleted".
+    suspend fun awaitTrackedDatesOrNull(timeoutMs: Long): List<TrackedDate>? =
+        try {
+            // withTimeoutOrNull handles the timeout (→ null); a failed database open throws
+            // out of awaitTrackedDates and is mapped to null here. CancellationException from
+            // an outer cancel is rethrown, never swallowed as a fake timeout.
+            withTimeoutOrNull(timeoutMs) { awaitTrackedDates() }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            null
+        }
+
+    // Widget render path: like awaitTrackedDatesOrNull but, when the database can't deliver
+    // in time, falls back to the persisted snapshot (last-known anchors) so a configured
+    // widget shows its anchor instead of the "choose a date" empty state on a failed/slow
+    // open. Empty only as a final resort — a genuine fresh install has no snapshot.
+    suspend fun awaitTrackedDatesOrSnapshot(timeoutMs: Long): List<TrackedDate> =
+        awaitTrackedDatesOrNull(timeoutMs)
+            ?: runCatching { anchorSnapshotStore.read() }.getOrNull()
+            ?: emptyList()
 
     // Like observeTrackedDates but skips the not-loaded (null-cache) window entirely, and
     // does not force the database open — emissions start once something else opens it.
@@ -115,14 +153,32 @@ class JournalRepository @Inject constructor(
     // emits the fake empty list from the not-loaded window, and never lets the snapshot
     // shadow loaded data — the cache re-check after the file read closes that race.
     fun observeTrackedDatesWithSnapshotSeed(): Flow<List<TrackedDate>> = flow {
+        var seeded = false
         if (trackedDatesCache.value == null) {
             val snapshot = anchorSnapshotSeed.value
                 ?: runCatching { anchorSnapshotStore.read() }.getOrNull()
             if (snapshot != null && trackedDatesCache.value == null) {
                 emit(snapshot)
+                seeded = true
             }
         }
-        emitAll(trackedDatesCache.filterNotNull())
+        if (seeded) {
+            emitAll(trackedDatesCache.filterNotNull())
+        } else {
+            // No usable seed (fresh install, no snapshot). Normally we wait for the first
+            // loaded rows — but if the database can never open (terminal warm-up/open
+            // failure) that wait is forever and the screen spins indefinitely. Race the
+            // loaded cache against that terminal signal so a genuine open failure yields one
+            // empty list (the "empty journal" state) instead of an eternal loading indicator.
+            // openFailed only trips on a real open exception, never on slowness, so this
+            // cannot reintroduce the false-empty flash the not-loaded window used to cause.
+            emitAll(
+                merge(
+                    trackedDatesCache.filterNotNull(),
+                    databaseHolder.openFailed.filter { it }.map { emptyList() },
+                )
+            )
+        }
     }
 
     // In-memory copy of the persisted anchor snapshot, filled by the deep-link preload so
@@ -178,11 +234,17 @@ class JournalRepository @Inject constructor(
         // Persist every loaded tracked-dates emission so the next cold start can seed the
         // Milestones timeline before the database opens. Overwrite-on-change also clears
         // the snapshot when the journal empties. write() is best-effort by contract
-        // (logs and swallows failures), so a DataStore/keystore failure can neither fail
-        // the journal write nor tear down this long-lived collector.
+        // (logs and swallows failures, reporting success as a Boolean), so a DataStore/
+        // keystore failure can neither fail the journal write nor tear down this long-lived
+        // collector. On a failed overwrite the *previous* snapshot would otherwise survive
+        // — the next cold start then seeds Milestones with stale/deleted anchors (tapping a
+        // deleted one opens an editor for a nonexistent id) — so degrade to no-seed by
+        // best-effort clearing the file instead of leaving it stale.
         appScope.launch {
             trackedDatesCache.filterNotNull().distinctUntilChanged().collect { dates ->
-                anchorSnapshotStore.write(dates)
+                if (!anchorSnapshotStore.write(dates)) {
+                    anchorSnapshotStore.clear()
+                }
             }
         }
     }
