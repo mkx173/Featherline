@@ -87,12 +87,17 @@ class AnchorWidgetManager @Inject constructor(
                 }
         }
 
-        // Third collector: mirror HomeWidgetManager's widget-facing settings observer, but
-        // keep this scoped to adaptive colour. Language repainting is a separate issue: this
-        // only makes placed anchor widgets follow the app's dynamic-colour toggle.
+        // Third collector: mirror HomeWidgetManager's widget-facing settings observer for
+        // the settings the anchor render consumes. The widget bakes its localized display
+        // strings from appLanguageOption, but shortcuts do not render localized text.
         appScope.launch {
             settingsRepository.settingsState
-                .map { settings -> settings.adaptiveColorEnabled }
+                .map { settings ->
+                    listOf(
+                        settings.adaptiveColorEnabled,
+                        settings.appLanguageOption,
+                    )
+                }
                 .distinctUntilChanged()
                 .drop(1)
                 // Terminal guard: keep an upstream failure off the handler-less appScope

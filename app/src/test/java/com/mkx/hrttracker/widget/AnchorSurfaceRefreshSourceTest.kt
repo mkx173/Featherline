@@ -25,27 +25,27 @@ class AnchorSurfaceRefreshSourceTest {
     }
 
     @Test
-    fun anchorWidgetManager_repaintsWidgetsOnAdaptiveColorChangesOnly() {
+    fun anchorWidgetManager_repaintsWidgetsOnWidgetFacingSettingsChanges() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetManager.kt"
         )
         val settingsCollector = source.substringAfter("settingsRepository.settingsState")
         assertTrue(
-            "AnchorWidgetManager must observe adaptiveColorEnabled so anchor widgets " +
-                "follow the same dynamic-color setting as dose widgets.",
-            settingsCollector.contains("settings.adaptiveColorEnabled"),
+            "AnchorWidgetManager must observe the same widget-facing settings the anchor " +
+                "render consumes.",
+            settingsCollector.contains("settings.adaptiveColorEnabled") &&
+                settingsCollector.contains("settings.appLanguageOption"),
         )
         assertTrue(
-            "Adaptive-color changes affect widget RemoteViews only; language handling " +
-                "for widgets/shortcuts is intentionally deferred.",
+            "Widget-facing settings changes affect widget RemoteViews only; shortcuts do " +
+                "not render localized text.",
             settingsCollector.contains("updateAllAnchorWidgets(context)") &&
-                !settingsCollector.contains("settings.appLanguageOption") &&
                 !settingsCollector.contains("AnchorShortcutManager.refreshAll(context)"),
         )
     }
 
     @Test
-    fun anchorWidget_collectsAdaptiveColorInsideCompositionOnly() {
+    fun anchorWidget_collectsWidgetSettingsInsideCompositionAndBakesDisplaySnapshot() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidget.kt"
         )
@@ -53,17 +53,22 @@ class AnchorSurfaceRefreshSourceTest {
             .substringAfter("override suspend fun provideGlance")
             .substringAfter("provideContent {")
         assertTrue(
-            "Adaptive color must be a reactive source inside provideContent: " +
+            "Widget-facing settings must be a reactive source inside provideContent: " +
                 "glanceUpdateAll on a live session only recomposes, so values captured " +
                 "before the composition stay stale until the session dies.",
             composition.contains("settingsRepository.settingsState") &&
                 composition.contains("settings.adaptiveColorEnabled") &&
-                composition.contains(".collectAsState(initial = initialAdaptiveColorEnabled)") &&
-                composition.contains("adaptiveColorEnabled = adaptiveColorEnabled"),
+                composition.contains("settings.appLanguageOption.languageTag") &&
+                composition.contains(".collectAsState(initial = initialWidgetSettings)") &&
+                composition.contains("adaptiveColorEnabled = widgetSettings.adaptiveColorEnabled") &&
+                composition.contains("appLanguageTag = widgetSettings.appLanguageTag"),
         )
         assertTrue(
-            "Language updates are intentionally excluded from this fix.",
-            !composition.contains("settings.appLanguageOption"),
+            "The anchor render should consume baked display text, matching the dose " +
+                "snapshot convention of preformatted widget strings.",
+            composition.contains("buildAnchorWidgetDisplayText(") &&
+                composition.contains("AnchorWidgetContent(") &&
+                composition.contains("displayText ="),
         )
     }
 

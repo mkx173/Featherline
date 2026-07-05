@@ -44,6 +44,7 @@ import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.ui.journal.anchorIconRes
+import com.mkx.hrttracker.util.currentAppLocale
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -67,6 +68,20 @@ private const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
 // height rather than the dose widgets' 276dp reference.
 private val ANCHOR_WIDGET_BASELINE_REFERENCE_DP = ANCHOR_WIDGET_PREVIEW_SIZE.height.value
 
+private data class AnchorWidgetSettings(
+    val adaptiveColorEnabled: Boolean,
+    val appLanguageTag: String?,
+)
+
+internal sealed interface AnchorWidgetDisplayText {
+    data class Empty(val message: String) : AnchorWidgetDisplayText
+    data class Loaded(
+        val anchor: TrackedDate,
+        val directionLine: String,
+        val daysText: String,
+    ) : AnchorWidgetDisplayText
+}
+
 class HrtAnchorWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -83,13 +98,15 @@ class HrtAnchorWidget : GlanceAppWidget() {
         val initialAppearance = runCatching {
             appearanceRepository.currentEffective(appWidgetId)
         }.getOrDefault(WidgetAppearance.Default)
-        // Seed settings the same way WidgetSnapshotBuilder bakes them for the dose widgets.
-        // Adaptive colour is collected reactively inside provideContent below; language stays
-        // one-shot for now because widget language refresh is being investigated separately.
+        // Seed widget-facing settings the same way WidgetSnapshotBuilder bakes them for the
+        // dose widgets. They are collected reactively inside provideContent below; display
+        // strings are then baked from the localized LocalContext into AnchorWidgetDisplayText.
         val settingsRepository = entry.settingsRepository()
         val settings = runCatching { settingsRepository.getCurrentSettings() }.getOrNull()
-        val initialAdaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true
-        val appLanguageTag = settings?.appLanguageOption?.languageTag
+        val initialWidgetSettings = AnchorWidgetSettings(
+            adaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true,
+            appLanguageTag = settings?.appLanguageOption?.languageTag,
+        )
         // Await real journal rows before composing: the cache/raw-flow cold-start window
         // reads as an empty journal, which rendered "Date removed — tap to choose" on a
         // widget whose anchor is fine. Bounded with a snapshot fallback: a widget-only
@@ -106,11 +123,16 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 appearanceRepository.effectiveFor(appWidgetId)
             }
             val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
-            val adaptiveColorEnabled by remember(settingsRepository) {
+            val widgetSettings by remember(settingsRepository) {
                 settingsRepository.settingsState
-                    .map { settings -> settings.adaptiveColorEnabled }
+                    .map { settings ->
+                        AnchorWidgetSettings(
+                            adaptiveColorEnabled = settings.adaptiveColorEnabled,
+                            appLanguageTag = settings.appLanguageOption.languageTag,
+                        )
+                    }
                     .distinctUntilChanged()
-            }.collectAsState(initial = initialAdaptiveColorEnabled)
+            }.collectAsState(initial = initialWidgetSettings)
             val anchors by remember(journalRepository) { journalRepository.observeLoadedTrackedDates() }
                 .collectAsState(initial = initialAnchors)
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
@@ -128,11 +150,11 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 snapshot = null,
                 appearance = appearance,
                 deviceBaselineHeightDp = deviceBaselineHeightDp,
-                adaptiveColorEnabled = adaptiveColorEnabled,
-                appLanguageTag = appLanguageTag,
+                adaptiveColorEnabled = widgetSettings.adaptiveColorEnabled,
+                appLanguageTag = widgetSettings.appLanguageTag,
             ) {
                 AnchorWidgetContent(
-                    anchor = anchor,
+                    displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor),
                     appWidgetId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID,
                     backgroundFlag = backgroundFlag,
                 )
@@ -154,7 +176,9 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 CompositionLocalProvider(
                     LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
                 ) {
-                    AnchorWidgetContent(anchor = null)
+                    AnchorWidgetContent(
+                        displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor = null)
+                    )
                 }
             }
         }
@@ -175,7 +199,7 @@ suspend fun updateAllAnchorWidgets(context: Context) {
 // a year.
 @Composable
 internal fun AnchorWidgetContent(
-    anchor: TrackedDate?,
+    displayText: AnchorWidgetDisplayText,
     appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
     backgroundFlag: PrideFlag? = null,
 ) {
@@ -183,41 +207,26 @@ internal fun AnchorWidgetContent(
     val context = LocalContext.current
     val scale = widgetScale(WIDGET_BASELINE_KEY_ANCHOR, ANCHOR_WIDGET_BASELINE_REFERENCE_DP)
 
-    if (anchor == null) {
+    if (displayText is AnchorWidgetDisplayText.Empty) {
         // No selection yet, or the selected anchor was deleted: tap opens the config
         // Activity for this instance so the user can (re)choose.
-        val message = context.getString(R.string.anchor_widget_empty)
         WidgetShell(
             scale = scale,
             contentAlignment = Alignment.Center,
             onClick = actionStartActivity(anchorReconfigureIntent(context, appWidgetId)),
         ) {
             Text(
-                text = message,
+                text = displayText.message,
                 style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
             )
         }
         return
     }
 
-    val today = LocalDate.now()
-    val count = dayCount(date = anchor.date, today = today)
-    val dateText = anchor.date.format(
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-    )
-    // In the hero stack the line has the card's full content width, so no fit ladder —
-    // Glance ellipsizes on extreme launcher resizes.
-    val directionLine = if (count.isFuture) {
-        context.getString(R.string.anchor_widget_planned_for, dateText)
-    } else {
-        // Same wording as the in-app Milestones screen (spec section 3).
-        context.getString(R.string.journal_since_date, dateText)
-    }
+    val loaded = displayText as AnchorWidgetDisplayText.Loaded
+    val anchor = loaded.anchor
     val size = LocalSize.current
     val density = context.resources.displayMetrics.density
-    val daysText = context.resources.getQuantityString(
-        R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
-    )
 
     // A gradient flag (chosen in the widget config) layers a baked bloom bitmap plus a
     // shell-tinted scrim over the appearance-seeded card, so the colour sliders tint the
@@ -256,7 +265,7 @@ internal fun AnchorWidgetContent(
                 )
                 Spacer(GlanceModifier.height(2.dp))
                 Text(
-                    text = directionLine,
+                    text = loaded.directionLine,
                     style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
                     maxLines = 1,
                 )
@@ -266,7 +275,7 @@ internal fun AnchorWidgetContent(
                 contentAlignment = Alignment.BottomEnd,
             ) {
                 Text(
-                    text = daysText,
+                    text = loaded.daysText,
                     style = TextStyle(color = colors.onSurface, fontSize = (32f * scale).sp,
                         fontWeight = FontWeight.Bold),
                     maxLines = 1,
@@ -324,6 +333,35 @@ internal fun AnchorWidgetContent(
     }
 }
 
+internal fun buildAnchorWidgetDisplayText(
+    context: Context,
+    anchor: TrackedDate?,
+    today: LocalDate = LocalDate.now(),
+): AnchorWidgetDisplayText {
+    if (anchor == null) {
+        return AnchorWidgetDisplayText.Empty(message = context.getString(R.string.anchor_widget_empty))
+    }
+    val count = dayCount(date = anchor.date, today = today)
+    val dateText = anchor.date.format(
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .withLocale(context.currentAppLocale())
+    )
+    val directionLine = if (count.isFuture) {
+        context.getString(R.string.anchor_widget_planned_for, dateText)
+    } else {
+        // Same wording as the in-app Milestones screen (spec section 3).
+        context.getString(R.string.journal_since_date, dateText)
+    }
+    val daysText = context.resources.getQuantityString(
+        R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
+    )
+    return AnchorWidgetDisplayText.Loaded(
+        anchor = anchor,
+        directionLine = directionLine,
+        daysText = daysText,
+    )
+}
+
 // Live anchor preview for the config screen — the dose-widget twin of
 // composeWidgetPreviewRemoteViews, reusing the same HrtWidgetThemed + AnchorWidgetContent
 // the real widget renders, at the instance's live launcher size (reference 2×1 size when
@@ -362,7 +400,7 @@ internal suspend fun composeAnchorPreviewRemoteViews(
                 appLanguageTag = settings?.appLanguageOption?.languageTag,
             ) {
                 AnchorWidgetContent(
-                    anchor = anchor,
+                    displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor),
                     backgroundFlag = backgroundFlag,
                 )
             }
