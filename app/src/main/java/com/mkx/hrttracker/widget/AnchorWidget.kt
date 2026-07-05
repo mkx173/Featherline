@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -54,6 +55,10 @@ import androidx.glance.appwidget.updateAll as glanceUpdateAll
 // comes from the shared widget appearance via HrtWidgetThemed.
 internal val ANCHOR_WIDGET_PREVIEW_SIZE = DpSize(306.dp, 138.dp)
 
+// The anchor is one cell tall, so scale == 1.0 resolves against its own preview viewport
+// height rather than the dose widgets' 276dp reference.
+private val ANCHOR_WIDGET_BASELINE_REFERENCE_DP = ANCHOR_WIDGET_PREVIEW_SIZE.height.value
+
 class HrtAnchorWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -88,7 +93,19 @@ class HrtAnchorWidget : GlanceAppWidget() {
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
             val backgroundFlag = currentState(BACKGROUND_FLAG_KEY)
                 ?.let { name -> PrideFlag.entries.firstOrNull { it.name == name } }
-            HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
+            // Same derivation as the dose widgets' session path: the launcher's portrait
+            // cell height drives the device-baseline component of the content scale.
+            val deviceBaselineHeightDp = appWidgetId?.let { widgetId ->
+                runCatching {
+                    AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
+                }.getOrNull()?.let { options -> portraitBaselineHeightDp(options) }
+            }
+            HrtWidgetThemed(
+                context,
+                snapshot = null,
+                appearance = appearance,
+                deviceBaselineHeightDp = deviceBaselineHeightDp,
+            ) {
                 AnchorWidgetContent(
                     anchor = anchor,
                     hasSelection = anchorId != null,
@@ -102,8 +119,14 @@ class HrtAnchorWidget : GlanceAppWidget() {
     override suspend fun providePreview(context: Context, widgetCategory: Int) {
         provideContent {
             GlanceTheme {
-                // A neutral preview anchor for the launcher widget picker.
-                AnchorWidgetContent(anchor = null, hasSelection = false)
+                // A neutral preview anchor for the launcher widget picker. The preview
+                // composes at the fixed reference size, so pin the baseline to it rather
+                // than letting a captured device baseline leak in.
+                CompositionLocalProvider(
+                    LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
+                ) {
+                    AnchorWidgetContent(anchor = null, hasSelection = false)
+                }
             }
         }
     }
@@ -130,7 +153,7 @@ internal fun AnchorWidgetContent(
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    val scale = LocalWidgetScale.current
+    val scale = widgetScale(WIDGET_BASELINE_KEY_ANCHOR, ANCHOR_WIDGET_BASELINE_REFERENCE_DP)
 
     if (anchor == null) {
         // No selection yet, or the selected anchor was deleted: distinct copy, both tap to
@@ -203,14 +226,14 @@ internal fun AnchorWidgetContent(
             Column {
                 Text(
                     text = anchor.name,
-                    style = TextStyle(color = colors.onSurface, fontSize = (15f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (18f * scale).sp,
                         fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
                 Spacer(GlanceModifier.height(2.dp))
                 Text(
                     text = directionLine,
-                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = (12f * scale).sp),
+                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
                     maxLines = 1,
                 )
             }
@@ -220,7 +243,7 @@ internal fun AnchorWidgetContent(
             ) {
                 Text(
                     text = daysText,
-                    style = TextStyle(color = colors.onSurface, fontSize = (26f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (32f * scale).sp,
                         fontWeight = FontWeight.Bold),
                     maxLines = 1,
                 )
@@ -293,9 +316,16 @@ internal suspend fun composeAnchorPreviewRemoteViews(
     // Live launcher options → the instance's actual cell size (WYSIWYG, matching the dose
     // widgets' preview); invalid id / no options → the fixed reference preview size.
     val size = anchorWidgetPreviewSizeDp(context, appWidgetId)
+    val deviceBaselineHeightDp =
+        widgetOptionsOrNull(context, appWidgetId)?.let(::portraitBaselineHeightDp)
     val remoteViews = androidx.glance.appwidget.GlanceRemoteViews()
         .compose(context = context, size = size) {
-            HrtWidgetThemed(context, snapshot = null, appearance = appearance) {
+            HrtWidgetThemed(
+                context,
+                snapshot = null,
+                appearance = appearance,
+                deviceBaselineHeightDp = deviceBaselineHeightDp,
+            ) {
                 AnchorWidgetContent(
                     anchor = anchor,
                     hasSelection = anchor != null,

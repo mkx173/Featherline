@@ -429,7 +429,7 @@ internal suspend fun composeWidgetPreviewRemoteViews(
     return WidgetConfigPreviewRender(remoteViews, size)
 }
 
-private fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = appWidgetId
+internal fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = appWidgetId
     .takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
     ?.let { widgetId ->
         runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
@@ -512,7 +512,7 @@ internal fun anchorWidgetPreviewSizeDp(context: Context, appWidgetId: Int): DpSi
 // the device baseline. It is the same value regardless of the current orientation, so
 // feeding it into baseline capture removes the portrait/landscape ordering hazard that let
 // the short landscape pass lock the baseline first. Returns null until options report it.
-private fun portraitBaselineHeightDp(options: Bundle): Float? =
+internal fun portraitBaselineHeightDp(options: Bundle): Float? =
     options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).takeIf { it > 0 }?.toFloat()
 
 // ── Group-aware row collapsing ────────────────────────────────────────────────
@@ -633,10 +633,12 @@ private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
 // before the portrait pass; _v3 captures the portrait cell height directly.
 private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp_v3"
 private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp_v3"
+internal const val WIDGET_BASELINE_KEY_ANCHOR = "anchor_height_dp_v3"
 
 // Matches the preview viewport height: scale == 1.0 corresponds to the fully
-// laid-out widget size seen in @GlancePreview / Live Preview.
-private const val WIDGET_BASELINE_REFERENCE_DP = 276f
+// laid-out widget size seen in @GlancePreview / Live Preview. The anchor widget is
+// one cell tall, so it resolves against its own reference (its preview height).
+internal const val WIDGET_BASELINE_REFERENCE_DP = 276f
 
 // Reject obviously bogus first-render sizes (e.g. transient 0dp loading frames)
 // so we don't permanently lock the device baseline to nonsense.
@@ -648,7 +650,7 @@ private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
 // normal placed-widget ratio (~0.4–0.58) so it never oversizes a real cell, while still
 // catching pathologically tiny baselines. The user's own scale choice multiplies on top.
 private const val WIDGET_MIN_BASELINE_SCALE_RATIO = 0.35f
-private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
+internal val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
 
 // The launcher's portrait target-cell height (dp), resolved from AppWidgetManager options
 // and provided by HrtWidgetThemed. Unlike LocalSize it is the same value on every
@@ -669,7 +671,10 @@ private val LocalPreviewE2Text = compositionLocalOf<String?> { null }
 private val LocalHostFreePreview = compositionLocalOf { false }
 
 @Composable
-private fun widgetScale(widgetKey: String): Float {
+internal fun widgetScale(
+    widgetKey: String,
+    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
+): Float {
     val previewBaselineDp = LocalPreviewBaselineHeight.current
     val baselineDp = previewBaselineDp ?: run {
         val context = LocalContext.current
@@ -689,16 +694,18 @@ private fun widgetScale(widgetKey: String): Float {
                 }
             }
         }
-        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
+        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp, referenceDp)
     }
-    return widgetBaselineScaleRatio(baselineDp) * LocalWidgetScale.current
+    return widgetBaselineScaleRatio(baselineDp, referenceDp) * LocalWidgetScale.current
 }
 
 // The device-baseline component of the widget scale, floored so an unexpectedly small
 // captured baseline can't collapse content to an illegible size. The user's own scale
 // choice (LocalWidgetScale) multiplies on top of this.
-internal fun widgetBaselineScaleRatio(baselineDp: Float): Float =
-    (baselineDp / WIDGET_BASELINE_REFERENCE_DP).coerceAtLeast(WIDGET_MIN_BASELINE_SCALE_RATIO)
+internal fun widgetBaselineScaleRatio(
+    baselineDp: Float,
+    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
+): Float = (baselineDp / referenceDp).coerceAtLeast(WIDGET_MIN_BASELINE_SCALE_RATIO)
 
 // Capture now feeds the portrait cell height (OPTION_APPWIDGET_MAX_HEIGHT) on every Exact
 // pass, so the persists are already order-independent. Merging by max is kept as a cheap
@@ -713,12 +720,13 @@ internal fun mergeWidgetBaselineHeightDp(existingDp: Float, currentHeightDp: Flo
 internal fun resolveWidgetBaselineHeightDp(
     storedDp: Float,
     currentHeightDp: Float,
+    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
 ): Float {
     if (storedDp > 0f) {
         return storedDp
     }
     if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
-        return WIDGET_BASELINE_REFERENCE_DP
+        return referenceDp
     }
     return currentHeightDp
 }
