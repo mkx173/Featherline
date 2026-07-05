@@ -24,6 +24,49 @@ class AnchorSurfaceRefreshSourceTest {
         )
     }
 
+    @Test
+    fun anchorWidgetManager_repaintsWidgetsOnAdaptiveColorChangesOnly() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetManager.kt"
+        )
+        val settingsCollector = source.substringAfter("settingsRepository.settingsState")
+        assertTrue(
+            "AnchorWidgetManager must observe adaptiveColorEnabled so anchor widgets " +
+                "follow the same dynamic-color setting as dose widgets.",
+            settingsCollector.contains("settings.adaptiveColorEnabled"),
+        )
+        assertTrue(
+            "Adaptive-color changes affect widget RemoteViews only; language handling " +
+                "for widgets/shortcuts is intentionally deferred.",
+            settingsCollector.contains("updateAllAnchorWidgets(context)") &&
+                !settingsCollector.contains("settings.appLanguageOption") &&
+                !settingsCollector.contains("AnchorShortcutManager.refreshAll(context)"),
+        )
+    }
+
+    @Test
+    fun anchorWidget_collectsAdaptiveColorInsideCompositionOnly() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidget.kt"
+        )
+        val composition = source
+            .substringAfter("override suspend fun provideGlance")
+            .substringAfter("provideContent {")
+        assertTrue(
+            "Adaptive color must be a reactive source inside provideContent: " +
+                "glanceUpdateAll on a live session only recomposes, so values captured " +
+                "before the composition stay stale until the session dies.",
+            composition.contains("settingsRepository.settingsState") &&
+                composition.contains("settings.adaptiveColorEnabled") &&
+                composition.contains(".collectAsState(initial = initialAdaptiveColorEnabled)") &&
+                composition.contains("adaptiveColorEnabled = adaptiveColorEnabled"),
+        )
+        assertTrue(
+            "Language updates are intentionally excluded from this fix.",
+            !composition.contains("settings.appLanguageOption"),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }

@@ -45,6 +45,8 @@ import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -81,16 +83,12 @@ class HrtAnchorWidget : GlanceAppWidget() {
         val initialAppearance = runCatching {
             appearanceRepository.currentEffective(appWidgetId)
         }.getOrDefault(WidgetAppearance.Default)
-        // One-shot read of the adaptive-colour + app-language settings, mirroring how
-        // WidgetSnapshotBuilder bakes them for the dose widgets — the anchor widget carries no
-        // snapshot, so without this it would ignore a disabled-adaptive setting (system palette
-        // on API 31+) and the in-app language override (system-language chrome). One-shot rather
-        // than a flow: both settings change rarely, and the appearance collector in
-        // AnchorWidgetManager already repaints on the far more frequent appearance edits; a
-        // language/adaptive change lands on the next journal/date refresh, matching the prior
-        // per-refresh behaviour. Failure falls back to the same defaults as a null snapshot.
-        val settings = runCatching { entry.settingsRepository().getCurrentSettings() }.getOrNull()
-        val adaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true
+        // Seed settings the same way WidgetSnapshotBuilder bakes them for the dose widgets.
+        // Adaptive colour is collected reactively inside provideContent below; language stays
+        // one-shot for now because widget language refresh is being investigated separately.
+        val settingsRepository = entry.settingsRepository()
+        val settings = runCatching { settingsRepository.getCurrentSettings() }.getOrNull()
+        val initialAdaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true
         val appLanguageTag = settings?.appLanguageOption?.languageTag
         // Await real journal rows before composing: the cache/raw-flow cold-start window
         // reads as an empty journal, which rendered "Date removed — tap to choose" on a
@@ -108,6 +106,11 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 appearanceRepository.effectiveFor(appWidgetId)
             }
             val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
+            val adaptiveColorEnabled by remember(settingsRepository) {
+                settingsRepository.settingsState
+                    .map { settings -> settings.adaptiveColorEnabled }
+                    .distinctUntilChanged()
+            }.collectAsState(initial = initialAdaptiveColorEnabled)
             val anchors by remember(journalRepository) { journalRepository.observeLoadedTrackedDates() }
                 .collectAsState(initial = initialAnchors)
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }

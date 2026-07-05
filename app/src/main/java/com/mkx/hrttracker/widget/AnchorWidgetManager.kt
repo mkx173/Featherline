@@ -2,6 +2,7 @@ package com.mkx.hrttracker.widget
 
 import android.content.Context
 import com.mkx.hrttracker.data.repository.JournalRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -10,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -24,6 +26,7 @@ class AnchorWidgetManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val journalRepository: JournalRepository,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
+    private val settingsRepository: SettingsRepository,
     @param:AppScope private val appScope: CoroutineScope,
     private val diagnosticsLogger: AppDiagnosticsLogger,
 ) {
@@ -80,6 +83,29 @@ class AnchorWidgetManager @Inject constructor(
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
                         diagnosticsLogger.warning(TAG, "anchor_appearance_refresh_failed", throwable)
+                    }
+                }
+        }
+
+        // Third collector: mirror HomeWidgetManager's widget-facing settings observer, but
+        // keep this scoped to adaptive colour. Language repainting is a separate issue: this
+        // only makes placed anchor widgets follow the app's dynamic-colour toggle.
+        appScope.launch {
+            settingsRepository.settingsState
+                .map { settings -> settings.adaptiveColorEnabled }
+                .distinctUntilChanged()
+                .drop(1)
+                // Terminal guard: keep an upstream failure off the handler-less appScope
+                // (mirrors HomeWidgetManager's settings collector).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "anchor_settings_stream_failed", throwable)
+                }
+                .collect {
+                    runCatching {
+                        updateAllAnchorWidgets(context)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        diagnosticsLogger.warning(TAG, "anchor_settings_refresh_failed", throwable)
                     }
                 }
         }
