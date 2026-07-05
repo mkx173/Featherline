@@ -81,6 +81,17 @@ class HrtAnchorWidget : GlanceAppWidget() {
         val initialAppearance = runCatching {
             appearanceRepository.currentEffective(appWidgetId)
         }.getOrDefault(WidgetAppearance.Default)
+        // One-shot read of the adaptive-colour + app-language settings, mirroring how
+        // WidgetSnapshotBuilder bakes them for the dose widgets — the anchor widget carries no
+        // snapshot, so without this it would ignore a disabled-adaptive setting (system palette
+        // on API 31+) and the in-app language override (system-language chrome). One-shot rather
+        // than a flow: both settings change rarely, and the appearance collector in
+        // AnchorWidgetManager already repaints on the far more frequent appearance edits; a
+        // language/adaptive change lands on the next journal/date refresh, matching the prior
+        // per-refresh behaviour. Failure falls back to the same defaults as a null snapshot.
+        val settings = runCatching { entry.settingsRepository().getCurrentSettings() }.getOrNull()
+        val adaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true
+        val appLanguageTag = settings?.appLanguageOption?.languageTag
         // Await real journal rows before composing: the cache/raw-flow cold-start window
         // reads as an empty journal, which rendered "Date removed — tap to choose" on a
         // widget whose anchor is fine. Bounded with a snapshot fallback: a widget-only
@@ -114,6 +125,8 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 snapshot = null,
                 appearance = appearance,
                 deviceBaselineHeightDp = deviceBaselineHeightDp,
+                adaptiveColorEnabled = adaptiveColorEnabled,
+                appLanguageTag = appLanguageTag,
             ) {
                 AnchorWidgetContent(
                     anchor = anchor,
@@ -129,7 +142,12 @@ class HrtAnchorWidget : GlanceAppWidget() {
             GlanceTheme {
                 // A neutral preview anchor for the launcher widget picker. The preview
                 // composes at the fixed reference size, so pin the baseline to it rather
-                // than letting a captured device baseline leak in.
+                // than letting a captured device baseline leak in. Deliberately renders in
+                // the system palette + system locale (bare GlanceTheme, no HrtWidgetThemed):
+                // this is the un-configured picker chip with no instance, no chosen
+                // appearance, and no app-language override to apply — the launcher itself
+                // draws its picker chrome in the system locale, so a system-locale preview
+                // is the consistent choice.
                 CompositionLocalProvider(
                     LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
                 ) {
@@ -321,6 +339,15 @@ internal suspend fun composeAnchorPreviewRemoteViews(
     val size = anchorWidgetPreviewSizeDp(context, appWidgetId)
     val deviceBaselineHeightDp =
         widgetOptionsOrNull(context, appWidgetId)?.let(::portraitBaselineHeightDp)
+    // Read the same settings the real widget does rather than assuming the applicationContext
+    // resolves them: below API 33 the app context lags AppCompatDelegate.setApplicationLocales,
+    // so relying on it would render the preview chrome in the system language even when the real
+    // widget honours the app language. adaptiveColorEnabled likewise must reflect the setting so
+    // the preview matches the placed widget's palette.
+    val settings = runCatching {
+        EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
+            .settingsRepository().getCurrentSettings()
+    }.getOrNull()
     val remoteViews = androidx.glance.appwidget.GlanceRemoteViews()
         .compose(context = context, size = size) {
             HrtWidgetThemed(
@@ -328,6 +355,8 @@ internal suspend fun composeAnchorPreviewRemoteViews(
                 snapshot = null,
                 appearance = appearance,
                 deviceBaselineHeightDp = deviceBaselineHeightDp,
+                adaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true,
+                appLanguageTag = settings?.appLanguageOption?.languageTag,
             ) {
                 AnchorWidgetContent(
                     anchor = anchor,

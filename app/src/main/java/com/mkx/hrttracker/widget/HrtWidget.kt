@@ -125,9 +125,16 @@ internal fun HrtWidgetThemed(
     snapshot: WidgetSnapshotRecord?,
     appearance: WidgetAppearance,
     deviceBaselineHeightDp: Float? = null,
+    // Adaptive-colour + app-language default to the snapshot's baked values, so the dose
+    // call sites (which always carry a snapshot) stay untouched. The anchor paths render
+    // with snapshot = null and pass these explicitly, read from settings the same way the
+    // snapshot builder bakes them, so the anchor widget honours the disabled-adaptive and
+    // in-app-language settings just like the dose widgets.
+    adaptiveColorEnabled: Boolean = snapshot?.adaptiveColorEnabled ?: true,
+    appLanguageTag: String? = snapshot?.appLanguageTag,
     content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
 ) {
-    val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
+    val adaptiveEnabled = adaptiveColorEnabled
     val sanitized = appearance.sanitized()
     val alpha = sanitized.backgroundAlpha
     val scale = sanitized.contentScale
@@ -136,8 +143,8 @@ internal fun HrtWidgetThemed(
     // the raw widget context. Below API 33 the widget process context stays on the system
     // locale, so without this the chrome ("TODAY", "DONE", E2 label) renders in the system
     // language while the snapshot's baked medication/dose strings are in the app language.
-    val localizedContext = remember(context, snapshot?.appLanguageTag) {
-        context.withLanguageTag(snapshot?.appLanguageTag)
+    val localizedContext = remember(context, appLanguageTag) {
+        context.withLanguageTag(appLanguageTag)
     }
     // Explicit seed pick wins; null keeps today's source selection (system palette
     // on API 31+ with adaptive on, DefaultSeedColor otherwise). Deriving the schemes

@@ -9,6 +9,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -22,6 +23,7 @@ import javax.inject.Singleton
 class AnchorWidgetManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val journalRepository: JournalRepository,
+    private val widgetAppearanceRepository: WidgetAppearanceRepository,
     @param:AppScope private val appScope: CoroutineScope,
     private val diagnosticsLogger: AppDiagnosticsLogger,
 ) {
@@ -51,6 +53,33 @@ class AnchorWidgetManager @Inject constructor(
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
                         diagnosticsLogger.warning(TAG, "anchor_refresh_failed", throwable)
+                    }
+                }
+        }
+
+        // Second collector: the appearance is GLOBAL (setDefault), but the config Activity
+        // only repaints its own glanceId — so an anchor/dose config save, or a settings-screen
+        // appearance change, would leave every OTHER anchor instance on stale RemoteViews until
+        // an unrelated journal/date refresh. Mirrors HomeWidgetManager's appearance collector
+        // (which does the same for the dose widgets). Shortcuts are deliberately NOT refreshed
+        // here: AnchorIconRenderer bakes only the palette gradient + day count, never the widget
+        // appearance (seed/adaptive/alpha/scale/dark), so an appearance change can't stale them.
+        appScope.launch {
+            widgetAppearanceRepository.observeChanges()
+                // Drop the replayed current value: the surfaces are already correct from
+                // provideGlance on process start, so only real changes should repaint.
+                .drop(1)
+                // Terminal guard: observeChanges() rethrows non-IOExceptions by design, which
+                // would otherwise crash the handler-less appScope (mirrors HomeWidgetManager).
+                .catch { throwable ->
+                    diagnosticsLogger.warning(TAG, "anchor_appearance_stream_failed", throwable)
+                }
+                .collect {
+                    runCatching {
+                        updateAllAnchorWidgets(context)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        diagnosticsLogger.warning(TAG, "anchor_appearance_refresh_failed", throwable)
                     }
                 }
         }

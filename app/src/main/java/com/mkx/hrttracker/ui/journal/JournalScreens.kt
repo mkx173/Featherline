@@ -575,27 +575,33 @@ fun MilestonesScreenContent(
                         modifier = Modifier.padding(end = 8.dp),
                         enabled = uiState.timeline.isNotEmpty(),
                     )
-                    var overflowExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { overflowExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(R.string.more_options),
+                    // Pin-folder is the only overflow item, and pinning is a silent no-op on
+                    // launchers that don't support it, so hide the whole overflow when unsupported.
+                    val context = LocalContext.current
+                    val pinFolderSupported = remember { AnchorShortcutManager.isSupported(context) }
+                    if (pinFolderSupported) {
+                        var overflowExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { overflowExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(R.string.more_options),
+                                )
+                            }
+                            HrtDropdownMenu(
+                                expanded = overflowExpanded,
+                                onDismissRequest = { overflowExpanded = false },
+                                items = listOf(
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(R.string.anchor_pin_folder_icon),
+                                        onClick = {
+                                            overflowExpanded = false
+                                            onPinFolderIcon()
+                                        },
+                                    ),
+                                ),
                             )
                         }
-                        HrtDropdownMenu(
-                            expanded = overflowExpanded,
-                            onDismissRequest = { overflowExpanded = false },
-                            items = listOf(
-                                HrtDropdownMenuItem(
-                                    text = stringResource(R.string.anchor_pin_folder_icon),
-                                    onClick = {
-                                        overflowExpanded = false
-                                        onPinFolderIcon()
-                                    },
-                                ),
-                            ),
-                        )
                     }
                 },
                 scrollBehavior = scrollBehavior,
