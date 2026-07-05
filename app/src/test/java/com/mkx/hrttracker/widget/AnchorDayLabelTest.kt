@@ -21,13 +21,11 @@ class AnchorDayLabelTest {
         // Future anchors have completed zero anniversaries, so they count down numerically.
         assertEquals("100", anchorIconLabel(today.plusDays(100), today))
 
-    @Test fun `first anniversary rolls over to years`() =
-        // Intent: once a full year passes the icon switches to the compact "Ny" form.
-        assertEquals("1y", anchorIconLabel(LocalDate.of(2025, 6, 27), today))
+    @Test fun `first anniversary stays numeric`() =
+        // Intent: no "Ny" rollover — the icon always shows the day count and the
+        // renderer shrinks the font to fit longer numbers.
+        assertEquals("365", anchorIconLabel(LocalDate.of(2025, 6, 27), today))
 
-    @Test fun `two full years shows 2y`() =
-        assertEquals("2y", anchorIconLabel(LocalDate.of(2024, 6, 27), today))
-
-    @Test fun `day before second anniversary still shows 1y`() =
-        assertEquals("1y", anchorIconLabel(LocalDate.of(2024, 6, 28), today))
+    @Test fun `two full years stays numeric`() =
+        assertEquals("730", anchorIconLabel(LocalDate.of(2024, 6, 27), today))
 }

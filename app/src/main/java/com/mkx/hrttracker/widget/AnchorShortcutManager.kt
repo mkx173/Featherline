@@ -77,7 +77,7 @@ object AnchorShortcutManager {
             .setShortLabel(anchor.name)
             .setIcon(
                 IconCompat.createWithAdaptiveBitmap(
-                    AnchorIconRenderer.render(context, anchor, today)
+                    AnchorIconRenderer.render(anchor, today)
                 )
             )
             .setIntent(anchorOpenMilestonesIntent(context).setAction(android.content.Intent.ACTION_VIEW))

@@ -2,7 +2,6 @@ package com.mkx.hrttracker.widget
 
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
-import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.TrackedDate
 import org.junit.Assert.assertEquals
@@ -32,13 +31,11 @@ class AnchorIconRendererTest {
     @Test
     fun `background is brightest at top-left of diagonal gradient`() {
         val bitmap = AnchorIconRenderer.render(
-            ApplicationProvider.getApplicationContext(),
             anchor,
             today = LocalDate.of(2026, 7, 3),
         )
-        // Sample just inside the corners, away from the number and the top-right glyph peek
-        // (whose faint white ink would skew a top-right sample). Left edge + bottom-right
-        // still pin the diagonal: TL is the bright end, BR the dark end, BL midway.
+        // Sample just inside the corners, away from the centred number. TL is the bright
+        // end, BR the dark end, BL midway on the diagonal.
         val topLeft = ColorUtils.calculateLuminance(bitmap.getPixel(20, 20))
         val bottomLeft = ColorUtils.calculateLuminance(bitmap.getPixel(20, 411))
         val bottomRight = ColorUtils.calculateLuminance(bitmap.getPixel(411, 411))
