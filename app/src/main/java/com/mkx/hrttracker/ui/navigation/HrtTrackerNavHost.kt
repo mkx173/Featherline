@@ -436,6 +436,7 @@ fun HrtTrackerNavHost(
     navController: NavHostController,
     homeDeepLinkSignal: Int = 0,
     milestonesDeepLinkSignal: Int = 0,
+    onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
@@ -623,10 +624,12 @@ fun HrtTrackerNavHost(
         }
     }
 
-    var lastHandledMilestonesSignal by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(milestonesDeepLinkSignal) {
-        if (milestonesDeepLinkSignal <= lastHandledMilestonesSignal) return@LaunchedEffect
-        lastHandledMilestonesSignal = milestonesDeepLinkSignal
+        // The dedup marker lives in the ViewModel (consumeMilestonesDeepLink), not
+        // rememberSaveable here: it must share the signal's exact lifetime so a
+        // process-death re-tap navigates and a config-change recreation doesn't
+        // replay. See MainViewModel.lastHandledMilestonesSignal.
+        if (!onConsumeMilestonesDeepLink()) return@LaunchedEffect
         // Read the destination live from the controller: the composition-captured
         // currentRoute is still null when this effect fires on the cold-start first
         // composition (currentBackStackEntryAsState hasn't delivered its first value),

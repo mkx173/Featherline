@@ -172,7 +172,16 @@ class MainActivity : AppCompatActivity() {
         // transition is ever visible. Recreations restore the nav stack themselves.
         awaitingMilestonesEntry = savedInstanceState == null &&
                 intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
-        parseWidgetHighlightIntent(intent)
+        // Parse the launch intent only on a fresh create. On a config-driven recreation
+        // (savedInstanceState != null, e.g. a font-scale change that falls outside the
+        // manifest's configChanges) getIntent() still carries the retained widget extras;
+        // re-parsing would bump the surviving ViewModel's deep-link signal and yank the
+        // user back to the deep-linked screen after they navigated away. A genuine re-tap
+        // while the task is alive is delivered through onNewIntent, which still parses
+        // unconditionally.
+        if (savedInstanceState == null) {
+            parseWidgetHighlightIntent(intent)
+        }
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
@@ -401,6 +410,8 @@ class MainActivity : AppCompatActivity() {
                                         navController = navController,
                                         homeDeepLinkSignal = homeDeepLinkSignal,
                                         milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+                                        onConsumeMilestonesDeepLink =
+                                            mainViewModel::consumeMilestonesDeepLink,
                                         onMilestonesDeepLinkSettled = {
                                             awaitingMilestonesEntry = false
                                         },

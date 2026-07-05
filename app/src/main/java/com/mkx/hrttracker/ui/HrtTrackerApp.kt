@@ -15,6 +15,7 @@ fun HrtTrackerApp(
     navController: NavHostController,
     homeDeepLinkSignal: Int,
     milestonesDeepLinkSignal: Int = 0,
+    onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean,
 ) {
@@ -24,6 +25,7 @@ fun HrtTrackerApp(
         navController = navController,
         homeDeepLinkSignal = homeDeepLinkSignal,
         milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+        onConsumeMilestonesDeepLink = onConsumeMilestonesDeepLink,
         onMilestonesDeepLinkSettled = onMilestonesDeepLinkSettled,
         highlightEffectsEnabled = highlightEffectsEnabled,
     )

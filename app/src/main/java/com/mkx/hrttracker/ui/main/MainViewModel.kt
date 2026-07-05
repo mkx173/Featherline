@@ -175,8 +175,29 @@ class MainViewModel @Inject constructor(
     private val _milestonesDeepLinkSignal = MutableStateFlow(0)
     val milestonesDeepLinkSignal: StateFlow<Int> = _milestonesDeepLinkSignal.asStateFlow()
 
+    // Dedup marker for the milestones deep link. Deliberately a ViewModel field
+    // rather than NavHost rememberSaveable state so it shares the signal's exact
+    // lifetime: both reset to 0 on process death, both survive a config-change
+    // recreation together. A marker saved to instance state would outlive the
+    // signal — a process-death re-tap would restore lastHandled ahead of the
+    // fresh 0-based signal and silently drop the deep link, and a font-scale (or
+    // any non-configChanges) recreation would replay the retained intent.
+    private var lastHandledMilestonesSignal = 0
+
     fun requestMilestonesDeepLink() {
         _milestonesDeepLinkSignal.update { it + 1 }
+    }
+
+    // Fires the milestones navigation once per request: returns true for the
+    // first observer of each new signal value and marks it handled; later calls
+    // for the same (or an already-superseded) signal return false.
+    fun consumeMilestonesDeepLink(): Boolean {
+        val signal = _milestonesDeepLinkSignal.value
+        if (signal <= lastHandledMilestonesSignal) {
+            return false
+        }
+        lastHandledMilestonesSignal = signal
+        return true
     }
 
     fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
