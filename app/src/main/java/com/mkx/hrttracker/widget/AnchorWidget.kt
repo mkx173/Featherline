@@ -111,6 +111,7 @@ class HrtAnchorWidget : GlanceAppWidget() {
             .fromApplication(context, WidgetEntryPoint::class.java)
         val appearanceRepository = entry.widgetAppearanceRepository()
         val journalRepository = entry.journalRepository()
+        val appTimeSource = entry.appTimeSource()
         val initialAppearance = runCatching {
             appearanceRepository.currentEffective(appWidgetId)
         }.getOrDefault(WidgetAppearance.Default)
@@ -151,6 +152,18 @@ class HrtAnchorWidget : GlanceAppWidget() {
             }.collectAsState(initial = initialWidgetSettings)
             val anchors by remember(journalRepository) { journalRepository.observeLoadedTrackedDates() }
                 .collectAsState(initial = initialAnchors)
+            // The render date as OBSERVABLE state, not an ambient LocalDate.now() read: a
+            // session update() with no changed composition input skips recomposition
+            // entirely, so a live session would keep yesterday's day count across a
+            // date/time change until it died. Collecting the minute ticker (date-projected)
+            // makes the flip a real state change; the ticker only runs while a session is
+            // alive (WhileSubscribed), and refresh() is already fired on time/timezone
+            // broadcasts, so this also rolls a foreground session over midnight for free.
+            val today by remember(appTimeSource) {
+                appTimeSource.currentMinute
+                    .map { minute -> minute.toLocalDate() }
+                    .distinctUntilChanged()
+            }.collectAsState(initial = LocalDate.now())
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
             val backgroundFlag = currentState(BACKGROUND_FLAG_KEY)
                 ?.let { name -> PrideFlag.entries.firstOrNull { it.name == name } }
@@ -170,7 +183,9 @@ class HrtAnchorWidget : GlanceAppWidget() {
                 appLanguageTag = widgetSettings.appLanguageTag,
             ) {
                 AnchorWidgetContent(
-                    displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor),
+                    displayText = buildAnchorWidgetDisplayText(
+                        LocalContext.current, anchor, today,
+                    ),
                     appWidgetId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID,
                     backgroundFlag = backgroundFlag,
                 )
@@ -224,7 +239,63 @@ class HrtAnchorWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtAnchorWidget()
 }
 
+// Synchronous push + session reconcile, mirroring pushHrtWidgets (see the push note in
+// HrtWidget.kt). A bare glanceUpdateAll only signals the Glance session, which (a) stalls
+// while the process is backgrounded — exactly where the midnight/date-change receiver runs —
+// and (b) skips recomposition entirely when no composition input changed, which is every
+// date tick (LocalDate.now() is not observable state): the widget kept yesterday's day count
+// until the app was reopened. Composing the RemoteViews here and pushing via updateAppWidget
+// paints immediately from the background and re-evaluates the day count fresh. Plain views
+// only (no LazyColumn), so the push is safe on every API level, like the medium dose widget.
+// The trailing glanceUpdateAll reconciles the session — a fresh session re-composes today's
+// content — so a launcher re-attach can't re-assert a stale composition.
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 suspend fun updateAllAnchorWidgets(context: Context) {
+    val appWidgetManager = AppWidgetManager.getInstance(context)
+    val ids = appWidgetManager.getAppWidgetIds(
+        android.content.ComponentName(context, HrtAnchorWidgetReceiver::class.java)
+    )
+    // No instances: skip everything, including the tracked-dates await, so a widget-less
+    // install never pays a DB open on the midnight/boot broadcasts (deferred-open policy).
+    if (ids.isEmpty()) return
+    val entry = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
+    val appearanceRepository = entry.widgetAppearanceRepository()
+    val diagnosticsLogger = entry.diagnosticsLogger()
+    // Same bounded await + snapshot fallback contract as provideGlance: never render a
+    // configured widget as empty on a slow/failed open, never hang the broadcast window.
+    val anchors = entry.journalRepository()
+        .awaitTrackedDatesOrSnapshot(ANCHOR_WIDGET_AWAIT_TIMEOUT_MS)
+    val glanceManager = GlanceAppWidgetManager(context)
+    for (appWidgetId in ids) {
+        // Per-instance guard: one broken instance must not stop the others repainting.
+        runCatching {
+            val prefs = androidx.glance.appwidget.state.getAppWidgetState(
+                context,
+                androidx.glance.state.PreferencesGlanceStateDefinition,
+                glanceManager.getGlanceIdBy(appWidgetId),
+            )
+            val anchor = prefs.anchorId()?.let { id -> anchors.firstOrNull { it.id == id } }
+            val appearance = runCatching {
+                appearanceRepository.currentEffective(appWidgetId)
+            }.getOrDefault(WidgetAppearance.Default)
+            val render = composeAnchorRemoteViews(
+                context = context,
+                appearance = appearance,
+                anchor = anchor,
+                backgroundFlag = prefs.backgroundFlag(),
+                appWidgetId = appWidgetId,
+            )
+            appWidgetManager.updateAppWidget(appWidgetId, render.remoteViews)
+        }.onFailure { throwable ->
+            if (throwable is kotlinx.coroutines.CancellationException) throw throwable
+            diagnosticsLogger.warning(
+                "AnchorWidget",
+                "anchor_widget_push_failed appWidgetId=$appWidgetId",
+                throwable,
+            )
+        }
+    }
+    // Reconcile the sessions with what the push painted (see note above).
     HrtAnchorWidget().glanceUpdateAll(context)
 }
 
@@ -397,13 +468,13 @@ internal fun buildAnchorWidgetDisplayText(
     )
 }
 
-// Live anchor preview for the config screen — the dose-widget twin of
-// composeWidgetPreviewRemoteViews, reusing the same HrtWidgetThemed + AnchorWidgetContent
-// the real widget renders, at the instance's live launcher size (reference 2×1 size when
-// unavailable). anchor == null renders the empty/"choose a date" state (Save stays
-// disabled until a real anchor is picked).
+// One-shot synchronous compose of an anchor widget instance — the dose-widget twin of
+// composeWidgetPreviewRemoteViews. Reuses the same HrtWidgetThemed + AnchorWidgetContent
+// the session path renders, at the instance's live launcher size (reference 2×1 size when
+// unavailable). Serves both the config screen's live preview and updateAllAnchorWidgets'
+// background push. anchor == null renders the empty/"choose a date" state.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
-internal suspend fun composeAnchorPreviewRemoteViews(
+internal suspend fun composeAnchorRemoteViews(
     context: Context,
     appearance: WidgetAppearance,
     anchor: TrackedDate?,

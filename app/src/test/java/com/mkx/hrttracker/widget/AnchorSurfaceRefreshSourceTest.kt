@@ -25,6 +25,28 @@ class AnchorSurfaceRefreshSourceTest {
     }
 
     @Test
+    fun updateAllAnchorWidgets_pushesRemoteViewsSynchronouslyAndReconciles() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidget.kt"
+        )
+        val body = source.substringAfter("suspend fun updateAllAnchorWidgets")
+        assertTrue(
+            "updateAllAnchorWidgets must compose and push RemoteViews synchronously: a " +
+                "bare session update stalls in a backgrounded process (where the " +
+                "midnight/date-change receiver runs) and skips recomposition on a date " +
+                "tick (LocalDate.now() is not observable state), leaving yesterday's day " +
+                "count on the widget until the app is reopened.",
+            body.contains("composeAnchorRemoteViews(") &&
+                body.contains("appWidgetManager.updateAppWidget("),
+        )
+        assertTrue(
+            "After the push the session must be reconciled (glanceUpdateAll) so a " +
+                "launcher re-attach can't re-assert a stale composition.",
+            body.contains("glanceUpdateAll(context)"),
+        )
+    }
+
+    @Test
     fun anchorWidgetManager_repaintsWidgetsOnWidgetFacingSettingsChanges() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetManager.kt"

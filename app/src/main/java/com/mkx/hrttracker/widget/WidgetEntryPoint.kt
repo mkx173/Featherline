@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -27,6 +28,7 @@ interface WidgetEntryPoint {
     fun widgetAppearanceRepository(): WidgetAppearanceRepository
     fun reminderNotificationManager(): ReminderNotificationManager
     fun diagnosticsLogger(): AppDiagnosticsLogger
+    fun appTimeSource(): AppTimeSource
 
     @AppScope
     fun appScope(): CoroutineScope

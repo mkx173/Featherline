@@ -243,7 +243,7 @@ internal fun WidgetConfigScreen(
             .collect { appearance ->
                 value = try {
                     if (configType == WidgetConfigType.ANCHOR) {
-                        composeAnchorPreviewRemoteViews(
+                        composeAnchorRemoteViews(
                             context = context.applicationContext,
                             appearance = appearance,
                             anchor = selectedAnchor,
