@@ -895,6 +895,8 @@
     <plurals name="anchor_widget_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
+    <string name="anchor_widget_preview_since">开始于 2026年1月1日</string>
+    <string name="anchor_widget_preview_days">67 天</string>
     <string name="anchor_selector_empty_state">暂无追踪的日期</string>
     <string name="anchor_config_row_title">日期</string>
     <string name="anchor_config_choose">选择日期</string>

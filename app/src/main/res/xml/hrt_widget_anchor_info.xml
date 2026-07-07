@@ -6,6 +6,8 @@
     android:targetCellHeight="1"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"
+    android:previewLayout="@layout/hrt_widget_anchor_preview"
+    android:previewImage="@drawable/widget_preview_anchor"
     android:configure="com.mkx.hrttracker.widget.WidgetConfigActivity"
     android:widgetFeatures="reconfigurable"
     android:resizeMode="horizontal"

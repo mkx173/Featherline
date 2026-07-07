@@ -285,6 +285,7 @@ class HomeWidgetManager @Inject constructor(
         private val GENERATED_PREVIEW_RECEIVERS = listOf<Class<out GlanceAppWidgetReceiver>>(
             HrtWidgetMediumReceiver::class.java,
             HrtWidgetLargeReceiver::class.java,
+            HrtAnchorWidgetReceiver::class.java,
         )
     }
 }

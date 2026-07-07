@@ -943,6 +943,12 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+    <!-- Widget-picker preview sample data. The literals mirror what providePreview
+         computes from the fixed sample anchor (Jan 1 2026, 67 days in) for the
+         API 31-34 static previewLayout — keep them in sync. -->
+    <string name="anchor_widget_preview_name" translatable="false">HRT</string>
+    <string name="anchor_widget_preview_since">Since Jan 1, 2026</string>
+    <string name="anchor_widget_preview_days">67 days</string>
     <string name="anchor_selector_empty_state">No tracked dates yet.</string>
     <string name="anchor_config_row_title">Date</string>
     <string name="anchor_config_choose">Select a date</string>

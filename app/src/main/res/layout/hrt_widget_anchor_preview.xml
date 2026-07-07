@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static appwidget-provider previewLayout used by Android 12–14 (API 31–34)
+  widget pickers. API 35+ uses providePreview() in AnchorWidget.kt instead.
+  Sample data mirrors anchorPreviewAnchor() ("HRT", since Jan 1 2026, 67 days,
+  default event icon, no gradient) — keep them in sync. Interior text sizes are
+  pre-scaled by WIDGET_PREVIEW_CONTENT_SCALE (0.6×) to match the Compose
+  preview (live 18/16/32sp → 11/10/19sp); the outer shell (22dp corners, 12dp
+  padding) and the glyph watermark stay unscaled, matching the live widget
+  where the backdrop is card-relative, not content-scaled. The watermark
+  approximates the baked bleed-off-corner backdrop with a static top-end
+  image at watermark alpha.
+-->
+<!-- RemoteViews layout: framework ImageView ignores app:tint, so android:tint
+     is required; UseAppTint is a false positive (suppressed file-wide). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UseAppTint"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_shell_bg">
+
+    <ImageView
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="top|end"
+        android:src="@drawable/ic_event"
+        android:tint="@color/widget_preview_primary"
+        android:alpha="0.12"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/anchor_widget_preview_name"
+            android:textColor="@color/widget_preview_on_surface"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="1dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/anchor_widget_preview_since"
+            android:textColor="@color/widget_preview_on_surface_variant"
+            android:textSize="10sp"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="12dp"
+        android:text="@string/anchor_widget_preview_days"
+        android:textColor="@color/widget_preview_on_surface"
+        android:textSize="19sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:maxLines="1" />
+</FrameLayout>

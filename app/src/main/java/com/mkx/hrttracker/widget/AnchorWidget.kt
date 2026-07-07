@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
@@ -40,6 +39,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
@@ -67,6 +67,22 @@ private const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
 // The anchor is one cell tall, so scale == 1.0 resolves against its own preview viewport
 // height rather than the dose widgets' 276dp reference.
 private val ANCHOR_WIDGET_BASELINE_REFERENCE_DP = ANCHOR_WIDGET_PREVIEW_SIZE.height.value
+
+// Fixed sample data for the launcher widget-picker previews: "HRT", started Jan 1 2026,
+// 67 days in, default icon, no palette and no gradient. The API 31-34 static
+// previewLayout (layout/hrt_widget_anchor_preview.xml) and the anchor_widget_preview_*
+// strings mirror these values — keep them in sync.
+internal val ANCHOR_PREVIEW_START_DATE: LocalDate = LocalDate.of(2026, 1, 1)
+internal const val ANCHOR_PREVIEW_DAYS_PASSED = 67L
+
+internal fun anchorPreviewAnchor(context: Context): TrackedDate = TrackedDate(
+    id = "anchor-widget-preview",
+    name = context.getString(R.string.anchor_widget_preview_name),
+    icon = AnchorIcon.EVENT,
+    date = ANCHOR_PREVIEW_START_DATE,
+    palette = null,
+    pinnedOrder = null,
+)
 
 private data class AnchorWidgetSettings(
     val adaptiveColorEnabled: Boolean,
@@ -164,21 +180,40 @@ class HrtAnchorWidget : GlanceAppWidget() {
 
     override suspend fun providePreview(context: Context, widgetCategory: Int) {
         provideContent {
-            GlanceTheme {
-                // A neutral preview anchor for the launcher widget picker. The preview
-                // composes at the fixed reference size, so pin the baseline to it rather
-                // than letting a captured device baseline leak in. Deliberately renders in
-                // the system palette + system locale (bare GlanceTheme, no HrtWidgetThemed):
-                // this is the un-configured picker chip with no instance, no chosen
-                // appearance, and no app-language override to apply — the launcher itself
-                // draws its picker chrome in the system locale, so a system-locale preview
-                // is the consistent choice.
-                CompositionLocalProvider(
-                    LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
+            // Sample-data preview for the launcher widget picker (API 35+ generated
+            // previews, published by HomeWidgetManager): the fixed "HRT / 67 days"
+            // anchor rendered through the real HrtWidgetThemed + AnchorWidgetContent
+            // path with the default appearance and adaptive colour, no gradient.
+            // Renders in the system locale (appLanguageTag = null): the launcher draws
+            // its picker chrome in the system locale, so a system-locale preview is the
+            // consistent choice. The preview composes at the fixed reference size, so
+            // pin the baseline to it rather than letting a captured device baseline
+            // leak in.
+            CompositionLocalProvider(
+                LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
+            ) {
+                HrtWidgetThemed(
+                    context,
+                    snapshot = null,
+                    appearance = WidgetAppearance.Default,
+                    adaptiveColorEnabled = true,
+                    appLanguageTag = null,
                 ) {
-                    AnchorWidgetContent(
-                        displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor = null)
-                    )
+                    // Same preview content scale as the dose widgets
+                    // (provideHrtPreviewContent), pinned inside HrtWidgetThemed so it
+                    // overrides the appearance-derived LocalWidgetScale (1.0).
+                    CompositionLocalProvider(
+                        LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
+                    ) {
+                        AnchorWidgetContent(
+                            displayText = buildAnchorWidgetDisplayText(
+                                context = LocalContext.current,
+                                anchor = anchorPreviewAnchor(LocalContext.current),
+                                today = ANCHOR_PREVIEW_START_DATE
+                                    .plusDays(ANCHOR_PREVIEW_DAYS_PASSED),
+                            ),
+                        )
+                    }
                 }
             }
         }

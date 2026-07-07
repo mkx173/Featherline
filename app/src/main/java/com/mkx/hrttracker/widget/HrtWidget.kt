@@ -626,7 +626,9 @@ private fun cleanupAppearance(context: Context, appWidgetIds: IntArray) {
 private const val MEDIUM_WIDGET_PREVIEW_WIDTH_DP = 306
 private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
-private const val WIDGET_PREVIEW_CONTENT_SCALE = 0.6f
+// Internal: the anchor widget's picker preview applies the same content scale so all
+// generated previews shrink consistently in the launcher's widget list.
+internal const val WIDGET_PREVIEW_CONTENT_SCALE = 0.6f
 private const val WIDGET_PREVIEW_E2_PG_PER_ML = 120.0
 private val MEDIUM_WIDGET_PREVIEW_SIZE =
     DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
