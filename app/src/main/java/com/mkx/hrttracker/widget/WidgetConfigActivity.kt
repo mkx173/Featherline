@@ -12,7 +12,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -40,9 +44,11 @@ import javax.inject.Inject
 // windowShowWallpaper with a transparent windowBackground; the screen punches the
 // hole), which fixes the API<35 black nav bar the old translucent-dialog window had:
 // the bars now sit over the opaque scaffold, as in MainActivity.
-// Widget settings are global, so the specific appWidgetId is irrelevant to what we
-// edit; it is echoed back only to satisfy the RESULT_OK contract on launchers that
-// ignore configuration_optional and invoke this on first placement. The result
+// Dose-widget settings are global, so for them the specific appWidgetId is echoed back
+// only to satisfy the RESULT_OK contract on launchers that ignore
+// configuration_optional and invoke this on first placement. ANCHOR mode is
+// per-instance, so the id is observable state: a singleTop redelivery targeting a
+// DIFFERENT widget (onNewIntent) retargets the whole window in place. The result
 // defaults to RESULT_CANCELED and only flips to RESULT_OK once the user saves, so
 // backing out of such a first-placement config removes the widget instead of silently
 // keeping an unconfigured one.
@@ -76,11 +82,16 @@ class WidgetConfigActivity : AppCompatActivity() {
     // the content composes only once the lock state is ready and unlocked.
     private val appLockViewModel: AppLockViewModel by viewModels()
 
+    // Observable because this singleTop activity can be redelivered a configure intent for
+    // a DIFFERENT widget while a retained instance targets the old one (onNewIntent below);
+    // everything per-instance (config type, anchor seed, the screen itself) rekeys on it.
+    private var appWidgetId by mutableIntStateOf(AppWidgetManager.INVALID_APPWIDGET_ID)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         applyEdgeToEdgeSystemBars()
         super.onCreate(savedInstanceState)
 
-        val appWidgetId = intent?.getIntExtra(
+        appWidgetId = intent?.getIntExtra(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
@@ -91,14 +102,18 @@ class WidgetConfigActivity : AppCompatActivity() {
             RESULT_CANCELED,
             Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
         )
-        // getAppWidgetInfo is null for INVALID_APPWIDGET_ID or direct/malformed launches
-        // (the activity is exported); widgetConfigTypeForProvider falls back to medium then.
-        val configType = widgetConfigTypeForProvider(
-            AppWidgetManager.getInstance(this)
-                .getAppWidgetInfo(appWidgetId)?.provider?.className,
-        )
 
         setContent {
+            // Recomputed per target id: an onNewIntent retarget can in principle land on a
+            // different provider type. getAppWidgetInfo is null for INVALID_APPWIDGET_ID or
+            // direct/malformed launches (the activity is exported);
+            // widgetConfigTypeForProvider falls back to medium then.
+            val configType = remember(appWidgetId) {
+                widgetConfigTypeForProvider(
+                    AppWidgetManager.getInstance(this)
+                        .getAppWidgetInfo(appWidgetId)?.provider?.className,
+                )
+            }
             // Collected (and the prompt effect installed) outside the loaded gate below so
             // the biometric prompt can run concurrently with the settings/anchors load
             // instead of serializing behind it.
@@ -116,7 +131,11 @@ class WidgetConfigActivity : AppCompatActivity() {
             // nothing until the persisted value resolves. The widget snapshot read is
             // best-effort: a null (failed read / never persisted) just makes the preview
             // fall back to the fabricated preview snapshot.
-            val loadedState by produceState<LoadedConfigState?>(initialValue = null) {
+            val loadedState by produceState<LoadedConfigState?>(initialValue = null, appWidgetId) {
+                // On an onNewIntent retarget the producer restarts but the previous value
+                // survives; drop it so the screen unmounts (and cannot seed its saveables
+                // from the OLD widget's initialAnchorId) until the new load lands.
+                value = null
                 value = try {
                     LoadedConfigState(
                         settings = settingsRepository.getCurrentSettings(),
@@ -225,90 +244,117 @@ class WidgetConfigActivity : AppCompatActivity() {
                             onUnlockClick = appLockViewModel::requestUnlock,
                         )
 
-                        else -> WidgetConfigScreen(
-                            initialAppearance = loaded.appearance,
-                            configType = configType,
-                            appWidgetId = appWidgetId,
-                            snapshot = loaded.snapshot,
-                            anchors = loaded.anchors,
-                            initialAnchorId = loaded.initialAnchorId,
-                            initialBackgroundFlag = loaded.initialBackgroundFlag,
-                            today = java.time.LocalDate.now(),
-                            onSaveAnchor = { appearance, anchorId, backgroundFlag ->
-                                setResult(
-                                    RESULT_OK,
-                                    Intent().putExtra(
-                                        AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId,
-                                    ),
-                                )
-                                appScope.launch {
-                                    try {
-                                        runCatching {
-                                            widgetAppearanceRepository.setDefault(appearance)
-                                        }
-                                        runCatching {
-                                            val glanceId = androidx.glance.appwidget
-                                                .GlanceAppWidgetManager(this@WidgetConfigActivity)
-                                                .getGlanceIdBy(appWidgetId)
-                                            writeAnchorId(
-                                                this@WidgetConfigActivity, glanceId, anchorId,
-                                            )
-                                            writeBackgroundFlag(
-                                                this@WidgetConfigActivity, glanceId, backgroundFlag,
-                                            )
-                                            HrtAnchorWidget()
-                                                .update(this@WidgetConfigActivity, glanceId)
-                                        }
-                                    } finally {
-                                        withContext(NonCancellable + Dispatchers.Main) { finish() }
-                                    }
-                                }
-                            },
-                            onSave = { appearance ->
-                                setResult(
-                                    RESULT_OK,
-                                    Intent().putExtra(
-                                        AppWidgetManager.EXTRA_APPWIDGET_ID,
-                                        appWidgetId,
-                                    ),
-                                )
-                                appScope.launch {
-                                    try {
-                                        // The screen now owns all six appearance fields,
-                                        // so a wholesale setDefault is correct here. A write
-                                        // failure is caught (not rethrown): appScope has no
-                                        // exception handler, so letting it propagate after
-                                        // finish() would crash the process even though the
-                                        // launcher was already told RESULT_OK.
-                                        runCatching {
-                                            widgetAppearanceRepository.setDefault(appearance)
-                                        }.onFailure { throwable ->
-                                            if (throwable is CancellationException) {
-                                                throw throwable
+                        // key(appWidgetId) is load-bearing: without it, a retarget that
+                        // unmounts and remounts the screen at the same position would let
+                        // rememberSaveable RESTORE the previous widget's selection instead
+                        // of re-seeding from the new widget's persisted state.
+                        else -> key(appWidgetId) {
+                            WidgetConfigScreen(
+                                initialAppearance = loaded.appearance,
+                                configType = configType,
+                                appWidgetId = appWidgetId,
+                                snapshot = loaded.snapshot,
+                                anchors = loaded.anchors,
+                                initialAnchorId = loaded.initialAnchorId,
+                                initialBackgroundFlag = loaded.initialBackgroundFlag,
+                                today = java.time.LocalDate.now(),
+                                onSaveAnchor = { appearance, anchorId, backgroundFlag ->
+                                    setResult(
+                                        RESULT_OK,
+                                        Intent().putExtra(
+                                            AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId,
+                                        ),
+                                    )
+                                    appScope.launch {
+                                        try {
+                                            runCatching {
+                                                widgetAppearanceRepository.setDefault(appearance)
                                             }
-                                            diagnosticsLogger.warning(
-                                                TAG,
-                                                "widget_config_save_failed",
-                                                throwable,
-                                            )
-                                        }
-                                    } finally {
-                                        // Finish only after the write lands: RESULT_OK is
-                                        // already reported, and finishing first would leave
-                                        // a window where process death right after finish()
-                                        // loses the save the launcher believes succeeded.
-                                        withContext(NonCancellable + Dispatchers.Main) {
-                                            finish()
+                                            runCatching {
+                                                val glanceId = androidx.glance.appwidget
+                                                    .GlanceAppWidgetManager(this@WidgetConfigActivity)
+                                                    .getGlanceIdBy(appWidgetId)
+                                                writeAnchorId(
+                                                    this@WidgetConfigActivity, glanceId, anchorId,
+                                                )
+                                                writeBackgroundFlag(
+                                                    this@WidgetConfigActivity, glanceId, backgroundFlag,
+                                                )
+                                                HrtAnchorWidget()
+                                                    .update(this@WidgetConfigActivity, glanceId)
+                                            }
+                                        } finally {
+                                            withContext(NonCancellable + Dispatchers.Main) { finish() }
                                         }
                                     }
-                                }
-                            },
-                            onCancel = { finish() },
-                        )
+                                },
+                                onSave = { appearance ->
+                                    setResult(
+                                        RESULT_OK,
+                                        Intent().putExtra(
+                                            AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                            appWidgetId,
+                                        ),
+                                    )
+                                    appScope.launch {
+                                        try {
+                                            // The screen now owns all six appearance fields,
+                                            // so a wholesale setDefault is correct here. A write
+                                            // failure is caught (not rethrown): appScope has no
+                                            // exception handler, so letting it propagate after
+                                            // finish() would crash the process even though the
+                                            // launcher was already told RESULT_OK.
+                                            runCatching {
+                                                widgetAppearanceRepository.setDefault(appearance)
+                                            }.onFailure { throwable ->
+                                                if (throwable is CancellationException) {
+                                                    throw throwable
+                                                }
+                                                diagnosticsLogger.warning(
+                                                    TAG,
+                                                    "widget_config_save_failed",
+                                                    throwable,
+                                                )
+                                            }
+                                        } finally {
+                                            // Finish only after the write lands: RESULT_OK is
+                                            // already reported, and finishing first would leave
+                                            // a window where process death right after finish()
+                                            // loses the save the launcher believes succeeded.
+                                            withContext(NonCancellable + Dispatchers.Main) {
+                                                finish()
+                                            }
+                                        }
+                                    }
+                                },
+                                onCancel = { finish() },
+                            )
+                        }
                         }
                     }
                 }
             }
+        }
+    }
+
+    // singleTop redelivery: a launcher can hand a backgrounded, retained instance a
+    // configure intent for a DIFFERENT widget. Retarget in place: reset the result
+    // contract for the new id and let the observable appWidgetId rekey the load and the
+    // screen (discarding the old instance's selection). A same-id redelivery is a plain
+    // resume — the retained state is exactly right, so nothing is touched.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val newAppWidgetId = intent.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID,
+            AppWidgetManager.INVALID_APPWIDGET_ID,
+        )
+        if (newAppWidgetId != appWidgetId) {
+            setResult(
+                RESULT_CANCELED,
+                Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, newAppWidgetId),
+            )
+            appWidgetId = newAppWidgetId
         }
     }
 

@@ -156,6 +156,34 @@ class AnchorSurfaceRefreshSourceTest {
         )
     }
 
+    @Test
+    fun widgetConfigActivity_retargetsOnNewIntentForADifferentWidget() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt"
+        )
+        val onNewIntent = source.substringAfter("override fun onNewIntent")
+        assertTrue(
+            "A singleTop redelivery for a different widget must retarget the retained " +
+                "instance: without this, Save writes the new widget's anchor selection " +
+                "and RESULT_OK against the appWidgetId captured in the first onCreate.",
+            onNewIntent.contains("if (newAppWidgetId != appWidgetId)") &&
+                onNewIntent.contains("appWidgetId = newAppWidgetId") &&
+                onNewIntent.contains("RESULT_CANCELED"),
+        )
+        assertTrue(
+            "The retarget must discard the previous widget's UI state: the load rekeys " +
+                "on appWidgetId (dropping its stale value first, so the screen unmounts " +
+                "instead of seeding from the old widget's initialAnchorId) and the " +
+                "screen is wrapped in key(appWidgetId) so rememberSaveable cannot " +
+                "restore the old selection on remount.",
+            source.contains(
+                "produceState<LoadedConfigState?>(initialValue = null, appWidgetId)"
+            ) &&
+                source.contains("value = null") &&
+                source.contains("key(appWidgetId) {"),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }
