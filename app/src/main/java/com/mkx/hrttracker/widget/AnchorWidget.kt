@@ -58,11 +58,12 @@ import androidx.glance.appwidget.updateAll as glanceUpdateAll
 // comes from the shared widget appearance via HrtWidgetThemed.
 internal val ANCHOR_WIDGET_PREVIEW_SIZE = DpSize(306.dp, 138.dp)
 
-// Ceiling for the blocking tracked-dates load in provideGlance: long enough for a cold
-// SQLCipher open + first query in a widget-only process, short enough that a failed open
-// falls back to the snapshot well within Glance's render budget instead of hanging.
+// Ceiling for the blocking tracked-dates load in provideGlance (and the anchor config
+// window's seed): long enough for a cold SQLCipher open + first query in a widget-only
+// process, short enough that a failed open falls back to the snapshot well within
+// Glance's render budget instead of hanging.
 // ponytail: fixed knob; revisit if slow devices fall back to the snapshot on cold render.
-private const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
+internal const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
 
 // The anchor is one cell tall, so scale == 1.0 resolves against its own preview viewport
 // height rather than the dose widgets' 276dp reference.
@@ -507,6 +508,9 @@ internal suspend fun composeAnchorRemoteViews(
             ) {
                 AnchorWidgetContent(
                     displayText = buildAnchorWidgetDisplayText(LocalContext.current, anchor),
+                    // Forwarded so a background-pushed empty state taps to reconfigure THIS
+                    // instance (same as the session path) instead of the Milestones fallback.
+                    appWidgetId = appWidgetId,
                     backgroundFlag = backgroundFlag,
                 )
             }

@@ -141,10 +141,15 @@ class WidgetConfigActivity : AppCompatActivity() {
                         snapshot = runCatching { widgetSnapshotStore.readSnapshot() }
                             .getOrNull(),
                         anchors = if (configType == WidgetConfigType.ANCHOR) {
-                            // awaitTrackedDates: a reconfigure launched into a cold process
-                            // must not see the not-loaded window as an empty anchor list.
-                            runCatching { journalRepository.awaitTrackedDates() }
-                                .getOrDefault(emptyList())
+                            // Bounded await + snapshot fallback, same contract as the widget
+                            // render paths: a reconfigure launched into a cold process must
+                            // not see the not-loaded window as an empty anchor list, but a
+                            // persistently-broken database must not strand this window blank
+                            // forever (unbounded awaitTrackedDates suspends through the
+                            // error window). The live re-seed below corrects the list if
+                            // the database recovers while the window is up.
+                            journalRepository
+                                .awaitTrackedDatesOrSnapshot(ANCHOR_WIDGET_AWAIT_TIMEOUT_MS)
                         } else emptyList(),
                         initialAnchorId = if (configType == WidgetConfigType.ANCHOR) {
                             runCatching {
@@ -191,8 +196,9 @@ class WidgetConfigActivity : AppCompatActivity() {
                 // instance without recreating it — a one-shot list captured before the
                 // user added their first date would leave the picker on "No tracked dates
                 // yet." forever. Settings/appearance stay one-shot by design (see above);
-                // only the anchors may re-seed. The DB is already open here
-                // (awaitTrackedDates above), so this flow emits immediately.
+                // only the anchors may re-seed. On the normal path the DB is already open
+                // here (the bounded await above), so this flow emits immediately; after a
+                // timed-out seed it emits once the database recovers.
                 if (configType == WidgetConfigType.ANCHOR) {
                     journalRepository.observeLoadedTrackedDates().collect { dates ->
                         value = value?.copy(anchors = dates)

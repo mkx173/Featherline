@@ -212,7 +212,11 @@ internal fun WidgetConfigScreen(
         LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        configType, appWidgetId, snapshot, selectedAnchorId, selectedFlagName,
+        // anchors is a key (not just selectedAnchorId) because this producer's closure
+        // captures the RESOLVED selectedAnchor: the live anchor list can rename/delete
+        // the selected anchor without its id changing, and without a restart the running
+        // producer would keep rendering the stale capture even on appearance emissions.
+        configType, appWidgetId, snapshot, anchors, selectedAnchorId, selectedFlagName,
     ) {
         // Conflated live rendering: always render the LATEST control values, but never
         // queue more than one render. While a render is in flight, slider ticks only

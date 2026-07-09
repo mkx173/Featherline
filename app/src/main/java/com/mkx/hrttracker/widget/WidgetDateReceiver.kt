@@ -35,8 +35,16 @@ class WidgetDateReceiver : BroadcastReceiver() {
             diagnosticsLogger = diagnosticsLogger,
         )
         // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
-        entryPoint.homeSnapshotRepository()
-            .refreshHomeSnapshotIfNeeded(force = true)
+        // Guarded like the anchor refreshes below: a DataStore/database failure here must
+        // neither crash the process (this is the root coroutine) nor skip the anchor
+        // surface refreshes that follow.
+        runCatching {
+            entryPoint.homeSnapshotRepository()
+                .refreshHomeSnapshotIfNeeded(force = true)
+        }.onFailure {
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            diagnosticsLogger.warning(TAG, "home_snapshot_refresh_failed action=$action", it)
+        }
         // Anchor surfaces read the journal directly (not the dose snapshot), so the home
         // refresh above does not update them. Refresh them on the same immediate path so a
         // midnight / clock / timezone / reboot event updates them without a polling worker.

@@ -94,6 +94,68 @@ class AnchorSurfaceRefreshSourceTest {
         )
     }
 
+    @Test
+    fun widgetDateReceiver_guardsHomeRefreshIndependentlyOfAnchorRefreshes() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt"
+        )
+        assertTrue(
+            "The home snapshot refresh must be guarded like the anchor refreshes: an " +
+                "unguarded throw from this root coroutine crashes the process on every " +
+                "midnight/boot/timezone broadcast while the failure holds, and skips the " +
+                "anchor widget/shortcut refreshes behind it.",
+            source.contains("runCatching {") &&
+                source.substringAfter("runCatching {")
+                    .substringBefore("}").contains("refreshHomeSnapshotIfNeeded"),
+        )
+    }
+
+    @Test
+    fun composeAnchorRemoteViews_forwardsAppWidgetIdToContent() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidget.kt"
+        )
+        val body = source.substringAfter("internal suspend fun composeAnchorRemoteViews")
+        assertTrue(
+            "The background-push compose path must forward the real appWidgetId into " +
+                "AnchorWidgetContent: the default INVALID id makes a pushed empty state " +
+                "tap through to Milestones instead of reconfiguring the affected instance.",
+            body.substringAfter("AnchorWidgetContent(")
+                .contains("appWidgetId = appWidgetId"),
+        )
+    }
+
+    @Test
+    fun widgetConfigActivity_boundsTheAnchorSeedAwait() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt"
+        )
+        assertTrue(
+            "The config window's anchor seed must use the bounded await: the unbounded " +
+                "awaitTrackedDates suspends indefinitely through a persistent read-error " +
+                "window, stranding the whole config UI blank with no cancel path.",
+            source.contains("awaitTrackedDatesOrSnapshot(ANCHOR_WIDGET_AWAIT_TIMEOUT_MS)") &&
+                !source.contains("awaitTrackedDates()"),
+        )
+    }
+
+    @Test
+    fun widgetConfigScreen_rekeysPreviewOnLiveAnchorChanges() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt"
+        )
+        val keys = source
+            .substringAfter("produceState<WidgetConfigPreviewRender?>")
+            .substringBefore(") {")
+        assertTrue(
+            "The preview producer must key on the live anchor list, not just the " +
+                "selected id: it captures the resolved anchor in its closure, so a " +
+                "rename/delete with an unchanged id would keep rendering the stale " +
+                "capture even on later appearance emissions.",
+            keys.contains("anchors"),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }
