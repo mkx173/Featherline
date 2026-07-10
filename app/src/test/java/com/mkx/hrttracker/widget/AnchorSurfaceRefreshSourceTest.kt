@@ -284,14 +284,15 @@ class AnchorSurfaceRefreshSourceTest {
                 "recents relaunch redelivers the original intent's stale extras and must " +
                 "not.",
             source.contains("Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY") &&
-                source.contains("if (freshLaunch && !mainViewModel.launchIntentParsed)") &&
+                source.contains("if (parseLaunchIntent)") &&
                 source.contains("mainViewModel.launchIntentParsed = true"),
         )
         assertTrue(
-            "The milestones splash hold must share the freshLaunch gate: holding the " +
-                "splash for a deep link that will never be parsed keeps it on screen " +
-                "forever.",
-            source.contains("awaitingMilestonesEntry = freshLaunch &&"),
+            "The milestones splash hold must share the parse's exact gate: a hold " +
+                "without a parse waits on a navigation that never comes (stuck splash), " +
+                "and a parse without a hold releases the splash on the pre-navigation " +
+                "frame (restored-task deep links flash the old frame).",
+            source.contains("awaitingMilestonesEntry = parseLaunchIntent &&"),
         )
     }
 

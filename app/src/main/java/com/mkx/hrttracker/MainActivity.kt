@@ -166,28 +166,33 @@ class MainActivity : AppCompatActivity() {
         // Hilt-injected settingsRepository, which is only available once Hilt
         // has injected during super.onCreate().
         applyEdgeToEdgeSystemBars()
-        // A recents relaunch redelivers the task's ORIGINAL intent, whose stale widget
-        // extras must never deep-link again — including the cold recents relaunch of an
-        // expired task, where savedInstanceState is null.
-        val freshLaunch =
-            intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
-        // Cold start straight into Milestones (widget/shortcut): hold the splash until
-        // the NavHost has built the synthesized back stack (home → journal → milestones)
-        // and the milestones screen has settled, so neither the home frame nor the push
-        // transition is ever visible. Recreations restore the nav stack themselves.
-        // Gated on freshLaunch like the parse below — holding the splash for a deep link
-        // that will never be parsed would keep it on screen forever.
-        awaitingMilestonesEntry = freshLaunch && savedInstanceState == null &&
-                intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
         // Parse the launch intent once per delivered intent, not once per savedInstanceState
-        // == null. The ViewModel-lifetime marker skips the config-driven recreation (the
-        // surviving ViewModel already handled the retained extras; re-parsing would yank
-        // the user back to the deep link) but resets on process death, so a widget/shortcut
-        // tap that recreates a killed task — which lands HERE with a non-null
-        // savedInstanceState, because a dead instance can't receive onNewIntent — still
-        // navigates. A genuine re-tap while the instance is alive is delivered through
-        // onNewIntent, which still parses unconditionally.
-        if (freshLaunch && !mainViewModel.launchIntentParsed) {
+        // == null:
+        // - FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY: a recents relaunch redelivers the task's
+        //   ORIGINAL intent, whose stale widget extras must never deep-link again —
+        //   including the cold recents relaunch of an expired task, where
+        //   savedInstanceState is null.
+        // - The ViewModel-lifetime marker skips the config-driven recreation (the
+        //   surviving ViewModel already handled the retained extras; re-parsing would yank
+        //   the user back to the deep link) but resets on process death, so a
+        //   widget/shortcut tap that recreates a killed task — which lands HERE with a
+        //   non-null savedInstanceState, because a dead instance can't receive
+        //   onNewIntent — still navigates.
+        // A genuine re-tap while the instance is alive is delivered through onNewIntent,
+        // which still parses unconditionally.
+        val parseLaunchIntent = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&
+                !mainViewModel.launchIntentParsed
+        // Cold start straight into Milestones (widget/shortcut): hold the splash until the
+        // NavHost has built the back stack and the milestones screen has settled, so
+        // neither the pre-navigation frame nor the push transition is ever visible. The
+        // SAME condition as the parse — every launch that will deep-link holds the splash
+        // (including the process-death task recreation, whose restored frame would
+        // otherwise flash before the navigation), and no launch that won't parse can hold
+        // it forever. The settle callback is deep-link-driven with a timeout backstop, so
+        // a held splash is always released.
+        awaitingMilestonesEntry = parseLaunchIntent &&
+                intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
+        if (parseLaunchIntent) {
             parseWidgetHighlightIntent(intent)
         }
         mainViewModel.launchIntentParsed = true
