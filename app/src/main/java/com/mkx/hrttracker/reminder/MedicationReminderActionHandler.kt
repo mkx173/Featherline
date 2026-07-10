@@ -13,7 +13,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
@@ -366,12 +366,15 @@ internal fun buildMissingScheduledLogEntries(
     }
 
     val planSlot = slot.toMedicationGroupSlotKey()
+    // Count every record attached to the slot, in or out of its fulfillment window.
+    // A late (out-of-window) record doesn't count toward adherence, but it proves the
+    // dose was logged — writing another one on a repeated tap would double the record
+    // and deduct stock twice. Window-gated adherence stays in isSlotFulfilled.
     val slotLogs = entries.filter { entry ->
-        isEntryFulfillingPlanSlot(
+        isEntryForPlanSlot(
             group = group,
             slot = planSlot,
             entry = entry,
-            zoneId = zoneId,
         )
     }
     val requiredCounts = candidateMedications
