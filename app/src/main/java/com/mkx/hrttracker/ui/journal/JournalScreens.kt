@@ -9,12 +9,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,21 +25,22 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.animateFloatingActionButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -77,28 +78,31 @@ import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
-import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.SelectionFabScrollState
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
-import com.mkx.hrttracker.ui.components.MonthPickerDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.widget.AnchorShortcutManager
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.YearMonth
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 private const val JournalScreenListTestTag = "journal-screen-list"
 
@@ -355,6 +359,7 @@ fun JournalScreenContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MilestonesScreen(
     onNavigateBack: () -> Unit,
@@ -373,6 +378,8 @@ fun MilestonesScreen(
         isAddDateSheetOpen = false
         editingAnchor = null
     }
+
+    var isPinSheetOpen by remember { mutableStateOf(false) }
 
     // Arriving via the journal "Add a date" CTA opens the sheet straight away. The rememberSaveable
     // guard makes this a true one-shot: it won't reopen on configuration change or after the user
@@ -419,6 +426,7 @@ fun MilestonesScreen(
         onOpenHeroBackground = {
             heroBackgroundDialogTargetId = uiState.hero?.id
         },
+        onPinFolderIcon = { isPinSheetOpen = true },
         modifier = modifier,
     )
 
@@ -464,6 +472,20 @@ fun MilestonesScreen(
             },
             onDelete = activeEditingAnchor?.let { anchor ->
                 { viewModel.deleteDate(anchor.id) }
+            },
+        )
+    }
+
+    if (isPinSheetOpen) {
+        AnchorSelectorSheet(
+            title = stringResource(R.string.anchor_pin_folder_icon),
+            anchors = uiState.anchors,
+            today = uiState.today,
+            onDismissRequest = { isPinSheetOpen = false },
+            onSelect = { anchorId ->
+                uiState.anchors.firstOrNull { it.id == anchorId }?.let { anchor ->
+                    AnchorShortcutManager.pin(context, anchor)
+                }
             },
         )
     }
@@ -514,6 +536,7 @@ fun MilestonesScreenContent(
     onAddDate: () -> Unit,
     onUpdateDate: (AnchorRowUiState) -> Unit,
     onOpenHeroBackground: () -> Unit,
+    onPinFolderIcon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -552,6 +575,34 @@ fun MilestonesScreenContent(
                         modifier = Modifier.padding(end = 8.dp),
                         enabled = uiState.timeline.isNotEmpty(),
                     )
+                    // Pin-folder is the only overflow item, and pinning is a silent no-op on
+                    // launchers that don't support it, so hide the whole overflow when unsupported.
+                    val context = LocalContext.current
+                    val pinFolderSupported = remember { AnchorShortcutManager.isSupported(context) }
+                    if (pinFolderSupported) {
+                        var overflowExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { overflowExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(R.string.more_options),
+                                )
+                            }
+                            HrtDropdownMenu(
+                                expanded = overflowExpanded,
+                                onDismissRequest = { overflowExpanded = false },
+                                items = listOf(
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(R.string.anchor_pin_folder_icon),
+                                        onClick = {
+                                            overflowExpanded = false
+                                            onPinFolderIcon()
+                                        },
+                                    ),
+                                ),
+                            )
+                        }
+                    }
                 },
                 scrollBehavior = scrollBehavior,
             )
@@ -1159,6 +1210,7 @@ private fun MilestonesScreenContentPreview() {
             onAddDate = {},
             onUpdateDate = {},
             onOpenHeroBackground = {},
+            onPinFolderIcon = {},
         )
     }
 }

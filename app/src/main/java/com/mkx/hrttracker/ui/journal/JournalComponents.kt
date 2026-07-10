@@ -7,8 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.SizeTransform
@@ -61,7 +61,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -69,7 +68,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -104,15 +102,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -126,14 +123,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -160,36 +155,34 @@ import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
-import com.mkx.hrttracker.ui.components.LocalSegmentPosition
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
-import com.mkx.hrttracker.ui.components.StockStatusIndicator
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
+import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.isAppInDarkTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
-import sh.calvin.reorderable.ReorderableColumn
-import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableColumn
+import java.time.LocalDate
+import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
@@ -2082,84 +2075,108 @@ private fun TimelineMilestoneRow(
                     bottom = if (isLast) 0.dp else halfGap,
                 ),
         ) {
-            EditorSegmentedListItem(
-                index = segIndex,
-                count = segCount,
+            AnchorMilestoneCard(
+                node = node,
+                segIndex = segIndex,
+                segCount = segCount,
+                isEditMode = isEditMode,
+                today = today,
+                onSetPinned = onSetPinned,
+                onUpdateDate = onUpdateDate,
                 modifier = Modifier.fillMaxWidth(),
-                cornerShape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                // View mode: the whole row taps through to the date editor (the trailing
-                // chevron hints it). Edit mode: the whole row toggles this anchor's pin
-                // (the trailing pin icon reflects the resulting state).
-                onClick = if (isEditMode) {
-                    { onSetPinned(anchor.id, !node.isPinned) }
-                } else {
-                    { onUpdateDate(anchor) }
-                },
-                leadingContent = { AnchorIconChip(anchor = anchor) },
-                trailingContent = {
-                    // The day count stays put; the trailing slot flips between a chevron
-                    // (view mode — the row taps through to the editor) and a pin icon
-                    // (edit mode — the whole row toggles the pin), a coin-flip matching the
-                    // History app bar's FlipSlot. Both faces share a 24dp footprint so the
-                    // trailing width holds across the flip.
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val dayCountLabelText = anchor.dayCountLabel()
-                        Text(
-                            text = dayCountLabelText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (anchor.isOnToday()) {
-                                MaterialTheme.colorScheme.tertiary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            modifier = Modifier.cjkTextOffset(dayCountLabelText)
-                        )
-                        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-                        FlipSlot(
-                            flipped = isEditMode,
-                            front = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            },
-                            back = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(
-                                            if (node.isPinned) {
-                                                R.drawable.ic_keep
-                                            } else {
-                                                R.drawable.ic_keep_alt
-                                            },
-                                        ),
-                                        contentDescription = stringResource(
-                                            R.string.journal_pin_to_home_content_description,
-                                        ),
-                                        // The pin glyph reads heavier than the chevron, so it
-                                        // sits a touch smaller to balance the two flip faces.
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            },
-                        )
-                    }
-                },
-            ) {
-                AnchorSummaryText(anchor = anchor, today = today)
-            }
+            )
         }
+    }
+}
+
+@Composable
+internal fun AnchorMilestoneCard(
+    node: TimelineNodeUiState,
+    segIndex: Int,
+    segCount: Int,
+    isEditMode: Boolean,
+    today: LocalDate,
+    onSetPinned: (String, Boolean) -> Unit,
+    onUpdateDate: (AnchorRowUiState) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val anchor = node.anchor
+    EditorSegmentedListItem(
+        index = segIndex,
+        count = segCount,
+        modifier = modifier,
+        cornerShape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        // View mode: the whole row taps through to the date editor (the trailing
+        // chevron hints it). Edit mode: the whole row toggles this anchor's pin
+        // (the trailing pin icon reflects the resulting state).
+        onClick = if (isEditMode) {
+            { onSetPinned(anchor.id, !node.isPinned) }
+        } else {
+            { onUpdateDate(anchor) }
+        },
+        leadingContent = { AnchorIconChip(anchor = anchor) },
+        trailingContent = {
+            // The day count stays put; the trailing slot flips between a chevron
+            // (view mode — the row taps through to the editor) and a pin icon
+            // (edit mode — the whole row toggles the pin), a coin-flip matching the
+            // History app bar's FlipSlot. Both faces share a 24dp footprint so the
+            // trailing width holds across the flip.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val dayCountLabelText = anchor.dayCountLabel()
+                Text(
+                    text = dayCountLabelText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (anchor.isOnToday()) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.cjkTextOffset(dayCountLabelText)
+                )
+                Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
+                FlipSlot(
+                    flipped = isEditMode,
+                    front = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    },
+                    back = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    if (node.isPinned) {
+                                        R.drawable.ic_keep
+                                    } else {
+                                        R.drawable.ic_keep_alt
+                                    },
+                                ),
+                                contentDescription = stringResource(
+                                    R.string.journal_pin_to_home_content_description,
+                                ),
+                                // The pin glyph reads heavier than the chevron, so it
+                                // sits a touch smaller to balance the two flip faces.
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    },
+                )
+            }
+        },
+    ) {
+        AnchorSummaryText(anchor = anchor, today = today)
     }
 }
 

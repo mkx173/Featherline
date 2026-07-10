@@ -3,14 +3,14 @@ package com.mkx.hrttracker.ui.settings
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportFatalException
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
-import com.mkx.hrttracker.data.backup.BackupExportService
-import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
@@ -31,7 +31,6 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import java.io.ByteArrayInputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,6 +54,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayInputStream
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {

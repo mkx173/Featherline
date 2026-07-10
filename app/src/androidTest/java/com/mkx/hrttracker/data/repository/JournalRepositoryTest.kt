@@ -20,9 +20,9 @@ import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -75,6 +75,7 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
     }
@@ -133,6 +134,7 @@ class JournalRepositoryTest {
             databaseHolder = databaseHolder,
             clock = transactionClock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
 
@@ -655,6 +657,7 @@ class JournalRepositoryTest {
             databaseHolder = holder,
             clock = clock,
             homeSnapshotRepository = homeSnapshotRepository,
+            anchorSnapshotStore = mockk(relaxed = true),
             appScope = appScope,
         )
 

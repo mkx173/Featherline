@@ -21,6 +21,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.action.Action
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -163,6 +164,12 @@ internal fun RoundedBackgroundRow(
 internal fun WidgetShell(
     scale: Float,
     contentAlignment: Alignment = Alignment.TopStart,
+    // Whole-shell tap target. Defaults to opening the app (dose widgets); the anchor
+    // widget passes its own (open Milestones / reconfigure this instance).
+    onClick: Action? = null,
+    // Full-bleed layer under the padded content (the anchor widget's baked watermark).
+    // The shell's padding moves to an inner box so this can reach the card edges.
+    backdrop: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalWidgetColors.current
@@ -175,20 +182,27 @@ internal fun WidgetShell(
                     .background(colors.widgetBackground)
                     .cornerRadius(WidgetRoundedShape.Shell.radius)
                     .clickable(
-                        onClick = actionStartActivity<MainActivity>(),
+                        onClick = onClick ?: actionStartActivity<MainActivity>(),
                         rippleOverride = WidgetRoundedShape.Shell.rippleRes,
-                    )
-                    .padding(WidgetShellPadding),
+                    ),
                 contentAlignment = contentAlignment,
             ) {
-                content()
+                backdrop?.invoke()
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .padding(WidgetShellPadding),
+                    contentAlignment = contentAlignment,
+                ) {
+                    content()
+                }
             }
         } else {
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
                     .clickable(
-                        onClick = actionStartActivity<MainActivity>(),
+                        onClick = onClick ?: actionStartActivity<MainActivity>(),
                         rippleOverride = WidgetRoundedShape.Shell.rippleRes,
                     ),
                 contentAlignment = contentAlignment,
@@ -200,6 +214,7 @@ internal fun WidgetShell(
                         .fillMaxSize()
                         .appWidgetBackground(),
                 )
+                backdrop?.invoke()
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()

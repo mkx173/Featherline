@@ -429,7 +429,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 // restores the user's previous choice. Effective generation is
                 // derived at the consumers via canCreatePastScheduledSlotRecords,
                 // which requires includePastScheduledSlots.
-                it.copy(includePastScheduledSlots = includePastScheduledSlots)
+                it.withCreatePastScheduledSlotRecordsEnabledAt(
+                    includePastScheduledSlots = includePastScheduledSlots,
+                    createPastScheduledSlotRecords = it.createPastScheduledSlotRecords,
+                    enabledAt = currentMinute.value,
+                )
             }
         }
     }
@@ -439,7 +443,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (!it.canCreatePastScheduledSlotRecords) {
                 it
             } else {
-                it.copy(createPastScheduledSlotRecords = createPastScheduledSlotRecords)
+                it.withCreatePastScheduledSlotRecordsEnabledAt(
+                    includePastScheduledSlots = it.includePastScheduledSlots,
+                    createPastScheduledSlotRecords = createPastScheduledSlotRecords,
+                    enabledAt = currentMinute.value,
+                )
             }
         }
     }
@@ -963,12 +971,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
             resolvedDailyTimes = resolvedDailyTimes,
         )
         val recordGenerationNow = currentMinute.value
+        val recordGenerationCutoff = minOf(
+            recordGenerationNow,
+            currentState.createPastScheduledSlotRecordsEnabledAt ?: recordGenerationNow,
+        )
         val saveNow = appTimeSource.now()
         val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
                 currentState.createPastScheduledSlotRecords &&
                 hasPastScheduleOptionWindow(
                     uiState = currentState,
-                    referenceTime = recordGenerationNow,
+                    referenceTime = recordGenerationCutoff,
                 )
 
         viewModelScope.launch {
@@ -1073,7 +1085,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     val recordGenerationResult = if (shouldCreatePastRecords) {
                         savePastScheduledSlotRecords(
                             groupUuid = savedGroupUuid,
-                            now = recordGenerationNow,
+                            now = recordGenerationCutoff,
                         )
                     } else {
                         null
@@ -2215,6 +2227,7 @@ data class MedicationGroupEditorUiState(
     val isArchived: Boolean = false,
     val includePastScheduledSlots: Boolean = true,
     val createPastScheduledSlotRecords: Boolean = false,
+    val createPastScheduledSlotRecordsEnabledAt: LocalDateTime? = null,
     val isScheduleStartDateLocked: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val createPastScheduledSlotRecordsResult: CreatePastScheduledSlotRecordsResult? = null,
@@ -2281,6 +2294,24 @@ data class MedicationGroupEditorUiState(
     val canCreatePastScheduledSlotRecords: Boolean
         get() = includePastScheduledSlots &&
                 canEditBackfillOption
+}
+
+private fun MedicationGroupEditorUiState.withCreatePastScheduledSlotRecordsEnabledAt(
+    includePastScheduledSlots: Boolean,
+    createPastScheduledSlotRecords: Boolean,
+    enabledAt: LocalDateTime,
+): MedicationGroupEditorUiState {
+    val wasEffective = this.includePastScheduledSlots && this.createPastScheduledSlotRecords
+    val isEffective = includePastScheduledSlots && createPastScheduledSlotRecords
+    return copy(
+        includePastScheduledSlots = includePastScheduledSlots,
+        createPastScheduledSlotRecords = createPastScheduledSlotRecords,
+        createPastScheduledSlotRecordsEnabledAt = when {
+            !isEffective -> null
+            wasEffective -> createPastScheduledSlotRecordsEnabledAt ?: enabledAt
+            else -> enabledAt
+        },
+    )
 }
 
 data class ArchiveDateWindowUiState(

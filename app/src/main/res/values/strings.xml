@@ -14,6 +14,7 @@
     <string name="archived_medication_group">Archived group</string>
     <string name="main_today_title">Today</string>
     <string name="main_last_night_title">Last night</string>
+    <string name="main_coming_up_title">Tonight</string>
     <string name="main_tomorrow_title">Tomorrow</string>
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_summary_done_label">DONE</string>
@@ -209,13 +210,13 @@
     <string name="journal_milestones_section">Timeline</string>
     <string name="journal_notes_section">Notes</string>
     <string name="journal_notes_window_meta">Last 30 days</string>
-    <string name="journal_no_notes">No saved notes yet</string>
-    <string name="journal_no_earlier_notes">No earlier notes</string>
+    <string name="journal_no_notes">No saved notes yet.</string>
+    <string name="journal_no_earlier_notes">No earlier notes.</string>
     <string name="journal_delete_note">Delete note</string>
     <string name="journal_delete_note_title">Delete note</string>
     <string name="journal_delete_note_confirmation">Delete this note?</string>
     <string name="journal_since_you_started">Timeline</string>
-    <string name="journal_no_dates">No tracked dates yet</string>
+    <string name="journal_no_dates">No tracked dates yet.</string>
     <string name="journal_no_dates_welcome_title">Start your timeline</string>
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
@@ -638,6 +639,7 @@
     <string name="widget_config_seed_dynamic">Dynamic</string>
     <string name="widget_config_saturation">Saturation</string>
     <string name="widget_config_balance">Light balance</string>
+    <string name="widget_config_bg_gradient">Gradient</string>
     <string name="widget_config_preview_toggle">Toggle preview between light and dark</string>
     <string name="settings_display">Display</string>
     <string name="settings_hide_archived_group_records">Hide archived group records</string>
@@ -934,6 +936,25 @@
 
     <string name="widget_medium_description">Dose summary</string>
     <string name="widget_large_description">Dose list</string>
+    <string name="widget_anchor_description">Timeline</string>
+    <string name="anchor_widget_empty">Please select a date.</string>
+    <string name="anchor_widget_planned_for">Planned for %1$s</string>
+    <plurals name="anchor_widget_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <!-- Widget-picker preview sample data. The literals mirror what providePreview
+         computes from the fixed sample anchor (Jan 1 2026, 67 days in) for the
+         API 31-34 static previewLayout — keep them in sync. -->
+    <string name="anchor_widget_preview_name" translatable="false">HRT</string>
+    <string name="anchor_widget_preview_since">Since Jan 1, 2026</string>
+    <string name="anchor_widget_preview_days">67 days</string>
+    <string name="anchor_selector_empty_state">No tracked dates yet.</string>
+    <string name="anchor_config_row_title">Date</string>
+    <string name="anchor_config_choose">Select a date</string>
+    <string name="anchor_pin_folder_icon">Create shortcut</string>
+    <string name="more_options">More options</string>
+    <string name="anchor_selector_days">%1$d days</string>
     <string name="widget_all_done">All done</string>
     <string name="widget_all_logged">All logged</string>
     <string name="widget_nothing_more_today">Nothing more today</string>
@@ -1069,5 +1090,6 @@
     <string name="stock_disable_body">This will clear the current stock info.</string>
     <string name="stock_disable_confirm">Turn off</string>
     <string name="stock_cancel">Cancel</string>
+    <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
 </resources>

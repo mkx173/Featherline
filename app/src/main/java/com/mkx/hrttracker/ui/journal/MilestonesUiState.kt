@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Milestones
+import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.journal.dayCount
 import java.time.LocalDate
 
@@ -20,6 +21,10 @@ data class MilestonesUiState(
     val hero: AnchorRowUiState? = null,
     val heroNextMilestone: NextMilestoneUiState? = null,
     val pinnedTray: List<AnchorRowUiState> = emptyList(),
+    // The flat tracked-date list (post-pending-edits, sorted) the timeline is built from.
+    // Surfaced for the pin-folder selector and AnchorShortcutManager.pin, which need full
+    // TrackedDates (icon/palette/date), not the AnchorRowUiState the timeline carries.
+    val anchors: List<TrackedDate> = emptyList(),
     val timeline: List<TimelineNodeUiState> = emptyList(),
     val todayDividerIndex: Int = 0,
     val isEditMode: Boolean = false,

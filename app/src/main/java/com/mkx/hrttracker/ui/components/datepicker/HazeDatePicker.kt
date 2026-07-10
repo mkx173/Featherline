@@ -22,6 +22,19 @@ package com.mkx.hrttracker.ui.components.datepicker
  * (see the `ponytail:` comment there). Everything else is a verbatim copy.
  */
 
+// Public Material3 symbols referenced by simple name below
+// (ButtonDefaults, DatePickerColors, DatePickerDefaults, DatePickerFormatter,
+// DatePickerState, DisplayMode, DividerDefaults, HorizontalDivider, Icon,
+// IconButton, LocalContentColor, PlainTooltip, ProvideTextStyle, SelectableDates,
+// Surface, Text, TextButton, TooltipAnchorPosition, TooltipBox, TooltipDefaults,
+// rememberTooltipState) and the internal chain (BaseDatePickerStateImpl,
+// DateEntryContainer, DateInputContent, DisplayModeToggleButton, Month, WeekDays,
+// updateDisplayedMonth, numberOfMonthsInRange, createCalendarModel, getString,
+// Strings, Icons, CalendarModel, toLocalString, formatDatePickerNavigateToYearString,
+// DatePickerModeTogglePadding, DatePickerHorizontalPadding, MonthYearHeight,
+// RecommendedSizeForAccessibility, the token `.value`/`.value()` extensions, and the
+// DatePickerColors.year* member colors) all live in androidx.compose.material3 and
+// resolve through these wildcard imports + the @file:Suppress invisible-reference hack.
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -32,8 +45,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,17 +60,56 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.BaseDatePickerStateImpl
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DateEntryContainer
+import androidx.compose.material3.DateInputContent
+import androidx.compose.material3.DatePickerColors
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerFormatter
+import androidx.compose.material3.DatePickerHorizontalPadding
+import androidx.compose.material3.DatePickerModeTogglePadding
+import androidx.compose.material3.DatePickerState
+import androidx.compose.material3.DisplayMode
+import androidx.compose.material3.DisplayModeToggleButton
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Month
+import androidx.compose.material3.MonthYearHeight
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.RecommendedSizeForAccessibility
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.WeekDays
+import androidx.compose.material3.formatDatePickerNavigateToYearString
+import androidx.compose.material3.internal.CalendarModel
+import androidx.compose.material3.internal.Icons
+import androidx.compose.material3.internal.Strings
+import androidx.compose.material3.internal.createCalendarModel
+import androidx.compose.material3.internal.getString
+import androidx.compose.material3.numberOfMonthsInRange
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.material3.toLocalString
 import androidx.compose.material3.tokens.DatePickerModalTokens
 import androidx.compose.material3.tokens.MotionSchemeKeyTokens
+import androidx.compose.material3.updateDisplayedMonth
+import androidx.compose.material3.value
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +126,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusRequester.Companion.FocusRequesterFactory.component1
+import androidx.compose.ui.focus.FocusRequester.Companion.FocusRequesterFactory.component2
+import androidx.compose.ui.focus.FocusRequester.Companion.FocusRequesterFactory.component3
+import androidx.compose.ui.focus.FocusRequester.Companion.FocusRequesterFactory.component4
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -108,24 +164,8 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeEffect
-import kotlin.math.max
 import kotlinx.coroutines.launch
-
-// Public Material3 symbols referenced by simple name below
-// (ButtonDefaults, DatePickerColors, DatePickerDefaults, DatePickerFormatter,
-// DatePickerState, DisplayMode, DividerDefaults, HorizontalDivider, Icon,
-// IconButton, LocalContentColor, PlainTooltip, ProvideTextStyle, SelectableDates,
-// Surface, Text, TextButton, TooltipAnchorPosition, TooltipBox, TooltipDefaults,
-// rememberTooltipState) and the internal chain (BaseDatePickerStateImpl,
-// DateEntryContainer, DateInputContent, DisplayModeToggleButton, Month, WeekDays,
-// updateDisplayedMonth, numberOfMonthsInRange, createCalendarModel, getString,
-// Strings, Icons, CalendarModel, toLocalString, formatDatePickerNavigateToYearString,
-// DatePickerModeTogglePadding, DatePickerHorizontalPadding, MonthYearHeight,
-// RecommendedSizeForAccessibility, the token `.value`/`.value()` extensions, and the
-// DatePickerColors.year* member colors) all live in androidx.compose.material3 and
-// resolve through these wildcard imports + the @file:Suppress invisible-reference hack.
-import androidx.compose.material3.*
-import androidx.compose.material3.internal.*
+import kotlin.math.max
 
 /**
  * Haze-enabled fork of Material3's [androidx.compose.material3.DatePicker].

@@ -46,7 +46,9 @@ import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.repository.HomeInputSource
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
@@ -78,6 +80,7 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
 import java.util.Locale
@@ -128,11 +131,23 @@ class MainActivity : AppCompatActivity() {
     private val mainViewModel: MainViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
 
+    // True while a cold-start milestones deep link is waiting for its screen to settle;
+    // read by the splash keep-on-screen condition (polled per frame — a plain field
+    // suffices) and cleared by the NavHost's settle callback.
+    @Volatile
+    private var awaitingMilestonesEntry = false
+
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
     @Inject
     lateinit var startupPreloaderProvider: Provider<StartupPreloader>
+
+    @Inject
+    lateinit var databaseHolder: DatabaseHolder
+
+    @Inject
+    lateinit var journalRepository: JournalRepository
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
@@ -151,7 +166,36 @@ class MainActivity : AppCompatActivity() {
         // Hilt-injected settingsRepository, which is only available once Hilt
         // has injected during super.onCreate().
         applyEdgeToEdgeSystemBars()
-        parseWidgetHighlightIntent(intent)
+        // Parse the launch intent once per delivered intent, not once per savedInstanceState
+        // == null:
+        // - FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY: a recents relaunch redelivers the task's
+        //   ORIGINAL intent, whose stale widget extras must never deep-link again —
+        //   including the cold recents relaunch of an expired task, where
+        //   savedInstanceState is null.
+        // - The ViewModel-lifetime marker skips the config-driven recreation (the
+        //   surviving ViewModel already handled the retained extras; re-parsing would yank
+        //   the user back to the deep link) but resets on process death, so a
+        //   widget/shortcut tap that recreates a killed task — which lands HERE with a
+        //   non-null savedInstanceState, because a dead instance can't receive
+        //   onNewIntent — still navigates.
+        // A genuine re-tap while the instance is alive is delivered through onNewIntent,
+        // which still parses unconditionally.
+        val parseLaunchIntent = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&
+                !mainViewModel.launchIntentParsed
+        // Cold start straight into Milestones (widget/shortcut): hold the splash until the
+        // NavHost has built the back stack and the milestones screen has settled, so
+        // neither the pre-navigation frame nor the push transition is ever visible. The
+        // SAME condition as the parse — every launch that will deep-link holds the splash
+        // (including the process-death task recreation, whose restored frame would
+        // otherwise flash before the navigation), and no launch that won't parse can hold
+        // it forever. The settle callback is deep-link-driven with a timeout backstop, so
+        // a held splash is always released.
+        awaitingMilestonesEntry = parseLaunchIntent &&
+                intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
+        if (parseLaunchIntent) {
+            parseWidgetHighlightIntent(intent)
+        }
+        mainViewModel.launchIntentParsed = true
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
@@ -163,7 +207,8 @@ class MainActivity : AppCompatActivity() {
             val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
             !appLockState.isReady ||
                     !onboardingState.isLoaded ||
-                    (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
+                    (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady) ||
+                    (shouldWaitForHomeShell && awaitingMilestonesEntry)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
         settingsRepository.refreshAppLanguageOption()
@@ -237,6 +282,8 @@ class MainActivity : AppCompatActivity() {
                     val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
                     val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
                     val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
+                    val milestonesDeepLinkSignal by
+                        mainViewModel.milestonesDeepLinkSignal.collectAsStateWithLifecycle()
                     val context = LocalContext.current
                     val density = LocalDensity.current
                     val layoutDirection = LocalLayoutDirection.current
@@ -376,6 +423,12 @@ class MainActivity : AppCompatActivity() {
                                     HrtTrackerApp(
                                         navController = navController,
                                         homeDeepLinkSignal = homeDeepLinkSignal,
+                                        milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+                                        onConsumeMilestonesDeepLink =
+                                            mainViewModel::consumeMilestonesDeepLink,
+                                        onMilestonesDeepLinkSettled = {
+                                            awaitingMilestonesEntry = false
+                                        },
                                         highlightEffectsEnabled = highlightEffectsEnabled,
                                     )
                                 }
@@ -548,6 +601,17 @@ class MainActivity : AppCompatActivity() {
         val keys = parseDoseRowHighlightIntent(intent)
         if (keys.isNotEmpty()) {
             mainViewModel.requestDoseRowHighlight(keys)
+        }
+        if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)) {
+            // Milestones needs Room data to replace its snapshot seed, but the SQLCipher
+            // open is normally deferred until after the first home frame (StartupPreloader).
+            // Start it now so it runs in parallel with compose init instead of after it.
+            // Async and a no-op when the database is already open. The snapshot preload
+            // races the same window so the ViewModel's synchronous initialValue seed finds
+            // last-known anchors in memory and never composes the loading indicator.
+            journalRepository.preloadAnchorSnapshotSeed()
+            databaseHolder.warmUp()
+            mainViewModel.requestMilestonesDeepLink()
         }
     }
 

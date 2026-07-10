@@ -352,6 +352,74 @@ class MainViewModelTest {
         assertFalse(viewModel.claimHomeE2ChartIntroAnimation())
     }
 
+    // Bug: a process-death re-tap of the anchor widget/shortcut dropped the
+    // milestones deep link. The dedup marker lives in the ViewModel (not saved to
+    // instance state), so process death recreates the ViewModel with both the
+    // signal and its marker reset to 0 together — the re-tap's request (0 -> 1)
+    // clears the gate and navigates. A marker that outlived the signal would sit
+    // at the pre-death value and swallow this tap.
+    @Test
+    fun consumeMilestonesDeepLink_freshViewModelNavigatesReTap() = runTest {
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = LocalDateTime.of(2026, 4, 30, 9, 0))
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
+            defaultDispatcher = dispatcher,
+        )
+
+        viewModel.requestMilestonesDeepLink()
+        assertTrue(viewModel.consumeMilestonesDeepLink())
+    }
+
+    // Bug: after a config-change recreation (e.g. font-scale change) the surviving
+    // ViewModel keeps its signal, and the recreated NavHost effect re-consumes it.
+    // The retained signal must be consumed exactly once so navigation doesn't
+    // re-fire and yank the user back to milestones after they navigated away.
+    @Test
+    fun consumeMilestonesDeepLink_firesOnceThenBlocksRetainedSignal() = runTest {
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = LocalDateTime.of(2026, 4, 30, 9, 0))
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
+            defaultDispatcher = dispatcher,
+        )
+
+        viewModel.requestMilestonesDeepLink()
+        assertTrue(viewModel.consumeMilestonesDeepLink())
+        assertFalse(viewModel.consumeMilestonesDeepLink())
+    }
+
+    // Each genuine re-tap re-arms the gate: a second request after a prior consume
+    // navigates again.
+    @Test
+    fun consumeMilestonesDeepLink_reArmsForEachNewRequest() = runTest {
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = LocalDateTime.of(2026, 4, 30, 9, 0))
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
+            defaultDispatcher = dispatcher,
+        )
+
+        viewModel.requestMilestonesDeepLink()
+        assertTrue(viewModel.consumeMilestonesDeepLink())
+        assertFalse(viewModel.consumeMilestonesDeepLink())
+
+        viewModel.requestMilestonesDeepLink()
+        assertTrue(viewModel.consumeMilestonesDeepLink())
+    }
+
     @Test
     fun minuteTickWhileUiStateUnsubscribed_doesNotRebuildUiState() = runTest {
         val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)

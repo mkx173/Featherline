@@ -34,6 +34,7 @@ class BackupExclusionRulesTest {
         Exclusion("file", "datastore/settings.preferences_pb"),
         Exclusion("file", "datastore/home_snapshot.pb"),
         Exclusion("file", "datastore/widget_snapshot.pb"),
+        Exclusion("file", "datastore/anchor_snapshot.pb"),
         Exclusion("file", "datastore/home_snapshot_metadata.preferences_pb"),
         Exclusion("file", "datastore/reminder_schedule.preferences_pb"),
         Exclusion("file", "datastore/medication_reminder_snoozes.preferences_pb"),

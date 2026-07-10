@@ -38,16 +38,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withResumed
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
@@ -104,7 +103,9 @@ import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -433,6 +434,9 @@ private fun RoutedTopChromeHazeProvider(
 fun HrtTrackerNavHost(
     navController: NavHostController,
     homeDeepLinkSignal: Int = 0,
+    milestonesDeepLinkSignal: Int = 0,
+    onConsumeMilestonesDeepLink: () -> Boolean = { false },
+    onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -617,6 +621,48 @@ fun HrtTrackerNavHost(
                 )
             }
         }
+    }
+
+    LaunchedEffect(milestonesDeepLinkSignal) {
+        // The dedup marker lives in the ViewModel (consumeMilestonesDeepLink), not
+        // rememberSaveable here: it must share the signal's exact lifetime so a
+        // process-death re-tap navigates and a config-change recreation doesn't
+        // replay. See MainViewModel.lastHandledMilestonesSignal.
+        if (!onConsumeMilestonesDeepLink()) return@LaunchedEffect
+        // Read the destination live from the controller: the composition-captured
+        // currentRoute is still null when this effect fires on the cold-start first
+        // composition (currentBackStackEntryAsState hasn't delivered its first value),
+        // which would silently skip the journal synthesis below.
+        val liveRoute = navController.currentDestination?.route
+        // Avoid stacking duplicates if the user re-taps while already on the screen.
+        // The route is the registered *pattern* — it carries the query-arg template
+        // ("journal_milestones?top_level_parent={…}&open_add_date={…}"), so a
+        // `!= baseRoute` check never matches and the guard would be dead. Compare with
+        // startsWith against the bare baseRoute instead.
+        if (liveRoute?.startsWith(Screen.JournalMilestones.baseRoute) != true) {
+            // From the root home entry (the cold-start case), synthesize the parent
+            // chain — home → journal → milestones — so back walks down the hierarchy
+            // instead of jumping straight to home. At cold start all of this composes
+            // beneath the splash screen, which MainActivity holds until the settle
+            // callback below, so neither home nor the push transition is ever visible.
+            if (liveRoute == Screen.Main.route) {
+                navController.navigate(Screen.Journal.route)
+            }
+            navController.navigate(Screen.JournalMilestones.createRoute())
+        }
+        // Settled = the transition finished and milestones is the only visible entry;
+        // dismissing the splash on that frame shows real content, not a mid-flight
+        // animation. The timeout is insurance against a stuck splash if the
+        // transition never settles (e.g. navigation interrupted).
+        withTimeoutOrNull(MILESTONES_DEEP_LINK_SETTLE_TIMEOUT_MILLIS) {
+            navController.visibleEntries.first { entries ->
+                entries.size == 1 &&
+                        entries.last().destination.route
+                            ?.startsWith(Screen.JournalMilestones.baseRoute) == true
+            }
+            withFrameNanos { }
+        }
+        onMilestonesDeepLinkSettled()
     }
 
     LaunchedEffect(
@@ -1487,6 +1533,7 @@ internal val MedicationLogEntrySheetRequestSaver: Saver<MedicationLogEntrySheetR
     )
 
 private const val SAVED_REQUEST_ABSENT = "absent"
+private const val MILESTONES_DEEP_LINK_SETTLE_TIMEOUT_MILLIS = 2_000L
 
 private fun saveMedicationLogEntrySheetRequest(request: MedicationLogEntrySheetRequest): ArrayList<Any?> {
     return arrayListOf<Any?>(

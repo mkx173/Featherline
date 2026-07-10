@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -8,6 +9,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -18,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 interface WidgetEntryPoint {
     fun widgetSnapshotStore(): WidgetSnapshotStore
     fun homeSnapshotRepository(): HomeSnapshotRepository
+    fun journalRepository(): JournalRepository
     fun medicationGroupRepository(): MedicationGroupRepository
     fun medicationLogRepository(): MedicationLogRepository
     fun medicineStockRepository(): MedicineStockRepository
@@ -25,6 +28,7 @@ interface WidgetEntryPoint {
     fun widgetAppearanceRepository(): WidgetAppearanceRepository
     fun reminderNotificationManager(): ReminderNotificationManager
     fun diagnosticsLogger(): AppDiagnosticsLogger
+    fun appTimeSource(): AppTimeSource
 
     @AppScope
     fun appScope(): CoroutineScope

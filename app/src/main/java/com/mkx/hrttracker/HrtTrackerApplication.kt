@@ -46,6 +46,9 @@ class HrtTrackerApplication : Application() {
     lateinit var homeWidgetManager: HomeWidgetManager
 
     @Inject
+    lateinit var anchorWidgetManager: com.mkx.hrttracker.widget.AnchorWidgetManager
+
+    @Inject
     lateinit var appTimeSource: AppTimeSource
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -117,6 +120,8 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_app_time_source_refresh_attached")
         homeWidgetManager.start()
         diagnosticsLogger.info(TAG, "application_home_widget_manager_started")
+        anchorWidgetManager.start()
+        diagnosticsLogger.info(TAG, "application_anchor_widget_manager_started")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
     }
 

@@ -14,6 +14,9 @@ import com.mkx.hrttracker.util.medicineDisplayName
 fun HrtTrackerApp(
     navController: NavHostController,
     homeDeepLinkSignal: Int,
+    milestonesDeepLinkSignal: Int = 0,
+    onConsumeMilestonesDeepLink: () -> Boolean = { false },
+    onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean,
 ) {
     // The post-log stock snackbar is hosted inside HrtTrackerNavHost so it sits
@@ -21,6 +24,9 @@ fun HrtTrackerApp(
     HrtTrackerNavHost(
         navController = navController,
         homeDeepLinkSignal = homeDeepLinkSignal,
+        milestonesDeepLinkSignal = milestonesDeepLinkSignal,
+        onConsumeMilestonesDeepLink = onConsumeMilestonesDeepLink,
+        onMilestonesDeepLinkSettled = onMilestonesDeepLinkSettled,
         highlightEffectsEnabled = highlightEffectsEnabled,
     )
 }

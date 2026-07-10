@@ -17,20 +17,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.AlertDialog as MaterialAlertDialog
-import androidx.compose.material3.BasicAlertDialog as MaterialBasicAlertDialog
 import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar as MaterialCenterAlignedTopAppBar
 import androidx.compose.material3.DatePickerColors
 import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
-import androidx.compose.material3.TopAppBar as MaterialTopAppBar
 import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -68,7 +61,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
-import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazePositionStrategy
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
@@ -76,6 +68,13 @@ import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import androidx.compose.material3.AlertDialog as MaterialAlertDialog
+import androidx.compose.material3.BasicAlertDialog as MaterialBasicAlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar as MaterialCenterAlignedTopAppBar
+import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
+import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
+import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
+import androidx.compose.material3.TopAppBar as MaterialTopAppBar
 
 val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
 val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }

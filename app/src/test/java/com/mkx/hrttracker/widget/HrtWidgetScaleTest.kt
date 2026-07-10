@@ -96,6 +96,25 @@ class HrtWidgetScaleTest {
     }
 
     @Test
+    fun widgetBaselineScaleRatio_anchorResolvesAgainstItsOwnReference() {
+        // The anchor widget is one cell tall: scale 1.0 must mean its own 138dp preview
+        // viewport, not the dose widgets' 276dp reference — otherwise the anchor renders
+        // at half (or, via the fallback, double) its designed size.
+        assertEquals(1f, widgetBaselineScaleRatio(138f, referenceDp = 138f), 1e-6f)
+        assertEquals(115f / 138f, widgetBaselineScaleRatio(115f, referenceDp = 138f), 1e-6f)
+    }
+
+    @Test
+    fun resolveWidgetBaselineHeightDp_anchorFallbackIsItsOwnReference() {
+        // Options not yet reported: the anchor must fall back to ITS reference so the
+        // ratio is 1.0, not 276/138 = 2.0 (double-size text on the first frames).
+        val fallback = resolveWidgetBaselineHeightDp(
+            storedDp = 0f, currentHeightDp = 0f, referenceDp = 138f,
+        )
+        assertEquals(1f, widgetBaselineScaleRatio(fallback, referenceDp = 138f), 1e-6f)
+    }
+
+    @Test
     fun widgetScale_fallsBackToUnitScaleWhenPortraitHeightUnavailable() {
         // End-to-end of the fallback: an unavailable/oversized portrait height resolves to the
         // reference, whose baseline ratio is exactly 1.0 — so an unscalable cell renders at the

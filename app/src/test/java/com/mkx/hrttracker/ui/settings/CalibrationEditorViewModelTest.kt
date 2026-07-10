@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
@@ -26,7 +27,6 @@ import com.mkx.hrttracker.ui.calibration.CalibrationSaveEntryResult
 import com.mkx.hrttracker.ui.calibration.calibrationAddAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.calibrationAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.canSaveCalibrationEditorState
-import androidx.lifecycle.viewModelScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -34,8 +34,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -242,8 +242,9 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
 
         val uiState = viewModel.uiState.value
+        val panelZoneId = ZoneId.of("Asia/Tokyo")
         val expectedCollectedDateTime = Instant.parse("2026-04-24T00:30:00Z")
-            .atZone(ZoneId.systemDefault())
+            .atZone(panelZoneId)
             .toLocalDateTime()
         assertTrue(uiState.isEditing)
         assertFalse(uiState.isLoading)
@@ -252,6 +253,7 @@ class CalibrationEditorViewModelTest {
             expectedCollectedDateTime.toLocalTime().withSecond(0).withNano(0),
             uiState.collectedTime
         )
+        assertEquals(panelZoneId, uiState.collectedZoneId)
         assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),

@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.model.journal
 
+import com.mkx.hrttracker.model.journal.AnchorIcon.Companion.DEFAULT
+
+
 /**
  * Curated, stable icon keys for anchors (spec §3.1). The string [storageKey] is what
  * persists in Room and backups; unknown keys resolve to [DEFAULT] = EVENT so a

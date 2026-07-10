@@ -14,6 +14,7 @@
     <string name="archived_medication_group">已归档的分组</string>
     <string name="main_today_title">今天</string>
     <string name="main_last_night_title">昨晚</string>
+    <string name="main_coming_up_title">今晚</string>
     <string name="main_tomorrow_title">明天</string>
     <string name="main_upcoming_title">即将到来</string>
     <string name="main_today_summary_done_label">已完成</string>
@@ -611,6 +612,7 @@
     <string name="widget_config_seed_dynamic">动态</string>
     <string name="widget_config_saturation">饱和度</string>
     <string name="widget_config_balance">明暗平衡</string>
+    <string name="widget_config_bg_gradient">渐变</string>
     <string name="widget_config_preview_toggle">切换预览明暗</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
@@ -887,6 +889,20 @@
     <string name="select_time">选择时间</string>
     <string name="widget_medium_description">剂量概览</string>
     <string name="widget_large_description">剂量列表</string>
+    <string name="widget_anchor_description">时间线</string>
+    <string name="anchor_widget_empty">请选择一个日期</string>
+    <string name="anchor_widget_planned_for">计划于 %1$s</string>
+    <plurals name="anchor_widget_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <string name="anchor_widget_preview_since">开始于 2026年1月1日</string>
+    <string name="anchor_widget_preview_days">67 天</string>
+    <string name="anchor_selector_empty_state">暂无追踪的日期</string>
+    <string name="anchor_config_row_title">日期</string>
+    <string name="anchor_config_choose">选择日期</string>
+    <string name="anchor_pin_folder_icon">创建快捷方式</string>
+    <string name="more_options">更多选项</string>
+    <string name="anchor_selector_days">%1$d 天</string>
     <string name="widget_all_done">全部完成</string>
     <string name="widget_all_logged">已全部记录</string>
     <string name="widget_nothing_more_today">没有更多计划</string>
@@ -1000,5 +1016,6 @@
     <string name="stock_disable_body">这会清除库存信息</string>
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
+    <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
 </resources>

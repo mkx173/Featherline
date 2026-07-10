@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.model.journal
 
+import com.mkx.hrttracker.model.journal.PrideFlag.Companion.fromStorageValueOrNull
+
+
 /**
  * A pride flag a journal anchor can wear as its hero background. Persisted by [name] through
  * [HeroBackground.Flag]. Unknown or forward-compatible stored names decode to null via

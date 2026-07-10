@@ -172,6 +172,43 @@ class MainViewModel @Inject constructor(
     private val _homeDeepLinkSignal = MutableStateFlow(0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
 
+    private val _milestonesDeepLinkSignal = MutableStateFlow(0)
+    val milestonesDeepLinkSignal: StateFlow<Int> = _milestonesDeepLinkSignal.asStateFlow()
+
+    // Dedup marker for the milestones deep link. Deliberately a ViewModel field
+    // rather than NavHost rememberSaveable state so it shares the signal's exact
+    // lifetime: both reset to 0 on process death, both survive a config-change
+    // recreation together. A marker saved to instance state would outlive the
+    // signal — a process-death re-tap would restore lastHandled ahead of the
+    // fresh 0-based signal and silently drop the deep link, and a font-scale (or
+    // any non-configChanges) recreation would replay the retained intent.
+    private var lastHandledMilestonesSignal = 0
+
+    // True once an onCreate has parsed its launch intent. ViewModel-lifetime on purpose
+    // (same rationale as lastHandledMilestonesSignal): survives a config recreation, so
+    // the retained intent's widget extras are not replayed and cannot yank the user back
+    // to a deep link they navigated away from — but resets on process death, so a widget
+    // or shortcut tap that recreates a killed task (which lands in onCreate with a
+    // non-null savedInstanceState, because a dead instance can never receive onNewIntent)
+    // still parses the fresh intent and navigates.
+    var launchIntentParsed = false
+
+    fun requestMilestonesDeepLink() {
+        _milestonesDeepLinkSignal.update { it + 1 }
+    }
+
+    // Fires the milestones navigation once per request: returns true for the
+    // first observer of each new signal value and marks it handled; later calls
+    // for the same (or an already-superseded) signal return false.
+    fun consumeMilestonesDeepLink(): Boolean {
+        val signal = _milestonesDeepLinkSignal.value
+        if (signal <= lastHandledMilestonesSignal) {
+            return false
+        }
+        lastHandledMilestonesSignal = signal
+        return true
+    }
+
     fun requestDoseRowHighlight(keys: List<DoseRowHighlightKey>) {
         if (keys.isEmpty()) {
             return
@@ -375,6 +412,14 @@ class MainViewModel @Inject constructor(
                 unloggedArchivedSlotCutoff = now,
             ),
             lastNightSection = buildMainLastNightSection(
+                groups = scheduleGroups,
+                entries = visibleEntries,
+                now = now,
+                zoneId = zoneId,
+                includeUnloggedArchivedSlots = false,
+                unloggedArchivedSlotCutoff = now,
+            ),
+            comingUpSection = buildMainComingUpSection(
                 groups = scheduleGroups,
                 entries = visibleEntries,
                 now = now,

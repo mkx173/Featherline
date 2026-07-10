@@ -48,14 +48,18 @@ class MilestonesViewModel @Inject constructor(
     // uiState is built from. reconcilePendingAgainstSource() reconciles against this
     // (not the repository's separate warm cache, which can lag or be null and so miss
     // a pin-set change the screen already saw). Main-confined: written in onEach and
-    // read from the post-write continuation, both on viewModelScope.
+    // read by the combine transform and the post-write continuation, all on
+    // viewModelScope.
     private var latestTrackedDates: List<TrackedDate>? = null
 
     // The date-derived state (sort, pinned set, timeline nodes, hero). Kept separate from
     // editMode so that toggling edit mode — a pure UI flag — doesn't re-sort and rebuild the
     // whole node list; only a real dates/today/pendingEdits change recomputes this.
     private val core = combine(
-        journalRepository.observeTrackedDates()
+        // The snapshot-seeded flow renders last-known anchors at cold start before the
+        // database opens, and never emits the raw flow's fake empty list from the
+        // not-loaded window (which flashed a false "empty journal" frame).
+        journalRepository.observeTrackedDatesWithSnapshotSeed()
             .onEach { all ->
                 latestTrackedDates = all
                 pendingEdits.update { reconcilePendingEdits(it, all) }
@@ -63,7 +67,14 @@ class MilestonesViewModel @Inject constructor(
         todayFlow,
         pendingEdits,
     ) { all, today, pending ->
-        buildUiState(all, today, pending)
+        // combine gives no ordering guarantee between its inputs: when onEach above
+        // retires a pending edit, the cleared pendingEdits can reach this transform
+        // before the source list that justified the clearing, building one frame from
+        // (stale list, no overlay) — the pre-edit state (the hero-watermark blink).
+        // latestTrackedDates and pendingEdits are only ever updated together (both
+        // main-confined), so building from latestTrackedDates keeps the pair
+        // consistent; `all` then just drives collection and first-emission gating.
+        buildUiState(latestTrackedDates ?: all, today, pending)
     }
 
     val uiState: StateFlow<MilestonesUiState> = combine(core, editMode, dateMutationError) { state, isEdit, error ->
@@ -80,7 +91,11 @@ class MilestonesViewModel @Inject constructor(
     )
 
     private fun seedUiState(today: LocalDate): MilestonesUiState {
+        // Warm cache first (live truth), then the deep-link-preloaded anchor snapshot: at
+        // cold start the cache is null, and without the snapshot fallback the loading
+        // indicator composes for the frames until the async seeded flow lands.
         val cached = journalRepository.getCachedTrackedDates()
+            ?: journalRepository.getPreloadedAnchorSnapshot()
             ?: return MilestonesUiState(today = today)
         return buildUiState(cached, today, PendingEdits())
     }
@@ -110,6 +125,7 @@ class MilestonesViewModel @Inject constructor(
             hero = heroRow,
             heroNextMilestone = hero?.let { nextMilestoneUiState(it.date, today) },
             pinnedTray = pinned.map { it.toAnchorRowUiState(today) },
+            anchors = sorted,
             timeline = sorted.map {
                 TimelineNodeUiState(
                     anchor = it.toAnchorRowUiState(today),

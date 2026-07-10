@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
@@ -133,6 +134,53 @@ class MainContentComponentsTest {
         // closest to the viewport center (the later evening match sits below it).
         assertEquals(
             mainTodayDoseRowCompositionKey(morningRow),
+            mainDoseRowHighlightScrollTargetKey(uiState, request),
+        )
+    }
+
+    @Test
+    fun mainDoseRowHighlightScrollTargetKey_prefersComingUpRowBeforeUpcomingPreview() {
+        val groupUuid = UUID.fromString("77777777-7777-7777-7777-777777777777")
+        val slotUuid = UUID.fromString("88888888-8888-8888-8888-888888888888")
+        val medicationUuid = UUID.fromString("99999999-9999-9999-9999-999999999999")
+        val scheduledAt = LocalDateTime.of(2026, 5, 21, 0, 30)
+        val comingUpRow = scheduledTodayRow(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = slotUuid,
+            scheduledAt = scheduledAt,
+            medicationUuid = medicationUuid,
+        )
+        val upcomingRow = MainUpcomingDoseRowUiState(
+            groupUuid = groupUuid,
+            groupName = "Test",
+            groupColorKey = MedicationGroupColorKey.PLUM,
+            scheduleTimeUuid = slotUuid,
+            scheduledAt = scheduledAt,
+            medication = comingUpRow.medication,
+        )
+        val request = DoseRowHighlightRequest(
+            listOf(
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid = groupUuid,
+                    scheduleTimeUuid = slotUuid,
+                    scheduledAt = scheduledAt,
+                    medicationUuid = medicationUuid,
+                )
+            )
+        )
+        val uiState = MainUiState(
+            now = LocalDateTime.of(2026, 5, 20, 23, 55),
+            comingUpSection = MainComingUpSectionUiState(
+                date = scheduledAt.toLocalDate(),
+                rows = listOf(comingUpRow),
+            ),
+            upcomingSection = MainUpcomingSectionUiState(
+                rows = listOf(upcomingRow),
+            ),
+        )
+
+        assertEquals(
+            mainTodayDoseRowCompositionKey(comingUpRow),
             mainDoseRowHighlightScrollTargetKey(uiState, request),
         )
     }

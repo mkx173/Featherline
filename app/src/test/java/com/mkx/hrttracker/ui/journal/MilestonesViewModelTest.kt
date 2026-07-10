@@ -15,7 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -50,6 +52,7 @@ class MilestonesViewModelTest {
         // Default to a cold warm-cache so the initial state seeds the loading placeholder;
         // tests exercising the seed override this.
         every { repository.getCachedTrackedDates() } returns null
+        every { repository.getPreloadedAnchorSnapshot() } returns null
     }
 
     @After
@@ -125,6 +128,33 @@ class MilestonesViewModelTest {
         assertEquals("On estradiol", initial.hero?.name)
         assertEquals(listOf("On estradiol", "Surgery"), initial.timeline.map { it.anchor.name })
         assertEquals(1, initial.todayDividerIndex)
+    }
+
+    // Cold-start deep link: the warm cache is null (database not open), but MainActivity
+    // preloaded the persisted anchor snapshot into memory. The synchronous initialValue
+    // seed must fall back to it so the loading indicator never composes — the async
+    // seeded-flow emission alone still left a loading frame on screen.
+    @Test
+    fun uiState_seedsFromPreloadedSnapshot_whenWarmCacheIsCold() = runTest {
+        val estradiol = trackedDate(
+            id = "estradiol",
+            name = "On estradiol",
+            icon = AnchorIcon.MEDICATION,
+            date = LocalDate.of(2024, 4, 1),
+            palette = MedicationGroupColorKey.ROSE,
+            pinnedOrder = 0,
+        )
+        stubTrackedDates(all = listOf(estradiol), pinned = listOf(estradiol))
+        every { repository.getCachedTrackedDates() } returns null
+        every { repository.getPreloadedAnchorSnapshot() } returns listOf(estradiol)
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+
+        // Read the initial value before the cold combine advances: it must already be loaded.
+        val initial = viewModel.uiState.value
+        assertFalse(initial.isLoading)
+        assertEquals("On estradiol", initial.hero?.name)
+        assertEquals(listOf("On estradiol"), initial.timeline.map { it.anchor.name })
     }
 
     @Test
@@ -404,7 +434,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -429,7 +459,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -456,7 +486,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } returns Unit
 
@@ -484,7 +514,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } returns Unit
 
@@ -500,6 +530,51 @@ class MilestonesViewModelTest {
         dates.value = listOf(hero.copy(heroBackground = HeroBackground.DateColor))
         advanceUntilIdle()
         assertEquals(HeroBackground.DateColor, viewModel.uiState.value.hero?.heroBackground)
+    }
+
+    // The overlay retires inside the source flow's onEach, but combine gives no ordering
+    // guarantee between its inputs: the cleared pendingEdits can reach the transform
+    // before the source list that justified the clearing, building one frame from
+    // (old list, no overlay) — the pre-edit icon. That frame is what blinked the hero
+    // watermark on the Milestones page. The state must never regress to the pre-edit
+    // value while the write's emission catches up.
+    @Test
+    fun updateDate_heroIconNeverRegressesWhileSourceCatchesUp() = runTest {
+        val hero = trackedDate(
+            id = "a", name = "Anchor A", icon = AnchorIcon.FLAG,
+            date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
+        )
+        val dates = MutableStateFlow(listOf(hero))
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
+        every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
+        coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
+
+        val viewModel = MilestonesViewModel(repository, appTimeSource)
+        advanceUntilIdle()
+
+        val icons = mutableListOf<AnchorIcon?>()
+        val collector = launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { icons += it.hero?.icon }
+        }
+
+        viewModel.updateDate(
+            id = "a",
+            name = "Anchor A",
+            icon = AnchorIcon.WATER_DROPS.storageKey,
+            date = LocalDate.of(2024, 4, 1),
+            paletteKey = null,
+        )
+        advanceUntilIdle()
+        // The write lands: the source catches up and the overlay retires.
+        dates.value = listOf(hero.copy(icon = AnchorIcon.WATER_DROPS))
+        advanceUntilIdle()
+        collector.cancel()
+
+        val afterEdit = icons.dropWhile { it != AnchorIcon.WATER_DROPS }
+        assertTrue(
+            "hero icon regressed after the edit: $icons",
+            afterEdit.isNotEmpty() && afterEdit.all { it == AnchorIcon.WATER_DROPS },
+        )
     }
 
     // A reorder can be rejected by the repository (the pinned set changed underneath,
@@ -521,7 +596,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 6, 1), pinnedOrder = 2,
         )
         val dates = MutableStateFlow(listOf(a, b, c))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b, c))
         // The repository's separate warm cache lags the screen's observed flow — here it
         // never advances past the original {a,b,c}. Reconciliation must use the observed
@@ -561,7 +636,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
         coEvery { repository.setPinned(any(), any()) } returns Unit
 
@@ -586,7 +661,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a))
         coEvery { repository.setPinned(any(), any()) } returns Unit
 
@@ -619,7 +694,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
 
@@ -652,7 +727,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } returns Unit
 
@@ -689,7 +764,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = null,
         )
         val dates = MutableStateFlow(listOf(a))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(emptyList())
         coEvery { repository.setPinned(any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -715,7 +790,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 5, 1), pinnedOrder = 1,
         )
         val dates = MutableStateFlow(listOf(a, b))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(a, b))
         coEvery { repository.reorderPinned(any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -736,7 +811,7 @@ class MilestonesViewModelTest {
             date = LocalDate.of(2024, 4, 1), pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(hero))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(hero))
         coEvery { repository.setHeroBackground(any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -758,7 +833,7 @@ class MilestonesViewModelTest {
             pinnedOrder = 0,
         )
         val dates = MutableStateFlow(listOf(original))
-        every { repository.observeTrackedDates() } returns dates
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns dates
         every { repository.observePinnedTrackedDates() } returns flowOf(listOf(original))
         coEvery { repository.updateTrackedDate(any(), any(), any(), any(), any()) } throws IOException("io")
         val viewModel = MilestonesViewModel(repository, appTimeSource)
@@ -811,7 +886,7 @@ class MilestonesViewModelTest {
         all: List<TrackedDate> = emptyList(),
         pinned: List<TrackedDate> = emptyList(),
     ) {
-        every { repository.observeTrackedDates() } returns flowOf(all)
+        every { repository.observeTrackedDatesWithSnapshotSeed() } returns flowOf(all)
         every { repository.observePinnedTrackedDates() } returns flowOf(pinned)
     }
 

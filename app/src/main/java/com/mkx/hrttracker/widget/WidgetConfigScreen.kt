@@ -8,17 +8,21 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,8 +35,12 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -40,6 +48,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -54,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.BlendMode
@@ -73,19 +83,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isFinite
 import androidx.compose.ui.viewinterop.AndroidView
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
-import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
+import com.mkx.hrttracker.ui.journal.FlagSwatch
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
+import com.mkx.hrttracker.ui.journal.NoneSwatch
 import com.mkx.hrttracker.ui.settings.labelRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.CancellationException
@@ -98,15 +113,27 @@ import kotlin.math.roundToInt
 // supplied by windowShowWallpaper in Theme.HrtTracker.WidgetConfig — with the live
 // widget preview centered in it, and the appearance controls as HrtSection rows below.
 // Deliberately does NOT reuse the in-app WidgetAppearanceDialog.
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun WidgetConfigScreen(
     initialAppearance: WidgetAppearance,
-    isMediumWidget: Boolean,
+    configType: WidgetConfigType,
     appWidgetId: Int,
     snapshot: WidgetSnapshotRecord?,
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate> = emptyList(),
+    initialAnchorId: String? = null,
+    initialBackgroundFlag: PrideFlag? = null,
+    today: java.time.LocalDate = java.time.LocalDate.now(),
+    onSaveAnchor: (
+        appearance: WidgetAppearance,
+        anchorId: String,
+        backgroundFlag: PrideFlag?,
+    ) -> Unit = { _, _, _ -> },
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
+    val isMediumWidget = configType == WidgetConfigType.MEDIUM
     val sanitizedInitial = remember(initialAppearance) { initialAppearance.sanitized() }
     var seedHue by rememberSaveable { mutableStateOf(sanitizedInitial.seedHue) }
     var saturation by rememberSaveable {
@@ -138,6 +165,23 @@ internal fun WidgetConfigScreen(
     }
     var previewDark by rememberSaveable { mutableStateOf(initialSystemDark) }
 
+    // ANCHOR mode only: the per-instance anchor selection (null until chosen — Save stays
+    // disabled meanwhile) plus the picker-sheet plumbing. Inert/unused in MEDIUM/LARGE.
+    var selectedAnchorId by rememberSaveable { mutableStateOf(initialAnchorId) }
+    var isAnchorSheetOpen by rememberSaveable { mutableStateOf(false) }
+    // A persisted id can be DANGLING — its anchor was deleted in-app after the widget was
+    // configured — in which case this resolves to null: the selector row shows no
+    // selection AND Save stays disabled (below), so a stale id can never be rewritten to
+    // leave the widget stuck on its empty state.
+    val selectedAnchor = resolveSelectedAnchor(anchors, selectedAnchorId)
+    // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
+    // seeded card; null = plain card. Stored by name so rememberSaveable can persist it.
+    var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
+    val selectedFlag = selectedFlagName?.let { n -> PrideFlag.entries.firstOrNull { it.name == n } }
+    // Fold state for the gradient swatch grid; collapsed by default so the common case
+    // (no gradient) stays one row tall.
+    var isGradientExpanded by rememberSaveable { mutableStateOf(false) }
+
     val liveAppearance = WidgetAppearance(
         seedHue = seedHue,
         saturation = saturation,
@@ -151,8 +195,12 @@ internal fun WidgetConfigScreen(
     // Resolved through the same path the render itself uses, so the wallpaper window
     // can reserve the preview's final footprint on the first frame — before the first
     // async render lands — without the two sizes ever diverging.
-    val previewPlaceholderSizeDp = remember(isMediumWidget, appWidgetId) {
-        widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
+    val previewPlaceholderSizeDp = remember(configType, appWidgetId) {
+        if (configType == WidgetConfigType.ANCHOR) {
+            anchorWidgetPreviewSizeDp(context, appWidgetId)
+        } else {
+            widgetPreviewSizeDp(context, isMediumWidget, appWidgetId)
+        }
     }
     // A very tall widget (e.g. a large instance on a tall layout) would otherwise scale the
     // preview up until it crowds the controls out. Cap the window so it never exceeds a
@@ -161,7 +209,11 @@ internal fun WidgetConfigScreen(
         LocalConfiguration.current.screenHeightDp.dp * PREVIEW_MAX_HEIGHT_FRACTION
     val previewRender by produceState<WidgetConfigPreviewRender?>(
         initialValue = null,
-        isMediumWidget, appWidgetId, snapshot,
+        // anchors is a key (not just selectedAnchorId) because this producer's closure
+        // captures the RESOLVED selectedAnchor: the live anchor list can rename/delete
+        // the selected anchor without its id changing, and without a restart the running
+        // producer would keep rendering the stale capture even on appearance emissions.
+        configType, appWidgetId, snapshot, anchors, selectedAnchorId, selectedFlagName,
     ) {
         // Conflated live rendering: always render the LATEST control values, but never
         // queue more than one render. While a render is in flight, slider ticks only
@@ -191,13 +243,23 @@ internal fun WidgetConfigScreen(
             .conflate()
             .collect { appearance ->
                 value = try {
-                    composeWidgetPreviewRemoteViews(
-                        context = context.applicationContext,
-                        isMedium = isMediumWidget,
-                        appearance = appearance,
-                        snapshot = snapshot,
-                        appWidgetId = appWidgetId,
-                    )
+                    if (configType == WidgetConfigType.ANCHOR) {
+                        composeAnchorRemoteViews(
+                            context = context.applicationContext,
+                            appearance = appearance,
+                            anchor = selectedAnchor,
+                            backgroundFlag = selectedFlag,
+                            appWidgetId = appWidgetId,
+                        )
+                    } else {
+                        composeWidgetPreviewRemoteViews(
+                            context = context.applicationContext,
+                            isMedium = isMediumWidget,
+                            appearance = appearance,
+                            snapshot = snapshot,
+                            appWidgetId = appWidgetId,
+                        )
+                    }
                 } catch (cancellation: CancellationException) {
                     throw cancellation
                 } catch (_: Exception) {
@@ -310,6 +372,107 @@ internal fun WidgetConfigScreen(
                             .weight(1f)
                             .verticalScroll(rememberScrollState()),
                     ) {
+                        if (configType == WidgetConfigType.ANCHOR) {
+                            HrtSection(title = null) {
+                                item {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.widget_config_bg_gradient,
+                                        ),
+                                        onClick = {
+                                            isGradientExpanded = !isGradientExpanded
+                                        },
+                                        leadingContent = {
+                                            RowLeadingIcon(
+                                                painterResource(R.drawable.ic_format_paint),
+                                                size = 24.dp,
+                                            )
+                                        },
+                                        trailingContent = {
+                                            // Same rotating chevron as MainLowStockSection's
+                                            // expandable header.
+                                            val chevronRotation = animateFloatAsState(
+                                                targetValue = if (isGradientExpanded) {
+                                                    180f
+                                                } else {
+                                                    0f
+                                                },
+                                                label = "GradientExpandChevronRotation",
+                                            ).value
+                                            Row(
+                                                verticalAlignment =
+                                                    Alignment.CenterVertically,
+                                                horizontalArrangement =
+                                                    Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                GradientSelectionSwatch(selectedFlag)
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ExpandMore,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme
+                                                        .onSurfaceVariant,
+                                                    modifier = Modifier.graphicsLayer {
+                                                        rotationZ = chevronRotation
+                                                    },
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+                                animatedItem(visible = isGradientExpanded) {
+                                    // None + 9 flags = 10 swatches → a centred 2×5 grid.
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                                    ) {
+                                        FlowRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 16.dp)
+                                                .selectableGroup(),
+                                            maxItemsInEachRow = 5,
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                12.dp,
+                                                Alignment.CenterHorizontally,
+                                            ),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        ) {
+                                            NoneSwatch(
+                                                selected = selectedFlag == null,
+                                                onClick = { selectedFlagName = null },
+                                            )
+                                            PrideFlag.entries.forEach { flag ->
+                                                FlagSwatch(
+                                                    flag = flag,
+                                                    selected = flag == selectedFlag,
+                                                    onClick = { selectedFlagName = flag.name },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    PreferenceSegmentedListItem(
+                                        title = stringResource(
+                                            R.string.anchor_config_row_title,
+                                        ),
+                                        supportingText = selectedAnchor?.name
+                                            ?: stringResource(R.string.anchor_config_choose),
+                                        onClick = { isAnchorSheetOpen = true },
+                                        leadingContent = {
+                                            RowLeadingIcon(
+                                                painterResource(R.drawable.ic_event),
+                                                size = 24.dp,
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+
                         HrtSection(title = null) {
                             item {
                                 Box {
@@ -415,7 +578,15 @@ internal fun WidgetConfigScreen(
                         )
                         HrtButton(
                             text = stringResource(R.string.save),
-                            onClick = { onSave(liveAppearance) },
+                            onClick = {
+                                if (configType == WidgetConfigType.ANCHOR) {
+                                    selectedAnchor?.let { onSaveAnchor(liveAppearance, it.id, selectedFlag) }
+                                } else {
+                                    onSave(liveAppearance)
+                                }
+                            },
+                            enabled = configType != WidgetConfigType.ANCHOR ||
+                                selectedAnchor != null,
                             modifier = Modifier.weight(1f),
                             compact = true
                         )
@@ -423,6 +594,16 @@ internal fun WidgetConfigScreen(
                 }
             }
         }
+    }
+
+    if (isAnchorSheetOpen) {
+        AnchorSelectorSheet(
+            title = stringResource(R.string.anchor_config_choose),
+            anchors = anchors,
+            today = today,
+            onDismissRequest = { isAnchorSheetOpen = false },
+            onSelect = { id -> selectedAnchorId = id },
+        )
     }
 }
 
@@ -555,6 +736,50 @@ private fun HueSliderRow(
     }
 }
 
+// The Gradient row's trailing "current selection" indicator: the selected flag's chromatic
+// strips in a circle (same paletteSeeds as the grid's FlagSwatch so the two never diverge),
+// or the None swatch's block glyph when no flag is set. Purely indicative — the row itself
+// toggles the fold.
+private val GradientSelectionSwatchSize = 22.dp
+
+@Composable
+private fun GradientSelectionSwatch(flag: PrideFlag?) {
+    if (flag == null) {
+        Box(
+            modifier = Modifier
+                .size(GradientSelectionSwatchSize)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_block),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    } else {
+        val strips = remember(flag) {
+            HeroBackgroundColors.paletteSeeds(flag.seeds).map { Color(it) }
+        }
+        Row(
+            modifier = Modifier
+                .size(GradientSelectionSwatchSize)
+                .clip(CircleShape),
+        ) {
+            strips.forEach { color ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(color),
+                )
+            }
+        }
+    }
+}
+
 // Mirrors SettingsScreen's SettingsLeadingIconSlot (private there) for this screen's rows.
 @Composable
 private fun RowLeadingIcon(painter: Painter, size: Dp) {
@@ -655,6 +880,16 @@ private fun WidgetPreview(
 // identical to the displayed "NN%" label.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
 
+// Resolves a persisted per-widget anchor id against the currently loaded anchors. A
+// dangling id (its anchor was deleted after the widget was configured) resolves to null,
+// which both leaves the selector unselected and keeps Save disabled — so a stale id can
+// never be rewritten to leave the widget stuck on its empty state.
+internal fun resolveSelectedAnchor(
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate>,
+    selectedAnchorId: String?,
+): com.mkx.hrttracker.model.journal.TrackedDate? =
+    anchors.firstOrNull { it.id == selectedAnchorId }
+
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
 
 // Breathing-room inset applied as the preview's outer padding, so the wallpaper window
@@ -679,7 +914,7 @@ private fun WidgetConfigScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         WidgetConfigScreen(
             initialAppearance = WidgetAppearance.Default.copy(backgroundAlpha = 0.8f),
-            isMediumWidget = true,
+            configType = WidgetConfigType.MEDIUM,
             appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID,
             snapshot = null,
             onSave = {},
