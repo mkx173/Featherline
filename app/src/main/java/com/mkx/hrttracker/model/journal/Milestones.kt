@@ -16,22 +16,31 @@ data class Milestone(
 )
 
 object Milestones {
-    /** Early day-count markers, before the schedule switches to yearly anniversaries. */
-    val DAY_MARKERS = listOf(7L, 30L, 60L, 90L, 100L, 180L)
+    /** Early day-count markers; 100-multiples are covered by the every-100-days rule. */
+    val DAY_MARKERS = listOf(7L, 30L, 60L, 90L, 180L)
+
+    private const val HUNDRED_DAYS = 100L
 
     fun current(date: LocalDate, today: LocalDate): Milestone? {
         val current = dayCount(date = date, today = today)
         if (current.isFuture) return null
 
-        // A day marker (e.g. day 100) wins when today lands exactly on it; all day
-        // markers fall before the first anniversary.
+        // An early day marker wins when today lands exactly on it.
         DAY_MARKERS.firstOrNull { it == current.magnitude }?.let { days ->
             return Milestone(dayCount = days, value = days, unit = MilestoneUnit.DAYS)
         }
-        // Otherwise it is a milestone only if today is exactly a yearly anniversary.
+        // A yearly anniversary outranks a 100-day multiple on the rare exact collision.
         val years = completedYears(date, today)
         if (years >= 1 && date.plusYears(years) == today) {
             return Milestone(dayCount = current.magnitude, value = years, unit = MilestoneUnit.YEARS)
+        }
+        // Every whole hundred days (100, 200, …) is a milestone, forever.
+        if (current.magnitude > 0 && current.magnitude % HUNDRED_DAYS == 0L) {
+            return Milestone(
+                dayCount = current.magnitude,
+                value = current.magnitude,
+                unit = MilestoneUnit.DAYS,
+            )
         }
         return null
     }
@@ -40,19 +49,21 @@ object Milestones {
         val current = dayCount(date = date, today = today)
         if (current.isFuture) return null
 
-        // The next early marker, while any remains before the yearly cadence begins.
-        DAY_MARKERS.firstOrNull { it > current.magnitude }?.let { days ->
-            return Milestone(dayCount = days, value = days, unit = MilestoneUnit.DAYS)
-        }
-        // Past the last day marker the schedule is yearly anniversaries, computed on
-        // demand so there is always an upcoming goal no matter how old the anchor is.
+        // Three candidate schedules run side by side — early markers, 100-day
+        // multiples, and yearly anniversaries — and the soonest one wins. On an
+        // exact tie the anniversary outranks the day count.
         val nextYear = completedYears(date, today) + 1
-        val anniversary = date.plusYears(nextYear)
-        return Milestone(
-            dayCount = ChronoUnit.DAYS.between(date, anniversary),
+        val anniversary = Milestone(
+            dayCount = ChronoUnit.DAYS.between(date, date.plusYears(nextYear)),
             value = nextYear,
             unit = MilestoneUnit.YEARS,
         )
+        val nextDays = minOf(
+            DAY_MARKERS.firstOrNull { it > current.magnitude } ?: Long.MAX_VALUE,
+            (current.magnitude / HUNDRED_DAYS + 1) * HUNDRED_DAYS,
+        )
+        if (nextDays >= anniversary.dayCount) return anniversary
+        return Milestone(dayCount = nextDays, value = nextDays, unit = MilestoneUnit.DAYS)
     }
 
     // The largest N (>= 0) whose anniversary date.plusYears(N) is on or before today.
