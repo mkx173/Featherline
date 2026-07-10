@@ -115,8 +115,21 @@ class JournalRepository @Inject constructor(
     // persistently-broken database, so callers that can't hang bound it via the two helpers
     // below rather than calling this directly.
     suspend fun awaitTrackedDates(): List<TrackedDate> {
-        withContext(Dispatchers.IO) { databaseHolder.get() }
-        return trackedDatesCache.filterNotNull().first()
+        // The open runs on the holder's own scope (warmUp), never on this coroutine: a
+        // blocking get() here is uncancellable, so the bounded helpers' withTimeoutOrNull
+        // could not actually return until a stuck SQLCipher open completed — widget
+        // render, config seed, and the date receiver all hung past their budgets. The
+        // await below is pure flow collection, which cancellation can always interrupt.
+        // Racing openFailed preserves the throws-on-terminal-failure contract (mapped to
+        // null/snapshot by the helpers). A stale openFailed from an earlier attempt can
+        // throw while a warmUp retry is still in flight — one extra snapshot fallback,
+        // corrected on the next call once openAndSignal clears the flag.
+        databaseHolder.warmUp()
+        val loaded = merge(
+            trackedDatesCache.filterNotNull(),
+            databaseHolder.openFailed.filter { it }.map<Boolean, List<TrackedDate>?> { null },
+        ).first()
+        return loaded ?: throw java.io.IOException("database open failed")
     }
 
     // Bounded await for surfaces that must not hang (the broadcast refresh, the widget

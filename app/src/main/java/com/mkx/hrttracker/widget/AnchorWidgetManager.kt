@@ -50,12 +50,20 @@ class AnchorWidgetManager @Inject constructor(
                     diagnosticsLogger.warning(TAG, "anchor_observe_failed", throwable)
                 }
                 .collect {
+                    // Guarded separately (mirrors WidgetDateReceiver): a widget repaint
+                    // failure must not skip the shortcut refresh, or orphaned/renamed
+                    // shortcuts stay stale until an unrelated broadcast.
                     runCatching {
                         updateAllAnchorWidgets(context)
+                    }.onFailure { throwable ->
+                        if (throwable is CancellationException) throw throwable
+                        diagnosticsLogger.warning(TAG, "anchor_widget_refresh_failed", throwable)
+                    }
+                    runCatching {
                         AnchorShortcutManager.refreshAll(context)
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
-                        diagnosticsLogger.warning(TAG, "anchor_refresh_failed", throwable)
+                        diagnosticsLogger.warning(TAG, "anchor_shortcut_refresh_failed", throwable)
                     }
                 }
         }

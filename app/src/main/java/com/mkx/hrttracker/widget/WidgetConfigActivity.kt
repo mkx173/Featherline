@@ -259,32 +259,75 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 initialBackgroundFlag = loaded.initialBackgroundFlag,
                                 today = java.time.LocalDate.now(),
                                 onSaveAnchor = { appearance, anchorId, backgroundFlag ->
-                                    setResult(
-                                        RESULT_OK,
-                                        Intent().putExtra(
-                                            AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId,
-                                        ),
-                                    )
+                                    // Captured NOW: onNewIntent can retarget the mutable
+                                    // appWidgetId while these writes are in flight, and the
+                                    // selection must land on the widget whose screen was saved.
+                                    val targetWidgetId = appWidgetId
                                     appScope.launch {
+                                        var persisted = false
                                         try {
+                                            // Appearance is global with a safe fallback:
+                                            // best-effort, must not block placement.
                                             runCatching {
                                                 widgetAppearanceRepository.setDefault(appearance)
                                             }
-                                            runCatching {
-                                                val glanceId = androidx.glance.appwidget
+                                            val glanceId = runCatching {
+                                                androidx.glance.appwidget
                                                     .GlanceAppWidgetManager(this@WidgetConfigActivity)
-                                                    .getGlanceIdBy(appWidgetId)
-                                                writeAnchorId(
-                                                    this@WidgetConfigActivity, glanceId, anchorId,
+                                                    .getGlanceIdBy(targetWidgetId)
+                                                    .also { id ->
+                                                        writeAnchorId(
+                                                            this@WidgetConfigActivity, id, anchorId,
+                                                        )
+                                                        writeBackgroundFlag(
+                                                            this@WidgetConfigActivity, id, backgroundFlag,
+                                                        )
+                                                    }
+                                            }.onFailure { throwable ->
+                                                if (throwable is CancellationException) {
+                                                    throw throwable
+                                                }
+                                                diagnosticsLogger.warning(
+                                                    TAG,
+                                                    "anchor_config_save_failed",
+                                                    throwable,
                                                 )
-                                                writeBackgroundFlag(
-                                                    this@WidgetConfigActivity, glanceId, backgroundFlag,
-                                                )
-                                                HrtAnchorWidget()
-                                                    .update(this@WidgetConfigActivity, glanceId)
+                                            }.getOrNull()
+                                            persisted = glanceId != null
+                                            // Repaint is best-effort once the state is written:
+                                            // the widget IS configured, and the manager /
+                                            // date-receiver paths repaint it if this fails.
+                                            glanceId?.let { id ->
+                                                runCatching {
+                                                    HrtAnchorWidget()
+                                                        .update(this@WidgetConfigActivity, id)
+                                                }
                                             }
                                         } finally {
-                                            withContext(NonCancellable + Dispatchers.Main) { finish() }
+                                            withContext(NonCancellable + Dispatchers.Main) {
+                                                // If onNewIntent retargeted mid-save, this window
+                                                // now hosts a different widget's config: its result
+                                                // contract belongs to the new id, and finishing
+                                                // would close it under the user.
+                                                if (appWidgetId == targetWidgetId) {
+                                                    // The anchor id IS the required configuration:
+                                                    // confirm placement only once it is persisted.
+                                                    // Otherwise keep the default RESULT_CANCELED so
+                                                    // a failed first placement removes the widget
+                                                    // (retry) instead of leaving a confirmed-but-
+                                                    // unconfigured empty state on the launcher.
+                                                    if (persisted) {
+                                                        setResult(
+                                                            RESULT_OK,
+                                                            Intent().putExtra(
+                                                                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                                                                targetWidgetId,
+                                                            ),
+                                                        )
+                                                    }
+                                                    finish()
+                                                }
+                                            }
                                         }
                                     }
                                 },

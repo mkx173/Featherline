@@ -46,16 +46,32 @@ class DatabaseHolder @Inject constructor(
     fun warmUp() {
         scope.launch {
             runCatching {
-                val database = synchronized(this@DatabaseHolder) {
-                    _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
-                }
-                database.openHelper.writableDatabase
+                openAndSignal()
             }.onFailure { throwable ->
                 // Swallowed by contract (warm-up must never crash startup), but recorded so
-                // the seeded flow can leave its loading state and the failure is diagnosable.
+                // the failure is diagnosable; openAndSignal already flipped openFailed.
                 diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
-                _openFailed.value = true
             }
+        }
+    }
+
+    // Blocking build + open shared by EVERY warm-up path (the async warmUp above, the
+    // in-app StartupPreloader). Centralized so openFailed flips no matter which path hit
+    // the failure — a flag set only by warmUp would leave the journal's seeded flow
+    // spinning forever when the in-app cold start was the one that failed. Success clears
+    // the flag so a later retry (e.g. passphrase newly available) recovers. Throws the
+    // underlying failure for the caller to log/handle.
+    fun openAndSignal(): HrtTrackerDatabase {
+        try {
+            val database = synchronized(this) {
+                _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
+            }
+            database.openHelper.writableDatabase
+            _openFailed.value = false
+            return database
+        } catch (error: Exception) {
+            _openFailed.value = true
+            throw error
         }
     }
 

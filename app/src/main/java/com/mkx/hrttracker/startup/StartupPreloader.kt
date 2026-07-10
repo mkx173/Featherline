@@ -54,7 +54,10 @@ class StartupPreloader @Inject constructor(
             diagnosticsLogger.info(TAG, "startup_after_first_home_frame_start")
             diagnosticsLogger.info(TAG, "database_warmup_start")
             runCatching {
-                databaseHolder.get().openHelper.writableDatabase
+                // openAndSignal, not get(): this is the normal in-app cold-start open, and
+                // a failure here must flip DatabaseHolder.openFailed or the journal's
+                // seeded flow (Milestones with no snapshot) waits forever.
+                databaseHolder.openAndSignal()
             }.onSuccess {
                 diagnosticsLogger.info(TAG, "database_warmup_complete")
             }.onFailure { throwable ->

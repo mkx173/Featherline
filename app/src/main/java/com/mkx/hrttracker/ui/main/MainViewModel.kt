@@ -184,6 +184,15 @@ class MainViewModel @Inject constructor(
     // any non-configChanges) recreation would replay the retained intent.
     private var lastHandledMilestonesSignal = 0
 
+    // True once an onCreate has parsed its launch intent. ViewModel-lifetime on purpose
+    // (same rationale as lastHandledMilestonesSignal): survives a config recreation, so
+    // the retained intent's widget extras are not replayed and cannot yank the user back
+    // to a deep link they navigated away from — but resets on process death, so a widget
+    // or shortcut tap that recreates a killed task (which lands in onCreate with a
+    // non-null savedInstanceState, because a dead instance can never receive onNewIntent)
+    // still parses the fresh intent and navigates.
+    var launchIntentParsed = false
+
     fun requestMilestonesDeepLink() {
         _milestonesDeepLinkSignal.update { it + 1 }
     }

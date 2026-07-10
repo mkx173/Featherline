@@ -184,6 +184,117 @@ class AnchorSurfaceRefreshSourceTest {
         )
     }
 
+    @Test
+    fun databaseHolder_signalsOpenOutcomeFromEveryWarmupPath() {
+        val holder = source(
+            "app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt"
+        )
+        val openAndSignal = holder.substringAfter("fun openAndSignal")
+        assertTrue(
+            "The shared open must flip openFailed on failure and clear it on success — a " +
+                "flag set only by warmUp() leaves the journal's seeded flow (Milestones " +
+                "with no snapshot) spinning forever when the in-app cold-start open path " +
+                "was the one that failed.",
+            openAndSignal.contains("_openFailed.value = true") &&
+                openAndSignal.contains("_openFailed.value = false"),
+        )
+        val preloader = source(
+            "app/src/main/java/com/mkx/hrttracker/startup/StartupPreloader.kt"
+        )
+        assertTrue(
+            "The in-app cold-start open must route through the signalling open, not a " +
+                "bare get(), so its failure reaches DatabaseHolder.openFailed.",
+            preloader.contains("databaseHolder.openAndSignal()") &&
+                !preloader.contains("databaseHolder.get()"),
+        )
+    }
+
+    @Test
+    fun awaitTrackedDates_neverBlocksTheTimedPath() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/data/repository/JournalRepository.kt"
+        )
+        val body = source
+            .substringAfter("suspend fun awaitTrackedDates()")
+            .substringBefore("suspend fun awaitTrackedDatesOrNull")
+        assertTrue(
+            "awaitTrackedDates must not run the blocking database open on its own " +
+                "coroutine: withTimeoutOrNull cannot interrupt a blocking frame, so the " +
+                "bounded helpers' budgets were illusory when the SQLCipher open stalled. " +
+                "The open belongs on the holder's scope (warmUp) with a cancellable flow " +
+                "await racing the terminal openFailed signal.",
+            body.contains("databaseHolder.warmUp()") &&
+                body.contains("databaseHolder.openFailed") &&
+                !body.contains("databaseHolder.get()"),
+        )
+    }
+
+    @Test
+    fun anchorWidgetManager_guardsWidgetAndShortcutRefreshSeparately() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetManager.kt"
+        )
+        assertTrue(
+            "The journal collector must guard the widget repaint and the shortcut " +
+                "refresh independently (like WidgetDateReceiver): a repaint throw from " +
+                "the trailing Glance reconcile must not skip the shortcut refresh, or " +
+                "orphaned/renamed shortcuts stay stale until an unrelated broadcast.",
+            source.contains("anchor_widget_refresh_failed") &&
+                source.contains("anchor_shortcut_refresh_failed") &&
+                !source.contains("\"anchor_refresh_failed\""),
+        )
+    }
+
+    @Test
+    fun widgetConfigActivity_confirmsAnchorPlacementOnlyAfterThePersistLands() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt"
+        )
+        val saveBlock = source
+            .substringAfter("onSaveAnchor = {")
+            .substringBefore("onSave = {")
+        assertTrue(
+            "The save must capture its target id before launching: onNewIntent can " +
+                "retarget the mutable appWidgetId while the writes are in flight, which " +
+                "would write widget A's anchor into widget B's Glance state — and " +
+                "finishing after a retarget would close the window now hosting B's config.",
+            saveBlock.contains("val targetWidgetId = appWidgetId") &&
+                saveBlock.contains("if (appWidgetId == targetWidgetId)"),
+        )
+        assertTrue(
+            "RESULT_OK must be reported only after the anchor id persists (the anchor IS " +
+                "the required configuration): confirming before the write leaves a failed " +
+                "first placement as a confirmed-but-unconfigured widget stuck on the " +
+                "empty state, instead of letting RESULT_CANCELED remove it for a retry.",
+            !saveBlock.substringBefore("appScope.launch").contains("RESULT_OK") &&
+                saveBlock.contains("if (persisted)"),
+        )
+    }
+
+    @Test
+    fun mainActivity_parsesDeepLinksAfterProcessDeathButNeverHistoryReplays() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/MainActivity.kt"
+        )
+        assertTrue(
+            "The launch-intent parse must gate on the ViewModel-lifetime marker plus the " +
+                "history flag, not savedInstanceState: a widget tap that recreates a " +
+                "killed task lands in onCreate with non-null savedInstanceState (a dead " +
+                "instance can't receive onNewIntent) and must still navigate, while a " +
+                "recents relaunch redelivers the original intent's stale extras and must " +
+                "not.",
+            source.contains("Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY") &&
+                source.contains("if (freshLaunch && !mainViewModel.launchIntentParsed)") &&
+                source.contains("mainViewModel.launchIntentParsed = true"),
+        )
+        assertTrue(
+            "The milestones splash hold must share the freshLaunch gate: holding the " +
+                "splash for a deep link that will never be parsed keeps it on screen " +
+                "forever.",
+            source.contains("awaitingMilestonesEntry = freshLaunch &&"),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }

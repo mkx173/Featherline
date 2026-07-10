@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Clock
 
@@ -44,9 +45,12 @@ class JournalRepositoryTest {
             }
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
-                every { get() } answers {
+                every { openFailed } returns MutableStateFlow(false)
+                // warmUp, not get(): the open must run on the holder's own scope so the
+                // caller's await stays cancellable (a blocking get() defeats the bounded
+                // helpers' timeouts).
+                every { warmUp() } answers {
                     databaseState.value = database
-                    database
                 }
             }
             val repository = repository(databaseHolder, mockk(relaxed = true))
@@ -54,6 +58,23 @@ class JournalRepositoryTest {
             val result = repository.awaitTrackedDates()
 
             assertEquals(listOf("anchor-1"), result.map { it.id })
+        }
+
+    // Intent: a terminal open failure must fail the await (the bounded helpers map it to
+    // null/snapshot) instead of waiting forever on a cache that will never load.
+    @Test
+    fun `awaitTrackedDates fails instead of hanging when the open terminally fails`() =
+        runTest {
+            val databaseHolder = mockk<DatabaseHolder> {
+                every { databaseFlow } returns MutableStateFlow<HrtTrackerDatabase?>(null)
+                every { openFailed } returns MutableStateFlow(true)
+                every { warmUp() } returns Unit
+            }
+            val repository = repository(databaseHolder, mockk(relaxed = true))
+
+            val result = runCatching { repository.awaitTrackedDates() }
+
+            assertTrue(result.isFailure)
         }
 
     // Intent: at cold start the seeded flow must render the persisted snapshot — real
