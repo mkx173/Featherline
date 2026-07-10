@@ -1,6 +1,14 @@
 package com.mkx.hrttracker.ui.journal
 
 import com.materialkolor.hct.Hct
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.DateChromaScale
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.DateToneSpread
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.NeutralChromaThreshold
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.NeutralRestoreTone
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.NeutralToneMax
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.NeutralToneMin
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.normalize
+import com.mkx.hrttracker.ui.journal.HeroBackgroundColors.paletteSeeds
 import kotlin.math.abs
 
 /**

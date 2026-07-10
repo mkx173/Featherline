@@ -20,8 +20,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import java.math.BigDecimal
 
 @Composable

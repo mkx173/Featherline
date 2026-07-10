@@ -10,6 +10,8 @@ import androidx.datastore.dataStore
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -20,8 +22,6 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 
 internal data class AnchorSnapshotState(val record: AnchorSnapshotRecord?) {
     companion object {

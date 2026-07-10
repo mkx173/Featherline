@@ -6,9 +6,9 @@ import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.journal.AnchorIcon
+import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PinOrder
-import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -18,9 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
@@ -34,7 +32,6 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Clock
 import java.time.LocalDate

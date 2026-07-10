@@ -1,7 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
