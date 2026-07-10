@@ -87,6 +87,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -113,6 +117,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -148,6 +156,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             val repository = repository(databaseHolder, snapshotStore)
@@ -176,6 +188,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns null
@@ -213,6 +229,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             repository(databaseHolder, snapshotStore)
@@ -242,6 +262,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             repository(databaseHolder, snapshotStore)
@@ -265,6 +289,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns listOf(trackedDate("snap-1").toModel())
@@ -295,6 +323,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             val repository = repository(databaseHolder, snapshotStore)
@@ -324,6 +356,10 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns MutableStateFlow(false)
+                // The no-seed branch fires a warm-up retry so a stale openFailed from an
+                // earlier failed attempt can't fake an empty journal; the open itself is
+                // simulated by databaseState above.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true)
             repository(databaseHolder, snapshotStore)
@@ -406,6 +442,9 @@ class JournalRepositoryTest {
             val databaseHolder = mockk<DatabaseHolder> {
                 every { databaseFlow } returns databaseState
                 every { openFailed } returns openFailedFlow
+                // Terminal failure: the no-seed branch's warm-up retry keeps failing, so
+                // the flag stays true and only the openFailed arm can emit.
+                every { warmUp() } returns Unit
             }
             val snapshotStore = mockk<AnchorSnapshotStore>(relaxed = true) {
                 coEvery { read() } returns null

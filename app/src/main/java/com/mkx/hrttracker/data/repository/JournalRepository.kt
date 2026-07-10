@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.journal.TrackedDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +74,7 @@ class JournalRepository @Inject constructor(
                     .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
                         rows.map { it.toModel() }
                     }
-                    .catchRecoverableDatabaseError(null)
+                    .retryRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
@@ -87,7 +89,7 @@ class JournalRepository @Inject constructor(
                     .map<List<TrackedDateEntity>, List<TrackedDate>?> { rows ->
                         rows.map { it.toModel() }
                     }
-                    .catchRecoverableDatabaseError(null)
+                    .retryRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
@@ -100,7 +102,7 @@ class JournalRepository @Inject constructor(
                 db.journalDao()
                     .observeNotes()
                     .map<List<NoteEntity>, List<Note>?> { rows -> rows.map { it.toModel() } }
-                    .catchRecoverableDatabaseError(null)
+                    .retryRecoverableDatabaseError(null)
             }
         }.stateIn(appScope, SharingStarted.Eagerly, null)
 
@@ -121,9 +123,9 @@ class JournalRepository @Inject constructor(
         // render, config seed, and the date receiver all hung past their budgets. The
         // await below is pure flow collection, which cancellation can always interrupt.
         // Racing openFailed preserves the throws-on-terminal-failure contract (mapped to
-        // null/snapshot by the helpers). A stale openFailed from an earlier attempt can
-        // throw while a warmUp retry is still in flight — one extra snapshot fallback,
-        // corrected on the next call once openAndSignal clears the flag.
+        // null/snapshot by the helpers). warmUp clears a stale flag from an earlier
+        // attempt synchronously before the merge subscribes, so the failure arm reflects
+        // this attempt's outcome, not a leftover one.
         databaseHolder.warmUp()
         val loaded = merge(
             trackedDatesCache.filterNotNull(),
@@ -183,12 +185,17 @@ class JournalRepository @Inject constructor(
             // failure) that wait is forever and the screen spins indefinitely. Race the
             // loaded cache against that terminal signal so a genuine open failure yields one
             // empty list (the "empty journal" state) instead of an eternal loading indicator.
-            // openFailed only trips on a real open exception, never on slowness, so this
-            // cannot reintroduce the false-empty flash the not-loaded window used to cause.
+            // Two guards keep a STALE openFailed (set by an earlier failed attempt, never
+            // cleared by the plain get() opens) from faking an empty journal: warmUp retries
+            // the open so a healthy database re-signals success, and the emptyList arm only
+            // fires while nothing has loaded — a terminal signal must never shadow real rows.
+            databaseHolder.warmUp()
             emitAll(
                 merge(
                     trackedDatesCache.filterNotNull(),
-                    databaseHolder.openFailed.filter { it }.map { emptyList() },
+                    databaseHolder.openFailed
+                        .filter { it && trackedDatesCache.value == null }
+                        .map { emptyList() },
                 )
             )
         }
@@ -512,3 +519,25 @@ private fun <T> Flow<T>.catchRecoverableDatabaseError(fallback: T): Flow<T> =
         if (error !is Exception) throw error
         emit(fallback)
     }
+
+// For the app-lifetime stateIn caches only: catch alone COMPLETES the flow after one
+// recoverable error, and since databaseFlow never re-emits, the eagerly-shared cache
+// would freeze at the fallback for the rest of the process — every anchor surface and
+// the Milestones screen degrading permanently on a single transient read error. Emit
+// the fallback (consumers read it as "not usable"), then resubscribe the DAO flow.
+// The per-collection observe* flows keep plain catch: they get a fresh subscription
+// per screen entry and recover naturally.
+// ponytail: 5 fixed retries per process (retryWhen's attempt never resets on success);
+// add reset-on-success bookkeeping if errors spread over a process lifetime show up.
+private fun <T> Flow<T>.retryRecoverableDatabaseError(fallback: T): Flow<T> =
+    retryWhen { error, attempt ->
+        if (error is CancellationException) throw error
+        if (error !is Exception) throw error
+        emit(fallback)
+        (attempt < DB_READ_MAX_RETRIES).also { retry ->
+            if (retry) delay(DB_READ_RETRY_DELAY_MS)
+        }
+    }.catchRecoverableDatabaseError(fallback)
+
+private const val DB_READ_MAX_RETRIES = 5L
+private const val DB_READ_RETRY_DELAY_MS = 5_000L

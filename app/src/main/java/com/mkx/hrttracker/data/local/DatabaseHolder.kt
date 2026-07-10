@@ -12,6 +12,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Inject
@@ -35,6 +40,12 @@ class DatabaseHolder @Inject constructor(
     private val _openFailed = MutableStateFlow(false)
     val openFailed: StateFlow<Boolean> = _openFailed.asStateFlow()
 
+    // Set only after writableDatabase succeeds. databaseFlow is NOT that signal: it
+    // publishes the built Room instance before the SQLCipher open runs (and keeps it if
+    // the open fails), so awaiting it would hand out a handle whose first query blocks
+    // uncancellably through a stalled or failed open.
+    private val _openedDatabase = MutableStateFlow<HrtTrackerDatabase?>(null)
+
     fun get(): HrtTrackerDatabase {
         _databaseFlow.value?.let { return it }
 
@@ -44,6 +55,12 @@ class DatabaseHolder @Inject constructor(
     }
 
     fun warmUp() {
+        // Clear a stale failure synchronously, before the retry launches: awaitOpen and
+        // the journal's await/seeded flows subscribe to openFailed right after this call,
+        // and a leftover true from an earlier attempt must not be consumed as THIS
+        // attempt's outcome. ponytail: last-write-wins across overlapping attempts;
+        // version attempts if overlapping opens ever show up in practice.
+        _openFailed.value = false
         scope.launch {
             runCatching {
                 openAndSignal()
@@ -53,6 +70,22 @@ class DatabaseHolder @Inject constructor(
                 diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
             }
         }
+    }
+
+    // Cancellable open for suspend paths that must respect a caller's timeout: get()
+    // blocks uninterruptibly through a stuck SQLCipher open, so a withTimeoutOrNull
+    // around it is illusory (see JournalRepository.awaitTrackedDates). Runs the open on
+    // this holder's scope and awaits an actually-OPENED database (never the merely-built
+    // instance databaseFlow carries); warmUp's synchronous reset guarantees the failure
+    // arm reflects this attempt, not a stale earlier one.
+    suspend fun awaitOpen(): HrtTrackerDatabase {
+        _openedDatabase.value?.let { return it }
+        warmUp()
+        val database = merge(
+            _openedDatabase.filterNotNull(),
+            openFailed.filter { it }.map<Boolean, HrtTrackerDatabase?> { null },
+        ).first()
+        return database ?: throw java.io.IOException("database open failed")
     }
 
     // Blocking build + open shared by EVERY warm-up path (the async warmUp above, the
@@ -67,9 +100,13 @@ class DatabaseHolder @Inject constructor(
                 _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
             }
             database.openHelper.writableDatabase
+            _openedDatabase.value = database
             _openFailed.value = false
             return database
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
+            // Throwable, not Exception: an UnsatisfiedLinkError from loadLibrary("sqlcipher")
+            // recurs on every retry and is swallowed by the callers' runCatching — Exception
+            // here would leave openFailed false and the seeded flow spinning forever.
             _openFailed.value = true
             throw error
         }

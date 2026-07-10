@@ -498,7 +498,10 @@ class HomeSnapshotRepository @Inject constructor(
         snapshotWindow: HomeSnapshotWindow,
     ) {
         val inputs = withContext(Dispatchers.IO) {
-            val database = databaseHolder.get()
+            // awaitOpen, not get(): this runs inside WidgetDateReceiver's bounded goAsync
+            // window, and the blocking get() is uncancellable — a stalled SQLCipher open
+            // would hold the broadcast past its budget with no way to time out.
+            val database = databaseHolder.awaitOpen()
             val homeDao = database.homeDao()
             val medicineDao = database.medicineDao()
             val medicationLogDao = database.medicationLogDao()

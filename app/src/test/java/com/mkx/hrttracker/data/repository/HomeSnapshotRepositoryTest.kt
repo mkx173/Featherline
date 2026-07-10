@@ -224,7 +224,7 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -288,7 +288,7 @@ class HomeSnapshotRepositoryTest {
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val journalDao: JournalDao = mockk()
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -379,7 +379,7 @@ class HomeSnapshotRepositoryTest {
             assertTrue(mutationCommitted.isCompleted)
             Unit
         }
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -598,7 +598,7 @@ class HomeSnapshotRepositoryTest {
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -669,7 +669,7 @@ class HomeSnapshotRepositoryTest {
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -731,7 +731,7 @@ class HomeSnapshotRepositoryTest {
 
             coEvery { homeSnapshotStore.readSnapshot() } returns null
             coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-            every { databaseHolder.get() } returns database
+            coEvery { databaseHolder.awaitOpen() } returns database
             every { database.homeDao() } returns homeDao
             every { database.medicineDao() } returns medicineDao
             every { database.medicationLogDao() } returns medicationLogDao
@@ -814,7 +814,7 @@ class HomeSnapshotRepositoryTest {
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao
@@ -887,7 +887,7 @@ class HomeSnapshotRepositoryTest {
             writeStarted.complete(Unit)
             allowWrite.await()
         }
-        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
         every { database.medicationLogDao() } returns medicationLogDao

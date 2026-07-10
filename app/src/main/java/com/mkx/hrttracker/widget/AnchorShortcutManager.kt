@@ -10,15 +10,23 @@ import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDate
 
 // The pinned-shortcut surface. No new persistence: the set of pinned anchor shortcuts is
-// ShortcutManager.pinnedShortcuts whose id matches a live anchor id. shortcutId == anchor.id
-// is the join key. An anchor is pinned once; all later updates go through updateShortcuts /
-// disableShortcuts (re-pinning reuses the stale cached icon — probe gotcha).
+// ShortcutManager.pinnedShortcuts whose id matches a live anchor id. shortcutId ==
+// "anchor:" + anchor.id is the join key. An anchor is pinned once; all later updates go
+// through updateShortcuts / disableShortcuts (re-pinning reuses the stale cached icon —
+// probe gotcha).
 object AnchorShortcutManager {
 
     // Ceiling for the tracked-dates load on the broadcast/on-change refresh path. Generous
     // enough for a cold SQLCipher open + first query, short enough to keep a goAsync broadcast
     // well inside its ~10s budget. ponytail: fixed knob; revisit if slow devices skip refreshes.
     private const val REFRESH_AWAIT_TIMEOUT_MS = 5_000L
+
+    // Namespaces anchor pins so refreshAll's sweep can never disable ("This date was
+    // removed") a pinned shortcut published by any other feature this app grows later —
+    // getShortcuts(FLAG_MATCH_PINNED) returns ALL of the app's pins, not just ours.
+    private const val SHORTCUT_ID_PREFIX = "anchor:"
+
+    private fun shortcutId(anchor: TrackedDate): String = SHORTCUT_ID_PREFIX + anchor.id
 
     fun isSupported(context: Context): Boolean =
         ShortcutManagerCompat.isRequestPinShortcutSupported(context)
@@ -45,24 +53,28 @@ object AnchorShortcutManager {
         val liveById = (journalRepository.awaitTrackedDatesOrNull(REFRESH_AWAIT_TIMEOUT_MS)
             ?: return).associateBy { it.id }
 
+        // Only OUR pins: everything downstream (including the disable sweep) must stay
+        // blind to pinned shortcuts from other features.
         val pinnedShortcuts = ShortcutManagerCompat
             .getShortcuts(context, ShortcutManagerCompat.FLAG_MATCH_PINNED)
+            .filter { it.id.startsWith(SHORTCUT_ID_PREFIX) }
 
         val plan = anchorShortcutRefreshPlan(
             pinnedIds = pinnedShortcuts.map { it.id }.toSet(),
-            liveAnchorIds = liveById.keys,
+            liveAnchorIds = liveById.keys.map { SHORTCUT_ID_PREFIX + it }.toSet(),
             disabledPinnedIds = pinnedShortcuts.filterNot { it.isEnabled }.map { it.id }.toSet(),
         )
 
+        val anchorForShortcutId = { id: String -> liveById[id.removePrefix(SHORTCUT_ID_PREFIX)] }
         val today = LocalDate.now()
         if (plan.toEnable.isNotEmpty()) {
             ShortcutManagerCompat.enableShortcuts(
                 context,
-                plan.toEnable.mapNotNull { id -> liveById[id] }
+                plan.toEnable.mapNotNull(anchorForShortcutId)
                     .map { anchor -> buildShortcut(context, anchor, today) },
             )
         }
-        val updated = plan.toUpdate.mapNotNull { id -> liveById[id] }
+        val updated = plan.toUpdate.mapNotNull(anchorForShortcutId)
             .map { anchor -> buildShortcut(context, anchor, today) }
         if (updated.isNotEmpty()) {
             ShortcutManagerCompat.updateShortcuts(context, updated)
@@ -81,7 +93,7 @@ object AnchorShortcutManager {
         anchor: TrackedDate,
         today: LocalDate,
     ): ShortcutInfoCompat =
-        ShortcutInfoCompat.Builder(context, anchor.id)
+        ShortcutInfoCompat.Builder(context, shortcutId(anchor))
             // Label is only shown in the system shortcut list / a11y, never on the masked
             // icon — privacy of the home-screen icon (number only) is preserved.
             .setShortLabel(anchor.name)
