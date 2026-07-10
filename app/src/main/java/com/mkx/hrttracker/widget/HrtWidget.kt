@@ -580,6 +580,20 @@ internal fun selectActiveScheduledGroup(
         ?: groups.lastOrNull { rows -> rows.any { it.status == WidgetDoseStatus.OVERDUE } }
         ?: groups.firstOrNull { rows -> rows.any { it.status == WidgetDoseStatus.UPCOMING } }
 
+// The medium widget's bottom-card pipeline: group scheduled rows by (groupUuid,
+// scheduledAt) so the single action button logs the entire group — groupName is not
+// unique across groups, so only groupUuid collapses true siblings — then pick by the
+// selectActiveScheduledGroup precedence. Manual records never drive the card; they
+// surface in the top count instead. Last-night carry-overs ARE eligible, so an
+// unaddressed evening dose survives midnight until the snapshot drops it at 06:00,
+// consistent with the large widget's last-night section.
+internal fun selectMediumActiveScheduledGroup(
+    doseRows: List<WidgetDoseRow>,
+): List<WidgetDoseRow>? = selectActiveScheduledGroup(
+    groupRowsByScheduledGroupSlot(doseRows.filterNot { it.isManualRecord })
+        .sortedBy { it.first().scheduledAt }
+)
+
 // ── State definition ──────────────────────────────────────────────────────────
 
 internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotState> {
@@ -818,15 +832,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         // selectActiveScheduledGroup for the precedence.
         fun WidgetDoseRow.isExpired(): Boolean = status == WidgetDoseStatus.OVERDUE
 
-        // Group scheduled today rows by (groupUuid, scheduledAt) so the medium widget's
-        // single action button logs the entire group rather than one medication at a time.
-        // groupName is not unique across groups; using groupUuid guarantees we collapse
-        // only true siblings.
-        val activeScheduledGroup: List<WidgetDoseRow>? = selectActiveScheduledGroup(
-            groupRowsByScheduledGroupSlot(
-                record.doseRows.filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
-            ).sortedBy { it.first().scheduledAt }
-        )
+        val activeScheduledGroup: List<WidgetDoseRow>? =
+            selectMediumActiveScheduledGroup(record.doseRows)
         val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
         val isMultiMedGroup = (activeScheduledGroup?.size ?: 1) > 1

@@ -74,7 +74,65 @@ class HrtWidgetActiveRowSelectionTest {
         assertEquals(group, selectActiveScheduledGroup(listOf(group)))
     }
 
-    private fun row(status: WidgetDoseStatus, scheduledAt: LocalDateTime): WidgetDoseRow {
+    @Test
+    fun lastNightMissedDoseSurvivesMidnight_untilTodaysWindowOpens() {
+        // After the midnight snapshot rebuild yesterday's 21:00 dose arrives as a
+        // LAST_NIGHT carry-over; it must stay on the card instead of today's
+        // still-far-off evening dose.
+        val missedLastNight = row(
+            WidgetDoseStatus.OVERDUE,
+            LocalDateTime.of(2025, 12, 31, 21, 0),
+            contextChip = WidgetDoseChip.LAST_NIGHT,
+        )
+        val todayUpcoming = row(WidgetDoseStatus.UPCOMING, evening)
+
+        val selected = selectMediumActiveScheduledGroup(listOf(missedLastNight, todayUpcoming))
+
+        assertEquals(listOf(missedLastNight), selected)
+    }
+
+    @Test
+    fun lastNightDoseStillInItsWindowOutranksEverything() {
+        // A 23:30 dose is still in its fulfillment window at 00:15; it must stay
+        // actionable rather than vanish with the calendar day.
+        val stillInWindow = row(
+            WidgetDoseStatus.DUE_SOON,
+            LocalDateTime.of(2025, 12, 31, 23, 30),
+            contextChip = WidgetDoseChip.LAST_NIGHT,
+        )
+        val todayUpcoming = row(WidgetDoseStatus.UPCOMING, morning)
+
+        val selected = selectMediumActiveScheduledGroup(listOf(stillInWindow, todayUpcoming))
+
+        assertEquals(listOf(stillInWindow), selected)
+    }
+
+    @Test
+    fun todaysActionableDoseOutranksALastNightMiss() {
+        val missedLastNight = row(
+            WidgetDoseStatus.OVERDUE,
+            LocalDateTime.of(2025, 12, 31, 21, 0),
+            contextChip = WidgetDoseChip.LAST_NIGHT,
+        )
+        val dueNow = row(WidgetDoseStatus.DUE_SOON, morning)
+
+        val selected = selectMediumActiveScheduledGroup(listOf(missedLastNight, dueNow))
+
+        assertEquals(listOf(dueNow), selected)
+    }
+
+    @Test
+    fun manualRecordsNeverDriveTheCard() {
+        val manual = row(WidgetDoseStatus.DONE, morning).copy(isManualRecord = true)
+
+        assertNull(selectMediumActiveScheduledGroup(listOf(manual)))
+    }
+
+    private fun row(
+        status: WidgetDoseStatus,
+        scheduledAt: LocalDateTime,
+        contextChip: WidgetDoseChip? = null,
+    ): WidgetDoseRow {
         return WidgetDoseRow(
             medicationName = "Estradiol valerate",
             groupName = "Estradiol valerate",
@@ -85,7 +143,7 @@ class HrtWidgetActiveRowSelectionTest {
             scheduledAt = scheduledAt,
             trailingText = null,
             isManualRecord = false,
-            contextChip = null,
+            contextChip = contextChip,
             groupUuid = "group-1",
             scheduleTimeUuid = null,
         )
