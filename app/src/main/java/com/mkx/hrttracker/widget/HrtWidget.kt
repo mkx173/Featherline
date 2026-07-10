@@ -567,6 +567,19 @@ internal fun groupRowsByScheduledGroupSlot(rows: List<WidgetDoseRow>): List<List
         .values
         .map { indexedRows -> indexedRows.map { it.value } }
 
+// Picks the slot group the medium widget's bottom card shows, from groups sorted by
+// scheduledAt. Precedence: the earliest slot actionable right now (due soon), else the
+// most recently missed slot — kept visible and tappable for an out-of-window log until
+// the next slot's window opens — else the earliest upcoming slot. DUE_SOON/OVERDUE/
+// UPCOMING all imply the slot is unaddressed (fulfilled slots read DONE or
+// LOGGED_OUT_OF_WINDOW), so status alone decides.
+internal fun selectActiveScheduledGroup(
+    groups: List<List<WidgetDoseRow>>,
+): List<WidgetDoseRow>? =
+    groups.firstOrNull { rows -> rows.any { it.status == WidgetDoseStatus.DUE_SOON } }
+        ?: groups.lastOrNull { rows -> rows.any { it.status == WidgetDoseStatus.OVERDUE } }
+        ?: groups.firstOrNull { rows -> rows.any { it.status == WidgetDoseStatus.UPCOMING } }
+
 // ── State definition ──────────────────────────────────────────────────────────
 
 internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotState> {
@@ -800,20 +813,20 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
 
         // Past the 1-hour grace period — logging from the widget would only create an
-        // out-of-window record, so we drop these from active-row selection and from the
-        // "still actionable" check that gates the final-state badge.
+        // out-of-window record, so these lose priority to anything still in window but
+        // stay visible (and tappable) while nothing else is actionable; see
+        // selectActiveScheduledGroup for the precedence.
         fun WidgetDoseRow.isExpired(): Boolean = status == WidgetDoseStatus.OVERDUE
 
         // Group scheduled today rows by (groupUuid, scheduledAt) so the medium widget's
         // single action button logs the entire group rather than one medication at a time.
         // groupName is not unique across groups; using groupUuid guarantees we collapse
-        // only true siblings. A group only surfaces while it has at least one member
-        // that's still actionable (neither addressed nor past its grace period).
-        val activeScheduledGroup: List<WidgetDoseRow>? = groupRowsByScheduledGroupSlot(
-            record.doseRows.filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
+        // only true siblings.
+        val activeScheduledGroup: List<WidgetDoseRow>? = selectActiveScheduledGroup(
+            groupRowsByScheduledGroupSlot(
+                record.doseRows.filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
+            ).sortedBy { it.first().scheduledAt }
         )
-            .sortedBy { it.first().scheduledAt }
-            .firstOrNull { rows -> rows.any { !it.isAddressed() && !it.isExpired() } }
         val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
         val isMultiMedGroup = (activeScheduledGroup?.size ?: 1) > 1
@@ -977,7 +990,13 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                     SectionHeader(
-                        text = context.getString(R.string.widget_upcoming),
+                        text = context.getString(
+                            if (activeRow.status == WidgetDoseStatus.OVERDUE) {
+                                R.string.plan_schedule_entry_past_due
+                            } else {
+                                R.string.widget_upcoming
+                            }
+                        ),
                         topPadding = 0.dp
                     )
                     Spacer(modifier = GlanceModifier.height((4 * scale).dp))
