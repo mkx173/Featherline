@@ -240,7 +240,7 @@ object MedicationCatalog {
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.BICALUTAMIDE,
-                    doseAssistPresets = pillMgDoseAssistPresets("50"),
+                    doseAssistPresets = pillMgDoseAssistPresets("50", "80"),
                 ),
             ),
             allowCustomMedicationName = false,

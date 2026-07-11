@@ -146,6 +146,7 @@ class MedicationCatalogTest {
         assertEquals(
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("50"),
+                MedicationDoseAssistPreset.MgAsMedicine("80"),
             ),
             catalogEntry(
                 category = MedicationCategory.ANTIANDROGEN,
