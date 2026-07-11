@@ -316,6 +316,41 @@ class MedicationCatalogTest {
         assertFalse(MedicationKey.DUTASTERIDE in tabletKeys)
     }
 
+    @Test
+    fun serm_only_exposes_oral_route_with_required_medications() {
+        val applicationTypes = MedicationCatalog.applicationTypesFor(MedicationCategory.SERM)
+        val catalog = catalogFor(
+            category = MedicationCategory.SERM,
+            applicationType = MedicationApplicationType.ORAL,
+        )
+
+        assertEquals(listOf(MedicationApplicationType.ORAL), applicationTypes)
+        assertEquals(
+            listOf(MedicationKey.RALOXIFENE, MedicationKey.TAMOXIFEN),
+            catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertFalse(catalog.allowCustomMedicationName)
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("60")),
+            catalogEntry(
+                category = MedicationCategory.SERM,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.RALOXIFENE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("10"),
+                MedicationDoseAssistPreset.MgAsMedicine("20"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.SERM,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.TAMOXIFEN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+    }
+
     private fun catalogEntry(
         category: MedicationCategory,
         applicationType: MedicationApplicationType,

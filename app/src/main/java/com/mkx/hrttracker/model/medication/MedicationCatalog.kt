@@ -4,6 +4,7 @@ enum class MedicationCategory {
     ESTRADIOL,
     TESTOSTERONE,
     ANTIANDROGEN,
+    SERM,
     CUSTOM;
 
     companion object {
@@ -55,6 +56,8 @@ enum class MedicationKey(val category: MedicationCategory) {
     BICALUTAMIDE(category = MedicationCategory.ANTIANDROGEN),
     FINASTERIDE(category = MedicationCategory.ANTIANDROGEN),
     DUTASTERIDE(category = MedicationCategory.ANTIANDROGEN),
+    RALOXIFENE(category = MedicationCategory.SERM),
+    TAMOXIFEN(category = MedicationCategory.SERM),
     ESTRADIOL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
@@ -263,6 +266,24 @@ object MedicationCatalog {
         ),
     )
 
+    private val sermCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.SERM,
+            applicationType = MedicationApplicationType.ORAL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.RALOXIFENE,
+                    doseAssistPresets = pillMgDoseAssistPresets("60"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.TAMOXIFEN,
+                    doseAssistPresets = pillMgDoseAssistPresets("10", "20"),
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
     private val testosteroneCatalog = MedicationApplicationType.entries.map { applicationType ->
         MedicationApplicationCatalog(
             category = MedicationCategory.TESTOSTERONE,
@@ -282,7 +303,7 @@ object MedicationCatalog {
     )
 
     private val catalogs =
-        estradiolCatalog + antiandrogenCatalog + testosteroneCatalog + customCatalog
+        estradiolCatalog + antiandrogenCatalog + sermCatalog + testosteroneCatalog + customCatalog
 
     fun applicationTypesFor(category: MedicationCategory): List<MedicationApplicationType> {
         return catalogs

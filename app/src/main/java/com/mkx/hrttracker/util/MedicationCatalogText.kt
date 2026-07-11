@@ -13,6 +13,7 @@ val MedicationCategory.labelRes: Int
         MedicationCategory.ESTRADIOL -> R.string.medication_category_estradiol
         MedicationCategory.TESTOSTERONE -> R.string.medication_category_testosterone
         MedicationCategory.ANTIANDROGEN -> R.string.medication_category_antiandrogen
+        MedicationCategory.SERM -> R.string.medication_category_serm
         MedicationCategory.CUSTOM -> R.string.medication_category_custom
     }
 
@@ -41,6 +42,8 @@ val MedicationKey.labelRes: Int
         MedicationKey.BICALUTAMIDE -> R.string.medication_name_bicalutamide
         MedicationKey.FINASTERIDE -> R.string.medication_name_finasteride
         MedicationKey.DUTASTERIDE -> R.string.medication_name_dutasteride
+        MedicationKey.RALOXIFENE -> R.string.medication_name_raloxifene
+        MedicationKey.TAMOXIFEN -> R.string.medication_name_tamoxifen
         MedicationKey.ESTRADIOL -> R.string.medication_name_estradiol
         MedicationKey.ESTRADIOL_VALERATE -> R.string.medication_name_estradiol_valerate
         MedicationKey.ESTRADIOL_BENZOATE -> R.string.medication_name_estradiol_benzoate
