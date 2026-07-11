@@ -567,6 +567,7 @@
     <string name="medication_category_testosterone">睾酮</string>
     <string name="medication_category_antiandrogen">抗雄激素</string>
     <string name="medication_category_serm">SERM</string>
+    <string name="medication_category_gnrh_agonist">GnRH 激动剂</string>
     <string name="medication_category_custom">自定义</string>
     <string name="medication_application_oral">口服</string>
     <string name="medication_application_sublingual">舌下</string>
@@ -589,6 +590,9 @@
     <string name="medication_name_dutasteride">度他雄胺</string>
     <string name="medication_name_raloxifene">雷洛昔芬</string>
     <string name="medication_name_tamoxifen">他莫昔芬</string>
+    <string name="medication_name_triptorelin">曲普瑞林</string>
+    <string name="medication_name_leuprorelin">亮丙瑞林</string>
+    <string name="medication_name_goserelin">戈舍瑞林</string>
     <string name="medication_editor_dose_warning">剂量超过警告阈值</string>
     <string name="medication_editor_schedule_offset_warning">在完成窗口外</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>

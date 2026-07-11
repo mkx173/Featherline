@@ -14,6 +14,7 @@ val MedicationCategory.labelRes: Int
         MedicationCategory.TESTOSTERONE -> R.string.medication_category_testosterone
         MedicationCategory.ANTIANDROGEN -> R.string.medication_category_antiandrogen
         MedicationCategory.SERM -> R.string.medication_category_serm
+        MedicationCategory.GNRH_AGONIST -> R.string.medication_category_gnrh_agonist
         MedicationCategory.CUSTOM -> R.string.medication_category_custom
     }
 
@@ -44,6 +45,9 @@ val MedicationKey.labelRes: Int
         MedicationKey.DUTASTERIDE -> R.string.medication_name_dutasteride
         MedicationKey.RALOXIFENE -> R.string.medication_name_raloxifene
         MedicationKey.TAMOXIFEN -> R.string.medication_name_tamoxifen
+        MedicationKey.TRIPTORELIN -> R.string.medication_name_triptorelin
+        MedicationKey.LEUPRORELIN -> R.string.medication_name_leuprorelin
+        MedicationKey.GOSERELIN -> R.string.medication_name_goserelin
         MedicationKey.ESTRADIOL -> R.string.medication_name_estradiol
         MedicationKey.ESTRADIOL_VALERATE -> R.string.medication_name_estradiol_valerate
         MedicationKey.ESTRADIOL_BENZOATE -> R.string.medication_name_estradiol_benzoate

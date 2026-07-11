@@ -26,6 +26,7 @@ class MedicationEditorModelsTest {
                 MedicationCategory.ESTRADIOL,
                 MedicationCategory.ANTIANDROGEN,
                 MedicationCategory.SERM,
+                MedicationCategory.GNRH_AGONIST,
                 MedicationCategory.CUSTOM,
             ),
             editorMedicationCategories(),
@@ -181,6 +182,47 @@ class MedicationEditorModelsTest {
         )
         // Strength field validation fires (no "preparation type required" stop).
         assertEquals(R.string.validation_vial_strength_required, draft.validationErrorRes())
+    }
+
+    @Test
+    fun gnrhAgonistDraft_defaultsToDepotInjection_withoutPreparationPicker() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.GNRH_AGONIST,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        assertEquals(
+            MedicinePreparationType.DEPOT_INJECTION,
+            draft.inferredOrSelectedPreparationType(),
+        )
+        // Single depot option — the ampule/vial segmented picker must not render.
+        assertFalse(draft.requiresPreparationTypeSelection())
+    }
+
+    @Test
+    fun estradiolInjectionDraft_stillOffersAmpuleVialPicker() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        assertTrue(draft.requiresPreparationTypeSelection())
+        assertEquals(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            draft.inferredOrSelectedPreparationType(),
+        )
+    }
+
+    @Test
+    fun gnrhAgonistDraft_appliesDepotPresetIntoStrengthField() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.GNRH_AGONIST,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        val applied = draft.applyDoseAssistPreset(MedicationDoseAssistPreset.MgAsMedicine("11.25"))
+
+        assertEquals("11.25", applied.singleUseVialStrengthMg)
     }
 
     @Test

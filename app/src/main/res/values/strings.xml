@@ -594,6 +594,7 @@
     <string name="medication_category_testosterone">Testosterone</string>
     <string name="medication_category_antiandrogen">Antiandrogen</string>
     <string name="medication_category_serm">SERM</string>
+    <string name="medication_category_gnrh_agonist">GnRH agonist</string>
     <string name="medication_category_custom">Custom</string>
     <string name="medication_application_oral">Oral</string>
     <string name="medication_application_sublingual">Sublingual</string>
@@ -616,6 +617,9 @@
     <string name="medication_name_dutasteride">Dutasteride</string>
     <string name="medication_name_raloxifene">Raloxifene</string>
     <string name="medication_name_tamoxifen">Tamoxifen</string>
+    <string name="medication_name_triptorelin">Triptorelin</string>
+    <string name="medication_name_leuprorelin">Leuprorelin</string>
+    <string name="medication_name_goserelin">Goserelin</string>
     <string name="medication_editor_dose_warning">Dose above warning threshold</string>
     <string name="medication_editor_schedule_offset_warning">Outside fulfillment window</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>

@@ -5,6 +5,7 @@ enum class MedicationCategory {
     TESTOSTERONE,
     ANTIANDROGEN,
     SERM,
+    GNRH_AGONIST,
     CUSTOM;
 
     companion object {
@@ -58,6 +59,9 @@ enum class MedicationKey(val category: MedicationCategory) {
     DUTASTERIDE(category = MedicationCategory.ANTIANDROGEN),
     RALOXIFENE(category = MedicationCategory.SERM),
     TAMOXIFEN(category = MedicationCategory.SERM),
+    TRIPTORELIN(category = MedicationCategory.GNRH_AGONIST),
+    LEUPRORELIN(category = MedicationCategory.GNRH_AGONIST),
+    GOSERELIN(category = MedicationCategory.GNRH_AGONIST),
     ESTRADIOL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
@@ -284,6 +288,40 @@ object MedicationCatalog {
         ),
     )
 
+    private val gnrhAgonistCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.GNRH_AGONIST,
+            applicationType = MedicationApplicationType.INJECTION,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.TRIPTORELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets("3.75", "11.25", "22.5"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.LEUPRORELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets(
+                        "1.88", "3.75", "11.25", "22.5", "30",
+                    ),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.GOSERELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets("3.6", "10.8"),
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
+    private fun depotInjectionMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.DEPOT_INJECTION to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
+
     private val testosteroneCatalog = MedicationApplicationType.entries.map { applicationType ->
         MedicationApplicationCatalog(
             category = MedicationCategory.TESTOSTERONE,
@@ -303,7 +341,8 @@ object MedicationCatalog {
     )
 
     private val catalogs =
-        estradiolCatalog + antiandrogenCatalog + sermCatalog + testosteroneCatalog + customCatalog
+        estradiolCatalog + antiandrogenCatalog + sermCatalog + gnrhAgonistCatalog +
+                testosteroneCatalog + customCatalog
 
     fun applicationTypesFor(category: MedicationCategory): List<MedicationApplicationType> {
         return catalogs

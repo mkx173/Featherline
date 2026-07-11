@@ -95,6 +95,7 @@ class MedicationLogSummariesTest {
             MedicationCategory.ANTIANDROGEN -> MedicationKey.SPIRONOLACTONE
             MedicationCategory.TESTOSTERONE,
             MedicationCategory.SERM,
+            MedicationCategory.GNRH_AGONIST,
             MedicationCategory.CUSTOM -> error("Unsupported category for this fixture: $category")
         }
         return testMedicationLogEntry(

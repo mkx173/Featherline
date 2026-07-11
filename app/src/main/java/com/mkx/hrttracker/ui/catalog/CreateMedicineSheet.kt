@@ -418,7 +418,7 @@ private fun NewMedicinePreparationForm(
     }
     if (medicineDraft.requiresPreparationTypeSelection()) {
         MedicationEditorSectionLabel(stringResource(R.string.field_preparation_type))
-        val options = ambiguousPreparationTypes(medicineDraft.form)
+        val options = ambiguousPreparationTypes(medicineDraft.form, medicineDraft.category)
         ConnectedButtonGroup(
             options = options,
             selectedOption = medicineDraft.preparationType ?: options.first(),

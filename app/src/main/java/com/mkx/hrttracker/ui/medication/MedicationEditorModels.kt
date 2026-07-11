@@ -217,7 +217,8 @@ fun defaultMedicineDraft(
         } else {
             category
         },
-        preparationType = resolvedForm.defaultPreparationType(),
+        preparationType = ambiguousPreparationTypes(resolvedForm, category).singleOrNull()
+            ?: resolvedForm.defaultPreparationType(),
     )
 }
 
@@ -313,7 +314,13 @@ fun applicationTypesCompatibleWithPreparation(
 
 internal fun ambiguousPreparationTypes(
     form: MedicinePreparationForm,
+    category: MedicationCategory? = null,
 ): List<MedicinePreparationType> {
+    // GnRHa injections are depot-only: the ampule/vial pair never applies, so
+    // the picker collapses to a single (auto-selected) preparation.
+    if (category == MedicationCategory.GNRH_AGONIST && form == MedicinePreparationForm.INJECTION) {
+        return listOf(MedicinePreparationType.DEPOT_INJECTION)
+    }
     return when (form) {
         MedicinePreparationForm.INJECTION -> listOf(
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
@@ -342,7 +349,7 @@ internal fun ambiguousPreparationTypes(
 
 fun MedicinePickerUiState.requiresPreparationTypeSelection(): Boolean {
     return inferredPreparationType(form) == null &&
-            ambiguousPreparationTypes(form).isNotEmpty()
+            ambiguousPreparationTypes(form, category).size > 1
 }
 
 fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparationType? {
@@ -385,7 +392,7 @@ fun MedicinePickerUiState.changeMedicationKey(
 fun MedicinePickerUiState.changePreparationType(
     preparationType: MedicinePreparationType,
 ): MedicinePickerUiState {
-    if (preparationType !in ambiguousPreparationTypes(form)) {
+    if (preparationType !in ambiguousPreparationTypes(form, category)) {
         return this
     }
     return copy(preparationType = preparationType)

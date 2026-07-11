@@ -351,6 +351,76 @@ class MedicationCatalogTest {
         )
     }
 
+    @Test
+    fun gnrhAgonist_only_exposes_injection_route_with_depot_entries() {
+        val applicationTypes =
+            MedicationCatalog.applicationTypesFor(MedicationCategory.GNRH_AGONIST)
+        val catalog = catalogFor(
+            category = MedicationCategory.GNRH_AGONIST,
+            applicationType = MedicationApplicationType.INJECTION,
+        )
+
+        assertEquals(listOf(MedicationApplicationType.INJECTION), applicationTypes)
+        assertEquals(
+            listOf(
+                MedicationKey.TRIPTORELIN,
+                MedicationKey.LEUPRORELIN,
+                MedicationKey.GOSERELIN,
+            ),
+            catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertFalse(catalog.allowCustomMedicationName)
+        // GnRHa must never surface the adjustable vial preparations: presets
+        // are keyed exclusively by DEPOT_INJECTION.
+        catalog.entries.forEach { entry ->
+            assertEquals(
+                setOf(MedicinePreparationType.DEPOT_INJECTION),
+                entry.doseAssistPresets.keys,
+            )
+        }
+    }
+
+    @Test
+    fun gnrhAgonist_catalog_exposes_depot_strength_presets() {
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("3.75"),
+                MedicationDoseAssistPreset.MgAsMedicine("11.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("22.5"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.TRIPTORELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1.88"),
+                MedicationDoseAssistPreset.MgAsMedicine("3.75"),
+                MedicationDoseAssistPreset.MgAsMedicine("11.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("22.5"),
+                MedicationDoseAssistPreset.MgAsMedicine("30"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.LEUPRORELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("3.6"),
+                MedicationDoseAssistPreset.MgAsMedicine("10.8"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.GOSERELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+        )
+    }
+
     private fun catalogEntry(
         category: MedicationCategory,
         applicationType: MedicationApplicationType,
