@@ -64,9 +64,10 @@ are organized by role:
   catch-all "lib"; entries earn their place by being used in two or
   more features.
 - [`widget`](https://github.com/mkx173/Featherline/tree/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget) — the home-screen Glance
-  widget: snapshot builder, encrypted DataStore, two `GlanceAppWidget`
-  surfaces, the periodic refresh worker, and the quick-log
-  `ActionCallback`. Documented in detail in [widget.md](widget.md).
+  widget: snapshot builder, encrypted DataStore, three `GlanceAppWidget`
+  surfaces (two dose widgets plus the journal-driven anchor widget and
+  its pinned-shortcut manager), the periodic refresh worker, and the
+  quick-log `ActionCallback`. Documented in detail in [widget.md](widget.md).
 
 Two files sit at the package root, outside any sub-package:
 [`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)

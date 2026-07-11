@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- A new small home-screen widget shows a chosen Journal date and its running day count.
+- You can pin any Journal date to your home screen as a shortcut that shows its day count and opens straight to that date's milestones.
+- The milestones timeline now marks every 100 days, interleaved with anniversaries.
+- New catalog medications: Finasteride and Dutasteride (antiandrogens), Raloxifene and Tamoxifen (a new SERM category), GnRH-agonist depot injections, and estradiol undecylate.
+- Bicalutamide now offers an 80 mg dose-assist preset.
+
+### Fixed
+
+- The medium home-screen widget keeps a missed dose visible until its next scheduled window opens, instead of dropping it when the day rolls over.
+- Last night's doses stay on the medium home-screen widget through midnight instead of disappearing at the date change.
+- Logging a scheduled dose after its window has closed no longer records a duplicate entry.
 
 ## [1.3.3] - 2026-06-27
 

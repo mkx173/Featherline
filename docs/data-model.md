@@ -329,7 +329,9 @@ in-memory model splits cleanly along two axes — defined in
 
 - **`MedicinePreparation`** (sealed) describes what's in the package:
   `Pill`, `Capsule`, `InjectionSingleUseVial`,
-  `InjectionMultiUseVial`, `GelSachet`, `GelContainer`,
+  `InjectionMultiUseVial`, `DepotInjection` (a fixed-mg prefilled depot
+  unit administered whole, used by the GnRH-agonist entries),
+  `GelSachet`, `GelContainer`,
   `ImportedInjection`, `ImportedGel`, and `Patch`
   (the patch carries a `PatchSpecification` of either `TotalMg` or
   `ReleaseRateMcgPerDay`). The `PatchOff` data object is a sentinel

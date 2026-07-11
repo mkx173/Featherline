@@ -1,12 +1,14 @@
 # Home-screen widget
 
-How Featherline turns the home-screen cache into two app-widget surfaces
-(`HrtWidgetMedium` and `HrtWidgetLarge`) without re-running medication
-math on the widget thread, and how those surfaces stay current across
-home-data mutations, settings changes, alarms, time/date events, and
-quick-log taps. The whole subsystem lives in
+How Featherline turns the home-screen cache into two dose app-widget
+surfaces (`HrtWidgetMedium` and `HrtWidgetLarge`) without re-running
+medication math on the widget thread, and how those surfaces stay
+current across home-data mutations, settings changes, alarms, time/date
+events, and quick-log taps. A third surface, the journal-driven
+`HrtAnchorWidget`, follows a separate pipeline described under
+[Anchor widget](#anchor-widget). The whole subsystem lives in
 [`widget/`](../app/src/main/java/com/mkx/hrttracker/widget)
-(21 files). For where it sits in the layer map, see
+(33 files). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -250,14 +252,18 @@ at design time.
 
 ## Reconfigure
 
-On API 31+ both providers add `android:configure` plus
+On API 31+ each provider adds `android:configure` plus
 `android:widgetFeatures="reconfigurable|configuration_optional"` in their
 `xml-v31/` provider info, so the launcher's long-press menu offers a
 reconfigure affordance (the base `xml/` variant omits this, so older
 launchers have no entry). It launches
 [`WidgetConfigActivity`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt),
 a full-screen activity hosting
-[`WidgetConfigScreen`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt):
+[`WidgetConfigScreen`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigScreen.kt).
+The activity branches on a `WidgetConfigType` (`MEDIUM` / `LARGE` /
+`ANCHOR`); the dose variants show the appearance controls below, while
+the anchor variant swaps in anchor-selection and background-flag
+controls (see [Anchor widget](#anchor-widget)). For the dose widgets it hosts
 the appearance controls (dark-mode, content scale, background opacity,
 accent color, saturation, light balance) as `HrtSection` rows below a
 live widget preview floating over the system wallpaper. While dark mode
@@ -515,6 +521,37 @@ The widget never resolves colors at composition time for surfaces that
 might cross the day/night boundary — bitmap icons are tinted with
 `ColorFilter` so the launcher applies the active palette when it
 renders the `RemoteViews`.
+
+## Anchor widget
+
+`HrtAnchorWidget` in
+[`AnchorWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/AnchorWidget.kt)
+is a third `GlanceAppWidget`, targeting a 2×1 launcher cell, that shows
+one journal date (an "anchor") and its running day count. Unlike the
+dose widgets it does **not** read the home snapshot: its per-instance
+Glance state is just an `anchorId`
+([`AnchorWidgetState.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetState.kt)),
+and the name, date, and day count are read live from the journal at
+compose time; only the chrome (background, opacity, palette) comes from
+the shared `WidgetAppearance`.
+
+Because it is journal-driven, the anchor surfaces sit outside the
+six-source `WidgetSnapshotRepository` funnel and have their own manager.
+[`AnchorWidgetManager`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetManager.kt)
+(`@Singleton`, `start()` called once from `HrtTrackerApplication.onCreate()`
+alongside `homeWidgetManager.start()`) observes the journal's anchor ids
+and dates and, on any add / edit / delete, re-renders every anchor
+widget and refreshes the pinned shortcuts. It is deliberately isolated
+from `HomeWidgetManager`.
+
+[`AnchorShortcutManager`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/AnchorShortcutManager.kt)
+backs the pinned-shortcut surface: a launcher shortcut per anchor,
+keyed `SHORTCUT_ID_PREFIX + anchor.id` (`"anchor:"`), with an
+adaptive icon bitmap baking the day count. Tapping one deep-links into
+that anchor's milestones (seeded from a persisted cold-start snapshot;
+the milestones screen itself lives in `ui/journal/`). The manager
+pins, refreshes live shortcuts, and disables shortcuts whose anchor was
+deleted.
 
 ## Notable invariants
 

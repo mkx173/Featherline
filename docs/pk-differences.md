@@ -38,6 +38,10 @@ should read the upstream README and its `pk_research/` workspace.
   2.0` for both hormones), gel/patch absorption rates, the standard
   sublingual θ, and the per-compound `k1Fast` / `k1Slow` / `k2` /
   formation fractions are taken from upstream's anchored parameters.
+  The one exception is **estradiol undecylate (EU)**, whose depot
+  parameters come from
+  [`Transmtf-HRT-Tracker`](https://github.com/TransmtfTeam/Transmtf-HRT-Tracker)
+  (the "im-depot-v1" model) — the LaoZhong upstream has no EU model.
 
 ## What Featherline changes
 
@@ -148,9 +152,10 @@ should read the upstream README and its `pk_research/` workspace.
   code also uses the calculator for raw dose amount and patch
   release-rate display, but not for a dose-equivalence label. The two
   copies disagree at the second decimal
-  (`PkCatalog` uses 272.38 / 376.5 / 356.5 / 396.58 / 384.56;
+  (`PkCatalog` uses 272.38 / 376.5 / 356.5 / 396.58 / 384.56 / 440.66;
   `DoseInstructionCalculator` uses 272.4 / 376.4 / 356.5 / 396.6 /
-  384.5). The disagreement is below the resolution any user cares
+  384.5 / 440.66 — the estradiol undecylate value is the one that
+  agrees across both copies). The disagreement is below the resolution any user cares
   about, but the redundancy is flagged — both copies collapse into
   the planned PK engine.
 - **Default gel application area baked in.** `DefaultGelAreaCm2 =
