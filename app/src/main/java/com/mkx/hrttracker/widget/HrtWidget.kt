@@ -249,11 +249,17 @@ class HrtWidgetLarge : GlanceAppWidget() {
     }
 }
 
+// Repaint every dose widget from the stored snapshot through the synchronous push. Every
+// caller is a background context (quick-log callback, daily refresh worker), where a bare
+// session updateAll stalls until the app next draws a frame (see the push note below) —
+// the same staleness pushHrtWidgets exists to avoid. A null read renders the empty-setup
+// state, exactly what the session path would compose from the same store.
 suspend fun updateAllHrtWidgets(context: Context) {
-    coroutineScope {
-        launch { HrtWidgetMedium().glanceUpdateAll(context) }
-        launch { HrtWidgetLarge().glanceUpdateAll(context) }
-    }
+    val record = EntryPointAccessors
+        .fromApplication(context, WidgetEntryPoint::class.java)
+        .widgetSnapshotStore()
+        .readSnapshot()
+    pushHrtWidgets(context, record)
 }
 
 // Widget push entry point. The synchronous push (GlanceRemoteViews.compose() +

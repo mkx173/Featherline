@@ -272,6 +272,43 @@ class AnchorSurfaceRefreshSourceTest {
     }
 
     @Test
+    fun widgetConfigActivity_repaintsAnchorWidgetsThroughTheSynchronousPush() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt"
+        )
+        val saveBlock = source
+            .substringAfter("onSaveAnchor = {")
+            .substringBefore("onSave = {")
+        assertTrue(
+            "The anchor config save must repaint through updateAllAnchorWidgets (the " +
+                "synchronous RemoteViews push): finish() backgrounds the process right " +
+                "after the save, exactly where a bare Glance session update stalls, so " +
+                "the launcher kept the old anchor date until an unrelated broadcast.",
+            saveBlock.contains("updateAllAnchorWidgets(") &&
+                !saveBlock.contains(".update(this@WidgetConfigActivity"),
+        )
+    }
+
+    @Test
+    fun updateAllHrtWidgets_routesThroughTheSynchronousPush() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt"
+        )
+        val body = source
+            .substringAfter("suspend fun updateAllHrtWidgets")
+            .substringBefore("suspend fun pushHrtWidgets")
+        assertTrue(
+            "updateAllHrtWidgets must read the stored snapshot and delegate to " +
+                "pushHrtWidgets: all of its callers (quick-log callback, daily refresh " +
+                "worker) run backgrounded, where a bare session updateAll stalls until " +
+                "the app next draws a frame.",
+            body.contains("readSnapshot()") &&
+                body.contains("pushHrtWidgets(context, record)") &&
+                !body.contains("glanceUpdateAll"),
+        )
+    }
+
+    @Test
     fun mainActivity_parsesDeepLinksAfterProcessDeathButNeverHistoryReplays() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/MainActivity.kt"

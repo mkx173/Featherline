@@ -297,10 +297,15 @@ class WidgetConfigActivity : AppCompatActivity() {
                                             // Repaint is best-effort once the state is written:
                                             // the widget IS configured, and the manager /
                                             // date-receiver paths repaint it if this fails.
-                                            glanceId?.let { id ->
+                                            // Synchronous push, NOT a bare session update():
+                                            // finish() below backgrounds the process, which is
+                                            // exactly where a Glance session recomposition
+                                            // stalls (see updateAllAnchorWidgets) — a bare
+                                            // update left the launcher on the old anchor until
+                                            // an unrelated broadcast repainted it.
+                                            if (glanceId != null) {
                                                 runCatching {
-                                                    HrtAnchorWidget()
-                                                        .update(this@WidgetConfigActivity, id)
+                                                    updateAllAnchorWidgets(applicationContext)
                                                 }
                                             }
                                         } finally {
