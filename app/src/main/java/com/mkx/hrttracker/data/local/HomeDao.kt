@@ -107,7 +107,7 @@ interface HomeDao {
                 ORDER BY appliedAtEpochMillis DESC, uuid DESC
             ) AS rn
             FROM medication_log_entries
-            WHERE category = 'ANTIANDROGEN'
+            WHERE category IN ('ANTIANDROGEN', 'SERM', 'GNRH_AGONIST')
               AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
         )
         WHERE rn = 1
@@ -134,7 +134,7 @@ interface HomeDao {
                 ORDER BY appliedAtEpochMillis DESC, uuid DESC
             ) AS rn
             FROM medication_log_entries
-            WHERE category = 'ANTIANDROGEN'
+            WHERE category IN ('ANTIANDROGEN', 'SERM', 'GNRH_AGONIST')
               AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
         )
         WHERE rn = 1

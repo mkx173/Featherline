@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 /**
  * Pins the semantics of the latest-antiandrogen home snapshot query
  * (`HomeDao.getLatestAntiandrogenEntriesOnOrBefore`): the single latest
- * `ANTIANDROGEN` entry on or before the cutoff, per full medication signature,
+ * antiandrogen-card category entry on or before the cutoff, per full medication signature,
  * with ties on `appliedAtEpochMillis` broken by the greater `uuid`. This is the
  * contract the `ROW_NUMBER()` window query must keep; it must not change when
  * the query implementation is tuned.
@@ -122,6 +122,38 @@ class HomeDaoLatestAntiandrogenTest {
         }
 
     @Test
+    fun latestAntiandrogen_includesSermAndGnrhAgonistHistory() = runBlocking {
+        val cutoff = 10_000L
+        database.medicationLogDao().insertEntries(
+            listOf(
+                aaEntry("aa", appliedAt = 1_000, group = "group-aa"),
+                categoryEntry(
+                    uuid = "serm",
+                    category = MedicationCategory.SERM,
+                    appliedAt = 2_000,
+                    group = "group-serm",
+                    medicineUuid = "m-serm",
+                ),
+                categoryEntry(
+                    uuid = "gnrh",
+                    category = MedicationCategory.GNRH_AGONIST,
+                    appliedAt = 3_000,
+                    group = "group-gnrh",
+                    medicineUuid = "m-gnrh",
+                ),
+                e2Entry("e2", appliedAt = 4_000),
+            )
+        )
+
+        val latest = database.homeDao()
+            .getLatestAntiandrogenEntriesOnOrBefore(cutoff)
+            .map { it.uuid }
+            .toSet()
+
+        assertEquals(setOf("aa", "serm", "gnrh"), latest)
+    }
+
+    @Test
     fun observeLatestAntiandrogen_returnsLatestPerFullDoseSignature() =
         runBlocking {
             val cutoff = 10_000L
@@ -141,6 +173,20 @@ class HomeDaoLatestAntiandrogenTest {
                         tabletFractionNumerator = 1,
                         tabletFractionDenominator = 3,
                     ),
+                    categoryEntry(
+                        uuid = "serm",
+                        category = MedicationCategory.SERM,
+                        appliedAt = 3_000,
+                        group = "group-serm",
+                        medicineUuid = "m-serm",
+                    ),
+                    categoryEntry(
+                        uuid = "gnrh",
+                        category = MedicationCategory.GNRH_AGONIST,
+                        appliedAt = 1_000,
+                        group = "group-gnrh",
+                        medicineUuid = "m-gnrh",
+                    ),
                 )
             )
 
@@ -150,8 +196,30 @@ class HomeDaoLatestAntiandrogenTest {
                 .map { it.uuid }
                 .toSet()
 
-            assertEquals(setOf("quarter", "third"), latest)
+            assertEquals(setOf("quarter", "third", "serm", "gnrh"), latest)
         }
+
+    private fun categoryEntry(
+        uuid: String,
+        category: MedicationCategory,
+        appliedAt: Long,
+        group: String?,
+        medicineUuid: String,
+    ): MedicationLogEntryEntity = MedicationLogEntryEntity(
+        uuid = uuid,
+        category = category.name,
+        medicineUuid = medicineUuid,
+        applicationType = MedicationApplicationType.INJECTION.name,
+        doseInstructionKind = DoseInstructionKind.VOLUME_ML.name,
+        tabletFractionNumerator = null,
+        tabletFractionDenominator = null,
+        doseVolumeMl = 1.0,
+        doseWeightGrams = null,
+        equivalentE2Mg = null,
+        sourceGroupUuid = group,
+        appliedAtEpochMillis = appliedAt,
+        appliedAtTimeZoneId = "UTC",
+    )
 
     private fun aaEntry(
         uuid: String,
