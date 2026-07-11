@@ -56,6 +56,7 @@ class MedicationCatalogTest {
                 MedicationKey.SPIRONOLACTONE,
                 MedicationKey.CYPROTERONE_ACETATE,
                 MedicationKey.BICALUTAMIDE,
+                MedicationKey.FINASTERIDE,
             ),
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )
@@ -152,6 +153,17 @@ class MedicationCatalogTest {
                 category = MedicationCategory.ANTIANDROGEN,
                 applicationType = MedicationApplicationType.ORAL,
                 medicationKey = MedicationKey.BICALUTAMIDE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1"),
+                MedicationDoseAssistPreset.MgAsMedicine("5"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.ANTIANDROGEN,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.FINASTERIDE,
             ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
         )
     }

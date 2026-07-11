@@ -53,6 +53,7 @@ enum class MedicationKey(val category: MedicationCategory) {
     SPIRONOLACTONE(category = MedicationCategory.ANTIANDROGEN),
     CYPROTERONE_ACETATE(category = MedicationCategory.ANTIANDROGEN),
     BICALUTAMIDE(category = MedicationCategory.ANTIANDROGEN),
+    FINASTERIDE(category = MedicationCategory.ANTIANDROGEN),
     ESTRADIOL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
@@ -241,6 +242,10 @@ object MedicationCatalog {
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.BICALUTAMIDE,
                     doseAssistPresets = pillMgDoseAssistPresets("50", "80"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.FINASTERIDE,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "5"),
                 ),
             ),
             allowCustomMedicationName = false,
