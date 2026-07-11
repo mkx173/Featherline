@@ -104,5 +104,6 @@ Third-party dependency, asset, and adapted-code notices are listed in [docs/thir
 
 - The [Material Symbols](https://fonts.google.com/icons) icon set.
 - The pharmacokinetic projection draws on the math reference from [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test).
+- The estradiol undecylate pharmacokinetic parameters come from [Transmtf-HRT-Tracker](https://github.com/TransmtfTeam/Transmtf-HRT-Tracker).
 - Plot display logic was adapted from [Oyama's HRT Tracker](https://github.com/SmirnovaOyama/Oyama-s-HRT-Tracker).
 - The broader trans health community for testing, feedback, and the prior art that makes a tool like this possible.
