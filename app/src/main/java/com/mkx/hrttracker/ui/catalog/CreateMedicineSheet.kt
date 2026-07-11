@@ -488,6 +488,11 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.DEPOT_INJECTION -> {
             val isDepot = medicineDraft.inferredOrSelectedPreparationType() ==
                     MedicinePreparationType.DEPOT_INJECTION
+            val strengthErrorRes = if (isDepot) {
+                R.string.validation_depot_strength_required
+            } else {
+                R.string.validation_vial_strength_required
+            }
             MedicationNumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
                 label = medicationEditorFieldLabelWithUnit(
@@ -501,9 +506,8 @@ private fun NewMedicinePreparationForm(
                 suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 readOnly = readOnly,
-                isError = errorMessageRes == R.string.validation_vial_strength_required,
-                errorMessageRes = R.string.validation_vial_strength_required
-                    .takeIf { errorMessageRes == it },
+                isError = errorMessageRes == strengthErrorRes,
+                errorMessageRes = strengthErrorRes.takeIf { errorMessageRes == it },
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
                 },

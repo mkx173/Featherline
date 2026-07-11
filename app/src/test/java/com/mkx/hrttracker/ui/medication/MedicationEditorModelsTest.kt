@@ -197,6 +197,7 @@ class MedicationEditorModelsTest {
         )
         // Single depot option — the ampule/vial segmented picker must not render.
         assertFalse(draft.requiresPreparationTypeSelection())
+        assertEquals(R.string.validation_depot_strength_required, draft.validationErrorRes())
     }
 
     @Test

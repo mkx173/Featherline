@@ -1108,9 +1108,12 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
             R.string.validation_capsule_strength_required
                 .takeIf { parsePositiveDouble(pillStrengthMg) == null }
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION ->
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             R.string.validation_vial_strength_required
+                .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
+
+        MedicinePreparationType.DEPOT_INJECTION ->
+            R.string.validation_depot_strength_required
                 .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> when {

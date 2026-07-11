@@ -502,6 +502,7 @@
     <string name="validation_pill_strength_required">请输入有效的每片含量</string>
     <string name="validation_capsule_strength_required">请输入有效的每粒含量</string>
     <string name="validation_vial_strength_required">请输入有效的每瓶含量</string>
+    <string name="validation_depot_strength_required">请输入有效的每针剂量</string>
     <string name="validation_concentration_required">请输入有效浓度</string>
     <string name="validation_vial_volume_required">请输入有效的药瓶容量</string>
     <string name="validation_gel_concentration_required">请输入有效的凝胶浓度</string>
@@ -567,7 +568,7 @@
     <string name="medication_category_testosterone">睾酮</string>
     <string name="medication_category_antiandrogen">抗雄激素</string>
     <string name="medication_category_serm">SERM</string>
-    <string name="medication_category_gnrh_agonist">GnRH 激动剂</string>
+    <string name="medication_category_gnrh_agonist">GnRHa</string>
     <string name="medication_category_custom">自定义</string>
     <string name="medication_application_oral">口服</string>
     <string name="medication_application_sublingual">舌下</string>

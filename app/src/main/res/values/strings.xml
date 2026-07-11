@@ -518,6 +518,7 @@
     <string name="validation_pill_strength_required">Enter a valid tablet strength.</string>
     <string name="validation_capsule_strength_required">Enter a valid capsule strength.</string>
     <string name="validation_vial_strength_required">Enter a valid vial strength.</string>
+    <string name="validation_depot_strength_required">Enter a valid strength per injection.</string>
     <string name="validation_concentration_required">Enter a valid concentration.</string>
     <string name="validation_vial_volume_required">Enter a valid vial volume.</string>
     <string name="validation_gel_concentration_required">Enter a valid gel concentration.</string>
@@ -594,7 +595,7 @@
     <string name="medication_category_testosterone">Testosterone</string>
     <string name="medication_category_antiandrogen">Antiandrogen</string>
     <string name="medication_category_serm">SERM</string>
-    <string name="medication_category_gnrh_agonist">GnRH agonist</string>
+    <string name="medication_category_gnrh_agonist">GnRHa</string>
     <string name="medication_category_custom">Custom</string>
     <string name="medication_application_oral">Oral</string>
     <string name="medication_application_sublingual">Sublingual</string>
