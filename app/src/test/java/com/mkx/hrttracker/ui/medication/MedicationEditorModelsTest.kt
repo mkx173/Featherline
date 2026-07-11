@@ -226,6 +226,47 @@ class MedicationEditorModelsTest {
         assertEquals("11.25", applied.singleUseVialStrengthMg)
     }
 
+    // The tablet↔capsule form toggle silently swaps the antiandrogen medication
+    // list, so the single capsule entry (Dutasteride) must still be named by
+    // the selector — unlike gel/patch, where the category already implies the
+    // one medication and the selector stays hidden.
+    @Test
+    fun antiandrogenCapsuleDraft_showsSingleEntryMedicationSelector() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertTrue(draft.showsMedicationSelector())
+    }
+
+    @Test
+    fun estradiolGelAndPatchDrafts_hideSingleEntryMedicationSelector() {
+        listOf(MedicinePreparationForm.GEL, MedicinePreparationForm.PATCH).forEach { form ->
+            val draft = defaultMedicineDraft(
+                category = MedicationCategory.ESTRADIOL,
+                form = form,
+            )
+
+            assertFalse(draft.showsMedicationSelector())
+        }
+    }
+
+    @Test
+    fun multiEntryAndCustomDrafts_keepExistingMedicationSelectorVisibility() {
+        val antiandrogenTablet = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.TABLET,
+        )
+        val customCapsule = defaultMedicineDraft(
+            category = MedicationCategory.CUSTOM,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertTrue(antiandrogenTablet.showsMedicationSelector())
+        assertFalse(customCapsule.showsMedicationSelector())
+    }
+
     @Test
     fun gelDraftDefaultsToContainer() {
         val draft = defaultMedicineDraft(

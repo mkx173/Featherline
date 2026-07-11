@@ -130,6 +130,20 @@ fun MedicinePickerUiState.availableCatalogKeys(): List<MedicationKey> {
     return catalogEntries().mapNotNull { it.medicationKey }
 }
 
+// Whether the create flow renders the medication button group. Single-entry
+// buckets normally hide it (estradiol gel/patch — the category already names
+// the one medication), but a single-entry CAPSULE bucket still shows it: the
+// tablet↔capsule form toggle silently swaps the medication list, so the one
+// capsule medication (Dutasteride) must be named explicitly.
+fun MedicinePickerUiState.showsMedicationSelector(): Boolean {
+    if (!supportsCatalogSelection() || selectionKind != MedicationSelectionKind.CATALOG) {
+        return false
+    }
+    val catalogKeys = availableCatalogKeys()
+    return catalogKeys.size > 1 ||
+            (catalogKeys.isNotEmpty() && form == MedicinePreparationForm.CAPSULE)
+}
+
 fun MedicinePickerUiState.selectedCatalogEntry(): MedicationCatalogEntry {
     val entries = catalogEntries()
     return if (selectionKind == MedicationSelectionKind.CATALOG) {

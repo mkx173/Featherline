@@ -82,7 +82,7 @@ import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.requiresPreparationTypeSelection
 import com.mkx.hrttracker.ui.medication.shortLabelRes
 import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
-import com.mkx.hrttracker.ui.medication.supportsCatalogSelection
+import com.mkx.hrttracker.ui.medication.showsMedicationSelector
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
@@ -217,10 +217,7 @@ internal fun CreateMedicineForm(
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
     val catalogKeys = medicineDraft.availableCatalogKeys()
-    if (medicineDraft.supportsCatalogSelection() &&
-        medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
-        catalogKeys.size > 1
-    ) {
+    if (medicineDraft.showsMedicationSelector()) {
         MedicationEditorSectionLabel(stringResource(R.string.field_medication))
         ConnectedButtonGroup(
             options = catalogKeys,
