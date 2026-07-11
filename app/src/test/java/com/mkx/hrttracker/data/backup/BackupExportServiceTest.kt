@@ -120,10 +120,10 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_heroBackgroundBumpedSnapshotVersion() {
-        // The 5→6 bump is intentional for journal hero background persistence.
+    fun backupExport_versionTripwire_depotInjectionBumpedSnapshotVersion() {
+        // The 6→7 bump is intentional for the DEPOT_INJECTION preparation type.
         // Keep this tripwire aligned with BackupSnapshot.kt's compatibility notes.
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -609,7 +609,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)

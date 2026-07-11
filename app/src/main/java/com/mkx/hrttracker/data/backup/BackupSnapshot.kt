@@ -282,7 +282,11 @@ data class BackupNoteSnapshot(
 // The 5→6 bump added BackupTrackedDateSnapshot.heroBackgroundKey so journal
 // hero backgrounds are included in the backup compatibility gate alongside
 // local Room persistence.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 6
+//
+// The 6→7 bump added the DEPOT_INJECTION preparationType enum value. Older apps
+// coerce unknown preparationType strings to PILL on restore, which would
+// silently misclassify depot medicines — non-additive, hence the bump.
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their
