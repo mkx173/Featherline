@@ -15,6 +15,7 @@ internal fun stockUnitNounPluralRes(preparation: MedicinePreparation): Int? = wh
     is MedicinePreparation.Patch -> R.plurals.stock_count_patches
     is MedicinePreparation.GelSachet -> R.plurals.stock_count_sachets
     is MedicinePreparation.InjectionSingleUseVial -> R.plurals.stock_count_vials
+    is MedicinePreparation.DepotInjection -> R.plurals.stock_count_injections
     is MedicinePreparation.InjectionMultiUseVial -> R.plurals.stock_count_vials
     is MedicinePreparation.GelContainer -> R.plurals.stock_count_containers
     is MedicinePreparation.PatchOff,
@@ -30,6 +31,7 @@ internal fun stockUnitNounPluralForUnitRes(@StringRes unitRes: Int): Int? = when
     R.string.stock_unit_sachets -> R.plurals.stock_count_sachets
     R.string.stock_unit_vials -> R.plurals.stock_count_vials
     R.string.stock_unit_containers -> R.plurals.stock_count_containers
+    R.string.stock_unit_injections -> R.plurals.stock_count_injections
     else -> null
 }
 
@@ -62,6 +64,7 @@ internal fun stockInventoryUnitRes(preparation: MedicinePreparation): Int? = whe
     is MedicinePreparation.Patch -> R.string.stock_unit_patches
     is MedicinePreparation.GelSachet -> R.string.stock_unit_sachets
     is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
+    is MedicinePreparation.DepotInjection -> R.string.stock_unit_injections
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
     is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
     is MedicinePreparation.PatchOff,
@@ -76,6 +79,7 @@ internal fun stockRateUnitRes(preparation: MedicinePreparation): Int? = when (pr
     is MedicinePreparation.Patch -> R.string.stock_unit_patches
     is MedicinePreparation.GelSachet -> R.string.stock_unit_sachets
     is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
+    is MedicinePreparation.DepotInjection -> R.string.stock_unit_injections
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_ml
     is MedicinePreparation.GelContainer -> R.string.stock_unit_g
     is MedicinePreparation.PatchOff,

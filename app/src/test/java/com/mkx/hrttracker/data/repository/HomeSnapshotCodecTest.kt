@@ -420,6 +420,61 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_roundTripsDepotInjectionPreparation() {
+        val depotMedicine = testCustomMedicine(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000021"),
+            medicationName = "Triptorelin",
+            preparation = MedicinePreparation.DepotInjection(strengthMg = 3.75),
+        )
+        val depotMedication = MedicationGroupMedication(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000022"),
+            medicine = depotMedicine,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 1,
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = listOf(
+                MedicationGroup(
+                    uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000030"),
+                    name = "Depot",
+                    colorKey = MedicationGroupColorKey.TEAL,
+                    schedule = MedicationGroupSchedule(
+                        type = MedicationGroupScheduleType.DAILY,
+                        interval = 1,
+                        since = LocalDate.of(2026, 5, 1),
+                        weeklyDaysOfWeek = emptySet(),
+                        times = listOf(LocalTime.of(9, 0)),
+                    ),
+                    medications = listOf(depotMedication),
+                    notificationsEnabled = false,
+                    createdAt = Instant.ofEpochMilli(0L),
+                    updatedAt = Instant.ofEpochMilli(0L),
+                )
+            ),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        val restoredPreparation = decoded.activeGroups.single()
+            .medications.single()
+            .medicine
+            ?.preparation
+        assertEquals(
+            MedicinePreparation.DepotInjection(strengthMg = 3.75),
+            restoredPreparation,
+        )
+    }
+
+    @Test
     fun encodeDecode_roundTripsPkEntriesSharingMedicineAndNullMedicine() {
         val sharedMedicine = testMedicine(
             uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),

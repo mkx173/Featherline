@@ -662,7 +662,8 @@ private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparati
     is MedicinePreparation.Capsule,
     is MedicinePreparation.Patch,
     is MedicinePreparation.GelSachet,
-    is MedicinePreparation.InjectionSingleUseVial -> R.drawable.ic_inventory_2
+    is MedicinePreparation.InjectionSingleUseVial,
+    is MedicinePreparation.DepotInjection -> R.drawable.ic_inventory_2
     // Container preparations and PatchOff route through dedicated row paths
     // upstream; this fallback only fires if a new preparation type is added
     // without a matching pool icon mapping.

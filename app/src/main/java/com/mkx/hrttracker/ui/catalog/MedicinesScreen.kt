@@ -803,6 +803,7 @@ private fun inferApplicationTypeForMedicine(
             MedicationApplicationType.ORAL
 
         is MedicinePreparation.InjectionSingleUseVial,
+        is MedicinePreparation.DepotInjection,
         is MedicinePreparation.InjectionMultiUseVial,
         is MedicinePreparation.ImportedInjection ->
             MedicationApplicationType.INJECTION

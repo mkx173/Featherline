@@ -347,6 +347,7 @@ internal fun resolvePerAdministrationMagnitude(
         DoseInstruction.WholeUnit -> when (preparation) {
             is MedicinePreparation.Capsule,
             is MedicinePreparation.InjectionSingleUseVial,
+            is MedicinePreparation.DepotInjection,
             is MedicinePreparation.GelSachet,
             is MedicinePreparation.Patch -> 1.0
 

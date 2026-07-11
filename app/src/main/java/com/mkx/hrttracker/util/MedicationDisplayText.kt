@@ -83,6 +83,11 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
             preparation.strengthMgPerVial.formatDose(locale),
         )
 
+        is MedicinePreparation.DepotInjection -> context.getString(
+            R.string.medication_preparation_summary_depot_injection,
+            preparation.strengthMg.formatDose(locale),
+        )
+
         is MedicinePreparation.InjectionMultiUseVial -> context.getString(
             R.string.medication_preparation_summary_multi_use_vial,
             preparation.concentrationMgPerMl.formatDose(locale),
@@ -347,6 +352,9 @@ private fun aggregateDosePortionText(
 
     preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_vials, count)
+
+    preparation is MedicinePreparation.DepotInjection && effectiveInstruction == DoseInstruction.WholeUnit ->
+        doseCountNoun(context, R.plurals.stock_count_injections, count)
 
     preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_patches, count)

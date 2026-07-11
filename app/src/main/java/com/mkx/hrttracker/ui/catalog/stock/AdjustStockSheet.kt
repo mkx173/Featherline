@@ -597,6 +597,8 @@ private fun quickAddPresets(preparation: MedicinePreparation): List<Int> = when 
     is MedicinePreparation.Capsule -> listOf(10, 14, 21, 28)
 
     is MedicinePreparation.InjectionSingleUseVial -> listOf(5, 10)
+    // ponytail: 1/3 mirror typical per-syringe and quarterly-pack purchases; tune if users report otherwise
+    is MedicinePreparation.DepotInjection -> listOf(1, 3)
     is MedicinePreparation.Patch -> listOf(8, 12, 24)
     else -> emptyList()
 }

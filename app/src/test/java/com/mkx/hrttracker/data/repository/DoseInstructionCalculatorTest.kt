@@ -174,6 +174,23 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun depotInjection_wholeUnit_resolvesStrengthAsPerUnitMg() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            preparation = MedicinePreparation.DepotInjection(strengthMg = 11.25),
+        )
+
+        assertEquals(
+            11.25,
+            DoseInstructionCalculator.perUnitAmountMg(medicine, DoseInstruction.WholeUnit)!!,
+            1e-9,
+        )
+        assertNull(
+            DoseInstructionCalculator.perUnitAmountMg(medicine, DoseInstruction.VolumeMl(1.0)),
+        )
+    }
+
+    @Test
     fun multiUseInjectionUsesConcentrationAndVolume() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),

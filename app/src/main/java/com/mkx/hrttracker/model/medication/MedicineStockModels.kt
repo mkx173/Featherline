@@ -4,7 +4,7 @@ package com.mkx.hrttracker.model.medication
 /**
  * Stock state attached to a medicine when tracking is enabled.
  *
- * For pool preparations (tablets, capsules, patches, sachets, single-use vials):
+ * For pool preparations (tablets, capsules, patches, sachets, single-use vials, depot injections):
  * - unitsRemaining = current units in the pool
  * - openContainerAmount is always null
  *

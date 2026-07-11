@@ -1056,12 +1056,18 @@ private fun PreparationEditorFields(
                 }
             }
 
-            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            MedicinePreparationType.DEPOT_INJECTION -> {
+                val isDepot = draft.preparationType == MedicinePreparationType.DEPOT_INJECTION
                 Column {
                     NumericInputField(
                         value = draft.singleUseVialStrengthMg,
                         label = fieldLabelWithUnit(
-                            R.string.field_single_use_vial_strength_mg,
+                            if (isDepot) {
+                                R.string.field_depot_strength_mg
+                            } else {
+                                R.string.field_single_use_vial_strength_mg
+                            },
                             rawMassUnit
                         ),
                         suffix = stringResource(rawMassUnit),
@@ -1274,7 +1280,8 @@ private fun preparationEditFields(
     MedicinePreparationType.PILL,
     MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
 
-    MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+    MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+    MedicinePreparationType.DEPOT_INJECTION ->
         listOf(CreateMedicineField.VIAL_STRENGTH)
 
     MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
@@ -1407,6 +1414,7 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
         is MedicinePreparation.Pill -> MedicationApplicationType.ORAL
         is MedicinePreparation.Capsule -> MedicationApplicationType.ORAL
         is MedicinePreparation.InjectionSingleUseVial,
+        is MedicinePreparation.DepotInjection,
         is MedicinePreparation.InjectionMultiUseVial,
         is MedicinePreparation.ImportedInjection -> MedicationApplicationType.INJECTION
 
@@ -1439,6 +1447,10 @@ private fun MedicinePreparation.toPreparationDraft(
 
         is MedicinePreparation.InjectionSingleUseVial -> base.copy(
             singleUseVialStrengthMg = displayDoseUnit.fromMg(strengthMgPerVial).toEditableString(),
+        )
+
+        is MedicinePreparation.DepotInjection -> base.copy(
+            singleUseVialStrengthMg = displayDoseUnit.fromMg(strengthMg).toEditableString(),
         )
 
         is MedicinePreparation.InjectionMultiUseVial -> base.copy(
@@ -1493,6 +1505,11 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
                 MedicinePreparation.InjectionSingleUseVial(
                     strengthMgPerVial = toMg(singleUseVialStrengthMg.toPositiveDoubleOrThrow()),
+                )
+
+            MedicinePreparationType.DEPOT_INJECTION ->
+                MedicinePreparation.DepotInjection(
+                    strengthMg = toMg(singleUseVialStrengthMg.toPositiveDoubleOrThrow()),
                 )
 
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->

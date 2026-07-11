@@ -1494,6 +1494,13 @@ private fun MedicinePreparationType.toValidatedPreparation(
             )
         }
 
+        MedicinePreparationType.DEPOT_INJECTION -> {
+            requireFieldsOnly("strengthMgPerVial")
+            MedicinePreparation.DepotInjection(
+                strengthMg = checkNotNull(strengthMgPerVial)
+            )
+        }
+
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             requireFieldsOnly("concentrationMgPerMl", "vialVolumeMl")
             MedicinePreparation.InjectionMultiUseVial(

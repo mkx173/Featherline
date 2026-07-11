@@ -167,6 +167,11 @@ internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFi
             strengthMgPerVial = strengthMgPerVial,
         )
 
+        is MedicinePreparation.DepotInjection -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerVial = strengthMg,
+        )
+
         is MedicinePreparation.InjectionMultiUseVial -> MedicinePreparationStorageFields(
             preparationType = type.name,
             concentrationMgPerMl = concentrationMgPerMl,
@@ -317,6 +322,13 @@ private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
             requireOnlyPreparationFields("strengthMgPerVial")
             MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = checkNotNull(strengthMgPerVial)
+            )
+        }
+
+        MedicinePreparationType.DEPOT_INJECTION -> {
+            requireOnlyPreparationFields("strengthMgPerVial")
+            MedicinePreparation.DepotInjection(
+                strengthMg = checkNotNull(strengthMgPerVial)
             )
         }
 

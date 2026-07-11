@@ -532,6 +532,7 @@
     <string name="field_pill_strength_mg">Tablet strength</string>
     <string name="field_capsule_strength_mg">Capsule strength</string>
     <string name="field_single_use_vial_strength_mg">Vial strength</string>
+    <string name="field_depot_strength_mg">Strength per injection</string>
     <string name="field_concentration_mg_per_ml">Concentration</string>
     <string name="field_vial_volume_ml">Vial volume</string>
     <string name="field_gel_concentration_percent">Gel concentration</string>
@@ -564,6 +565,8 @@
     <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
     <string name="medication_preparation_summary_single_use_vial">Injection · Ampule · %1$s mg</string>
     <string name="medication_preparation_summary_single_use_vial_with_unit">Injection · Ampule · %1$s %2$s</string>
+    <string name="medication_preparation_summary_depot_injection">Injection · %1$s mg</string>
+    <string name="medication_preparation_summary_depot_injection_with_unit">Injection · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">Injection · Vial · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">Gel · Sachet · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">Gel · Container · %1$s%% · %2$s g</string>
@@ -1031,6 +1034,7 @@
     <string name="stock_unit_patches">patches</string>
     <string name="stock_unit_sachets">sachets</string>
     <string name="stock_unit_vials">vials</string>
+    <string name="stock_unit_injections">injections</string>
     <string name="stock_unit_containers">containers</string>
     <string name="stock_unit_ml">mL</string>
     <string name="stock_unit_g">g</string>
@@ -1054,6 +1058,10 @@
     <plurals name="stock_count_vials">
         <item quantity="one">vial</item>
         <item quantity="other">vials</item>
+    </plurals>
+    <plurals name="stock_count_injections">
+        <item quantity="one">injection</item>
+        <item quantity="other">injections</item>
     </plurals>
     <plurals name="stock_count_containers">
         <item quantity="one">container</item>

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -93,6 +94,30 @@ class MedicationCompatibilityTest {
         assertTrue(DoseInstruction.Noop.isCompatibleWith(MedicinePreparationType.PATCH_OFF))
         assertTrue(DoseInstruction.Noop.isCompatibleWith(null))
         assertFalse(DoseInstruction.WholeUnit.isCompatibleWith(null))
+    }
+
+    @Test
+    fun depotInjection_isInjectionRoute_wholeUnitOnly() {
+        assertTrue(
+            MedicationApplicationType.INJECTION
+                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+        )
+        assertTrue(
+            DoseInstruction.WholeUnit
+                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+        )
+        assertFalse(
+            DoseInstruction.VolumeMl(1.0)
+                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+        )
+        assertEquals(
+            MedicationApplicationType.INJECTION,
+            MedicinePreparationType.DEPOT_INJECTION.requiredApplicationType(),
+        )
+        assertEquals(
+            MedicinePreparationForm.INJECTION,
+            MedicinePreparationType.DEPOT_INJECTION.form(),
+        )
     }
 
     @Test

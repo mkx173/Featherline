@@ -124,6 +124,17 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
+    fun depotInjection_identityKey_isStableAndTyped() {
+        assertEquals(
+            "C|ESTRADIOL_VALERATE|DEPOT_INJECTION|strengthMg=11.25",
+            MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicinePreparation.DepotInjection(strengthMg = 11.25),
+            ),
+        )
+    }
+
+    @Test
     fun customCapsuleIdentityDiffersFromCustomPillAtSameStrength() {
         val pillKey = MedicineIdentityKey.custom(
             customMedicationName = "Progesterone",

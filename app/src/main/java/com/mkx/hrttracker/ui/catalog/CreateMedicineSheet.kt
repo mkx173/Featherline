@@ -484,11 +484,18 @@ private fun NewMedicinePreparationForm(
             )
         }
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.DEPOT_INJECTION -> {
+            val isDepot = medicineDraft.inferredOrSelectedPreparationType() ==
+                    MedicinePreparationType.DEPOT_INJECTION
             MedicationNumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
                 label = medicationEditorFieldLabelWithUnit(
-                    R.string.field_single_use_vial_strength_mg,
+                    if (isDepot) {
+                        R.string.field_depot_strength_mg
+                    } else {
+                        R.string.field_single_use_vial_strength_mg
+                    },
                     rawMassUnit
                 ),
                 suffix = stringResource(rawMassUnit),
@@ -895,7 +902,8 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> fields += CreateMedicineField.PILL_STRENGTH
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.DEPOT_INJECTION ->
             fields += CreateMedicineField.VIAL_STRENGTH
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
@@ -932,7 +940,8 @@ internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<Cr
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> listOf(CreateMedicineField.VIAL_STRENGTH)
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.DEPOT_INJECTION -> listOf(CreateMedicineField.VIAL_STRENGTH)
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
             CreateMedicineField.CONCENTRATION_MG_PER_ML,
             CreateMedicineField.VIAL_VOLUME_ML,
