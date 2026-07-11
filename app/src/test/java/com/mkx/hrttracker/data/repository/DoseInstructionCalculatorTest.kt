@@ -224,6 +224,21 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun undecylateEquivalentE2UsesSharedEngineMolecularWeightRatio() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_UNDECYLATE),
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 100.0),
+        )
+
+        val result = DoseInstructionCalculator.perUnitEquivalentE2Mg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+
+        assertEquals(100.0 * 272.38 / 440.66, requireNotNull(result), 1e-9)
+    }
+
+    @Test
     fun importedInjectionEquivalentE2UsesEsterRatio() {
         val medicine = importedMedicine(
             preparation = MedicinePreparation.ImportedInjection(

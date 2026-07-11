@@ -582,6 +582,7 @@
     <string name="medication_name_estradiol_benzoate">苯甲酸雌二醇</string>
     <string name="medication_name_estradiol_cypionate">环戊丙酸雌二醇</string>
     <string name="medication_name_estradiol_enanthate">庚酸雌二醇</string>
+    <string name="medication_name_estradiol_undecylate">十一酸雌二醇</string>
     <string name="medication_name_estradiol_gel">雌二醇</string>
     <string name="medication_name_estradiol_patch">雌二醇</string>
     <string name="medication_name_spironolactone">螺内酯</string>

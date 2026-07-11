@@ -637,6 +637,41 @@ class ExternalImportParserTest {
     }
 
     @Test
+    fun transmtfAndOyamaImportEstradiolUndecylateInjections() {
+        val inputs = listOf(
+            """
+            {
+              "gelProducts": [],
+              "events": [
+                { "id": "t-eu", "timeH": 1, "route": "injection", "ester": "EU", "doseMG": 100 }
+              ]
+            }
+            """.trimIndent(),
+            """
+            {
+              "doseTemplates": [],
+              "events": [
+                { "id": "o-eu", "timeH": 1, "route": "injection", "ester": "EU", "doseMG": 100 }
+              ]
+            }
+            """.trimIndent(),
+        )
+        val ratio = requireNotNull(
+            DoseInstructionCalculator.e2EquivalenceRatio(MedicationKey.ESTRADIOL_UNDECYLATE)
+        )
+
+        inputs.forEach { input ->
+            val dose = parser.parse(input).medicationDoses.single()
+            val injection = assertIs<MedicinePreparation.ImportedInjection>(
+                dose.medicineIdentity!!.preparation
+            )
+            assertEquals(MedicationKey.ESTRADIOL_UNDECYLATE, injection.ester)
+            assertEquals(100.0, injection.administeredMg, 1e-9)
+            assertEquals(100.0 * ratio, dose.equivalentE2Mg!!, 1e-9)
+        }
+    }
+
+    @Test
     fun mapsInjectionAndGelToImportedPreparationsAndCanonicalizesNumericIdentity() {
         val result = parser.parse(
             """

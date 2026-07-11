@@ -34,6 +34,7 @@ val IMPORTED_INJECTION_ESTER_KEYS = setOf(
     MedicationKey.ESTRADIOL_BENZOATE,
     MedicationKey.ESTRADIOL_CYPIONATE,
     MedicationKey.ESTRADIOL_ENANTHATE,
+    MedicationKey.ESTRADIOL_UNDECYLATE,
 )
 
 sealed interface MedicineSelection {

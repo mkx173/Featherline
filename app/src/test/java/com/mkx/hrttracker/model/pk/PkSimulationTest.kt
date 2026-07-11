@@ -25,6 +25,60 @@ import kotlin.math.exp
 
 class PkSimulationTest {
     @Test
+    fun estradiolUndecylate_usesTransmtfImDepotV1Parameters() {
+        val depot = requireNotNull(PkCatalog.twoPartDepotParams(PkCompound.EU))
+
+        assertEquals(0.0, depot.fracFast, 0.0)
+        assertEquals(0.00082, depot.k1Fast, 0.0)
+        assertEquals(0.00082, depot.k1Slow, 0.0)
+        assertEquals(0.542, requireNotNull(PkCatalog.formationFraction(PkCompound.EU)), 0.0)
+        assertEquals(2.0, requireNotNull(PkCatalog.hydrolysisK2(PkCompound.EU)), 0.0)
+        assertEquals(272.38 / 440.66, PkCatalog.activeFactor(PkCompound.EU), 1e-12)
+    }
+
+    @Test
+    fun estradiolUndecylate_matchesSharedEngineLiteratureAnchors() {
+        fun event(day: Int) = PkDoseEvent(
+            id = UUID.randomUUID(),
+            sourceGroupUuid = null,
+            hormone = PkHormone.ESTRADIOL,
+            route = PkRoute.INJECTION,
+            timeH = day * 24.0,
+            doseMg = 100.0 * PkCatalog.activeFactor(PkCompound.EU),
+            compound = PkCompound.EU,
+        )
+
+        val singleDose = PkSimulationEngine(
+            events = listOf(event(day = 0)),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 42.0 * 24.0,
+            numberOfSteps = 2,
+        ).run(sampleTimeH = listOf(24.0, 14.0 * 24.0, 42.0 * 24.0))
+
+        val day1 = requireNotNull(singleDose.concentrationAt(24.0))
+        val day14 = requireNotNull(singleDose.concentrationAt(14.0 * 24.0))
+        val day42 = requireNotNull(singleDose.concentrationAt(42.0 * 24.0))
+        assertTrue(day1 in 400.0..650.0)
+        assertTrue(day14 in 250.0..450.0)
+        assertTrue(day42 in 0.0..<day14)
+
+        val monthlyDoses = (0..6).map { month -> event(day = month * 30) }
+        val monthly = PkSimulationEngine(
+            events = monthlyDoses,
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 180.0 * 24.0,
+            numberOfSteps = 2,
+        ).run(sampleTimeH = listOf(90.0 * 24.0, 180.0 * 24.0))
+
+        assertTrue(requireNotNull(monthly.concentrationAt(90.0 * 24.0)) in 400.0..600.0)
+        assertTrue(requireNotNull(monthly.concentrationAt(180.0 * 24.0)) in 450.0..650.0)
+    }
+
+    @Test
     fun oneCompartmentAmount_matchesBatemanEquation() {
         val params = PkParams(
             fracFast = 1.0,

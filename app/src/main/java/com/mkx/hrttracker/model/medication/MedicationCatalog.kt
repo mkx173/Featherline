@@ -67,6 +67,7 @@ enum class MedicationKey(val category: MedicationCategory) {
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_CYPIONATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_ENANTHATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_UNDECYLATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_GEL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_PATCH(category = MedicationCategory.ESTRADIOL);
 
@@ -164,35 +165,23 @@ object MedicationCatalog {
             entries = listOf(
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_UNDECYLATE,
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -469,6 +458,14 @@ object MedicationCatalog {
                 MedicationDoseAssistPreset.MgAsMedicine(it)
             },
         )
+    }
+
+    private fun injectableEstradiolDoseAssistPresets(): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return singleUseVialMgDoseAssistPresets("5", "10") +
+                multiUseVialDoseAssistPresets(
+                    concentrationsMgPerMl = listOf("20", "40", "50", "80", "100"),
+                    volumesMl = listOf("5", "10"),
+                )
     }
 
     private fun multiUseVialDoseAssistPresets(

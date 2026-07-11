@@ -53,6 +53,7 @@ val MedicationKey.labelRes: Int
         MedicationKey.ESTRADIOL_BENZOATE -> R.string.medication_name_estradiol_benzoate
         MedicationKey.ESTRADIOL_CYPIONATE -> R.string.medication_name_estradiol_cypionate
         MedicationKey.ESTRADIOL_ENANTHATE -> R.string.medication_name_estradiol_enanthate
+        MedicationKey.ESTRADIOL_UNDECYLATE -> R.string.medication_name_estradiol_undecylate
         MedicationKey.ESTRADIOL_GEL -> R.string.medication_name_estradiol_gel
         MedicationKey.ESTRADIOL_PATCH -> R.string.medication_name_estradiol_patch
     }

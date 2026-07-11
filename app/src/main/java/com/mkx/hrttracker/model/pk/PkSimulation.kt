@@ -39,6 +39,7 @@ enum class PkCompound {
     EV,
     EC,
     EN,
+    EU,
     T,
     TC,
     TE,
@@ -786,7 +787,7 @@ private class PrecomputedPkEventModel(
 private object PkParameterResolver {
     fun resolve(event: PkDoseEvent): PkParams {
         val core = PkCatalog.coreParams(event.hormone)
-        val k3 = if (event.route == PkRoute.INJECTION) {
+        val k3 = if (event.route == PkRoute.INJECTION && event.compound != PkCompound.EU) {
             core.kClearInjection
         } else {
             core.kClear
@@ -1233,6 +1234,7 @@ private fun MedicationKey.toEstradiolPkCompound(): PkCompound? {
         MedicationKey.ESTRADIOL_BENZOATE -> PkCompound.EB
         MedicationKey.ESTRADIOL_CYPIONATE -> PkCompound.EC
         MedicationKey.ESTRADIOL_ENANTHATE -> PkCompound.EN
+        MedicationKey.ESTRADIOL_UNDECYLATE -> PkCompound.EU
         MedicationKey.ESTRADIOL_GEL -> PkCompound.E2
         MedicationKey.ESTRADIOL_PATCH -> PkCompound.E2
         else -> null
@@ -1297,6 +1299,7 @@ object PkCatalog {
         PkCompound.EV to CompoundInfo(PkHormone.ESTRADIOL, 356.5, 272.38),
         PkCompound.EC to CompoundInfo(PkHormone.ESTRADIOL, 396.58, 272.38),
         PkCompound.EN to CompoundInfo(PkHormone.ESTRADIOL, 384.56, 272.38),
+        PkCompound.EU to CompoundInfo(PkHormone.ESTRADIOL, 440.66, 272.38),
         PkCompound.T to CompoundInfo(PkHormone.TESTOSTERONE, 288.42, 288.42),
         PkCompound.TC to CompoundInfo(PkHormone.TESTOSTERONE, 412.61, 288.42),
         PkCompound.TE to CompoundInfo(PkHormone.TESTOSTERONE, 400.59, 288.42),
@@ -1312,6 +1315,8 @@ object PkCatalog {
             k1Slow = 0.004510574
         ),
         PkCompound.EN to TwoPartDepotParams(fracFast = 0.05, k1Fast = 0.001, k1Slow = 0.005),
+        // Transmtf im-depot-v1: EU is a single rate-limiting slow depot.
+        PkCompound.EU to TwoPartDepotParams(fracFast = 0.0, k1Fast = 0.00082, k1Slow = 0.00082),
         PkCompound.TC to TwoPartDepotParams(fracFast = 0.4, k1Fast = 0.018, k1Slow = 0.0036),
         PkCompound.TE to TwoPartDepotParams(fracFast = 0.45, k1Fast = 0.02, k1Slow = 0.0069),
         PkCompound.TU to TwoPartDepotParams(fracFast = 0.25, k1Fast = 0.008, k1Slow = 0.00145),
@@ -1322,6 +1327,7 @@ object PkCatalog {
         PkCompound.EV to 0.062258288229969413,
         PkCompound.EC to 0.117255838,
         PkCompound.EN to 0.12,
+        PkCompound.EU to 0.542,
         PkCompound.TC to 1.0,
         PkCompound.TE to 1.0,
         PkCompound.TU to 1.0,
@@ -1332,6 +1338,7 @@ object PkCatalog {
         PkCompound.EV to 0.07,
         PkCompound.EC to 0.045,
         PkCompound.EN to 0.015,
+        PkCompound.EU to 2.0,
         PkCompound.TC to 0.09,
         PkCompound.TE to 0.12,
         PkCompound.TU to 0.03,
