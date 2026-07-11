@@ -12,7 +12,7 @@ User data lives in three places under the app sandbox:
 
 - The encrypted Room database `hrt_tracker.db`, with the SQLite WAL/SHM siblings `hrt_tracker.db-shm` and `hrt_tracker.db-wal`. Contents are described in [data-model.md](data-model.md).
 - The `SharedPreferences` file [`hrt_tracker_secure_storage.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt#L132). Holds the AES-GCM-wrapped SQLCipher passphrase. No user-visible data, only the wrapped key envelope.
-- Seven DataStore files under `datastore/`: `settings.preferences_pb`, `widget_appearance.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, widget appearance, home-screen cache, widget cache, and reminder bookkeeping.
+- Eight DataStore files under `datastore/`: `settings.preferences_pb`, `widget_appearance.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `anchor_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, widget appearance, home-screen cache, widget cache, anchor-widget cache, and reminder bookkeeping.
 
 **Debug builds only** also write a rolling diagnostics log at `files/diagnostics/app-diagnostics.log`. The [`AppDiagnosticsLogger`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/util/AppDiagnosticsLogger.kt) defaults to `enabled = BuildConfig.DEBUG`, and the export service that surfaces this file refuses to run unless `BuildConfig.DEBUG` is true. Release builds neither write nor expose this file. The log records timestamps, tags, and short event strings (reminder fires, snapshot rebuilds, widget refresh reasons) and is not user-visible in release builds.
 
@@ -38,10 +38,11 @@ The manifest declares [`android:allowBackup="true"`](https://github.com/mkx173/F
 
 ### DataStore exclusions
 
-Two sensitive DataStore files are excluded to prevent device-to-device de-sync and re-identification:
+Three sensitive DataStore files are excluded to prevent device-to-device de-sync and re-identification:
 
 - `datastore/home_snapshot.pb`: Cached home screen state. Contains encrypted medical data derived from the medication schedule (dose completion, estimated E2 level) and the first pinned Journal date. Encrypted at rest with AES-256-GCM. Excluded to prevent inconsistency when transferring to a device where the cached state no longer matches the authoritative database.
 - `datastore/widget_snapshot.pb`: Cached dose status for widget display. Contains encrypted medical data derived from the medication schedule (dose completion status, E2 estimate). Encrypted at rest with AES-256-GCM. Excluded to prevent widget state divergence and re-identification risk if transferred alongside backup data.
+- `datastore/anchor_snapshot.pb`: Cached anchor-widget state. Contains encrypted Journal data (tracked-date names, dates, icons, and palettes) that seeds the anchor widget and its milestones deep link before the database opens. Encrypted at rest with AES-256-GCM. Excluded to prevent inconsistency and re-identification risk when transferred alongside backup data.
 
 The following rules enforce these exclusions across all Android versions:
 

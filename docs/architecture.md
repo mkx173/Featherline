@@ -41,7 +41,7 @@ Everything lives under `com.mkx.hrttracker`. The top-level packages
 are organized by role:
 
 - [`model`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
-  Six sub-packages, including `model/journal` for pure journal date
+  Seven sub-packages, including `model/journal` for pure journal date
   and note logic.
 - [`data`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
   codec, and external-import plumbing. Four sub-packages:
@@ -195,8 +195,9 @@ medicine, log, and blood-test repositories.
   form picker enum:
   TABLET / INJECTION / GEL / PATCH / CAPSULE), the sealed
   `MedicinePreparation` hierarchy (`Pill`, `Capsule`,
-  `InjectionSingleUseVial`, `InjectionMultiUseVial`, `GelSachet`,
-  `GelContainer`, `Patch` with a nested `PatchSpecification` of
+  `InjectionSingleUseVial`, `InjectionMultiUseVial`, `DepotInjection`,
+  `GelSachet`, `GelContainer`, the import-only `ImportedInjection` and
+  `ImportedGel`, `Patch` with a nested `PatchSpecification` of
   `TotalMg` or `ReleaseRateMcgPerDay`, and the `PatchOff` sentinel),
   and the sealed `DoseInstruction` hierarchy (`TabletFraction`,
   `WholeUnit`, `VolumeMl`, `WeightGrams`, `Noop`) that describes how

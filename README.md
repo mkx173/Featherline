@@ -40,7 +40,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
-- Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes
+- Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
 - No accounts, no telemetry, no network calls — everything stays on device
 - English and Simplified Chinese
 - Material 3 with dynamic color
