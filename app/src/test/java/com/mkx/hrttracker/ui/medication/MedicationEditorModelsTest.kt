@@ -960,4 +960,29 @@ class MedicationEditorModelsTest {
         assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2.5")), 0.0)
         assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2,5")), 0.0)
     }
+
+    @Test
+    fun capsuleDraft_appliesMgAsMedicinePresetIntoPillStrength() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        val applied = draft.applyDoseAssistPreset(MedicationDoseAssistPreset.MgAsMedicine("0.5"))
+
+        assertEquals("0.5", applied.pillStrengthMg)
+    }
+
+    @Test
+    fun capsuleDraft_exposesCatalogDoseAssistPresets() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("0.5")),
+            draft.activeDoseAssistPresets(),
+        )
+    }
 }

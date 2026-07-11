@@ -154,8 +154,6 @@ fun MedicinePickerUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPr
                 presets.filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>()
         }
 
-        MedicinePreparationType.CAPSULE -> emptyList()
-
         else -> presets
     }
 }
@@ -396,7 +394,9 @@ fun MedicinePickerUiState.applyDoseAssistPreset(
 ): MedicinePickerUiState {
     return when (preset) {
         is MedicationDoseAssistPreset.MgAsMedicine -> when (inferredOrSelectedPreparationType()) {
-            MedicinePreparationType.PILL -> copy(pillStrengthMg = preset.valueMg)
+            MedicinePreparationType.PILL,
+            MedicinePreparationType.CAPSULE -> copy(pillStrengthMg = preset.valueMg)
+
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
                 copy(singleUseVialStrengthMg = preset.valueMg)
 

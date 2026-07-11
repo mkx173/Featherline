@@ -40,6 +40,7 @@ val MedicationKey.labelRes: Int
         MedicationKey.CYPROTERONE_ACETATE -> R.string.medication_name_cyproterone_acetate
         MedicationKey.BICALUTAMIDE -> R.string.medication_name_bicalutamide
         MedicationKey.FINASTERIDE -> R.string.medication_name_finasteride
+        MedicationKey.DUTASTERIDE -> R.string.medication_name_dutasteride
         MedicationKey.ESTRADIOL -> R.string.medication_name_estradiol
         MedicationKey.ESTRADIOL_VALERATE -> R.string.medication_name_estradiol_valerate
         MedicationKey.ESTRADIOL_BENZOATE -> R.string.medication_name_estradiol_benzoate

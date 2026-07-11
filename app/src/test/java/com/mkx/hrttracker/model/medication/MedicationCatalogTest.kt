@@ -281,6 +281,41 @@ class MedicationCatalogTest {
         assertEquals(listOf(MedicationCatalogEntry(medicationKey = null)), entries)
     }
 
+    @Test
+    fun preparationFormsFor_antiandrogen_includesCapsule() {
+        assertEquals(
+            listOf(MedicinePreparationForm.TABLET, MedicinePreparationForm.CAPSULE),
+            MedicationCatalog.preparationFormsFor(MedicationCategory.ANTIANDROGEN),
+        )
+    }
+
+    @Test
+    fun entriesForForm_capsule_antiandrogen_exposesOnlyDutasteride() {
+        val entries = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertEquals(
+            listOf(MedicationKey.DUTASTERIDE),
+            entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("0.5")),
+            entries.single().doseAssistPresets.getValue(MedicinePreparationType.CAPSULE),
+        )
+    }
+
+    @Test
+    fun entriesForForm_tablet_antiandrogen_excludesDutasteride() {
+        val tabletKeys = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.TABLET,
+        ).mapNotNull(MedicationCatalogEntry::medicationKey)
+
+        assertFalse(MedicationKey.DUTASTERIDE in tabletKeys)
+    }
+
     private fun catalogEntry(
         category: MedicationCategory,
         applicationType: MedicationApplicationType,

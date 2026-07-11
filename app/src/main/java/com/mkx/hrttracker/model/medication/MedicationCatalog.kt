@@ -54,6 +54,7 @@ enum class MedicationKey(val category: MedicationCategory) {
     CYPROTERONE_ACETATE(category = MedicationCategory.ANTIANDROGEN),
     BICALUTAMIDE(category = MedicationCategory.ANTIANDROGEN),
     FINASTERIDE(category = MedicationCategory.ANTIANDROGEN),
+    DUTASTERIDE(category = MedicationCategory.ANTIANDROGEN),
     ESTRADIOL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
@@ -252,6 +253,16 @@ object MedicationCatalog {
         ),
     )
 
+    // Dutasteride ships as a soft-gel capsule swallowed whole, so it lives in
+    // the CAPSULE form bucket rather than the ORAL tablet catalog — the two
+    // form lists must not leak into each other.
+    private val antiandrogenCapsuleEntries = listOf(
+        MedicationCatalogEntry(
+            medicationKey = MedicationKey.DUTASTERIDE,
+            doseAssistPresets = capsuleMgDoseAssistPresets("0.5"),
+        ),
+    )
+
     private val testosteroneCatalog = MedicationApplicationType.entries.map { applicationType ->
         MedicationApplicationCatalog(
             category = MedicationCategory.TESTOSTERONE,
@@ -309,7 +320,10 @@ object MedicationCatalog {
     fun preparationFormsFor(category: MedicationCategory): List<MedicinePreparationForm> {
         val forms = applicationTypesFor(category)
             .flatMap { applicationType -> applicationType.preparationForms() }
-        val capsuleForms = if (category == MedicationCategory.CUSTOM) {
+        val capsuleForms = if (
+            category == MedicationCategory.CUSTOM ||
+            category == MedicationCategory.ANTIANDROGEN
+        ) {
             listOf(MedicinePreparationForm.CAPSULE)
         } else {
             emptyList()
@@ -323,10 +337,10 @@ object MedicationCatalog {
         form: MedicinePreparationForm,
     ): List<MedicationCatalogEntry> {
         if (form == MedicinePreparationForm.CAPSULE) {
-            return if (category == MedicationCategory.CUSTOM) {
-                listOf(MedicationCatalogEntry(medicationKey = null))
-            } else {
-                emptyList()
+            return when (category) {
+                MedicationCategory.CUSTOM -> listOf(MedicationCatalogEntry(medicationKey = null))
+                MedicationCategory.ANTIANDROGEN -> antiandrogenCapsuleEntries
+                else -> emptyList()
             }
         }
 
@@ -372,6 +386,16 @@ object MedicationCatalog {
     ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
         return mapOf(
             MedicinePreparationType.PILL to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
+
+    private fun capsuleMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.CAPSULE to valuesMg.map {
                 MedicationDoseAssistPreset.MgAsMedicine(it)
             },
         )

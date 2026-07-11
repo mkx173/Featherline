@@ -582,6 +582,7 @@
     <string name="medication_name_cyproterone_acetate">醋酸环丙孕酮</string>
     <string name="medication_name_bicalutamide">比卡鲁胺</string>
     <string name="medication_name_finasteride">非那雄胺</string>
+    <string name="medication_name_dutasteride">度他雄胺</string>
     <string name="medication_editor_dose_warning">剂量超过警告阈值</string>
     <string name="medication_editor_schedule_offset_warning">在完成窗口外</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
