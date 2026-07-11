@@ -25,6 +25,7 @@ class MedicationEditorModelsTest {
             listOf(
                 MedicationCategory.ESTRADIOL,
                 MedicationCategory.ANTIANDROGEN,
+                MedicationCategory.SERM,
                 MedicationCategory.CUSTOM,
             ),
             editorMedicationCategories(),
