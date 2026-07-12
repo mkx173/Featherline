@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -495,6 +496,63 @@ class MainUiModelsTest {
             cards.map { it.nextDoseAt }
         )
         assertEquals(listOf(true, true), cards.map { it.isNextDosePastDue })
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_filters_to_the_requested_category() {
+        // A group holding both an antiandrogen and a SERM: the grouped home card
+        // renders one card per category, so the builder must return only the rows
+        // for the category it is asked about, not every non-estradiol medication.
+        val spiroMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000030"),
+            key = MedicationKey.SPIRONOLACTONE,
+        )
+        val raloxifeneMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000031"),
+            key = MedicationKey.RALOXIFENE,
+        )
+        val group = MedicationGroup(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000030"),
+            name = "Mixed",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4c0"),
+                    medicine = spiroMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4c1"),
+                    medicine = raloxifeneMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+        val now = LocalDateTime.of(2026, 4, 18, 11, 0)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+            category = MedicationCategory.SERM,
+        )
+
+        assertEquals(
+            listOf(MedicineSelection.Catalog(MedicationKey.RALOXIFENE)),
+            cards.map { it.medication.medicine?.selection },
+        )
     }
 
     @Test

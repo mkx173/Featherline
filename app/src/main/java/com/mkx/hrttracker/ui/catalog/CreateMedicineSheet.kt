@@ -49,6 +49,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationCatalog
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
@@ -82,7 +83,7 @@ import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.requiresPreparationTypeSelection
 import com.mkx.hrttracker.ui.medication.shortLabelRes
 import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
-import com.mkx.hrttracker.ui.medication.supportsCatalogSelection
+import com.mkx.hrttracker.ui.medication.showsMedicationSelector
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
@@ -217,10 +218,7 @@ internal fun CreateMedicineForm(
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
     val catalogKeys = medicineDraft.availableCatalogKeys()
-    if (medicineDraft.supportsCatalogSelection() &&
-        medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
-        catalogKeys.size > 1
-    ) {
+    if (medicineDraft.showsMedicationSelector()) {
         MedicationEditorSectionLabel(stringResource(R.string.field_medication))
         ConnectedButtonGroup(
             options = catalogKeys,
@@ -418,7 +416,7 @@ private fun NewMedicinePreparationForm(
     }
     if (medicineDraft.requiresPreparationTypeSelection()) {
         MedicationEditorSectionLabel(stringResource(R.string.field_preparation_type))
-        val options = ambiguousPreparationTypes(medicineDraft.form)
+        val options = ambiguousPreparationTypes(medicineDraft.form, medicineDraft.category)
         ConnectedButtonGroup(
             options = options,
             selectedOption = medicineDraft.preparationType ?: options.first(),
@@ -485,18 +483,27 @@ private fun NewMedicinePreparationForm(
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            val isDepot = medicineDraft.category == MedicationCategory.GNRH_AGONIST
+            val strengthErrorRes = if (isDepot) {
+                R.string.validation_depot_strength_required
+            } else {
+                R.string.validation_vial_strength_required
+            }
             MedicationNumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
                 label = medicationEditorFieldLabelWithUnit(
-                    R.string.field_single_use_vial_strength_mg,
+                    if (isDepot) {
+                        R.string.field_depot_strength_mg
+                    } else {
+                        R.string.field_single_use_vial_strength_mg
+                    },
                     rawMassUnit
                 ),
                 suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 readOnly = readOnly,
-                isError = errorMessageRes == R.string.validation_vial_strength_required,
-                errorMessageRes = R.string.validation_vial_strength_required
-                    .takeIf { errorMessageRes == it },
+                isError = errorMessageRes == strengthErrorRes,
+                errorMessageRes = strengthErrorRes.takeIf { errorMessageRes == it },
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
                 },
@@ -932,7 +939,8 @@ internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<Cr
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> listOf(CreateMedicineField.VIAL_STRENGTH)
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            listOf(CreateMedicineField.VIAL_STRENGTH)
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
             CreateMedicineField.CONCENTRATION_MG_PER_ML,
             CreateMedicineField.VIAL_VOLUME_ML,

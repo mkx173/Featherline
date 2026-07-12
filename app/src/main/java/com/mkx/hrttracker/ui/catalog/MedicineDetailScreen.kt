@@ -75,6 +75,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -926,6 +927,7 @@ private fun MedicineEditSheet(
         }
         PreparationEditorFields(
             draft = draft,
+            isDepot = medicine.category == MedicationCategory.GNRH_AGONIST,
             onDraftChange = { draft = it },
             showsUnitPicker = isCustom &&
                     draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
@@ -1001,6 +1003,7 @@ private fun EditDisplayNameField(
 @Composable
 private fun PreparationEditorFields(
     draft: MedicinePreparationDraftUiState,
+    isDepot: Boolean,
     onDraftChange: (MedicinePreparationDraftUiState) -> Unit,
     showsUnitPicker: Boolean,
     focusRequesters: Map<CreateMedicineField, FocusRequester>,
@@ -1061,7 +1064,11 @@ private fun PreparationEditorFields(
                     NumericInputField(
                         value = draft.singleUseVialStrengthMg,
                         label = fieldLabelWithUnit(
-                            R.string.field_single_use_vial_strength_mg,
+                            if (isDepot) {
+                                R.string.field_depot_strength_mg
+                            } else {
+                                R.string.field_single_use_vial_strength_mg
+                            },
                             rawMassUnit
                         ),
                         suffix = stringResource(rawMassUnit),

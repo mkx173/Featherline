@@ -36,6 +36,7 @@ class MedicationCatalogTest {
                 MedicationKey.ESTRADIOL_CYPIONATE,
                 MedicationKey.ESTRADIOL_ENANTHATE,
                 MedicationKey.ESTRADIOL_BENZOATE,
+                MedicationKey.ESTRADIOL_UNDECYLATE,
             ),
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )
@@ -56,10 +57,30 @@ class MedicationCatalogTest {
                 MedicationKey.SPIRONOLACTONE,
                 MedicationKey.CYPROTERONE_ACETATE,
                 MedicationKey.BICALUTAMIDE,
+                MedicationKey.FINASTERIDE,
             ),
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )
         assertFalse(catalog.allowCustomMedicationName)
+    }
+
+    @Test
+    fun estradiolInjectionCatalog_unifiesSingleUseAssistValues() {
+        val expected = listOf(
+            MedicationDoseAssistPreset.MgAsMedicine("5"),
+            MedicationDoseAssistPreset.MgAsMedicine("10"),
+        )
+
+        injectableEstradiolKeys.forEach { medicationKey ->
+            assertEquals(
+                expected,
+                catalogEntry(
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = MedicationApplicationType.INJECTION,
+                    medicationKey = medicationKey,
+                ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+            )
+        }
     }
 
     @Test
@@ -90,22 +111,16 @@ class MedicationCatalogTest {
 
     @Test
     fun estradiol_injection_catalog_includes_multi_use_vial_assist_values() {
-        // All four esters share the same multi-use vial chip set: real homebrew
-        // configurations cluster around 20/40 mg/mL × 5/10 mL, and rather than
-        // splitting per ester we expose the same affordances everywhere so
-        // users can describe the vial they actually have.
         val expectedMultiUsePresets = listOf(
             MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
             MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
+            MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("50"),
+            MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("80"),
+            MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("100"),
             MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
             MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
         )
-        listOf(
-            MedicationKey.ESTRADIOL_VALERATE,
-            MedicationKey.ESTRADIOL_CYPIONATE,
-            MedicationKey.ESTRADIOL_ENANTHATE,
-            MedicationKey.ESTRADIOL_BENZOATE,
-        ).forEach { medicationKey ->
+        injectableEstradiolKeys.forEach { medicationKey ->
             assertEquals(
                 expectedMultiUsePresets,
                 catalogEntry(
@@ -146,11 +161,23 @@ class MedicationCatalogTest {
         assertEquals(
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("50"),
+                MedicationDoseAssistPreset.MgAsMedicine("80"),
             ),
             catalogEntry(
                 category = MedicationCategory.ANTIANDROGEN,
                 applicationType = MedicationApplicationType.ORAL,
                 medicationKey = MedicationKey.BICALUTAMIDE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1"),
+                MedicationDoseAssistPreset.MgAsMedicine("5"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.ANTIANDROGEN,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.FINASTERIDE,
             ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
         )
     }
@@ -268,6 +295,145 @@ class MedicationCatalogTest {
         assertEquals(listOf(MedicationCatalogEntry(medicationKey = null)), entries)
     }
 
+    @Test
+    fun preparationFormsFor_antiandrogen_includesCapsule() {
+        assertEquals(
+            listOf(MedicinePreparationForm.TABLET, MedicinePreparationForm.CAPSULE),
+            MedicationCatalog.preparationFormsFor(MedicationCategory.ANTIANDROGEN),
+        )
+    }
+
+    @Test
+    fun entriesForForm_capsule_antiandrogen_exposesOnlyDutasteride() {
+        val entries = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertEquals(
+            listOf(MedicationKey.DUTASTERIDE),
+            entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("0.5")),
+            entries.single().doseAssistPresets.getValue(MedicinePreparationType.CAPSULE),
+        )
+    }
+
+    @Test
+    fun entriesForForm_tablet_antiandrogen_excludesDutasteride() {
+        val tabletKeys = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.TABLET,
+        ).mapNotNull(MedicationCatalogEntry::medicationKey)
+
+        assertFalse(MedicationKey.DUTASTERIDE in tabletKeys)
+    }
+
+    @Test
+    fun serm_only_exposes_oral_route_with_required_medications() {
+        val applicationTypes = MedicationCatalog.applicationTypesFor(MedicationCategory.SERM)
+        val catalog = catalogFor(
+            category = MedicationCategory.SERM,
+            applicationType = MedicationApplicationType.ORAL,
+        )
+
+        assertEquals(listOf(MedicationApplicationType.ORAL), applicationTypes)
+        assertEquals(
+            listOf(MedicationKey.RALOXIFENE, MedicationKey.TAMOXIFEN),
+            catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertFalse(catalog.allowCustomMedicationName)
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("60")),
+            catalogEntry(
+                category = MedicationCategory.SERM,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.RALOXIFENE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("10"),
+                MedicationDoseAssistPreset.MgAsMedicine("20"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.SERM,
+                applicationType = MedicationApplicationType.ORAL,
+                medicationKey = MedicationKey.TAMOXIFEN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.PILL),
+        )
+    }
+
+    @Test
+    fun gnrhAgonist_only_exposes_injection_route_with_depot_entries() {
+        val applicationTypes =
+            MedicationCatalog.applicationTypesFor(MedicationCategory.GNRH_AGONIST)
+        val catalog = catalogFor(
+            category = MedicationCategory.GNRH_AGONIST,
+            applicationType = MedicationApplicationType.INJECTION,
+        )
+
+        assertEquals(listOf(MedicationApplicationType.INJECTION), applicationTypes)
+        assertEquals(
+            listOf(
+                MedicationKey.TRIPTORELIN,
+                MedicationKey.LEUPRORELIN,
+                MedicationKey.GOSERELIN,
+            ),
+            catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+        assertFalse(catalog.allowCustomMedicationName)
+        // GnRHa uses the fixed-mg single-use injection representation.
+        catalog.entries.forEach { entry ->
+            assertEquals(
+                setOf(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+                entry.doseAssistPresets.keys,
+            )
+        }
+    }
+
+    @Test
+    fun gnrhAgonist_catalog_exposes_depot_strength_presets() {
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("3.75"),
+                MedicationDoseAssistPreset.MgAsMedicine("11.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("22.5"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.TRIPTORELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1.88"),
+                MedicationDoseAssistPreset.MgAsMedicine("3.75"),
+                MedicationDoseAssistPreset.MgAsMedicine("11.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("22.5"),
+                MedicationDoseAssistPreset.MgAsMedicine("30"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.LEUPRORELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("3.6"),
+                MedicationDoseAssistPreset.MgAsMedicine("10.8"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.GNRH_AGONIST,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.GOSERELIN,
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+        )
+    }
+
     private fun catalogEntry(
         category: MedicationCategory,
         applicationType: MedicationApplicationType,
@@ -277,4 +443,12 @@ class MedicationCatalogTest {
             it.medicationKey == medicationKey
         }
     }
+
+    private val injectableEstradiolKeys = listOf(
+        MedicationKey.ESTRADIOL_VALERATE,
+        MedicationKey.ESTRADIOL_CYPIONATE,
+        MedicationKey.ESTRADIOL_ENANTHATE,
+        MedicationKey.ESTRADIOL_BENZOATE,
+        MedicationKey.ESTRADIOL_UNDECYLATE,
+    )
 }

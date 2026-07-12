@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.home.HomeCardType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
@@ -397,12 +398,21 @@ class MainViewModel @Inject constructor(
                 displayUnit = homeE2DisplayUnit,
                 chartWindowOption = chartWindowOption,
             ),
-            antiandrogenCards = buildMainAntiandrogenCards(
-                groups = inputs.activeGroups,
-                entries = homeEntries,
-                now = now,
-                zoneId = zoneId,
-            ),
+            antiandrogenGroupSections = listOf(
+                MedicationCategory.ANTIANDROGEN,
+                MedicationCategory.SERM,
+                MedicationCategory.GNRH_AGONIST,
+            ).mapNotNull { category ->
+                val cards = buildMainAntiandrogenCards(
+                    groups = inputs.activeGroups,
+                    entries = homeEntries,
+                    now = now,
+                    zoneId = zoneId,
+                    category = category,
+                )
+                cards.takeIf { it.isNotEmpty() }
+                    ?.let { MainMedicationCategorySection(category = category, cards = it) }
+            },
             todaySection = buildMainTodaySection(
                 groups = scheduleGroups,
                 entries = visibleEntries,

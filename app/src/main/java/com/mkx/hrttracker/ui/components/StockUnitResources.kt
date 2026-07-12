@@ -5,16 +5,24 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.formatStockCount
 import com.mkx.hrttracker.util.currentAppLocale
 
 @PluralsRes
-internal fun stockUnitNounPluralRes(preparation: MedicinePreparation): Int? = when (preparation) {
+internal fun stockUnitNounPluralRes(
+    preparation: MedicinePreparation,
+    category: MedicationCategory? = null,
+): Int? = when (preparation) {
     is MedicinePreparation.Pill -> R.plurals.stock_count_tablets
     is MedicinePreparation.Capsule -> R.plurals.stock_count_capsules
     is MedicinePreparation.Patch -> R.plurals.stock_count_patches
     is MedicinePreparation.GelSachet -> R.plurals.stock_count_sachets
-    is MedicinePreparation.InjectionSingleUseVial -> R.plurals.stock_count_vials
+    is MedicinePreparation.InjectionSingleUseVial -> if (category == MedicationCategory.GNRH_AGONIST) {
+        R.plurals.stock_count_injections
+    } else {
+        R.plurals.stock_count_vials
+    }
     is MedicinePreparation.InjectionMultiUseVial -> R.plurals.stock_count_vials
     is MedicinePreparation.GelContainer -> R.plurals.stock_count_containers
     is MedicinePreparation.PatchOff,
@@ -30,6 +38,7 @@ internal fun stockUnitNounPluralForUnitRes(@StringRes unitRes: Int): Int? = when
     R.string.stock_unit_sachets -> R.plurals.stock_count_sachets
     R.string.stock_unit_vials -> R.plurals.stock_count_vials
     R.string.stock_unit_containers -> R.plurals.stock_count_containers
+    R.string.stock_unit_injections -> R.plurals.stock_count_injections
     else -> null
 }
 
@@ -45,8 +54,9 @@ internal fun stockInventoryCountText(
     context: Context,
     preparation: MedicinePreparation,
     count: Double,
+    category: MedicationCategory? = null,
 ): String? {
-    val pluralRes = stockUnitNounPluralRes(preparation) ?: return null
+    val pluralRes = stockUnitNounPluralRes(preparation, category) ?: return null
     val noun = context.resources.getQuantityString(
         pluralRes,
         stockCountPluralQuantity(count),
@@ -56,12 +66,19 @@ internal fun stockInventoryCountText(
 }
 
 @StringRes
-internal fun stockInventoryUnitRes(preparation: MedicinePreparation): Int? = when (preparation) {
+internal fun stockInventoryUnitRes(
+    preparation: MedicinePreparation,
+    category: MedicationCategory? = null,
+): Int? = when (preparation) {
     is MedicinePreparation.Pill -> R.string.stock_unit_tablets
     is MedicinePreparation.Capsule -> R.string.stock_unit_capsules
     is MedicinePreparation.Patch -> R.string.stock_unit_patches
     is MedicinePreparation.GelSachet -> R.string.stock_unit_sachets
-    is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
+    is MedicinePreparation.InjectionSingleUseVial -> if (category == MedicationCategory.GNRH_AGONIST) {
+        R.string.stock_unit_injections
+    } else {
+        R.string.stock_unit_vials
+    }
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
     is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
     is MedicinePreparation.PatchOff,
@@ -70,12 +87,19 @@ internal fun stockInventoryUnitRes(preparation: MedicinePreparation): Int? = whe
 }
 
 @StringRes
-internal fun stockRateUnitRes(preparation: MedicinePreparation): Int? = when (preparation) {
+internal fun stockRateUnitRes(
+    preparation: MedicinePreparation,
+    category: MedicationCategory? = null,
+): Int? = when (preparation) {
     is MedicinePreparation.Pill -> R.string.stock_unit_tablets
     is MedicinePreparation.Capsule -> R.string.stock_unit_capsules
     is MedicinePreparation.Patch -> R.string.stock_unit_patches
     is MedicinePreparation.GelSachet -> R.string.stock_unit_sachets
-    is MedicinePreparation.InjectionSingleUseVial -> R.string.stock_unit_vials
+    is MedicinePreparation.InjectionSingleUseVial -> if (category == MedicationCategory.GNRH_AGONIST) {
+        R.string.stock_unit_injections
+    } else {
+        R.string.stock_unit_vials
+    }
     is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_ml
     is MedicinePreparation.GelContainer -> R.string.stock_unit_g
     is MedicinePreparation.PatchOff,

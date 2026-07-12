@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.StockReceived
 import com.mkx.hrttracker.data.repository.StockRecount
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -78,6 +80,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
+import com.mkx.hrttracker.ui.components.stockRateUnitRes
 import com.mkx.hrttracker.ui.components.stockUnitNounPluralRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.LocalSheetDismissFocusRequester
@@ -243,15 +246,18 @@ internal fun RecountForm(
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_current_stock),
             value = unitsRemainingText,
-            unit = adjustStockUnitLabel(projection.medicine.preparation),
-            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
+            unit = adjustStockUnitLabel(projection.medicine),
+            unitPluralRes = stockUnitNounPluralRes(
+                projection.medicine.preparation,
+                projection.medicine.category,
+            ),
             leadingIconRes = R.drawable.ic_box_edit,
             placeholder = placeholderText,
             allowDecimal = allowDecimal,
             onValueChange = { unitsRemainingText = it },
             onStep = stepRecount,
         )
-        val presets = quickAddPresets(projection.medicine.preparation)
+        val presets = quickAddPresets(projection.medicine)
         if (presets.isEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -326,14 +332,17 @@ internal fun ReceivedForm(
         StockStepperCard(
             label = stringResource(R.string.stock_adjust_field_add_to_stock),
             value = receivedText,
-            unit = adjustStockUnitLabel(projection.medicine.preparation),
-            unitPluralRes = stockUnitNounPluralRes(projection.medicine.preparation),
+            unit = adjustStockUnitLabel(projection.medicine),
+            unitPluralRes = stockUnitNounPluralRes(
+                projection.medicine.preparation,
+                projection.medicine.category,
+            ),
             leadingIconRes = R.drawable.ic_box_add,
             allowDecimal = allowDecimal,
             onValueChange = { receivedText = it },
             onStep = stepReceived,
         )
-        val presets = quickAddPresets(projection.medicine.preparation)
+        val presets = quickAddPresets(projection.medicine)
         if (presets.isEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -374,9 +383,12 @@ private fun AfterPreview(
         adjustPreviewRunwayText(runwayProjection)
     }?.resolve()
     val displayCount = hypotheticalStock.unitsRemaining ?: 0.0
-    val unitLabel = adjustStockAfterUnitPluralRes(preparation)?.let { pluralRes ->
+    val unitLabel = adjustStockAfterUnitPluralRes(
+        preparation,
+        projection.medicine.category,
+    )?.let { pluralRes ->
         pluralStringResource(pluralRes, stockCountPluralQuantity(displayCount))
-    } ?: adjustStockUnitLabel(preparation)
+    } ?: adjustStockUnitLabel(projection.medicine)
     val title = stringResource(
         R.string.stock_adjust_after,
         formatAdjustStockCount(displayCount, locale),
@@ -592,28 +604,33 @@ private fun QuickAddChips(
     }
 }
 
-private fun quickAddPresets(preparation: MedicinePreparation): List<Int> = when (preparation) {
+private fun quickAddPresets(medicine: Medicine): List<Int> = when (medicine.preparation) {
     is MedicinePreparation.Pill,
     is MedicinePreparation.Capsule -> listOf(10, 14, 21, 28)
 
-    is MedicinePreparation.InjectionSingleUseVial -> listOf(5, 10)
+    is MedicinePreparation.InjectionSingleUseVial -> {
+        if (medicine.category == MedicationCategory.GNRH_AGONIST) listOf(1, 3) else listOf(5, 10)
+    }
     is MedicinePreparation.Patch -> listOf(8, 12, 24)
     else -> emptyList()
 }
 
 @Composable
-private fun adjustStockUnitLabel(preparation: MedicinePreparation): String {
-    val unitRes = when (preparation) {
+private fun adjustStockUnitLabel(medicine: Medicine): String {
+    val unitRes = when (medicine.preparation) {
         is MedicinePreparation.InjectionMultiUseVial -> R.string.stock_unit_vials
         is MedicinePreparation.GelContainer -> R.string.stock_unit_containers
-        else -> stockUnitRes(preparation)
+        else -> stockRateUnitRes(medicine.preparation, medicine.category)
     }
     return if (unitRes != null) stringResource(unitRes) else ""
 }
 
 @PluralsRes
-internal fun adjustStockAfterUnitPluralRes(preparation: MedicinePreparation): Int? {
-    return stockUnitNounPluralRes(preparation)
+internal fun adjustStockAfterUnitPluralRes(
+    preparation: MedicinePreparation,
+    category: MedicationCategory? = null,
+): Int? {
+    return stockUnitNounPluralRes(preparation, category)
 }
 
 internal fun parseAdjustStockCount(

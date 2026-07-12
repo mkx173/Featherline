@@ -282,6 +282,7 @@ data class BackupNoteSnapshot(
 // The 5→6 bump added BackupTrackedDateSnapshot.heroBackgroundKey so journal
 // hero backgrounds are included in the backup compatibility gate alongside
 // local Room persistence.
+//
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 6
 
 // Stable logical app identity for backups. Do not derive this from

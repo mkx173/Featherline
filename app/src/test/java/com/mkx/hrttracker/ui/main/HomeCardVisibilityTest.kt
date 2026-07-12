@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.home.HomeCardType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
@@ -12,14 +13,35 @@ class HomeCardVisibilityTest {
     private fun stateWith(
         layout: HomeCardLayout,
         stockWarnings: List<MedicineStockProjection> = emptyList(),
-        antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
+        antiandrogenGroupSections: List<MainMedicationCategorySection> = emptyList(),
         homeAnchor: com.mkx.hrttracker.ui.journal.AnchorRowUiState? = null,
     ): MainUiState = MainUiState(
         homeCardLayout = layout,
         stockWarnings = stockWarnings,
-        antiandrogenCards = antiandrogenCards,
+        antiandrogenGroupSections = antiandrogenGroupSections,
         homeAnchor = homeAnchor,
     )
+
+    @Test
+    fun `antiandrogen group card shows when only a non-antiandrogen category has data`() {
+        // The three categories (antiandrogen, SERM, GnRH agonist) render as
+        // separate cards but share one reorder/hide unit. A user with only a SERM
+        // must still see the grouped card, so its visibility keys off any section.
+        val sermOnly = listOf(
+            MainMedicationCategorySection(
+                category = MedicationCategory.SERM,
+                cards = listOf(mockk(relaxed = true)),
+            ),
+        )
+        val visible = visibleHomeCards(
+            HomeCardLayout(),
+            stateWith(HomeCardLayout(), antiandrogenGroupSections = sermOnly),
+        )
+        assertEquals(
+            listOf(HomeCardType.E2_HERO, HomeCardType.E2_CHART, HomeCardType.ANTIANDROGEN),
+            visible,
+        )
+    }
 
     @Test
     fun `default layout with no data shows only the always-on cards in order`() {

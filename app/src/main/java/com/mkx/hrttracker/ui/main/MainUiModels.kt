@@ -56,7 +56,12 @@ data class MainUiState(
     val homeAnchor: AnchorRowUiState? = null,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
-    val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
+    // The antiandrogen home card is a group: one sub-card per non-estradiol
+    // medication category (antiandrogen, SERM, GnRH agonist) that has doses,
+    // in a fixed order. Empty categories are omitted, so an empty list means the
+    // whole grouped card has nothing to show. Reorder/hide treats all as one unit
+    // via the single HomeCardType.ANTIANDROGEN.
+    val antiandrogenGroupSections: List<MainMedicationCategorySection> = emptyList(),
     val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
         date = now.toLocalDate()
     ),
@@ -69,6 +74,13 @@ data class MainUiState(
     val splashReady: Boolean
         get() = homeDataReady
 }
+
+// One sub-card of the grouped antiandrogen home card: a medication category and
+// its per-medication rows. Header text comes from the category's labelRes.
+data class MainMedicationCategorySection(
+    val category: MedicationCategory,
+    val cards: List<MainAntiandrogenCardUiState>,
+)
 
 data class MainTodaySectionUiState(
     val date: LocalDate,
@@ -537,7 +549,8 @@ internal fun buildMainAntiandrogenCards(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    category: MedicationCategory = MedicationCategory.ANTIANDROGEN,
 ): List<MainAntiandrogenCardUiState> {
     // `entries` includes the schedule window, which can carry a dose the user
     // pre-logged for later today. Such a dose has not been taken yet, so exclude
@@ -545,12 +558,12 @@ internal fun buildMainAntiandrogenCards(
     // hero's findLastEstradiolEntry bound).
     val lastDoseCutoff = mainHomeLatestDoseCutoff(now = now, zoneId = zoneId)
     val antiandrogenEntriesAtOrBeforeNow = entries.filter { entry ->
-        entry.category == MedicationCategory.ANTIANDROGEN &&
+        entry.category == category &&
                 lastDoseCutoff.contains(entry.appliedAt)
     }
     return groups.sortedBy { it.createdAt }.flatMap { group ->
         group.medications
-            .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
+            .filter { medication -> medication.category == category }
             .groupBy { medication -> medication.medicine?.medicationNameKey().orEmpty() }
             .flatMap { (nameKey, medicationsForName) ->
                 val latestManual = antiandrogenEntriesAtOrBeforeNow

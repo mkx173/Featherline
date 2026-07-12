@@ -62,6 +62,17 @@ class ScheduledRunwayCalculatorTest {
     }
 
     @Test
+    fun gnrhSingleUseInjection_wholeUnit_consumesOneUnit() {
+        assertEquals(
+            1.0,
+            resolvePerAdministrationMagnitude(
+                preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
+                doseInstruction = DoseInstruction.WholeUnit,
+            ),
+        )
+    }
+
+    @Test
     fun weeklyVialUsesSparseScheduleInsteadOfAmortizedRunway() {
         val medicine = vial(
             stock = MedicineStock(

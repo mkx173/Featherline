@@ -25,10 +25,39 @@ class MedicationEditorModelsTest {
             listOf(
                 MedicationCategory.ESTRADIOL,
                 MedicationCategory.ANTIANDROGEN,
+                MedicationCategory.SERM,
+                MedicationCategory.GNRH_AGONIST,
                 MedicationCategory.CUSTOM,
             ),
             editorMedicationCategories(),
         )
+    }
+
+    // The patch spec kind must only matter for PATCH: pills, capsules, and
+    // single-use vials always carry a raw mass, no matter what spec kind a
+    // previously visited patch form left behind in the draft.
+    @Test
+    fun raw_mass_dose_field_ignores_patch_spec_for_non_patch_types() {
+        val rawMassTypes = setOf(
+            MedicinePreparationType.PILL,
+            MedicinePreparationType.CAPSULE,
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        )
+        PatchSpecKind.entries.forEach { specKind ->
+            MedicinePreparationType.entries.forEach { type ->
+                val expected = when {
+                    type in rawMassTypes -> true
+                    type == MedicinePreparationType.PATCH ->
+                        specKind == PatchSpecKind.TOTAL_MG
+                    else -> false
+                }
+                assertEquals(
+                    "$type with $specKind",
+                    expected,
+                    type.hasRawMassDoseField(specKind),
+                )
+            }
+        }
     }
 
     @Test
@@ -180,6 +209,89 @@ class MedicationEditorModelsTest {
         )
         // Strength field validation fires (no "preparation type required" stop).
         assertEquals(R.string.validation_vial_strength_required, draft.validationErrorRes())
+    }
+
+    @Test
+    fun gnrhAgonistDraft_defaultsToSingleUseInjection_withoutPreparationPicker() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.GNRH_AGONIST,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        assertEquals(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            draft.inferredOrSelectedPreparationType(),
+        )
+        // Single depot option — the ampule/vial segmented picker must not render.
+        assertFalse(draft.requiresPreparationTypeSelection())
+        assertEquals(R.string.validation_depot_strength_required, draft.validationErrorRes())
+    }
+
+    @Test
+    fun estradiolInjectionDraft_stillOffersAmpuleVialPicker() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        assertTrue(draft.requiresPreparationTypeSelection())
+        assertEquals(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            draft.inferredOrSelectedPreparationType(),
+        )
+    }
+
+    @Test
+    fun gnrhAgonistDraft_appliesDepotPresetIntoStrengthField() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.GNRH_AGONIST,
+            form = MedicinePreparationForm.INJECTION,
+        )
+
+        val applied = draft.applyDoseAssistPreset(MedicationDoseAssistPreset.MgAsMedicine("11.25"))
+
+        assertEquals("11.25", applied.singleUseVialStrengthMg)
+    }
+
+    // The tablet↔capsule form toggle silently swaps the antiandrogen medication
+    // list, so the single capsule entry (Dutasteride) must still be named by
+    // the selector — unlike gel/patch, where the category already implies the
+    // one medication and the selector stays hidden.
+    @Test
+    fun antiandrogenCapsuleDraft_showsSingleEntryMedicationSelector() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertTrue(draft.showsMedicationSelector())
+    }
+
+    @Test
+    fun estradiolGelAndPatchDrafts_hideSingleEntryMedicationSelector() {
+        listOf(MedicinePreparationForm.GEL, MedicinePreparationForm.PATCH).forEach { form ->
+            val draft = defaultMedicineDraft(
+                category = MedicationCategory.ESTRADIOL,
+                form = form,
+            )
+
+            assertFalse(draft.showsMedicationSelector())
+        }
+    }
+
+    @Test
+    fun multiEntryAndCustomDrafts_keepExistingMedicationSelectorVisibility() {
+        val antiandrogenTablet = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.TABLET,
+        )
+        val customCapsule = defaultMedicineDraft(
+            category = MedicationCategory.CUSTOM,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertTrue(antiandrogenTablet.showsMedicationSelector())
+        assertFalse(customCapsule.showsMedicationSelector())
     }
 
     @Test
@@ -959,5 +1071,30 @@ class MedicationEditorModelsTest {
     fun parseNonNegativePreviewDouble_acceptsDotAndCommaDecimalSeparators() {
         assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2.5")), 0.0)
         assertEquals(2.5, requireNotNull(parseNonNegativePreviewDouble("2,5")), 0.0)
+    }
+
+    @Test
+    fun capsuleDraft_appliesMgAsMedicinePresetIntoPillStrength() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        val applied = draft.applyDoseAssistPreset(MedicationDoseAssistPreset.MgAsMedicine("0.5"))
+
+        assertEquals("0.5", applied.pillStrengthMg)
+    }
+
+    @Test
+    fun capsuleDraft_exposesCatalogDoseAssistPresets() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertEquals(
+            listOf(MedicationDoseAssistPreset.MgAsMedicine("0.5")),
+            draft.activeDoseAssistPresets(),
+        )
     }
 }

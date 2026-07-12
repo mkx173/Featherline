@@ -40,7 +40,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
-- Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes
+- Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
 - No accounts, no telemetry, no network calls — everything stays on device
 - English and Simplified Chinese
 - Material 3 with dynamic color
@@ -104,5 +104,6 @@ Third-party dependency, asset, and adapted-code notices are listed in [docs/thir
 
 - The [Material Symbols](https://fonts.google.com/icons) icon set.
 - The pharmacokinetic projection draws on the math reference from [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test).
+- The estradiol undecylate pharmacokinetic parameters come from [Transmtf-HRT-Tracker](https://github.com/TransmtfTeam/Transmtf-HRT-Tracker).
 - Plot display logic was adapted from [Oyama's HRT Tracker](https://github.com/SmirnovaOyama/Oyama-s-HRT-Tracker).
 - The broader trans health community for testing, feedback, and the prior art that makes a tool like this possible.

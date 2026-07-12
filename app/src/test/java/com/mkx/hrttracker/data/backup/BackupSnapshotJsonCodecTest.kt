@@ -290,7 +290,7 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun currentBackupSnapshotVersion_isSixForHeroBackgroundPersistence() {
+    fun currentBackupSnapshotVersion_isSix() {
         assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 

@@ -45,6 +45,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.journal.SimpleHomeCard
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.displayZoneOf
@@ -67,7 +68,7 @@ fun homeCardHasData(uiState: MainUiState, type: HomeCardType): Boolean = when (t
     HomeCardType.LOW_STOCK -> uiState.stockWarnings.isNotEmpty()
     HomeCardType.E2_HERO -> true
     HomeCardType.E2_CHART -> true
-    HomeCardType.ANTIANDROGEN -> uiState.antiandrogenCards.isNotEmpty()
+    HomeCardType.ANTIANDROGEN -> uiState.antiandrogenGroupSections.isNotEmpty()
     HomeCardType.TIMELINE -> uiState.homeAnchor != null
 }
 
@@ -275,12 +276,19 @@ private fun RenderHomeCard(
             claimIntroAnimation = claimE2ChartIntroAnimation,
         )
 
-        HomeCardType.ANTIANDROGEN -> MainAntiandrogenCard(
-            cards = uiState.antiandrogenCards,
-            now = uiState.now,
-            dateFormatter = dateFormatter,
-            timeFormatter = timeFormatter,
-        )
+        HomeCardType.ANTIANDROGEN -> Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            uiState.antiandrogenGroupSections.forEach { section ->
+                MainAntiandrogenCard(
+                    title = stringResource(section.category.labelRes),
+                    cards = section.cards,
+                    now = uiState.now,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                )
+            }
+        }
 
         HomeCardType.TIMELINE -> uiState.homeAnchor?.let { anchor ->
             SimpleHomeCard(

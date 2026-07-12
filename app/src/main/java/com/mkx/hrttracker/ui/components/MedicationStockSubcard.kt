@@ -50,6 +50,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.FLOAT_EPSILON
 import com.mkx.hrttracker.data.repository.deductInsertedDoseStock
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -709,7 +710,13 @@ private fun stockSubcardRows(
                     mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
                     locale = locale,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview, locale),
+            } ?: stockPoolSubcardRow(
+                stock,
+                preparation,
+                projection.medicine.category,
+                mutationPreview,
+                locale,
+            ),
         )
 
         is MedicinePreparation.GelContainer -> listOf(
@@ -724,12 +731,26 @@ private fun stockSubcardRows(
                     mutationPreviewSealedCount = mutationPreview?.unitsRemainingAfter,
                     locale = locale,
                 )
-            } ?: stockPoolSubcardRow(stock, preparation, mutationPreview, locale),
+            } ?: stockPoolSubcardRow(
+                stock,
+                preparation,
+                projection.medicine.category,
+                mutationPreview,
+                locale,
+            ),
         )
 
         is MedicinePreparation.PatchOff -> emptyList()
 
-        else -> listOf(stockPoolSubcardRow(stock, preparation, mutationPreview, locale))
+        else -> listOf(
+            stockPoolSubcardRow(
+                stock,
+                preparation,
+                projection.medicine.category,
+                mutationPreview,
+                locale,
+            )
+        )
     }
 }
 
@@ -793,6 +814,7 @@ private fun MedicationStockSubcardSealedSupplement.labelSuffix(): String {
 private fun stockPoolSubcardRow(
     stock: MedicineStock,
     preparation: MedicinePreparation,
+    category: MedicationCategory,
     mutationPreview: StockSubcardMutationPreview?,
     locale: Locale,
 ): MedicationStockSubcardRowModel {
@@ -806,7 +828,7 @@ private fun stockPoolSubcardRow(
         kind = MedicationStockSubcardRowKind.STOCK_POOL,
         valueText = valueText.currentText,
         previewValueText = valueText.previewText,
-        valueUnitRes = stockInventoryUnitRes(preparation),
+        valueUnitRes = stockInventoryUnitRes(preparation, category),
         valuePluralCount = stock.unitsLastTotal ?: stock.unitsRemaining,
         previewPluralCount = stock.unitsLastTotal ?: mutationPreview?.unitsRemainingAfter,
         progress = stockSubcardProgress(

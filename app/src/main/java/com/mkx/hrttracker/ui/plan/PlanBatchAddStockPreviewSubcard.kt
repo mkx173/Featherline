@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.isContainerTopology
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
@@ -52,6 +53,7 @@ import java.util.Locale
 @Composable
 internal fun PlanBatchAddStockPreviewSubcard(
     preparation: MedicinePreparation,
+    category: MedicationCategory? = null,
     beforeStock: MedicineStock,
     afterStock: MedicineStock,
     stockState: MedicineStockState,
@@ -60,8 +62,8 @@ internal fun PlanBatchAddStockPreviewSubcard(
 ) {
     val context = LocalContext.current
     val appLocale = rememberAppLocale()
-    val beforeText = stockPreviewAmountText(context, preparation, beforeStock, appLocale)
-    val afterText = stockPreviewAmountText(context, preparation, afterStock, appLocale)
+    val beforeText = stockPreviewAmountText(context, preparation, category, beforeStock, appLocale)
+    val afterText = stockPreviewAmountText(context, preparation, category, afterStock, appLocale)
     val statusLabel = stockSubcardChipLabelRes(stockState)?.let { stringResource(it) }
     val runwayModel = stockSubcardRunwayText(runway)
     val daysLabel = when {
@@ -119,18 +121,19 @@ internal fun PlanBatchAddStockPreviewSubcard(
 private fun stockPreviewAmountText(
     context: Context,
     preparation: MedicinePreparation,
+    category: MedicationCategory?,
     stock: MedicineStock,
     locale: Locale,
 ): String {
     val primaryCount = stock.unitsRemaining ?: 0.0
-    val primaryText = stockInventoryCountText(context, preparation, primaryCount)
+    val primaryText = stockInventoryCountText(context, preparation, primaryCount, category)
         ?: stockPreviewNumber(primaryCount, locale)
 
     val isContainer = preparation.type.isContainerTopology()
     if (!isContainer) return primaryText
 
     val openAmount = stock.openContainerAmount ?: 0.0
-    val openUnitRes = stockRateUnitRes(preparation)
+    val openUnitRes = stockRateUnitRes(preparation, category)
     val openText = if (openUnitRes != null) {
         context.getString(
             R.string.stock_row_count_with_unit,

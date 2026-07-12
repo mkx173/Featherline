@@ -130,6 +130,20 @@ fun MedicinePickerUiState.availableCatalogKeys(): List<MedicationKey> {
     return catalogEntries().mapNotNull { it.medicationKey }
 }
 
+// Whether the create flow renders the medication button group. Single-entry
+// buckets normally hide it (estradiol gel/patch — the category already names
+// the one medication), but a single-entry CAPSULE bucket still shows it: the
+// tablet↔capsule form toggle silently swaps the medication list, so the one
+// capsule medication (Dutasteride) must be named explicitly.
+fun MedicinePickerUiState.showsMedicationSelector(): Boolean {
+    if (!supportsCatalogSelection() || selectionKind != MedicationSelectionKind.CATALOG) {
+        return false
+    }
+    val catalogKeys = availableCatalogKeys()
+    return catalogKeys.size > 1 ||
+            (catalogKeys.isNotEmpty() && form == MedicinePreparationForm.CAPSULE)
+}
+
 fun MedicinePickerUiState.selectedCatalogEntry(): MedicationCatalogEntry {
     val entries = catalogEntries()
     return if (selectionKind == MedicationSelectionKind.CATALOG) {
@@ -153,8 +167,6 @@ fun MedicinePickerUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPr
             PatchSpecKind.RELEASE_RATE ->
                 presets.filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>()
         }
-
-        MedicinePreparationType.CAPSULE -> emptyList()
 
         else -> presets
     }
@@ -218,7 +230,8 @@ fun defaultMedicineDraft(
         } else {
             category
         },
-        preparationType = resolvedForm.defaultPreparationType(),
+        preparationType = ambiguousPreparationTypes(resolvedForm, category).singleOrNull()
+            ?: resolvedForm.defaultPreparationType(),
     )
 }
 
@@ -313,7 +326,13 @@ fun applicationTypesCompatibleWithPreparation(
 
 internal fun ambiguousPreparationTypes(
     form: MedicinePreparationForm,
+    category: MedicationCategory? = null,
 ): List<MedicinePreparationType> {
+    // GnRHa injections use a single fixed-mg unit, so the adjustable multi-use
+    // vial option never applies and the picker collapses to one preparation.
+    if (category == MedicationCategory.GNRH_AGONIST && form == MedicinePreparationForm.INJECTION) {
+        return listOf(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL)
+    }
     return when (form) {
         MedicinePreparationForm.INJECTION -> listOf(
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
@@ -342,7 +361,7 @@ internal fun ambiguousPreparationTypes(
 
 fun MedicinePickerUiState.requiresPreparationTypeSelection(): Boolean {
     return inferredPreparationType(form) == null &&
-            ambiguousPreparationTypes(form).isNotEmpty()
+            ambiguousPreparationTypes(form, category).size > 1
 }
 
 fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparationType? {
@@ -385,7 +404,7 @@ fun MedicinePickerUiState.changeMedicationKey(
 fun MedicinePickerUiState.changePreparationType(
     preparationType: MedicinePreparationType,
 ): MedicinePickerUiState {
-    if (preparationType !in ambiguousPreparationTypes(form)) {
+    if (preparationType !in ambiguousPreparationTypes(form, category)) {
         return this
     }
     return copy(preparationType = preparationType)
@@ -396,7 +415,9 @@ fun MedicinePickerUiState.applyDoseAssistPreset(
 ): MedicinePickerUiState {
     return when (preset) {
         is MedicationDoseAssistPreset.MgAsMedicine -> when (inferredOrSelectedPreparationType()) {
-            MedicinePreparationType.PILL -> copy(pillStrengthMg = preset.valueMg)
+            MedicinePreparationType.PILL,
+            MedicinePreparationType.CAPSULE -> copy(pillStrengthMg = preset.valueMg)
+
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
                 copy(singleUseVialStrengthMg = preset.valueMg)
 
@@ -1086,7 +1107,11 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
                 .takeIf { parsePositiveDouble(pillStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
-            R.string.validation_vial_strength_required
+            (if (category == MedicationCategory.GNRH_AGONIST) {
+                R.string.validation_depot_strength_required
+            } else {
+                R.string.validation_vial_strength_required
+            })
                 .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> when {

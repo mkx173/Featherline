@@ -37,6 +37,25 @@ class MedicationEntityMappersTest {
     }
 
     @Test
+    fun gnrhSingleUseInjection_roundTripsThroughEntityStorageFields() {
+        val medicine = testCustomMedicine(
+            medicationName = "Triptorelin",
+            category = MedicationCategory.CUSTOM,
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 22.5),
+        )
+
+        val entity = medicine.toEntity()
+        val restored = entity.toMedicineModel()
+
+        assertEquals(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL.name, entity.preparationType)
+        assertEquals(22.5, entity.strengthMgPerVial!!, 1e-9)
+        assertEquals(
+            MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 22.5),
+            restored.preparation
+        )
+    }
+
+    @Test
     fun medicineStock_roundTripsThroughMedicineEntityFields() {
         val stock = MedicineStock(
             trackingEnabled = true,

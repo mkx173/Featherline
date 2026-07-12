@@ -174,6 +174,23 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun gnrhSingleUseInjection_wholeUnit_resolvesStrengthAsPerUnitMg() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
+        )
+
+        assertEquals(
+            11.25,
+            DoseInstructionCalculator.perUnitAmountMg(medicine, DoseInstruction.WholeUnit)!!,
+            1e-9,
+        )
+        assertNull(
+            DoseInstructionCalculator.perUnitAmountMg(medicine, DoseInstruction.VolumeMl(1.0)),
+        )
+    }
+
+    @Test
     fun multiUseInjectionUsesConcentrationAndVolume() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
@@ -204,6 +221,21 @@ class DoseInstructionCalculatorTest {
         )
 
         assertEquals(4.0 * 272.4 / 356.5, requireNotNull(result), 0.0001)
+    }
+
+    @Test
+    fun undecylateEquivalentE2UsesSharedEngineMolecularWeightRatio() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_UNDECYLATE),
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 100.0),
+        )
+
+        val result = DoseInstructionCalculator.perUnitEquivalentE2Mg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.WholeUnit,
+        )
+
+        assertEquals(100.0 * 272.38 / 440.66, requireNotNull(result), 1e-9)
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
@@ -79,7 +80,11 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
         )
 
         is MedicinePreparation.InjectionSingleUseVial -> context.getString(
-            R.string.medication_preparation_summary_single_use_vial,
+            if (medicine.category == MedicationCategory.GNRH_AGONIST) {
+                R.string.medication_preparation_summary_depot_injection
+            } else {
+                R.string.medication_preparation_summary_single_use_vial
+            },
             preparation.strengthMgPerVial.formatDose(locale),
         )
 
@@ -257,6 +262,7 @@ private fun aggregateDoseInstructionText(
 
     val portion = aggregateDosePortionText(
         context = context,
+        category = medicine.category,
         preparation = medicine.preparation,
         effectiveInstruction = effectiveInstruction,
         count = count,
@@ -321,6 +327,7 @@ private fun aggregateConcentrationDoseInstructionText(
 
 private fun aggregateDosePortionText(
     context: Context,
+    category: MedicationCategory,
     preparation: MedicinePreparation,
     effectiveInstruction: DoseInstruction,
     count: Int,
@@ -346,7 +353,15 @@ private fun aggregateDosePortionText(
         doseCountNoun(context, R.plurals.stock_count_capsules, count)
 
     preparation is MedicinePreparation.InjectionSingleUseVial && effectiveInstruction == DoseInstruction.WholeUnit ->
-        doseCountNoun(context, R.plurals.stock_count_vials, count)
+        doseCountNoun(
+            context,
+            if (category == MedicationCategory.GNRH_AGONIST) {
+                R.plurals.stock_count_injections
+            } else {
+                R.plurals.stock_count_vials
+            },
+            count,
+        )
 
     preparation is MedicinePreparation.Patch && effectiveInstruction == DoseInstruction.WholeUnit ->
         doseCountNoun(context, R.plurals.stock_count_patches, count)

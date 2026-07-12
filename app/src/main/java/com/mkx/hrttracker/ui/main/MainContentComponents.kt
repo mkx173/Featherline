@@ -115,6 +115,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -2816,6 +2817,7 @@ private fun MainE2ChartCardHeader(
 
 @Composable
 internal fun MainAntiandrogenCard(
+    title: String,
     modifier: Modifier = Modifier,
     cards: List<MainAntiandrogenCardUiState>,
     now: LocalDateTime,
@@ -2836,6 +2838,7 @@ internal fun MainAntiandrogenCard(
                 .padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
+                title = title,
                 modifier = Modifier.padding(vertical = 6.dp)
             )
 
@@ -2861,6 +2864,7 @@ internal fun MainAntiandrogenCard(
 
 @Composable
 private fun MainAntiandrogenCardHeader(
+    title: String,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -2875,15 +2879,14 @@ private fun MainAntiandrogenCardHeader(
             modifier = Modifier.size(18.dp)
         )
 
-        val antiandrogenTitleText = stringResource(R.string.main_antiandrogen_title)
         Text(
-            text = antiandrogenTitleText,
+            text = title,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.cjkTextOffset(antiandrogenTitleText)
+            modifier = Modifier.cjkTextOffset(title)
         )
     }
 }
@@ -3060,7 +3063,7 @@ private fun MainAntiandrogenMedicationSubCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -4361,12 +4364,17 @@ private fun MainAntiandrogenCardPreview() {
     val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
 
     MainContentComponentPreviewContainer {
-        MainAntiandrogenCard(
-            cards = uiState.antiandrogenCards,
-            now = uiState.now,
-            dateFormatter = dateFormatter,
-            timeFormatter = timeFormatter
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            uiState.antiandrogenGroupSections.forEach { section ->
+                MainAntiandrogenCard(
+                    title = stringResource(section.category.labelRes),
+                    cards = section.cards,
+                    now = uiState.now,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter
+                )
+            }
+        }
     }
 }
 
@@ -4592,16 +4600,21 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         e2Chart = MainE2ChartUiState(
             points = listOf(132f, 148f, 162f, 155f, 176f, 139f, 147f)
         ),
-        antiandrogenCards = listOf(
-            MainAntiandrogenCardUiState(
-                id = "preview-spiro",
-                groupUuid = PreviewAntiandrogenGroupUuid,
-                groupName = "Antiandrogen",
-                groupColorKey = MedicationGroupColorKey.INDIGO,
-                medication = spironolactone,
-                lastDose = spironolactone.toPreviewLastDose(),
-                lastDoseAt = now.minusHours(1).minusMinutes(10),
-                nextDoseAt = now.plusHours(11).plusMinutes(30)
+        antiandrogenGroupSections = listOf(
+            MainMedicationCategorySection(
+                category = MedicationCategory.ANTIANDROGEN,
+                cards = listOf(
+                    MainAntiandrogenCardUiState(
+                        id = "preview-spiro",
+                        groupUuid = PreviewAntiandrogenGroupUuid,
+                        groupName = "Antiandrogen",
+                        groupColorKey = MedicationGroupColorKey.INDIGO,
+                        medication = spironolactone,
+                        lastDose = spironolactone.toPreviewLastDose(),
+                        lastDoseAt = now.minusHours(1).minusMinutes(10),
+                        nextDoseAt = now.plusHours(11).plusMinutes(30)
+                    )
+                ),
             )
         ),
         todaySection = MainTodaySectionUiState(

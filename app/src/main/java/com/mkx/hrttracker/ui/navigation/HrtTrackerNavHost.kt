@@ -579,6 +579,7 @@ fun HrtTrackerNavHost(
                 context = latestSnackbarContext,
                 preparation = confirmation.preparation,
                 count = confirmation.amount,
+                category = confirmation.category,
             ) ?: return@collect
             Toast.makeText(
                 latestSnackbarContext,

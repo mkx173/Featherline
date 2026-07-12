@@ -40,7 +40,7 @@ Featherline 支持注射、贴剂、凝胶、口服、舌下五种给药途径�
 - 加密、压缩的备份格式，恢复过程带完整校验
 - 应用锁，支持生物识别解锁
 - 桌面快速记录小组件，提供两种尺寸，可显示进度、下次剂量并直接点击记录
-- 日志标签页，可在时间线上追踪重要日期及里程碑，并为每天记录笔记
+- 日志标签页，可在时间线上追踪重要日期及里程碑，并为每天记录笔记；可将任意日期固定到桌面，以锚点小组件或快捷方式显示已过天数
 - 不需要账户、不进行遥测、不发起任何网络请求——一切数据都留在你的设备上
 - 英语与简体中文界面
 - 基于 Material 3 与动态取色
@@ -104,5 +104,6 @@ Featherline 遵循 GNU 通用公共许可证第 3.0 版（GPL-3.0）发布。许
 
 - [Material Symbols](https://fonts.google.com/icons) 图标集
 - 药代曲线的数学参考来自 [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test)
+- 十一酸雌二醇的药代动力学参数来自 [Transmtf-HRT-Tracker](https://github.com/TransmtfTeam/Transmtf-HRT-Tracker)
 - 图表显示逻辑改编自 [Oyama's HRT Tracker](https://github.com/SmirnovaOyama/Oyama-s-HRT-Tracker)
 - 感谢更广泛的跨性别社区的测试、反馈，以及让这样的工具得以存在的前人工作

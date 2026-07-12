@@ -124,6 +124,17 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
+    fun gnrhSingleUseInjection_identityKeyUsesExistingVialRepresentation() {
+        assertEquals(
+            "C|ESTRADIOL_VALERATE|INJECTION_SINGLE_USE_VIAL|strengthMgPerVial=11.25",
+            MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
+            ),
+        )
+    }
+
+    @Test
     fun customCapsuleIdentityDiffersFromCustomPillAtSameStrength() {
         val pillKey = MedicineIdentityKey.custom(
             customMedicationName = "Progesterone",

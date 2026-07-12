@@ -4,6 +4,8 @@ enum class MedicationCategory {
     ESTRADIOL,
     TESTOSTERONE,
     ANTIANDROGEN,
+    SERM,
+    GNRH_AGONIST,
     CUSTOM;
 
     companion object {
@@ -53,11 +55,19 @@ enum class MedicationKey(val category: MedicationCategory) {
     SPIRONOLACTONE(category = MedicationCategory.ANTIANDROGEN),
     CYPROTERONE_ACETATE(category = MedicationCategory.ANTIANDROGEN),
     BICALUTAMIDE(category = MedicationCategory.ANTIANDROGEN),
+    FINASTERIDE(category = MedicationCategory.ANTIANDROGEN),
+    DUTASTERIDE(category = MedicationCategory.ANTIANDROGEN),
+    RALOXIFENE(category = MedicationCategory.SERM),
+    TAMOXIFEN(category = MedicationCategory.SERM),
+    TRIPTORELIN(category = MedicationCategory.GNRH_AGONIST),
+    LEUPRORELIN(category = MedicationCategory.GNRH_AGONIST),
+    GOSERELIN(category = MedicationCategory.GNRH_AGONIST),
     ESTRADIOL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_CYPIONATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_ENANTHATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_UNDECYLATE(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_GEL(category = MedicationCategory.ESTRADIOL),
     ESTRADIOL_PATCH(category = MedicationCategory.ESTRADIOL);
 
@@ -155,35 +165,23 @@ object MedicationCatalog {
             entries = listOf(
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
-                            multiUseVialDoseAssistPresets(
-                                concentrationsMgPerMl = listOf("20", "40"),
-                                volumesMl = listOf("5", "10"),
-                            ),
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_UNDECYLATE,
+                    doseAssistPresets = injectableEstradiolDoseAssistPresets(),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -240,12 +238,78 @@ object MedicationCatalog {
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.BICALUTAMIDE,
-                    doseAssistPresets = pillMgDoseAssistPresets("50"),
+                    doseAssistPresets = pillMgDoseAssistPresets("50", "80"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.FINASTERIDE,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "5"),
                 ),
             ),
             allowCustomMedicationName = false,
         ),
     )
+
+    // Dutasteride ships as a soft-gel capsule swallowed whole, so it lives in
+    // the CAPSULE form bucket rather than the ORAL tablet catalog — the two
+    // form lists must not leak into each other.
+    private val antiandrogenCapsuleEntries = listOf(
+        MedicationCatalogEntry(
+            medicationKey = MedicationKey.DUTASTERIDE,
+            doseAssistPresets = capsuleMgDoseAssistPresets("0.5"),
+        ),
+    )
+
+    private val sermCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.SERM,
+            applicationType = MedicationApplicationType.ORAL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.RALOXIFENE,
+                    doseAssistPresets = pillMgDoseAssistPresets("60"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.TAMOXIFEN,
+                    doseAssistPresets = pillMgDoseAssistPresets("10", "20"),
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
+    private val gnrhAgonistCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.GNRH_AGONIST,
+            applicationType = MedicationApplicationType.INJECTION,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.TRIPTORELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets("3.75", "11.25", "22.5"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.LEUPRORELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets(
+                        "1.88", "3.75", "11.25", "22.5", "30",
+                    ),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.GOSERELIN,
+                    doseAssistPresets = depotInjectionMgDoseAssistPresets("3.6", "10.8"),
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
+    private fun depotInjectionMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
 
     private val testosteroneCatalog = MedicationApplicationType.entries.map { applicationType ->
         MedicationApplicationCatalog(
@@ -266,7 +330,8 @@ object MedicationCatalog {
     )
 
     private val catalogs =
-        estradiolCatalog + antiandrogenCatalog + testosteroneCatalog + customCatalog
+        estradiolCatalog + antiandrogenCatalog + sermCatalog + gnrhAgonistCatalog +
+                testosteroneCatalog + customCatalog
 
     fun applicationTypesFor(category: MedicationCategory): List<MedicationApplicationType> {
         return catalogs
@@ -304,7 +369,10 @@ object MedicationCatalog {
     fun preparationFormsFor(category: MedicationCategory): List<MedicinePreparationForm> {
         val forms = applicationTypesFor(category)
             .flatMap { applicationType -> applicationType.preparationForms() }
-        val capsuleForms = if (category == MedicationCategory.CUSTOM) {
+        val capsuleForms = if (
+            category == MedicationCategory.CUSTOM ||
+            category == MedicationCategory.ANTIANDROGEN
+        ) {
             listOf(MedicinePreparationForm.CAPSULE)
         } else {
             emptyList()
@@ -318,10 +386,10 @@ object MedicationCatalog {
         form: MedicinePreparationForm,
     ): List<MedicationCatalogEntry> {
         if (form == MedicinePreparationForm.CAPSULE) {
-            return if (category == MedicationCategory.CUSTOM) {
-                listOf(MedicationCatalogEntry(medicationKey = null))
-            } else {
-                emptyList()
+            return when (category) {
+                MedicationCategory.CUSTOM -> listOf(MedicationCatalogEntry(medicationKey = null))
+                MedicationCategory.ANTIANDROGEN -> antiandrogenCapsuleEntries
+                else -> emptyList()
             }
         }
 
@@ -372,6 +440,16 @@ object MedicationCatalog {
         )
     }
 
+    private fun capsuleMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.CAPSULE to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
+
     private fun singleUseVialMgDoseAssistPresets(
         vararg valuesMg: String,
     ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
@@ -380,6 +458,14 @@ object MedicationCatalog {
                 MedicationDoseAssistPreset.MgAsMedicine(it)
             },
         )
+    }
+
+    private fun injectableEstradiolDoseAssistPresets(): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return singleUseVialMgDoseAssistPresets("5", "10") +
+                multiUseVialDoseAssistPresets(
+                    concentrationsMgPerMl = listOf("20", "40", "50", "80", "100"),
+                    volumesMl = listOf("5", "10"),
+                )
     }
 
     private fun multiUseVialDoseAssistPresets(

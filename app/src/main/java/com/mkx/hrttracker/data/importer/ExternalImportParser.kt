@@ -1066,8 +1066,11 @@ class ExternalImportParser @Inject constructor() {
             -> CompoundMapping.Estrogen(MedicationKey.ESTRADIOL_ENANTHATE)
 
             "eu",
-            "epp",
-            -> CompoundMapping.UnsupportedEstrogen
+            "estradiolundecylate",
+            "estradiolundecanoate",
+            -> CompoundMapping.Estrogen(MedicationKey.ESTRADIOL_UNDECYLATE)
+
+            "epp" -> CompoundMapping.UnsupportedEstrogen
 
             "t",
             "testosterone",
@@ -1137,6 +1140,7 @@ class ExternalImportParser @Inject constructor() {
                 MedicationKey.ESTRADIOL_BENZOATE,
                 MedicationKey.ESTRADIOL_CYPIONATE,
                 MedicationKey.ESTRADIOL_ENANTHATE,
+                MedicationKey.ESTRADIOL_UNDECYLATE,
             )
 
             ExternalRoute.GEL,

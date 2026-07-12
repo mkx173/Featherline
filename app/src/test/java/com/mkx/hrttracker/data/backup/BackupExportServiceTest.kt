@@ -120,9 +120,7 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_heroBackgroundBumpedSnapshotVersion() {
-        // The 5→6 bump is intentional for journal hero background persistence.
-        // Keep this tripwire aligned with BackupSnapshot.kt's compatibility notes.
+    fun backupExport_versionTripwire_remainsAtHeroBackgroundVersion() {
         assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 

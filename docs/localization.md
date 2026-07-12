@@ -37,7 +37,7 @@ Keep these rules:
 - Preserve escaped newlines where present, for example `\n`.
 - Do not copy `translatable="false"` strings into locale files unless there is a locale-specific non-translatable override.
 - Keep `<plurals>` category names valid for the target language. Android can use only the categories required by the locale, but each referenced plural must contain all categories that locale needs.
-- Translate widget preview strings too, including `widget_preview_dose_time` and `widget_preview_dose_time_evening`; those are static app-widget picker previews on Android 12-14.
+- Translate widget preview strings too, including `widget_preview_dose_time`, `widget_preview_dose_time_evening`, and the anchor-widget preview strings `anchor_widget_preview_since` and `anchor_widget_preview_days`; those are static app-widget picker previews on Android 12-14. (`anchor_widget_preview_name` is `translatable="false"` — leave it.)
 
 ## Add the Language Option
 

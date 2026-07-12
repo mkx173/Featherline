@@ -53,6 +53,19 @@ class MedicationDisplayTextTest {
         ),
     )
 
+    @Test
+    fun gnrhSingleUseInjectionSummaryOmitsAmpuleWording() {
+        val medicine = testCustomMedicine(
+            medicationName = "Leuprorelin",
+            category = MedicationCategory.GNRH_AGONIST,
+            preparation = MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = 11.25,
+            ),
+        )
+
+        assertEquals("Injection · 11.25 mg", medicinePreparationSummary(medicine, realContext))
+    }
+
     private fun pill() = testMedicine(
         key = MedicationKey.ESTRADIOL,
         preparation = MedicinePreparation.Pill(

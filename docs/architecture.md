@@ -41,7 +41,7 @@ Everything lives under `com.mkx.hrttracker`. The top-level packages
 are organized by role:
 
 - [`model`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
-  Six sub-packages, including `model/journal` for pure journal date
+  Seven sub-packages, including `model/journal` for pure journal date
   and note logic.
 - [`data`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
   codec, and external-import plumbing. Four sub-packages:
@@ -64,9 +64,10 @@ are organized by role:
   catch-all "lib"; entries earn their place by being used in two or
   more features.
 - [`widget`](https://github.com/mkx173/Featherline/tree/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget) — the home-screen Glance
-  widget: snapshot builder, encrypted DataStore, two `GlanceAppWidget`
-  surfaces, the periodic refresh worker, and the quick-log
-  `ActionCallback`. Documented in detail in [widget.md](widget.md).
+  widget: snapshot builder, encrypted DataStore, three `GlanceAppWidget`
+  surfaces (two dose widgets plus the journal-driven anchor widget and
+  its pinned-shortcut manager), the periodic refresh worker, and the
+  quick-log `ActionCallback`. Documented in detail in [widget.md](widget.md).
 
 Two files sit at the package root, outside any sub-package:
 [`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
@@ -194,8 +195,9 @@ medicine, log, and blood-test repositories.
   form picker enum:
   TABLET / INJECTION / GEL / PATCH / CAPSULE), the sealed
   `MedicinePreparation` hierarchy (`Pill`, `Capsule`,
-  `InjectionSingleUseVial`, `InjectionMultiUseVial`, `GelSachet`,
-  `GelContainer`, `Patch` with a nested `PatchSpecification` of
+  `InjectionSingleUseVial`, `InjectionMultiUseVial`,
+  `GelSachet`, `GelContainer`, the import-only `ImportedInjection` and
+  `ImportedGel`, `Patch` with a nested `PatchSpecification` of
   `TotalMg` or `ReleaseRateMcgPerDay`, and the `PatchOff` sentinel),
   and the sealed `DoseInstruction` hierarchy (`TabletFraction`,
   `WholeUnit`, `VolumeMl`, `WeightGrams`, `Noop`) that describes how
