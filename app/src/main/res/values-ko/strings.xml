@@ -44,4 +44,5 @@
     <string name="main_e2_last_dose_with_time">마지막 복용 %1$s 전</string>
     <string name="main_e2_no_last_dose">복용기록 없음</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">예상 농도나 WPATH SOC-8 목표 구간은 참고용으로, 측정치나 의학적 조언이 아닙니다. 목표치는 개인차가 있을 수 있습니다.</string>
+    <string name="medical_disclaimer_reference_ranges">목표 구간은 일반 가이드라인으로, 의학적 조언이 아닙니다. 목표구간은 치료 계획에 따라 개인차가 있을 수 있습니다.</string>
 </resources>
