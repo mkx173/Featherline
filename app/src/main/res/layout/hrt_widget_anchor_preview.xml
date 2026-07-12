@@ -8,8 +8,12 @@
   preview (live 18/16/32sp → 11/10/19sp); the outer shell (22dp corners, 12dp
   padding) and the glyph watermark stay unscaled, matching the live widget
   where the backdrop is card-relative, not content-scaled. The watermark
-  approximates the baked bleed-off-corner backdrop with a static top-end
-  image at watermark alpha.
+  mirrors the live geometry (AnchorWatermark.kt: glyph = 1.1× card height,
+  20% bled off the top/end edges) at the preview scale — 0.88 × 138dp
+  reference × 0.6 = 72dp visible, drawn as a 90dp glyph with -18dp top/end
+  margins, cropped by the clipping parent. If a picker's inflation ignores
+  negative margins the glyph renders flush top-end instead — same
+  proportion, just without the bleed.
 -->
 <!-- RemoteViews layout: framework ImageView ignores app:tint, so android:tint
      is required; UseAppTint is a false positive (suppressed file-wide). -->
@@ -18,12 +22,15 @@
     tools:ignore="UseAppTint"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_preview_shell_bg">
+    android:background="@drawable/widget_preview_shell_bg"
+    android:clipToOutline="true">
 
     <ImageView
-        android:layout_width="72dp"
-        android:layout_height="72dp"
+        android:layout_width="90dp"
+        android:layout_height="90dp"
         android:layout_gravity="top|end"
+        android:layout_marginTop="-18dp"
+        android:layout_marginEnd="-18dp"
         android:src="@drawable/ic_event"
         android:tint="@color/widget_preview_primary"
         android:alpha="0.12"

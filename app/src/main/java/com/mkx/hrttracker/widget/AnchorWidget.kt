@@ -33,6 +33,7 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
+import androidx.glance.layout.size
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
@@ -233,6 +234,7 @@ class HrtAnchorWidget : GlanceAppWidget() {
                                 today = ANCHOR_PREVIEW_START_DATE
                                     .plusDays(ANCHOR_PREVIEW_DAYS_PASSED),
                             ),
+                            watermarkScale = WIDGET_PREVIEW_CONTENT_SCALE,
                         )
                     }
                 }
@@ -343,6 +345,13 @@ internal fun AnchorWidgetContent(
     displayText: AnchorWidgetDisplayText,
     appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID,
     backgroundFlag: PrideFlag? = null,
+    // Watermark shrink for the generated picker preview (WIDGET_PREVIEW_CONTENT_SCALE):
+    // previews are a ~0.6× miniature of the reference card, and the glyph must shrink
+    // with the text (the old XML preview's 72dp = 0.88 × 138dp × 0.6). Live renders and
+    // the WYSIWYG config preview keep 1.0 — the backdrop is card-relative there and must
+    // NOT follow the user's content-scale slider, so this is a parameter rather than a
+    // LocalWidgetScale read.
+    watermarkScale: Float = 1f,
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
@@ -426,15 +435,21 @@ internal fun AnchorWidgetContent(
     }
 
     // Glyph watermark bled off the top-right corner, baked to a bitmap (Glance has no
-    // alpha/offset modifiers) and layered under the padded content. The bitmap is white ink;
-    // the colour comes from the ColorFilter below so the launcher resolves day/night at
-    // RemoteViews apply time and the widget flips with the system without a recompose.
-    val watermark = remember(anchor.icon, widthPx, heightPx) {
+    // alpha/offset modifiers) and layered under the padded content. The bleed is
+    // pre-cropped into the bitmap and LAYOUT owns placement and size (top-end box,
+    // card-height-relative dp), so a host re-applying the RemoteViews at a size other
+    // than the composed one (picker preview box, resize window) can drift the glyph's
+    // scale a little but can never deform it — the old full-card FillBounds bake
+    // stretched non-uniformly there. The bitmap is white ink; the colour comes from the
+    // ColorFilter below so the launcher resolves day/night at RemoteViews apply time and
+    // the widget flips with the system without a recompose.
+    val watermarkSizeDp = size.height.value * GLYPH_VISIBLE_HEIGHT_FRACTION * watermarkScale
+    val watermarkSizePx = (watermarkSizeDp * density).toInt().coerceAtLeast(1)
+    val watermark = remember(anchor.icon, watermarkSizePx) {
         renderAnchorWatermarkBitmap(
             context = context,
             iconRes = anchorIconRes(anchor.icon),
-            widthPx = widthPx,
-            heightPx = heightPx,
+            visibleSizePx = watermarkSizePx,
             cornerRadiusPx = WidgetRoundedShape.Shell.radius.value * density,
         )
     }
@@ -456,13 +471,18 @@ internal fun AnchorWidgetContent(
                 shape = WidgetRoundedShape.Shell,
             )
         }
-        Image(
-            provider = ImageProvider(watermark),
-            contentDescription = null,
+        Box(
             modifier = GlanceModifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds,
-            colorFilter = ColorFilter.tint(colors.primary),
-        )
+            contentAlignment = Alignment.TopEnd,
+        ) {
+            Image(
+                provider = ImageProvider(watermark),
+                contentDescription = null,
+                modifier = GlanceModifier.size(watermarkSizeDp.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(colors.primary),
+            )
+        }
     }
 
     WidgetShell(
