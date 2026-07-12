@@ -45,11 +45,50 @@ class AnchorWidgetDisplayTextTest {
             AnchorWidgetDisplayText.Loaded(
                 anchor = anchor,
                 directionLine = "开始于 $dateText",
+                dateText = dateText,
                 daysText = "4 天",
             ),
             displayText,
         )
     }
+
+    // The widget's count line must match the in-app dayCountLabel wording exactly:
+    // "Today" on the anchor date, "in N days" for a future one, "N days" past.
+    @Test
+    fun buildAnchorWidgetDisplayText_matchesInAppDayCountWording() {
+        val anchor = anchor(date = LocalDate.of(2026, 7, 5))
+
+        val onDay = buildAnchorWidgetDisplayText(appContext, anchor, today = LocalDate.of(2026, 7, 5))
+        val future = buildAnchorWidgetDisplayText(appContext, anchor, today = LocalDate.of(2026, 7, 2))
+        val past = buildAnchorWidgetDisplayText(appContext, anchor, today = LocalDate.of(2026, 7, 6))
+
+        assertEquals("Today", (onDay as AnchorWidgetDisplayText.Loaded).daysText)
+        assertEquals("in 3 days", (future as AnchorWidgetDisplayText.Loaded).daysText)
+        assertEquals("1 day", (past as AnchorWidgetDisplayText.Loaded).daysText)
+    }
+
+    // The direction line drops its prefix only when even the widest possible prefixed
+    // date would clip: generous width keeps it, near-zero width can never fit.
+    @Test
+    fun anchorDirectionLineFits_switchesOnAvailableWidth() {
+        assertEquals(
+            true,
+            anchorDirectionLineFits(appContext, sampleYear = 2026, fontSizePx = 16f, availableWidthPx = 10_000f),
+        )
+        assertEquals(
+            false,
+            anchorDirectionLineFits(appContext, sampleYear = 2026, fontSizePx = 16f, availableWidthPx = 1f),
+        )
+    }
+
+    private fun anchor(date: LocalDate) = TrackedDate(
+        id = "anchor-1",
+        name = "Start",
+        icon = AnchorIcon.STAR,
+        date = date,
+        palette = null,
+        pinnedOrder = null,
+    )
 
     @Test
     fun buildAnchorWidgetDisplayText_bakesLocalizedEmptyMessage() {

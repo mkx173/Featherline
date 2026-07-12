@@ -906,9 +906,6 @@
     <string name="widget_anchor_description">时间线</string>
     <string name="anchor_widget_empty">请选择一个日期</string>
     <string name="anchor_widget_planned_for">计划于 %1$s</string>
-    <plurals name="anchor_widget_days">
-        <item quantity="other">%1$d 天</item>
-    </plurals>
     <string name="anchor_widget_preview_since">开始于 2026年1月1日</string>
     <string name="anchor_widget_preview_days">67 天</string>
     <string name="anchor_selector_empty_state">暂无追踪的日期</string>

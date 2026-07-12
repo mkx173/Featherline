@@ -67,7 +67,7 @@ internal sealed interface WidgetListItem {
     data class Row(val row: WidgetDoseRow) : WidgetListItem
 }
 
-private val WidgetShellPadding = 12.dp
+internal val WidgetShellPadding = 12.dp
 internal const val WidgetDoseRowIndicatorSlotSizeDp = 20f
 
 internal enum class WidgetRoundedShape(

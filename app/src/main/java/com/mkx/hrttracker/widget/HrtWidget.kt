@@ -896,7 +896,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         Text(
                             text = count.hero,
                             style = TextStyle(
-                                color = if (allInWindow) colors.primary else colors.onSurface,
+                                color = colors.onSurface,
                                 fontSize = (42f * scale).sp,
                                 fontWeight = FontWeight.Bold,
                             ),

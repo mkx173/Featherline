@@ -100,6 +100,9 @@ internal sealed interface AnchorWidgetDisplayText {
     data class Loaded(
         val anchor: TrackedDate,
         val directionLine: String,
+        // The bare formatted date, no since/planned-for prefix: the compose-time fallback
+        // when the prefixed line would clip at the instance's size (see AnchorWidgetContent).
+        val dateText: String,
         val daysText: String,
     ) : AnchorWidgetDisplayText
 }
@@ -387,6 +390,21 @@ internal fun AnchorWidgetContent(
     val size = LocalSize.current
     val density = context.resources.displayMetrics.density
 
+    // Prefix-or-bare direction line (same idea as the batch-add picker's
+    // AutoSizeDateRangeHeadline): decide against the locale's WIDEST possible prefixed
+    // line rather than the current date, so the choice is stable across dates at a given
+    // size. If even the worst case fits the shell's inner width, keep the since/planned-for
+    // prefix; otherwise fall back to the bare date.
+    val directionText = remember(loaded, size, scale) {
+        val fontSizePx = 16f * scale * context.resources.configuration.fontScale * density
+        val availablePx = (size.width - WidgetShellPadding * 2).value * density
+        if (anchorDirectionLineFits(context, anchor.date.year, fontSizePx, availablePx)) {
+            loaded.directionLine
+        } else {
+            loaded.dateText
+        }
+    }
+
     // A gradient flag (chosen in the widget config) layers a baked bloom bitmap plus a
     // shell-tinted scrim over the appearance-seeded card, so the colour sliders tint the
     // background under the wash. Everything but the blooms is a day/night colour provider
@@ -424,7 +442,7 @@ internal fun AnchorWidgetContent(
                 )
                 Spacer(GlanceModifier.height(2.dp))
                 Text(
-                    text = loaded.directionLine,
+                    text = directionText,
                     style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
                     maxLines = 1,
                 )
@@ -522,14 +540,47 @@ internal fun buildAnchorWidgetDisplayText(
         // Same wording as the in-app Milestones screen (spec section 3).
         context.getString(R.string.journal_since_date, dateText)
     }
-    val daysText = context.resources.getQuantityString(
-        R.plurals.anchor_widget_days, count.magnitude.toInt(), count.magnitude.toInt()
-    )
+    // Mirrors the in-app AnchorRowUiState.dayCountLabel exactly: "Today" on the anchor
+    // date, "in N days" counting down to a future one, "N days" counting up from a past one.
+    val days = count.magnitude.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val daysText = when {
+        count.magnitude == 0L -> context.getString(R.string.journal_today)
+        count.isFuture -> context.resources.getQuantityString(
+            R.plurals.journal_milestone_days_future, days, days
+        )
+        else -> context.resources.getQuantityString(
+            R.plurals.journal_milestone_days_past, days, days
+        )
+    }
     return AnchorWidgetDisplayText.Loaded(
         anchor = anchor,
         directionLine = directionLine,
+        dateText = dateText,
         daysText = daysText,
     )
+}
+
+// Worst-case fit check for the direction line: the widest MEDIUM-format date of the
+// sample year (month-name widths vary) under the wider of the two prefixes, measured
+// with the platform text stack. Day 28 keeps the day part two digits, like the picker's
+// widest-date sweep. Paint's default sans-serif typeface matches Glance's default text.
+internal fun anchorDirectionLineFits(
+    context: Context,
+    sampleYear: Int,
+    fontSizePx: Float,
+    availableWidthPx: Float,
+): Boolean {
+    val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        .withLocale(context.currentAppLocale())
+    val paint = android.graphics.Paint().apply { textSize = fontSizePx }
+    val worstPx = (1..12).maxOf { month ->
+        val dateText = LocalDate.of(sampleYear, month, 28).format(formatter)
+        maxOf(
+            paint.measureText(context.getString(R.string.anchor_widget_planned_for, dateText)),
+            paint.measureText(context.getString(R.string.journal_since_date, dateText)),
+        )
+    }
+    return worstPx <= availableWidthPx
 }
 
 // One-shot synchronous compose of an anchor widget instance — the dose-widget twin of
