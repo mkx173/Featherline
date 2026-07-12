@@ -436,11 +436,11 @@ internal fun AnchorWidgetContent(
             Column {
                 Text(
                     text = anchor.name,
-                    style = TextStyle(color = colors.onSurface, fontSize = (18f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (20f * scale).sp,
                         fontWeight = FontWeight.Medium),
                     maxLines = 1,
                 )
-                Spacer(GlanceModifier.height(2.dp))
+                Spacer(GlanceModifier.height(scale.dp))
                 Text(
                     text = directionText,
                     style = TextStyle(color = colors.onSurfaceVariant, fontSize = (16f * scale).sp),
@@ -453,7 +453,7 @@ internal fun AnchorWidgetContent(
             ) {
                 Text(
                     text = loaded.daysText,
-                    style = TextStyle(color = colors.onSurface, fontSize = (32f * scale).sp,
+                    style = TextStyle(color = colors.onSurface, fontSize = (30f * scale).sp,
                         fontWeight = FontWeight.Bold),
                     maxLines = 1,
                 )
