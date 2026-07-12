@@ -199,7 +199,10 @@ class HrtAnchorWidget : GlanceAppWidget() {
             // Sample-data preview for the launcher widget picker (API 35+ generated
             // previews, published by HomeWidgetManager): the fixed "HRT / 67 days"
             // anchor rendered through the real HrtWidgetThemed + AnchorWidgetContent
-            // path with the default appearance and adaptive colour, no gradient.
+            // path with the default appearance, no gradient. Adaptive colour is off so
+            // the preview pins the DefaultSeedColor scheme, matching the dose widget
+            // previews (provideHrtPreviewContent) and the API 31–34 static XML previews,
+            // and keeping the launcher-cached preview stable across wallpaper changes.
             // Renders in the system locale (appLanguageTag = null): the launcher draws
             // its picker chrome in the system locale, so a system-locale preview is the
             // consistent choice. The preview composes at the fixed reference size, so
@@ -212,7 +215,7 @@ class HrtAnchorWidget : GlanceAppWidget() {
                     context,
                     snapshot = null,
                     appearance = WidgetAppearance.Default,
-                    adaptiveColorEnabled = true,
+                    adaptiveColorEnabled = false,
                     appLanguageTag = null,
                 ) {
                     // Same preview content scale as the dose widgets
