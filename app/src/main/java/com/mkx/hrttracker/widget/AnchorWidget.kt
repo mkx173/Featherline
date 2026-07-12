@@ -51,6 +51,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -286,15 +288,22 @@ class HrtAnchorWidgetReceiver : GlanceAppWidgetReceiver() {
 // only (no LazyColumn), so the push is safe on every API level, like the medium dose widget.
 // The trailing glanceUpdateAll reconciles the session — a fresh session re-composes today's
 // content — so a launcher re-attach can't re-assert a stale composition.
+// Serializes anchor pushes across callers (options-changed bursts, the date receiver, the
+// config save). Concurrent runs race: an older run can read the launcher options before a
+// newer event's write yet push after the newer run finished, leaving stale-sized
+// RemoteViews on the launcher. The mutex is FIFO-fair, so the last-arrived run executes
+// last and composes against the latest options (composeAnchorRemoteViews re-reads them).
+private val anchorWidgetPushMutex = Mutex()
+
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
-suspend fun updateAllAnchorWidgets(context: Context) {
+suspend fun updateAllAnchorWidgets(context: Context) = anchorWidgetPushMutex.withLock {
     val appWidgetManager = AppWidgetManager.getInstance(context)
     val ids = appWidgetManager.getAppWidgetIds(
         android.content.ComponentName(context, HrtAnchorWidgetReceiver::class.java)
     )
     // No instances: skip everything, including the tracked-dates await, so a widget-less
     // install never pays a DB open on the midnight/boot broadcasts (deferred-open policy).
-    if (ids.isEmpty()) return
+    if (ids.isEmpty()) return@withLock
     val entry = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
     val appearanceRepository = entry.widgetAppearanceRepository()
     val diagnosticsLogger = entry.diagnosticsLogger()
