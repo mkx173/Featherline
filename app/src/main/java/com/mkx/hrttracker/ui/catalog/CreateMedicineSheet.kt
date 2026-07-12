@@ -49,6 +49,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationCatalog
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
@@ -481,10 +482,8 @@ private fun NewMedicinePreparationForm(
             )
         }
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION -> {
-            val isDepot = medicineDraft.inferredOrSelectedPreparationType() ==
-                    MedicinePreparationType.DEPOT_INJECTION
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            val isDepot = medicineDraft.category == MedicationCategory.GNRH_AGONIST
             val strengthErrorRes = if (isDepot) {
                 R.string.validation_depot_strength_required
             } else {
@@ -903,8 +902,7 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> fields += CreateMedicineField.PILL_STRENGTH
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION ->
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             fields += CreateMedicineField.VIAL_STRENGTH
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
@@ -941,8 +939,8 @@ internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<Cr
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION -> listOf(CreateMedicineField.VIAL_STRENGTH)
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            listOf(CreateMedicineField.VIAL_STRENGTH)
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
             CreateMedicineField.CONCENTRATION_MG_PER_ML,
             CreateMedicineField.VIAL_VOLUME_ML,

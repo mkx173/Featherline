@@ -33,6 +33,33 @@ class MedicationEditorModelsTest {
         )
     }
 
+    // The patch spec kind must only matter for PATCH: pills, capsules, and
+    // single-use vials always carry a raw mass, no matter what spec kind a
+    // previously visited patch form left behind in the draft.
+    @Test
+    fun raw_mass_dose_field_ignores_patch_spec_for_non_patch_types() {
+        val rawMassTypes = setOf(
+            MedicinePreparationType.PILL,
+            MedicinePreparationType.CAPSULE,
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        )
+        PatchSpecKind.entries.forEach { specKind ->
+            MedicinePreparationType.entries.forEach { type ->
+                val expected = when {
+                    type in rawMassTypes -> true
+                    type == MedicinePreparationType.PATCH ->
+                        specKind == PatchSpecKind.TOTAL_MG
+                    else -> false
+                }
+                assertEquals(
+                    "$type with $specKind",
+                    expected,
+                    type.hasRawMassDoseField(specKind),
+                )
+            }
+        }
+    }
+
     @Test
     fun no_catalog_supports_both_catalog_selection_and_custom_names() {
         MedicationCategory.entries.forEach { category ->
@@ -185,14 +212,14 @@ class MedicationEditorModelsTest {
     }
 
     @Test
-    fun gnrhAgonistDraft_defaultsToDepotInjection_withoutPreparationPicker() {
+    fun gnrhAgonistDraft_defaultsToSingleUseInjection_withoutPreparationPicker() {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.GNRH_AGONIST,
             form = MedicinePreparationForm.INJECTION,
         )
 
         assertEquals(
-            MedicinePreparationType.DEPOT_INJECTION,
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
             draft.inferredOrSelectedPreparationType(),
         )
         // Single depot option — the ampule/vial segmented picker must not render.

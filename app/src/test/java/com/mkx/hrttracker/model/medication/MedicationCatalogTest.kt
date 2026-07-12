@@ -384,11 +384,10 @@ class MedicationCatalogTest {
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )
         assertFalse(catalog.allowCustomMedicationName)
-        // GnRHa must never surface the adjustable vial preparations: presets
-        // are keyed exclusively by DEPOT_INJECTION.
+        // GnRHa uses the fixed-mg single-use injection representation.
         catalog.entries.forEach { entry ->
             assertEquals(
-                setOf(MedicinePreparationType.DEPOT_INJECTION),
+                setOf(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
                 entry.doseAssistPresets.keys,
             )
         }
@@ -406,7 +405,7 @@ class MedicationCatalogTest {
                 category = MedicationCategory.GNRH_AGONIST,
                 applicationType = MedicationApplicationType.INJECTION,
                 medicationKey = MedicationKey.TRIPTORELIN,
-            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
         assertEquals(
             listOf(
@@ -420,7 +419,7 @@ class MedicationCatalogTest {
                 category = MedicationCategory.GNRH_AGONIST,
                 applicationType = MedicationApplicationType.INJECTION,
                 medicationKey = MedicationKey.LEUPRORELIN,
-            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
         assertEquals(
             listOf(
@@ -431,7 +430,7 @@ class MedicationCatalogTest {
                 category = MedicationCategory.GNRH_AGONIST,
                 applicationType = MedicationApplicationType.INJECTION,
                 medicationKey = MedicationKey.GOSERELIN,
-            ).doseAssistPresets.getValue(MedicinePreparationType.DEPOT_INJECTION),
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
     }
 

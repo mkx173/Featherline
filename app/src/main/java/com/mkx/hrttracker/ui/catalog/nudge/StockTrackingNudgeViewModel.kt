@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -148,6 +149,7 @@ class StockTrackingNudgeViewModel @Inject constructor(
                     StockNudgeAddedConfirmation(
                         amount = unitsReceived,
                         preparation = target.medicine.preparation,
+                        category = target.medicine.category,
                     ),
                 )
             } catch (exception: CancellationException) {
@@ -167,10 +169,11 @@ class StockTrackingNudgeViewModel @Inject constructor(
 
 /**
  * Emitted after a successful in-place opt-in so the host can confirm how much
- * was added (e.g. "Added 2 tablets to stock"). [preparation] lets the host
- * resolve the unit label.
+ * was added (e.g. "Added 2 tablets to stock"). [preparation] and [category]
+ * let the host resolve the unit label (GnRHa vials read "injection").
  */
 data class StockNudgeAddedConfirmation(
     val amount: Double,
     val preparation: MedicinePreparation,
+    val category: MedicationCategory,
 )

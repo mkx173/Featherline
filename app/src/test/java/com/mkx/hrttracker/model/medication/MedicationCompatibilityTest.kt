@@ -97,26 +97,26 @@ class MedicationCompatibilityTest {
     }
 
     @Test
-    fun depotInjection_isInjectionRoute_wholeUnitOnly() {
+    fun gnrhSingleUseInjection_isInjectionRoute_wholeUnitOnly() {
         assertTrue(
             MedicationApplicationType.INJECTION
-                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+                .isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
         assertTrue(
             DoseInstruction.WholeUnit
-                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+                .isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
         assertFalse(
             DoseInstruction.VolumeMl(1.0)
-                .isCompatibleWith(MedicinePreparationType.DEPOT_INJECTION),
+                .isCompatibleWith(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
         )
         assertEquals(
             MedicationApplicationType.INJECTION,
-            MedicinePreparationType.DEPOT_INJECTION.requiredApplicationType(),
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL.requiredApplicationType(),
         )
         assertEquals(
             MedicinePreparationForm.INJECTION,
-            MedicinePreparationType.DEPOT_INJECTION.form(),
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL.form(),
         )
     }
 

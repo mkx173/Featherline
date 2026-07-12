@@ -6,6 +6,7 @@ import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -56,14 +57,12 @@ fun medicinePreparationSummary(medicine: Medicine): String {
         )
 
         is MedicinePreparation.InjectionSingleUseVial -> stringResource(
-            R.string.medication_preparation_summary_single_use_vial_with_unit,
+            if (medicine.category == MedicationCategory.GNRH_AGONIST) {
+                R.string.medication_preparation_summary_depot_injection_with_unit
+            } else {
+                R.string.medication_preparation_summary_single_use_vial_with_unit
+            },
             displayUnit.fromMg(preparation.strengthMgPerVial).formatDose(appLocale),
-            unitLabel,
-        )
-
-        is MedicinePreparation.DepotInjection -> stringResource(
-            R.string.medication_preparation_summary_depot_injection_with_unit,
-            displayUnit.fromMg(preparation.strengthMg).formatDose(appLocale),
             unitLabel,
         )
 

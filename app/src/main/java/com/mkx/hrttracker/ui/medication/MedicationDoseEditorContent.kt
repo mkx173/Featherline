@@ -315,7 +315,6 @@ internal fun DoseInstructionForm(
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
@@ -404,8 +403,6 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
             R.string.preparation_type_injection_multi_use_vial
-
-        MedicinePreparationType.DEPOT_INJECTION -> R.string.medication_application_injection
 
         MedicinePreparationType.GEL_SACHET -> R.string.preparation_type_gel_sachet
         MedicinePreparationType.GEL_CONTAINER -> R.string.preparation_type_gel_container

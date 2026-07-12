@@ -579,6 +579,7 @@ fun HrtTrackerNavHost(
                 context = latestSnackbarContext,
                 preparation = confirmation.preparation,
                 count = confirmation.amount,
+                category = confirmation.category,
             ) ?: return@collect
             Toast.makeText(
                 latestSnackbarContext,
@@ -1756,9 +1757,6 @@ private fun savePreparation(preparation: MedicinePreparation): ArrayList<Any?> {
         is MedicinePreparation.InjectionSingleUseVial ->
             arrayListOf(preparation.type.name, preparation.strengthMgPerVial)
 
-        is MedicinePreparation.DepotInjection ->
-            arrayListOf(preparation.type.name, preparation.strengthMg)
-
         is MedicinePreparation.InjectionMultiUseVial -> arrayListOf(
             preparation.type.name,
             preparation.concentrationMgPerMl,
@@ -1813,9 +1811,6 @@ private fun restorePreparation(saved: Any): MedicinePreparation {
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = list[1] as Double)
-
-        MedicinePreparationType.DEPOT_INJECTION ->
-            MedicinePreparation.DepotInjection(strengthMg = list[1] as Double)
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
             concentrationMgPerMl = list[1] as Double,

@@ -8,7 +8,6 @@ enum class MedicinePreparationType {
     CAPSULE,
     INJECTION_SINGLE_USE_VIAL,
     INJECTION_MULTI_USE_VIAL,
-    DEPOT_INJECTION,
     GEL_SACHET,
     GEL_CONTAINER,
     IMPORTED_INJECTION,
@@ -101,17 +100,6 @@ sealed interface MedicinePreparation {
 
         override val type: MedicinePreparationType =
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL
-    }
-
-    // Long-acting depot injection (GnRH agonists): one prefilled unit = fixed
-    // mg, administered whole. Mechanically an ampule, but kept as its own
-    // variant so user-facing wording never says "vial" for a depot syringe.
-    data class DepotInjection(val strengthMg: Double) : MedicinePreparation {
-        init {
-            require(strengthMg.isFinitePositive())
-        }
-
-        override val type: MedicinePreparationType = MedicinePreparationType.DEPOT_INJECTION
     }
 
     data class GelSachet(

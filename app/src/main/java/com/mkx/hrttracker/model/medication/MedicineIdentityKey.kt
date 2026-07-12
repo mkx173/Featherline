@@ -107,7 +107,6 @@ object MedicineIdentityKey {
         is MedicinePreparation.Capsule,
         is MedicinePreparation.InjectionSingleUseVial,
         is MedicinePreparation.InjectionMultiUseVial,
-        is MedicinePreparation.DepotInjection,
         is MedicinePreparation.GelSachet,
         is MedicinePreparation.GelContainer,
         is MedicinePreparation.PatchOff,
@@ -127,10 +126,6 @@ object MedicineIdentityKey {
 
             is MedicinePreparation.InjectionSingleUseVial -> {
                 appendField("strengthMgPerVial", preparation.strengthMgPerVial)
-            }
-
-            is MedicinePreparation.DepotInjection -> {
-                appendField("strengthMg", preparation.strengthMg)
             }
 
             is MedicinePreparation.InjectionMultiUseVial -> {

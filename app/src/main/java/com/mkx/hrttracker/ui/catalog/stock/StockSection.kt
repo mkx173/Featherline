@@ -281,7 +281,7 @@ private fun StockRows(projection: MedicineStockProjection, locale: Locale) {
                 trailingCount = stockSectionCountText(
                     numerator = stock.unitsRemaining,
                     denominator = stock.unitsLastTotal,
-                    unitRes = stockInventoryUnitRes(preparation),
+                    unitRes = stockInventoryUnitRes(preparation, projection.medicine.category),
                     locale = locale,
                 ),
                 index = 0,
@@ -598,7 +598,10 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
     val locale = rememberAppLocale()
     val dosesPerDay = projection.dosesPerDayMagnitude
     if (dosesPerDay <= 0.0) return null
-    val unitRes = stockRateUnitRes(projection.medicine.preparation) ?: return null
+    val unitRes = stockRateUnitRes(
+        projection.medicine.preparation,
+        projection.medicine.category,
+    ) ?: return null
     // Sub-once-a-day cadence reads better as a weekly rate: a multi-use vial
     // at 0.4 mL/wk is more legible than 0.06 mL/day.
     val perDay = dosesPerDay >= 0.5
@@ -617,8 +620,6 @@ private fun rateLabel(projection: MedicineStockProjection): String? {
         unit,
     )
 }
-
-internal fun stockUnitRes(preparation: MedicinePreparation): Int? = stockRateUnitRes(preparation)
 
 internal fun formatStockSectionRate(value: Double, locale: Locale): String {
     return formatStockCount(value, locale)
@@ -662,8 +663,7 @@ private fun poolIconRes(preparation: MedicinePreparation): Int = when (preparati
     is MedicinePreparation.Capsule,
     is MedicinePreparation.Patch,
     is MedicinePreparation.GelSachet,
-    is MedicinePreparation.InjectionSingleUseVial,
-    is MedicinePreparation.DepotInjection -> R.drawable.ic_inventory_2
+    is MedicinePreparation.InjectionSingleUseVial -> R.drawable.ic_inventory_2
     // Container preparations and PatchOff route through dedicated row paths
     // upstream; this fallback only fires if a new preparation type is added
     // without a matching pool icon mapping.

@@ -193,7 +193,6 @@ fun activeDoseAssistPresets(
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
         MedicinePreparationType.PATCH_OFF,
@@ -305,7 +304,6 @@ fun applicationTypesCompatibleWithPreparation(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.IMPORTED_INJECTION -> listOf(
             MedicationApplicationType.INJECTION,
         )
@@ -330,10 +328,10 @@ internal fun ambiguousPreparationTypes(
     form: MedicinePreparationForm,
     category: MedicationCategory? = null,
 ): List<MedicinePreparationType> {
-    // GnRHa injections are depot-only: the ampule/vial pair never applies, so
-    // the picker collapses to a single (auto-selected) preparation.
+    // GnRHa injections use a single fixed-mg unit, so the adjustable multi-use
+    // vial option never applies and the picker collapses to one preparation.
     if (category == MedicationCategory.GNRH_AGONIST && form == MedicinePreparationForm.INJECTION) {
-        return listOf(MedicinePreparationType.DEPOT_INJECTION)
+        return listOf(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL)
     }
     return when (form) {
         MedicinePreparationForm.INJECTION -> listOf(
@@ -420,8 +418,7 @@ fun MedicinePickerUiState.applyDoseAssistPreset(
             MedicinePreparationType.PILL,
             MedicinePreparationType.CAPSULE -> copy(pillStrengthMg = preset.valueMg)
 
-            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-            MedicinePreparationType.DEPOT_INJECTION ->
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
                 copy(singleUseVialStrengthMg = preset.valueMg)
 
             else -> this
@@ -498,7 +495,6 @@ fun MedicationApplicationType.supportsMedicationCountEditor(
     when (preparationType) {
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> return false
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> return false
-        MedicinePreparationType.DEPOT_INJECTION -> return false
         MedicinePreparationType.GEL_SACHET -> return true
         else -> Unit
     }
@@ -769,7 +765,6 @@ private fun MedicinePreparation.stockMutationPerAdministration(
         DoseInstruction.WholeUnit -> when (this) {
             is MedicinePreparation.Capsule,
             is MedicinePreparation.InjectionSingleUseVial,
-            is MedicinePreparation.DepotInjection,
             is MedicinePreparation.GelSachet,
             is MedicinePreparation.Patch -> 1.0
 
@@ -816,8 +811,7 @@ fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): B
     return when (this) {
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE,
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION -> true
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
 
         MedicinePreparationType.PATCH -> patchSpecKind == PatchSpecKind.TOTAL_MG
 
@@ -860,7 +854,6 @@ internal fun requiresEditableDoseInstructionForm(
 
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
             // PATCH_OFF emits a Noop dose with no editable form.
@@ -884,7 +877,6 @@ internal fun doseInstructionHasTextField(
         MedicinePreparationType.PILL,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
         MedicinePreparationType.PATCH_OFF,
@@ -985,13 +977,6 @@ internal fun MedicinePickerUiState.toMedicinePreparation(
                 ),
             )
 
-        MedicinePreparationType.DEPOT_INJECTION ->
-            MedicinePreparation.DepotInjection(
-                strengthMg = displayDoseUnit.toMg(
-                    checkNotNull(parsePositiveDouble(singleUseVialStrengthMg)),
-                ),
-            )
-
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
             MedicinePreparation.InjectionMultiUseVial(
                 concentrationMgPerMl = checkNotNull(parsePositiveDouble(concentrationMgPerMl)),
@@ -1058,7 +1043,6 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
         )
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
@@ -1123,11 +1107,11 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
                 .takeIf { parsePositiveDouble(pillStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
-            R.string.validation_vial_strength_required
-                .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
-
-        MedicinePreparationType.DEPOT_INJECTION ->
-            R.string.validation_depot_strength_required
+            (if (category == MedicationCategory.GNRH_AGONIST) {
+                R.string.validation_depot_strength_required
+            } else {
+                R.string.validation_vial_strength_required
+            })
                 .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> when {
@@ -1251,7 +1235,6 @@ fun compatibleApplicationTypeForMedicine(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.IMPORTED_INJECTION -> MedicationApplicationType.INJECTION
 
         MedicinePreparationType.GEL_SACHET,
@@ -1290,12 +1273,6 @@ private fun MedicinePickerUiState.withPreparationFields(
         is MedicinePreparation.InjectionSingleUseVial ->
             copy(
                 singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerVial)
-                    .toInputString()
-            )
-
-        is MedicinePreparation.DepotInjection ->
-            copy(
-                singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMg)
                     .toInputString()
             )
 
@@ -1365,7 +1342,6 @@ fun DoseInstructionDraftUiState.validationErrorRes(): Int? {
             }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,

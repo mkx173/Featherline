@@ -12,7 +12,7 @@ that file is read back. The whole subsystem lives in
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 7`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 6`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
@@ -442,9 +442,7 @@ balance), per the caveat above. The v4 → v5 bump added
 apps would coerce unknown preparation types to `PILL`, silently
 corrupting imported medicine semantics. The v5 → v6 bump added
 `BackupTrackedDateSnapshot.heroBackgroundKey` so journal hero
-backgrounds are preserved across backup restore. The v6 → v7 bump added
-`DEPOT_INJECTION` to `preparationType`; older apps would coerce the
-unknown enum to `PILL`, silently misclassifying depot medicines. The validator gates
+backgrounds are preserved across backup restore. The validator gates
 on `snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`,
 so bumping `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION` is how we drop
 support for a version when carrying its reader logic is no longer
@@ -464,11 +462,11 @@ inner snapshot version moved.
 
 | Envelope | Snapshot | Reader | Outcome |
 | --- | --- | --- | --- |
-| v2 | v2, v3, v4, v5, v6, or v7 | This version | Restores. Legacy framing, payload uncompressed. |
+| v2 | v2, v3, v4, v5, or v6 | This version | Restores. Legacy framing, payload uncompressed. |
 | v3 | v2 | This version | Restores normally. |
-| v3 | v3, v4, v5, v6, or v7 | This version | Restores normally. |
+| v3 | v3, v4, v5, or v6 | This version | Restores normally. |
 | v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults, including omitted journal `trackedDates` / `notes` lists defaulting empty. |
-| v3 | v4, v5, v6, or v7 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
+| v3 | v4, v5, or v6 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |

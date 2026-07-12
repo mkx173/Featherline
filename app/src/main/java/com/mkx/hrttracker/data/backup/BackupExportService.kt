@@ -422,11 +422,6 @@ class BackupExportService @Inject constructor(
                 strengthMgPerVial = strengthMgPerVial,
             )
 
-            is MedicinePreparation.DepotInjection -> BackupMedicineStorageFields(
-                preparationType = type.name,
-                strengthMgPerVial = strengthMg,
-            )
-
             is MedicinePreparation.InjectionMultiUseVial -> BackupMedicineStorageFields(
                 preparationType = type.name,
                 concentrationMgPerMl = concentrationMgPerMl,

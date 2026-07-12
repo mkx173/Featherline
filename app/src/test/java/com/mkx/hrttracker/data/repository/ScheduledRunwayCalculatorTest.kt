@@ -62,11 +62,11 @@ class ScheduledRunwayCalculatorTest {
     }
 
     @Test
-    fun depotInjection_wholeUnit_consumesOneUnit() {
+    fun gnrhSingleUseInjection_wholeUnit_consumesOneUnit() {
         assertEquals(
             1.0,
             resolvePerAdministrationMagnitude(
-                preparation = MedicinePreparation.DepotInjection(strengthMg = 11.25),
+                preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
                 doseInstruction = DoseInstruction.WholeUnit,
             ),
         )

@@ -70,14 +70,6 @@ object DoseInstructionCalculator {
                 }
             }
 
-            is MedicinePreparation.DepotInjection -> {
-                if (doseInstruction == DoseInstruction.WholeUnit) {
-                    preparation.strengthMg
-                } else {
-                    null
-                }
-            }
-
             is MedicinePreparation.InjectionMultiUseVial -> {
                 val volume = doseInstruction as? DoseInstruction.VolumeMl ?: return null
                 preparation.concentrationMgPerMl * volume.valueMl

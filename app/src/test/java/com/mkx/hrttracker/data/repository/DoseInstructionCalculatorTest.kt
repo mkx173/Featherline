@@ -174,10 +174,10 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
-    fun depotInjection_wholeUnit_resolvesStrengthAsPerUnitMg() {
+    fun gnrhSingleUseInjection_wholeUnit_resolvesStrengthAsPerUnitMg() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
-            preparation = MedicinePreparation.DepotInjection(strengthMg = 11.25),
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
         )
 
         assertEquals(

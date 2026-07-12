@@ -728,7 +728,6 @@ internal object HomeSnapshotCodec {
             is MedicinePreparation.Pill -> writeDouble(preparation.strengthMgPerTablet)
             is MedicinePreparation.Capsule -> writeDouble(preparation.strengthMgPerCapsule)
             is MedicinePreparation.InjectionSingleUseVial -> writeDouble(preparation.strengthMgPerVial)
-            is MedicinePreparation.DepotInjection -> writeDouble(preparation.strengthMg)
             is MedicinePreparation.InjectionMultiUseVial -> {
                 writeDouble(preparation.concentrationMgPerMl)
                 writeDouble(preparation.vialVolumeMl)
@@ -781,10 +780,6 @@ internal object HomeSnapshotCodec {
 
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = readDouble()
-            )
-
-            MedicinePreparationType.DEPOT_INJECTION -> MedicinePreparation.DepotInjection(
-                strengthMg = readDouble()
             )
 
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(

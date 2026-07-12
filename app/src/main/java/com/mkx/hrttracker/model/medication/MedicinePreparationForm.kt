@@ -14,7 +14,6 @@ fun MedicinePreparationType.form(): MedicinePreparationForm {
         MedicinePreparationType.CAPSULE -> MedicinePreparationForm.CAPSULE
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.IMPORTED_INJECTION,
             -> MedicinePreparationForm.INJECTION
 
@@ -35,7 +34,6 @@ fun MedicinePreparationType.requiredApplicationType(): MedicationApplicationType
         MedicinePreparationType.CAPSULE -> MedicationApplicationType.ORAL
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.DEPOT_INJECTION,
         MedicinePreparationType.IMPORTED_INJECTION,
             -> MedicationApplicationType.INJECTION
 
@@ -61,7 +59,6 @@ fun MedicationApplicationType.isCompatibleWith(preparation: MedicinePreparationT
         MedicationApplicationType.SUBLINGUAL -> preparation == MedicinePreparationType.PILL
         MedicationApplicationType.INJECTION -> preparation == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
                 preparation == MedicinePreparationType.INJECTION_MULTI_USE_VIAL ||
-                preparation == MedicinePreparationType.DEPOT_INJECTION ||
                 preparation == MedicinePreparationType.IMPORTED_INJECTION
 
         MedicationApplicationType.GEL -> preparation == MedicinePreparationType.GEL_SACHET ||
@@ -79,7 +76,6 @@ fun DoseInstruction.isCompatibleWith(preparation: MedicinePreparationType?): Boo
         is DoseInstruction.TabletFraction -> preparation == MedicinePreparationType.PILL
         DoseInstruction.WholeUnit -> preparation == MedicinePreparationType.CAPSULE ||
                 preparation == MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ||
-                preparation == MedicinePreparationType.DEPOT_INJECTION ||
                 preparation == MedicinePreparationType.GEL_SACHET ||
                 preparation == MedicinePreparationType.PATCH ||
                 preparation == MedicinePreparationType.IMPORTED_INJECTION ||

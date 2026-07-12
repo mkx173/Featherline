@@ -305,7 +305,7 @@ object MedicationCatalog {
         vararg valuesMg: String,
     ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
         return mapOf(
-            MedicinePreparationType.DEPOT_INJECTION to valuesMg.map {
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL to valuesMg.map {
                 MedicationDoseAssistPreset.MgAsMedicine(it)
             },
         )

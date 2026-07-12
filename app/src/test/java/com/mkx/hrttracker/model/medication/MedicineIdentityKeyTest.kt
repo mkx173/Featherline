@@ -124,12 +124,12 @@ class MedicineIdentityKeyTest {
     }
 
     @Test
-    fun depotInjection_identityKey_isStableAndTyped() {
+    fun gnrhSingleUseInjection_identityKeyUsesExistingVialRepresentation() {
         assertEquals(
-            "C|ESTRADIOL_VALERATE|DEPOT_INJECTION|strengthMg=11.25",
+            "C|ESTRADIOL_VALERATE|INJECTION_SINGLE_USE_VIAL|strengthMgPerVial=11.25",
             MedicineIdentityKey.catalog(
                 MedicationKey.ESTRADIOL_VALERATE,
-                MedicinePreparation.DepotInjection(strengthMg = 11.25),
+                MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25),
             ),
         )
     }

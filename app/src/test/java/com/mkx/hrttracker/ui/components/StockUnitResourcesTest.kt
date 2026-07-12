@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.components
 import android.content.Context
 import android.content.res.Configuration
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -41,6 +42,24 @@ class StockUnitResourcesTest {
             ),
         )
         assertNull(stockUnitNounPluralRes(MedicinePreparation.PatchOff))
+    }
+
+    @Test
+    fun gnrhSingleUseInjectionUsesInjectionWordingWithoutANewPreparationType() {
+        val preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 11.25)
+
+        assertEquals(
+            R.plurals.stock_count_injections,
+            stockUnitNounPluralRes(preparation, MedicationCategory.GNRH_AGONIST),
+        )
+        assertEquals(
+            R.string.stock_unit_injections,
+            stockInventoryUnitRes(preparation, MedicationCategory.GNRH_AGONIST),
+        )
+        assertEquals(
+            R.plurals.stock_count_vials,
+            stockUnitNounPluralRes(preparation, MedicationCategory.ESTRADIOL),
+        )
     }
 
     @Test

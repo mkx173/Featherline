@@ -597,6 +597,7 @@ private fun PlanBatchAddStockSection(
                         embeddedContent = {
                             PlanBatchAddStockPreviewSubcard(
                                 preparation = item.medicine.preparation,
+                                category = item.medicine.category,
                                 beforeStock = item.medicine.stock,
                                 afterStock = item.afterStock,
                                 stockState = item.stockState,

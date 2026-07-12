@@ -195,7 +195,7 @@ medicine, log, and blood-test repositories.
   form picker enum:
   TABLET / INJECTION / GEL / PATCH / CAPSULE), the sealed
   `MedicinePreparation` hierarchy (`Pill`, `Capsule`,
-  `InjectionSingleUseVial`, `InjectionMultiUseVial`, `DepotInjection`,
+  `InjectionSingleUseVial`, `InjectionMultiUseVial`,
   `GelSachet`, `GelContainer`, the import-only `ImportedInjection` and
   `ImportedGel`, `Patch` with a nested `PatchSpecification` of
   `TotalMg` or `ReleaseRateMcgPerDay`, and the `PatchOff` sentinel),

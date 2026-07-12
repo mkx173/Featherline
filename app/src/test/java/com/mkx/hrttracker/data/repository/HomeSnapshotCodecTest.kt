@@ -420,11 +420,11 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
-    fun encodeDecode_roundTripsDepotInjectionPreparation() {
+    fun encodeDecode_roundTripsGnrhSingleUseInjectionPreparation() {
         val depotMedicine = testCustomMedicine(
             uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000021"),
             medicationName = "Triptorelin",
-            preparation = MedicinePreparation.DepotInjection(strengthMg = 3.75),
+            preparation = MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 3.75),
         )
         val depotMedication = MedicationGroupMedication(
             uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000022"),
@@ -469,7 +469,7 @@ class HomeSnapshotCodecTest {
             .medicine
             ?.preparation
         assertEquals(
-            MedicinePreparation.DepotInjection(strengthMg = 3.75),
+            MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = 3.75),
             restoredPreparation,
         )
     }
