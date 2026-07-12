@@ -315,7 +315,7 @@ incompatible files are rejected at the cheapest detection point.
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
-     (currently `2..7`); v1 backups are rejected here with no
+     (currently `2..6`); v1 backups are rejected here with no
      migration path because the medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
      `app.packageName` must match the stable backup identity
