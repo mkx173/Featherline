@@ -46,8 +46,10 @@ import com.mkx.hrttracker.model.journal.dayCount
 import com.mkx.hrttracker.ui.journal.anchorIconRes
 import com.mkx.hrttracker.util.currentAppLocale
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -241,6 +243,35 @@ class HrtAnchorWidget : GlanceAppWidget() {
 
 class HrtAnchorWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtAnchorWidget()
+
+    // A resize must repaint at the new size: the launcher rescales the LAST RemoteViews to
+    // the new cells (stretching the baked watermark/bloom bitmaps, which draw FillBounds),
+    // and the bare Glance session update super triggers stalls while the process is
+    // backgrounded — exactly where a home-screen resize runs (observed on One UI: eight
+    // optionsChanged events, zero recompositions). The synchronous push composes at the
+    // live options size and paints immediately (same contract as the date receiver and the
+    // config save). This also repaints a FRESH placement at its real size: One UI reports
+    // the first non-zero options only after the config activity finishes, so the save-time
+    // push composed at the reference fallback size. Launched on the app scope WITHOUT
+    // goAsync (GlanceAppWidgetReceiver forbids overrides calling goAsync — see
+    // cleanupAppearance in HrtWidget.kt).
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        val applicationContext = context.applicationContext
+        EntryPointAccessors.fromApplication(applicationContext, WidgetEntryPoint::class.java)
+            .appScope()
+            .launch {
+                // composeAnchorRemoteViews re-reads live options at compose time, so even
+                // a push racing a newer resize event paints the current size.
+                runCatching { updateAllAnchorWidgets(applicationContext) }
+                    .onFailure { if (it is CancellationException) throw it }
+            }
+    }
 }
 
 // Synchronous push + session reconcile, mirroring pushHrtWidgets (see the push note in
