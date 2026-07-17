@@ -28,14 +28,22 @@ enum class DarkModeOption {
 
 enum class AppLanguageOption(val languageTag: String) {
     ENGLISH(languageTag = "en"),
-    SIMPLIFIED_CHINESE(languageTag = "zh-Hans");
+    SIMPLIFIED_CHINESE(languageTag = "zh-Hans"),
+    TRADITIONAL_CHINESE(languageTag = "zh-Hant"),
+    CANTONESE(languageTag = "yue-Hant-HK");
 
     companion object {
         fun fromLocale(locale: Locale): AppLanguageOption {
-            return if (locale.language == "zh") {
-                SIMPLIFIED_CHINESE
-            } else {
-                ENGLISH
+            return when {
+                locale.language == "yue" -> CANTONESE
+                locale.language != "zh" -> ENGLISH
+                locale.script == "Hans" -> SIMPLIFIED_CHINESE
+                locale.script == "Hant" ||
+                    locale.country == "HK" ||
+                    locale.country == "MO" ||
+                    locale.country == "TW" ->
+                    TRADITIONAL_CHINESE
+                else -> SIMPLIFIED_CHINESE
             }
         }
     }

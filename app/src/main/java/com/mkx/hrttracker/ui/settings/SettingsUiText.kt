@@ -20,6 +20,8 @@ val AppLanguageOption.labelRes: Int
     get() = when (this) {
         AppLanguageOption.ENGLISH -> R.string.app_language_english
         AppLanguageOption.SIMPLIFIED_CHINESE -> R.string.app_language_simplified_chinese
+        AppLanguageOption.TRADITIONAL_CHINESE -> R.string.app_language_traditional_chinese
+        AppLanguageOption.CANTONESE -> R.string.app_language_cantonese
     }
 
 @get:StringRes
