@@ -283,10 +283,6 @@ private fun Context.systemLocaleContext(): Context {
     return createConfigurationContext(configuration)
 }
 
-private fun Locale.isChineseLanguage(): Boolean {
-    return language == Locale.CHINESE.language
-}
-
 private fun currentYearDateFormatter(locale: Locale): DateTimeFormatter {
     return if (locale.isChineseLanguage()) {
         DateTimeFormatter.ofPattern("M月d日", locale)

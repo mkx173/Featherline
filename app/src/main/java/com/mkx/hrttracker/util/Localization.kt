@@ -45,6 +45,12 @@ fun systemLocale(): Locale {
     return configurationLocale ?: Locale.getDefault()
 }
 
+// Chinese-family UI languages: Mandarin ("zh") and Cantonese ("yue"). Gates the
+// Chinese-specific date/time patterns and the locale-based CJK text offset.
+fun Locale.isChineseLanguage(): Boolean {
+    return language == Locale.CHINESE.language || language == "yue"
+}
+
 @Composable
 fun rememberAppLocale(): Locale {
     val configuration = LocalConfiguration.current

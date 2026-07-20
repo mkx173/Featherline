@@ -18,6 +18,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 
 class BackupRestoreValidationTest {
@@ -275,6 +276,38 @@ class BackupRestoreValidationTest {
             snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(false, validatedSnapshot.settings.cjkTextOffsetEnabled)
+    }
+
+    @Test
+    fun toValidatedSnapshot_fallsBackToSystemLanguageForUnknownAppLanguageOption() {
+        // Old backups carry the retired FOLLOW_SYSTEM value, and backups from newer
+        // releases may carry language options this version does not know; neither may
+        // reject the whole backup — the language falls back to the system default.
+        val previousDefault = Locale.getDefault()
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+        try {
+            val snapshot = BackupSnapshot(
+                exportedAtEpochMillis = 1L,
+                app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+                settings = baselineSettings().copy(appLanguageOption = "FOLLOW_SYSTEM"),
+                userProfile = baselineUserProfile(),
+                medicines = emptyList(),
+                medicationGroups = emptyList(),
+                medicationLogs = emptyList(),
+                customBloodAnalytes = emptyList(),
+                bloodTestPanels = emptyList(),
+            )
+
+            val validatedSnapshot =
+                snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+            assertEquals(
+                AppLanguageOption.SIMPLIFIED_CHINESE,
+                validatedSnapshot.settings.appLanguageOption,
+            )
+        } finally {
+            Locale.setDefault(previousDefault)
+        }
     }
 
     @Test

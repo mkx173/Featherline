@@ -18,14 +18,22 @@ class SettingsAppearanceVisibilityTest {
     }
 
     @Test
-    fun cjkOffset_shownOnlyInSimplifiedChinese() {
+    fun cjkOffset_shownInChineseLanguages() {
         assertTrue(shouldShowCjkTextOffset(AppLanguageOption.SIMPLIFIED_CHINESE))
+        assertTrue(
+            shouldShowCjkTextOffset(AppLanguageOption.TRADITIONAL_CHINESE),
+        )
+        assertTrue(shouldShowCjkTextOffset(AppLanguageOption.CANTONESE))
     }
 
     @Test
     fun cjkOffset_hiddenForOtherLanguages() {
         AppLanguageOption.entries
-            .filter { it != AppLanguageOption.SIMPLIFIED_CHINESE }
+            .filter {
+                it != AppLanguageOption.SIMPLIFIED_CHINESE &&
+                    it != AppLanguageOption.TRADITIONAL_CHINESE &&
+                    it != AppLanguageOption.CANTONESE
+            }
             .forEach { option ->
                 assertFalse(shouldShowCjkTextOffset(option))
             }

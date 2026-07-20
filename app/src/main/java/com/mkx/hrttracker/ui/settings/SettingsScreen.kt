@@ -1907,7 +1907,9 @@ internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boole
     sdkInt >= Build.VERSION_CODES.S
 
 internal fun shouldShowCjkTextOffset(appLanguageOption: AppLanguageOption): Boolean =
-    appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE
+    appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE ||
+        appLanguageOption == AppLanguageOption.TRADITIONAL_CHINESE ||
+        appLanguageOption == AppLanguageOption.CANTONESE
 
 @Composable
 private fun SettingsLeadingIconSlot(

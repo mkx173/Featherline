@@ -6,6 +6,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mkx.hrttracker.util.isChineseLanguage
 import java.util.Locale
 
 val LocalCjkTextOffsetEnabled = compositionLocalOf { false }
@@ -53,7 +54,7 @@ internal fun Modifier.cjkTextOffset(
     enabled: Boolean = true,
     amount: Dp = (-1).dp
 ): Modifier {
-    if (!enabled || locale.language != Locale.CHINESE.language) {
+    if (!enabled || !locale.isChineseLanguage()) {
         return this
     }
     return composed {

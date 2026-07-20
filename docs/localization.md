@@ -12,9 +12,13 @@ unqualifiedResLocale = en
 ```
 
 - Simplified Chinese lives in `app/src/main/res/values-b+zh+Hans/strings.xml`.
+- Traditional Chinese lives in `app/src/main/res/values-b+zh+Hant/strings.xml`.
+- Cantonese (Hong Kong and Macau) lives in
+  `app/src/main/res/values-b+yue+Hant+HK/strings.xml`.
 - `app/build.gradle.kts` enables `androidResources.generateLocaleConfig = true`, so Android's locale config is generated from resource folders.
 - App bundle language splits are disabled with `bundle.language.enableSplit = false`, so packaged resources stay available for in-app switching.
-- The app currently exposes only `ENGLISH` and `SIMPLIFIED_CHINESE` in `AppLanguageOption`.
+- The app currently exposes `ENGLISH`, `SIMPLIFIED_CHINESE`,
+  `TRADITIONAL_CHINESE`, and `CANTONESE` in `AppLanguageOption`.
 - The only default string intentionally missing from `zh-Hans` is `privacy_policy_url`, marked `translatable="false"`.
 
 ## Add the Resource Folder
@@ -66,6 +70,10 @@ enum class AppLanguageOption(val languageTag: String) {
 ```
 
 For languages with important script or region variants, do not rely only on `locale.language`; inspect `locale.toLanguageTag()`, `locale.script`, or `locale.country` so system/restored locales map to the correct option. For example, a naive `locale.language == "zh"` branch would incorrectly map Traditional Chinese to Simplified Chinese.
+
+Cantonese uses the `yue` language code. The `粵語` option uses `yue-Hant-HK`
+and Hong Kong/Macau wording; `fromLocale()` maps explicit `yue` locales to it,
+while `zh-Hant` and scriptless `zh-HK`/`zh-MO` remain Traditional Chinese.
 
 Then update `app/src/main/java/com/mkx/hrttracker/ui/settings/SettingsUiText.kt`:
 
