@@ -51,6 +51,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -947,10 +948,13 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         appLockGracePeriodOption,
         "app lock grace period option",
     )
-    val appLanguageOption = requireEnumName<AppLanguageOption>(
-        appLanguageOption,
-        "app language option",
-    )
+    // Language names from other app versions (the retired FOLLOW_SYSTEM value, or
+    // options added in later releases) fall back to the system-default language
+    // instead of rejecting the whole backup: a stale language choice is harmless,
+    // the medical data behind it is not.
+    val appLanguageOption = enumValues<AppLanguageOption>()
+        .firstOrNull { entry -> entry.name == appLanguageOption }
+        ?: AppLanguageOption.fromLocale(systemLocale())
     val firstDayOfWeekOption = requireEnumName<FirstDayOfWeekOption>(
         firstDayOfWeekOption,
         "first day of week option",
