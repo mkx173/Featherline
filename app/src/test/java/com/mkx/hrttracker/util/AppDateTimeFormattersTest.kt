@@ -38,6 +38,18 @@ class AppDateTimeFormattersTest {
     }
 
     @Test
+    fun dateRangeLabelFormatter_usesChineseDatePatternsForCantonese() {
+        val formatter = dateRangeLabelFormatter(
+            locale = Locale.forLanguageTag("yue-Hant-HK"),
+            today = LocalDate.of(2026, 4, 29),
+            startDate = LocalDate.of(2026, 4, 1),
+            endDate = LocalDate.of(2026, 4, 29),
+        )
+
+        assertEquals("4月1日", formatter(LocalDate.of(2026, 4, 1)))
+    }
+
+    @Test
     fun dateRangeLabelFormatter_omitsYearWhenBothEndsAreInCurrentYear() {
         val formatter = dateRangeLabelFormatter(
             locale = Locale.US,
