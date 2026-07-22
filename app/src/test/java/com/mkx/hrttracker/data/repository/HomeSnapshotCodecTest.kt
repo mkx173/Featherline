@@ -24,11 +24,18 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.CanonicalDigest
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.time.DayOfWeek
@@ -40,7 +47,7 @@ import java.util.UUID
 
 class HomeSnapshotCodecTest {
     private fun minimalRecord() = HomeSnapshotRecord(
-        schemaVersion = 7,
+        schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
         generatedAtEpochMillis = 1L,
         anchorDateEpochDay = 0L,
         zoneId = "Asia/Tokyo",
@@ -49,6 +56,63 @@ class HomeSnapshotCodecTest {
         scheduleEntries = emptyList(),
         antiandrogenHistoryEntries = emptyList(),
     )
+
+    @Test
+    fun encodeDecode_roundTripsAtomicCalibrationDisplay() {
+        val display = calibrationDisplay()
+        val record = minimalRecord().copy(
+            generation = 7L,
+            calibrationDisplay = display,
+        )
+
+        assertEquals(
+            record,
+            HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record)),
+        )
+    }
+
+    @Test
+    fun decode_rejectsUnknownRouteInPresentCalibrationDisplay() {
+        val encoded = HomeSnapshotCodec.encode(
+            minimalRecord().copy(
+                generation = 7L,
+                calibrationDisplay = calibrationDisplay(),
+            )
+        )
+        val knownRoute = "patch".toByteArray()
+        val routeOffset = encoded.indices.first { candidate ->
+            candidate + knownRoute.size <= encoded.size &&
+                    knownRoute.indices.all { index ->
+                        encoded[candidate + index] == knownRoute[index]
+                    }
+        }
+        val corrupted = encoded.copyOf()
+        "bogus".toByteArray().copyInto(corrupted, destinationOffset = routeOffset)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            HomeSnapshotCodec.decode(corrupted)
+        }
+    }
+
+    @Test
+    fun serializer_treatsPriorCodecVersionAsEmpty() = runTest {
+        val prior = ByteArrayOutputStream().also { output ->
+            DataOutputStream(output).use { stream ->
+                stream.writeInt(22)
+                stream.writeInt(HOME_SNAPSHOT_SCHEMA_VERSION - 1)
+            }
+        }.toByteArray()
+        val identityCrypto = object : HomeSnapshotCrypto {
+            override fun encrypt(plaintext: ByteArray): ByteArray = plaintext
+            override fun decrypt(ciphertext: ByteArray): ByteArray = ciphertext
+        }
+        val serializer = HomeSnapshotSerializer(
+            crypto = identityCrypto,
+            diagnosticsLogger = mockk<AppDiagnosticsLogger>(relaxed = true),
+        )
+
+        assertNull(serializer.readFrom(ByteArrayInputStream(prior)).record)
+    }
 
     @Test
     fun encodeDecode_roundTripsHomeAnchorAcrossHeroBackgrounds() {
@@ -797,6 +861,29 @@ class HomeSnapshotCodecTest {
             stream.writeInt(0)
         }
         return output.toByteArray()
+    }
+
+    private fun calibrationDisplay(): PersistedPkCalibrationDisplay {
+        val digest = checkNotNull(
+            CanonicalDigest.create(
+                schema = "hrttracker.fit-input/test",
+                algorithm = "SHA-256",
+                hexLower = "a".repeat(64),
+            )
+        )
+        return checkNotNull(
+            PersistedPkCalibrationDisplay.create(
+                calibrationModelVersion = "route-v9-final",
+                resultInputDigest = digest,
+                promotedRoutes = listOf(
+                    PkCalibrationRoute.PATCH,
+                    PkCalibrationRoute.GEL,
+                ),
+                displayRouteLogScaleByRoute = mapOf(
+                    PkCalibrationRoute.GEL to 0.2,
+                ),
+            )
+        )
     }
 
     private fun DataOutputStream.writeTestString(value: String) {

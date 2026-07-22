@@ -277,6 +277,7 @@ private fun RenderHomeCard(
 
         HomeCardType.E2_CHART -> MainE2ChartCard(
             section = uiState.e2Chart,
+            calibrationDisplay = uiState.calibrationDisplay,
             now = uiState.now,
             appLocale = appLocale,
             unit = uiState.e2Hero.unit,

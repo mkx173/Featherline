@@ -285,6 +285,8 @@ private fun navigationRouteContextFor(
         Screen.EditMedicationGroup.baseRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
         Screen.Medicines.motionRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
         Screen.MedicineDetail.motionRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.SettingsPkCalibrationDebug.baseRoute ->
+            childContext(defaultTopLevelScreen = Screen.Settings)
         Screen.SettingsCalibration.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         Screen.SettingsCalibrationUnits.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         Screen.SettingsCalibrationEntry.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)

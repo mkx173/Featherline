@@ -17,10 +17,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestPanelEntity::class,
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
+        E2CalibrationMetadataEntity::class,
+        PkCalibrationDisplayArtifactEntity::class,
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -29,6 +31,7 @@ abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicationGroupDao(): MedicationGroupDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun bloodTestDao(): BloodTestDao
+    abstract fun pkCalibrationDao(): PkCalibrationDao
     abstract fun homeDao(): HomeDao
     abstract fun journalDao(): JournalDao
 }
@@ -198,5 +201,48 @@ internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE tracked_dates ADD COLUMN heroBackgroundKey TEXT")
+    }
+}
+
+// v9 -> v10: result-owned review metadata plus the one derived display artifact.
+// Both tables intentionally start empty: existing installs remain population-safe
+// until a v9 calibration result is explicitly reviewed/recomputed.
+internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `e2_calibration_metadata` (
+                `resultUuid` TEXT NOT NULL,
+                `disposition` TEXT NOT NULL,
+                `acceptedReviewDigestSchema` TEXT,
+                `acceptedReviewDigestAlgorithm` TEXT,
+                `acceptedReviewDigestHexLower` TEXT,
+                `updatedAtEpochMillis` INTEGER NOT NULL,
+                PRIMARY KEY(`resultUuid`),
+                FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `pk_calibration_display_artifact` (
+                `singletonId` INTEGER NOT NULL,
+                `homeSnapshotGeneration` INTEGER NOT NULL,
+                `schema` TEXT NOT NULL,
+                `calibrationModelVersion` TEXT NOT NULL,
+                `resultInputDigestSchema` TEXT NOT NULL,
+                `resultInputDigestAlgorithm` TEXT NOT NULL,
+                `resultInputDigestHexLower` TEXT NOT NULL,
+                `promotedRouteStableIds` TEXT NOT NULL,
+                `injectionLogScale` REAL,
+                `patchLogScale` REAL,
+                `gelLogScale` REAL,
+                `oralLogScale` REAL,
+                `sublingualLogScale` REAL,
+                PRIMARY KEY(`singletonId`)
+            )
+            """.trimIndent()
+        )
     }
 }

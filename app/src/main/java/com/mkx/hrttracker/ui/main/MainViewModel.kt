@@ -18,6 +18,8 @@ import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.model.pk.PkPersonalParams
+import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
@@ -326,8 +328,16 @@ class MainViewModel @Inject constructor(
         //     already passed (the user didn't take them — don't keep them on
         //     the curve as if they did).
         val nowInstant = now.atZone(zoneId).toInstant()
+        val calibrationPersonalParams = inputs.calibrationDisplay
+            ?.toValidatedPersonalParams()
+        val activeCalibrationDisplay = inputs.calibrationDisplay
+            ?.takeIf { calibrationPersonalParams != null }
         val freshProjection = inputs.pkProjection?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
+        }?.takeIf {
+            // A projection stored beside a malformed display payload may be personalized. The
+            // repository normally strips the pair atomically; keep this consumer fail-closed too.
+            inputs.calibrationDisplay == null || activeCalibrationDisplay != null
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
@@ -344,6 +354,7 @@ class MainViewModel @Inject constructor(
                 now = now,
                 zoneId = zoneId,
                 option = chartWindowOption,
+                personalParams = calibrationPersonalParams ?: PkPersonalParams.population(),
             )
 
         // When the cached projection is invalid the trend falls back to
@@ -376,6 +387,7 @@ class MainViewModel @Inject constructor(
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
+            calibrationDisplay = activeCalibrationDisplay,
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,

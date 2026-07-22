@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -38,6 +39,10 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.CanonicalDigest
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -76,6 +81,7 @@ class BackupExportServiceTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
+    private val pkCalibrationStorageRepository: PkCalibrationStorageRepository = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
     private val journalRepository: JournalRepository = mockk()
 
@@ -99,6 +105,7 @@ class BackupExportServiceTest {
         } returns false
         coEvery { journalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { journalRepository.getNoteEntities() } returns emptyList()
+        coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns emptyList()
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -108,6 +115,7 @@ class BackupExportServiceTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
+            pkCalibrationStorageRepository = pkCalibrationStorageRepository,
             widgetAppearanceRepository = widgetAppearanceRepository,
             journalRepository = journalRepository,
             backupCrypto = backupCrypto,
@@ -120,8 +128,8 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_remainsAtHeroBackgroundVersion() {
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -607,7 +615,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -783,6 +791,13 @@ class BackupExportServiceTest {
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000061")
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000062")
         val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000063")
+        val reviewDigest = checkNotNull(
+            CanonicalDigest.create(
+                PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
+                "SHA-256",
+                "a".repeat(64),
+            )
+        )
         val importedMedicine = Medicine(
             uuid = medicineUuid,
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
@@ -849,6 +864,16 @@ class BackupExportServiceTest {
                 importPanelKey = 600L,
             )
         )
+        coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns listOf(
+            checkNotNull(
+                E2CalibrationMetadata.create(
+                    resultId = resultUuid,
+                    disposition = E2CalibrationDisposition.ACCEPTED,
+                    acceptedReviewDigest = reviewDigest,
+                    updatedAt = Instant.parse("2026-04-26T02:20:00Z"),
+                )
+            )
+        )
 
         val snapshot = BackupSnapshotJsonCodec.decode(
             service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
@@ -863,6 +888,14 @@ class BackupExportServiceTest {
         val result = panel.results.single()
         assertEquals("oyama", result.importSourceApp)
         assertEquals("result-60", result.importExternalId)
+        assertEquals("ACCEPTED", result.calibrationDisposition)
+        assertEquals(PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA, result.acceptedReviewDigestSchema)
+        assertEquals("SHA-256", result.acceptedReviewDigestAlgorithm)
+        assertEquals("a".repeat(64), result.acceptedReviewDigestHexLower)
+        assertEquals(
+            Instant.parse("2026-04-26T02:20:00Z").toEpochMilli(),
+            result.calibrationMetadataUpdatedAtEpochMillis,
+        )
     }
 
     @Test

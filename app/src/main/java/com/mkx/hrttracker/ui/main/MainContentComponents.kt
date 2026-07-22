@@ -123,6 +123,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -372,6 +373,7 @@ private enum class MainTodayTimeRange(
 
 internal const val MainE2ChartContentTestTag = "main-e2-chart-content"
 internal const val MainE2ChartSkeletonTestTag = "main-e2-chart-skeleton"
+internal const val MainPkCalibrationIndicatorTestTag = "main-pk-calibration-indicator"
 
 private const val SkeletonShimmerPeriodMillis = 1400
 
@@ -761,6 +763,7 @@ private fun MainE2RangeStatusPill(
 @Composable
 internal fun MainE2ChartCard(
     section: MainE2ChartUiState,
+    calibrationDisplay: PersistedPkCalibrationDisplay? = null,
     now: LocalDateTime,
     appLocale: Locale,
     unit: String,
@@ -803,6 +806,9 @@ internal fun MainE2ChartCard(
                     chartWindowOption = section.chartWindowOption,
                     onChartWindowOptionSelected = onChartWindowOptionSelected,
                 )
+                calibrationDisplay?.let { display ->
+                    MainPkCalibrationIndicator(display)
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1187,6 +1193,10 @@ internal fun MainE2ChartCard(
                 onChartWindowOptionSelected = onChartWindowOptionSelected,
             )
 
+            calibrationDisplay?.let { display ->
+                MainPkCalibrationIndicator(display)
+            }
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1548,6 +1558,30 @@ internal fun MainE2ChartCard(
             }
         }
     }
+}
+
+internal fun rawPkCalibrationIndicatorText(
+    display: PersistedPkCalibrationDisplay,
+): String {
+    val promoted = display.promotedRoutes.joinToString(separator = ", ") { route ->
+        val beta = display.displayRouteLogScaleByRoute[route] ?: 0.0
+        "${route.stableId}(beta=$beta)"
+    }
+    return "${display.schema} promoted=[$promoted]"
+}
+
+@Composable
+private fun MainPkCalibrationIndicator(display: PersistedPkCalibrationDisplay) {
+    val rawText = remember(display) { rawPkCalibrationIndicatorText(display) }
+    Text(
+        text = rawText,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(MainPkCalibrationIndicatorTestTag)
+            .semantics { contentDescription = rawText },
+    )
 }
 
 internal data class MainE2ChartVisibleXRange(

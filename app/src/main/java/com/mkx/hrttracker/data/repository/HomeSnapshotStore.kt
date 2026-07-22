@@ -36,7 +36,10 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.DenseSamplePolicy
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -164,6 +167,8 @@ data class HomeSnapshotRecord(
     // render the hero on the first frame instead of waiting on Room. Null when no
     // date is pinned. Defaulted for forward-compat with pre-field snapshots.
     val homeAnchor: TrackedDate? = null,
+    /** Generation-bound Home-only calibration display; never consumed by the widget. */
+    val calibrationDisplay: PersistedPkCalibrationDisplay? = null,
 )
 
 data class HomePkProjectionRecord(
@@ -282,6 +287,7 @@ internal object HomeSnapshotCodec {
             }
             stream.writePooledMedicationLogEntries(record.pkEntries)
             stream.writeTrackedDate(record.homeAnchor)
+            stream.writePkCalibrationDisplay(record.calibrationDisplay)
         }
         return output.toByteArray()
     }
@@ -309,8 +315,56 @@ internal object HomeSnapshotCodec {
                 stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 pkEntries = stream.readPooledMedicationLogEntries(),
                 homeAnchor = stream.readTrackedDate(),
+                calibrationDisplay = stream.readPkCalibrationDisplay(),
             )
         }
+    }
+
+    private fun DataOutputStream.writePkCalibrationDisplay(
+        display: PersistedPkCalibrationDisplay?,
+    ) {
+        writeBoolean(display != null)
+        display ?: return
+        writeString(display.schema)
+        writeString(display.calibrationModelVersion)
+        writeString(display.resultInputDigest.schema)
+        writeString(display.resultInputDigest.algorithm)
+        writeString(display.resultInputDigest.hexLower)
+        writeList(display.promotedRoutes) { route -> writeString(route.stableId) }
+        for (route in PkCalibrationRoute.entries) {
+            writeNullableDouble(display.displayRouteLogScaleByRoute[route])
+        }
+    }
+
+    private fun DataInputStream.readPkCalibrationDisplay(): PersistedPkCalibrationDisplay? {
+        if (!readBoolean()) return null
+        val schema = readString()
+        val calibrationModelVersion = readString()
+        val digestSchema = readString()
+        val digestAlgorithm = readString()
+        val digestHexLower = readString()
+        val promotedRouteStableIds = readList { readString() }
+        val betaByRoute = linkedMapOf<PkCalibrationRoute, Double>()
+        for (route in PkCalibrationRoute.entries) {
+            readNullableDouble()?.let { beta -> betaByRoute[route] = beta }
+        }
+        val promotedRoutes = promotedRouteStableIds.map { stableId ->
+            requireNotNull(PkCalibrationRoute.fromStableId(stableId)) {
+                "Unknown persisted calibration route: $stableId"
+            }
+        }
+        val digest = CanonicalDigest.create(
+            schema = digestSchema,
+            algorithm = digestAlgorithm,
+            hexLower = digestHexLower,
+        ) ?: throw IllegalArgumentException("Invalid persisted calibration input digest.")
+        return requireNotNull(PersistedPkCalibrationDisplay.create(
+            schema = schema,
+            calibrationModelVersion = calibrationModelVersion,
+            resultInputDigest = digest,
+            promotedRoutes = promotedRoutes,
+            displayRouteLogScaleByRoute = betaByRoute,
+        )) { "Invalid persisted calibration display artifact." }
     }
 
     private fun DataOutputStream.writeHomePkProjectionRecord(record: HomePkProjectionRecord?) {
@@ -1028,7 +1082,7 @@ private const val TAG = "HomeSnapshotStore"
 // injection/gel preparation payloads.
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
-private const val SNAPSHOT_CODEC_VERSION = 22
+private const val SNAPSHOT_CODEC_VERSION = 23
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

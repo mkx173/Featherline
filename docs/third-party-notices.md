@@ -18,8 +18,29 @@ Regenerate these files before a release:
 
 ## Manual notices
 
-The generated report only sees Gradle dependencies. These entries cover copied,
-adapted, or design-derived material that Gradle cannot detect.
+The generated report inventories Gradle dependencies. These entries add explicit
+implementation notes for critical dependencies and cover copied, adapted, or
+design-derived material that Gradle cannot detect.
+
+### Java JSON Canonicalization
+
+Calibration trust and review digests use the RFC 8785 Java implementation published
+as `io.github.erdtman:java-json-canonicalization:1.1`.
+
+- License: Apache License, Version 2.0
+- Source: [java-json-canonicalization](https://github.com/erdtman/java-json-canonicalization)
+- Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
+
+### Hipparchus Core
+
+The deterministic calibration solver uses the root-refinement API, and the
+predictive-band renderer uses the Gauss-Hermite integration and Student-t distribution
+APIs, from `org.hipparchus:hipparchus-core:4.0.3`. Existence, uniqueness, and
+stationary-root coverage remain certified by Featherline's outward-interval implementation.
+
+- License: Apache License, Version 2.0
+- Source: [Hipparchus](https://www.hipparchus.org/)
+- Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
 
 ### Radix Colors
 

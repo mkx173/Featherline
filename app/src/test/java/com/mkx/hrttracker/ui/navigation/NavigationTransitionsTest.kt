@@ -147,6 +147,18 @@ class NavigationTransitionsTest {
     }
 
     @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_pkCalibrationDebug() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Settings.route,
+                targetRoute = Screen.SettingsPkCalibrationDebug.createRoute(Screen.Settings.route),
+                isPop = false,
+            ),
+        )
+    }
+
+    @Test
     fun resolveNavigationMotionPattern_returnsNestedBackward_for_pop_within_section() {
         assertEquals(
             NavigationMotionPattern.NESTED_BACKWARD,

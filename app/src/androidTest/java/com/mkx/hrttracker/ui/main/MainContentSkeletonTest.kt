@@ -11,6 +11,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.pk.CanonicalDigest
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.ui.journal.AnchorRowUiState
 import com.mkx.hrttracker.ui.journal.SimpleHomeCardTestTag
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -100,6 +103,51 @@ class MainContentSkeletonTest {
     }
 
     @Test
+    fun calibrationIndicatorIsAbsentFromPopulationHome() {
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState().copy(
+                        calibrationDisplay = null,
+                        e2TrendReady = true,
+                    ),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(MainPkCalibrationIndicatorTestTag, useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun calibrationIndicatorShowsRawPromotionsBetasAndSemantics() {
+        val display = calibrationDisplay()
+        val rawText = rawPkCalibrationIndicatorText(display)
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState().copy(
+                        calibrationDisplay = display,
+                        e2TrendReady = true,
+                    ),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(MainPkCalibrationIndicatorTestTag, useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(rawText, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(rawText, useUnmergedTree = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun manualTodayRowUsesIconIndicatorInsteadOfTextLabel() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val manualLabel = context.getString(R.string.plan_entry_label_manual)
@@ -173,5 +221,23 @@ class MainContentSkeletonTest {
         composeRule.runOnIdle {
             assertTrue(openedTimeline)
         }
+    }
+
+    private fun calibrationDisplay(): PersistedPkCalibrationDisplay {
+        val digest = checkNotNull(
+            CanonicalDigest.create(
+                schema = "hrttracker.fit-input/test",
+                algorithm = "SHA-256",
+                hexLower = "a".repeat(64),
+            )
+        )
+        return checkNotNull(
+            PersistedPkCalibrationDisplay.create(
+                calibrationModelVersion = "route-v9-final",
+                resultInputDigest = digest,
+                promotedRoutes = listOf(PkCalibrationRoute.PATCH, PkCalibrationRoute.ORAL),
+                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
+            )
+        )
     }
 }

@@ -49,6 +49,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
@@ -99,6 +100,7 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
@@ -171,6 +173,17 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
 
     data object Settings : Screen("settings", R.string.tab_settings)
+    data object SettingsPkCalibrationDebug : Screen(
+        "settings_pk_calibration_debug?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_diagnostics,
+    ) {
+        const val baseRoute = "settings_pk_calibration_debug"
+
+        fun createRoute(topLevelParentRoute: String): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
     data object SettingsCalibration : Screen(
         "settings_calibration?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.settings_personalization_calibration
@@ -1065,12 +1078,34 @@ fun HrtTrackerNavHost(
                         SettingsScreen(
                             modifier = modifier,
                             scrollToTopSignal = settingsScrollToTopSignal,
+                            onPkCalibrationDebugClick = {
+                                if (BuildConfig.DEBUG) {
+                                    navController.navigate(
+                                        Screen.SettingsPkCalibrationDebug.createRoute(
+                                            Screen.Settings.route,
+                                        ),
+                                    )
+                                }
+                            },
                             onCalibrationClick = {
                                 navController.navigate(
                                     Screen.SettingsCalibration.createRoute(Screen.Settings.route)
                                 )
                             }
                         )
+                    }
+                }
+                if (BuildConfig.DEBUG) {
+                    composable(
+                        route = Screen.SettingsPkCalibrationDebug.route,
+                        arguments = topLevelParentArgs(Screen.Settings.route),
+                    ) {
+                        RoutedTopChromeHazeProvider(navController, it) {
+                            PkCalibrationDebugScreen(
+                                onNavigateBack = { navController.popBackStackSafely() },
+                                modifier = modifier,
+                            )
+                        }
                     }
                 }
                 composable(

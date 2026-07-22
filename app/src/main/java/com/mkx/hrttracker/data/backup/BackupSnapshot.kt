@@ -232,6 +232,11 @@ data class BackupBloodTestResultSnapshot(
     val canonicalValue: Double,
     val importSourceApp: String? = null,
     val importExternalId: String? = null,
+    val calibrationDisposition: String? = null,
+    val acceptedReviewDigestSchema: String? = null,
+    val acceptedReviewDigestAlgorithm: String? = null,
+    val acceptedReviewDigestHexLower: String? = null,
+    val calibrationMetadataUpdatedAtEpochMillis: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -283,7 +288,11 @@ data class BackupNoteSnapshot(
 // hero backgrounds are included in the backup compatibility gate alongside
 // local Room persistence.
 //
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 6
+// The 6→7 bump added durable E2 calibration review metadata. Although the new
+// result fields are nullable so v2–v6 backups remain readable, a pre-v7 app
+// would ignore them and silently lose explicit exclusions/acceptances.
+//
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

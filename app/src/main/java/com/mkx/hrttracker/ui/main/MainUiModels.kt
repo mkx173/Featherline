@@ -24,6 +24,7 @@ import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.journal.AnchorRowUiState
@@ -50,6 +51,8 @@ data class MainUiState(
     val now: LocalDateTime = LocalDateTime.now(),
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+    /** Valid generation-bound calibration payload currently shaping Home's E2 projection. */
+    val calibrationDisplay: PersistedPkCalibrationDisplay? = null,
     val hideReferenceRanges: Boolean = false,
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val lowStockSectionExpanded: Boolean = true,

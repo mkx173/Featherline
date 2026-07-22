@@ -140,6 +140,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
+    onPkCalibrationDebugClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -590,6 +591,9 @@ fun SettingsScreen(
                 }
             }
         },
+        onPkCalibrationDebugClick = {
+            if (BuildConfig.DEBUG) onPkCalibrationDebugClick()
+        },
         onCalibrationClick = onCalibrationClick,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
@@ -984,6 +988,7 @@ internal fun SettingsScreenContent(
     showDiagnosticsExport: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
+    onPkCalibrationDebugClick: () -> Unit = {},
     scrollToTopSignal: Int = 0,
 ) {
     val settingsState = uiState.settingsState
@@ -1603,6 +1608,21 @@ internal fun SettingsScreenContent(
                                 trailingContent = {
                                     SettingsChevronTrailingIcon()
                                 }
+                            )
+                        }
+
+                        item {
+                            SettingsSegmentedListItem(
+                                title = "Calibration (debug)",
+                                onClick = onPkCalibrationDebugClick,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_bug_report)
+                                    )
+                                },
+                                trailingContent = {
+                                    SettingsChevronTrailingIcon()
+                                },
                             )
                         }
                     }

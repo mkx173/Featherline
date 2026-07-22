@@ -31,6 +31,10 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.CanonicalDigest
+import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
+import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -474,6 +478,7 @@ class HomeRepositoryTest {
             densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
             includesPostDoseOffsets = false,
         )
+        val calibrationDisplay = calibrationDisplay()
         val snapshot = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generatedAtEpochMillis = 10L,
@@ -485,6 +490,7 @@ class HomeRepositoryTest {
             antiandrogenHistoryEntries = listOf(
                 antiandrogenHistoryEntry.toMedicationLogEntryModel(medicinesByUuid)
             ),
+            calibrationDisplay = calibrationDisplay,
         )
 
         every { homeSnapshotStore.observeSnapshot() } returns flowOf(snapshot)
@@ -502,6 +508,8 @@ class HomeRepositoryTest {
             settingsRepository = settingsRepository,
             appScope = backgroundScope,
             defaultDispatcher = dispatcher,
+            calibrationModelIdentityProvider =
+                PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
         )
 
         val inputs = HomeRepository(
@@ -524,6 +532,7 @@ class HomeRepositoryTest {
         assertEquals(pkEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
         assertEquals(PkConcentrationUnit.PG_PER_ML, inputs.pkProjection?.concentrationUnit)
         assertEquals(BloodUnitKey.NG_DL, inputs.settings.homeE2DisplayUnit)
+        assertEquals(calibrationDisplay, inputs.calibrationDisplay)
 
         verify(exactly = 0) { databaseHolder.get() }
     }
@@ -1303,7 +1312,6 @@ class HomeRepositoryTest {
         val zoneId = ZoneId.systemDefault()
         val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
         val snapshotRecords = MutableSharedFlow<HomeSnapshotRecord?>(replay = 1)
-        val roomSnapshotRecords = MutableSharedFlow<HomeSnapshotRecord?>(replay = 1)
         val snapshot = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
@@ -1313,9 +1321,9 @@ class HomeRepositoryTest {
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),
             antiandrogenHistoryEntries = emptyList(),
+            calibrationDisplay = calibrationDisplay(),
         )
         snapshotRecords.tryEmit(null)
-        roomSnapshotRecords.tryEmit(null)
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
@@ -1340,10 +1348,7 @@ class HomeRepositoryTest {
         every {
             settingsRepository.homeE2ChartWindowOptionFlow
         } returns MutableStateFlow(settings.homeE2ChartWindowOption)
-        every { homeSnapshotRepository.observeHomeSnapshot() } returnsMany listOf(
-            snapshotRecords,
-            roomSnapshotRecords,
-        )
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns snapshotRecords
         every {
             homeSnapshotRepository.isSnapshotUsable(
                 snapshot = any(),
@@ -1361,8 +1366,9 @@ class HomeRepositoryTest {
         } returns emptyList()
         every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
 
-        val emittedSources = mutableListOf<HomeInputSource>()
+        val emittedInputs = mutableListOf<HomeInputs>()
         val firstRoomObserved = CompletableDeferred<Unit>()
+        val calibratedRoomObserved = CompletableDeferred<Unit>()
         val repository = HomeRepository(
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
@@ -1378,20 +1384,26 @@ class HomeRepositoryTest {
                 nowFlow = MutableStateFlow(now),
                 zoneId = zoneId,
             ).collect { inputs ->
-                emittedSources += inputs.source
+                emittedInputs += inputs
                 if (inputs.source == HomeInputSource.ROOM) {
                     firstRoomObserved.complete(Unit)
+                    if (inputs.calibrationDisplay != null) {
+                        calibratedRoomObserved.complete(Unit)
+                    }
                 }
             }
         }
         firstRoomObserved.await()
 
-        assertEquals(listOf(HomeInputSource.ROOM), emittedSources)
+        assertEquals(listOf(HomeInputSource.ROOM), emittedInputs.map(HomeInputs::source))
 
         snapshotRecords.emit(snapshot)
-        advanceUntilIdle()
+        calibratedRoomObserved.await()
 
-        assertEquals(false, emittedSources.contains(HomeInputSource.SNAPSHOT))
+        assertEquals(false, emittedInputs.any { inputs ->
+            inputs.source == HomeInputSource.SNAPSHOT
+        })
+        assertEquals(snapshot.calibrationDisplay, emittedInputs.last().calibrationDisplay)
         collectJob.cancel()
     }
 
@@ -1632,7 +1644,26 @@ class HomeRepositoryTest {
         }
     }
 
+    private fun calibrationDisplay(): PersistedPkCalibrationDisplay {
+        val digest = requireNotNull(
+            CanonicalDigest.create(
+                schema = "hrttracker.fit-input/test",
+                algorithm = "SHA-256",
+                hexLower = "a".repeat(64),
+            )
+        )
+        return requireNotNull(
+            PersistedPkCalibrationDisplay.create(
+                calibrationModelVersion = CalibrationModelVersion,
+                resultInputDigest = digest,
+                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
+                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
+            )
+        )
+    }
+
     private companion object {
+        const val CalibrationModelVersion = "route-v9-final"
         const val ESTRADIOL_MEDICINE_UUID = "e2e2e2e2-0000-0000-0000-000000000000"
         const val SPIRONOLACTONE_MEDICINE_UUID = "5a5a5a5a-0000-0000-0000-000000000000"
     }

@@ -83,17 +83,16 @@ interface BloodTestDao {
     )
     suspend fun getImportedPanels(sourceApp: String): List<BloodTestPanelWithResultsEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPanel(panel: BloodTestPanelEntity)
 
-    // Insert a new panel or update an existing one in place. Unlike
-    // insertPanel's REPLACE, this never deletes-then-reinserts the row, so the
-    // ON DELETE CASCADE on blood_test_results does not fire and child results
-    // (including user-owned ones) are preserved across an imported-panel update.
+    // Insert a new panel or update an existing one in place. This never
+    // deletes-then-reinserts the row, so ON DELETE CASCADE does not fire and
+    // child results are preserved across an imported-panel update.
     @Upsert
     suspend fun upsertPanel(panel: BloodTestPanelEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPanels(panels: List<BloodTestPanelEntity>)
 
     @Query(
@@ -104,8 +103,41 @@ interface BloodTestDao {
     )
     suspend fun deleteResultsForPanel(panelUuid: String)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query("SELECT * FROM blood_test_results WHERE panelUuid = :panelUuid")
+    suspend fun getResultsForPanel(panelUuid: String): List<BloodTestResultEntity>
+
+    @Query("SELECT * FROM blood_test_results WHERE uuid IN (:uuids)")
+    suspend fun getResultsByUuids(uuids: List<String>): List<BloodTestResultEntity>
+
+    @Query("SELECT * FROM blood_test_results WHERE panelUuid IN (:panelUuids)")
+    suspend fun getResultsForPanels(panelUuids: List<String>): List<BloodTestResultEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertResults(results: List<BloodTestResultEntity>)
+
+    @Update
+    suspend fun updateResults(results: List<BloodTestResultEntity>): Int
+
+    @Query("DELETE FROM blood_test_results WHERE uuid IN (:uuids)")
+    suspend fun deleteResultsByUuid(uuids: List<String>)
+
+    @Query("DELETE FROM e2_calibration_metadata WHERE resultUuid IN (:resultUuids)")
+    suspend fun deleteCalibrationMetadataForResults(resultUuids: List<String>)
+
+    // A direct swap violates both unique(panelUuid, displayOrder) and, for an
+    // analyte swap, unique(panelUuid, builtinAnalyteKey/customAnalyteUuid).
+    // Park the affected rows inside the surrounding transaction before their
+    // final in-place updates; no observer can see this intermediate state.
+    @Query(
+        """
+        UPDATE blood_test_results
+        SET displayOrder = -rowid,
+            builtinAnalyteKey = NULL,
+            customAnalyteUuid = NULL
+        WHERE panelUuid IN (:panelUuids)
+        """
+    )
+    suspend fun parkResultUniqueKeys(panelUuids: List<String>)
 
     @Query(
         """
@@ -143,11 +175,75 @@ interface BloodTestDao {
         panel: BloodTestPanelEntity,
         results: List<BloodTestResultEntity>,
     ) {
-        insertPanel(panel)
-        deleteResultsForPanel(panel.uuid)
-        if (results.isNotEmpty()) {
-            insertResults(results)
+        require(results.all { result -> result.panelUuid == panel.uuid })
+        require(results.map(BloodTestResultEntity::uuid).distinct().size == results.size)
+
+        val existing = getResultsForPanel(panel.uuid)
+        val incomingByUuid = results.associateBy(BloodTestResultEntity::uuid)
+        val removedUuids = existing.mapNotNull { result ->
+            result.uuid.takeUnless(incomingByUuid::containsKey)
         }
+        val identityChangedUuids = existing.mapNotNull { result ->
+            val replacement = incomingByUuid[result.uuid] ?: return@mapNotNull null
+            result.uuid.takeIf {
+                result.builtinAnalyteKey != replacement.builtinAnalyteKey ||
+                    result.customAnalyteUuid != replacement.customAnalyteUuid
+            }
+        }
+
+        upsertPanel(panel)
+        if (removedUuids.isNotEmpty()) deleteResultsByUuid(removedUuids)
+        if (identityChangedUuids.isNotEmpty()) {
+            deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+
+        val survivingUuids = existing.mapTo(mutableSetOf(), BloodTestResultEntity::uuid)
+            .intersect(incomingByUuid.keys)
+        if (survivingUuids.isNotEmpty()) {
+            parkResultUniqueKeys(listOf(panel.uuid))
+            val survivingResults = results.filter { result -> result.uuid in survivingUuids }
+            check(updateResults(survivingResults) == survivingResults.size) {
+                "Every surviving blood result must update in place."
+            }
+        }
+        val newResults = results.filterNot { result -> result.uuid in survivingUuids }
+        if (newResults.isNotEmpty()) insertResults(newResults)
+    }
+
+    /** In-place bulk upsert used by external reconciliation; it never deletes rows. */
+    @Transaction
+    suspend fun upsertResultsInPlace(results: List<BloodTestResultEntity>) {
+        if (results.isEmpty()) return
+        require(results.map(BloodTestResultEntity::uuid).distinct().size == results.size)
+
+        val replacementsByUuid = results.associateBy(BloodTestResultEntity::uuid)
+        val oldByUuid = getResultsByUuids(replacementsByUuid.keys.toList())
+            .associateBy(BloodTestResultEntity::uuid)
+        val affectedPanels = buildSet {
+            addAll(results.map(BloodTestResultEntity::panelUuid))
+            addAll(oldByUuid.values.map(BloodTestResultEntity::panelUuid))
+        }.toList()
+        val currentRows = getResultsForPanels(affectedPanels)
+        val identityChangedUuids = oldByUuid.values.mapNotNull { existing ->
+            val replacement = replacementsByUuid.getValue(existing.uuid)
+            existing.uuid.takeIf {
+                existing.builtinAnalyteKey != replacement.builtinAnalyteKey ||
+                    existing.customAnalyteUuid != replacement.customAnalyteUuid
+            }
+        }
+        if (identityChangedUuids.isNotEmpty()) {
+            deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+
+        if (currentRows.isNotEmpty()) {
+            parkResultUniqueKeys(affectedPanels)
+            val updatedRows = currentRows.map { row -> replacementsByUuid[row.uuid] ?: row }
+            check(updateResults(updatedRows) == updatedRows.size) {
+                "Every affected blood result must update in place."
+            }
+        }
+        val newResults = results.filterNot { result -> result.uuid in oldByUuid }
+        if (newResults.isNotEmpty()) insertResults(newResults)
     }
 
     @Query(
