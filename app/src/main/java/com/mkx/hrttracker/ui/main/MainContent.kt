@@ -132,7 +132,20 @@ fun MainContent(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(
+                    scrollState,
+                    // While a chart multi-finger gesture owns the touch, the
+                    // page must not scroll. Ancestors never see the pinch's
+                    // pointer events (the chart consumes them), but scroll
+                    // actions injected through the page's scrollable node
+                    // itself — observed from input-injecting accessibility
+                    // services reacting to multi-finger gestures, slamming
+                    // the page to its scroll limit — can only act while the
+                    // scrollable is enabled. Single-finger gestures never
+                    // set this, so starting a page scroll from the chart
+                    // still works.
+                    enabled = !homeChartMultiFingerGestureActive.value,
+                )
                 .padding(resolvedContentPadding),
         ) {
             uiState.timeZoneChangeNotice?.let { notice ->
