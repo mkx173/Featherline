@@ -480,6 +480,41 @@ class MainContentComponentsTest {
     }
 
     @Test
+    fun mainE2ChartDisplayEndDateTimeForXHours_mapsEndBoundaryToLastVisibleMinute() {
+        val chartWindowStart = LocalDateTime.of(2026, 5, 11, 0, 0)
+
+        // A viewport ending at a mid-window midnight shows nothing of that
+        // day, so the end label must name the previous day — matching the
+        // window-end behavior instead of special-casing it.
+        assertEquals(
+            LocalDateTime.of(2026, 5, 12, 23, 59),
+            mainE2ChartDisplayEndDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 48.0,
+                chartWindowHours = 168,
+            )
+        )
+        // Away from midnight the minute subtraction never changes the date.
+        assertEquals(
+            LocalDateTime.of(2026, 5, 13, 13, 46),
+            mainE2ChartDisplayEndDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 61.783333,
+                chartWindowHours = 168,
+            )
+        )
+        // Window end matches the existing last-visible-minute clamp.
+        assertEquals(
+            LocalDateTime.of(2026, 5, 17, 23, 59),
+            mainE2ChartDisplayEndDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 168.0,
+                chartWindowHours = 168,
+            )
+        )
+    }
+
+    @Test
     fun mainE2ChartZoomFloorHours_landsAtThreeDaysOnPhoneWidth() {
         // THIRTY_DAYS spans 40 d = 960 h with 2240 budget segments. At the
         // 400 px phone-portrait reference width and the 0.42 density factor,

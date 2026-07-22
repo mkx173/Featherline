@@ -92,6 +92,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -928,6 +929,12 @@ internal fun MainE2ChartCard(
     // or a scroll/zoom gesture handled by the chart host). Used to defer the
     // intro host swap so it never cancels an in-flight gesture.
     val chartTouchActive = remember { mutableStateOf(false) }
+    val chartViewportResetVersion = rememberSaveable { mutableIntStateOf(0) }
+    // Hoisted above the marker-label computation, which reads the viewport
+    // snapshot to apply the end-boundary display convention at the right edge.
+    val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
+        MainE2ChartCoordinateMapper()
+    }
     val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
     // The touch marker's x is captured in whatever coord space was active
     // when the user tapped, so it has no meaningful position after the
@@ -961,11 +968,31 @@ internal fun MainE2ChartCard(
         val xHours = interactiveMarkerXHoursValue
         val concentration = interactionMarkerConcentration
         if (xHours != null && concentration != null) {
-            val dateTime = mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = chartWindowStart,
-                xHours = xHours,
-                chartWindowHours = chartWindowHours,
-            )
+            // The marker's x clamps to the visible range, so x at the range's
+            // end means it's pinned at the viewport's right edge. Display that
+            // position with the same end-boundary convention as the minimap's
+            // end date label (last visible minute), so a day-aligned viewport
+            // reads 00:00…23:59 in both the marker and the labels. Interior
+            // positions show the exact instant. Snapshot is read, not
+            // observed: every marker move recomputes this block anyway.
+            val visibleEnd = chartCoordinateMapper.viewportSnapshot.value
+                ?.visibleRange
+                ?.endInclusive
+            val atRightEdge = visibleEnd != null &&
+                    xHours >= visibleEnd - MainE2ChartMinimapRangeEpsilonHours
+            val dateTime = if (atRightEdge) {
+                mainE2ChartDisplayEndDateTimeForXHours(
+                    chartWindowStart = chartWindowStart,
+                    xHours = xHours,
+                    chartWindowHours = chartWindowHours,
+                )
+            } else {
+                mainE2ChartDisplayDateTimeForXHours(
+                    chartWindowStart = chartWindowStart,
+                    xHours = xHours,
+                    chartWindowHours = chartWindowHours,
+                )
+            }
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
             "$date $time\n${
@@ -1051,7 +1078,6 @@ internal fun MainE2ChartCard(
             ),
         )
     }
-    val chartViewportResetVersion = rememberSaveable { mutableIntStateOf(0) }
     val (chartScrollState, chartZoomState) = key(
         chartViewportResetVersion.intValue,
         section.chartWindowOption,
@@ -1170,9 +1196,6 @@ internal fun MainE2ChartCard(
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
                 val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
-                val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
-                    MainE2ChartCoordinateMapper()
-                }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     currentTimeLineColor,
@@ -1273,6 +1296,7 @@ internal fun MainE2ChartCard(
                                         },
                                     )
                                 }
+                                .pointerInput(Unit) { consumeMultiFingerGestures() }
                         ) {
                             val chart = rememberCartesianChart(
                                     rememberEdgeAlignedLineCartesianLayer(
@@ -1537,6 +1561,27 @@ internal fun mainE2ChartDisplayDateTimeForXHours(
     return chartWindowStart.plusMinutes(displayMinutes)
 }
 
+// End-boundary variant for the minimap's end date label. The visible range is
+// half-open, so the end label should name the last visible minute rather than
+// the boundary instant — a viewport ending at 7/21 00:00 shows nothing of
+// 7/21 and must label 7/20. Subtracting one minute generalizes the window-end
+// clamp (which maps x = chartWindowHours to the window's last minute) to
+// every scroll position; away from midnight the subtraction never changes the
+// date.
+internal fun mainE2ChartDisplayEndDateTimeForXHours(
+    chartWindowStart: LocalDateTime,
+    xHours: Double,
+    chartWindowHours: Int,
+): LocalDateTime {
+    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val fullMinutes = (fullHours * 60).roundToLong().coerceAtLeast(1L)
+    val safeXHours = if (xHours.isFinite()) xHours else fullHours
+    val endMinutes = (safeXHours.coerceIn(0.0, fullHours) * 60)
+        .roundToLong()
+        .coerceIn(1L, fullMinutes)
+    return chartWindowStart.plusMinutes(endMinutes - 1L)
+}
+
 private fun mainE2ChartMinimapIsZoomed(
     visibleRange: MainE2ChartVisibleXRange,
     chartWindowHours: Int,
@@ -1775,7 +1820,7 @@ private fun MainE2ChartMinimap(
         dateLabelVisibleRange.endInclusive,
     ) {
         dateFormatter(
-            mainE2ChartDisplayDateTimeForXHours(
+            mainE2ChartDisplayEndDateTimeForXHours(
                 chartWindowStart = chartWindowStart,
                 xHours = dateLabelVisibleRange.endInclusive,
                 chartWindowHours = chartWindowHours,
@@ -1928,6 +1973,7 @@ private fun MainE2ChartMinimap(
                                     },
                                 )
                             }
+                            .pointerInput(Unit) { consumeMultiFingerGestures() }
                             .drawWithCache {
                                 // Pre-compute everything that depends only on size, points,
                                 // currentTimeXHours, maxY, chartWindowHours and colors.
@@ -2392,6 +2438,28 @@ private class EdgeAlignedLineCartesianLayer(
     }
 }
 
+// Chart surfaces own multi-touch: Vico's pinch detector only consumes events
+// once its own zoom slop passes, so a pinch with enough vertical centroid
+// motion first crosses the page verticalScroll's touch slop — the page claims
+// the gesture as a vertical drag and flings when the fingers lift, snapping
+// the whole page. Consume all position changes while two or more pointers are
+// down. This runs on the Main pass at the chart-container level, i.e. after
+// the descendant Vico canvas handlers have already processed the event, so
+// chart zoom and scroll keep working; only ancestors (the page) stop seeing
+// the pinch.
+private suspend fun PointerInputScope.consumeMultiFingerGestures() {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            if (event.changes.count { change -> change.pressed } >= 2) {
+                event.changes.forEach { change ->
+                    if (change.positionChanged()) change.consume()
+                }
+            }
+        }
+    }
+}
+
 private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
     coordinateMapper: MainE2ChartCoordinateMapper,
     chartWindowHours: Int,
@@ -2465,9 +2533,18 @@ private class MainE2ChartCoordinateMapper {
 
     fun update(context: CartesianDrawingContext) {
         with(context) {
+            // Vico ceils the max scroll distance to a whole pixel, so at full
+            // right scroll `scroll` overshoots the exact content-flush position
+            // by up to 1px — which at deep zoom maps to about a minute of x and
+            // makes the visible range's left edge read 00:01 instead of 00:00.
+            // Clamp to the exact distance; for RTL scroll is negative and the
+            // clamp is a no-op (RTL's coercion floors instead of ceiling).
+            val exactMaxScroll =
+                (layerDimensions.getContentWidth(this) - layerBounds.width)
+                    .coerceAtLeast(0f)
             drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
                     layoutDirectionMultiplier * layerDimensions.startPadding -
-                    scroll
+                    scroll.coerceAtMost(exactMaxScroll)
             layerLeft = layerBounds.left
             layerRight = layerBounds.right
             layerTop = layerBounds.top
