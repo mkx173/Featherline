@@ -1179,14 +1179,14 @@ internal fun buildEstradiolPkDoseEvents(
 ): List<PkDoseEvent> {
     val realEvents = realEntries.asSequence()
         .mapNotNull { entry ->
-            entry.toEstradiolPkDoseEvent(
+            entry.buildEstradiolPkDoseEvent(
                 anchor = anchor,
                 isPlanned = false,
             )
         }
     val plannedEvents = plannedEntries.asSequence()
         .mapNotNull { entry ->
-            entry.toEstradiolPkDoseEvent(
+            entry.buildEstradiolPkDoseEvent(
                 anchor = anchor,
                 isPlanned = true,
             )
@@ -1194,7 +1194,7 @@ internal fun buildEstradiolPkDoseEvents(
     return (realEvents + plannedEvents).toList()
 }
 
-private fun MedicationLogEntry.toEstradiolPkDoseEvent(
+internal fun MedicationLogEntry.buildEstradiolPkDoseEvent(
     anchor: Instant,
     isPlanned: Boolean = false,
 ): PkDoseEvent? {

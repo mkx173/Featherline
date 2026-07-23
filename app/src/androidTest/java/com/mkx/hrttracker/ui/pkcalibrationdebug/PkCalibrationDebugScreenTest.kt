@@ -34,6 +34,9 @@ class PkCalibrationDebugScreenTest {
             .assertCountEquals(5)
         composeRule.onAllNodesWithTag(PkCalibrationDebugCurveTag)
             .assertCountEquals(1)
+        composeRule.onAllNodes(
+            hasText("snapshotKind=SYNTHETIC_ENGINE_EVALUATION")
+        ).assertCountEquals(1)
 
         composeRule.runOnUiThread {
             state.value = state.value.copy(

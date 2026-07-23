@@ -18,11 +18,17 @@ import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.UUID
+import javax.inject.Inject
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class PkCalibrationDebugMode {
     LIVE,
@@ -110,16 +116,19 @@ fun interface PkCalibrationDebugReviewActionHandler {
 class GuardedPkCalibrationDebugReviewActionHandler(
     private val service: PkCalibrationReviewActionService,
     private val debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : PkCalibrationDebugReviewActionHandler {
     override suspend fun execute(
         command: PkCalibrationDebugActionCommand,
     ): PkCalibrationDebugReviewExecution {
         if (!debugGate.isEnabled()) return PkCalibrationDebugReviewExecution.DebugDisabled
-        val result = when (command.action) {
-            PkCalibrationDebugReviewAction.KEEP ->
-                service.keepForAdjustment(command.resultId)
-            PkCalibrationDebugReviewAction.EXCLUDE -> service.exclude(command.resultId)
-            PkCalibrationDebugReviewAction.REINCLUDE -> service.reinclude(command.resultId)
+        val result = withContext(defaultDispatcher) {
+            when (command.action) {
+                PkCalibrationDebugReviewAction.KEEP ->
+                    service.keepForAdjustment(command.resultId)
+                PkCalibrationDebugReviewAction.EXCLUDE -> service.exclude(command.resultId)
+                PkCalibrationDebugReviewAction.REINCLUDE -> service.reinclude(command.resultId)
+            }
         }
         return PkCalibrationDebugReviewExecution.Completed(result)
     }
@@ -143,14 +152,32 @@ object UnavailablePkCalibrationDebugReviewActionHandler :
  * gate. Fixture review actions update only this in-memory state; Live actions are the sole path
  * to [PkCalibrationReviewActionService].
  */
-class PkCalibrationDebugViewModel(
-    private val scenarioSource: PkCalibrationDebugScenarioSource =
-        DefaultPkCalibrationDebugScenarioSource(),
-    private val reviewActionHandler: PkCalibrationDebugReviewActionHandler =
-        UnavailablePkCalibrationDebugReviewActionHandler,
-    private val debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
-    autoLoadLive: Boolean = true,
+data class PkCalibrationDebugViewModelConfig(
+    val debugGate: PkCalibrationDebugGate,
+    val autoLoadLive: Boolean,
+)
+
+@HiltViewModel
+class PkCalibrationDebugViewModel @Inject constructor(
+    private val scenarioSource: PkCalibrationDebugScenarioSource,
+    private val reviewActionHandler: PkCalibrationDebugReviewActionHandler,
+    config: PkCalibrationDebugViewModelConfig,
 ) : ViewModel() {
+    private val debugGate = config.debugGate
+    private val autoLoadLive = config.autoLoadLive
+
+    internal constructor(
+        scenarioSource: PkCalibrationDebugScenarioSource =
+            DefaultPkCalibrationDebugScenarioSource(),
+        reviewActionHandler: PkCalibrationDebugReviewActionHandler =
+            UnavailablePkCalibrationDebugReviewActionHandler,
+        debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
+        autoLoadLive: Boolean = true,
+    ) : this(
+        scenarioSource = scenarioSource,
+        reviewActionHandler = reviewActionHandler,
+        config = PkCalibrationDebugViewModelConfig(debugGate, autoLoadLive),
+    )
     private val _uiState = MutableStateFlow(
         PkCalibrationDebugUiState(
             debugEnabled = debugGate.isEnabled(),
@@ -170,6 +197,18 @@ class PkCalibrationDebugViewModel(
     init {
         if (autoLoadLive && debugGate.isEnabled()) {
             loadLive(cause = "INITIAL_LIVE_LOAD")
+            viewModelScope.launch {
+                scenarioSource.observeLive().collect { result ->
+                    if (_uiState.value.mode == PkCalibrationDebugMode.LIVE) {
+                        ++requestGeneration
+                        applySourceResult(
+                            mode = PkCalibrationDebugMode.LIVE,
+                            result = result,
+                            cause = "LIVE_STATE_CHANGED",
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -181,6 +220,7 @@ class PkCalibrationDebugViewModel(
 
     fun refreshLive(): PkCalibrationDebugDispatchResult {
         transitionRejection("REFRESH_LIVE")?.let { rejection -> return rejection }
+        scenarioSource.retryLive()
         loadLive(cause = "REFRESH_LIVE")
         return PkCalibrationDebugDispatchResult.ACCEPTED
     }
@@ -458,6 +498,17 @@ class PkCalibrationDebugViewModel(
     ): PkCalibrationDebugDispatchResult {
         val previous = _uiState.value
         val (next, effect, dispatchResult) = when (result) {
+            PkCalibrationDebugSourceResult.Loading -> {
+                Triple(
+                    clearedSnapshotState(
+                        previous = previous,
+                        mode = mode,
+                        loadState = PkCalibrationDebugLoadState.LOADING,
+                    ),
+                    "LOADING",
+                    PkCalibrationDebugDispatchResult.ACCEPTED,
+                )
+            }
             PkCalibrationDebugSourceResult.DebugDisabled -> {
                 Triple(
                     clearedSnapshotState(
@@ -558,6 +609,7 @@ class PkCalibrationDebugViewModel(
                     scenario == null
         PkCalibrationDebugMode.FIXTURE ->
             kind in setOf(
+                PkCalibrationDebugSnapshotKind.SYNTHETIC_ENGINE_EVALUATION,
                 PkCalibrationDebugSnapshotKind.VALIDATED_CONTRACT_FIXTURE,
                 PkCalibrationDebugSnapshotKind.VALIDATED_FAULT_FIXTURE,
             ) && scenario != null

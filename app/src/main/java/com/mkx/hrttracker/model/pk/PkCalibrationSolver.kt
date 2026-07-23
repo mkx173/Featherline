@@ -104,13 +104,13 @@ internal class PkRouteStudentTObjective private constructor(
     }
 
     override fun scoreInterval(beta: OutwardInterval): OutwardInterval? {
-        var sum = OutwardInterval.singleton(0.0)
-        val nuR = OutwardInterval.singleton(nuRLog)
+        var sum = OutwardInterval.singleton(0.0) ?: return null
+        val nuR = OutwardInterval.singleton(nuRLog) ?: return null
         val negativeNuPlusOne = OutwardInterval.singleton(
             -(PkCalibrationDefaults.STUDENT_T_NU + 1.0)
-        )
+        ) ?: return null
         for (point in points) {
-            val residual = OutwardInterval.singleton(point.qLogRatio).subtract(beta)
+            val residual = OutwardInterval.singleton(point.qLogRatio)?.subtract(beta)
                 ?: return null
             val residualSquared = residual.square() ?: return null
             val denominator = nuR.add(residualSquared) ?: return null
@@ -119,19 +119,19 @@ internal class PkRouteStudentTObjective private constructor(
             sum = sum.add(term) ?: return null
         }
         val prior = beta.divideByStrictlyPositive(
-            OutwardInterval.singleton(priorVariance)
+            OutwardInterval.singleton(priorVariance) ?: return null
         ) ?: return null
         return sum.add(prior)
     }
 
     override fun hessianInterval(beta: OutwardInterval): OutwardInterval? {
-        var sum = OutwardInterval.singleton(0.0)
-        val nuR = OutwardInterval.singleton(nuRLog)
+        var sum = OutwardInterval.singleton(0.0) ?: return null
+        val nuR = OutwardInterval.singleton(nuRLog) ?: return null
         val nuPlusOne = OutwardInterval.singleton(
             PkCalibrationDefaults.STUDENT_T_NU + 1.0
-        )
+        ) ?: return null
         for (point in points) {
-            val residual = OutwardInterval.singleton(point.qLogRatio).subtract(beta)
+            val residual = OutwardInterval.singleton(point.qLogRatio)?.subtract(beta)
                 ?: return null
             val residualSquared = residual.square() ?: return null
             val denominator = nuR.add(residualSquared) ?: return null
@@ -142,7 +142,7 @@ internal class PkRouteStudentTObjective private constructor(
                 ?: return null
             sum = sum.add(term) ?: return null
         }
-        return sum.add(OutwardInterval.singleton(priorPrecision))
+        return sum.add(OutwardInterval.singleton(priorPrecision) ?: return null)
     }
 
     fun diagnostics(beta: Double): PkRouteFitDiagnostics? {
@@ -369,8 +369,8 @@ internal data class OutwardInterval private constructor(
             return OutwardInterval(lower, upper)
         }
 
-        fun singleton(value: Double): OutwardInterval {
-            require(value.isFinite())
+        fun singleton(value: Double): OutwardInterval? {
+            if (!value.isFinite()) return null
             return OutwardInterval(value, value)
         }
 
@@ -455,9 +455,15 @@ internal object PkStationaryRootCertificate {
             if (!gradient.containsZero) continue
             val hessian = function.hessianInterval(cell)
                 ?: return PkStationaryCertificateResult.NumericFailure
-            val leftGradient = function.scoreInterval(OutwardInterval.singleton(cell.lower))
+            val leftGradient = function.scoreInterval(
+                OutwardInterval.singleton(cell.lower)
+                    ?: return PkStationaryCertificateResult.NumericFailure
+            )
                 ?: return PkStationaryCertificateResult.NumericFailure
-            val rightGradient = function.scoreInterval(OutwardInterval.singleton(cell.upper))
+            val rightGradient = function.scoreInterval(
+                OutwardInterval.singleton(cell.upper)
+                    ?: return PkStationaryCertificateResult.NumericFailure
+            )
                 ?: return PkStationaryCertificateResult.NumericFailure
 
             val crossingKind = crossingKind(hessian, leftGradient, rightGradient)
@@ -478,7 +484,10 @@ internal object PkStationaryRootCertificate {
 
             val midpoint = cell.midpoint()
                 ?: return PkStationaryCertificateResult.NumericFailure
-            val midpointGradient = function.scoreInterval(OutwardInterval.singleton(midpoint))
+            val midpointGradient = function.scoreInterval(
+                OutwardInterval.singleton(midpoint)
+                    ?: return PkStationaryCertificateResult.NumericFailure
+            )
                 ?: return PkStationaryCertificateResult.NumericFailure
             if (midpointGradient.containsZero) {
                 val root = certifyBoundaryRoot(
@@ -594,7 +603,9 @@ internal object PkStationaryRootCertificate {
             if (width <= PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL) break
             if (!counter.consume()) return null
             val midpoint = bracket.midpoint() ?: return null
-            val midpointGradient = function.scoreInterval(OutwardInterval.singleton(midpoint))
+            val midpointGradient = function.scoreInterval(
+                OutwardInterval.singleton(midpoint) ?: return null
+            )
                 ?: return null
             if (midpointGradient.containsZero) {
                 bracket = shrinkAroundBoundaryRoot(
@@ -653,9 +664,13 @@ internal object PkStationaryRootCertificate {
             if (!counter.consume()) return null
             val candidate = OutwardInterval.create(left, right) ?: return null
             val hessian = function.hessianInterval(candidate) ?: return null
-            val leftGradient = function.scoreInterval(OutwardInterval.singleton(left))
+            val leftGradient = function.scoreInterval(
+                OutwardInterval.singleton(left) ?: return null
+            )
                 ?: return null
-            val rightGradient = function.scoreInterval(OutwardInterval.singleton(right))
+            val rightGradient = function.scoreInterval(
+                OutwardInterval.singleton(right) ?: return null
+            )
                 ?: return null
             val kind = crossingKind(hessian, leftGradient, rightGradient)
             if (kind != null) {
@@ -688,9 +703,13 @@ internal object PkStationaryRootCertificate {
             val right = midpoint(boundary, bracket.upper) ?: return null
             val candidate = OutwardInterval.create(left, right) ?: return null
             val hessian = function.hessianInterval(candidate) ?: return null
-            val leftGradient = function.scoreInterval(OutwardInterval.singleton(left))
+            val leftGradient = function.scoreInterval(
+                OutwardInterval.singleton(left) ?: return null
+            )
                 ?: return null
-            val rightGradient = function.scoreInterval(OutwardInterval.singleton(right))
+            val rightGradient = function.scoreInterval(
+                OutwardInterval.singleton(right) ?: return null
+            )
                 ?: return null
             if (crossingKind(hessian, leftGradient, rightGradient) != kind) return null
             bracket = candidate
@@ -708,9 +727,13 @@ internal object PkStationaryRootCertificate {
         if (width > PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL) return null
         val gradient = function.scoreInterval(bracket) ?: return null
         val hessian = function.hessianInterval(bracket) ?: return null
-        val leftGradient = function.scoreInterval(OutwardInterval.singleton(bracket.lower))
+        val leftGradient = function.scoreInterval(
+            OutwardInterval.singleton(bracket.lower) ?: return null
+        )
             ?: return null
-        val rightGradient = function.scoreInterval(OutwardInterval.singleton(bracket.upper))
+        val rightGradient = function.scoreInterval(
+            OutwardInterval.singleton(bracket.upper) ?: return null
+        )
             ?: return null
         if (!gradient.containsZero ||
             crossingKind(hessian, leftGradient, rightGradient) != kind

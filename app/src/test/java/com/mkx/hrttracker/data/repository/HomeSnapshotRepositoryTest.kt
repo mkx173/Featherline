@@ -806,7 +806,7 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
-    fun isSnapshotUsable_acceptsTenDayOldSnapshotWhenProjectionCoversCurrentChart() = runTest {
+    fun validatedSnapshotIfUsable_acceptsTenDayOldSnapshotWhenProjectionCoversCurrentChart() = runTest {
         val anchorDate = LocalDate.of(2026, 5, 6)
         val now = anchorDate.plusDays(10).atTime(23, 59)
         val zoneId = ZoneId.systemDefault()
@@ -858,8 +858,9 @@ class HomeSnapshotRepositoryTest {
             antiandrogenHistoryEntries = emptyList(),
         )
 
-        assertTrue(
-            repository.isSnapshotUsable(
+        assertEquals(
+            snapshot,
+            repository.validatedSnapshotIfUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = zoneId,
@@ -867,6 +868,53 @@ class HomeSnapshotRepositoryTest {
             )
         )
     }
+
+    @Test
+    fun validatedSnapshotIfUsable_failsClosedForStaleCalibrationAndReturnsTrustedOriginal() =
+        runTest {
+            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+            val zoneId = ZoneId.systemDefault()
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val repository = HomeSnapshotRepository(
+                databaseHolder = databaseHolder,
+                homeSnapshotStore = homeSnapshotStore,
+                homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+                settingsRepository = settingsRepository,
+                appScope = backgroundScope,
+                defaultDispatcher = dispatcher,
+                calibrationModelIdentityProvider =
+                    PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
+            )
+            val staleSnapshot = homeSnapshotRecord(generation = 1L, now = now).copy(
+                calibrationDisplay = calibrationDisplay(
+                    calibrationModelVersion = "route-v9-stale",
+                ),
+            )
+
+            // The projection next to an untrusted calibration payload may be personalized;
+            // rejecting the whole usable-snapshot result keeps it outside every caller.
+            assertNotNull(staleSnapshot.pkProjection)
+            assertNotNull(staleSnapshot.calibrationDisplay)
+            assertNull(
+                repository.validatedSnapshotIfUsable(
+                    snapshot = staleSnapshot,
+                    now = now,
+                    zoneId = zoneId,
+                    option = HomeE2ChartWindowOption.SEVEN_DAYS,
+                )
+            )
+
+            val trustedSnapshot = homeSnapshotRecord(generation = 1L, now = now).copy(
+                calibrationDisplay = calibrationDisplay(),
+            )
+            val validated = repository.validatedSnapshotIfUsable(
+                snapshot = trustedSnapshot,
+                now = now,
+                zoneId = zoneId,
+                option = HomeE2ChartWindowOption.SEVEN_DAYS,
+            )
+            assertTrue(validated === trustedSnapshot)
+        }
 
     @Test
     fun refreshHomeSnapshotIfNeeded_capturesRowsForTenDaySnapshotValidity() = runTest {

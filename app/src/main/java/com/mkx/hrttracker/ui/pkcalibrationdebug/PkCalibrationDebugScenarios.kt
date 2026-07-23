@@ -1,6 +1,9 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
 import com.mkx.hrttracker.BuildConfig
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveUnavailableReason
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA
@@ -22,7 +25,13 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.Collections
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.ln
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.map
 
 /** Runtime gate checked by every debug source and command boundary. */
 fun interface PkCalibrationDebugGate {
@@ -49,6 +58,7 @@ enum class PkCalibrationDebugFixtureDisposition {
 
 enum class PkCalibrationDebugSnapshotKind {
     LIVE_BOUND_EVALUATION,
+    SYNTHETIC_ENGINE_EVALUATION,
     VALIDATED_CONTRACT_FIXTURE,
     VALIDATED_FAULT_FIXTURE,
 }
@@ -57,6 +67,11 @@ enum class PkCalibrationDebugSourceUnavailableReason {
     LIVE_EVALUATION_UNAVAILABLE,
     LIVE_RENDER_DOMAIN_UNAVAILABLE,
     LIVE_RENDER_UNAVAILABLE,
+    LIVE_RUNTIME_POLICY_UNAVAILABLE,
+    LIVE_INPUT_GENERATION_UNSTABLE,
+    LIVE_SOURCE_READ_FAILED,
+    LIVE_SOURCE_PROVIDER_ASSAY_IDENTITY_UNAVAILABLE,
+    LIVE_SOURCE_DATA_INVALID,
     SOURCE_EXCEPTION,
     SOURCE_CONTRACT_MISMATCH,
 }
@@ -176,7 +191,7 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = route,
             nonPositiveInput = false,
-            guardDroppedRoute = guardDroppedRoute,
+            guardDroppedRoute = guardDroppedRoute.takeUnless { it == route },
             displayCapBoundaryRoute = displayCapBoundaryRoute.takeUnless { it == route },
             fixtureDisposition = PkCalibrationDebugFixtureDisposition.AUTO,
         ))
@@ -201,11 +216,15 @@ data class PkCalibrationDebugScenario private constructor(
             routeRenderFallback = routeRenderFallback,
             bandUnavailable = bandUnavailable,
             centralUnavailable = centralUnavailable,
-            outlierRoute = outlierRoute,
+            outlierRoute = outlierRoute.takeUnless { it == route },
             nonPositiveInput = nonPositiveInput,
             guardDroppedRoute = route,
             displayCapBoundaryRoute = displayCapBoundaryRoute,
-            fixtureDisposition = fixtureDisposition,
+            fixtureDisposition = if (outlierRoute == route) {
+                PkCalibrationDebugFixtureDisposition.AUTO
+            } else {
+                fixtureDisposition
+            },
         ))
 
     fun withDisplayCapBoundaryRoute(
@@ -274,6 +293,7 @@ data class PkCalibrationDebugScenario private constructor(
             ) {
                 return null
             }
+            if (outlierRoute != null && outlierRoute == guardDroppedRoute) return null
             if (outlierRoute != null && outlierRoute == displayCapBoundaryRoute) return null
             if (displayCapBoundaryRoute != null &&
                 routeStateByRoute.getValue(displayCapBoundaryRoute).isPopulationState()
@@ -344,6 +364,7 @@ data class PkCalibrationDebugSnapshot(
 
 sealed interface PkCalibrationDebugSourceResult {
     data object DebugDisabled : PkCalibrationDebugSourceResult
+    data object Loading : PkCalibrationDebugSourceResult
     data class Unavailable(val reason: PkCalibrationDebugSourceUnavailableReason) :
         PkCalibrationDebugSourceResult
     data class Available(val snapshot: PkCalibrationDebugSnapshot) :
@@ -358,6 +379,34 @@ interface PkCalibrationDebugLiveSnapshotProvider {
     suspend fun currentReviewDispositions(): Map<UUID, E2CalibrationDisposition> = emptyMap()
 }
 
+interface ObservablePkCalibrationDebugLiveSnapshotProvider :
+    PkCalibrationDebugLiveSnapshotProvider {
+    val liveState: StateFlow<PkCalibrationLiveState>
+    fun retry()
+}
+
+@Singleton
+class RepositoryPkCalibrationDebugLiveSnapshotProvider @Inject constructor(
+    private val repository: PkCalibrationLiveRepository,
+) : ObservablePkCalibrationDebugLiveSnapshotProvider {
+    override val liveState: StateFlow<PkCalibrationLiveState> = repository.liveState
+
+    override suspend fun currentEvaluation(): PkCalibrationEngineEvaluation? =
+        (liveState.value as? PkCalibrationLiveState.Available)?.evaluation
+
+    override suspend fun currentRenderDomain(): PkChartDomain? =
+        (liveState.value as? PkCalibrationLiveState.Available)?.domain
+
+    override suspend fun currentReviewDispositions(): Map<UUID, E2CalibrationDisposition> =
+        (liveState.value as? PkCalibrationLiveState.Available)
+            ?.context
+            ?.metadata
+            ?.associate { item -> item.resultId to item.disposition }
+            .orEmpty()
+
+    override fun retry() = repository.retry()
+}
+
 object UnavailablePkCalibrationDebugLiveSnapshotProvider :
     PkCalibrationDebugLiveSnapshotProvider {
     override suspend fun currentEvaluation(): PkCalibrationEngineEvaluation? = null
@@ -366,6 +415,8 @@ object UnavailablePkCalibrationDebugLiveSnapshotProvider :
 
 interface PkCalibrationDebugScenarioSource {
     suspend fun loadLive(): PkCalibrationDebugSourceResult
+    fun observeLive(): Flow<PkCalibrationDebugSourceResult> = emptyFlow()
+    fun retryLive() = Unit
     fun loadFixture(scenario: PkCalibrationDebugScenario): PkCalibrationDebugSourceResult
 }
 
@@ -376,6 +427,9 @@ class DefaultPkCalibrationDebugScenarioSource(
 ) : PkCalibrationDebugScenarioSource {
     override suspend fun loadLive(): PkCalibrationDebugSourceResult {
         if (!debugGate.isEnabled()) return PkCalibrationDebugSourceResult.DebugDisabled
+        (liveSnapshotProvider as? ObservablePkCalibrationDebugLiveSnapshotProvider)?.let {
+            return it.liveState.value.toDebugSourceResult()
+        }
         val evaluation = liveSnapshotProvider.currentEvaluation()
             ?: return PkCalibrationDebugSourceResult.Unavailable(
                 PkCalibrationDebugSourceUnavailableReason.LIVE_EVALUATION_UNAVAILABLE
@@ -413,10 +467,28 @@ class DefaultPkCalibrationDebugScenarioSource(
         )
     }
 
+    override fun observeLive(): Flow<PkCalibrationDebugSourceResult> {
+        if (!debugGate.isEnabled()) return emptyFlow()
+        val observable = liveSnapshotProvider as?
+            ObservablePkCalibrationDebugLiveSnapshotProvider ?: return emptyFlow()
+        return observable.liveState.map(PkCalibrationLiveState::toDebugSourceResult)
+    }
+
+    override fun retryLive() {
+        if (debugGate.isEnabled()) {
+            (liveSnapshotProvider as? ObservablePkCalibrationDebugLiveSnapshotProvider)?.retry()
+        }
+    }
+
     override fun loadFixture(
         scenario: PkCalibrationDebugScenario,
     ): PkCalibrationDebugSourceResult {
         if (!debugGate.isEnabled()) return PkCalibrationDebugSourceResult.DebugDisabled
+        PkCalibrationDebugSyntheticScenarios.buildRenderFaultIfSupported(scenario)
+            ?.let { result -> return result }
+        PkCalibrationDebugSyntheticScenarios.buildIfSupported(scenario)?.let { result ->
+            return result
+        }
         return PkCalibrationDebugSourceResult.Available(
             PkCalibrationDebugFixtures.build(scenario)
         )
@@ -427,6 +499,49 @@ class DefaultPkCalibrationDebugScenarioSource(
     ): Map<UUID, E2CalibrationDisposition> = source.entries
         .sortedBy { entry -> entry.key.toString() }
         .associateTo(linkedMapOf()) { entry -> entry.key to entry.value }
+}
+
+private fun PkCalibrationLiveState.toDebugSourceResult(): PkCalibrationDebugSourceResult {
+    return when (this) {
+        PkCalibrationLiveState.Loading -> PkCalibrationDebugSourceResult.Loading
+        is PkCalibrationLiveState.Unavailable -> PkCalibrationDebugSourceResult.Unavailable(
+            when (reason) {
+                PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE ->
+                    PkCalibrationDebugSourceUnavailableReason
+                        .LIVE_RUNTIME_POLICY_UNAVAILABLE
+                PkCalibrationLiveUnavailableReason.INPUT_GENERATION_UNSTABLE ->
+                    PkCalibrationDebugSourceUnavailableReason
+                        .LIVE_INPUT_GENERATION_UNSTABLE
+                PkCalibrationLiveUnavailableReason.SOURCE_READ_FAILED ->
+                    PkCalibrationDebugSourceUnavailableReason.LIVE_SOURCE_READ_FAILED
+                PkCalibrationLiveUnavailableReason
+                    .SOURCE_PROVIDER_ASSAY_IDENTITY_UNAVAILABLE ->
+                    PkCalibrationDebugSourceUnavailableReason
+                        .LIVE_SOURCE_PROVIDER_ASSAY_IDENTITY_UNAVAILABLE
+                PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID ->
+                    PkCalibrationDebugSourceUnavailableReason.LIVE_SOURCE_DATA_INVALID
+                PkCalibrationLiveUnavailableReason.RENDER_DOMAIN_UNAVAILABLE ->
+                    PkCalibrationDebugSourceUnavailableReason
+                        .LIVE_RENDER_DOMAIN_UNAVAILABLE
+                PkCalibrationLiveUnavailableReason.RENDER_UNAVAILABLE ->
+                    PkCalibrationDebugSourceUnavailableReason.LIVE_RENDER_UNAVAILABLE
+            }
+        )
+        is PkCalibrationLiveState.Available -> {
+            val reviewDispositions = context.metadata
+                .sortedBy { item -> item.resultId.toString() }
+                .associateTo(linkedMapOf()) { item -> item.resultId to item.disposition }
+            PkCalibrationDebugSourceResult.Available(
+                PkCalibrationDebugSnapshot(
+                    result = evaluation.result,
+                    render = render,
+                    kind = PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION,
+                    scenario = null,
+                    reviewDispositionByResultId = reviewDispositions,
+                )
+            )
+        }
+    }
 }
 
 /**
@@ -486,6 +601,28 @@ internal object PkCalibrationDebugFixtures {
         )
     }
 
+    fun buildRenderFault(
+        result: PkCalibrationResult,
+        scenario: PkCalibrationDebugScenario,
+        reviewDispositionByResultId: Map<UUID, E2CalibrationDisposition>,
+    ): PkCalibrationDebugSnapshot {
+        require(
+            scenario.centralUnavailable || scenario.bandUnavailable ||
+                    scenario.routeRenderFallback != null
+        )
+        return PkCalibrationDebugSnapshot(
+            result = result,
+            render = if (result.globalState == PkCalibrationGlobalState.READY) {
+                buildRender(result, scenario)
+            } else {
+                null
+            },
+            kind = PkCalibrationDebugSnapshotKind.VALIDATED_FAULT_FIXTURE,
+            scenario = scenario,
+            reviewDispositionByResultId = reviewDispositionByResultId,
+        )
+    }
+
     fun outlierId(route: PkCalibrationRoute): UUID = UUID(
         0x44454255474c4142L,
         when (route) {
@@ -522,6 +659,8 @@ internal object PkCalibrationDebugFixtures {
 
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val state = when {
+                scenario.guardDroppedRoute == route ->
+                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS
                 scenario.outlierRoute != route -> scenario.routeStateByRoute.getValue(route)
                 scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO ->
                     PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
@@ -574,12 +713,15 @@ internal object PkCalibrationDebugFixtures {
             )
             else -> ln(1.25)
         }
-        val dominantLabCount = when (state) {
-            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS -> 0
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS -> 1
-            else -> 3
+        val dominantLabCount = when {
+            guardDropped -> 0
+            else -> when (state) {
+                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS -> 0
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS -> 1
+                else -> 3
+            }
         }
-        val candidateCount = dominantLabCount + if (guardDropped) 1 else 0
+        val candidateCount = if (guardDropped) 1 else dominantLabCount
         val baseReasons = when (state) {
             PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS ->
                 setOf(PkCalibrationReason.NO_DOMINANT_LABS)

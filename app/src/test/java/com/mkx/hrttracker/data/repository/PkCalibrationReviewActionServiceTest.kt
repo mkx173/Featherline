@@ -39,6 +39,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -78,6 +79,16 @@ class PkCalibrationReviewActionServiceTest {
         }
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery {
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(any(), any())
+        } coAnswers {
+            val expectedGeneration = firstArg<Long>()
+            secondArg<suspend (Long) -> Unit>().invoke(expectedGeneration + 1L)
+            HomeDataConditionalMutationResult.Published(
+                generation = expectedGeneration + 1L,
+                value = Unit,
+            )
         }
         repository = PkCalibrationStorageRepository(holder, homeSnapshotRepository)
     }
@@ -134,10 +145,46 @@ class PkCalibrationReviewActionServiceTest {
             as PkCalibrationReviewActionResult.Applied
         assertEquals(E2CalibrationDisposition.AUTO, reIncluded.metadata.disposition)
         coVerify(exactly = 3) {
-            homeSnapshotRepository.runHomeDataMutation<Unit>(any())
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
+                0L,
+                any(),
+            )
         }
         assertEquals(null, reIncluded.metadata.acceptedReviewDigest)
         assertEquals(reIncluded.metadata, repository.getAllMetadata().single())
+    }
+
+    @Test
+    fun generationChangeAfterEvaluation_rejectsReviewWithoutWritingMetadata() = runTest {
+        val fixture = outlierFixture(idOffset = 700)
+        insertPersistedLabs(fixture)
+        val expectedGeneration = 7L
+        val service = fixture.service(
+            repository = repository,
+            inputGeneration = expectedGeneration,
+        ) { fixture.input }
+        coEvery {
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
+                expectedGeneration,
+                any(),
+            )
+        } returns HomeDataConditionalMutationResult.Stale(
+            expectedGeneration = expectedGeneration,
+            currentGeneration = expectedGeneration + 1L,
+        )
+
+        assertRejected(
+            service.keepForAdjustment(fixture.outlierResultId),
+            PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED,
+        )
+
+        assertTrue(repository.getAllMetadata().isEmpty())
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
+                expectedGeneration,
+                any(),
+            )
+        }
     }
 
     @Test
@@ -243,6 +290,37 @@ class PkCalibrationReviewActionServiceTest {
         assertEquals(result.metadata, repository.getAllMetadata().single())
     }
 
+    @Test
+    fun currentContextProvider_ordinaryFailureMapsToUnavailableWithoutWriting() = runTest {
+        val fixture = outlierFixture(idOffset = 500)
+        insertPersistedLabs(fixture)
+        val service = fixture.service(repository) { throw IllegalStateException("unavailable") }
+
+        assertRejected(
+            service.exclude(fixture.outlierResultId),
+            PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE,
+        )
+        assertTrue(repository.getAllMetadata().isEmpty())
+    }
+
+    @Test
+    fun currentContextProvider_cancellationIsRethrownWithoutWriting() = runTest {
+        val fixture = outlierFixture(idOffset = 600)
+        insertPersistedLabs(fixture)
+        val expected = CancellationException("cancel current input")
+        val service = fixture.service(repository) { throw expected }
+
+        val caught = try {
+            service.exclude(fixture.outlierResultId)
+            null
+        } catch (cancellation: CancellationException) {
+            cancellation
+        }
+
+        assertTrue(caught === expected)
+        assertTrue(repository.getAllMetadata().isEmpty())
+    }
+
     private fun outlierFixture(idOffset: Long = 0): Fixture {
         val event = medicationEvent(uuid(10 + idOffset), PkRoute.ORAL, 0.0)
         val forward = requireNotNull(PkE2ForwardModel.create(listOf(event.event), WeightKg))
@@ -306,14 +384,23 @@ class PkCalibrationReviewActionServiceTest {
 
         fun service(
             repository: PkCalibrationStorageRepository,
+            inputGeneration: Long = 0L,
             currentInput: suspend () -> PkCalibrationInputSnapshot?,
         ): PkCalibrationReviewActionService {
             return PkCalibrationReviewActionService(
                 storageRepository = repository,
-                currentInputProvider = PkCalibrationCurrentInputProvider { currentInput() },
-                identityPolicy = IdentityPolicy,
-                config = CalibrationConfig,
-                scopeDecisionProvider = provider,
+                currentContextProvider = PkCalibrationCurrentEvaluationContextProvider {
+                    currentInput()?.let { input ->
+                        PkCalibrationEvaluationContext.forTest(
+                            inputGeneration = inputGeneration,
+                            input = input,
+                            metadata = repository.getAllMetadata(),
+                            identityPolicy = IdentityPolicy,
+                            config = CalibrationConfig,
+                            scopeDecisionProvider = provider,
+                        )
+                    }
+                },
                 clock = FixedClock,
             )
         }

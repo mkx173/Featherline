@@ -3,23 +3,19 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
-import com.mkx.hrttracker.model.pk.PkCalibrationIdentityPolicy
-import com.mkx.hrttracker.model.pk.PkCalibrationInputSnapshot
-import com.mkx.hrttracker.model.pk.PkCalibrationConfig
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecisionProvider
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidator
 import com.mkx.hrttracker.model.pk.PkCalibrationValidatedScopeInput
+import kotlinx.coroutines.CancellationException
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
-
-fun interface PkCalibrationCurrentInputProvider {
-    suspend fun currentInput(): PkCalibrationInputSnapshot?
-}
+import javax.inject.Inject
+import javax.inject.Singleton
 
 enum class PkCalibrationReviewActionRejection {
     CURRENT_INPUT_UNAVAILABLE,
+    INPUT_GENERATION_CHANGED,
     CALIBRATION_NOT_READY,
     SCOPE_NOT_CURRENT,
     LAB_NOT_AUTHORIZED_E2,
@@ -36,7 +32,9 @@ sealed interface PkCalibrationReviewActionResult {
 }
 
 /**
- * Persists the three v9 review transitions against a fresh semantic-input read.
+ * Persists the three v9 review transitions against the current generation-bound evaluation
+ * context. The context provider rejects a stale Home generation or runtime policy before this
+ * service runs, so input, metadata, identity policy, config, and scope remain one snapshot.
  *
  * The repository owns the Room transaction and the final built-in-E2 check. A
  * Keep records the digest produced by the same current computation that named
@@ -44,13 +42,11 @@ sealed interface PkCalibrationReviewActionResult {
  * a later semantic edit makes that stored digest stale and the evidence adapter
  * consequently treats the acceptance as AUTO.
  */
-class PkCalibrationReviewActionService(
+@Singleton
+class PkCalibrationReviewActionService @Inject constructor(
     private val storageRepository: PkCalibrationStorageRepository,
-    private val currentInputProvider: PkCalibrationCurrentInputProvider,
-    private val identityPolicy: PkCalibrationIdentityPolicy,
-    private val config: PkCalibrationConfig,
-    private val scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
-    private val clock: Clock = Clock.systemUTC(),
+    private val currentContextProvider: PkCalibrationCurrentEvaluationContextProvider,
+    private val clock: Clock,
 ) {
     suspend fun keepForAdjustment(resultId: UUID): PkCalibrationReviewActionResult {
         val current = currentContext() ?: return rejected(
@@ -59,9 +55,9 @@ class PkCalibrationReviewActionService(
         val evaluation = PkCalibrationEngine.evaluate(
             input = current.input,
             metadata = current.metadata,
-            identityPolicy = identityPolicy,
-            config = config,
-            scopeDecisionProvider = scopeDecisionProvider,
+            identityPolicy = current.identityPolicy,
+            config = current.config,
+            scopeDecisionProvider = current.scopeDecisionProvider,
         )
         val evidence = evaluation.readyEvidence ?: return rejected(
             PkCalibrationReviewActionRejection.CALIBRATION_NOT_READY
@@ -87,14 +83,14 @@ class PkCalibrationReviewActionService(
                 updatedAt = Instant.now(clock),
             )
         )
-        return persist(metadata)
+        return persist(metadata, current.inputGeneration)
     }
 
     suspend fun exclude(resultId: UUID): PkCalibrationReviewActionResult {
         val current = currentContext() ?: return rejected(
             PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE
         )
-        val scope = validateCurrentScope(current.input) ?: return rejected(
+        val scope = validateCurrentScope(current) ?: return rejected(
             PkCalibrationReviewActionRejection.SCOPE_NOT_CURRENT
         )
         if (scope.authorizedLabs.none { lab -> lab.resultId == resultId }) {
@@ -108,14 +104,14 @@ class PkCalibrationReviewActionService(
                 updatedAt = Instant.now(clock),
             )
         )
-        return persist(metadata)
+        return persist(metadata, current.inputGeneration)
     }
 
     suspend fun reinclude(resultId: UUID): PkCalibrationReviewActionResult {
         val current = currentContext() ?: return rejected(
             PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE
         )
-        val scope = validateCurrentScope(current.input) ?: return rejected(
+        val scope = validateCurrentScope(current) ?: return rejected(
             PkCalibrationReviewActionRejection.SCOPE_NOT_CURRENT
         )
         if (scope.authorizedLabs.none { lab -> lab.resultId == resultId }) {
@@ -133,28 +129,32 @@ class PkCalibrationReviewActionService(
                 updatedAt = Instant.now(clock),
             )
         )
-        return persist(metadata)
+        return persist(metadata, current.inputGeneration)
     }
 
-    private suspend fun currentContext(): CurrentContext? {
-        val input = runCatching { currentInputProvider.currentInput() }.getOrNull()
-            ?: return null
-        val metadata = storageRepository.getAllMetadata()
-        return CurrentContext(input, metadata)
+    private suspend fun currentContext(): PkCalibrationEvaluationContext? {
+        return try {
+            currentContextProvider.currentEvaluationContext()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun validateCurrentScope(
-        input: PkCalibrationInputSnapshot,
+        context: PkCalibrationEvaluationContext,
     ): PkCalibrationValidatedScopeInput? {
+        val input = context.input
         return when (
             val validation = PkCalibrationScopeInputValidator.validate(
                 labs = input.labs,
                 medicationEvents = input.medicationEvents,
                 forwardTimeOriginEpochMillis = input.forwardTimeOriginEpochMillis,
                 resolvedCurrentWeightKg = input.resolvedCurrentWeightKg,
-                identityPolicy = identityPolicy,
-                config = config,
-                scopeDecisionProvider = scopeDecisionProvider,
+                identityPolicy = context.identityPolicy,
+                config = context.config,
+                scopeDecisionProvider = context.scopeDecisionProvider,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )
@@ -166,19 +166,18 @@ class PkCalibrationReviewActionService(
 
     private suspend fun persist(
         metadata: E2CalibrationMetadata,
+        expectedGeneration: Long,
     ): PkCalibrationReviewActionResult {
         return try {
-            storageRepository.saveMetadata(metadata)
-            PkCalibrationReviewActionResult.Applied(metadata)
+            if (storageRepository.saveMetadataIfCurrent(metadata, expectedGeneration)) {
+                PkCalibrationReviewActionResult.Applied(metadata)
+            } else {
+                rejected(PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED)
+            }
         } catch (_: IllegalArgumentException) {
             rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
         }
     }
-
-    private data class CurrentContext(
-        val input: PkCalibrationInputSnapshot,
-        val metadata: List<E2CalibrationMetadata>,
-    )
 
     private fun rejected(
         reason: PkCalibrationReviewActionRejection,

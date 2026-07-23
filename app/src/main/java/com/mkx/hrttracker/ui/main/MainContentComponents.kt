@@ -113,6 +113,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -1572,6 +1573,10 @@ internal fun rawPkCalibrationIndicatorText(
 
 @Composable
 private fun MainPkCalibrationIndicator(display: PersistedPkCalibrationDisplay) {
+    // Phase 1 exposes raw contract diagnostics only. Keep this guard at the rendering
+    // boundary so a production calibration payload can never surface schema/beta text on Home.
+    if (!BuildConfig.DEBUG) return
+
     val rawText = remember(display) { rawPkCalibrationIndicatorText(display) }
     Text(
         text = rawText,

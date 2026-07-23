@@ -51,6 +51,7 @@ import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -131,6 +132,31 @@ class BackupExportServiceTest {
     fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
         assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
+
+    @Test
+    fun buildBackupSnapshotJson_doesNotReadOrSerializeDerivedCalibrationDisplayArtifact() =
+        runTest {
+            every { settingsRepository.onboardingCompleted } returns flowOf(false)
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+            coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+            coEvery { medicineRepository.getAll() } returns emptyList()
+            coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+            coEvery { medicationLogRepository.getEntries() } returns emptyList()
+            coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+            coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+            val json = service.buildBackupSnapshotJson(
+                Instant.parse("2026-04-26T03:04:05Z")
+            )
+
+            coVerify(exactly = 0) {
+                pkCalibrationStorageRepository.readDisplayArtifact(any(), any())
+            }
+            assertFalse(json.contains("\"homeSnapshotGeneration\""))
+            assertFalse(json.contains("\"calibrationModelVersion\""))
+            assertFalse(json.contains("\"promotedRouteStableIds\""))
+            assertFalse(json.contains("\"injectionLogScale\""))
+        }
 
     @Test
     fun buildBackupSnapshotJson_exportsStockNudgeEnabledFalse() = runTest {

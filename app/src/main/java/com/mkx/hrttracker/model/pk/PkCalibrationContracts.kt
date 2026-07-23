@@ -26,8 +26,9 @@ enum class PkCalibrationRoute(val stableId: String) {
     }
 }
 
-fun PkDoseEvent.calibrationRoute(): PkCalibrationRoute? {
-    return when (route) {
+/** Canonical contribution mapping shared by forward evaluation and review digests. */
+fun PkRoute.calibrationRoute(): PkCalibrationRoute? {
+    return when (this) {
         PkRoute.INJECTION -> PkCalibrationRoute.INJECTION
         PkRoute.PATCH_APPLY -> PkCalibrationRoute.PATCH
         PkRoute.PATCH_REMOVE -> null
@@ -36,6 +37,8 @@ fun PkDoseEvent.calibrationRoute(): PkCalibrationRoute? {
         PkRoute.SUBLINGUAL -> PkCalibrationRoute.SUBLINGUAL
     }
 }
+
+fun PkDoseEvent.calibrationRoute(): PkCalibrationRoute? = route.calibrationRoute()
 
 /**
  * Route-isolated exposure parameters. Values are log scales (beta), never raw

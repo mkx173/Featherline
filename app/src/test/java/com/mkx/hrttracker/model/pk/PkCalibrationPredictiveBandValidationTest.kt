@@ -32,6 +32,35 @@ class PkCalibrationPredictiveBandValidationTest {
     }
 
     @Test
+    fun nonzeroGaussianStudentTMixture_matchesIndependentFixedRootOracles() {
+        // Independent SciPy 1.18 brentq roots over NumPy hermgauss nodes/weights for
+        // N(0, 0.09) + sqrt(0.04) * t4. These pin both production quadrature rules at a
+        // nontrivial mixture where the inverse CDF cannot delegate to TDistribution.
+        val expectedGh16 = listOf(
+            -0.8020340467183965,
+            -0.3900929896342467,
+            0.0,
+            0.39009298963424704,
+            0.802034046718398,
+        )
+        val expectedGh32 = listOf(
+            -0.8020633197413394,
+            -0.3900545981908743,
+            0.0,
+            0.39005459819087446,
+            0.8020633197413405,
+        )
+        val actual = requireNotNull(PkPredictiveBandMath.logQuantiles(0.09, 0.04))
+
+        actual.gh16.zip(expectedGh16).forEach { (value, expected) ->
+            assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
+        }
+        actual.gh32.zip(expectedGh32).forEach { (value, expected) ->
+            assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
+        }
+    }
+
+    @Test
     fun physicistsHermite16And32_matchFixedIndependentReferenceVectors() {
         // Fixed numpy.polynomial.hermite.hermgauss reference vectors, normalized by sqrt(pi).
         // NumPy documents hermgauss as Gauss-Hermite quadrature for weight exp(-x^2).

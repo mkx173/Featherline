@@ -30,7 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
@@ -51,7 +51,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 fun PkCalibrationDebugScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: PkCalibrationDebugViewModel = viewModel(),
+    viewModel: PkCalibrationDebugViewModel = hiltViewModel(),
 ) {
     if (!BuildConfig.DEBUG) return
 
@@ -114,6 +114,8 @@ internal fun PkCalibrationDebugBody(
     ) {
         Text("mode=${uiState.mode}")
         Text("loadState=${uiState.loadState}")
+        Text("sourceUnavailableReason=${uiState.sourceUnavailableReason}")
+        Text("snapshotKind=${uiState.snapshotKind}")
         Text("globalState=${uiState.globalState}")
         Text("globalReasons=${uiState.globalReasons}")
         Text("liveReviewActionInFlight=${uiState.liveReviewActionInFlight}")

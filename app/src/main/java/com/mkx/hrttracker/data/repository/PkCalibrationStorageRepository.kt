@@ -38,15 +38,40 @@ class PkCalibrationStorageRepository @Inject constructor(
 
     suspend fun saveMetadata(metadata: E2CalibrationMetadata) {
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.withTransaction { database ->
-                val dao = database.pkCalibrationDao()
-                require(dao.getBuiltinAnalyteKey(metadata.resultId.toString()) ==
-                    BloodAnalyteKey.E2.storageValue
-                ) {
-                    "Calibration metadata can only be stored for a built-in E2 result."
-                }
-                dao.upsertMetadata(metadata.toEntity())
+            upsertValidatedMetadata(metadata)
+        }
+    }
+
+    /**
+     * Writes review metadata only while [expectedGeneration] is still Home's current durable
+     * input generation. A mismatch exits before incrementing generation or touching Room.
+     */
+    suspend fun saveMetadataIfCurrent(
+        metadata: E2CalibrationMetadata,
+        expectedGeneration: Long,
+    ): Boolean {
+        require(expectedGeneration >= 0L)
+        return when (
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent(
+                expectedCurrentGeneration = expectedGeneration,
+            ) {
+                upsertValidatedMetadata(metadata)
             }
+        ) {
+            is HomeDataConditionalMutationResult.Published -> true
+            is HomeDataConditionalMutationResult.Stale -> false
+        }
+    }
+
+    private suspend fun upsertValidatedMetadata(metadata: E2CalibrationMetadata) {
+        databaseHolder.withTransaction { database ->
+            val dao = database.pkCalibrationDao()
+            require(dao.getBuiltinAnalyteKey(metadata.resultId.toString()) ==
+                BloodAnalyteKey.E2.storageValue
+            ) {
+                "Calibration metadata can only be stored for a built-in E2 result."
+            }
+            dao.upsertMetadata(metadata.toEntity())
         }
     }
 
@@ -57,6 +82,14 @@ class PkCalibrationStorageRepository @Inject constructor(
      */
     suspend fun captureHomeDataGeneration(): Long {
         return homeSnapshotRepository.captureCurrentHomeDataGeneration()
+    }
+
+    /**
+     * Calibration invalidates from Home's existing coherence generation. This is deliberately
+     * not a second cache version or a calibration-specific compare-and-swap token.
+     */
+    fun observeHomeDataGeneration(): Flow<Long> {
+        return homeSnapshotRepository.observeCurrentHomeDataGeneration()
     }
 
     /**

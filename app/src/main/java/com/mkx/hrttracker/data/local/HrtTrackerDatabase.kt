@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NoteEntity::class,
     ],
     version = 10,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicineDao(): MedicineDao
@@ -205,8 +205,11 @@ internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 }
 
 // v9 -> v10: result-owned review metadata plus the one derived display artifact.
-// Both tables intentionally start empty: existing installs remain population-safe
-// until a v9 calibration result is explicitly reviewed/recomputed.
+// Both tables intentionally start empty. The rev-8.6 route-calibration design never
+// shipped durable thetaS/routeExposureScale or legacy disposition state in this app,
+// so there is no old calibration value to delete or map during this migration.
+// Existing installs therefore remain population-safe until a result is explicitly
+// reviewed and a display artifact is recomputed under the current contracts.
 internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(

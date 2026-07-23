@@ -10,7 +10,7 @@ import kotlin.math.ln
 
 class PkE2ForwardModelTest {
     @Test
-    fun calibrationRoute_mapsAllEventRoutesExplicitly() {
+    fun calibrationRoute_mapsAllRoutesOnceForRouteAndEventCallers() {
         val expected = linkedMapOf(
             PkRoute.INJECTION to PkCalibrationRoute.INJECTION,
             PkRoute.PATCH_APPLY to PkCalibrationRoute.PATCH,
@@ -21,6 +21,7 @@ class PkE2ForwardModelTest {
         )
 
         for ((route, calibrationRoute) in expected) {
+            assertEquals(calibrationRoute, route.calibrationRoute())
             assertEquals(calibrationRoute, event(route = route).calibrationRoute())
         }
     }

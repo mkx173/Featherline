@@ -20,6 +20,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -82,6 +84,40 @@ class PkCalibrationDebugViewModelTest {
         assertEquals(1, source.liveCalls)
         assertEquals(listOf(1L), state.actionLog.map { it.sequence })
     }
+
+    @Test
+    fun observableLiveSource_updatesContinuously_fixtureIgnoresIt_resetReplaysLatest_andRetryDelegates() =
+        runTest {
+            val first = liveSnapshot(
+                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
+            )
+            val second = liveSnapshot(
+                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
+            )
+            val source = ObservableRecordingSource(available(first))
+            val viewModel = PkCalibrationDebugViewModel(
+                scenarioSource = source,
+                debugGate = enabled,
+            )
+            advanceUntilIdle()
+            assertSame(first.result, viewModel.uiState.value.rawResult)
+
+            viewModel.applyPreset(PkCalibrationDebugPreset.ORAL_OUT_OF_RANGE)
+            val fixtureResult = viewModel.uiState.value.rawResult
+            source.live.value = available(second)
+            advanceUntilIdle()
+            assertEquals(PkCalibrationDebugMode.FIXTURE, viewModel.uiState.value.mode)
+            assertSame(fixtureResult, viewModel.uiState.value.rawResult)
+
+            viewModel.resetToLive()
+            advanceUntilIdle()
+            assertEquals(PkCalibrationDebugMode.LIVE, viewModel.uiState.value.mode)
+            assertSame(second.result, viewModel.uiState.value.rawResult)
+
+            viewModel.refreshLive()
+            advanceUntilIdle()
+            assertEquals(1, source.retryCalls)
+        }
 
     @Test
     fun everyGlobalAndRouteEnum_reachesTheViewModelWithExactCardinality() {
@@ -186,6 +222,11 @@ class PkCalibrationDebugViewModelTest {
         val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
 
         assertEquals(
+            PkCalibrationDebugSnapshotKind.SYNTHETIC_ENGINE_EVALUATION,
+            viewModel.uiState.value.snapshotKind,
+        )
+
+        assertEquals(
             listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
             viewModel.uiState.value.applicableActionCommands.map { it.action },
         )
@@ -201,11 +242,10 @@ class PkCalibrationDebugViewModelTest {
             E2CalibrationDisposition.ACCEPTED,
             viewModel.uiState.value.reviewDispositionByResultId[resultId],
         )
-        assertEquals(
-            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-            viewModel.uiState.value.routeRows.single {
+        assertFalse(
+            resultId in viewModel.uiState.value.routeRows.single {
                 it.route == PkCalibrationRoute.INJECTION
-            }.displayState,
+            }.unreviewedOutlierLabIds,
         )
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.EXCLUDE),
@@ -242,6 +282,54 @@ class PkCalibrationDebugViewModelTest {
             viewModel.uiState.value.reviewDispositionByResultId[resultId],
         )
         assertEquals(0, handlerCalls)
+    }
+
+    @Test
+    fun outlierThenGuardDropThenOutlier_keepsUiCommandsAlignedWithFittedEvidence() {
+        val viewModel = fixtureViewModel()
+        val route = PkCalibrationRoute.GEL
+        val resultId = PkCalibrationDebugFixtures.outlierId(route)
+
+        viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY)
+        viewModel.setOutlierRoute(route)
+        assertEquals(
+            listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
+            viewModel.uiState.value.applicableActionCommands.map { command -> command.action },
+        )
+        assertEquals(
+            setOf(resultId),
+            viewModel.uiState.value.routeRows.single { row -> row.route == route }
+                .unreviewedOutlierLabIds,
+        )
+
+        viewModel.setGuardDroppedRoute(route)
+        val guardState = viewModel.uiState.value
+        val guardRow = guardState.routeRows.single { row -> row.route == route }
+        assertNull(guardState.scenario?.outlierRoute)
+        assertEquals(route, guardState.scenario?.guardDroppedRoute)
+        assertEquals(1, guardRow.dominantCandidateLabCount)
+        assertEquals(0, guardRow.dominantLabCount)
+        assertTrue(guardRow.unreviewedOutlierLabIds.isEmpty())
+        assertFalse(resultId in guardState.reviewDispositionByResultId)
+        assertTrue(guardState.applicableActionCommands.isEmpty())
+
+        viewModel.setOutlierRoute(route)
+        val outlierState = viewModel.uiState.value
+        assertEquals(route, outlierState.scenario?.outlierRoute)
+        assertNull(outlierState.scenario?.guardDroppedRoute)
+        assertEquals(
+            setOf(resultId),
+            outlierState.routeRows.single { row -> row.route == route }
+                .unreviewedOutlierLabIds,
+        )
+        assertEquals(
+            listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
+            outlierState.applicableActionCommands.map { command -> command.action },
+        )
+        assertEquals(
+            (1L..outlierState.actionLog.size.toLong()).toList(),
+            outlierState.actionLog.map { entry -> entry.sequence },
+        )
     }
 
     @Test
@@ -868,5 +956,25 @@ class PkCalibrationDebugViewModelTest {
             fixtureCalls += 1
             return fixtureSource.loadFixture(scenario)
         }
+    }
+
+    private inner class ObservableRecordingSource(
+        initial: PkCalibrationDebugSourceResult,
+    ) : PkCalibrationDebugScenarioSource {
+        val live = MutableStateFlow(initial)
+        var retryCalls: Int = 0
+            private set
+
+        override suspend fun loadLive(): PkCalibrationDebugSourceResult = live.value
+
+        override fun observeLive(): Flow<PkCalibrationDebugSourceResult> = live
+
+        override fun retryLive() {
+            retryCalls += 1
+        }
+
+        override fun loadFixture(
+            scenario: PkCalibrationDebugScenario,
+        ): PkCalibrationDebugSourceResult = fixtureSource.loadFixture(scenario)
     }
 }

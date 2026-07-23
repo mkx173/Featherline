@@ -97,8 +97,8 @@ class HomeRepository @Inject constructor(
             Triple(snapshot, option, settingsState)
         }
             .mapNotNull { (snapshot, option, settingsState) ->
-                val usable = snapshot?.takeIf {
-                    homeSnapshotRepository.isSnapshotUsable(
+                val usable = snapshot?.let {
+                    homeSnapshotRepository.validatedSnapshotIfUsable(
                         snapshot = it,
                         now = now,
                         zoneId = zoneId,
@@ -223,8 +223,8 @@ class HomeRepository @Inject constructor(
                         zoneId = zoneId,
                     )
                     val usableSnapshot = snapshot
-                        ?.takeIf {
-                            homeSnapshotRepository.isSnapshotUsable(
+                        ?.let {
+                            homeSnapshotRepository.validatedSnapshotIfUsable(
                                 snapshot = it,
                                 now = now,
                                 zoneId = zoneId,

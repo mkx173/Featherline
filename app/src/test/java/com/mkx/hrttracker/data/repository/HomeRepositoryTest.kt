@@ -537,6 +537,73 @@ class HomeRepositoryTest {
         verify(exactly = 0) { databaseHolder.get() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun invalidCalibrationSnapshot_isRejectedWithoutProjectionLeak() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val rawProjection = HomePkProjectionRecord(
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            windowStartEpochMillis = now.minusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
+            windowEndEpochMillis = now.plusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis =
+                now.plusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+            latestEstradiolEntry = null,
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
+        )
+        val rawSnapshot = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = rawProjection,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            calibrationDisplay = calibrationDisplay(),
+        )
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(rawSnapshot)
+        every {
+            homeSnapshotRepository.validatedSnapshotIfUsable(
+                snapshot = rawSnapshot,
+                now = now,
+                zoneId = zoneId,
+                option = settings.homeE2ChartWindowOption,
+            )
+        } returns null
+
+        val repository = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        )
+        val emittedInputs = mutableListOf<HomeInputs>()
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeHomeSnapshotInputs(now, zoneId).collect(emittedInputs::add)
+        }
+
+        assertTrue(emittedInputs.isEmpty())
+        verify(exactly = 0) {
+            homeSnapshotRepository.decodeProjection(rawProjection, any(), any())
+        }
+        collectJob.cancel()
+    }
+
     @Test
     fun observeHomeSnapshotInputs_usesProvidedZoneForSnapshotDerivations() = runTest {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
@@ -574,13 +641,13 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.isSnapshotUsable(
+            homeSnapshotRepository.validatedSnapshotIfUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = providedZone,
                 option = settings.homeE2ChartWindowOption,
             )
-        } returns true
+        } returns snapshot
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = snapshot,
@@ -617,7 +684,7 @@ class HomeRepositoryTest {
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
         verify(exactly = 1) {
-            homeSnapshotRepository.isSnapshotUsable(
+            homeSnapshotRepository.validatedSnapshotIfUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = providedZone,
@@ -671,13 +738,13 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.isSnapshotUsable(
+            homeSnapshotRepository.validatedSnapshotIfUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = zoneId,
                 option = settings.homeE2ChartWindowOption,
             )
-        } returns true
+        } returns snapshot
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = snapshot,
@@ -1271,8 +1338,8 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.isSnapshotUsable(any(), any(), any(), any())
-        } returns true
+            homeSnapshotRepository.validatedSnapshotIfUsable(any(), any(), any(), any())
+        } answers { firstArg() }
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 any(),
@@ -1350,13 +1417,13 @@ class HomeRepositoryTest {
         } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns snapshotRecords
         every {
-            homeSnapshotRepository.isSnapshotUsable(
+            homeSnapshotRepository.validatedSnapshotIfUsable(
                 snapshot = any(),
                 now = any(),
                 zoneId = any(),
                 option = any(),
             )
-        } returns true
+        } answers { firstArg() }
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = any(),

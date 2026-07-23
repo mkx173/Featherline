@@ -182,6 +182,11 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
+    /** Read-only observation of the same durable generation used by Home mutations. */
+    internal fun observeCurrentHomeDataGeneration(): Flow<Long> {
+        return homeSnapshotGenerationStore.observeGeneration()
+    }
+
     /**
      * Runs the existing Home mutation sequence only when the caller's captured input
      * generation is still current. A stale result exits before the generation increment,
@@ -254,19 +259,27 @@ class HomeSnapshotRepository @Inject constructor(
         )
     }
 
-    fun isSnapshotUsable(
+    /**
+     * Returns the exact validated snapshot callers may consume, or null when it is unusable.
+     *
+     * Calibration validation may strip both the display payload and its potentially
+     * personalized projection. Returning only a Boolean would let a caller validate that
+     * stripped copy and then accidentally keep consuming the untrusted original.
+     */
+    fun validatedSnapshotIfUsable(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
         option: HomeE2ChartWindowOption,
-    ): Boolean {
+    ): HomeSnapshotRecord? {
         val validatedSnapshot = snapshot.withValidatedCalibrationDisplay()
-        return snapshotUsabilityFailure(
+        val failure = snapshotUsabilityFailure(
             snapshot = validatedSnapshot,
             now = now,
             zoneId = zoneId,
             option = option,
-        ) == null
+        )
+        return validatedSnapshot.takeIf { failure == null }
     }
 
     suspend fun readUsableHomeSnapshot(
@@ -551,7 +564,7 @@ class HomeSnapshotRepository @Inject constructor(
             !force &&
             existingSnapshot != null &&
             existingSnapshot.generation >= gen &&
-            isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
+            validatedSnapshotIfUsable(existingSnapshot, now, zoneId, option) != null &&
             !pkExpired
         ) {
             diagnosticsLogger.info(

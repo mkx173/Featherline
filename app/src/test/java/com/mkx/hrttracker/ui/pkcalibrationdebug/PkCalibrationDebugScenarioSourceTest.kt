@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveUnavailableReason
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationEngineEvaluation
@@ -11,6 +14,9 @@ import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -165,6 +171,11 @@ class PkCalibrationDebugScenarioSourceTest {
             val snapshot = source.loadFixture(scenario).availableSnapshot()
             val expected = expectedStates.getValue(preset)
 
+            assertEquals(
+                PkCalibrationDebugSnapshotKind.SYNTHETIC_ENGINE_EVALUATION,
+                snapshot.kind,
+            )
+
             PkCalibrationRoute.entries.forEach { route ->
                 assertEquals(
                     expected[route]
@@ -175,6 +186,75 @@ class PkCalibrationDebugScenarioSourceTest {
             if (preset == PkCalibrationDebugPreset.INJECTION_REVIEW_FIT) {
                 assertEquals(PkCalibrationRoute.INJECTION, scenario.outlierRoute)
             }
+            assertHealthyRenderForResult(preset.name, snapshot)
+        }
+    }
+
+    @Test
+    fun reviewPreset_recomputesAcceptedAndExcludedStatesThroughTheEngine() {
+        val base = PkCalibrationDebugScenario.preset(
+            PkCalibrationDebugPreset.INJECTION_REVIEW_FIT
+        )
+        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
+        val snapshots = PkCalibrationDebugFixtureDisposition.entries.associateWith { disposition ->
+            source.loadFixture(base.withFixtureDisposition(disposition)).availableSnapshot()
+        }
+
+        snapshots.forEach { (disposition, snapshot) ->
+            assertEquals(
+                PkCalibrationDebugSnapshotKind.SYNTHETIC_ENGINE_EVALUATION,
+                snapshot.kind,
+            )
+            assertEquals(
+                when (disposition) {
+                    PkCalibrationDebugFixtureDisposition.AUTO ->
+                        E2CalibrationDisposition.AUTO
+                    PkCalibrationDebugFixtureDisposition.ACCEPTED ->
+                        E2CalibrationDisposition.ACCEPTED
+                    PkCalibrationDebugFixtureDisposition.EXCLUDED ->
+                        E2CalibrationDisposition.EXCLUDED
+                },
+                snapshot.reviewDispositionByResultId[resultId],
+            )
+            val injection = snapshot.result.routeResults.single { result ->
+                result.route == PkCalibrationRoute.INJECTION
+            }
+            assertEquals(
+                when (disposition) {
+                    PkCalibrationDebugFixtureDisposition.AUTO ->
+                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
+                    PkCalibrationDebugFixtureDisposition.ACCEPTED,
+                    PkCalibrationDebugFixtureDisposition.EXCLUDED,
+                    -> PkRouteCalibrationDisplayState.LAB_CALIBRATED
+                },
+                injection.displayState,
+            )
+            snapshot.result.routeResults
+                .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
+                .forEach { result ->
+                    assertEquals(
+                        PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                        result.displayState,
+                    )
+                }
+            assertHealthyRenderForResult(disposition.name, snapshot)
+        }
+        assertTrue(
+            resultId in snapshots.getValue(PkCalibrationDebugFixtureDisposition.AUTO)
+                .result.routeResults
+                .single { result -> result.route == PkCalibrationRoute.INJECTION }
+                .unreviewedOutlierLabIds
+        )
+        listOf(
+            PkCalibrationDebugFixtureDisposition.ACCEPTED,
+            PkCalibrationDebugFixtureDisposition.EXCLUDED,
+        ).forEach { disposition ->
+            assertFalse(
+                resultId in snapshots.getValue(disposition)
+                    .result.routeResults
+                    .single { result -> result.route == PkCalibrationRoute.INJECTION }
+                    .unreviewedOutlierLabIds
+            )
         }
     }
 
@@ -254,6 +334,44 @@ class PkCalibrationDebugScenarioSourceTest {
         val gel = guardDropped.result.routeResults.single { it.route == PkCalibrationRoute.GEL }
         assertEquals(1, gel.dominantCandidateLabCount)
         assertEquals(0, gel.dominantLabCount)
+        assertEquals(
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+            gel.displayState,
+        )
+        assertEquals(setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS), gel.reasons)
+    }
+
+    @Test
+    fun guardDropAndOutlier_onTheSameRoute_areMutuallyExclusiveInEitherSequence() {
+        val outlierId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.GEL)
+        val outlierFirst = requireNotNull(PkCalibrationDebugScenario.create())
+            .withOutlierRoute(PkCalibrationRoute.GEL)
+        val guardWins = outlierFirst.withGuardDroppedRoute(PkCalibrationRoute.GEL)
+        val guardSnapshot = source.loadFixture(guardWins).availableSnapshot()
+        val guardRoute = guardSnapshot.result.routeResults.single { result ->
+            result.route == PkCalibrationRoute.GEL
+        }
+
+        assertNull(guardWins.outlierRoute)
+        assertEquals(PkCalibrationRoute.GEL, guardWins.guardDroppedRoute)
+        assertTrue(guardRoute.unreviewedOutlierLabIds.isEmpty())
+        assertFalse(outlierId in guardSnapshot.reviewDispositionByResultId)
+        assertEquals(1, guardRoute.dominantCandidateLabCount)
+        assertEquals(0, guardRoute.dominantLabCount)
+
+        val outlierWins = guardWins.withOutlierRoute(PkCalibrationRoute.GEL)
+        val outlierSnapshot = source.loadFixture(outlierWins).availableSnapshot()
+        val outlierRoute = outlierSnapshot.result.routeResults.single { result ->
+            result.route == PkCalibrationRoute.GEL
+        }
+
+        assertEquals(PkCalibrationRoute.GEL, outlierWins.outlierRoute)
+        assertNull(outlierWins.guardDroppedRoute)
+        assertEquals(setOf(outlierId), outlierRoute.unreviewedOutlierLabIds)
+        assertEquals(
+            E2CalibrationDisposition.AUTO,
+            outlierSnapshot.reviewDispositionByResultId[outlierId],
+        )
     }
 
     @Test
@@ -316,8 +434,58 @@ class PkCalibrationDebugScenarioSourceTest {
         assertNull(live.scenario)
     }
 
+    @Test
+    fun repositoryLiveAdapter_preservesExplicitUnavailableReason_andDelegatesRetry() = runTest {
+        val repository = mockk<PkCalibrationLiveRepository>()
+        val state = MutableStateFlow<PkCalibrationLiveState>(
+            PkCalibrationLiveState.Unavailable(
+                PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE
+            )
+        )
+        every { repository.liveState } returns state
+        every { repository.retry() } returns Unit
+        val liveSource = DefaultPkCalibrationDebugScenarioSource(
+            RepositoryPkCalibrationDebugLiveSnapshotProvider(repository),
+            enabled,
+        )
+
+        val current = liveSource.loadLive() as PkCalibrationDebugSourceResult.Unavailable
+        val observed = liveSource.observeLive().first() as
+            PkCalibrationDebugSourceResult.Unavailable
+        liveSource.retryLive()
+
+        assertEquals(
+            PkCalibrationDebugSourceUnavailableReason.LIVE_RUNTIME_POLICY_UNAVAILABLE,
+            current.reason,
+        )
+        assertEquals(current, observed)
+        verify(exactly = 1) { repository.retry() }
+    }
+
     private fun PkCalibrationDebugSourceResult.availableSnapshot(): PkCalibrationDebugSnapshot {
         return (this as PkCalibrationDebugSourceResult.Available).snapshot
+    }
+
+    private fun assertHealthyRenderForResult(
+        label: String,
+        snapshot: PkCalibrationDebugSnapshot,
+    ) {
+        val render = requireNotNull(snapshot.render)
+        assertTrue(label, render.centralCurve.isNotEmpty())
+        assertTrue(render.renderReasons.isEmpty())
+        assertTrue(render.routeRenderFallbacks.isEmpty())
+        assertTrue(render.bandReasons.isEmpty())
+        assertEquals(snapshot.result.promotedRoutes, render.effectivePromotedRoutes)
+        assertEquals(snapshot.result.displayParams, render.effectiveDisplayParams)
+        if (snapshot.result.promotedRoutes.isEmpty()) {
+            assertEquals(PkCalibrationRenderState.POPULATION, render.renderState)
+            assertEquals(PkCalibrationBandState.NOT_APPLICABLE_POPULATION, render.bandState)
+            assertTrue(render.bandKnots.isEmpty())
+        } else {
+            assertEquals(PkCalibrationRenderState.PERSONALIZED, render.renderState)
+            assertEquals(PkCalibrationBandState.READY, render.bandState)
+            assertTrue(render.bandKnots.isNotEmpty())
+        }
     }
 
     private fun PkRouteCalibrationDisplayState.isPopulationForTest(): Boolean {

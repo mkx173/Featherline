@@ -860,7 +860,7 @@ private fun reviewConstantsPayload(
         linkedMapOf(
             "eventTypeId" to identityPolicy.eventTypeIdByRoute.getValue(eventRoute),
             "routeId" to identityPolicy.routeIdByRoute.getValue(eventRoute),
-            "calibrationRouteId" to eventRoute.calibrationContributionRoute()?.stableId,
+            "calibrationRouteId" to eventRoute.calibrationRoute()?.stableId,
         )
     }
     val compoundIdentities = CalibrationE2CompoundOrder.map { compound ->
@@ -982,14 +982,3 @@ private val CanonicalRouteIdByEventRoute = linkedMapOf(
     PkRoute.ORAL to PkCalibrationRoute.ORAL.stableId,
     PkRoute.SUBLINGUAL to PkCalibrationRoute.SUBLINGUAL.stableId,
 )
-
-private fun PkRoute.calibrationContributionRoute(): PkCalibrationRoute? {
-    return when (this) {
-        PkRoute.INJECTION -> PkCalibrationRoute.INJECTION
-        PkRoute.PATCH_APPLY -> PkCalibrationRoute.PATCH
-        PkRoute.PATCH_REMOVE -> null
-        PkRoute.GEL -> PkCalibrationRoute.GEL
-        PkRoute.ORAL -> PkCalibrationRoute.ORAL
-        PkRoute.SUBLINGUAL -> PkCalibrationRoute.SUBLINGUAL
-    }
-}

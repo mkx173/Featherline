@@ -18,6 +18,7 @@ import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
+import kotlin.math.exp
 
 class PkCalibrationScopeEvidenceTest {
     @Test
@@ -1204,6 +1205,71 @@ class PkCalibrationScopeEvidenceTest {
             excludedReady.canonicalInput.reviewDigestFor(uuid(2)),
             changedExcluded.canonicalInput.reviewDigestFor(uuid(2)),
         )
+    }
+
+    @Test
+    fun engineCompute_staleAcceptedDigestMakesTheOutlierActionableAgain() {
+        val event = medicationEvent(uuid(201), PkRoute.ORAL, timeH = 0.0)
+        val forward = requireNotNull(
+            PkE2ForwardModel.create(listOf(event.event), BodyWeightKg)
+        )
+        val outlierId = uuid(205)
+        val observations = listOf(
+            Triple(uuid(202), 4.0, 0.0),
+            Triple(uuid(203), 8.0, 0.0),
+            Triple(uuid(204), 12.0, 0.0),
+            Triple(outlierId, 16.0, 1.6),
+        )
+        val labs = observations.map { (resultId, timeH, qLogRatio) ->
+            val population = requireNotNull(forward.breakdownAt(timeH)).totalDrugPgml
+            val observed = population * exp(qLogRatio)
+            check(population > 0.0 && observed.isFinite())
+            lab(
+                resultId = resultId,
+                collectedAtEpochMillis = OriginMillis + (timeH * HourMillis).toLong(),
+                sourceValue = observed,
+                canonicalValuePgml = observed,
+            )
+        }
+        val fixture = fixture(labs = labs, events = listOf(event))
+        val currentDigest = requireNotNull(
+            ready(fixture.build()).canonicalInput.reviewDigestFor(outlierId)
+        )
+
+        fun compute(
+            metadata: List<E2CalibrationMetadata>,
+            calibrationModelVersion: String,
+        ): PkRouteCalibrationResult {
+            val result = PkCalibrationEngine.compute(
+                input = fixture.input(calibrationModelVersion = calibrationModelVersion),
+                metadata = metadata,
+                identityPolicy = fixture.policy,
+                config = fixture.config,
+                scopeDecisionProvider = fixture.provider,
+            )
+            assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+            return result.routeResults.single { route ->
+                route.route == PkCalibrationRoute.ORAL
+            }
+        }
+
+        val autoResult = compute(emptyList(), CalibrationModelVersion)
+        assertTrue(outlierId in autoResult.unreviewedOutlierLabIds)
+
+        val accepted = requireNotNull(
+            E2CalibrationMetadata.create(
+                resultId = outlierId,
+                disposition = E2CalibrationDisposition.ACCEPTED,
+                acceptedReviewDigest = currentDigest,
+                updatedAt = Instant.EPOCH,
+            )
+        )
+        val acceptedResult = compute(listOf(accepted), CalibrationModelVersion)
+        val staleResult = compute(listOf(accepted), "pk-calibration:test/v10")
+
+        assertFalse(outlierId in acceptedResult.unreviewedOutlierLabIds)
+        assertTrue(outlierId in staleResult.unreviewedOutlierLabIds)
+        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in staleResult.reasons)
     }
 
     @Test

@@ -356,6 +356,48 @@ class PkCalibrationRendererTest {
     }
 
     @Test
+    fun bandKnots_omitPopulationOnlyTimesButKeepThemInTheCentralCurve() {
+        val evaluation = evaluation(
+            events = listOf(
+                event(PkRoute.INJECTION, 0.0, 2.0, PkCompound.EV),
+                event(PkRoute.ORAL, 12.0, 2.0),
+            ),
+            promotedQByRoute = mapOf(PkCalibrationRoute.ORAL to ln(1.1)),
+        )
+        val actual = render(
+            evaluation,
+            domain(startHours = 1, hours = 24, intervalHours = 6),
+        )
+        val canonical = requireReady(evaluation)
+        val forward = forward(canonical)
+        val centralTimes = actual.centralCurve.map(PkCurvePoint::epochMillis)
+        val populationOnlyTimes = centralTimes.filter { epochMillis ->
+            val breakdown = requireNotNull(
+                forward.breakdownAt(
+                    hoursBetween(epochMillis, canonical.forwardTimeOriginEpochMillis)
+                )
+            )
+            breakdown.totalDrugPgml > 0.0 &&
+                    breakdown.byRouteDrugPgml.getValue(PkCalibrationRoute.ORAL) == 0.0
+        }
+        val promotedContributionTimes = centralTimes.filter { epochMillis ->
+            requireNotNull(
+                forward.breakdownAt(
+                    hoursBetween(epochMillis, canonical.forwardTimeOriginEpochMillis)
+                )
+            ).byRouteDrugPgml.getValue(PkCalibrationRoute.ORAL) > 0.0
+        }
+        val bandTimes = actual.bandKnots.map(PkPredictiveBandKnot::epochMillis)
+
+        assertEquals(PkCalibrationBandState.READY, actual.bandState)
+        assertTrue(populationOnlyTimes.isNotEmpty())
+        assertTrue(promotedContributionTimes.isNotEmpty())
+        assertTrue(populationOnlyTimes.all(centralTimes::contains))
+        assertTrue(populationOnlyTimes.none(bandTimes::contains))
+        assertEquals(promotedContributionTimes, bandTimes)
+    }
+
+    @Test
     fun domainDigest_isDeterministicUnderInputReorder_andInvalidatesWithDomainOrModelVersion() {
         val events = allRouteEvents()
         val promoted = mapOf(PkCalibrationRoute.ORAL to ln(1.1))

@@ -1,0 +1,1344 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 10,
+    "identityHash": "4ed92a741afd1ce54f69f7b6d1448131",
+    "entities": [
+      {
+        "tableName": "medicines",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `selectionKind` TEXT NOT NULL, `medicationKey` TEXT, `customMedicationName` TEXT, `customMedicationNameNormalized` TEXT, `category` TEXT NOT NULL, `preparationType` TEXT NOT NULL, `strengthMgPerTablet` REAL, `strengthMgPerVial` REAL, `concentrationMgPerMl` REAL, `vialVolumeMl` REAL, `concentrationPercent` REAL, `sachetWeightGrams` REAL, `containerWeightGrams` REAL, `patchTotalMg` REAL, `patchReleaseRateMcgPerDay` REAL, `displayName` TEXT, `identityKey` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `archivedAtEpochMillis` INTEGER, `displayDoseUnit` TEXT NOT NULL DEFAULT 'MG', `trackingEnabled` INTEGER NOT NULL DEFAULT 0, `stockUnitsRemaining` REAL, `stockUnitsLastTotal` REAL, `openContainerAmount` REAL, `warnAtDaysRemaining` INTEGER NOT NULL DEFAULT 14, `stockGeneration` INTEGER NOT NULL DEFAULT 0, `importedFromExternalTracker` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectionKind",
+            "columnName": "selectionKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "medicationKey",
+            "columnName": "medicationKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customMedicationName",
+            "columnName": "customMedicationName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customMedicationNameNormalized",
+            "columnName": "customMedicationNameNormalized",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preparationType",
+            "columnName": "preparationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "strengthMgPerTablet",
+            "columnName": "strengthMgPerTablet",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "strengthMgPerVial",
+            "columnName": "strengthMgPerVial",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "concentrationMgPerMl",
+            "columnName": "concentrationMgPerMl",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "vialVolumeMl",
+            "columnName": "vialVolumeMl",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "concentrationPercent",
+            "columnName": "concentrationPercent",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sachetWeightGrams",
+            "columnName": "sachetWeightGrams",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "containerWeightGrams",
+            "columnName": "containerWeightGrams",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "patchTotalMg",
+            "columnName": "patchTotalMg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "patchReleaseRateMcgPerDay",
+            "columnName": "patchReleaseRateMcgPerDay",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "identityKey",
+            "columnName": "identityKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "displayDoseUnit",
+            "columnName": "displayDoseUnit",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'MG'"
+          },
+          {
+            "fieldPath": "trackingEnabled",
+            "columnName": "trackingEnabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "stockUnitsRemaining",
+            "columnName": "stockUnitsRemaining",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "stockUnitsLastTotal",
+            "columnName": "stockUnitsLastTotal",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "openContainerAmount",
+            "columnName": "openContainerAmount",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "warnAtDaysRemaining",
+            "columnName": "warnAtDaysRemaining",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "14"
+          },
+          {
+            "fieldPath": "stockGeneration",
+            "columnName": "stockGeneration",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "importedFromExternalTracker",
+            "columnName": "importedFromExternalTracker",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_medicines_identityKey",
+            "unique": true,
+            "columnNames": [
+              "identityKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_medicines_identityKey` ON `${TABLE_NAME}` (`identityKey`)"
+          },
+          {
+            "name": "index_medicines_archivedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "archivedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medicines_archivedAtEpochMillis` ON `${TABLE_NAME}` (`archivedAtEpochMillis`)"
+          },
+          {
+            "name": "index_medicines_category",
+            "unique": false,
+            "columnNames": [
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medicines_category` ON `${TABLE_NAME}` (`category`)"
+          }
+        ]
+      },
+      {
+        "tableName": "medication_log_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `category` TEXT NOT NULL, `medicineUuid` TEXT, `applicationType` TEXT NOT NULL, `doseInstructionKind` TEXT NOT NULL, `tabletFractionNumerator` INTEGER, `tabletFractionDenominator` INTEGER, `doseVolumeMl` REAL, `doseWeightGrams` REAL, `equivalentE2Mg` REAL, `sourceGroupUuid` TEXT, `scheduleTimeUuid` TEXT, `appliedAtEpochMillis` INTEGER NOT NULL, `appliedAtTimeZoneId` TEXT NOT NULL, `scheduledForIso` TEXT, `count` INTEGER NOT NULL, `gelApplicationArea` TEXT NOT NULL, `doseAmountDelta` REAL, `importSourceApp` TEXT, `importExternalId` TEXT, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "medicineUuid",
+            "columnName": "medicineUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "applicationType",
+            "columnName": "applicationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "doseInstructionKind",
+            "columnName": "doseInstructionKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tabletFractionNumerator",
+            "columnName": "tabletFractionNumerator",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tabletFractionDenominator",
+            "columnName": "tabletFractionDenominator",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "doseVolumeMl",
+            "columnName": "doseVolumeMl",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "doseWeightGrams",
+            "columnName": "doseWeightGrams",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "equivalentE2Mg",
+            "columnName": "equivalentE2Mg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceGroupUuid",
+            "columnName": "sourceGroupUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "scheduleTimeUuid",
+            "columnName": "scheduleTimeUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "appliedAtEpochMillis",
+            "columnName": "appliedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedAtTimeZoneId",
+            "columnName": "appliedAtTimeZoneId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduledForIso",
+            "columnName": "scheduledForIso",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "count",
+            "columnName": "count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gelApplicationArea",
+            "columnName": "gelApplicationArea",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "doseAmountDelta",
+            "columnName": "doseAmountDelta",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "importSourceApp",
+            "columnName": "importSourceApp",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importExternalId",
+            "columnName": "importExternalId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_medication_log_entries_category_appliedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "category",
+              "appliedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medication_log_entries_category_appliedAtEpochMillis` ON `${TABLE_NAME}` (`category`, `appliedAtEpochMillis`)"
+          },
+          {
+            "name": "index_medication_log_entries_importSourceApp_importExternalId",
+            "unique": true,
+            "columnNames": [
+              "importSourceApp",
+              "importExternalId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_medication_log_entries_importSourceApp_importExternalId` ON `${TABLE_NAME}` (`importSourceApp`, `importExternalId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "medication_groups",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `name` TEXT NOT NULL, `colorKey` TEXT NOT NULL, `notificationsEnabled` INTEGER NOT NULL, `scheduleType` TEXT NOT NULL, `scheduleInterval` INTEGER NOT NULL, `scheduleSinceEpochDay` INTEGER NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `archivedAtEpochMillis` INTEGER, `archivedAtLocalIso` TEXT, `includePastScheduledSlots` INTEGER NOT NULL, `replacedByGroupUuid` TEXT, `recreatedFromGroupUuid` TEXT, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorKey",
+            "columnName": "colorKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationsEnabled",
+            "columnName": "notificationsEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduleType",
+            "columnName": "scheduleType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduleInterval",
+            "columnName": "scheduleInterval",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scheduleSinceEpochDay",
+            "columnName": "scheduleSinceEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "archivedAtLocalIso",
+            "columnName": "archivedAtLocalIso",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "includePastScheduledSlots",
+            "columnName": "includePastScheduledSlots",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "replacedByGroupUuid",
+            "columnName": "replacedByGroupUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "recreatedFromGroupUuid",
+            "columnName": "recreatedFromGroupUuid",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "medication_group_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `groupUuid` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `count` INTEGER NOT NULL, `medicineUuid` TEXT, `applicationType` TEXT NOT NULL, `doseInstructionKind` TEXT NOT NULL, `tabletFractionNumerator` INTEGER, `tabletFractionDenominator` INTEGER, `doseVolumeMl` REAL, `doseWeightGrams` REAL, `gelApplicationArea` TEXT NOT NULL, PRIMARY KEY(`uuid`), FOREIGN KEY(`groupUuid`) REFERENCES `medication_groups`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`medicineUuid`) REFERENCES `medicines`(`uuid`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "count",
+            "columnName": "count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "medicineUuid",
+            "columnName": "medicineUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "applicationType",
+            "columnName": "applicationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "doseInstructionKind",
+            "columnName": "doseInstructionKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tabletFractionNumerator",
+            "columnName": "tabletFractionNumerator",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tabletFractionDenominator",
+            "columnName": "tabletFractionDenominator",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "doseVolumeMl",
+            "columnName": "doseVolumeMl",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "doseWeightGrams",
+            "columnName": "doseWeightGrams",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "gelApplicationArea",
+            "columnName": "gelApplicationArea",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_medication_group_items_groupUuid",
+            "unique": false,
+            "columnNames": [
+              "groupUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medication_group_items_groupUuid` ON `${TABLE_NAME}` (`groupUuid`)"
+          },
+          {
+            "name": "index_medication_group_items_medicineUuid",
+            "unique": false,
+            "columnNames": [
+              "medicineUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medication_group_items_medicineUuid` ON `${TABLE_NAME}` (`medicineUuid`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "medication_groups",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "groupUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          },
+          {
+            "table": "medicines",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "medicineUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "medication_group_schedule_times",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `hourOfDay` INTEGER NOT NULL, `minuteOfHour` INTEGER NOT NULL, `effectiveFromLocalIso` TEXT NOT NULL, `uuid` TEXT NOT NULL, PRIMARY KEY(`uuid`), FOREIGN KEY(`groupUuid`) REFERENCES `medication_groups`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hourOfDay",
+            "columnName": "hourOfDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minuteOfHour",
+            "columnName": "minuteOfHour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveFromLocalIso",
+            "columnName": "effectiveFromLocalIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_medication_group_schedule_times_groupUuid",
+            "unique": false,
+            "columnNames": [
+              "groupUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medication_group_schedule_times_groupUuid` ON `${TABLE_NAME}` (`groupUuid`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "medication_groups",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "groupUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "medication_group_weekly_days",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `dayOfWeek` INTEGER NOT NULL, PRIMARY KEY(`groupUuid`, `dayOfWeek`), FOREIGN KEY(`groupUuid`) REFERENCES `medication_groups`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayOfWeek",
+            "columnName": "dayOfWeek",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "dayOfWeek"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_medication_group_weekly_days_groupUuid",
+            "unique": false,
+            "columnNames": [
+              "groupUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medication_group_weekly_days_groupUuid` ON `${TABLE_NAME}` (`groupUuid`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "medication_groups",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "groupUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "user_profile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `weightKg` REAL, `weightOriginalValue` REAL, `weightOriginalUnit` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weightKg",
+            "columnName": "weightKg",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "weightOriginalValue",
+            "columnName": "weightOriginalValue",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "weightOriginalUnit",
+            "columnName": "weightOriginalUnit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "blood_test_panels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `collectedAtInstantEpochMillis` INTEGER NOT NULL, `collectedAtTimeZoneId` TEXT NOT NULL, `notes` TEXT, `timeSinceLastEstradiolDoseMillis` INTEGER, `timeSinceLastTestosteroneDoseMillis` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `importSourceApp` TEXT, `importPanelKey` INTEGER, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedAtInstantEpochMillis",
+            "columnName": "collectedAtInstantEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedAtTimeZoneId",
+            "columnName": "collectedAtTimeZoneId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "timeSinceLastEstradiolDoseMillis",
+            "columnName": "timeSinceLastEstradiolDoseMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timeSinceLastTestosteroneDoseMillis",
+            "columnName": "timeSinceLastTestosteroneDoseMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importSourceApp",
+            "columnName": "importSourceApp",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importPanelKey",
+            "columnName": "importPanelKey",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_blood_test_panels_collectedAtInstantEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "collectedAtInstantEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blood_test_panels_collectedAtInstantEpochMillis` ON `${TABLE_NAME}` (`collectedAtInstantEpochMillis`)"
+          },
+          {
+            "name": "index_blood_test_panels_importSourceApp_importPanelKey",
+            "unique": true,
+            "columnNames": [
+              "importSourceApp",
+              "importPanelKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_blood_test_panels_importSourceApp_importPanelKey` ON `${TABLE_NAME}` (`importSourceApp`, `importPanelKey`)"
+          }
+        ]
+      },
+      {
+        "tableName": "blood_test_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `panelUuid` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `displayOrder` INTEGER NOT NULL, `builtinAnalyteKey` TEXT, `customAnalyteUuid` TEXT, `value` REAL NOT NULL, `unitSnapshot` TEXT NOT NULL, `canonicalValue` REAL NOT NULL, `importSourceApp` TEXT, `importExternalId` TEXT, PRIMARY KEY(`uuid`), FOREIGN KEY(`panelUuid`) REFERENCES `blood_test_panels`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`customAnalyteUuid`) REFERENCES `custom_blood_analytes`(`uuid`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "panelUuid",
+            "columnName": "panelUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayOrder",
+            "columnName": "displayOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "builtinAnalyteKey",
+            "columnName": "builtinAnalyteKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customAnalyteUuid",
+            "columnName": "customAnalyteUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitSnapshot",
+            "columnName": "unitSnapshot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalValue",
+            "columnName": "canonicalValue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importSourceApp",
+            "columnName": "importSourceApp",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "importExternalId",
+            "columnName": "importExternalId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_blood_test_results_panelUuid",
+            "unique": false,
+            "columnNames": [
+              "panelUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blood_test_results_panelUuid` ON `${TABLE_NAME}` (`panelUuid`)"
+          },
+          {
+            "name": "index_blood_test_results_builtinAnalyteKey",
+            "unique": false,
+            "columnNames": [
+              "builtinAnalyteKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blood_test_results_builtinAnalyteKey` ON `${TABLE_NAME}` (`builtinAnalyteKey`)"
+          },
+          {
+            "name": "index_blood_test_results_customAnalyteUuid",
+            "unique": false,
+            "columnNames": [
+              "customAnalyteUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_blood_test_results_customAnalyteUuid` ON `${TABLE_NAME}` (`customAnalyteUuid`)"
+          },
+          {
+            "name": "index_blood_test_results_panelUuid_displayOrder",
+            "unique": true,
+            "columnNames": [
+              "panelUuid",
+              "displayOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_blood_test_results_panelUuid_displayOrder` ON `${TABLE_NAME}` (`panelUuid`, `displayOrder`)"
+          },
+          {
+            "name": "index_blood_test_results_panelUuid_builtinAnalyteKey",
+            "unique": true,
+            "columnNames": [
+              "panelUuid",
+              "builtinAnalyteKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_blood_test_results_panelUuid_builtinAnalyteKey` ON `${TABLE_NAME}` (`panelUuid`, `builtinAnalyteKey`)"
+          },
+          {
+            "name": "index_blood_test_results_panelUuid_customAnalyteUuid",
+            "unique": true,
+            "columnNames": [
+              "panelUuid",
+              "customAnalyteUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_blood_test_results_panelUuid_customAnalyteUuid` ON `${TABLE_NAME}` (`panelUuid`, `customAnalyteUuid`)"
+          },
+          {
+            "name": "index_blood_test_results_importSourceApp_importExternalId",
+            "unique": true,
+            "columnNames": [
+              "importSourceApp",
+              "importExternalId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_blood_test_results_importSourceApp_importExternalId` ON `${TABLE_NAME}` (`importSourceApp`, `importExternalId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "blood_test_panels",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "panelUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          },
+          {
+            "table": "custom_blood_analytes",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "customAnalyteUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "custom_blood_analytes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `abbreviation` TEXT NOT NULL, `name` TEXT NOT NULL, `normalizedName` TEXT NOT NULL, `unitLabel` TEXT NOT NULL, `normalizedUnitLabel` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `archivedAtEpochMillis` INTEGER, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "abbreviation",
+            "columnName": "abbreviation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedName",
+            "columnName": "normalizedName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitLabel",
+            "columnName": "unitLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedUnitLabel",
+            "columnName": "normalizedUnitLabel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_custom_blood_analytes_normalizedName_normalizedUnitLabel",
+            "unique": true,
+            "columnNames": [
+              "normalizedName",
+              "normalizedUnitLabel"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_custom_blood_analytes_normalizedName_normalizedUnitLabel` ON `${TABLE_NAME}` (`normalizedName`, `normalizedUnitLabel`)"
+          }
+        ]
+      },
+      {
+        "tableName": "e2_calibration_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultUuid` TEXT NOT NULL, `disposition` TEXT NOT NULL, `acceptedReviewDigestSchema` TEXT, `acceptedReviewDigestAlgorithm` TEXT, `acceptedReviewDigestHexLower` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`resultUuid`), FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "resultUuid",
+            "columnName": "resultUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "disposition",
+            "columnName": "disposition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedReviewDigestSchema",
+            "columnName": "acceptedReviewDigestSchema",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "acceptedReviewDigestAlgorithm",
+            "columnName": "acceptedReviewDigestAlgorithm",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "acceptedReviewDigestHexLower",
+            "columnName": "acceptedReviewDigestHexLower",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "resultUuid"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "blood_test_results",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "resultUuid"
+            ],
+            "referencedColumns": [
+              "uuid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "pk_calibration_display_artifact",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `homeSnapshotGeneration` INTEGER NOT NULL, `schema` TEXT NOT NULL, `calibrationModelVersion` TEXT NOT NULL, `resultInputDigestSchema` TEXT NOT NULL, `resultInputDigestAlgorithm` TEXT NOT NULL, `resultInputDigestHexLower` TEXT NOT NULL, `promotedRouteStableIds` TEXT NOT NULL, `injectionLogScale` REAL, `patchLogScale` REAL, `gelLogScale` REAL, `oralLogScale` REAL, `sublingualLogScale` REAL, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "homeSnapshotGeneration",
+            "columnName": "homeSnapshotGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schema",
+            "columnName": "schema",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calibrationModelVersion",
+            "columnName": "calibrationModelVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultInputDigestSchema",
+            "columnName": "resultInputDigestSchema",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultInputDigestAlgorithm",
+            "columnName": "resultInputDigestAlgorithm",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultInputDigestHexLower",
+            "columnName": "resultInputDigestHexLower",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "promotedRouteStableIds",
+            "columnName": "promotedRouteStableIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "injectionLogScale",
+            "columnName": "injectionLogScale",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "patchLogScale",
+            "columnName": "patchLogScale",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "gelLogScale",
+            "columnName": "gelLogScale",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "oralLogScale",
+            "columnName": "oralLogScale",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sublingualLogScale",
+            "columnName": "sublingualLogScale",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
+      },
+      {
+        "tableName": "tracked_dates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `name` TEXT NOT NULL, `iconKey` TEXT NOT NULL, `dateIso` TEXT NOT NULL, `paletteKey` TEXT, `heroBackgroundKey` TEXT, `pinnedOrder` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iconKey",
+            "columnName": "iconKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateIso",
+            "columnName": "dateIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paletteKey",
+            "columnName": "paletteKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "heroBackgroundKey",
+            "columnName": "heroBackgroundKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pinnedOrder",
+            "columnName": "pinnedOrder",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tracked_dates_pinnedOrder",
+            "unique": false,
+            "columnNames": [
+              "pinnedOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracked_dates_pinnedOrder` ON `${TABLE_NAME}` (`pinnedOrder`)"
+          },
+          {
+            "name": "index_tracked_dates_dateIso",
+            "unique": false,
+            "columnNames": [
+              "dateIso"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tracked_dates_dateIso` ON `${TABLE_NAME}` (`dateIso`)"
+          }
+        ]
+      },
+      {
+        "tableName": "notes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `dateIso` TEXT NOT NULL, `text` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateIso",
+            "columnName": "dateIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_notes_dateIso",
+            "unique": true,
+            "columnNames": [
+              "dateIso"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_notes_dateIso` ON `${TABLE_NAME}` (`dateIso`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4ed92a741afd1ce54f69f7b6d1448131')"
+    ]
+  }
+}

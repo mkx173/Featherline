@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.model.pk
 
+import org.hipparchus.analysis.UnivariateFunction
 import org.hipparchus.analysis.integration.gauss.GaussIntegratorFactory
+import org.hipparchus.analysis.solvers.BisectionSolver
 import org.hipparchus.distribution.continuous.TDistribution
 import java.util.TreeSet
 import kotlin.math.PI
@@ -403,26 +405,37 @@ internal object PkPredictiveBandMath {
             )
         }
 
-        while (evaluationBudget.remaining()) {
-            val midpoint = lower + (upper - lower) / 2.0
-            val midpointCdf = cdf(midpoint) ?: return null
-            val residual = abs(midpointCdf - probability)
-            if (midpointCdf >= probability) {
-                upper = midpoint
-                upperCdf = midpointCdf
-            } else {
-                lower = midpoint
-                lowerCdf = midpointCdf
-            }
-            val width = upper - lower
-            if (width <= PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL &&
-                residual <= PkCalibrationDefaults.BAND_ROOT_CDF_TOL
-            ) {
-                return midpoint
-            }
-            if (!lowerCdf.isFinite() || !upperCdf.isFinite()) return null
+        val lowerResidual = lowerCdf - probability
+        val upperResidual = upperCdf - probability
+        if (!lowerResidual.isFinite() || !upperResidual.isFinite() ||
+            lowerResidual > 0.0 || upperResidual < 0.0
+        ) {
+            return null
         }
-        return null
+
+        // Application code owns the adaptive monotone bracket, the shared evaluation cap,
+        // and the CDF-residual gate. The pinned Hipparchus boundary owns only bracketed
+        // coordinate refinement. Reserve one CDF evaluation for the required residual check.
+        val solverMaxEval = evaluationBudget.remainingCount() - 1
+        if (solverMaxEval <= 0) return null
+        val quantile = runCatching {
+            BisectionSolver(PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL).solve(
+                solverMaxEval,
+                UnivariateFunction { logValue ->
+                    val value = cdf(logValue)
+                    if (value == null) Double.NaN else value - probability
+                },
+                lower,
+                upper,
+            )
+        }.getOrNull()?.takeIf(Double::isFinite) ?: return null
+        if (quantile !in lower..upper) return null
+        val finalCdf = cdf(quantile) ?: return null
+        val finalResidual = abs(finalCdf - probability)
+        return quantile.takeIf {
+            finalResidual.isFinite() &&
+                    finalResidual <= PkCalibrationDefaults.BAND_ROOT_CDF_TOL
+        }
     }
 
     private fun hermiteRule(nodeCount: Int): PkHermiteRule {
@@ -467,7 +480,7 @@ private class EvaluationBudget {
         return true
     }
 
-    fun remaining(): Boolean = count < PkCalibrationDefaults.BAND_ROOT_MAX_EVAL
+    fun remainingCount(): Int = PkCalibrationDefaults.BAND_ROOT_MAX_EVAL - count
 }
 
 private fun exactRenderKnots(

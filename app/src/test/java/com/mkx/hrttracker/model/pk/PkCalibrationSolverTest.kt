@@ -105,9 +105,14 @@ class PkCalibrationSolverTest {
             left.divideByStrictlyPositive(requireNotNull(OutwardInterval.create(-1.0, 1.0)))
         )
         assertNull(
-            OutwardInterval.singleton(Double.MAX_VALUE).multiply(OutwardInterval.singleton(2.0))
+            requireNotNull(OutwardInterval.singleton(Double.MAX_VALUE)).multiply(
+                requireNotNull(OutwardInterval.singleton(2.0))
+            )
         )
         assertNull(OutwardInterval.create(2.0, 1.0))
+        assertNull(OutwardInterval.singleton(Double.NaN))
+        assertNull(OutwardInterval.singleton(Double.NEGATIVE_INFINITY))
+        assertNull(OutwardInterval.singleton(Double.POSITIVE_INFINITY))
     }
 
     @Test
@@ -121,10 +126,12 @@ class PkCalibrationSolverTest {
         assertTrue(requireNotNull(rejectedWidth.widthUpperBound()) > widthTolerance)
 
         val separation = PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
-        val previous = OutwardInterval.singleton(0.0)
-        val rejectedSeparation = OutwardInterval.singleton(Math.nextUp(separation))
-        val acceptedSeparation = OutwardInterval.singleton(
-            Math.nextUp(Math.nextUp(separation))
+        val previous = requireNotNull(OutwardInterval.singleton(0.0))
+        val rejectedSeparation = requireNotNull(
+            OutwardInterval.singleton(Math.nextUp(separation))
+        )
+        val acceptedSeparation = requireNotNull(
+            OutwardInterval.singleton(Math.nextUp(Math.nextUp(separation)))
         )
         assertTrue(
             requireNotNull(rejectedSeparation.separationLowerBoundAfter(previous)) <= separation
@@ -179,6 +186,55 @@ class PkCalibrationSolverTest {
     }
 
     @Test
+    fun stationaryCertificate_rejectsEitherEndpointOutsideTheTwentyBetaGuard() {
+        val guard = PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
+        val domains = listOf(
+            requireNotNull(OutwardInterval.create(-guard, Math.nextUp(guard))),
+            requireNotNull(OutwardInterval.create(Math.nextDown(-guard), guard)),
+        )
+
+        for (domain in domains) {
+            assertEquals(
+                PkStationaryCertificateResult.NumericFailure,
+                PkStationaryRootCertificate.certify(LinearStationaryFunction(domain)),
+            )
+        }
+    }
+
+    @Test
+    fun stationaryCertificate_failsClosedAtMinimumRootSeparationAndAcceptsNearbyGap() {
+        val minimum = PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
+        val enclosureTolerance =
+            PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
+
+        assertEquals(
+            PkStationaryCertificateResult.NumericFailure,
+            PkStationaryRootCertificate.certify(SymmetricTripleRootFunction(minimum)),
+        )
+
+        val nearby = minimum + 8.0 * enclosureTolerance
+        val covered = PkStationaryRootCertificate.certify(
+            SymmetricTripleRootFunction(nearby)
+        ) as PkStationaryCertificateResult.Covered
+        assertEquals(3, covered.roots.size)
+        assertEquals(
+            listOf(
+                PkStationaryRootKind.MINIMUM,
+                PkStationaryRootKind.MAXIMUM,
+                PkStationaryRootKind.MINIMUM,
+            ),
+            covered.roots.map(PkCertifiedStationaryRoot::kind),
+        )
+        assertTrue(
+            covered.roots.zipWithNext().all { (previous, current) ->
+                requireNotNull(
+                    current.enclosure.separationLowerBoundAfter(previous.enclosure)
+                ) > minimum
+            }
+        )
+    }
+
+    @Test
     fun flatNonfiniteAndBudgetExhaustion_failClosed() {
         assertTrue(
             PkStationaryRootCertificate.certify(
@@ -205,6 +261,23 @@ class PkCalibrationSolverTest {
         val covered = PkStationaryCertificateResult.Covered(listOf(first, maximum, second))
 
         assertEquals(PkMinimumSelection.Ambiguous, PkRouteMapSolver.selectMinimum(covered))
+    }
+
+    @Test
+    fun routeMapFit_reportsPosteriorModeAmbiguousForCertifiedSymmetricModes() {
+        // At q^2 = 3 * nu * R_LOG, three observations in each symmetric cluster make
+        // beta=0 a local maximum while the Gaussian prior keeps two finite side minima.
+        val q = sqrt(
+            3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog
+        )
+        val objective = objective(
+            *(List(3) { -q } + List(3) { q }).toDoubleArray()
+        )
+
+        assertEquals(
+            PkRouteMapFitResult.PosteriorModeAmbiguous,
+            PkRouteMapSolver.fit(objective),
+        )
     }
 
     @Test
@@ -984,7 +1057,7 @@ class PkCalibrationSolverTest {
     ): PkCertifiedStationaryRoot {
         return PkCertifiedStationaryRoot(
             kind = kind,
-            enclosure = OutwardInterval.singleton(beta),
+            enclosure = requireNotNull(OutwardInterval.singleton(beta)),
             refinedBeta = beta,
         )
     }
@@ -1000,8 +1073,51 @@ class PkCalibrationSolverTest {
             return if (requireNotNull(beta.widthUpperBound()) > 0.25) {
                 requireNotNull(OutwardInterval.create(-1.0, 1.0))
             } else {
-                OutwardInterval.singleton(1.0)
+                requireNotNull(OutwardInterval.singleton(1.0))
             }
+        }
+    }
+
+    private class LinearStationaryFunction(
+        override val stationaryDomain: OutwardInterval,
+    ) : PkCertifiedStationaryFunction {
+        override fun score(beta: Double): Double = beta
+        override fun hessian(beta: Double): Double = 1.0
+        override fun scoreInterval(beta: OutwardInterval): OutwardInterval = beta
+        override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
+            requireNotNull(OutwardInterval.singleton(1.0))
+    }
+
+    /** score(beta) = beta * (beta^2 - separation^2), with roots -s, 0, +s. */
+    private class SymmetricTripleRootFunction(
+        private val separation: Double,
+    ) : PkCertifiedStationaryFunction {
+        private val separationSquared = separation * separation
+
+        override val stationaryDomain = requireNotNull(
+            OutwardInterval.create(-1.5 * separation, 1.5 * separation)
+        )
+
+        override fun score(beta: Double): Double =
+            beta * (beta * beta - separationSquared)
+
+        override fun hessian(beta: Double): Double =
+            3.0 * beta * beta - separationSquared
+
+        override fun scoreInterval(beta: OutwardInterval): OutwardInterval? {
+            val centeredSquare = beta.square()?.subtract(
+                OutwardInterval.singleton(separationSquared) ?: return null
+            ) ?: return null
+            return beta.multiply(centeredSquare)
+        }
+
+        override fun hessianInterval(beta: OutwardInterval): OutwardInterval? {
+            val scaledSquare = beta.square()?.multiply(
+                OutwardInterval.singleton(3.0) ?: return null
+            ) ?: return null
+            return scaledSquare.subtract(
+                OutwardInterval.singleton(separationSquared) ?: return null
+            )
         }
     }
 
@@ -1010,10 +1126,10 @@ class PkCalibrationSolverTest {
         override fun score(beta: Double): Double = 0.0
         override fun hessian(beta: Double): Double = 0.0
         override fun scoreInterval(beta: OutwardInterval): OutwardInterval =
-            OutwardInterval.singleton(0.0)
+            requireNotNull(OutwardInterval.singleton(0.0))
 
         override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
-            OutwardInterval.singleton(0.0)
+            requireNotNull(OutwardInterval.singleton(0.0))
     }
 
     private object NonFiniteStationaryFunction : PkCertifiedStationaryFunction {
@@ -1029,10 +1145,10 @@ class PkCalibrationSolverTest {
         override fun score(beta: Double): Double = 1.0
         override fun hessian(beta: Double): Double = 0.0
         override fun scoreInterval(beta: OutwardInterval): OutwardInterval =
-            OutwardInterval.singleton(1.0)
+            requireNotNull(OutwardInterval.singleton(1.0))
 
         override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
-            OutwardInterval.singleton(0.0)
+            requireNotNull(OutwardInterval.singleton(0.0))
     }
 
     private companion object {

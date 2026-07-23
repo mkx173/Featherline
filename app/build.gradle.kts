@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.google.ksp)
+    alias(libs.plugins.androidx.room)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.compose)
 }
@@ -173,6 +174,18 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
     }
+
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+        // Numerical parity fixtures are intentionally absent from `main`: they are
+        // compiled only into host tests and the minified benchmark app entrypoint.
+        getByName("test").kotlin.srcDir("$projectDir/src/pkCalibrationParity/java")
+        getByName("benchmark").kotlin.srcDir("$projectDir/src/pkCalibrationParity/java")
+    }
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 
@@ -259,6 +272,7 @@ dependencies {
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
