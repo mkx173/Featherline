@@ -218,7 +218,7 @@ class PkCalibrationReviewActionServiceTest {
     }
 
     @Test
-    fun underlyingMissingOrNonE2Rows_areRejectedByTransactionalRepositoryWithoutWrites() =
+    fun underlyingMissingOrNonE2Rows_areRejectedBeforeHomeMutationWithoutWrites() =
         runTest {
             val missingFixture = outlierFixture(idOffset = 100)
             val missingService = missingFixture.service(repository) { missingFixture.input }
@@ -227,6 +227,12 @@ class PkCalibrationReviewActionServiceTest {
                 PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2,
             )
             assertTrue(repository.getAllMetadata().isEmpty())
+            coVerify(exactly = 0) {
+                homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
+                    any(),
+                    any(),
+                )
+            }
 
             val nonE2Fixture = outlierFixture(idOffset = 200)
             insertPersistedLabs(nonE2Fixture, analyteOverride = "testosterone")
@@ -236,7 +242,37 @@ class PkCalibrationReviewActionServiceTest {
                 PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2,
             )
             assertTrue(repository.getAllMetadata().isEmpty())
+            coVerify(exactly = 0) {
+                homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
+                    any(),
+                    any(),
+                )
+            }
         }
+
+    @Test
+    fun storageProgrammerFailure_isNotMappedToLabAuthorizationFailure() = runTest {
+        val fixture = outlierFixture(idOffset = 250)
+        val expected = IllegalArgumentException("programmer precondition")
+        val throwingRepository: PkCalibrationStorageRepository = mockk()
+        coEvery { throwingRepository.getAllMetadata() } returns emptyList()
+        coEvery {
+            throwingRepository.saveMetadataIfCurrent(any(), any())
+        } throws expected
+        val service = fixture.service(throwingRepository) { fixture.input }
+
+        val thrown = try {
+            service.exclude(fixture.outlierResultId)
+            null
+        } catch (exception: IllegalArgumentException) {
+            exception
+        }
+
+        assertTrue(thrown === expected)
+        coVerify(exactly = 1) {
+            throwingRepository.saveMetadataIfCurrent(any(), 0L)
+        }
+    }
 
     @Test
     fun excludeAndReinclude_rejectEveryStaleScopeInputWithoutWriting() = runTest {

@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkCurvePoint
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -88,6 +89,55 @@ class PkCalibrationDebugScreenGeometryTest {
                 readyState.copy(routeRows = readyState.routeRows.dropLast(1))
             ).isEmpty()
         )
+    }
+
+    @Test
+    fun rawReadout_includesPublicFitAndRenderFieldsButWithholdsFittedBeta() {
+        val snapshot = (DefaultPkCalibrationDebugScenarioSource(
+            debugGate = PkCalibrationDebugGate { true }
+        ).loadFixture(
+            PkCalibrationDebugScenario.preset(
+                PkCalibrationDebugPreset.MIXED_INJECTION_ORAL
+            )
+        ) as PkCalibrationDebugSourceResult.Available).snapshot
+        val render = requireNotNull(snapshot.render)
+        val state = PkCalibrationDebugUiState(
+            debugEnabled = true,
+            rawResult = snapshot.result,
+            rawRender = render,
+            globalState = snapshot.result.globalState,
+            globalReasons = snapshot.result.globalReasons,
+            routeRows = snapshot.result.routeResults,
+            promotedRoutes = snapshot.result.promotedRoutes,
+            displayParams = snapshot.result.displayParams,
+            renderState = render.renderState,
+            renderReasons = render.renderReasons,
+            effectivePromotedRoutes = render.effectivePromotedRoutes,
+            effectiveDisplayParams = render.effectiveDisplayParams,
+            routeRenderFallbacks = render.routeRenderFallbacks,
+            centralCurve = render.centralCurve,
+            bandState = render.bandState,
+            bandReasons = render.bandReasons,
+            bandKnots = render.bandKnots,
+        )
+
+        val routeRows = state.routeRows.map { result -> result.rawDebugRowText() }
+        val fitLines = pkCalibrationDebugFitReadoutLines(state)
+        val renderLines = pkCalibrationDebugRenderReadoutLines(state)
+
+        assertTrue(routeRows.all { row -> "reasons=" in row })
+        assertTrue(fitLines.any { line -> line.startsWith("promotedRoutes=") })
+        assertTrue(fitLines.any { line -> line.startsWith("displayParams=") })
+        assertTrue(fitLines.any { line -> line.startsWith("scopeDecisionDigest=") })
+        assertTrue(fitLines.any { line -> line.startsWith("forwardModelVersion=") })
+        assertTrue(fitLines.any { line -> line.startsWith("calibrationModelVersion=") })
+        assertTrue(renderLines.any { line -> line.startsWith("domainDigest=") })
+        assertTrue(renderLines.any { line -> line.startsWith("renderReasons=") })
+        assertTrue(renderLines.any { line -> line.startsWith("effectivePromotedRoutes=") })
+        assertTrue(renderLines.any { line -> line.startsWith("bandReasons=") })
+        assertFalse((routeRows + fitLines + renderLines).any { line ->
+            "fittedBeta" in line
+        })
     }
 
     private fun curvePoint(epochMillis: Long, concentration: Double): PkCurvePoint =

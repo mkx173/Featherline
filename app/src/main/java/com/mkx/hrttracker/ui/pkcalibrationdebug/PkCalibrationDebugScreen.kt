@@ -118,6 +118,9 @@ internal fun PkCalibrationDebugBody(
         Text("snapshotKind=${uiState.snapshotKind}")
         Text("globalState=${uiState.globalState}")
         Text("globalReasons=${uiState.globalReasons}")
+        pkCalibrationDebugFitReadoutLines(uiState).forEach { line ->
+            Text(line)
+        }
         Text("liveReviewActionInFlight=${uiState.liveReviewActionInFlight}")
 
         Text("Force global state")
@@ -150,10 +153,9 @@ internal fun PkCalibrationDebugBody(
             }
         }
 
-        Text("renderState=${uiState.renderState}")
-        Text("bandState=${uiState.bandState}")
-        Text("effectiveDisplayParams=${uiState.effectiveDisplayParams}")
-        Text("routeRenderFallbacks=${uiState.routeRenderFallbacks}")
+        pkCalibrationDebugRenderReadoutLines(uiState).forEach { line ->
+            Text(line)
+        }
         PkCalibrationDebugCurveCanvas(
             centralCurve = uiState.centralCurve,
             bandKnots = uiState.bandKnots,
@@ -339,13 +341,37 @@ internal fun pkCalibrationDebugVisibleRouteRows(
     return uiState.routeRows
 }
 
-private fun PkRouteCalibrationResult.rawDebugRowText(): String {
+internal fun PkRouteCalibrationResult.rawDebugRowText(): String {
     return "$route · $displayState · displayBeta=$displayBeta · " +
+            "reasons=$reasons · " +
             "dominantLabCount=$dominantLabCount · " +
             "dominantCandidateLabCount=$dominantCandidateLabCount · " +
             "atDisplayCapBoundary=$atDisplayCapBoundary · " +
             "hasUnreviewedOutlier=${unreviewedOutlierLabIds.isNotEmpty()}"
 }
+
+internal fun pkCalibrationDebugFitReadoutLines(
+    uiState: PkCalibrationDebugUiState,
+): List<String> = listOf(
+    "promotedRoutes=${uiState.promotedRoutes}",
+    "displayParams=${uiState.displayParams}",
+    "scopeDecisionDigest=${uiState.rawResult?.scopeDecisionDigest}",
+    "forwardModelVersion=${uiState.rawResult?.forwardModelVersion}",
+    "calibrationModelVersion=${uiState.rawResult?.calibrationModelVersion}",
+)
+
+internal fun pkCalibrationDebugRenderReadoutLines(
+    uiState: PkCalibrationDebugUiState,
+): List<String> = listOf(
+    "domainDigest=${uiState.rawRender?.domainDigest}",
+    "renderState=${uiState.renderState}",
+    "renderReasons=${uiState.renderReasons}",
+    "effectivePromotedRoutes=${uiState.effectivePromotedRoutes}",
+    "effectiveDisplayParams=${uiState.effectiveDisplayParams}",
+    "routeRenderFallbacks=${uiState.routeRenderFallbacks}",
+    "bandState=${uiState.bandState}",
+    "bandReasons=${uiState.bandReasons}",
+)
 
 private fun PkCalibrationDebugReviewAction.buttonLabel(): String = when (this) {
     PkCalibrationDebugReviewAction.KEEP -> "Keep"

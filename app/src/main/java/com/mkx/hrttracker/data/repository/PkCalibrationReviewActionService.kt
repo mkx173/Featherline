@@ -174,7 +174,7 @@ class PkCalibrationReviewActionService @Inject constructor(
             } else {
                 rejected(PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED)
             }
-        } catch (_: IllegalArgumentException) {
+        } catch (_: PkCalibrationMetadataTargetNotAuthorizedException) {
             rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
         }
     }

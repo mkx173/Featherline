@@ -14,8 +14,15 @@ import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+internal class PkCalibrationMetadataTargetNotAuthorizedException(
+    resultId: UUID,
+) : IllegalArgumentException(
+    "Calibration metadata can only be stored for a built-in E2 result: $resultId"
+)
 
 @Singleton
 class PkCalibrationStorageRepository @Inject constructor(
@@ -36,21 +43,19 @@ class PkCalibrationStorageRepository @Inject constructor(
         }
     }
 
-    suspend fun saveMetadata(metadata: E2CalibrationMetadata) {
-        homeSnapshotRepository.runHomeDataMutation {
-            upsertValidatedMetadata(metadata)
-        }
-    }
-
     /**
      * Writes review metadata only while [expectedGeneration] is still Home's current durable
-     * input generation. A mismatch exits before incrementing generation or touching Room.
+     * input generation. Normal invalid targets fail preflight, and a stale generation exits,
+     * before entering Home's mutation. The transactional target check is repeated only as a
+     * safety net for an out-of-contract concurrent/direct database change after preflight; that
+     * late failure occurs after the existing Home mutation has incremented its generation.
      */
     suspend fun saveMetadataIfCurrent(
         metadata: E2CalibrationMetadata,
         expectedGeneration: Long,
     ): Boolean {
         require(expectedGeneration >= 0L)
+        requireBuiltInE2Target(metadata)
         return when (
             homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent(
                 expectedCurrentGeneration = expectedGeneration,
@@ -66,12 +71,31 @@ class PkCalibrationStorageRepository @Inject constructor(
     private suspend fun upsertValidatedMetadata(metadata: E2CalibrationMetadata) {
         databaseHolder.withTransaction { database ->
             val dao = database.pkCalibrationDao()
-            require(dao.getBuiltinAnalyteKey(metadata.resultId.toString()) ==
-                BloodAnalyteKey.E2.storageValue
-            ) {
-                "Calibration metadata can only be stored for a built-in E2 result."
-            }
+            // Repeat the preflight check in the write transaction so a target that changes
+            // while waiting for Home's mutation lock cannot receive calibration metadata.
+            requireBuiltInE2Target(
+                resultId = metadata.resultId,
+                builtinAnalyteKey = dao.getBuiltinAnalyteKey(metadata.resultId.toString()),
+            )
             dao.upsertMetadata(metadata.toEntity())
+        }
+    }
+
+    private suspend fun requireBuiltInE2Target(metadata: E2CalibrationMetadata) {
+        requireBuiltInE2Target(
+            resultId = metadata.resultId,
+            builtinAnalyteKey = databaseHolder.get()
+                .pkCalibrationDao()
+                .getBuiltinAnalyteKey(metadata.resultId.toString()),
+        )
+    }
+
+    private fun requireBuiltInE2Target(
+        resultId: UUID,
+        builtinAnalyteKey: String?,
+    ) {
+        if (builtinAnalyteKey != BloodAnalyteKey.E2.storageValue) {
+            throw PkCalibrationMetadataTargetNotAuthorizedException(resultId)
         }
     }
 

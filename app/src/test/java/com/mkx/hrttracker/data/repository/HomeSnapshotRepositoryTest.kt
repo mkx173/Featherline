@@ -565,7 +565,7 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun conditionalPublication_matchingGenerationRebuildsImmediateMatchingSnapshot() = runTest {
+    fun conditionalPublication_rebuildsPersonalizedHomeAndPopulationOnlyWidget() = runTest {
         val appDispatcher = StandardTestDispatcher()
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
@@ -613,6 +613,8 @@ class HomeSnapshotRepositoryTest {
                 zoneId = ZoneId.systemDefault(),
                 option = HomeE2ChartWindowOption.SEVEN_DAYS,
             )
+            // Freeze the Phase-1 widget contract: publishing calibration updates Home
+            // immediately, but the separately stored widget projection stays population-only.
             assertEquals(populationProjection.timeH, widgetProjection.timeH)
             assertEquals(populationProjection.concentrations, widgetProjection.concentrations)
 

@@ -59,7 +59,13 @@ class PkCalibrationEngineEvaluation private constructor(
 
     val isReady: Boolean get() = readyEvidence != null
 
-    /** Pure convenience boundary for the later stateful engine API. */
+    /**
+     * Pure convenience boundary for the later stateful engine API.
+     *
+     * Frozen Phase-1 contract: a non-READY evaluation returns null, leaving the chart consumer
+     * on its existing population projection. For a READY evaluation, numeric render failure is
+     * represented by a non-null NUMERIC_UNAVAILABLE result instead.
+     */
     fun renderFor(domain: PkChartDomain): PkCalibrationRenderResult? {
         return PkCalibrationRenderer.render(this, domain)
     }

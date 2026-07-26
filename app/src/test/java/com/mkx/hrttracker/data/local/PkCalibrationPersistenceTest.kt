@@ -327,8 +327,8 @@ class PkCalibrationPersistenceTest {
         )
         val repository = storageRepository()
 
-        repository.saveMetadata(accepted)
-        repository.saveMetadata(excluded)
+        assertTrue(repository.saveMetadataIfCurrent(accepted, expectedGeneration = 6L))
+        assertTrue(repository.saveMetadataIfCurrent(excluded, expectedGeneration = 7L))
 
         assertEquals(
             mapOf(acceptedId to accepted, excludedId to excluded),
@@ -351,6 +351,43 @@ class PkCalibrationPersistenceTest {
         assertMetadataSaveRejected(repository, excludedModel(nonE2Id))
 
         assertEquals(emptyList<E2CalibrationMetadata>(), repository.getAllMetadata())
+    }
+
+    @Test
+    fun metadataRepository_rechecksE2TargetInsideWriteTransaction() = runTest {
+        val resultId = UUID.fromString("00000000-0000-0000-0000-000000000c13")
+        val panel = panel("panel-metadata-target-race")
+        val e2Result = result(resultId.toString(), panel.uuid, 0, "e2")
+        database.bloodTestDao().insertPanel(panel)
+        database.bloodTestDao().insertResults(listOf(e2Result))
+        val databaseHolder: DatabaseHolder = mockk()
+        every { databaseHolder.get() } returns database
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            database.withTransaction {
+                firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+            }
+        }
+        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
+        coEvery {
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(6L, any())
+        } coAnswers {
+            database.bloodTestDao().updateResults(
+                listOf(e2Result.copy(builtinAnalyteKey = "testosterone"))
+            )
+            secondArg<suspend (Long) -> Unit>().invoke(7L)
+            HomeDataConditionalMutationResult.Published(7L, Unit)
+        }
+        val repository = PkCalibrationStorageRepository(
+            databaseHolder,
+            homeSnapshotRepository,
+        )
+
+        assertMetadataSaveRejected(repository, excludedModel(resultId))
+
+        assertEquals(emptyList<E2CalibrationMetadata>(), repository.getAllMetadata())
+        coVerify(exactly = 1) {
+            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(6L, any())
+        }
     }
 
     @Test
@@ -500,15 +537,27 @@ class PkCalibrationPersistenceTest {
         generation: Long = 7L,
     ): HomeSnapshotRepository {
         val repository: HomeSnapshotRepository = mockk()
+        var currentGeneration = generation - 1L
         coEvery { repository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
-        coEvery { repository.captureCurrentHomeDataGeneration() } returns generation - 1L
+        coEvery { repository.captureCurrentHomeDataGeneration() } coAnswers {
+            currentGeneration
+        }
         coEvery {
-            repository.runHomeDataMutationIfGenerationCurrent<Unit>(generation - 1L, any())
+            repository.runHomeDataMutationIfGenerationCurrent<Unit>(any(), any())
         } coAnswers {
-            secondArg<suspend (Long) -> Unit>().invoke(generation)
-            HomeDataConditionalMutationResult.Published(generation, Unit)
+            val expectedGeneration = firstArg<Long>()
+            if (expectedGeneration != currentGeneration) {
+                HomeDataConditionalMutationResult.Stale(
+                    expectedGeneration = expectedGeneration,
+                    currentGeneration = currentGeneration,
+                )
+            } else {
+                currentGeneration += 1L
+                secondArg<suspend (Long) -> Unit>().invoke(currentGeneration)
+                HomeDataConditionalMutationResult.Published(currentGeneration, Unit)
+            }
         }
         return repository
     }
@@ -536,7 +585,7 @@ class PkCalibrationPersistenceTest {
         metadata: E2CalibrationMetadata,
     ) {
         try {
-            repository.saveMetadata(metadata)
+            repository.saveMetadataIfCurrent(metadata, expectedGeneration = 6L)
             fail("Expected metadata save to reject a missing or non-E2 result.")
         } catch (_: IllegalArgumentException) {
             // Expected.

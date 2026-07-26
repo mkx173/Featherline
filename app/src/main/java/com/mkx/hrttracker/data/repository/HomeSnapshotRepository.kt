@@ -725,6 +725,9 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }
             val widgetAsync = async(defaultDispatcher) {
+                // Phase 1 intentionally freezes the widget at population PK: unlike Home,
+                // it does not receive calibrated personalParams. Personalized widget output
+                // requires an explicit Phase-2 contract decision and closed release gates.
                 PkMedicationSimulation.simulateMainEstradiolProjection(
                     entries = simulationEntries.real,
                     plannedEntries = emptyList(),

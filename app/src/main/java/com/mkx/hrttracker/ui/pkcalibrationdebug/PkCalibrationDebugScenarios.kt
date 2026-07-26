@@ -761,25 +761,45 @@ internal object PkCalibrationDebugFixtures {
             fittedBeta = fittedBeta,
             displayBeta = displayBeta,
             betaPosteriorSd = if (fittedBeta != null) {
-                if (state == PkRouteCalibrationDisplayState.LAB_CALIBRATED) 0.1 else 0.3
+                if (state ==
+                    PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+                ) {
+                    0.3
+                } else {
+                    0.1
+                }
             } else {
                 null
             },
             betaUncertaintyReduction = fittedBeta?.let { 0.5 },
             laplaceVarianceBeta = fittedBeta?.let {
-                if (state == PkRouteCalibrationDisplayState.LAB_CALIBRATED) 0.01 else 0.09
+                if (state ==
+                    PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+                ) {
+                    0.09
+                } else {
+                    0.01
+                }
             },
             displayState = state,
             reasons = reasons,
             dominantCandidateLabCount = candidateCount,
             dominantLabCount = dominantLabCount,
             drugSignalLogRange = when (state) {
-                PkRouteCalibrationDisplayState.LAB_CALIBRATED -> 1.0
-                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL -> 0.3
+                PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                -> 1.0
                 else -> null
             },
             robustRmseLog = fittedBeta?.let {
-                if (state == PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE) 0.4 else 0.1
+                if (state ==
+                    PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE &&
+                    !unreviewedOutlier
+                ) {
+                    0.4
+                } else {
+                    0.1
+                }
             },
             minStudentTWeight = fittedBeta?.let { if (unreviewedOutlier) 0.1 else 0.8 },
             atDisplayCapBoundary = atDisplayCapBoundary,

@@ -118,6 +118,12 @@ class PkCalibrationContractsTest {
         val result = requireNotNull(
             routeResult(
                 route = PkCalibrationRoute.ORAL,
+                displayState = PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                reasons = setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
+                fittedBeta = 0.0,
+                betaPosteriorSd = 0.1,
+                laplaceVarianceBeta = 0.01,
+                robustRmseLog = 0.1,
                 candidateCount = 3,
                 includedCount = 2,
                 outlierIds = setOf(outlierId),
@@ -136,6 +142,292 @@ class PkCalibrationContractsTest {
                 route = PkCalibrationRoute.ORAL,
                 candidateCount = 1,
                 includedCount = 2,
+            )
+        )
+    }
+
+    @Test
+    fun routeResult_factoryAcceptsCanonicalPopulationCasesAndAppliesPrecedence() {
+        fun populationResult(
+            state: PkRouteCalibrationDisplayState,
+            reasons: Set<PkCalibrationReason>,
+            route: PkCalibrationRoute = PkCalibrationRoute.INJECTION,
+            fittedBeta: Double? = null,
+            betaPosteriorSd: Double? = fittedBeta?.let { 0.1 },
+            laplaceVarianceBeta: Double? = fittedBeta?.let { 0.01 },
+            drugSignalLogRange: Double? = fittedBeta?.let {
+                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
+            },
+            robustRmseLog: Double? = fittedBeta?.let { 0.1 },
+            candidateCount: Int = 3,
+            includedCount: Int = 3,
+            atDisplayCapBoundary: Boolean = false,
+            outlierIds: Set<UUID> = emptySet(),
+        ): PkRouteCalibrationResult? {
+            return PkRouteCalibrationResult.create(
+                route = route,
+                fittedBeta = fittedBeta,
+                betaPosteriorSd = betaPosteriorSd,
+                laplaceVarianceBeta = laplaceVarianceBeta,
+                displayState = state,
+                reasons = reasons,
+                dominantCandidateLabCount = candidateCount,
+                dominantLabCount = includedCount,
+                drugSignalLogRange = drugSignalLogRange,
+                robustRmseLog = robustRmseLog,
+                atDisplayCapBoundary = atDisplayCapBoundary,
+                unreviewedOutlierLabIds = outlierIds,
+            )
+        }
+
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+                candidateCount = 0,
+                includedCount = 0,
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+                setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS),
+                candidateCount = 1,
+                includedCount = 1,
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+                setOf(PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS),
+                route = PkCalibrationRoute.GEL,
+                fittedBeta = ln(2.5),
+                candidateCount = 2,
+                includedCount = 2,
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
+                candidateCount = 2,
+                includedCount = 2,
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
+                fittedBeta = ln(2.1),
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+                setOf(PkCalibrationReason.NUMERIC_FAILURE),
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                fittedBeta = 0.0,
+                robustRmseLog = Math.nextUp(
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                ),
+            )
+        )
+        val outlierId = UUID.randomUUID()
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
+                fittedBeta = 0.0,
+                outlierIds = setOf(outlierId),
+            )
+        )
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(
+                    PkCalibrationReason.RESIDUAL_FIT_POOR,
+                    PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY,
+                ),
+                fittedBeta = ln(2.0),
+                robustRmseLog = Math.nextUp(
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                ),
+                atDisplayCapBoundary = true,
+            )
+        )
+
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                setOf(
+                    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
+                    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS,
+                    PkCalibrationReason.RESIDUAL_FIT_POOR,
+                    PkCalibrationReason.UNREVIEWED_OUTLIER,
+                    PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
+                    PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
+                ),
+                fittedBeta = ln(3.1),
+                betaPosteriorSd =
+                    PkCalibrationDefaults
+                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
+                drugSignalLogRange =
+                    PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
+                robustRmseLog =
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                candidateCount = 2,
+                includedCount = 2,
+                outlierIds = setOf(outlierId),
+            )
+        )
+    }
+
+    @Test
+    fun routeResult_factoryRejectsPopulationFieldReasonContradictions() {
+        fun populationResult(
+            state: PkRouteCalibrationDisplayState,
+            reasons: Set<PkCalibrationReason>,
+            fittedBeta: Double? = null,
+            betaPosteriorSd: Double? = fittedBeta?.let { 0.1 },
+            laplaceVarianceBeta: Double? = fittedBeta?.let { 0.01 },
+            drugSignalLogRange: Double? = fittedBeta?.let {
+                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
+            },
+            robustRmseLog: Double? = fittedBeta?.let { 0.1 },
+            candidateCount: Int = 3,
+            includedCount: Int = 3,
+            atDisplayCapBoundary: Boolean = false,
+            outlierIds: Set<UUID> = emptySet(),
+        ): PkRouteCalibrationResult? {
+            return PkRouteCalibrationResult.create(
+                route = PkCalibrationRoute.INJECTION,
+                fittedBeta = fittedBeta,
+                betaPosteriorSd = betaPosteriorSd,
+                laplaceVarianceBeta = laplaceVarianceBeta,
+                displayState = state,
+                reasons = reasons,
+                dominantCandidateLabCount = candidateCount,
+                dominantLabCount = includedCount,
+                drugSignalLogRange = drugSignalLogRange,
+                robustRmseLog = robustRmseLog,
+                atDisplayCapBoundary = atDisplayCapBoundary,
+                unreviewedOutlierLabIds = outlierIds,
+            )
+        }
+
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+                setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS),
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+                candidateCount = 1,
+                includedCount = 0,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                fittedBeta = 1_000.0,
+                robustRmseLog =
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                fittedBeta = -1_000.0,
+                robustRmseLog =
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+            )
+        )
+
+        val outlierId = UUID.randomUUID()
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                emptySet(),
+                fittedBeta = 0.0,
+                outlierIds = setOf(outlierId),
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                emptySet(),
+                fittedBeta = 0.0,
+                robustRmseLog =
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
+                fittedBeta = ln(2.1),
+                drugSignalLogRange =
+                    PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
+                fittedBeta = ln(2.1),
+                betaPosteriorSd =
+                    PkCalibrationDefaults
+                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
+                fittedBeta = 0.0,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                fittedBeta = 0.0,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                setOf(
+                    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
+                    PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY,
+                ),
+                fittedBeta = ln(2.1),
+                atDisplayCapBoundary = true,
+            )
+        )
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                fittedBeta = ln(2.0),
+                robustRmseLog =
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
             )
         )
     }
@@ -399,6 +691,63 @@ class PkCalibrationContractsTest {
                 betaPosteriorSd =
                     PkCalibrationDefaults
                         .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
+                reasons = setOf(
+                    PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
+                    PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
+                ),
+            )
+        )
+        assertNotNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                displayBeta = beta,
+                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
+                reasons = setOf(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST),
+            )
+        )
+        assertNotNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                displayBeta = beta,
+                drugSignalLogRange = null,
+                betaPosteriorSd =
+                    PkCalibrationDefaults
+                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
+                reasons = setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE),
+            )
+        )
+        assertNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                displayBeta = beta,
+            )
+        )
+        assertNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayBeta = beta,
+                reasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
+            )
+        )
+        assertNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayBeta = beta,
+                reasons = setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+            )
+        )
+        assertNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                displayBeta = beta,
+                betaPosteriorSd =
+                    PkCalibrationDefaults
+                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
+                reasons = emptySet(),
             )
         )
     }
@@ -561,16 +910,27 @@ class PkCalibrationContractsTest {
         displayState: PkRouteCalibrationDisplayState =
             PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
         displayBeta: Double = 0.0,
+        reasons: Set<PkCalibrationReason> =
+            setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+        fittedBeta: Double? = null,
+        betaPosteriorSd: Double? = null,
+        laplaceVarianceBeta: Double? = null,
+        robustRmseLog: Double? = null,
         candidateCount: Int = 0,
         includedCount: Int = 0,
         outlierIds: Set<UUID> = emptySet(),
     ): PkRouteCalibrationResult? {
         return PkRouteCalibrationResult.create(
             route = route,
+            fittedBeta = fittedBeta,
             displayState = displayState,
             displayBeta = displayBeta,
+            betaPosteriorSd = betaPosteriorSd,
+            laplaceVarianceBeta = laplaceVarianceBeta,
+            reasons = reasons,
             dominantCandidateLabCount = candidateCount,
             dominantLabCount = includedCount,
+            robustRmseLog = robustRmseLog,
             unreviewedOutlierLabIds = outlierIds,
         )
     }

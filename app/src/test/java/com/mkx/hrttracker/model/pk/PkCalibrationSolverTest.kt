@@ -288,14 +288,32 @@ class PkCalibrationSolverTest {
         assertNotNull(
             PkRouteCalibrationResult.create(
                 route = PkCalibrationRoute.INJECTION,
+                fittedBeta = 0.0,
+                betaPosteriorSd = 0.1,
+                laplaceVarianceBeta = 0.01,
                 displayState = PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                reasons = setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                dominantCandidateLabCount = 2,
+                dominantLabCount = 2,
+                robustRmseLog = Math.nextUp(
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                ),
                 minStudentTWeight = maximum,
             )
         )
         assertNull(
             PkRouteCalibrationResult.create(
                 route = PkCalibrationRoute.INJECTION,
+                fittedBeta = 0.0,
+                betaPosteriorSd = 0.1,
+                laplaceVarianceBeta = 0.01,
                 displayState = PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                reasons = setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
+                dominantCandidateLabCount = 2,
+                dominantLabCount = 2,
+                robustRmseLog = Math.nextUp(
+                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                ),
                 minStudentTWeight = Math.nextUp(maximum),
             )
         )

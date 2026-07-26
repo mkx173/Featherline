@@ -163,6 +163,57 @@ class PkE2ForwardModelTest {
     }
 
     @Test
+    fun estradiolEsters_contributeIndependentlyAndSumToTheCombinedTotal() {
+        val valerateEvent = event(
+            route = PkRoute.INJECTION,
+            timeH = 0.0,
+            doseMg = 4.0,
+            compound = PkCompound.EV,
+        )
+        val cypionateEvent = event(
+            route = PkRoute.INJECTION,
+            timeH = 12.0,
+            doseMg = 5.0,
+            compound = PkCompound.EC,
+        )
+        val timeH = 72.0
+        val valerateOnly = requireNotNull(
+            requireNotNull(
+                PkE2ForwardModel.create(listOf(valerateEvent), BodyWeightKg)
+            ).breakdownAt(timeH)
+        )
+        val cypionateOnly = requireNotNull(
+            requireNotNull(
+                PkE2ForwardModel.create(listOf(cypionateEvent), BodyWeightKg)
+            ).breakdownAt(timeH)
+        )
+        val combinedForward = requireNotNull(
+            PkE2ForwardModel.create(listOf(valerateEvent, cypionateEvent), BodyWeightKg)
+        )
+        val combined = requireNotNull(combinedForward.breakdownAt(timeH))
+        val combinedDirect = requireNotNull(combinedForward.directDrugPgmlAt(timeH))
+
+        val valerateContribution =
+            valerateOnly.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION)
+        val cypionateContribution =
+            cypionateOnly.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION)
+        val expectedCombined = valerateContribution + cypionateContribution
+
+        assertTrue(valerateContribution > 0.0)
+        assertTrue(cypionateContribution > 0.0)
+        assertEquals(
+            expectedCombined,
+            combined.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION),
+            parityTolerance(expectedCombined),
+        )
+        assertEquals(expectedCombined, combined.totalDrugPgml, parityTolerance(expectedCombined))
+        assertEquals(combinedDirect, combined.totalDrugPgml, parityTolerance(combinedDirect))
+        for (route in PkCalibrationRoute.entries - PkCalibrationRoute.INJECTION) {
+            assertEquals(0.0, combined.byRouteDrugPgml.getValue(route), 0.0)
+        }
+    }
+
+    @Test
     fun inactiveRouteScale_hasNoEffect() {
         val events = listOf(event(route = PkRoute.ORAL, doseMg = 2.0))
         val forward = requireNotNull(PkE2ForwardModel.create(events, BodyWeightKg))
