@@ -5,7 +5,6 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
-import android.os.Build
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -27,7 +26,6 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.appWidgetBackground
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -107,23 +105,16 @@ internal fun RoundedBackgroundBox(
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable () -> Unit = {},
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        Box(
-            modifier = modifier
-                .background(color)
-                .cornerRadius(shape.radius),
-            contentAlignment = contentAlignment,
-        ) {
-            content()
-        }
-    } else {
-        Box(
-            modifier = modifier,
-            contentAlignment = contentAlignment,
-        ) {
-            RoundedMaskImage(shape = shape, color = color)
-            content()
-        }
+    // A launcher can temporarily disable View outline clipping while it scales a
+    // RemoteViews tree for drag/edit mode. A baked rounded mask remains rounded in
+    // both the live and floating previews, so use the same rendering path on every
+    // supported Android version.
+    Box(
+        modifier = modifier,
+        contentAlignment = contentAlignment,
+    ) {
+        RoundedMaskImage(shape = shape, color = color)
+        content()
     }
 }
 
@@ -135,27 +126,15 @@ internal fun RoundedBackgroundRow(
     contentModifier: GlanceModifier = GlanceModifier,
     content: @Composable RowScope.() -> Unit,
 ) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    Box(modifier = modifier) {
+        RoundedMaskImage(shape = shape, color = color)
         Row(
-            modifier = modifier
-                .background(color)
-                .cornerRadius(shape.radius)
+            modifier = GlanceModifier
+                .fillMaxSize()
                 .then(contentModifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             content()
-        }
-    } else {
-        Box(modifier = modifier) {
-            RoundedMaskImage(shape = shape, color = color)
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .then(contentModifier),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                content()
-            }
         }
     }
 }
@@ -174,55 +153,30 @@ internal fun WidgetShell(
 ) {
     val colors = LocalWidgetColors.current
     CompositionLocalProvider(LocalWidgetScale provides scale) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Box(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .clickable(
+                    onClick = onClick ?: actionStartActivity<MainActivity>(),
+                    rippleOverride = WidgetRoundedShape.Shell.rippleRes,
+                ),
+            contentAlignment = contentAlignment,
+        ) {
+            RoundedMaskImage(
+                shape = WidgetRoundedShape.Shell,
+                color = colors.widgetBackground,
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .appWidgetBackground(),
+            )
+            backdrop?.invoke()
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .appWidgetBackground()
-                    .background(colors.widgetBackground)
-                    .cornerRadius(WidgetRoundedShape.Shell.radius)
-                    .clickable(
-                        onClick = onClick ?: actionStartActivity<MainActivity>(),
-                        rippleOverride = WidgetRoundedShape.Shell.rippleRes,
-                    ),
+                    .padding(WidgetShellPadding),
                 contentAlignment = contentAlignment,
             ) {
-                backdrop?.invoke()
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .padding(WidgetShellPadding),
-                    contentAlignment = contentAlignment,
-                ) {
-                    content()
-                }
-            }
-        } else {
-            Box(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .clickable(
-                        onClick = onClick ?: actionStartActivity<MainActivity>(),
-                        rippleOverride = WidgetRoundedShape.Shell.rippleRes,
-                    ),
-                contentAlignment = contentAlignment,
-            ) {
-                RoundedMaskImage(
-                    shape = WidgetRoundedShape.Shell,
-                    color = colors.widgetBackground,
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .appWidgetBackground(),
-                )
-                backdrop?.invoke()
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .padding(WidgetShellPadding),
-                    contentAlignment = contentAlignment,
-                ) {
-                    content()
-                }
+                content()
             }
         }
     }

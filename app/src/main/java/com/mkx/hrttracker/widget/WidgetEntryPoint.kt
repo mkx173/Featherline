@@ -8,6 +8,9 @@ import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
+import com.mkx.hrttracker.reminder.MedicationReminderActionHandler
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationSkipActionHandler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.EntryPoint
@@ -27,6 +30,10 @@ interface WidgetEntryPoint {
     fun settingsRepository(): SettingsRepository
     fun widgetAppearanceRepository(): WidgetAppearanceRepository
     fun reminderNotificationManager(): ReminderNotificationManager
+    fun medicationReminderActionHandler(): MedicationReminderActionHandler
+    fun medicationReminderScheduler(): MedicationReminderScheduler
+    fun medicationSkipActionHandler(): MedicationSkipActionHandler
+    fun widgetSnapshotRepository(): WidgetSnapshotRepository
     fun diagnosticsLogger(): AppDiagnosticsLogger
     fun appTimeSource(): AppTimeSource
 

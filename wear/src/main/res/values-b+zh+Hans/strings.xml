@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">Featherline</string>
+    <string name="tile_label">下次用药</string>
+    <string name="tile_description">显示 Featherline 的下次用药，并可快速记录或跳过。</string>
+    <string name="wear_title">今天</string>
+    <string name="wear_connect_phone">请在已配对的手机上打开 Featherline，以同步用药计划。</string>
+    <string name="wear_syncing">正在与手机同步…</string>
+    <string name="wear_all_done">暂无待处理的计划用药。</string>
+    <string name="wear_log">立即记录</string>
+    <string name="wear_skip">跳过此次</string>
+    <string name="wear_sent">已同步到手机</string>
+    <string name="wear_no_phone">手机不可用</string>
+    <string name="wear_done_count">已记录 %1$d/%2$d</string>
+    <string name="wear_status_done">已记录</string>
+    <string name="wear_status_due">现在可用</string>
+    <string name="wear_status_overdue">已过时间</string>
+    <string name="wear_status_upcoming">稍后</string>
+    <string name="wear_status_logged_outside">已在时间窗外记录</string>
+    <string name="wear_estimated_e2">估算雌二醇浓度</string>
+    <string name="wear_48_hours_ago">48 小时前</string>
+    <string name="wear_now">现在</string>
+    <string name="wear_next_dose">下一次用药</string>
+    <string name="wear_today_plan">今日服药计划</string>
+    <string name="wear_last_record">上一次服药记录</string>
+    <string name="wear_undo_record">撤销此次记录</string>
+    <string name="wear_next_five">下面五项计划</string>
+    <string name="wear_estimate_disclaimer">仅为模型估算，并非化验结果或医疗建议。</string>
+</resources>

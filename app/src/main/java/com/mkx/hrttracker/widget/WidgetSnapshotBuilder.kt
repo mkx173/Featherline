@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationEntryTitle
@@ -31,6 +32,7 @@ internal fun buildWidgetSnapshotRecord(
         Locale.US,
         uses24HourFormat = true
     ),
+    skippedSlots: Set<MedicationReminderSlot> = emptySet(),
 ): WidgetSnapshotRecord {
     val today = now.toLocalDate()
     val yesterday = today.minusDays(1)
@@ -139,6 +141,50 @@ internal fun buildWidgetSnapshotRecord(
     } else {
         emptyList()
     }
+    val wearDoseRows = buildWearDoseRows(
+        context = context,
+        activeGroups = activeGroups,
+        entries = scheduleEntries,
+        now = now,
+        zoneId = zoneId,
+        timeFormatter = timeFormatter,
+        skippedSlots = skippedSlots,
+    )
+    val recentWearDose = visibleEntries
+        .filter { entry -> !entry.appliedAt.isAfter(now.atZone(zoneId).toInstant()) }
+        .maxByOrNull(MedicationLogEntry::appliedAt)
+        ?.let { entry ->
+            entry.toManualWidgetDoseRow(
+                context = context,
+                zoneId = zoneId,
+                colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
+                contextChip = null,
+                isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                        entry.sourceGroupUuid in archivedGroupUuids,
+            ).let { row ->
+                row.copy(
+                    groupName = entry.sourceGroupUuid
+                        ?.let { uuid -> allGroups.firstOrNull { it.uuid == uuid }?.name }
+                        .orEmpty()
+                        .ifBlank { row.medicationName },
+                )
+            }
+        }
+    val recentWearDoseEntryUuids = recentWearDose?.let { row ->
+        val recentEntry = visibleEntries.firstOrNull { entry ->
+            entry.uuid.toString() == row.entryUuid
+        } ?: return@let emptyList()
+        val sourceGroupUuid = recentEntry.sourceGroupUuid ?: return@let emptyList()
+        val scheduledFor = recentEntry.scheduledFor ?: return@let emptyList()
+        visibleEntries
+            .filter { entry ->
+                entry.sourceGroupUuid == sourceGroupUuid &&
+                        entry.scheduleTimeUuid == recentEntry.scheduleTimeUuid &&
+                        entry.scheduledFor == scheduledFor
+            }
+            .map { entry -> entry.uuid.toString() }
+            .distinct()
+    }.orEmpty()
 
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
@@ -154,7 +200,70 @@ internal fun buildWidgetSnapshotRecord(
         appLanguageTag = settings.appLanguageOption.languageTag,
         doseRows = lastNightRows + (todayScheduledRows + manualRows).sortedBy { row -> row.scheduledAt } + comingUpRows,
         pkProjection = homeSnapshot.widgetPkProjection?.toWidgetRecord(),
+        wearDoseRows = wearDoseRows,
+        wearRecentDose = recentWearDose,
+        wearRecentDoseEntryUuids = recentWearDoseEntryUuids,
     )
+}
+
+private fun buildWearDoseRows(
+    context: Context,
+    activeGroups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId,
+    timeFormatter: DateTimeFormatter,
+    skippedSlots: Set<MedicationReminderSlot>,
+): List<WidgetDoseRow> {
+    if (activeGroups.isEmpty()) return emptyList()
+    val selectedSlots =
+        linkedMapOf<Triple<java.util.UUID, java.util.UUID?, LocalDateTime>, List<PlanDayScheduleEntry>>()
+    var date = now.toLocalDate().minusDays(1)
+    val finalDate = now.toLocalDate().plusDays(WEAR_PLAN_LOOKAHEAD_DAYS)
+    val overdueCutoff = now.minusHours(WEAR_OVERDUE_LOOKBACK_HOURS)
+    while (!date.isAfter(finalDate) && selectedSlots.size < WEAR_PLAN_SLOT_LIMIT) {
+        val schedule = buildPlanDaySchedule(
+            date = date,
+            groups = activeGroups,
+            entries = entries,
+            now = now,
+            zoneId = zoneId,
+        )
+        schedule.scheduledEntries
+            .groupBy { entry ->
+                Triple(entry.groupUuid, entry.scheduleTimeUuid, entry.scheduledFor)
+            }
+            .toSortedMap(compareBy { key -> key.third })
+            .forEach { (key, slotEntries) ->
+                if (selectedSlots.size >= WEAR_PLAN_SLOT_LIMIT) return@forEach
+                val representative = slotEntries.first()
+                val reminderSlot = MedicationReminderSlot(
+                    groupUuid = representative.groupUuid,
+                    scheduleTimeUuid = representative.scheduleTimeUuid,
+                    scheduledAt = representative.scheduledFor,
+                )
+                val addressed = slotEntries.all { entry ->
+                    entry.isFulfilled || entry.hasOutsideScheduleWindowEntry
+                }
+                if (!addressed &&
+                    reminderSlot !in skippedSlots &&
+                    !representative.scheduledFor.isBefore(overdueCutoff)
+                ) {
+                    selectedSlots[key] = slotEntries
+                }
+            }
+        date = date.plusDays(1)
+    }
+    return selectedSlots.values.flatMap { slotEntries ->
+        slotEntries.map { entry ->
+            entry.toWidgetDoseRow(
+                context = context,
+                timeFormatter = timeFormatter,
+                contextChip = null,
+                isFromArchivedGroup = false,
+            )
+        }
+    }
 }
 
 private fun MedicationLogEntry.toManualWidgetDoseRow(
@@ -256,3 +365,7 @@ private fun HomePkProjectionRecord.toWidgetRecord(): WidgetPkProjectionRecord =
             )
         },
     )
+
+private const val WEAR_PLAN_SLOT_LIMIT = 5
+private const val WEAR_PLAN_LOOKAHEAD_DAYS = 90L
+private const val WEAR_OVERDUE_LOOKBACK_HOURS = 12L

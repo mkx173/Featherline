@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
@@ -157,6 +158,86 @@ class WidgetSnapshotBuilderTest {
 
         assertEquals(0, snapshot.totalCount)
         assertNull(snapshot.doseRows.firstOrNull { row -> row.contextChip == WidgetDoseChip.COMING_UP })
+    }
+
+    @Test
+    fun wearRowsContainNextFiveSlotsAcrossDaysAndExcludeSkippedSlot() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val group = widgetTestGroup(
+            groupName = "Daily group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate(),
+            time = LocalTime.of(20, 0),
+        )
+        stubMedicationStrings()
+        val unskippedSnapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+        val firstWearRow = unskippedSnapshot.wearDoseRows.first()
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+            skippedSlots = setOf(
+                MedicationReminderSlot(
+                    groupUuid = group.uuid,
+                    scheduledAt = firstWearRow.scheduledAt,
+                    scheduleTimeUuid = firstWearRow.scheduleTimeUuid?.let(UUID::fromString),
+                )
+            ),
+        )
+
+        val slots = snapshot.wearDoseRows
+            .map { row -> row.scheduledAt }
+            .distinct()
+        assertEquals(5, slots.size)
+        assertEquals(now.toLocalDate().plusDays(1).atTime(20, 0), slots.first())
+        assertEquals(now.toLocalDate().plusDays(5).atTime(20, 0), slots.last())
+    }
+
+    @Test
+    fun wearSnapshotCarriesMostRecentActualDoseRecord() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val group = widgetTestGroup(
+            groupName = "Morning group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate(),
+            time = LocalTime.of(8, 0),
+        )
+        val medication = group.medications.single()
+        val logged = testMedicationLogEntry(
+            sourceGroupUuid = group.uuid,
+            scheduledFor = now.toLocalDate().atTime(8, 0),
+            appliedAt = now.toLocalDate().atTime(8, 4).atZone(zoneId).toInstant(),
+            medicine = medication.medicine,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+        )
+        stubMedicationStrings()
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = context,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group))
+                .copy(scheduleEntries = listOf(logged)),
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        requireNotNull(snapshot.wearRecentDose)
+        assertEquals("Morning group", snapshot.wearRecentDose.groupName)
+        assertEquals(now.toLocalDate().atTime(8, 4), snapshot.wearRecentDose.scheduledAt)
+        assertEquals(
+            listOf(logged.uuid.toString()),
+            snapshot.wearRecentDoseEntryUuids,
+        )
     }
 
     @Test

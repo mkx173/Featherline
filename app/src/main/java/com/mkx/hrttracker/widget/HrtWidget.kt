@@ -27,6 +27,7 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -618,6 +619,16 @@ internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotS
 class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetMedium()
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        scheduleDoseWidgetResizeUpdate(context)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         cleanupAppearance(context, appWidgetIds)
@@ -627,10 +638,36 @@ class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
 class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        scheduleDoseWidgetResizeUpdate(context)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         cleanupAppearance(context, appWidgetIds)
     }
+}
+
+// Launchers remain free to snap the outer frame to their own grid, but every options-change
+// event must be rendered at the exact reported dp size. Without this synchronous repaint,
+// some OEM launchers stretch the last RemoteViews throughout a resize gesture and only
+// Glance's background session is notified; that session can remain idle until the app next
+// draws a frame. Reusing the normal push path keeps compact-width breakpoints, text wrapping,
+// and row capacity responsive at each size the launcher actually exposes.
+private fun scheduleDoseWidgetResizeUpdate(context: Context) {
+    val applicationContext = context.applicationContext
+    EntryPointAccessors.fromApplication(applicationContext, WidgetEntryPoint::class.java)
+        .appScope()
+        .launch {
+            runCatching { updateAllHrtWidgets(applicationContext) }
+                .onFailure { if (it is CancellationException) throw it }
+        }
 }
 
 // Best-effort per-instance appearance cleanup (the default entry always survives).
@@ -657,7 +694,7 @@ private fun cleanupAppearance(context: Context, appWidgetIds: IntArray) {
 // dp heights on different launchers. We capture the first-render target-cell height
 // per widget type and reuse it forever, so resize doesn't change the visual scale.
 private const val MEDIUM_WIDGET_PREVIEW_WIDTH_DP = 306
-private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
+private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 468
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
 // Internal: the anchor widget's picker preview applies the same content scale so all
 // generated previews shrink consistently in the launcher's widget list.
@@ -1112,12 +1149,13 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     }
 }
 
-// ── Large widget (4×3) ────────────────────────────────────────────────────────
+// ── Large widget (3×2 minimum) ────────────────────────────────────────────────
 
 @Composable
 private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
+    val compactWidth = LocalSize.current.width < 260.dp
     val scale = widgetScale(WIDGET_BASELINE_KEY_LARGE)
     WidgetShell(
         scale = scale,
@@ -1237,7 +1275,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     }
                 }
                 if (e2Text != null) {
-                    Spacer(GlanceModifier.width((48f * scale).dp))
+                    Spacer(GlanceModifier.width(((if (compactWidth) 10f else 48f) * scale).dp))
                     // Reserve the width of the widest (4-digit) E2 label via an invisible
                     // placeholder, then draw the live value over it, end-aligned. The bar shares
                     // this row through the weighted column, so pinning the E2 slot to a constant

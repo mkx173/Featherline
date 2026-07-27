@@ -21,6 +21,14 @@ Regenerate these files before a release:
 The generated report only sees Gradle dependencies. These entries cover copied,
 adapted, or design-derived material that Gradle cannot detect.
 
+### Wear OS and Google Play Services
+
+The optional Wear OS companion uses AndroidX Wear Tiles/ProtoLayout and the
+Google Play Services Wearable Data Layer. The phone dependency is scoped to the
+`play` flavor and is not present in F-Droid or GitHub sideload phone builds.
+AndroidX components are licensed under Apache-2.0; Google Play Services is
+distributed under the Android/Google APIs terms supplied with that dependency.
+
 ### Radix Colors
 
 Featherline's medication group color palettes adapt selected scale values from

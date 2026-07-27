@@ -20,7 +20,8 @@ internal fun buildNextMedicationReminderPlans(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = 90L
+    lookaheadDays: Long = 90L,
+    skippedSlots: Set<MedicationReminderSlot> = emptySet(),
 ): List<MedicationReminderPlan> {
     return groups.asSequence()
         .filter(MedicationGroup::isActive)
@@ -40,6 +41,11 @@ internal fun buildNextMedicationReminderPlans(
                     // delivers immediately -> a just-tapped reminder re-fires on
                     // app reopen within the same minute.
                     occurrence.scheduledFor.isAfter(now) &&
+                            MedicationReminderSlot(
+                                groupUuid = group.uuid,
+                                scheduledAt = occurrence.scheduledFor,
+                                scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                            ) !in skippedSlots &&
                             !isSlotFulfilled(
                                 group = group,
                                 slot = MedicationGroupSlotKey(

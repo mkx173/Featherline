@@ -16,6 +16,7 @@
         <exclude domain="file" path="datastore/home_snapshot_metadata.preferences_pb" />
         <exclude domain="file" path="datastore/reminder_schedule.preferences_pb" />
         <exclude domain="file" path="datastore/medication_reminder_snoozes.preferences_pb" />
+        <exclude domain="file" path="datastore/skipped_medication_slots.preferences_pb" />
         <exclude domain="file" path="diagnostics" />
     </cloud-backup>
     <device-transfer>
@@ -30,6 +31,7 @@
         <exclude domain="file" path="datastore/home_snapshot_metadata.preferences_pb" />
         <exclude domain="file" path="datastore/reminder_schedule.preferences_pb" />
         <exclude domain="file" path="datastore/medication_reminder_snoozes.preferences_pb" />
+        <exclude domain="file" path="datastore/skipped_medication_slots.preferences_pb" />
         <exclude domain="file" path="diagnostics" />
     </device-transfer>
 </data-extraction-rules>

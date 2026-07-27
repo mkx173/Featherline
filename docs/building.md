@@ -1,6 +1,8 @@
 # Building
 
-How to build Featherline from source. The app lives in the `:app` Gradle module under the root project `Featherline`.
+How to build Featherline from source. The phone app lives in `:app`, the paired
+watch APK in `:wear`, and their platform-free payload contract in
+`:wear-protocol`.
 
 ## Prerequisites
 
@@ -43,6 +45,25 @@ Useful Gradle tasks:
 Manual backup export/restore uses a stable backup app identity (`com.mkx.hrttracker`), not the installed package ID. Backups therefore remain portable between release and debug builds even though their app sandboxes are separate.
 
 The output filename is set in the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L156-L175) block: `featherline-<abi>-<versionName>-<versionCode>.apk` (the root project is named `Featherline` in [`settings.gradle.kts:25`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts#L25)). `<abi>` is `arm64-v8a` for the `arm64` flavor, `x86_64` for the `x64` flavor, and `all-abis` for `play`.
+
+## Wear OS pairing
+
+Build the paired watch APK and its focused tests with:
+
+```bash
+./gradlew :wear-protocol:test :wear:testDebugUnitTest :wear:assembleDebug
+```
+
+The APK is written to `wear/build/outputs/apk/debug/wear-debug.apk`. The watch
+and phone APKs intentionally use the same application ID and signing identity,
+as required by the Wearable Data Layer. Debug builds add the same `.debug`
+suffix and use the same standard debug key when built together.
+
+Only the phone's `play` flavor contains the Google Play Services Wearable
+bridge. The `arm64` and `x64` flavors keep their existing dependency boundary,
+so the F-Droid and GitHub sideload phone APKs do not gain a proprietary Play
+Services dependency. Install `:app:installPlayDebug` on the phone and
+`:wear:installDebug` on the paired watch for end-to-end development.
 
 ## Signing setup
 

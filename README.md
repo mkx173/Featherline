@@ -40,6 +40,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
+- Wear OS companion app and Tile with the current estimated E2 level, a smooth 48-hour curve, the last dose plus the next five plans, and quick log/skip actions through the paired phone
 - Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
 - No accounts, no telemetry, no network calls — everything stays on device
 - English and Simplified Chinese
@@ -64,7 +65,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## How it works
 
-Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
+Featherline is an Android app written in Kotlin with Jetpack Compose, plus a companion Wear OS module. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database on the phone. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
 
 The full architecture, data model, and reminder pipeline are documented in [docs/architecture.md](docs/architecture.md).
 

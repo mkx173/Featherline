@@ -145,13 +145,14 @@ hosts two `GlanceAppWidget` subclasses:
 - `HrtWidgetMedium` — `SizeMode.Exact`, targeting a 2×2 launcher cell.
   Renders a progress row over today's count and a next-dose /
   done-badge panel below.
-- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell,
+- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 3×2 launcher cell
+  minimum (and still horizontally resizable),
   with a scrollable `LazyColumn` of dose rows grouped under `Last
   night` / `Today` / `Tonight` headers.
 
 Each widget also declares a `previewSizeMode = SizeMode.Responsive(...)`
 that drives the launcher picker preview (via `providePreview`); the
-buckets there (306 × 276 / 624 × 276 dp) are independent of the live
+buckets there (306 × 276 / 468 × 276 dp) are independent of the live
 render size, which follows the launcher cell allocation declared in the
 `appwidget-provider` XML.
 
@@ -179,13 +180,14 @@ The `appwidget-provider` XML
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_large_info.xml))
 declares `resizeMode="horizontal|vertical"` plus a `minWidth` /
 `minHeight` smaller than the target cell, so the launcher can resize
-the widget down. The Glance composition does not branch on size — it
-scales (see below) rather than swapping to a compact layout.
+the widget down. The large layout treats widths below 260 dp as compact
+and reduces header spacing so its content remains usable at the 3×2
+minimum; all other visual scaling follows the baseline logic below.
 
 #### Per-device baseline scaling
 
 `SizeMode.Exact` means the live widget renders at whatever dp size the
-launcher hands out for the 2×2 / 4×2 cell, which varies by device and
+launcher hands out for the 2×2 / 3×2 cell, which varies by device and
 launcher. To keep the visual scale stable across devices and resizes,
 `widgetScale(widgetKey)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
@@ -516,6 +518,11 @@ applies the user-configurable background alpha and the rounded
 container, and wraps the entire widget in `clickable(actionStartActivity<MainActivity>())`
 so the top-level tap target is the app, with row-level and
 button-level clickables consuming taps that should not propagate.
+
+The shell, row cards, and action controls use pre-rendered rounded bitmap
+masks on every supported Android version instead of relying on a launcher
+outline radius. This keeps their corner geometry intact while the launcher
+temporarily reparents and scales the widget during long-press move/resize.
 
 The widget never resolves colors at composition time for surfaces that
 might cross the day/night boundary — bitmap icons are tinted with

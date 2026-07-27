@@ -98,6 +98,7 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
+import com.mkx.hrttracker.ui.journal.AddDateSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
 import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
 import com.mkx.hrttracker.ui.journal.NoneSwatch
@@ -130,6 +131,13 @@ internal fun WidgetConfigScreen(
         anchorId: String,
         backgroundFlag: PrideFlag?,
     ) -> Unit = { _, _, _ -> },
+    onAddAnchor: (
+        name: String,
+        icon: String,
+        date: java.time.LocalDate,
+        paletteKey: String?,
+        pinned: Boolean,
+    ) -> Unit = { _, _, _, _, _ -> },
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -174,6 +182,14 @@ internal fun WidgetConfigScreen(
     // selection AND Save stays disabled (below), so a stale id can never be rewritten to
     // leave the widget stuck on its empty state.
     val selectedAnchor = resolveSelectedAnchor(anchors, selectedAnchorId)
+    LaunchedEffect(configType, anchors, selectedAnchorId) {
+        if (configType == WidgetConfigType.ANCHOR &&
+            selectedAnchorId == null &&
+            anchors.size == 1
+        ) {
+            selectedAnchorId = anchors.single().id
+        }
+    }
     // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
     // seeded card; null = plain card. Stored by name so rememberSaveable can persist it.
     var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
@@ -597,13 +613,25 @@ internal fun WidgetConfigScreen(
     }
 
     if (isAnchorSheetOpen) {
-        AnchorSelectorSheet(
-            title = stringResource(R.string.anchor_config_choose),
-            anchors = anchors,
-            today = today,
-            onDismissRequest = { isAnchorSheetOpen = false },
-            onSelect = { id -> selectedAnchorId = id },
-        )
+        if (anchors.isEmpty()) {
+            AddDateSheet(
+                today = today,
+                anchor = null,
+                initiallyPinned = true,
+                onDismissRequest = { isAnchorSheetOpen = false },
+                onConfirm = { name, icon, date, paletteKey, pinned ->
+                    onAddAnchor(name, icon, date, paletteKey, pinned)
+                },
+            )
+        } else {
+            AnchorSelectorSheet(
+                title = stringResource(R.string.anchor_config_choose),
+                anchors = anchors,
+                today = today,
+                onDismissRequest = { isAnchorSheetOpen = false },
+                onSelect = { id -> selectedAnchorId = id },
+            )
+        }
     }
 }
 

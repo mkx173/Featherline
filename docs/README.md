@@ -16,6 +16,8 @@ download links, see the [repo README](../README.md).
   channels, snooze, exact-alarm permission handling.
 - [Widget](widget.md) — Glance app-widget pipeline, snapshot
   persistence, refresh triggers, quick-log action contract.
+- [Wear OS](wear-os.md) — paired-device protocol, encrypted watch
+  cache, Data Layer flavor boundary, and quick-log validation.
 - [PK differences](pk-differences.md) — upstream PK reference and the
   specific differences in Featherline.
 - [Blood tests](blood-tests.md) — analyte catalog, unit-conversion

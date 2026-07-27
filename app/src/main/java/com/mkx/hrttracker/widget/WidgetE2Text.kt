@@ -12,30 +12,42 @@ internal fun formatWidgetE2Text(
     concentrationUnit: PkConcentrationUnit,
     displayUnit: BloodUnitKey,
 ): String {
+    val displayValue = convertWidgetE2Value(
+        concentration = currentConcentration,
+        concentrationUnit = concentrationUnit,
+        displayUnit = displayUnit,
+    )
+    val formatted = formatMainE2ConcentrationValue(displayValue, displayUnit)
+    return "E2 ~$formatted ${calibrationUnitLabel(displayUnit)}"
+}
+
+internal fun convertWidgetE2Value(
+    concentration: Double,
+    concentrationUnit: PkConcentrationUnit,
+    displayUnit: BloodUnitKey,
+): Double {
     val canonical = when (concentrationUnit) {
-        PkConcentrationUnit.PG_PER_ML -> currentConcentration
+        PkConcentrationUnit.PG_PER_ML -> concentration
         PkConcentrationUnit.PMOL_PER_L -> BloodTestCatalog.toCanonical(
             BloodAnalyteKey.E2,
-            currentConcentration,
+            concentration,
             BloodUnitKey.PMOL_L,
         )
 
         PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(
             BloodAnalyteKey.E2,
-            currentConcentration,
+            concentration,
             BloodUnitKey.NG_DL,
         )
 
-        PkConcentrationUnit.NG_PER_ML -> currentConcentration * 1_000.0
+        PkConcentrationUnit.NG_PER_ML -> concentration * 1_000.0
         PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(
             BloodAnalyteKey.E2,
-            currentConcentration * 1_000.0,
+            concentration * 1_000.0,
             BloodUnitKey.PMOL_L,
         )
     }
-    val displayValue = BloodTestCatalog.fromCanonical(BloodAnalyteKey.E2, canonical, displayUnit)
-    val formatted = formatMainE2ConcentrationValue(displayValue, displayUnit)
-    return "E2 ~$formatted ${calibrationUnitLabel(displayUnit)}"
+    return BloodTestCatalog.fromCanonical(BloodAnalyteKey.E2, canonical, displayUnit)
 }
 
 // The widest realistic E2 label for a unit — a 4-digit value. Rendered invisibly behind the
@@ -46,4 +58,3 @@ internal fun formatWidgetE2Text(
 // Keep the "E2 ~<n> <unit>" shape in sync with formatWidgetE2Text above.
 internal fun widgetE2PlaceholderText(displayUnit: BloodUnitKey): String =
     "E2 ~8888 ${calibrationUnitLabel(displayUnit)}"
-

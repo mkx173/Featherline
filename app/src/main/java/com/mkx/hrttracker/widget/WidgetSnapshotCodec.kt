@@ -26,6 +26,10 @@ internal object WidgetSnapshotCodec {
             stream.writeString(record.appLanguageTag)
             stream.writeList(record.doseRows) { writeDoseRow(it) }
             stream.writePkProjection(record.pkProjection)
+            stream.writeList(record.wearDoseRows) { writeDoseRow(it) }
+            stream.writeBoolean(record.wearRecentDose != null)
+            record.wearRecentDose?.let { stream.writeDoseRow(it) }
+            stream.writeList(record.wearRecentDoseEntryUuids) { writeString(it) }
         }
         return out.toByteArray()
     }
@@ -50,6 +54,9 @@ internal object WidgetSnapshotCodec {
                 appLanguageTag = stream.readString(),
                 doseRows = stream.readList { readDoseRow() },
                 pkProjection = stream.readPkProjection(),
+                wearDoseRows = stream.readList { readDoseRow() },
+                wearRecentDose = if (stream.readBoolean()) stream.readDoseRow() else null,
+                wearRecentDoseEntryUuids = stream.readList { readString() },
             )
         }
     }
@@ -185,5 +192,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 15
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 17
 private const val BYTE_MASK = 0xff

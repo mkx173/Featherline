@@ -92,4 +92,7 @@ data class WidgetSnapshotRecord(
     val appLanguageTag: String,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
+    val wearDoseRows: List<WidgetDoseRow> = emptyList(),
+    val wearRecentDose: WidgetDoseRow? = null,
+    val wearRecentDoseEntryUuids: List<String> = emptyList(),
 )

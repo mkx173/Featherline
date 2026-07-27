@@ -47,6 +47,7 @@ class MedicationReminderSchedulerTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val skippedDoseStore: SkippedDoseStore = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     private lateinit var scheduler: MedicationReminderScheduler
@@ -67,6 +68,7 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.replaceScheduledGroupUuids(any()) } just Runs
         coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
+        coEvery { skippedDoseStore.getSkippedSlots(any()) } returns emptySet()
 
         scheduler = MedicationReminderScheduler(
             context = context,
@@ -75,6 +77,7 @@ class MedicationReminderSchedulerTest {
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
             medicationReminderSnoozeScheduler = snoozeScheduler,
+            skippedDoseStore = skippedDoseStore,
             diagnosticsLogger = diagnosticsLogger,
         )
     }

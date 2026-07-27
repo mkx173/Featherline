@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A Wear OS companion app shows the current estimated estradiol level, a
+  smooth 48-hour curve, the most recent dose record, and the next five planned
+  doses across day boundaries. Its app and Tile send quick-log or skip actions
+  to the paired phone; after an action the Tile confirms the sync for three
+  seconds and advances to the next plan. The watch cache is encrypted with
+  Android Keystore;
+  phone integration is limited to the Play build so F-Droid remains free of
+  Google Play Services dependencies.
 - A new small home-screen widget shows a chosen Journal date and its running day count.
 - You can pin any Journal date to your home screen as a shortcut that shows its day count and opens straight to that date's milestones.
 - The milestones timeline now marks every 100 days, interleaved with anniversaries.
@@ -17,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The large home-screen widget now supports a three-column by two-row minimum
+  size, and its rounded shell, cards, and action buttons keep their shape while
+  the launcher is moving or resizing it.
+- Wear OS snapshot requests are throttled and the Tile freshness interval is
+  extended to avoid repeated radio wakeups and the resulting battery drain.
 - The medium home-screen widget keeps a missed dose visible until its next scheduled window opens, instead of dropping it when the day rolls over.
 - Last night's doses stay on the medium home-screen widget through midnight instead of disappearing at the date change.
 - Logging a scheduled dose after its window has closed no longer records a duplicate entry.

@@ -28,6 +28,7 @@ class MedicationReminderScheduler private constructor(
     private val settingsRepository: SettingsRepository,
     private val reminderScheduleStore: ReminderScheduleStore,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val skippedDoseStore: SkippedDoseStore?,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     private val sdkIntProvider: () -> Int,
 ) {
@@ -39,6 +40,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository: SettingsRepository,
         reminderScheduleStore: ReminderScheduleStore,
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+        skippedDoseStore: SkippedDoseStore,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     ) : this(
         context = context,
@@ -47,6 +49,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository = settingsRepository,
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        skippedDoseStore = skippedDoseStore,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { Build.VERSION.SDK_INT },
     )
@@ -60,6 +63,7 @@ class MedicationReminderScheduler private constructor(
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
         sdkInt: Int,
+        skippedDoseStore: SkippedDoseStore? = null,
     ) : this(
         context = context,
         medicationGroupRepository = medicationGroupRepository,
@@ -67,6 +71,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository = settingsRepository,
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        skippedDoseStore = skippedDoseStore,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { sdkInt },
     )
@@ -100,7 +105,8 @@ class MedicationReminderScheduler private constructor(
         val plans = buildNextMedicationReminderPlans(
             groups = groups,
             entries = entries,
-            now = now
+            now = now,
+            skippedSlots = skippedDoseStore?.getSkippedSlots(now).orEmpty(),
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
@@ -164,6 +170,7 @@ class MedicationReminderScheduler private constructor(
             groups = groups,
             entries = entries,
             now = now,
+            skippedSlots = skippedDoseStore?.getSkippedSlots(now).orEmpty(),
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
@@ -225,7 +232,8 @@ class MedicationReminderScheduler private constructor(
         val plan = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = entries,
-            now = after
+            now = after,
+            skippedSlots = skippedDoseStore?.getSkippedSlots(after).orEmpty(),
         ).firstOrNull() ?: return diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_skipped reason=no_plan groupUuid=$groupUuid entries=${entries.size}"

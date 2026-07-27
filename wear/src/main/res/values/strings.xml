@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">Featherline</string>
+    <string name="tile_label">Next dose</string>
+    <string name="tile_description">Shows the next Featherline dose with quick log and skip actions.</string>
+    <string name="wear_title">Today</string>
+    <string name="wear_connect_phone">Open Featherline on your paired phone to sync the medication plan.</string>
+    <string name="wear_syncing">Syncing with phone…</string>
+    <string name="wear_all_done">No pending scheduled doses.</string>
+    <string name="wear_log">Log now</string>
+    <string name="wear_skip">Skip this dose</string>
+    <string name="wear_sent">Synced to phone</string>
+    <string name="wear_no_phone">Phone unavailable</string>
+    <string name="wear_done_count">%1$d of %2$d logged</string>
+    <string name="wear_status_done">Logged</string>
+    <string name="wear_status_due">Due</string>
+    <string name="wear_status_overdue">Overdue</string>
+    <string name="wear_status_upcoming">Upcoming</string>
+    <string name="wear_status_logged_outside">Logged outside window</string>
+    <string name="wear_estimated_e2">Estimated estradiol</string>
+    <string name="wear_48_hours_ago">48 h ago</string>
+    <string name="wear_now">Now</string>
+    <string name="wear_next_dose">Next dose</string>
+    <string name="wear_today_plan">Today\'s plan</string>
+    <string name="wear_last_record">Last dose record</string>
+    <string name="wear_undo_record">Undo this record</string>
+    <string name="wear_next_five">Next five doses</string>
+    <string name="wear_estimate_disclaimer">Estimate only — not a laboratory result or medical advice.</string>
+</resources>

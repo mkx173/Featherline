@@ -6,9 +6,12 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.SkippedDoseStore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.wear.WearSnapshotSink
+import com.mkx.hrttracker.wear.toWearDoseSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -22,6 +25,8 @@ class WidgetSnapshotRepository @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val settingsRepository: SettingsRepository,
     private val widgetSnapshotStore: WidgetSnapshotStore,
+    private val wearSnapshotSinks: Set<@JvmSuppressWildcards WearSnapshotSink>,
+    private val skippedDoseStore: SkippedDoseStore,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     suspend fun refreshWidgetSnapshot(now: LocalDateTime = LocalDateTime.now()) {
@@ -63,9 +68,19 @@ class WidgetSnapshotRepository @Inject constructor(
             now = now,
             zoneId = zoneId,
             timeFormatter = timeFormatter,
+            skippedSlots = skippedDoseStore.getSkippedSlots(now),
         )
         widgetSnapshotStore.writeSnapshot(widgetSnapshot)
         pushHrtWidgets(context, widgetSnapshot)
+        val wearSnapshot = widgetSnapshot.toWearDoseSnapshot()
+        wearSnapshotSinks.forEach { sink ->
+            try {
+                sink.publish(wearSnapshot)
+            } catch (throwable: Throwable) {
+                if (throwable is kotlinx.coroutines.CancellationException) throw throwable
+                diagnosticsLogger.warning(TAG, "wear_snapshot_publish_failed", throwable)
+            }
+        }
         diagnosticsLogger.info(
             TAG,
             "widget_snapshot_refreshed rows=${widgetSnapshot.doseRows.size} " +

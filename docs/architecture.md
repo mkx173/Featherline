@@ -19,6 +19,10 @@ graph TD
   startup --> data
   widget --> data
   widget --> model
+  wear_phone --> widget
+  wear_phone --> reminder
+  wear_watch --> wear_protocol
+  wear_phone --> wear_protocol
   di --> data
   di --> model
 ```
@@ -34,6 +38,10 @@ The rules:
 - `reminder` (AlarmManager), `startup` (Hilt-eager preloader), and
   `widget` (Glance home-screen widget) are sibling top-level packages
   that bypass `ui` and read directly from `data`.
+- `wear-protocol` is a platform-free Kotlin module containing the bounded
+  binary payload contract. The Play phone flavor publishes widget-derived
+  snapshots and accepts validated log commands; the `wear` module never opens
+  or mirrors the phone Room database.
 
 ## Top-level packages
 
@@ -68,6 +76,11 @@ are organized by role:
   surfaces (two dose widgets plus the journal-driven anchor widget and
   its pinned-shortcut manager), the periodic refresh worker, and the
   quick-log `ActionCallback`. Documented in detail in [widget.md](widget.md).
+
+- `wear` is the paired Wear OS APK: a compact Compose schedule, an actionable
+  Tile, encrypted snapshot cache, and Google Wearable Data Layer listener.
+- `wear-protocol` contains pure Kotlin DTOs, paths, size limits, and binary
+  codecs shared by the phone and watch modules. See [wear-os.md](wear-os.md).
 
 Two files sit at the package root, outside any sub-package:
 [`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)

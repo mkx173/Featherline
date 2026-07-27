@@ -205,6 +205,7 @@ kotlin {
 
 dependencies {
 
+    implementation(project(":wear-protocol"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)
@@ -247,6 +248,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.glance.appwidget.preview)
     implementation(libs.androidx.glance.preview)
+    "playImplementation"(libs.play.services.wearable)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

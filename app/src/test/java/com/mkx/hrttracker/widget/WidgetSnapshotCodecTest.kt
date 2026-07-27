@@ -101,9 +101,16 @@ class WidgetSnapshotCodecTest {
 
     @Test
     fun `codec round-trips a full record`() {
-        val bytes = WidgetSnapshotCodec.encode(baseRecord)
+        val record = baseRecord.copy(
+            wearRecentDose = baseRecord.doseRows.first(),
+            wearRecentDoseEntryUuids = listOf(
+                "aaaaaaaa-0000-0000-0000-000000000000",
+                "bbbbbbbb-0000-0000-0000-000000000000",
+            ),
+        )
+        val bytes = WidgetSnapshotCodec.encode(record)
         val decoded = WidgetSnapshotCodec.decode(bytes)
-        assertEquals(baseRecord, decoded)
+        assertEquals(record, decoded)
     }
 
     @Test

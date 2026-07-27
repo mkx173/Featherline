@@ -21,6 +21,9 @@ Two test source roots:
 
 # Instrumented tests (needs a connected device or emulator)
 ./gradlew connectedPlayDebugAndroidTest
+
+# Shared phone/watch payload codec and Wear OS selection logic
+./gradlew :wear-protocol:test :wear:testDebugUnitTest
 ```
 
 Add `--info` for verbose Gradle logs; the `--tests` flag accepts wildcards.
@@ -43,6 +46,11 @@ Open the report HTML directly in a browser; the failure stack trace there is mor
 - **BroadcastReceiver / Service / AlarmManager tests** → `app/src/androidTest/`. Robolectric is configured only for Compose render tests, not the Android system services these classes integrate with (`AlarmManager.setExactAndAllowWhileIdle`, `NotificationManager.createNotificationChannel`, etc.), so instrumentation is the only path.
 
 Test class naming follows `<ClassUnderTest>Test` — for example, `BloodTestCatalogTest`, `MedicationGroupSlotFulfillmentTest`, `BackupRestoreValidationTest`. Unit tests use JUnit 4 (`@Test`), [mockk](https://github.com/mkx173/Featherline/blob/main/gradle/libs.versions.toml#L25) for mocks, [`kotlinx-coroutines-test`](https://github.com/mkx173/Featherline/blob/main/gradle/libs.versions.toml#L26) for coroutine dispatchers.
+
+- **Wear protocol encoding and validation** → `wear-protocol/src/test/`.
+- **Wear schedule grouping and Tile selection** → `wear/src/test/`; paired
+  Data Layer delivery still requires a phone/watch emulator pair or physical
+  devices.
 
 ## Tests in CI
 
