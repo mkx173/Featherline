@@ -618,6 +618,16 @@ internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotS
 class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetMedium()
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        scheduleDoseWidgetResizeUpdate(context)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         cleanupAppearance(context, appWidgetIds)
@@ -627,10 +637,36 @@ class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
 class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        scheduleDoseWidgetResizeUpdate(context)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         cleanupAppearance(context, appWidgetIds)
     }
+}
+
+// Launchers remain free to snap the outer frame to their own grid, but every options-change
+// event must be rendered at the exact reported dp size. Without this synchronous repaint,
+// some OEM launchers stretch the last RemoteViews throughout a resize gesture and only
+// Glance's background session is notified; that session can remain idle until the app next
+// draws a frame. Reusing the normal push path keeps compact-width breakpoints, text wrapping,
+// and row capacity responsive at each size the launcher actually exposes.
+private fun scheduleDoseWidgetResizeUpdate(context: Context) {
+    val applicationContext = context.applicationContext
+    EntryPointAccessors.fromApplication(applicationContext, WidgetEntryPoint::class.java)
+        .appScope()
+        .launch {
+            runCatching { updateAllHrtWidgets(applicationContext) }
+                .onFailure { if (it is CancellationException) throw it }
+        }
 }
 
 // Best-effort per-instance appearance cleanup (the default entry always survives).
