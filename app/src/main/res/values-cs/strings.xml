@@ -164,4 +164,40 @@
     <string name="stock_nudge_added_toast">Do zásoby přidáno: %1$s</string>
     <string name="stock_nudge_disabled_toast">Tipy byly vypnuty. Znovu je zapněte v nabídce léků.</string>
     <string name="stock_nudge_menu_label">Tipy ke sledování zásob</string>
+    <string name="history_summary_logged_strip">%1$s %2$s</string>
+    <string name="history_summary_partial">Částečně</string>
+    <string name="history_summary_missed">Vynecháno</string>
+    <string name="history_legend_unplanned">Mimo plán</string>
+    <string name="delete_entries_fab">Smazat vybrané záznamy</string>
+    <string name="delete_entry_title">Smazat záznam</string>
+    <plurals name="delete_entries_confirmation">
+        <item quantity="one">Smazat %1$d vybraný záznam?</item>
+        <item quantity="few">Smazat %1$d vybrané záznamy?</item>
+        <item quantity="many">Smazat %1$d vybraných záznamů?</item>
+        <item quantity="other">Smazat %1$d vybraných záznamů?</item>
+    </plurals>
+    <string name="delete_entries_confirm">Smazat</string>
+    <string name="save_entry_failure">Záznam se nepodařilo uložit.</string>
+    <string name="delete_entry_failure">Záznam se nepodařilo smazat.</string>
+    <string name="cross_timezone_saved_toast">Uloženo v časovém pásmu %1$s</string>
+    <string name="timezone_change_notice">Časové pásmo se změnilo z %1$s na %2$s. Časy v plánu se řídí vaším místním časem.</string>
+    <string name="timezone_change_notice_dismiss">Zavřít upozornění na změnu časového pásma</string>
+    <string name="schedule_fulfillment_warning_title">Záznam nesplní naplánovanou dávku</string>
+    <string name="schedule_fulfillment_warning_message">Zadaný čas se výrazně liší od původně naplánovaného, takže se tento záznam nezapočítá jako splnění dané dávky.</string>
+    <string name="history_delete_all_entries">Smazat všechny záznamy</string>
+    <string name="history_delete_all_entries_title">Smazat všechny záznamy</string>
+    <string name="history_delete_all_entries_success">Všechny záznamy byly smazány.</string>
+    <string name="history_delete_all_entries_failure">Záznamy se nepodařilo smazat.</string>
+    <plurals name="history_delete_selected_entries_success">
+        <item quantity="one">Byl smazán %1$d záznam.</item>
+        <item quantity="few">Byly smazány %1$d záznamy.</item>
+        <item quantity="many">Bylo smazáno %1$d záznamů.</item>
+        <item quantity="other">Bylo smazáno %1$d záznamů.</item>
+    </plurals>
+    <plurals name="history_summary_logged_entries">
+        <item quantity="one">záznam</item>
+        <item quantity="few">záznamy</item>
+        <item quantity="many">záznamů</item>
+        <item quantity="other">záznamů</item>
+    </plurals>
 </resources>
