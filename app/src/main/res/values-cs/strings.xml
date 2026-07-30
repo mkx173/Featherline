@@ -200,4 +200,56 @@
         <item quantity="many">záznamů</item>
         <item quantity="other">záznamů</item>
     </plurals>
+    <string name="journal_milestones_section">Časová osa</string>
+    <string name="journal_notes_section">Poznámky</string>
+    <string name="journal_notes_window_meta">Posledních 30 dní</string>
+    <string name="journal_no_notes">Zatím žádné uložené poznámky</string>
+    <string name="journal_no_earlier_notes">Žádné starší poznámky</string>
+    <string name="journal_delete_note">Smazat poznámku</string>
+    <string name="journal_delete_note_title">Smazat poznámku</string>
+    <string name="journal_delete_note_confirmation">Smazat tuto poznámku?</string>
+    <string name="journal_since_you_started">Časová osa</string>
+    <string name="journal_no_dates">Zatím žádné milníky</string>
+    <string name="journal_no_dates_welcome_title">Vytvořte si časovou osu</string>
+    <string name="journal_add_date">Přidat datum</string>
+    <string name="journal_see_all_notes">Zobrazit všechny poznámky</string>
+    <string name="journal_today">Dnes</string>
+    <string name="journal_write_about_today">Napište něco o tomto okamžiku…</string>
+    <string name="journal_no_dates_subtitle">Přidejte datum a sledujte svůj pokrok.</string>
+    <string name="journal_nothing_pinned_title">Zatím nejsou připnuté žádné milníky</string>
+    <string name="journal_nothing_pinned_subtitle">Připnuté milníky se zobrazí zde.</string>
+    <string name="journal_open">Otevřít</string>
+    <string name="journal_pinned_section">Připnuté</string>
+    <string name="journal_timeline_section">Všechny milníky</string>
+    <string name="journal_all_notes">Všechny poznámky</string>
+    <string name="journal_filter_by_month">Filtrovat podle měsíce</string>
+    <string name="journal_note_save_failed">Poznámku se nepodařilo uložit.</string>
+    <string name="journal_note_delete_failed">Poznámku se nepodařilo smazat.</string>
+    <plurals name="journal_selected_notes_title">
+        <item quantity="one">%1$d vybraná poznámka</item>
+        <item quantity="few">%1$d vybrané poznámky</item>
+        <item quantity="many">%1$d vybraných poznámek</item>
+        <item quantity="other">%1$d vybraných poznámek</item>
+    </plurals>
+    <string name="journal_cancel_selection">Ukončit výběr</string>
+    <string name="journal_select_all">Vybrat vše</string>
+    <string name="journal_delete_selected_notes_title">Smazat poznámky</string>
+    <plurals name="journal_delete_selected_notes_confirmation">
+        <item quantity="one">Smazat %1$d vybranou poznámku?</item>
+        <item quantity="few">Smazat %1$d vybrané poznámky?</item>
+        <item quantity="many">Smazat %1$d vybraných poznámek?</item>
+        <item quantity="other">Smazat %1$d vybraných poznámek?</item>
+    </plurals>
+    <plurals name="journal_delete_selected_notes_success">
+        <item quantity="one">Byla smazána %1$d poznámka.</item>
+        <item quantity="few">Byly smazány %1$d poznámky.</item>
+        <item quantity="many">Bylo smazáno %1$d poznámek.</item>
+        <item quantity="other">Bylo smazáno %1$d poznámek.</item>
+    </plurals>
+    <string name="journal_delete_selected_notes_fab">Smazat vybrané poznámky</string>
+    <string name="journal_select_note">Vybrat poznámku</string>
+    <string name="journal_note_selected">Poznámka je vybrána</string>
+    <string name="journal_date_save_failed">Změny se nepodařilo uložit.</string>
+    <string name="journal_date_delete_failed">Datum se nepodařilo smazat.</string>
+    <string name="journal_clear_month_filter">Zobrazit všechny poznámky</string>
 </resources>
