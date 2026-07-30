@@ -122,4 +122,46 @@
     <string name="month_picker_month">Měsíc</string>
     <string name="month_picker_year">Rok</string>
     <string name="history_summary_on_track">Podle plánu</string>
+    <string name="reminder_notification_channel_name">Připomínky dávek</string>
+    <string name="reminder_notification_channel_description">Oznámení o naplánovaných dávkách.</string>
+    <string name="reminder_notification_single_title">Je čas na dávku</string>
+    <string name="reminder_notification_merged_title">Je čas na dávky</string>
+    <string name="reminder_notification_action_log_now">Zaznamenat teď</string>
+    <string name="reminder_notification_action_log_all">Zaznamenat vše</string>
+    <string name="reminder_notification_action_remind_later">Připomenout později</string>
+    <string name="reminder_notification_snoozed">Připomeneme vám to za %1$d minut.</string>
+    <string name="stock_toast_out_single">Došla zásoba: %1$s</string>
+    <plurals name="stock_toast_out_multiple">
+        <item quantity="one">%1$d lék bez zásoby</item>
+        <item quantity="few">%1$d léky bez zásoby</item>
+        <item quantity="many">%1$d léků bez zásoby</item>
+        <item quantity="other">%1$d léků bez zásoby</item>
+    </plurals>
+    <string name="stock_toast_imminent_single">Dochází zásoba: %1$s</string>
+    <plurals name="stock_toast_imminent_multiple">
+        <item quantity="one">Dochází zásoba %1$d léku</item>
+        <item quantity="few">Dochází zásoba %1$d léků</item>
+        <item quantity="many">Dochází zásoba %1$d léků</item>
+        <item quantity="other">Dochází zásoba %1$d léků</item>
+    </plurals>
+    <string name="stock_toast_user_low_single">Nízká zásoba: %1$s</string>
+    <plurals name="stock_toast_user_low_multiple">
+        <item quantity="one">Nízká zásoba u %1$d léku</item>
+        <item quantity="few">Nízká zásoba u %1$d léků</item>
+        <item quantity="many">Nízká zásoba u %1$d léků</item>
+        <item quantity="other">Nízká zásoba u %1$d léků</item>
+    </plurals>
+    <plurals name="stock_toast_many_attention">
+        <item quantity="one">Stav zásoby %1$d léku vyžaduje pozornost</item>
+        <item quantity="few">Stav zásob %1$d léků vyžaduje pozornost</item>
+        <item quantity="many">Stav zásob %1$d léků vyžaduje pozornost</item>
+        <item quantity="other">Stav zásob %1$d léků vyžaduje pozornost</item>
+    </plurals>
+    <string name="stock_snackbar_action_view">Zobrazit</string>
+    <string name="stock_snackbar_action_dismiss">Zavřít</string>
+    <string name="stock_nudge_message">Zapnout sledování zásoby: %1$s?</string>
+    <string name="stock_nudge_action_enable">Zapnout</string>
+    <string name="stock_nudge_added_toast">Do zásoby přidáno: %1$s</string>
+    <string name="stock_nudge_disabled_toast">Tipy byly vypnuty. Znovu je zapněte v nabídce léků.</string>
+    <string name="stock_nudge_menu_label">Tipy ke sledování zásob</string>
 </resources>
