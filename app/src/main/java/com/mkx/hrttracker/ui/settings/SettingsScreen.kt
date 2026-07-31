@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -19,6 +20,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,6 +90,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.cloudsync.CloudConflictResolution
+import com.mkx.hrttracker.cloudsync.CloudSyncInterval
+import com.mkx.hrttracker.cloudsync.CloudSyncStatus
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -132,6 +137,8 @@ import com.mkx.hrttracker.widget.defaultSeedHue
 import com.mkx.hrttracker.widget.hueSwatchColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,10 +148,12 @@ fun SettingsScreen(
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
+    cloudSyncViewModel: CloudSyncViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
+    val cloudSyncUiState by cloudSyncViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -177,6 +186,8 @@ fun SettingsScreen(
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var showCloudSyncPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var showCloudSyncConflictDialog by rememberSaveable { mutableStateOf(false) }
     val isBackupExportInProgress = uiState.isBackupExportInProgress
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
@@ -300,6 +311,48 @@ fun SettingsScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         reminderCapabilityReconciler.requestReconcile("settings_exact_alarm_result")
+    }
+    val cloudAuthorizationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        cloudSyncViewModel.completeAuthorization(
+            if (result.resultCode == Activity.RESULT_OK) result.data else null
+        )
+    }
+    LaunchedEffect(cloudSyncViewModel) {
+        cloudSyncViewModel.uiEvents.collect { event ->
+            when (event) {
+                is CloudSyncUiEvent.LaunchAuthorization -> {
+                    try {
+                        cloudAuthorizationLauncher.launch(
+                            IntentSenderRequest.Builder(event.pendingIntent.intentSender).build()
+                        )
+                    } catch (_: Exception) {
+                        Toast.makeText(
+                            latestContext,
+                            latestContext.getString(R.string.settings_cloud_sync_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+                CloudSyncUiEvent.Conflict -> showCloudSyncConflictDialog = true
+                else -> {
+                    val messageRes = when (event) {
+                        CloudSyncUiEvent.Uploaded -> R.string.settings_cloud_sync_uploaded
+                        CloudSyncUiEvent.Downloaded -> R.string.settings_cloud_sync_downloaded
+                        CloudSyncUiEvent.UpToDate -> R.string.settings_cloud_sync_up_to_date
+                        CloudSyncUiEvent.Disconnected -> R.string.settings_cloud_sync_disconnected
+                        CloudSyncUiEvent.Unavailable -> R.string.settings_cloud_sync_unavailable
+                        is CloudSyncUiEvent.Failure -> R.string.settings_cloud_sync_failed
+                    }
+                    Toast.makeText(
+                        latestContext,
+                        latestContext.getString(messageRes),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
     }
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -522,6 +575,7 @@ fun SettingsScreen(
 
     SettingsScreenContent(
         uiState = uiState,
+        cloudSyncUiState = cloudSyncUiState,
         widgetAppearance = widgetAppearance,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
@@ -576,6 +630,15 @@ fun SettingsScreen(
                 }
             }
         },
+        onCloudSyncToggle = { enabled ->
+            if (enabled) {
+                showCloudSyncPasswordDialog = true
+            } else {
+                cloudSyncViewModel.disable()
+            }
+        },
+        onCloudSyncIntervalChange = cloudSyncViewModel::setInterval,
+        onCloudSyncNow = cloudSyncViewModel::syncNow,
         showDiagnosticsExport = BuildConfig.DEBUG,
         onExportDiagnosticLogsClick = {
             if (!isDiagnosticsExportInProgress && BuildConfig.DEBUG) {
@@ -654,6 +717,52 @@ fun SettingsScreen(
                             Toast.LENGTH_SHORT
                         ).show()
                     }
+                }
+            },
+        )
+    }
+
+    if (showCloudSyncPasswordDialog && !isAppLocked) {
+        BackupPasswordDialog(
+            title = stringResource(R.string.settings_cloud_sync_password_title),
+            message = stringResource(R.string.settings_cloud_sync_password_message),
+            warningMessage = stringResource(R.string.settings_cloud_sync_password_warning),
+            confirmLabel = stringResource(R.string.settings_backup_password_confirm),
+            passwordLabel = stringResource(R.string.settings_backup_password_label),
+            confirmPasswordLabel = stringResource(R.string.settings_backup_confirm_password_label),
+            isInProgress = cloudSyncUiState.inProgress,
+            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
+            onDismiss = { showCloudSyncPasswordDialog = false },
+            onConfirm = { password ->
+                showCloudSyncPasswordDialog = false
+                cloudSyncViewModel.enable(password)
+            },
+        )
+    }
+
+    if (showCloudSyncConflictDialog && !isAppLocked) {
+        HazeAlertDialog(
+            onDismissRequest = { showCloudSyncConflictDialog = false },
+            title = { Text(stringResource(R.string.settings_cloud_sync_conflict_title)) },
+            text = { Text(stringResource(R.string.settings_cloud_sync_conflict_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showCloudSyncConflictDialog = false
+                        cloudSyncViewModel.resolveConflict(CloudConflictResolution.KEEP_LOCAL)
+                    }
+                ) {
+                    Text(stringResource(R.string.settings_cloud_sync_keep_local))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showCloudSyncConflictDialog = false
+                        cloudSyncViewModel.resolveConflict(CloudConflictResolution.USE_CLOUD)
+                    }
+                ) {
+                    Text(stringResource(R.string.settings_cloud_sync_use_cloud))
                 }
             },
         )
@@ -957,6 +1066,7 @@ internal fun WidgetAppearanceDialog(
 internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
+    cloudSyncUiState: CloudSyncUiState,
     widgetAppearance: WidgetAppearance,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
@@ -981,6 +1091,9 @@ internal fun SettingsScreenContent(
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     onImportExternalTrackerClick: () -> Unit,
+    onCloudSyncToggle: (Boolean) -> Unit,
+    onCloudSyncIntervalChange: (CloudSyncInterval) -> Unit,
+    onCloudSyncNow: () -> Unit,
     showDiagnosticsExport: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
@@ -999,6 +1112,8 @@ internal fun SettingsScreenContent(
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    val (isCloudSyncIntervalMenuExpanded, setCloudSyncIntervalMenuExpanded) =
+        remember { mutableStateOf(false) }
     // Hold the chosen language until the dropdown has fully closed, then apply it.
     // Applying immediately re-localizes the whole screen (~one frame after the tap)
     // while the menu is still playing its exit animation, so the menu visibly lingers
@@ -1587,6 +1702,85 @@ internal fun SettingsScreenContent(
                     }
                 }
 
+                if (cloudSyncUiState.available) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                    HrtSection(title = stringResource(R.string.settings_cloud_sync)) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_cloud_sync),
+                                supportingText = if (cloudSyncUiState.enabled) {
+                                    cloudSyncStatusText(cloudSyncUiState)
+                                } else {
+                                    stringResource(R.string.settings_cloud_sync_summary)
+                                },
+                                enabled = !cloudSyncUiState.inProgress,
+                                onClick = {
+                                    onCloudSyncToggle(!cloudSyncUiState.enabled)
+                                },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_sync_alt)
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = cloudSyncUiState.enabled,
+                                        enabled = !cloudSyncUiState.inProgress,
+                                        onCheckedChange = onCloudSyncToggle,
+                                    )
+                                },
+                            )
+                        }
+
+                        item {
+                            Box {
+                                SettingsSegmentedListItem(
+                                    title = stringResource(R.string.settings_cloud_sync_interval),
+                                    supportingText = cloudSyncIntervalText(cloudSyncUiState.interval),
+                                    enabled = cloudSyncUiState.enabled && !cloudSyncUiState.inProgress,
+                                    onClick = { setCloudSyncIntervalMenuExpanded(true) },
+                                    leadingContent = {
+                                        SettingsLeadingIconSlot(
+                                            painter = painterResource(R.drawable.ic_schedule)
+                                        )
+                                    },
+                                    trailingContent = { SettingsChevronTrailingIcon() },
+                                )
+                                HrtDropdownMenu(
+                                    expanded = isCloudSyncIntervalMenuExpanded,
+                                    onDismissRequest = { setCloudSyncIntervalMenuExpanded(false) },
+                                    modifier = Modifier.width(IntrinsicSize.Min),
+                                    items = CloudSyncInterval.entries.map { interval ->
+                                        HrtDropdownMenuItem(
+                                            text = cloudSyncIntervalText(interval),
+                                            onClick = {
+                                                onCloudSyncIntervalChange(interval)
+                                                setCloudSyncIntervalMenuExpanded(false)
+                                            },
+                                        )
+                                    },
+                                )
+                            }
+                        }
+
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_cloud_sync_now),
+                                supportingText = cloudSyncStatusText(cloudSyncUiState),
+                                enabled = cloudSyncUiState.enabled && !cloudSyncUiState.inProgress,
+                                onClick = onCloudSyncNow,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_sync_alt)
+                                    )
+                                },
+                                trailingContent = { SettingsChevronTrailingIcon() },
+                            )
+                        }
+                    }
+                }
+
                 if (showDiagnosticsExport) {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
@@ -2156,6 +2350,40 @@ private const val VERSION_COPY_THROTTLE_MS = 2_000L
 private const val VERSION_EASTER_EGG_TAP_COUNT = 5
 private const val VERSION_TAP_WINDOW_MS = 1_000L
 
+@Composable
+private fun cloudSyncIntervalText(interval: CloudSyncInterval): String = stringResource(
+    when (interval) {
+        CloudSyncInterval.DAILY -> R.string.settings_cloud_sync_interval_daily
+        CloudSyncInterval.EVERY_THREE_DAYS -> R.string.settings_cloud_sync_interval_three_days
+        CloudSyncInterval.WEEKLY -> R.string.settings_cloud_sync_interval_weekly
+        CloudSyncInterval.MONTHLY -> R.string.settings_cloud_sync_interval_monthly
+    }
+)
+
+@Composable
+private fun cloudSyncStatusText(state: CloudSyncUiState): String {
+    val configuration = LocalConfiguration.current
+    val formattedLastSync = remember(state.lastSyncAt, configuration) {
+        state.lastSyncAt?.let { instant ->
+            DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                .format(Date.from(instant))
+        }
+    }
+    return when {
+        state.inProgress || state.status == CloudSyncStatus.SYNCING ->
+            stringResource(R.string.settings_cloud_sync_syncing)
+        state.status == CloudSyncStatus.NEEDS_AUTHORIZATION ->
+            stringResource(R.string.settings_cloud_sync_authorization_required)
+        state.status == CloudSyncStatus.CONFLICT ->
+            stringResource(R.string.settings_cloud_sync_conflict_status)
+        state.status == CloudSyncStatus.ERROR ->
+            state.lastError ?: stringResource(R.string.settings_cloud_sync_error_status)
+        formattedLastSync != null ->
+            stringResource(R.string.settings_cloud_sync_last_synced, formattedLastSync)
+        else -> stringResource(R.string.settings_cloud_sync_never)
+    }
+}
+
 @Preview(
     name = "Settings Screen",
     showBackground = true,
@@ -2182,6 +2410,12 @@ private fun SettingsScreenPreview() {
                     weightOriginalUnit = WeightUnit.POUNDS,
                 )
             ),
+            cloudSyncUiState = CloudSyncUiState(
+                available = true,
+                enabled = true,
+                interval = CloudSyncInterval.EVERY_THREE_DAYS,
+                status = CloudSyncStatus.READY,
+            ),
             widgetAppearance = WidgetAppearance.Default,
             hasNotificationAccess = true,
             reminderSupportState = SettingsReminderSupportState.EXACT_ALARM_OFF,
@@ -2206,6 +2440,9 @@ private fun SettingsScreenPreview() {
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             onImportExternalTrackerClick = { },
+            onCloudSyncToggle = { },
+            onCloudSyncIntervalChange = { },
+            onCloudSyncNow = { },
             showDiagnosticsExport = true,
             onExportDiagnosticLogsClick = { },
             onCalibrationClick = { },
