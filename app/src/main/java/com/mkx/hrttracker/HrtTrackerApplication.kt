@@ -11,6 +11,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectSyncCoordinator
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
@@ -50,6 +51,9 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var appTimeSource: AppTimeSource
+
+    @Inject
+    lateinit var healthConnectSyncCoordinator: HealthConnectSyncCoordinator
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -115,9 +119,12 @@ class HrtTrackerApplication : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 appTimeSource.refresh()
+                healthConnectSyncCoordinator.onForeground()
             }
         })
         diagnosticsLogger.info(TAG, "application_app_time_source_refresh_attached")
+        healthConnectSyncCoordinator.start()
+        diagnosticsLogger.info(TAG, "application_health_connect_sync_started")
         homeWidgetManager.start()
         diagnosticsLogger.info(TAG, "application_home_widget_manager_started")
         anchorWidgetManager.start()
