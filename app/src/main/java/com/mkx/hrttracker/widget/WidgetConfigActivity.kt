@@ -336,6 +336,17 @@ class WidgetConfigActivity : AppCompatActivity() {
                                         }
                                     }
                                 },
+                                onAddAnchor = { name, icon, date, paletteKey, pinned ->
+                                    appScope.launch {
+                                        journalRepository.addTrackedDate(
+                                            name = name,
+                                            icon = icon,
+                                            date = date,
+                                            paletteKey = paletteKey,
+                                            pinned = pinned,
+                                        )
+                                    }
+                                },
                                 onSave = { appearance ->
                                     setResult(
                                         RESULT_OK,
