@@ -38,6 +38,7 @@ class WearProtocolCodecTest {
                 groupName = "Morning",
                 medicationSummary = "Estradiol · 2 mg · Oral",
                 recordedAt = "2026-07-26T08:03",
+                entryUuids = listOf("entry-a", "entry-b"),
             ),
         )
 
@@ -60,6 +61,21 @@ class WearProtocolCodecTest {
             command,
             WearProtocolCodec.decodeLogDoseCommand(
                 WearProtocolCodec.encodeLogDoseCommand(command)
+            ),
+        )
+    }
+
+    @Test
+    fun undoCommand_roundTripsEveryEntryUuid() {
+        val command = WearUndoDoseCommand(
+            requestId = "undo-request",
+            entryUuids = listOf("entry-a", "entry-b"),
+        )
+
+        assertEquals(
+            command,
+            WearProtocolCodec.decodeUndoDoseCommand(
+                WearProtocolCodec.encodeUndoDoseCommand(command)
             ),
         )
     }

@@ -9,6 +9,7 @@ const val WEAR_SNAPSHOT_PATH = "/featherline/dose-snapshot"
 const val WEAR_REQUEST_SNAPSHOT_PATH = "/featherline/request-dose-snapshot"
 const val WEAR_LOG_DOSE_PATH = "/featherline/log-dose"
 const val WEAR_SKIP_DOSE_PATH = "/featherline/skip-dose"
+const val WEAR_UNDO_DOSE_PATH = "/featherline/undo-dose"
 const val WEAR_PAYLOAD_KEY = "payload"
 const val WEAR_UPDATED_AT_KEY = "updated_at"
 
@@ -56,6 +57,7 @@ data class WearRecentDose(
     val groupName: String,
     val medicationSummary: String,
     val recordedAt: String,
+    val entryUuids: List<String> = emptyList(),
 )
 
 data class WearLogDoseCommand(
@@ -63,6 +65,11 @@ data class WearLogDoseCommand(
     val groupUuid: String,
     val scheduleTimeUuid: String?,
     val scheduledAt: String,
+)
+
+data class WearUndoDoseCommand(
+    val requestId: String,
+    val entryUuids: List<String>,
 )
 
 object WearProtocolCodec {
@@ -129,7 +136,7 @@ object WearProtocolCodec {
                     null
                 },
                 recentDose = if (version >= SNAPSHOT_PROTOCOL_VERSION_WITH_RECENT_DOSE) {
-                    stream.readRecentDose()
+                    stream.readRecentDose(version)
                 } else {
                     null
                 },
@@ -153,6 +160,30 @@ object WearProtocolCodec {
                 groupUuid = stream.readBoundedString(),
                 scheduleTimeUuid = stream.readNullableString(),
                 scheduledAt = stream.readBoundedString(),
+            )
+        }
+
+    fun encodeUndoDoseCommand(command: WearUndoDoseCommand): ByteArray =
+        encode { stream ->
+            stream.writeInt(COMMAND_PROTOCOL_VERSION)
+            stream.writeBoundedString(command.requestId)
+            require(command.entryUuids.size in 1..MAX_UNDO_ENTRY_UUIDS) {
+                "Wear undo command entry count is invalid."
+            }
+            stream.writeInt(command.entryUuids.size)
+            command.entryUuids.forEach { entryUuid ->
+                stream.writeBoundedString(entryUuid)
+            }
+        }
+
+    fun decodeUndoDoseCommand(bytes: ByteArray): WearUndoDoseCommand =
+        decode(bytes) { stream ->
+            stream.requireCommandVersion()
+            WearUndoDoseCommand(
+                requestId = stream.readBoundedString(),
+                entryUuids = List(stream.readBoundedCount(MAX_UNDO_ENTRY_UUIDS)) {
+                    stream.readBoundedString()
+                }.also { require(it.isNotEmpty()) { "Wear undo command is empty." } },
             )
         }
 
@@ -258,14 +289,26 @@ object WearProtocolCodec {
         writeBoundedString(recentDose.groupName)
         writeBoundedString(recentDose.medicationSummary)
         writeBoundedString(recentDose.recordedAt)
+        require(recentDose.entryUuids.size <= MAX_UNDO_ENTRY_UUIDS) {
+            "Wear recent dose entry count is invalid."
+        }
+        writeInt(recentDose.entryUuids.size)
+        recentDose.entryUuids.forEach { entryUuid ->
+            writeBoundedString(entryUuid)
+        }
     }
 
-    private fun DataInputStream.readRecentDose(): WearRecentDose? {
+    private fun DataInputStream.readRecentDose(version: Int): WearRecentDose? {
         if (!readBoolean()) return null
         return WearRecentDose(
             groupName = readBoundedString(),
             medicationSummary = readBoundedString(),
             recordedAt = readBoundedString(),
+            entryUuids = if (version >= SNAPSHOT_PROTOCOL_VERSION_WITH_UNDO) {
+                List(readBoundedCount(MAX_UNDO_ENTRY_UUIDS)) { readBoundedString() }
+            } else {
+                emptyList()
+            },
         )
     }
 
@@ -276,8 +319,10 @@ object WearProtocolCodec {
 private const val MIN_SNAPSHOT_PROTOCOL_VERSION = 1
 private const val SNAPSHOT_PROTOCOL_VERSION_WITH_ESTRADIOL = 2
 private const val SNAPSHOT_PROTOCOL_VERSION_WITH_RECENT_DOSE = 3
-private const val SNAPSHOT_PROTOCOL_VERSION = 3
+private const val SNAPSHOT_PROTOCOL_VERSION_WITH_UNDO = 4
+private const val SNAPSHOT_PROTOCOL_VERSION = 4
 private const val COMMAND_PROTOCOL_VERSION = 1
+private const val MAX_UNDO_ENTRY_UUIDS = 32
 private const val MAX_ROWS = 64
 private const val MAX_ESTRADIOL_SAMPLES = 97
 private const val MAX_SAMPLE_INTERVAL_MINUTES = 24 * 60
