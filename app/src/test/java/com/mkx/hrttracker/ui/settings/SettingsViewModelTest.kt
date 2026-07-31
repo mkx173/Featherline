@@ -14,6 +14,9 @@ import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.FeatherlineHealthConnect
+import com.mkx.hrttracker.healthconnect.HealthConnectIntegrationState
+import com.mkx.hrttracker.healthconnect.HealthConnectSyncCoordinator
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -71,6 +74,8 @@ class SettingsViewModelTest {
     private val externalImportService: ExternalImportService = mockk()
     private val diagnosticsExportService: AppDiagnosticsExportService = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
+    private val healthConnect: FeatherlineHealthConnect = mockk()
+    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -79,6 +84,8 @@ class SettingsViewModelTest {
         every { applicationContext.contentResolver } returns contentResolver
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         every { userProfileRepository.observeProfile() } returns flowOf(null)
+        every { healthConnect.state } returns MutableStateFlow(HealthConnectIntegrationState())
+        coEvery { healthConnect.refreshCapabilities() } just Runs
         every { appLockSecurityManager.availabilityErrorMessageRes() } returns null
         coEvery { bloodTestRepository.getPanels() } returns emptyList()
         coEvery { bloodTestRepository.preloadActiveCustomAnalytes() } returns emptyList()
@@ -563,6 +570,8 @@ class SettingsViewModelTest {
             externalImportService = externalImportService,
             diagnosticsExportService = diagnosticsExportService,
             widgetAppearanceRepository = widgetAppearanceRepository,
+            healthConnect = healthConnect,
+            healthConnectSyncCoordinator = healthConnectSyncCoordinator,
         )
     }
 

@@ -84,11 +84,15 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
+import com.mkx.hrttracker.healthconnect.FeatherlineHealthConnect
+import com.mkx.hrttracker.healthconnect.HealthConnectAvailability
+import com.mkx.hrttracker.healthconnect.HealthConnectIntegrationState
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -145,6 +149,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
+    val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -176,6 +181,9 @@ fun SettingsScreen(
     )
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
+    var pendingHealthConnectPermission by rememberSaveable {
+        mutableStateOf<HealthConnectPermissionRequest?>(null)
+    }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     val isBackupExportInProgress = uiState.isBackupExportInProgress
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
@@ -277,6 +285,17 @@ fun SettingsScreen(
             viewModel.consumeExternalImportEvent()
         }
     }
+    LaunchedEffect(viewModel) {
+        viewModel.healthConnectSyncEvents.collect { event ->
+            val message = when (event) {
+                HealthConnectSyncEvent.Success -> R.string.settings_health_connect_sync_success
+                HealthConnectSyncEvent.Failure -> R.string.settings_health_connect_sync_failed
+            }
+            Toast.makeText(latestContext, latestContext.getString(message), Toast.LENGTH_SHORT)
+                .show()
+            viewModel.consumeHealthConnectSyncEvent()
+        }
+    }
     val diagnosticsExportSuccessMessage =
         stringResource(R.string.settings_diagnostics_export_success)
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
@@ -295,6 +314,39 @@ fun SettingsScreen(
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { grantedPermissions ->
+        when (pendingHealthConnectPermission) {
+            HealthConnectPermissionRequest.WEIGHT -> {
+                if (FeatherlineHealthConnect.WEIGHT_READ_PERMISSION in grantedPermissions) {
+                    viewModel.setHealthConnectWeightEnabled(true)
+                } else {
+                    Toast.makeText(
+                        context,
+                        R.string.settings_health_connect_permission_denied,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+
+            HealthConnectPermissionRequest.MEDICATION -> {
+                if (FeatherlineHealthConnect.MEDICAL_WRITE_PERMISSION in grantedPermissions) {
+                    viewModel.setHealthConnectMedicationEnabled(true)
+                } else {
+                    Toast.makeText(
+                        context,
+                        R.string.settings_health_connect_permission_denied,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+
+            null -> Unit
+        }
+        pendingHealthConnectPermission = null
+        viewModel.refreshHealthConnectState()
     }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -523,10 +575,32 @@ fun SettingsScreen(
     SettingsScreenContent(
         uiState = uiState,
         widgetAppearance = widgetAppearance,
+        healthConnectState = healthConnectState,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
+        onHealthConnectWeightEnabledChange = { enabled ->
+            if (!enabled || healthConnectState.weightReadPermissionGranted) {
+                viewModel.setHealthConnectWeightEnabled(enabled)
+            } else {
+                pendingHealthConnectPermission = HealthConnectPermissionRequest.WEIGHT
+                healthConnectPermissionLauncher.launch(
+                    setOf(FeatherlineHealthConnect.WEIGHT_READ_PERMISSION)
+                )
+            }
+        },
+        onHealthConnectMedicationEnabledChange = { enabled ->
+            if (!enabled || healthConnectState.medicalWritePermissionGranted) {
+                viewModel.setHealthConnectMedicationEnabled(enabled)
+            } else {
+                pendingHealthConnectPermission = HealthConnectPermissionRequest.MEDICATION
+                healthConnectPermissionLauncher.launch(
+                    setOf(FeatherlineHealthConnect.MEDICAL_WRITE_PERMISSION)
+                )
+            }
+        },
+        onHealthConnectSyncNow = viewModel::syncHealthConnectNow,
         onRemindersEnabledChange = onRemindersEnabledChange,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
@@ -958,10 +1032,14 @@ internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     uiState: SettingsUiState,
     widgetAppearance: WidgetAppearance,
+    healthConnectState: HealthConnectIntegrationState,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
+    onHealthConnectWeightEnabledChange: (Boolean) -> Unit,
+    onHealthConnectMedicationEnabledChange: (Boolean) -> Unit,
+    onHealthConnectSyncNow: () -> Unit,
     onRemindersEnabledChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
@@ -1050,6 +1128,16 @@ internal fun SettingsScreenContent(
 
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
+    val healthConnectSummary = stringResource(
+        when (healthConnectState.availability) {
+            HealthConnectAvailability.AVAILABLE ->
+                R.string.settings_health_connect_available
+            HealthConnectAvailability.UPDATE_REQUIRED ->
+                R.string.settings_health_connect_update_required
+            HealthConnectAvailability.UNAVAILABLE ->
+                R.string.settings_health_connect_unavailable
+        }
+    )
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
     val topAppBarState = rememberTopAppBarState()
@@ -1123,6 +1211,85 @@ internal fun SettingsScreenContent(
                             trailingContent = {
                                 SettingsChevronTrailingIcon()
                             }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                HrtSection(title = stringResource(R.string.settings_health_connect)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_health_connect),
+                            supportingText = healthConnectSummary,
+                            onClick = {},
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_monitor_weight)
+                                )
+                            },
+                        )
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_health_connect_weight),
+                            supportingText = stringResource(
+                                R.string.settings_health_connect_weight_summary
+                            ),
+                            enabled = healthConnectState.isAvailable,
+                            onClick = {
+                                onHealthConnectWeightEnabledChange(
+                                    !healthConnectState.weightSyncEnabled
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = healthConnectState.weightSyncEnabled,
+                                    onCheckedChange = onHealthConnectWeightEnabledChange,
+                                    enabled = healthConnectState.isAvailable,
+                                )
+                            },
+                        )
+                    }
+
+                    item {
+                        val medicationAvailable = healthConnectState.isAvailable &&
+                            healthConnectState.personalHealthRecordAvailable
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_health_connect_medication),
+                            supportingText = stringResource(
+                                if (medicationAvailable) {
+                                    R.string.settings_health_connect_medication_summary
+                                } else {
+                                    R.string.settings_health_connect_medication_unavailable
+                                }
+                            ),
+                            enabled = medicationAvailable,
+                            onClick = {
+                                onHealthConnectMedicationEnabledChange(
+                                    !healthConnectState.medicationSyncEnabled
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = healthConnectState.medicationSyncEnabled,
+                                    onCheckedChange = onHealthConnectMedicationEnabledChange,
+                                    enabled = medicationAvailable,
+                                )
+                            },
+                        )
+                    }
+
+                    item {
+                        val canSync = healthConnectState.isAvailable &&
+                            (healthConnectState.weightSyncEnabled ||
+                                healthConnectState.medicationSyncEnabled)
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_health_connect_sync_now),
+                            enabled = canSync,
+                            onClick = onHealthConnectSyncNow,
+                            trailingContent = { SettingsChevronTrailingIcon() },
                         )
                     }
                 }
@@ -2156,6 +2323,8 @@ private const val VERSION_COPY_THROTTLE_MS = 2_000L
 private const val VERSION_EASTER_EGG_TAP_COUNT = 5
 private const val VERSION_TAP_WINDOW_MS = 1_000L
 
+private enum class HealthConnectPermissionRequest { WEIGHT, MEDICATION }
+
 @Preview(
     name = "Settings Screen",
     showBackground = true,
@@ -2183,10 +2352,17 @@ private fun SettingsScreenPreview() {
                 )
             ),
             widgetAppearance = WidgetAppearance.Default,
+            healthConnectState = HealthConnectIntegrationState(
+                availability = HealthConnectAvailability.AVAILABLE,
+                personalHealthRecordAvailable = true,
+            ),
             hasNotificationAccess = true,
             reminderSupportState = SettingsReminderSupportState.EXACT_ALARM_OFF,
             onWeightSave = { _, _ -> },
             onWeightClear = { },
+            onHealthConnectWeightEnabledChange = { },
+            onHealthConnectMedicationEnabledChange = { },
+            onHealthConnectSyncNow = { },
             onRemindersEnabledChange = { },
             onRequestExactAlarmAccess = { },
             onScreenLockProtectionToggle = { },

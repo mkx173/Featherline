@@ -1035,4 +1035,24 @@
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
+    <!-- Health Connect -->
+    <string name="health_connect_rationale_title">Health Connect 隐私说明</string>
+    <string name="health_connect_rationale_body">只有在你主动启用功能并授权后，Featherline 才会访问 Health Connect。你可以随时在 Health Connect 中撤销权限。</string>
+    <string name="health_connect_rationale_weight">体重：Featherline 读取最新的体重测量值，用于更新药代动力学估算所使用的体重；不会向 Health Connect 写入体重。</string>
+    <string name="health_connect_rationale_medications">服药记录：设备支持且你启用后，Featherline 会将已完成的服药记录写为 FHIR MedicationStatement；不会读取其他应用写入的服药记录。</string>
+    <string name="health_connect_open_privacy_policy">查看完整隐私政策</string>
+    <string name="settings_health_connect">Health Connect</string>
+    <string name="settings_health_connect_available">可用</string>
+    <string name="settings_health_connect_update_required">请更新 Health Connect 后继续</string>
+    <string name="settings_health_connect_unavailable">此设备不可用</string>
+    <string name="settings_health_connect_weight">读取体重变化</string>
+    <string name="settings_health_connect_weight_summary">在 Featherline 中使用 Health Connect 的最新体重</string>
+    <string name="settings_health_connect_medication">写入服药记录</string>
+    <string name="settings_health_connect_medication_summary">将已完成的服药记录导出为 FHIR 用药声明</string>
+    <string name="settings_health_connect_medication_unavailable">当前 Health Connect 版本不支持医疗记录</string>
+    <string name="settings_health_connect_sync_now">立即同步</string>
+    <string name="settings_health_connect_sync_success">Health Connect 同步完成</string>
+    <string name="settings_health_connect_sync_failed">Health Connect 同步失败</string>
+    <string name="settings_health_connect_permission_denied">未授予 Health Connect 权限</string>
+
 </resources>

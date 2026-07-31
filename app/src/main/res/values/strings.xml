@@ -1109,4 +1109,24 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
+    <!-- Health Connect -->
+    <string name="health_connect_rationale_title">Health Connect privacy</string>
+    <string name="health_connect_rationale_body">Featherline only accesses Health Connect after you enable a feature and approve its permission. You can revoke access at any time in Health Connect.</string>
+    <string name="health_connect_rationale_weight">Weight: Featherline reads your latest weight measurement to update the body weight used by its pharmacokinetic estimate. It does not write weight data.</string>
+    <string name="health_connect_rationale_medications">Medication history: when supported and enabled, Featherline writes your completed dose records as FHIR MedicationStatement resources. It does not read medication records written by other apps.</string>
+    <string name="health_connect_open_privacy_policy">Open full privacy policy</string>
+    <string name="settings_health_connect">Health Connect</string>
+    <string name="settings_health_connect_available">Available</string>
+    <string name="settings_health_connect_update_required">Update Health Connect to continue</string>
+    <string name="settings_health_connect_unavailable">Not available on this device</string>
+    <string name="settings_health_connect_weight">Read weight changes</string>
+    <string name="settings_health_connect_weight_summary">Use the latest Health Connect weight in Featherline</string>
+    <string name="settings_health_connect_medication">Write medication records</string>
+    <string name="settings_health_connect_medication_summary">Export completed doses as FHIR medication statements</string>
+    <string name="settings_health_connect_medication_unavailable">Medical Records is not supported by this Health Connect version</string>
+    <string name="settings_health_connect_sync_now">Sync now</string>
+    <string name="settings_health_connect_sync_success">Health Connect sync completed</string>
+    <string name="settings_health_connect_sync_failed">Health Connect sync could not be completed</string>
+    <string name="settings_health_connect_permission_denied">Health Connect permission was not granted</string>
+
 </resources>

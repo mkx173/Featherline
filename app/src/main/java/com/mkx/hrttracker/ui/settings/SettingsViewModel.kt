@@ -15,6 +15,9 @@ import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.FeatherlineHealthConnect
+import com.mkx.hrttracker.healthconnect.HealthConnectIntegrationState
+import com.mkx.hrttracker.healthconnect.HealthConnectSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -64,6 +67,8 @@ class SettingsViewModel @Inject constructor(
     private val externalImportService: ExternalImportService,
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
+    private val healthConnect: FeatherlineHealthConnect,
+    private val healthConnectSyncCoordinator: HealthConnectSyncCoordinator,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -83,6 +88,10 @@ class SettingsViewModel @Inject constructor(
         extraBufferCapacity = 4,
     )
     private val settingsEvents = MutableSharedFlow<SettingsMutationEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
+    private val healthConnectEvents = MutableSharedFlow<HealthConnectSyncEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
@@ -146,6 +155,39 @@ class SettingsViewModel @Inject constructor(
 
     init {
         preloadCalibrationData()
+        refreshHealthConnectState()
+    }
+
+    val healthConnectState: StateFlow<HealthConnectIntegrationState> = healthConnect.state
+    val healthConnectSyncEvents: SharedFlow<HealthConnectSyncEvent> =
+        healthConnectEvents.asSharedFlow()
+
+    fun refreshHealthConnectState() {
+        viewModelScope.launch { healthConnect.refreshCapabilities() }
+    }
+
+    fun setHealthConnectWeightEnabled(enabled: Boolean) {
+        viewModelScope.launch { healthConnect.setWeightSyncEnabled(enabled) }
+    }
+
+    fun setHealthConnectMedicationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            healthConnectSyncCoordinator.setMedicationSyncEnabled(enabled)
+        }
+    }
+
+    fun syncHealthConnectNow() {
+        viewModelScope.launch {
+            val succeeded = healthConnectSyncCoordinator.syncNow()
+            healthConnectEvents.emit(
+                if (succeeded) HealthConnectSyncEvent.Success else HealthConnectSyncEvent.Failure
+            )
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeHealthConnectSyncEvent() {
+        healthConnectEvents.resetReplayCache()
     }
 
     fun setWeight(value: Double, unit: WeightUnit) {
@@ -692,6 +734,11 @@ sealed class WeightMutationEvent {
 
 sealed class SettingsMutationEvent {
     data class Failure(val error: Throwable) : SettingsMutationEvent()
+}
+
+sealed interface HealthConnectSyncEvent {
+    data object Success : HealthConnectSyncEvent
+    data object Failure : HealthConnectSyncEvent
 }
 
 sealed interface ExternalImportEvent {
