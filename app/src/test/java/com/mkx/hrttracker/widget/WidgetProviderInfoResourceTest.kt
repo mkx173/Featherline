@@ -42,6 +42,24 @@ class WidgetProviderInfoResourceTest {
         }
     }
 
+    @Test
+    fun mediumWidgetProvider_exposesResizeBounds() {
+        val providerInfo = providerInfo("xml/hrt_widget_medium_info.xml")
+        val expected = mapOf(
+            "minWidth" to "110dp",
+            "minHeight" to "80dp",
+            "minResizeWidth" to "110dp",
+            "minResizeHeight" to "80dp",
+            "targetCellWidth" to "2",
+            "targetCellHeight" to "2",
+            "resizeMode" to "horizontal|vertical",
+        )
+
+        expected.forEach { (attribute, value) ->
+            assertEquals(value, attributeValue(providerInfo, attribute))
+        }
+    }
+
     private fun providerInfo(relativePath: String): String {
         val resourceFile = sequenceOf(
             File("src/main/res/$relativePath"),
