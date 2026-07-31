@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.hilt.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.dependency.license.report)
+    alias(libs.plugins.kotlin.jvm) apply false
 }
 
 licenseReport {
