@@ -892,4 +892,113 @@
     <string name="main_duration_days_hours">%1$d d %2$d h</string>
     <string name="main_duration_hours_minutes">%1$d h %2$d min</string>
     <string name="main_duration_minutes">%1$d min</string>
+    <string name="reminder_notification_two_groups">%1$s a %2$s</string>
+    <plurals name="reminder_notification_more_groups">
+        <item quantity="one">%1$s, %2$s a další %3$d skupina</item>
+        <item quantity="few">%1$s, %2$s a další %3$d skupiny</item>
+        <item quantity="many">%1$s, %2$s a dalších %3$d skupin</item>
+        <item quantity="other">%1$s, %2$s a dalších %3$d skupin</item>
+    </plurals>
+    <plurals name="reminder_notification_more_medications">
+        <item quantity="one">...a ještě %1$d lék</item>
+        <item quantity="few">...a ještě %1$d léky</item>
+        <item quantity="many">...a ještě %1$d léků</item>
+        <item quantity="other">...a ještě %1$d léků</item>
+    </plurals>
+    <plurals name="reminder_notification_entries_added">
+        <item quantity="one">Přidán %1$d záznam.</item>
+        <item quantity="few">Přidány %1$d záznamy.</item>
+        <item quantity="many">Přidáno %1$d záznamů.</item>
+        <item quantity="other">Přidáno %1$d záznamů.</item>
+    </plurals>
+    <string name="reminder_notification_nothing_to_add">Již zaznamenáno.</string>
+    <string name="widget_quick_log_failed">Dávku se nepodařilo rychle zaznamenat.</string>
+    <plurals name="plan_regimen_group_count">
+        <item quantity="one">%1$d skupina</item>
+        <item quantity="few">%1$d skupiny</item>
+        <item quantity="many">%1$d skupin</item>
+        <item quantity="other">%1$d skupin</item>
+    </plurals>
+    <plurals name="plan_regimen_daily_count">
+        <item quantity="one">%1$d denně</item>
+        <item quantity="few">%1$d denně</item>
+        <item quantity="many">%1$d denně</item>
+        <item quantity="other">%1$d denně</item>
+    </plurals>
+    <plurals name="plan_regimen_weekly_count">
+        <item quantity="one">%1$d týdně</item>
+        <item quantity="few">%1$d týdně</item>
+        <item quantity="many">%1$d týdně</item>
+        <item quantity="other">%1$d týdně</item>
+    </plurals>
+    <plurals name="plan_batch_add_entries_to_add">
+        <item quantity="one">Bude přidán %1$d záznam</item>
+        <item quantity="few">Budou přidány %1$d záznamy</item>
+        <item quantity="many">Bude přidáno %1$d záznamů</item>
+        <item quantity="other">Bude přidáno %1$d záznamů</item>
+    </plurals>
+    <plurals name="plan_batch_add_entries_skipped">
+        <item quantity="one">Bude přeskočen %1$d existující záznam</item>
+        <item quantity="few">Budou přeskočeny %1$d existující záznamy</item>
+        <item quantity="many">Bude přeskočeno %1$d existujících záznamů</item>
+        <item quantity="other">Bude přeskočeno %1$d existujících záznamů</item>
+    </plurals>
+    <plurals name="plan_batch_add_success">
+        <item quantity="one">Přidán %1$d záznam.</item>
+        <item quantity="few">Přidány %1$d záznamy.</item>
+        <item quantity="many">Přidáno %1$d záznamů.</item>
+        <item quantity="other">Přidáno %1$d záznamů.</item>
+    </plurals>
+    <plurals name="plan_batch_add_confirm_message">
+        <item quantity="one">Přidat %1$d záznam pro %2$s v období od %3$s do %4$s?</item>
+        <item quantity="few">Přidat %1$d záznamy pro %2$s v období od %3$s do %4$s?</item>
+        <item quantity="many">Přidat %1$d záznamů pro %2$s v období od %3$s do %4$s?</item>
+        <item quantity="other">Přidat %1$d záznamů pro %2$s v období od %3$s do %4$s?</item>
+    </plurals>
+    <plurals name="plan_batch_add_deduct_stock_change_count">
+        <item quantity="one">Aktualizuje zásobu u %1$d léku.</item>
+        <item quantity="few">Aktualizuje zásobu u %1$d léků.</item>
+        <item quantity="many">Aktualizuje zásobu u %1$d léků.</item>
+        <item quantity="other">Aktualizuje zásobu u %1$d léků.</item>
+    </plurals>
+    <plurals name="group_schedule_weeks_unit">
+        <item quantity="one">týden</item>
+        <item quantity="few">týdny</item>
+        <item quantity="many">týdnů</item>
+        <item quantity="other">týdnů</item>
+    </plurals>
+    <plurals name="group_schedule_days_unit">
+        <item quantity="one">den</item>
+        <item quantity="few">dny</item>
+        <item quantity="many">dní</item>
+        <item quantity="other">dní</item>
+    </plurals>
+    <string name="group_schedule_daily_single_interval_summary">Každý den</string>
+    <plurals name="group_schedule_daily_interval_summary">
+        <item quantity="one">Každý %1$d den</item>
+        <item quantity="few">Každé %1$d dny</item>
+        <item quantity="many">Každých %1$d dní</item>
+        <item quantity="other">Každých %1$d dní</item>
+    </plurals>
+    <string name="group_schedule_weekly_single_interval_summary">Každý týden</string>
+    <plurals name="group_schedule_weekly_interval_summary">
+        <item quantity="one">Každý %1$d týden</item>
+        <item quantity="few">Každé %1$d týdny</item>
+        <item quantity="many">Každých %1$d týdnů</item>
+        <item quantity="other">Každých %1$d týdnů</item>
+    </plurals>
+    <string name="select_date">Vybrat datum</string>
+    <string name="select_time">Vybrat čas</string>
+    <string name="widget_medium_description">Souhrn dávek</string>
+    <string name="widget_large_description">Seznam dávek</string>
+    <string name="widget_all_done">Vše splněno</string>
+    <string name="widget_all_logged">Vše zaznamenáno</string>
+    <string name="widget_nothing_more_today">Pro dnešek vše</string>
+    <string name="widget_no_medications">Není nastaven žádný léčebný režim</string>
+    <string name="widget_no_doses_today">Na dnešek není nic naplánováno</string>
+    <string name="widget_last_night">Včera večer</string>
+    <string name="widget_today">Dnes</string>
+    <string name="widget_tonight">Dnes večer</string>
+    <string name="widget_manual_record">Ruční záznam</string>
+    <string name="widget_upcoming">Nadcházející</string>
 </resources>
