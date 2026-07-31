@@ -29,6 +29,7 @@ mockk = "1.14.9"
 coroutinesTest = "1.10.2"
 vico = "3.2.3"
 material-kolor = "4.1.1"
+playServicesAuth = "21.6.0"
 argon2kt = "1.6.0"
 workRuntimeKtx = "2.10.1"
 kmp-wheel-picker = "0.3.0"
@@ -84,6 +85,7 @@ sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "s
 kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "material-kolor" }
+google-play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
 argon2kt = { module = "com.lambdapioneer.argon2kt:argon2kt", version.ref = "argon2kt" }
 swmansion-kmp-wheel-picker = { module = "com.swmansion.kmpwheelpicker:kmp-wheel-picker", version.ref = "kmp-wheel-picker" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }

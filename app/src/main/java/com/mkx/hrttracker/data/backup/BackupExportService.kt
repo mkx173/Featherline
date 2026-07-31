@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -67,6 +68,34 @@ class BackupExportService @Inject constructor(
             backupCrypto.encryptSnapshotJson(
                 json = buildBackupSnapshotJson(exportedAt),
                 password = passwordChars,
+            )
+        } finally {
+            passwordChars.fill(Char.MIN_VALUE)
+        }
+    }
+
+    internal suspend fun prepareCloudBackup(
+        password: String,
+        exportedAt: Instant = Instant.now(),
+    ): PreparedCloudBackup = withContext(Dispatchers.IO) {
+        val snapshot = buildSnapshot(exportedAt)
+        val snapshotJson = BackupSnapshotJsonCodec.encode(snapshot)
+        // exportedAt describes the envelope creation time, not user data. Remove it from
+        // the comparison form so an unchanged database remains unchanged across runs.
+        val comparisonJson = BackupSnapshotJsonCodec.encode(
+            snapshot.copy(exportedAtEpochMillis = 0L)
+        )
+        val passwordChars = password.toCharArray()
+        try {
+            PreparedCloudBackup(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = snapshotJson,
+                    password = passwordChars,
+                ),
+                contentSha256 = MessageDigest.getInstance("SHA-256")
+                    .digest(comparisonJson.toByteArray(Charsets.UTF_8))
+                    .joinToString(separator = "") { byte -> "%02x".format(byte) },
+                exportedAt = exportedAt,
             )
         } finally {
             passwordChars.fill(Char.MIN_VALUE)
@@ -567,6 +596,12 @@ class BackupExportService @Inject constructor(
         private const val PREPARED_BACKUP_FILE_SUFFIX = ".tmp"
     }
 }
+
+internal data class PreparedCloudBackup(
+    val encryptedBytes: ByteArray,
+    val contentSha256: String,
+    val exportedAt: Instant,
+)
 
 data class BackupExportedFile(
     val displayName: String,

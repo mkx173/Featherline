@@ -10,6 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.mkx.hrttracker.cloudsync.CloudSyncManager
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -50,6 +51,9 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var appTimeSource: AppTimeSource
+
+    @Inject
+    lateinit var cloudSyncManager: CloudSyncManager
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -122,6 +126,8 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_home_widget_manager_started")
         anchorWidgetManager.start()
         diagnosticsLogger.info(TAG, "application_anchor_widget_manager_started")
+        cloudSyncManager.start()
+        diagnosticsLogger.info(TAG, "application_cloud_sync_manager_started")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
     }
 
