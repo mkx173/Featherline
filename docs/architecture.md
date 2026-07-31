@@ -19,6 +19,8 @@ graph TD
   startup --> data
   widget --> data
   widget --> model
+  cloudsync --> data
+  cloudsync --> googleDrive[(Drive appDataFolder)]
   di --> data
   di --> model
 ```
@@ -34,6 +36,9 @@ The rules:
 - `reminder` (AlarmManager), `startup` (Hilt-eager preloader), and
   `widget` (Glance home-screen widget) are sibling top-level packages
   that bypass `ui` and read directly from `data`.
+- `cloudsync` reuses `data/backup` to create and restore encrypted
+  snapshots, schedules periodic work through WorkManager, and exposes a
+  flavor-specific Drive gateway. Only `play` contains the Google implementation.
 
 ## Top-level packages
 
@@ -51,6 +56,10 @@ are organized by role:
   `JournalEntityMappers` helpers, plus the stock-projection helpers
   (see below). `JournalRepository` owns the phase-1 journal
   tracked-date and daily-note data surface.
+- [`cloudsync`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/cloudsync) — encrypted snapshot coordination,
+  conflict resolution, local sync metadata and secret storage, WorkManager
+  scheduling, and the distribution-flavor gateway boundary. See
+  [cloud-sync.md](cloud-sync.md).
 - [`ui`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Eleven feature
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.

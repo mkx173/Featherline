@@ -17,6 +17,12 @@ How to build Featherline from source. The app lives in the `:app` Gradle module 
 
 This produces a signed APK at `app/build/outputs/apk/play/debug/`. The debug build type installs as `com.mkx.hrttracker.debug`, is labeled `Featherline Debug`, and uses AGP's debug signing config, so it can live alongside the release app without touching release app data or requiring release signing keys.
 
+The APK compiles without Google Cloud credentials, but Google Drive sync can
+authorize only after the Drive API and Android OAuth clients are configured for
+the installed package name and signing-certificate SHA-1. See
+[cloud-sync.md](cloud-sync.md#google-cloud-setup). No OAuth client secret is
+stored in the Android project.
+
 ## Flavors and build types
 
 Flavor dimension `distribution` ([`app/build.gradle.kts:37`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L37)):
@@ -44,6 +50,10 @@ Manual backup export/restore uses a stable backup app identity (`com.mkx.hrttrac
 
 The output filename is set in the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L156-L175) block: `featherline-<abi>-<versionName>-<versionCode>.apk` (the root project is named `Featherline` in [`settings.gradle.kts:25`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts#L25)). `<abi>` is `arm64-v8a` for the `arm64` flavor, `x86_64` for the `x64` flavor, and `all-abis` for `play`.
 
+Google Drive sync is compiled only into `play`. The `arm64` and `x64` sideload
+flavors use an unavailable gateway implementation and do not merge the Internet
+permission or Play Services authorization dependency.
+
 ## Signing setup
 
 The `release` build type assigns the `release` signing config explicitly. Contributors only need release signing material when building release variants; debug variants use AGP's debug signing config.
@@ -56,6 +66,8 @@ Maintainers populate signing one of two ways:
 The [`signingValue(...)` helper](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L29-L32) checks `keystore.properties` first, falls back to env. If neither source supplies a `storeFile` path, the `release` signing config is *constructed* empty, but release variants still fail at packaging with the missing-`storeFile` error. There is no truly unsigned release build path today.
 
 ## See also
+
+- [cloud-sync.md](cloud-sync.md) — Play-flavor OAuth setup and sync behavior.
 
 - [release-process.md](release-process.md) — versionCode derivation, the CI workflow, Play Store submission flow.
 - [testing.md](testing.md) — how to run the test suites.

@@ -4,6 +4,11 @@ How Featherline exports user data to a single encrypted file and how
 that file is read back. The whole subsystem lives in
 [`data/backup/`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/backup).
 
+The optional Google Drive sync feature uses the same envelope and snapshot
+codec. It generates a consistent snapshot in memory, uploads only the encrypted
+bytes, and compares a logical-content hash that excludes the export timestamp.
+See [cloud-sync.md](cloud-sync.md).
+
 ## Two version numbers
 
 - **Envelope format version** —

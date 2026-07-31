@@ -23,6 +23,9 @@ download links, see the [repo README](../README.md).
 - [Backup format](backup-format.md) — v3 compressed backup spec,
   restore validation, forward-compatibility policy.
 
+- [Google Drive cloud sync](cloud-sync.md) — encrypted app-data snapshots,
+  automatic cadence, manual sync, conflict handling, and OAuth setup.
+
 ## Operations
 
 - [Building](building.md) — prereqs, gradle commands, flavors.

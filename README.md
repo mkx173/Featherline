@@ -13,7 +13,7 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
-Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
+Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Data stays in an encrypted local database by default, with no required account and no telemetry. Play builds can optionally synchronize an end-to-end encrypted snapshot through the user's Google Drive. Available in English and Simplified Chinese.
 
 > ⚠️ **Not medical advice.** Featherline is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
 
@@ -27,7 +27,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - **GitHub Releases** (signed APK for sideload): [releases page](https://github.com/mkx173/Featherline/releases)
 - Or build from source: see [docs/building.md](docs/building.md)
 
-> **Note:** The Play Store or F-Droid version is recommended. The app holds no internet permission, so the GitHub APK cannot check for updates — you will need to monitor the releases page manually for new versions.
+> **Note:** The Play Store or F-Droid version is recommended. The F-Droid/GitHub sideload builds hold no internet permission, so they cannot check for updates and do not include Google Drive sync — monitor the releases page manually for new GitHub builds.
 
 ## Features
 
@@ -38,10 +38,11 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Estradiol pharmacokinetic projection from your dose history
 - Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L)
 - Encrypted, compressed backup format with restore validation
+- Optional end-to-end encrypted Google Drive sync in Play builds, with 1-, 3-, 7-, or 30-day automatic cadence, manual sync, and conflict protection
 - App lock with biometric unlock
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
 - Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
-- No accounts, no telemetry, no network calls — everything stays on device
+- No required account and no telemetry; cloud sync is optional and off by default
 - English and Simplified Chinese
 - Material 3 with dynamic color
 
@@ -72,7 +73,6 @@ The full architecture, data model, and reminder pipeline are documented in [docs
 
 - Replace the pharmacokinetic engine with a more general multi-medication model
 - Personal-PK calibration tuned from your own lab results
-- Optional encrypted cloud backup (off by default, end-to-end encrypted)
 - Additional languages — translation contributions welcomed on [Hosted Weblate](https://hosted.weblate.org/projects/featherline/) (see [docs/localization.md](docs/localization.md))
 
 ## Tech stack
@@ -93,7 +93,7 @@ Translation contributions are welcome on [Hosted Weblate](https://hosted.weblate
 
 ## Privacy
 
-Featherline stores everything on your device in an encrypted database. There are no accounts, no telemetry, and no network calls. See [docs/privacy.md](docs/privacy.md) for the full data-handling description.
+Featherline stores data in an encrypted on-device database, requires no Featherline account, and performs no telemetry. Play builds can optionally send only an end-to-end encrypted snapshot to the user's private Google Drive application-data folder. See [docs/privacy.md](docs/privacy.md) for the full data-handling description.
 
 ## License
 
