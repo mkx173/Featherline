@@ -6,7 +6,8 @@ Thanks for considering a contribution. Here's how to get involved.
 
 - Read the [Code of Conduct](CODE_OF_CONDUCT.md).
 - For typos, doc fixes, and small bugfixes: skip the issue, open a PR.
-- For features, refactors, or anything touching reminders / PK / backup: open an issue first so we can discuss direction before you build. The issue is where we pick the right approach; the PR is where we land code we already agree on.
+- For features, refactors, or anything touching reminders / PK / backup: open an issue first and **wait for maintainer approval before writing any code**. The issue is where we pick the right approach; the PR is where we land code we already agree on.
+- **Large feature PRs that were not agreed on in an issue will be closed without review.** This is not a judgment of the code — it protects your time as much as review time.
 
 The maintainer is one person; turnaround can take days. A stale PR isn't a rejection — ping the issue if you'd like a nudge.
 
@@ -30,7 +31,12 @@ For non-trivial changes (new features, refactors, anything touching the reminder
 - A rough sketch of the approach.
 - Whether you're asking for input or signaling you'd like to implement it yourself.
 
-This avoids the situation where someone spends a weekend on a PR that conflicts with planned direction. The architectural seams worth knowing about are documented in [`docs/architecture.md`](docs/architecture.md).
+Then wait for the maintainer to agree on scope and approach before implementing. This avoids the situation where someone spends a weekend on a PR that conflicts with planned direction. The architectural seams worth knowing about are documented in [`docs/architecture.md`](docs/architecture.md).
+
+Additional expectations for feature work:
+
+- **Test on real hardware.** Features that depend on a physical device or companion service (Wear OS, Health Connect providers, widgets across launchers, cloud accounts) must be verified by you on real hardware before the PR. "Compiles and unit tests pass" is not sufficient, and the maintainer cannot absorb the device-testing burden for contributed features.
+- **One concern per PR, and keep it reviewable.** A PR the maintainer cannot review in one sitting is likely to stall or be closed; split large work into agreed-upon stages in the issue first.
 
 ## Development setup
 
