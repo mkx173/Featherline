@@ -575,4 +575,22 @@
     <string name="preparation_type_gel_sachet">Sáček</string>
     <string name="preparation_type_gel_container">Balení</string>
     <string name="preparation_type_patch">Náplast</string>
+    <string name="medicine_picker_select_medicine">Vybrat lék</string>
+    <string name="medication_preparation_summary_pill">Tableta · %1$s mg</string>
+    <string name="medication_preparation_summary_pill_with_unit">Tableta · %1$s %2$s</string>
+    <string name="medication_preparation_summary_capsule">Tobolka · %1$s mg</string>
+    <string name="medication_preparation_summary_capsule_with_unit">Tobolka · %1$s %2$s</string>
+    <string name="medication_preparation_summary_single_use_vial">Injekce · Ampule · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">Injekce · Ampule · %1$s %2$s</string>
+    <string name="medication_preparation_summary_multi_use_vial">Injekce · Lahvička · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_gel_sachet">Gel · Sáček · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_gel_container">Gel · Balení · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_imported_gel">Gel · %1$s mg</string>
+    <string name="medication_preparation_summary_imported_injection">Injekce · %1$s mg</string>
+    <string name="medication_preparation_summary_patch_total">Náplast · %1$s mg</string>
+    <string name="medication_preparation_summary_patch_total_with_unit">Náplast · %1$s %2$s</string>
+    <string name="medication_preparation_summary_patch_release_rate">Náplast · %1$s μg/den</string>
+    <string name="dose_instruction_summary_tablet_fraction">Počet tablet: %1$s</string>
+    <string name="dose_instruction_summary_patch_release_rate">%1$s μg/den</string>
+    <string name="default_group_name_format">Skupina %1$d</string>
 </resources>
