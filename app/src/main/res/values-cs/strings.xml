@@ -345,4 +345,46 @@
         <item quantity="many">za %1$d dní</item>
         <item quantity="other">za %1$d dní</item>
     </plurals>
+    <string name="history_delete_selected_entries_failure">Vybrané záznamy se nepodařilo smazat.</string>
+    <plurals name="history_delete_all_entries_confirmation">
+        <item quantity="one">Smazat %1$d záznam?</item>
+        <item quantity="few">Smazat všechny %1$d záznamy?</item>
+        <item quantity="many">Smazat všech %1$d záznamů?</item>
+        <item quantity="other">Smazat všech %1$d záznamů?</item>
+    </plurals>
+    <plurals name="history_delete_all_entries_hidden_archived_warning">
+        <item quantity="one">Zahrnuje %1$d skrytý záznam z archivovaných skupin.</item>
+        <item quantity="few">Zahrnuje %1$d skryté záznamy z archivovaných skupin.</item>
+        <item quantity="many">Zahrnuje %1$d skrytých záznamů z archivovaných skupin.</item>
+        <item quantity="other">Zahrnuje %1$d skrytých záznamů z archivovaných skupin.</item>
+    </plurals>
+    <plurals name="history_selected_entries_title">
+        <item quantity="one">%1$d vybraný záznam</item>
+        <item quantity="few">%1$d vybrané záznamy</item>
+        <item quantity="many">%1$d vybraných záznamů</item>
+        <item quantity="other">%1$d vybraných záznamů</item>
+    </plurals>
+    <string name="delete_editing_entry_confirmation">Smazat tento záznam?</string>
+    <string name="field_medication_category">Kategorie</string>
+    <string name="field_medication_application">Způsob podání</string>
+    <string name="field_medication">Lék</string>
+    <string name="field_medication_name">Název léku</string>
+    <string name="medication_editor_original_schedule">Naplánováno na %1$s</string>
+    <string name="medication_editor_schedule_offset_minutes_later">+%1$d min</string>
+    <string name="medication_editor_schedule_offset_minutes_earlier">-%1$d min</string>
+    <string name="medication_editor_schedule_offset_hours_later">+%1$d h</string>
+    <string name="medication_editor_schedule_offset_hours_earlier">-%1$d h</string>
+    <string name="medication_editor_schedule_offset_days_later">+%1$d d</string>
+    <string name="medication_editor_schedule_offset_days_earlier">-%1$d d</string>
+    <string name="medication_log_actual_amount">Skutečné množství</string>
+    <string name="medication_log_actual_amount_decrease">Snížit skutečné množství</string>
+    <string name="medication_log_actual_amount_increase">Zvýšit skutečné množství</string>
+    <string name="medication_log_actual_amount_reset">Obnovit skutečné množství</string>
+    <string name="field_count">Počet</string>
+    <string name="unit_mcg_day">μg/den</string>
+    <string name="field_medication_group_name">Název skupiny</string>
+    <string name="group_color_picker_action">Změnit barvu skupiny</string>
+    <string name="group_color_picker_title">Vybrat barvu</string>
+    <string name="group_color_picker_swatch_content_description">Barva %1$d</string>
+    <string name="group_color_picker_swatch_selected_content_description">Barva %1$d, vybrána</string>
 </resources>
