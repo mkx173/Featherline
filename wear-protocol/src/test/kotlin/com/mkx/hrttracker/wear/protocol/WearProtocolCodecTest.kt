@@ -28,6 +28,12 @@ class WearProtocolCodecTest {
                     scheduleTimeUuid = "slot",
                 )
             ),
+            estradiol = WearEstradiolSnapshot(
+                currentValueText = "182",
+                unitLabel = "pg/mL",
+                samples = listOf(110.0, 140.0, 182.0),
+                sampleIntervalMinutes = 120,
+            ),
         )
 
         assertEquals(
