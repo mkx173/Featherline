@@ -287,4 +287,62 @@
     <string name="journal_pride_flag_asexual">Asexuální</string>
     <string name="journal_pride_flag_genderfluid">Genderfluidní</string>
     <string name="journal_pride_flag_agender">Agender</string>
+    <string name="journal_date_sheet_add_title">Přidat datum</string>
+    <string name="journal_date_sheet_edit_title">Upravit datum</string>
+    <string name="journal_date_name_label">Název</string>
+    <string name="journal_date_date_label">Datum</string>
+    <string name="journal_select_date">Vybrat datum</string>
+    <string name="journal_date_icon_section">Ikona</string>
+    <string name="journal_date_palette_section">Barva</string>
+    <string name="journal_date_palette_none">Bez barvy</string>
+    <string name="journal_anchor_icon_event">Událost</string>
+    <string name="journal_anchor_icon_medication">Lék</string>
+    <string name="journal_anchor_icon_pill">Tableta</string>
+    <string name="journal_anchor_icon_vaccines">Injekce</string>
+    <string name="journal_anchor_icon_water_drops">Gel</string>
+    <string name="journal_anchor_icon_labs">Laboratoř</string>
+    <string name="journal_anchor_icon_monitor_weight">Hmotnost</string>
+    <string name="journal_anchor_icon_mic">Hlas</string>
+    <string name="journal_anchor_icon_flag">Cíl</string>
+    <string name="journal_anchor_icon_passport">Doklad totožnosti</string>
+    <string name="journal_anchor_icon_home_health">Nemocnice</string>
+    <string name="journal_anchor_icon_favorite">Osobní</string>
+    <string name="journal_anchor_icon_stethoscope">Návštěva lékaře</string>
+    <string name="journal_anchor_icon_travel">Cesta</string>
+    <string name="journal_anchor_icon_cake">Narozeniny</string>
+    <string name="journal_anchor_icon_star">Významný okamžik</string>
+    <string name="journal_delete_date">Smazat</string>
+    <string name="journal_delete_date_title">Smazat datum</string>
+    <string name="journal_delete_date_confirmation">Smazat toto datum?</string>
+    <plurals name="journal_milestone_label_days">
+        <item quantity="one">%1$d den</item>
+        <item quantity="few">%1$d dny</item>
+        <item quantity="many">%1$d dní</item>
+        <item quantity="other">%1$d dní</item>
+    </plurals>
+    <plurals name="journal_milestone_label_years">
+        <item quantity="one">%1$d rok</item>
+        <item quantity="few">%1$d roky</item>
+        <item quantity="many">%1$d let</item>
+        <item quantity="other">%1$d let</item>
+    </plurals>
+    <plurals name="journal_next_milestone_days_to_label">
+        <item quantity="one">Za %1$d den: %2$s</item>
+        <item quantity="few">Za %1$d dny: %2$s</item>
+        <item quantity="many">Za %1$d dní: %2$s</item>
+        <item quantity="other">Za %1$d dní: %2$s</item>
+    </plurals>
+    <string name="journal_milestone_today">Dnes: %1$s</string>
+    <plurals name="journal_milestone_days_past">
+        <item quantity="one">%1$d den</item>
+        <item quantity="few">%1$d dny</item>
+        <item quantity="many">%1$d dní</item>
+        <item quantity="other">%1$d dní</item>
+    </plurals>
+    <plurals name="journal_milestone_days_future">
+        <item quantity="one">za %1$d den</item>
+        <item quantity="few">za %1$d dny</item>
+        <item quantity="many">za %1$d dní</item>
+        <item quantity="other">za %1$d dní</item>
+    </plurals>
 </resources>
