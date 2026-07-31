@@ -34,6 +34,11 @@ class WearProtocolCodecTest {
                 samples = listOf(110.0, 140.0, 182.0),
                 sampleIntervalMinutes = 120,
             ),
+            recentDose = WearRecentDose(
+                groupName = "Morning",
+                medicationSummary = "Estradiol · 2 mg · Oral",
+                recordedAt = "2026-07-26T08:03",
+            ),
         )
 
         assertEquals(

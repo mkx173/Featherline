@@ -8,6 +8,7 @@ import java.io.DataOutputStream
 const val WEAR_SNAPSHOT_PATH = "/featherline/dose-snapshot"
 const val WEAR_REQUEST_SNAPSHOT_PATH = "/featherline/request-dose-snapshot"
 const val WEAR_LOG_DOSE_PATH = "/featherline/log-dose"
+const val WEAR_SKIP_DOSE_PATH = "/featherline/skip-dose"
 const val WEAR_PAYLOAD_KEY = "payload"
 const val WEAR_UPDATED_AT_KEY = "updated_at"
 
@@ -41,6 +42,7 @@ data class WearDoseSnapshot(
     val appLanguageTag: String,
     val rows: List<WearDoseRow>,
     val estradiol: WearEstradiolSnapshot? = null,
+    val recentDose: WearRecentDose? = null,
 )
 
 data class WearEstradiolSnapshot(
@@ -48,6 +50,12 @@ data class WearEstradiolSnapshot(
     val unitLabel: String,
     val samples: List<Double>,
     val sampleIntervalMinutes: Int,
+)
+
+data class WearRecentDose(
+    val groupName: String,
+    val medicationSummary: String,
+    val recordedAt: String,
 )
 
 data class WearLogDoseCommand(
@@ -82,6 +90,7 @@ object WearProtocolCodec {
                 stream.writeNullableString(row.scheduleTimeUuid)
             }
             stream.writeEstradiolSnapshot(snapshot.estradiol)
+            stream.writeRecentDose(snapshot.recentDose)
         }
 
     fun decodeSnapshot(bytes: ByteArray): WearDoseSnapshot =
@@ -116,6 +125,11 @@ object WearProtocolCodec {
                 },
                 estradiol = if (version >= SNAPSHOT_PROTOCOL_VERSION_WITH_ESTRADIOL) {
                     stream.readEstradiolSnapshot()
+                } else {
+                    null
+                },
+                recentDose = if (version >= SNAPSHOT_PROTOCOL_VERSION_WITH_RECENT_DOSE) {
+                    stream.readRecentDose()
                 } else {
                     null
                 },
@@ -238,13 +252,31 @@ object WearProtocolCodec {
         )
     }
 
+    private fun DataOutputStream.writeRecentDose(recentDose: WearRecentDose?) {
+        writeBoolean(recentDose != null)
+        recentDose ?: return
+        writeBoundedString(recentDose.groupName)
+        writeBoundedString(recentDose.medicationSummary)
+        writeBoundedString(recentDose.recordedAt)
+    }
+
+    private fun DataInputStream.readRecentDose(): WearRecentDose? {
+        if (!readBoolean()) return null
+        return WearRecentDose(
+            groupName = readBoundedString(),
+            medicationSummary = readBoundedString(),
+            recordedAt = readBoundedString(),
+        )
+    }
+
     private fun DataInputStream.readBoundedCount(maximum: Int): Int =
         readInt().also { require(it in 0..maximum) { "Wear payload count is invalid." } }
 }
 
 private const val MIN_SNAPSHOT_PROTOCOL_VERSION = 1
 private const val SNAPSHOT_PROTOCOL_VERSION_WITH_ESTRADIOL = 2
-private const val SNAPSHOT_PROTOCOL_VERSION = 2
+private const val SNAPSHOT_PROTOCOL_VERSION_WITH_RECENT_DOSE = 3
+private const val SNAPSHOT_PROTOCOL_VERSION = 3
 private const val COMMAND_PROTOCOL_VERSION = 1
 private const val MAX_ROWS = 64
 private const val MAX_ESTRADIOL_SAMPLES = 97
