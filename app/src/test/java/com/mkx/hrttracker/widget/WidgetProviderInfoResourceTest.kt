@@ -21,13 +21,13 @@ class WidgetProviderInfoResourceTest {
     }
 
     @Test
-    fun largeWidgetProvider_supportsThreeByTwoMinimum() {
+    fun largeWidgetProvider_keepsFourByTwoDefaultAndThreeByTwoMinimum() {
         val expected = mapOf(
-            "minWidth" to "140dp",
-            "minHeight" to "80dp",
+            "minWidth" to "250dp",
+            "minHeight" to "110dp",
             "minResizeWidth" to "140dp",
             "minResizeHeight" to "80dp",
-            "targetCellWidth" to "3",
+            "targetCellWidth" to "4",
             "targetCellHeight" to "2",
             "resizeMode" to "horizontal|vertical",
         )

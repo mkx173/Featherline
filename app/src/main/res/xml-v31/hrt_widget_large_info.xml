@@ -4,11 +4,11 @@
      Resource qualifiers fully override (they do not merge), so keep every shared attribute
      in sync with res/xml/hrt_widget_large_info.xml whenever either changes. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="140dp"
-    android:minHeight="80dp"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
     android:minResizeWidth="140dp"
     android:minResizeHeight="80dp"
-    android:targetCellWidth="3"
+    android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/glance_default_loading_layout"

@@ -145,14 +145,14 @@ hosts two `GlanceAppWidget` subclasses:
 - `HrtWidgetMedium` — `SizeMode.Exact`, targeting a 2×2 launcher cell.
   Renders a progress row over today's count and a next-dose /
   done-badge panel below.
-- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 3×2 launcher cell
-  minimum (and still horizontally resizable),
+- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell by
+  default and allowing resize down to a 3×2 minimum,
   with a scrollable `LazyColumn` of dose rows grouped under `Last
   night` / `Today` / `Tonight` headers.
 
 Each widget also declares a `previewSizeMode = SizeMode.Responsive(...)`
 that drives the launcher picker preview (via `providePreview`); the
-buckets there (306 × 276 / 468 × 276 dp) are independent of the live
+buckets there (306 × 276 / 624 × 276 dp) are independent of the live
 render size, which follows the launcher cell allocation declared in the
 `appwidget-provider` XML.
 
@@ -178,17 +178,20 @@ live in
 The `appwidget-provider` XML
 ([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_medium_info.xml),
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_large_info.xml))
-declares `resizeMode="horizontal|vertical"` plus a `minWidth` /
-`minHeight` smaller than the target cell, so the launcher can resize
-the widget down. The large layout treats widths below 260 dp as compact
+declares `resizeMode="horizontal|vertical"`. The large provider keeps its
+4×2 placement defaults in `minWidth` / `minHeight` and `targetCellWidth` /
+`targetCellHeight`, while `minResizeWidth` / `minResizeHeight` allow the
+launcher to resize it down to 3×2. The large layout treats widths below
+260 dp as compact
 and reduces header spacing so its content remains usable at the 3×2
 minimum; all other visual scaling follows the baseline logic below.
 
 #### Per-device baseline scaling
 
 `SizeMode.Exact` means the live widget renders at whatever dp size the
-launcher hands out for the 2×2 / 3×2 cell, which varies by device and
-launcher. To keep the visual scale stable across devices and resizes,
+launcher hands out for the 2×2 / 4×2 default cell (or the 3×2 resized
+minimum), which varies by device and launcher. To keep the visual scale
+stable across devices and resizes,
 `widgetScale(widgetKey)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 captures a device baseline on the widget's first update and reuses it

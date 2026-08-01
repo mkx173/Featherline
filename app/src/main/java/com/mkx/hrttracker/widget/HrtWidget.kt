@@ -27,6 +27,7 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -1148,13 +1149,14 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     }
 }
 
-// ── Large widget (4×3) ────────────────────────────────────────────────────────
+// ── Large widget (4×2 default, 3×2 minimum) ──────────────────────────────────
 
 @Composable
 private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
     val scale = widgetScale(WIDGET_BASELINE_KEY_LARGE)
+    val compactWidth = LocalSize.current.width < 260.dp
     WidgetShell(
         scale = scale,
         contentAlignment = Alignment.Center,
@@ -1273,7 +1275,9 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     }
                 }
                 if (e2Text != null) {
-                    Spacer(GlanceModifier.width((48f * scale).dp))
+                    Spacer(
+                        GlanceModifier.width(((if (compactWidth) 10f else 48f) * scale).dp)
+                    )
                     // Reserve the width of the widest (4-digit) E2 label via an invisible
                     // placeholder, then draw the live value over it, end-aligned. The bar shares
                     // this row through the weighted column, so pinning the E2 slot to a constant
