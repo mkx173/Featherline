@@ -97,8 +97,8 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.AddDateSheet
+import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
 import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
 import com.mkx.hrttracker.ui.journal.NoneSwatch
@@ -183,11 +183,15 @@ internal fun WidgetConfigScreen(
     // leave the widget stuck on its empty state.
     val selectedAnchor = resolveSelectedAnchor(anchors, selectedAnchorId)
     LaunchedEffect(configType, anchors, selectedAnchorId) {
-        if (configType == WidgetConfigType.ANCHOR &&
-            selectedAnchorId == null &&
-            anchors.size == 1
-        ) {
-            selectedAnchorId = anchors.single().id
+        // Intentional for both a newly created date and one pre-existing date: when
+        // there is no choice to make, select it so Save is immediately available.
+        val automaticSelection = autoSelectSingleAnchorId(
+            configType = configType,
+            anchors = anchors,
+            selectedAnchorId = selectedAnchorId,
+        )
+        if (automaticSelection != selectedAnchorId) {
+            selectedAnchorId = automaticSelection
         }
     }
     // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
@@ -613,7 +617,11 @@ internal fun WidgetConfigScreen(
     }
 
     if (isAnchorSheetOpen) {
-        if (anchors.isEmpty()) {
+        // Freeze the sheet type for this open session. The repository can emit the
+        // newly added date before AddDateSheet finishes hiding; switching branches at
+        // that point would briefly animate AnchorSelectorSheet into its place.
+        val showAddSheet = remember { anchors.isEmpty() }
+        if (showAddSheet) {
             AddDateSheet(
                 today = today,
                 anchor = null,
@@ -917,6 +925,21 @@ internal fun resolveSelectedAnchor(
     selectedAnchorId: String?,
 ): com.mkx.hrttracker.model.journal.TrackedDate? =
     anchors.firstOrNull { it.id == selectedAnchorId }
+
+internal fun autoSelectSingleAnchorId(
+    configType: WidgetConfigType,
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate>,
+    selectedAnchorId: String?,
+): String? =
+    if (
+        configType == WidgetConfigType.ANCHOR &&
+        selectedAnchorId == null &&
+        anchors.size == 1
+    ) {
+        anchors.single().id
+    } else {
+        selectedAnchorId
+    }
 
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
 

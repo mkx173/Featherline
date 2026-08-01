@@ -45,4 +45,39 @@ class AnchorSelectionResolutionTest {
     fun anyIdAgainstEmptyListDoesNotResolve() {
         assertNull(resolveSelectedAnchor(emptyList(), "a1"))
     }
+
+    @Test
+    fun singleAnchorIsAutomaticallySelectedInAnchorConfig() {
+        assertEquals(
+            "a1",
+            autoSelectSingleAnchorId(
+                configType = WidgetConfigType.ANCHOR,
+                anchors = listOf(anchor("a1")),
+                selectedAnchorId = null,
+            ),
+        )
+    }
+
+    @Test
+    fun automaticSelectionDoesNotOverrideExistingChoice() {
+        assertEquals(
+            "selected",
+            autoSelectSingleAnchorId(
+                configType = WidgetConfigType.ANCHOR,
+                anchors = listOf(anchor("a1")),
+                selectedAnchorId = "selected",
+            ),
+        )
+    }
+
+    @Test
+    fun singleAnchorIsNotAutomaticallySelectedForDoseWidgetConfig() {
+        assertNull(
+            autoSelectSingleAnchorId(
+                configType = WidgetConfigType.MEDIUM,
+                anchors = listOf(anchor("a1")),
+                selectedAnchorId = null,
+            )
+        )
+    }
 }

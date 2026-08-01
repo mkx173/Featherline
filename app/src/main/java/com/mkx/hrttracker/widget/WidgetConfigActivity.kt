@@ -338,13 +338,24 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 },
                                 onAddAnchor = { name, icon, date, paletteKey, pinned ->
                                     appScope.launch {
-                                        journalRepository.addTrackedDate(
-                                            name = name,
-                                            icon = icon,
-                                            date = date,
-                                            paletteKey = paletteKey,
-                                            pinned = pinned,
-                                        )
+                                        runCatching {
+                                            journalRepository.addTrackedDate(
+                                                name = name,
+                                                icon = icon,
+                                                date = date,
+                                                paletteKey = paletteKey,
+                                                pinned = pinned,
+                                            )
+                                        }.onFailure { throwable ->
+                                            if (throwable is CancellationException) {
+                                                throw throwable
+                                            }
+                                            diagnosticsLogger.warning(
+                                                TAG,
+                                                "anchor_config_add_failed",
+                                                throwable,
+                                            )
+                                        }
                                     }
                                 },
                                 onSave = { appearance ->
