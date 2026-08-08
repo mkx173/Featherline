@@ -44,10 +44,9 @@ import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
+import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -941,9 +940,9 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     isBuiltinE2: Boolean,
 ): E2CalibrationMetadataEntity? {
     val hasAnyMetadata = calibrationDisposition != null ||
-        acceptedReviewDigestSchema != null ||
-        acceptedReviewDigestAlgorithm != null ||
-        acceptedReviewDigestHexLower != null ||
+        acceptedModelVersion != null ||
+        acceptedSourceValueBits != null ||
+        acceptedCollectedAtEpochMillis != null ||
         calibrationMetadataUpdatedAtEpochMillis != null
     if (!hasAnyMetadata) return null
 
@@ -957,24 +956,24 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
             "Unsupported calibration disposition $calibrationDisposition for result $resultUuid."
         )
     }
-    val hasAnyDigest = acceptedReviewDigestSchema != null ||
-        acceptedReviewDigestAlgorithm != null || acceptedReviewDigestHexLower != null
-    val digest = if (hasAnyDigest) {
-        CanonicalDigest.create(
-            schema = acceptedReviewDigestSchema
-                ?: throw IllegalArgumentException("Incomplete review digest for result $resultUuid."),
-            algorithm = acceptedReviewDigestAlgorithm
-                ?: throw IllegalArgumentException("Incomplete review digest for result $resultUuid."),
-            hexLower = acceptedReviewDigestHexLower
-                ?: throw IllegalArgumentException("Incomplete review digest for result $resultUuid."),
-        ) ?: throw IllegalArgumentException("Invalid review digest for result $resultUuid.")
+    val hasAnyRecordField = acceptedModelVersion != null ||
+        acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null
+    val record = if (hasAnyRecordField) {
+        PkCalibrationAcceptanceRecord.create(
+            calibrationModelVersion = acceptedModelVersion
+                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
+            sourceValueBits = acceptedSourceValueBits
+                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
+            collectedAtEpochMillis = acceptedCollectedAtEpochMillis
+                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
+        ) ?: throw IllegalArgumentException("Invalid acceptance record for result $resultUuid.")
     } else {
         null
     }
     val metadata = E2CalibrationMetadata.create(
         resultId = UUID.fromString(resultUuid),
         disposition = disposition,
-        acceptedReviewDigest = digest,
+        acceptedRecord = record,
         updatedAt = Instant.ofEpochMilli(
             calibrationMetadataUpdatedAtEpochMillis
                 ?: throw IllegalArgumentException(
@@ -982,18 +981,14 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
                 )
         ),
     ) ?: throw IllegalArgumentException(
-        "Calibration metadata for result $resultUuid has an invalid disposition/digest pairing."
-    )
-    require(
-        metadata.acceptedReviewDigest == null ||
-            metadata.acceptedReviewDigest.schema == PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
+        "Calibration metadata for result $resultUuid has an invalid disposition/record pairing."
     )
     return E2CalibrationMetadataEntity(
         resultUuid = resultUuid,
         disposition = metadata.disposition.name,
-        acceptedReviewDigestSchema = metadata.acceptedReviewDigest?.schema,
-        acceptedReviewDigestAlgorithm = metadata.acceptedReviewDigest?.algorithm,
-        acceptedReviewDigestHexLower = metadata.acceptedReviewDigest?.hexLower,
+        acceptedModelVersion = metadata.acceptedRecord?.calibrationModelVersion,
+        acceptedSourceValueBits = metadata.acceptedRecord?.sourceValueBits,
+        acceptedCollectedAtEpochMillis = metadata.acceptedRecord?.collectedAtEpochMillis,
         updatedAtEpochMillis = metadata.updatedAt.toEpochMilli(),
     )
 }

@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
@@ -176,9 +177,9 @@ internal fun E2CalibrationMetadata.toEntity(): E2CalibrationMetadataEntity {
     return E2CalibrationMetadataEntity(
         resultUuid = resultId.toString(),
         disposition = disposition.name,
-        acceptedReviewDigestSchema = acceptedReviewDigest?.schema,
-        acceptedReviewDigestAlgorithm = acceptedReviewDigest?.algorithm,
-        acceptedReviewDigestHexLower = acceptedReviewDigest?.hexLower,
+        acceptedModelVersion = acceptedRecord?.calibrationModelVersion,
+        acceptedSourceValueBits = acceptedRecord?.sourceValueBits,
+        acceptedCollectedAtEpochMillis = acceptedRecord?.collectedAtEpochMillis,
         updatedAtEpochMillis = updatedAt.toEpochMilli(),
     )
 }
@@ -186,13 +187,13 @@ internal fun E2CalibrationMetadata.toEntity(): E2CalibrationMetadataEntity {
 internal fun E2CalibrationMetadataEntity.toModel(): E2CalibrationMetadata? {
     val parsedDisposition = runCatching { E2CalibrationDisposition.valueOf(disposition) }
         .getOrNull() ?: return null
-    val hasAnyDigestField = acceptedReviewDigestSchema != null ||
-        acceptedReviewDigestAlgorithm != null || acceptedReviewDigestHexLower != null
-    val digest = if (hasAnyDigestField) {
-        CanonicalDigest.create(
-            schema = acceptedReviewDigestSchema ?: return null,
-            algorithm = acceptedReviewDigestAlgorithm ?: return null,
-            hexLower = acceptedReviewDigestHexLower ?: return null,
+    val hasAnyRecordField = acceptedModelVersion != null ||
+        acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null
+    val record = if (hasAnyRecordField) {
+        PkCalibrationAcceptanceRecord.create(
+            calibrationModelVersion = acceptedModelVersion ?: return null,
+            sourceValueBits = acceptedSourceValueBits ?: return null,
+            collectedAtEpochMillis = acceptedCollectedAtEpochMillis ?: return null,
         ) ?: return null
     } else {
         null
@@ -200,7 +201,7 @@ internal fun E2CalibrationMetadataEntity.toModel(): E2CalibrationMetadata? {
     return E2CalibrationMetadata.create(
         resultId = runCatching { java.util.UUID.fromString(resultUuid) }.getOrNull() ?: return null,
         disposition = parsedDisposition,
-        acceptedReviewDigest = digest,
+        acceptedRecord = record,
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
     )
 }

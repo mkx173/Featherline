@@ -217,9 +217,9 @@ internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
             CREATE TABLE IF NOT EXISTS `e2_calibration_metadata` (
                 `resultUuid` TEXT NOT NULL,
                 `disposition` TEXT NOT NULL,
-                `acceptedReviewDigestSchema` TEXT,
-                `acceptedReviewDigestAlgorithm` TEXT,
-                `acceptedReviewDigestHexLower` TEXT,
+                `acceptedModelVersion` TEXT,
+                `acceptedSourceValueBits` TEXT,
+                `acceptedCollectedAtEpochMillis` INTEGER,
                 `updatedAtEpochMillis` INTEGER NOT NULL,
                 PRIMARY KEY(`resultUuid`),
                 FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`)

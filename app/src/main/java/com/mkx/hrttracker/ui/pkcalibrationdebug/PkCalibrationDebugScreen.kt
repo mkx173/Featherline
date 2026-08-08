@@ -355,7 +355,6 @@ internal fun pkCalibrationDebugFitReadoutLines(
 ): List<String> = listOf(
     "promotedRoutes=${uiState.promotedRoutes}",
     "displayParams=${uiState.displayParams}",
-    "scopeDecisionDigest=${uiState.rawResult?.scopeDecisionDigest}",
     "forwardModelVersion=${uiState.rawResult?.forwardModelVersion}",
     "calibrationModelVersion=${uiState.rawResult?.calibrationModelVersion}",
 )

@@ -18,8 +18,8 @@ import com.mkx.hrttracker.model.pk.PkCalibrationInputSnapshot
 import com.mkx.hrttracker.model.pk.PkCalibrationMedicationEventSource
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecision
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecisionProvider
+import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
+import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
@@ -73,7 +73,7 @@ sealed interface PkCalibrationRuntimePolicy {
     class ResearchOrTest private constructor(
         val identityPolicy: PkCalibrationIdentityPolicy,
         val config: PkCalibrationConfig,
-        val scopeDecision: PkCalibrationScopeDecision,
+        val attestation: PkCalibrationAttestation,
         val forwardModelVersion: String,
         val calibrationModelVersion: String,
         val labIdentityByResultId: Map<UUID, PkCalibrationLabSourceIdentity>,
@@ -82,7 +82,7 @@ sealed interface PkCalibrationRuntimePolicy {
             fun create(
                 identityPolicy: PkCalibrationIdentityPolicy,
                 config: PkCalibrationConfig,
-                scopeDecision: PkCalibrationScopeDecision,
+                attestation: PkCalibrationAttestation,
                 forwardModelVersion: String,
                 calibrationModelVersion: String,
                 labIdentityByResultId: Map<UUID, PkCalibrationLabSourceIdentity>,
@@ -97,7 +97,7 @@ sealed interface PkCalibrationRuntimePolicy {
                 return ResearchOrTest(
                     identityPolicy = identityPolicy,
                     config = config,
-                    scopeDecision = scopeDecision,
+                    attestation = attestation,
                     forwardModelVersion = forwardModelVersion,
                     calibrationModelVersion = calibrationModelVersion,
                     labIdentityByResultId = Collections.unmodifiableMap(
@@ -129,7 +129,7 @@ class PkCalibrationEvaluationContext private constructor(
     val metadata: List<E2CalibrationMetadata>,
     val identityPolicy: PkCalibrationIdentityPolicy,
     val config: PkCalibrationConfig,
-    val scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+    val attestationProvider: PkCalibrationAttestationProvider,
     internal val runtimePolicy: PkCalibrationRuntimePolicy.ResearchOrTest?,
 ) {
     companion object {
@@ -140,14 +140,14 @@ class PkCalibrationEvaluationContext private constructor(
             policy: PkCalibrationRuntimePolicy.ResearchOrTest,
         ): PkCalibrationEvaluationContext {
             require(inputGeneration >= 0L)
-            val frozenDecision = policy.scopeDecision
+            val frozenAttestation = policy.attestation
             return PkCalibrationEvaluationContext(
                 inputGeneration = inputGeneration,
                 input = input,
                 metadata = Collections.unmodifiableList(ArrayList(metadata)),
                 identityPolicy = policy.identityPolicy,
                 config = policy.config,
-                scopeDecisionProvider = FrozenScopeDecisionProvider(frozenDecision),
+                attestationProvider = PkCalibrationAttestationProvider { frozenAttestation },
                 runtimePolicy = policy,
             )
         }
@@ -158,27 +158,21 @@ class PkCalibrationEvaluationContext private constructor(
             metadata: List<E2CalibrationMetadata>,
             identityPolicy: PkCalibrationIdentityPolicy,
             config: PkCalibrationConfig,
-            scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+            attestationProvider: PkCalibrationAttestationProvider,
         ): PkCalibrationEvaluationContext {
             require(inputGeneration >= 0L)
-            val frozenDecision = scopeDecisionProvider.currentDecision()
+            val frozenAttestation = attestationProvider.currentAttestation()
             return PkCalibrationEvaluationContext(
                 inputGeneration = inputGeneration,
                 input = input,
                 metadata = Collections.unmodifiableList(ArrayList(metadata)),
                 identityPolicy = identityPolicy,
                 config = config,
-                scopeDecisionProvider = FrozenScopeDecisionProvider(frozenDecision),
+                attestationProvider = PkCalibrationAttestationProvider { frozenAttestation },
                 runtimePolicy = null,
             )
         }
     }
-}
-
-private class FrozenScopeDecisionProvider(
-    private val decision: PkCalibrationScopeDecision?,
-) : PkCalibrationScopeDecisionProvider {
-    override fun currentDecision(): PkCalibrationScopeDecision? = decision
 }
 
 sealed interface PkCalibrationLiveState {
@@ -295,7 +289,7 @@ class PkCalibrationLiveRepository @Inject constructor(
                 metadata = context.metadata,
                 identityPolicy = context.identityPolicy,
                 config = context.config,
-                scopeDecisionProvider = context.scopeDecisionProvider,
+                attestationProvider = context.attestationProvider,
             )
             val render = if (evaluation.isReady) {
                 evaluation.renderFor(read.domain)

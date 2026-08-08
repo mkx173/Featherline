@@ -6,7 +6,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkAuthorizedE2Result
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationConfig
 import com.mkx.hrttracker.model.pk.PkCalibrationE2LabSource
@@ -21,8 +20,8 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecision
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecisionProvider
+import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
+import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkCompound
@@ -31,7 +30,6 @@ import com.mkx.hrttracker.model.pk.PkE2ForwardModel
 import com.mkx.hrttracker.model.pk.PkHormone
 import com.mkx.hrttracker.model.pk.PkRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
-import com.mkx.hrttracker.model.pk.ResearchOrTestPkCalibrationScopeDecisionProvider
 import java.time.Instant
 import java.util.UUID
 import kotlin.math.exp
@@ -387,15 +385,15 @@ internal object PkCalibrationDebugSyntheticScenarios {
 
             E2CalibrationDisposition.ACCEPTED -> {
                 val targetId = reviewTargetId ?: return null
-                val digest = autoEvaluation.readyEvidence
+                val record = autoEvaluation.readyEvidence
                     ?.canonicalInput
-                    ?.reviewDigestFor(targetId)
+                    ?.acceptanceRecordFor(targetId)
                     ?: return null
                 listOf(
                     E2CalibrationMetadata.create(
                         resultId = targetId,
                         disposition = disposition,
-                        acceptedReviewDigest = digest,
+                        acceptedRecord = record,
                         updatedAt = Instant.ofEpochMilli(ReviewUpdatedAtMillis),
                     ) ?: return null
                 )
@@ -407,7 +405,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
                     E2CalibrationMetadata.create(
                         resultId = targetId,
                         disposition = disposition,
-                        acceptedReviewDigest = null,
+                        acceptedRecord = null,
                         updatedAt = Instant.ofEpochMilli(ReviewUpdatedAtMillis),
                     ) ?: return null
                 )
@@ -464,32 +462,8 @@ internal object PkCalibrationDebugSyntheticScenarios {
         events: List<PkCalibrationMedicationEventSource>,
         domain: PkChartDomain,
     ): SyntheticFixture? {
-        val authorizations = labs.map { lab ->
-            PkAuthorizedE2Result.create(lab.resultId, lab.resultScopeDigest())
-                ?: return null
-        }
-        val scopeInput = PkCalibrationScopeInputSnapshot.create(
-            authorizedE2Results = authorizations,
-            medicationEvents = events,
-            resolvedCurrentWeightKg = BodyWeightKg,
-            forwardModelVersion = DebugForwardModelVersion,
-        ) ?: return null
-        val decision = PkCalibrationScopeDecision.create(
-            decisionId = debugUuid(99),
-            revision = 1,
-            policyVersion = DebugPolicyVersion,
-            issuerId = DebugIssuerId,
-            issuedAt = Instant.ofEpochMilli(DecisionIssuedAtMillis),
-            provenanceRef = DebugProvenanceRef,
-            inputSnapshotDigest = scopeInput.digest,
-            authorizedE2Results = authorizations,
-        ) ?: return null
-        val provider = ResearchOrTestPkCalibrationScopeDecisionProvider.create(
-            decision = decision,
-            expectedPolicyVersion = DebugPolicyVersion,
-            expectedIssuerId = DebugIssuerId,
-            expectedProvenanceRef = DebugProvenanceRef,
-        ) ?: return null
+        val attestation = PkCalibrationAttestation(DecisionIssuedAtMillis)
+        val provider = PkCalibrationAttestationProvider { attestation }
         val input = PkCalibrationInputSnapshot.create(
             labs = labs,
             medicationEvents = events,
@@ -615,7 +589,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
 
     private data class SyntheticFixture(
         val input: PkCalibrationInputSnapshot,
-        val scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+        val attestationProvider: PkCalibrationAttestationProvider,
         val domain: PkChartDomain,
     ) {
         fun evaluate(metadata: List<E2CalibrationMetadata>): PkCalibrationEngineEvaluation {
@@ -624,7 +598,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
                 metadata = metadata,
                 identityPolicy = IdentityPolicy,
                 config = ResearchConfig,
-                scopeDecisionProvider = scopeDecisionProvider,
+                attestationProvider = attestationProvider,
             )
         }
     }
@@ -707,9 +681,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
             eventTypeIdByRoute = EventTypeIds,
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds,
-            trustedPolicyVersions = setOf(DebugPolicyVersion),
-            trustedIssuerIds = setOf(DebugIssuerId),
-            trustedProvenanceRefs = setOf(DebugProvenanceRef),
         )
     )
 }

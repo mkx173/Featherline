@@ -37,9 +37,10 @@ sealed interface PkCalibrationReviewActionResult {
  * service runs, so input, metadata, identity policy, config, and scope remain one snapshot.
  *
  * The repository owns the Room transaction and the final built-in-E2 check. A
- * Keep records the digest produced by the same current computation that named
- * the row as an unreviewed outlier. There is intentionally no compare-and-swap:
- * a later semantic edit makes that stored digest stale and the evidence adapter
+ * Keep records the acceptance context (model version, value bits, collection
+ * time) produced by the same current computation that named the row as an
+ * unreviewed outlier. There is intentionally no compare-and-swap: a later
+ * semantic edit makes that stored record stale and the evidence adapter
  * consequently treats the acceptance as AUTO.
  */
 @Singleton
@@ -57,7 +58,7 @@ class PkCalibrationReviewActionService @Inject constructor(
             metadata = current.metadata,
             identityPolicy = current.identityPolicy,
             config = current.config,
-            scopeDecisionProvider = current.scopeDecisionProvider,
+            attestationProvider = current.attestationProvider,
         )
         val evidence = evaluation.readyEvidence ?: return rejected(
             PkCalibrationReviewActionRejection.CALIBRATION_NOT_READY
@@ -73,13 +74,13 @@ class PkCalibrationReviewActionService @Inject constructor(
                 PkCalibrationReviewActionRejection.NOT_CURRENT_UNREVIEWED_OUTLIER
             )
         }
-        val digest = evidence.canonicalInput.reviewDigestFor(resultId)
+        val record = evidence.canonicalInput.acceptanceRecordFor(resultId)
             ?: return rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
         val metadata = requireNotNull(
             E2CalibrationMetadata.create(
                 resultId = resultId,
                 disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedReviewDigest = digest,
+                acceptedRecord = record,
                 updatedAt = Instant.now(clock),
             )
         )
@@ -100,7 +101,7 @@ class PkCalibrationReviewActionService @Inject constructor(
             E2CalibrationMetadata.create(
                 resultId = resultId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedReviewDigest = null,
+                acceptedRecord = null,
                 updatedAt = Instant.now(clock),
             )
         )
@@ -125,7 +126,7 @@ class PkCalibrationReviewActionService @Inject constructor(
             E2CalibrationMetadata.create(
                 resultId = resultId,
                 disposition = E2CalibrationDisposition.AUTO,
-                acceptedReviewDigest = null,
+                acceptedRecord = null,
                 updatedAt = Instant.now(clock),
             )
         )
@@ -154,7 +155,7 @@ class PkCalibrationReviewActionService @Inject constructor(
                 resolvedCurrentWeightKg = input.resolvedCurrentWeightKg,
                 identityPolicy = context.identityPolicy,
                 config = context.config,
-                scopeDecisionProvider = context.scopeDecisionProvider,
+                attestationProvider = context.attestationProvider,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )

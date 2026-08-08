@@ -7,7 +7,6 @@ import com.mkx.hrttracker.data.repository.PkCalibrationLiveUnavailableReason
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationDefaults
 import com.mkx.hrttracker.model.pk.PkCalibrationEngineEvaluation
@@ -553,11 +552,6 @@ internal object PkCalibrationDebugFixtures {
     private const val DebugForwardModelVersion = "debug:pk-forward/v1"
     private const val DebugCalibrationModelVersion = "debug:route-calibration/v9"
     private const val DebugRLog = 0.04
-    private val ScopeDigest = requireNotNull(CanonicalDigest.create(
-        PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA,
-        "SHA-256",
-        "b".repeat(64),
-    ))
     private val DomainDigest = requireNotNull(CanonicalDigest.create(
         PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA,
         "SHA-256",
@@ -692,7 +686,6 @@ internal object PkCalibrationDebugFixtures {
             routeResults = routeResults,
             promotedRoutes = promotedRoutes,
             displayParams = requireNotNull(PkPersonalParams.create(displayBetas)),
-            scopeDecisionDigest = ScopeDigest,
             forwardModelVersion = DebugForwardModelVersion,
             calibrationModelVersion = DebugCalibrationModelVersion,
         ))

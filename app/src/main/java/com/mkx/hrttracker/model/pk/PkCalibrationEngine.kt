@@ -76,7 +76,6 @@ class PkCalibrationEngineEvaluation private constructor(
             val evidence = solution.evidence
             val canonical = evidence.canonicalInput
             if (result.globalState != PkCalibrationGlobalState.READY ||
-                result.scopeDecisionDigest != canonical.scopeDecisionDigest ||
                 result.forwardModelVersion != canonical.forwardModelVersion ||
                 result.calibrationModelVersion != canonical.calibrationModelVersion
             ) {
@@ -109,14 +108,14 @@ object PkCalibrationEngine {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+        attestationProvider: PkCalibrationAttestationProvider,
     ): PkCalibrationResult {
         return evaluate(
             input = input,
             metadata = metadata,
             identityPolicy = identityPolicy,
             config = config,
-            scopeDecisionProvider = scopeDecisionProvider,
+            attestationProvider = attestationProvider,
         ).result
     }
 
@@ -125,7 +124,7 @@ object PkCalibrationEngine {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+        attestationProvider: PkCalibrationAttestationProvider,
     ): PkCalibrationEngineEvaluation {
         return when (
             val evidence = PkCalibrationEvidenceAdapter.build(
@@ -136,7 +135,7 @@ object PkCalibrationEngine {
                 metadata = metadata,
                 identityPolicy = identityPolicy,
                 config = config,
-                scopeDecisionProvider = scopeDecisionProvider,
+                attestationProvider = attestationProvider,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )

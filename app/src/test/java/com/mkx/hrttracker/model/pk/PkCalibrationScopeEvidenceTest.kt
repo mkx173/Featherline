@@ -14,7 +14,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -29,7 +28,7 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            scopeDecisionProvider = fixture.provider,
+            attestationProvider = fixture.attestationProvider,
         )
 
         assertEquals(PkCalibrationGlobalState.READY, ready.globalState)
@@ -44,7 +43,7 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            scopeDecisionProvider = fixture.provider,
+            attestationProvider = fixture.attestationProvider,
         )
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, unresolvedWeight.globalState)
         assertEquals(setOf(PkCalibrationReason.SHARED_INPUT_INVALID), unresolvedWeight.globalReasons)
@@ -57,7 +56,7 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            scopeDecisionProvider = ProductionUnavailablePkCalibrationScopeDecisionProvider,
+            attestationProvider = PkCalibrationAttestationProvider.Unavailable,
         )
         assertEquals(PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED, unavailableScope.globalState)
         assertEquals(
@@ -81,7 +80,7 @@ class PkCalibrationScopeEvidenceTest {
                 E2CalibrationMetadata.create(
                     resultId = other.resultId,
                     disposition = E2CalibrationDisposition.AUTO,
-                    acceptedReviewDigest = null,
+                    acceptedRecord = null,
                     updatedAt = updatedAt,
                 )
             )
@@ -96,7 +95,7 @@ class PkCalibrationScopeEvidenceTest {
             metadata = duplicateMetadata,
             identityPolicy = fixture.policy,
             config = fixture.config,
-            scopeDecisionProvider = fixture.provider,
+            attestationProvider = fixture.attestationProvider,
         )
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, result.globalState)
         assertEquals(
@@ -180,78 +179,8 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun protocolSchemas_matchHardCodedCanonicalBytesAndSha256Fixtures() {
-        val fixture = fixture()
-        val canonicalInput = ready(fixture.build()).canonicalInput
-        val lab = fixture.labs.single()
-
-        assertTrue(canonicalInput.config === fixture.config)
-
-        assertCanonicalFixture(
-            ScopeResultCanonicalJson,
-            ScopeResultSha256,
-            lab.resultScopeDigest(),
-        )
-        assertCanonicalFixture(
-            ScopeInputCanonicalJson,
-            ScopeInputSha256,
-            canonicalInput.scopeInputSnapshot.digest,
-        )
-        assertCanonicalFixture(
-            ScopeDecisionCanonicalJson,
-            ScopeDecisionSha256,
-            canonicalInput.scopeDecisionDigest,
-        )
-        assertCanonicalFixture(
-            OutlierReviewCanonicalJson,
-            OutlierReviewSha256,
-            requireNotNull(canonicalInput.reviewDigestFor(lab.resultId)),
-        )
-
-        assertFalse(ScopeResultCanonicalJson.contains("sourceValue"))
-        assertFalse(ScopeResultCanonicalJson.contains("unitId"))
-        assertTrue(ScopeInputCanonicalJson.contains("\"areaCm2\":null"))
-        assertTrue(ScopeInputCanonicalJson.contains("\"releaseRateMcgPerDay\":null"))
-        assertTrue(ScopeInputCanonicalJson.contains("\"sourceGroupUuid\":null"))
-        assertTrue(ScopeInputCanonicalJson.contains("\"sublingualTheta\":null"))
-        assertFalse(ScopeInputCanonicalJson.contains("\"timeH\""))
-        assertFalse(ScopeDecisionCanonicalJson.contains("null"))
-        assertTrue(
-            OutlierReviewCanonicalJson.contains("\"excludedAuthorizedE2ResultIds\":[]")
-        )
-        assertTrue(
-            OutlierReviewCanonicalJson.contains(
-                "\"calibrationRouteId\":null,\"eventTypeId\":\"event:patch-remove/v1\""
-            )
-        )
-        assertFalse(OutlierReviewCanonicalJson.contains("canonicalValuePgml"))
-        assertFalse(OutlierReviewCanonicalJson.contains("sourceUnitSnapshot"))
-        assertFalse(OutlierReviewCanonicalJson.contains("acceptedReviewDigest"))
-        assertFalse(OutlierReviewCanonicalJson.contains("disposition"))
-    }
-
-    @Test
-    fun scopeInputProtocolFixtures_bindRouteReassignmentAndNormalizeNegativeZeroDose() {
+    fun scopeInput_normalizesNegativeZeroDoseAndRejectsNegativeZeroWeight() {
         val source = lab()
-        val authorization = requireNotNull(
-            PkAuthorizedE2Result.create(source.resultId, source.resultScopeDigest())
-        )
-        val reassigned = requireNotNull(
-            PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
-                medicationEvents = listOf(
-                    medicationEvent(uuid(11), PkRoute.GEL, timeH = 0.0)
-                ),
-                resolvedCurrentWeightKg = BodyWeightKg,
-                forwardModelVersion = ForwardModelVersion,
-            )
-        )
-        assertCanonicalFixture(
-            RouteReassignedScopeInputCanonicalJson,
-            RouteReassignedScopeInputSha256,
-            reassigned.digest,
-        )
-
         val negativeZeroEvent = medicationEvent(
             eventId = uuid(11),
             route = PkRoute.ORAL,
@@ -266,7 +195,7 @@ class PkCalibrationScopeEvidenceTest {
         )
         val negativeZeroInput = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
+                labs = listOf(source),
                 medicationEvents = listOf(negativeZeroEvent),
                 resolvedCurrentWeightKg = BodyWeightKg,
                 forwardModelVersion = ForwardModelVersion,
@@ -274,7 +203,7 @@ class PkCalibrationScopeEvidenceTest {
         )
         val positiveZeroInput = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
+                labs = listOf(source),
                 medicationEvents = listOf(positiveZeroEvent),
                 resolvedCurrentWeightKg = BodyWeightKg,
                 forwardModelVersion = ForwardModelVersion,
@@ -284,14 +213,9 @@ class PkCalibrationScopeEvidenceTest {
         assertEquals(0L, negativeZeroEvent.event.doseMg.toRawBits())
         assertEquals("0000000000000000", (-0.0).toCanonicalBinary64Bits())
         assertEquals(positiveZeroInput.digest, negativeZeroInput.digest)
-        assertCanonicalFixture(
-            NegativeZeroDoseScopeInputCanonicalJson,
-            NegativeZeroDoseScopeInputSha256,
-            negativeZeroInput.digest,
-        )
         assertNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
+                labs = listOf(source),
                 medicationEvents = listOf(negativeZeroEvent),
                 resolvedCurrentWeightKg = -0.0,
                 forwardModelVersion = ForwardModelVersion,
@@ -300,7 +224,7 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun outlierReviewProtocolFixture_bindsSuccessfulNonIdentityUnitConversion() {
+    fun nonIdentityUnitConversion_isVerifiedAndUsableAsEvidence() {
         val canonicalPgml = BloodTestCatalog.toCanonical(
             analyteKey = BloodAnalyteKey.E2,
             value = 367.1,
@@ -326,15 +250,20 @@ class PkCalibrationScopeEvidenceTest {
         val verification = convertedLab.verifyCanonicalValuePgml()
             as PkCalibrationCanonicalE2ValueVerification.Verified
         assertEquals(canonicalPgml, verification.canonicalValuePgml, 0.0)
-        assertCanonicalFixture(
-            ConvertedUnitOutlierReviewCanonicalJson,
-            ConvertedUnitOutlierReviewSha256,
-            requireNotNull(canonicalInput.reviewDigestFor(convertedLab.resultId)),
+        assertEquals(
+            convertedLab.resultId,
+            canonicalInput.authorizedLabs.single().resultId,
+        )
+        assertEquals(
+            convertedLab.sourceValueBits,
+            requireNotNull(
+                canonicalInput.acceptanceRecordFor(convertedLab.resultId)
+            ).sourceValueBits,
         )
     }
 
     @Test
-    fun protocolFixtures_acceptBothSignedJcsTimestampEdges() {
+    fun scopeInput_acceptsBothSignedJcsTimestampEdges() {
         val minimumLab = lab(
             resultId = uuid(1),
             collectedAtEpochMillis = -JcsSafeIntegerMax,
@@ -343,23 +272,9 @@ class PkCalibrationScopeEvidenceTest {
             resultId = uuid(2),
             collectedAtEpochMillis = JcsSafeIntegerMax,
         )
-        assertCanonicalFixture(
-            MinimumTimestampScopeResultCanonicalJson,
-            MinimumTimestampScopeResultSha256,
-            minimumLab.resultScopeDigest(),
-        )
-        assertCanonicalFixture(
-            MaximumTimestampScopeResultCanonicalJson,
-            MaximumTimestampScopeResultSha256,
-            maximumLab.resultScopeDigest(),
-        )
-
-        val authorizations = listOf(minimumLab, maximumLab).map { lab ->
-            requireNotNull(PkAuthorizedE2Result.create(lab.resultId, lab.resultScopeDigest()))
-        }
-        val timestampEdgeInput = requireNotNull(
+        assertNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = authorizations,
+                labs = listOf(minimumLab, maximumLab),
                 medicationEvents = listOf(
                     medicationEvent(
                         eventId = uuid(11),
@@ -378,46 +293,6 @@ class PkCalibrationScopeEvidenceTest {
                 forwardModelVersion = ForwardModelVersion,
             )
         )
-        assertCanonicalFixture(
-            TimestampEdgesScopeInputCanonicalJson,
-            TimestampEdgesScopeInputSha256,
-            timestampEdgeInput.digest,
-        )
-
-        val minimumDecision = requireNotNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(99),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.ofEpochMilli(-JcsSafeIntegerMax),
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = timestampEdgeInput.digest,
-                authorizedE2Results = authorizations,
-            )
-        )
-        val maximumDecision = requireNotNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(99),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.ofEpochMilli(JcsSafeIntegerMax),
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = timestampEdgeInput.digest,
-                authorizedE2Results = authorizations,
-            )
-        )
-        assertCanonicalFixture(
-            MinimumTimestampScopeDecisionCanonicalJson,
-            MinimumTimestampScopeDecisionSha256,
-            minimumDecision.digest(),
-        )
-        assertCanonicalFixture(
-            MaximumTimestampScopeDecisionCanonicalJson,
-            MaximumTimestampScopeDecisionSha256,
-            maximumDecision.digest(),
-        )
     }
 
     @Test
@@ -426,16 +301,13 @@ class PkCalibrationScopeEvidenceTest {
             lab(resultId = uuid(1), collectedAtEpochMillis = OriginMillis + 8 * HourMillis),
             lab(resultId = uuid(2), collectedAtEpochMillis = OriginMillis + 12 * HourMillis),
         )
-        val authorizations = labs.map { lab ->
-            requireNotNull(PkAuthorizedE2Result.create(lab.resultId, lab.resultScopeDigest()))
-        }
         val events = listOf(
             medicationEvent(uuid(11), PkRoute.ORAL, timeH = 0.0),
             medicationEvent(uuid(12), PkRoute.GEL, timeH = 1.0),
         )
         val ordered = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizations,
+                labs,
                 events,
                 BodyWeightKg,
                 ForwardModelVersion,
@@ -443,7 +315,7 @@ class PkCalibrationScopeEvidenceTest {
         )
         val reordered = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizations.reversed(),
+                labs.reversed(),
                 events.reversed(),
                 BodyWeightKg,
                 ForwardModelVersion,
@@ -451,7 +323,7 @@ class PkCalibrationScopeEvidenceTest {
         )
         val oneBitWeight = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizations,
+                labs,
                 events,
                 Math.nextUp(BodyWeightKg),
                 ForwardModelVersion,
@@ -461,7 +333,7 @@ class PkCalibrationScopeEvidenceTest {
         assertEquals(ordered.digest, reordered.digest)
         assertEquals(
             listOf(uuid(1), uuid(2)),
-            reordered.authorizedE2Results.map(PkAuthorizedE2Result::resultId),
+            reordered.labs.map(PkCalibrationE2LabSource::resultId),
         )
         assertEquals(listOf(uuid(11), uuid(12)), reordered.medicationEvents.map { it.event.id })
         assertNotEquals(ordered.digest, oneBitWeight.digest)
@@ -470,9 +342,6 @@ class PkCalibrationScopeEvidenceTest {
     @Test
     fun scopeFactories_rejectDuplicatesEmptyAndUnresolvedIdentity() {
         val source = lab()
-        val authorization = requireNotNull(
-            PkAuthorizedE2Result.create(source.resultId, source.resultScopeDigest())
-        )
 
         assertNull(
             PkCalibrationScopeInputSnapshot.create(
@@ -482,41 +351,9 @@ class PkCalibrationScopeEvidenceTest {
                 ForwardModelVersion,
             )
         )
-        val validScopeInput = requireNotNull(
-            PkCalibrationScopeInputSnapshot.create(
-                listOf(authorization),
-                emptyList(),
-                BodyWeightKg,
-                ForwardModelVersion,
-            )
-        )
-        assertNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(90),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.EPOCH,
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = validScopeInput.digest,
-                authorizedE2Results = listOf(authorization, authorization),
-            )
-        )
-        assertNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(90),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.EPOCH,
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = validScopeInput.digest,
-                authorizedE2Results = emptyList(),
-            )
-        )
         assertNull(
             PkCalibrationScopeInputSnapshot.create(
-                listOf(authorization, authorization),
+                listOf(source, source),
                 emptyList(),
                 BodyWeightKg,
                 ForwardModelVersion,
@@ -541,9 +378,6 @@ class PkCalibrationScopeEvidenceTest {
             eventTypeIdByRoute = EventTypeIds - PkRoute.GEL,
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds,
-            trustedPolicyVersions = setOf(PolicyVersion),
-            trustedIssuerIds = setOf(IssuerId),
-            trustedProvenanceRefs = setOf(ProvenanceRef),
         ))
         assertNull(PkCalibrationIdentityPolicy.researchOrTest(
             builtinE2AnalyteId = AnalyteId,
@@ -555,9 +389,6 @@ class PkCalibrationScopeEvidenceTest {
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds +
                     (PkCompound.EU to CompoundIds.getValue(PkCompound.E2)),
-            trustedPolicyVersions = setOf(PolicyVersion),
-            trustedIssuerIds = setOf(IssuerId),
-            trustedProvenanceRefs = setOf(ProvenanceRef),
         ))
 
         val mismatchedCanonicalPanel = bloodPanel(
@@ -584,11 +415,11 @@ class PkCalibrationScopeEvidenceTest {
     @Test
     fun productionScopeAndMissingOrInvalidWeight_failClosed() {
         val fixture = fixture()
-        val unavailableProvider = ProductionUnavailablePkCalibrationScopeDecisionProvider
+        val unavailableProvider = PkCalibrationAttestationProvider.Unavailable
 
         assertFailure(
             fixture.build(
-                scopeProvider = unavailableProvider,
+                attestationProvider = unavailableProvider,
             ),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
@@ -604,13 +435,11 @@ class PkCalibrationScopeEvidenceTest {
             fixture.build(config = PkCalibrationConfig.productionDefault()),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
-        val throwingProvider = object : PkCalibrationScopeDecisionProvider {
-            override fun currentDecision(): PkCalibrationScopeDecision? {
-                error("trusted source unavailable")
-            }
+        val throwingProvider = PkCalibrationAttestationProvider {
+            error("attestation source unavailable")
         }
         assertFailure(
-            fixture.build(scopeProvider = throwingProvider),
+            fixture.build(attestationProvider = throwingProvider),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
 
@@ -623,21 +452,21 @@ class PkCalibrationScopeEvidenceTest {
         assertFailure(
             fixture.build(
                 weightKg = null,
-                scopeProvider = unavailableProvider,
+                attestationProvider = unavailableProvider,
             ),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
         assertFailure(
             fixture.build(
                 forwardModelVersion = "invalid model identity",
-                scopeProvider = unavailableProvider,
+                attestationProvider = unavailableProvider,
             ),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
         assertFailure(
             fixture.build(
                 events = listOf(invalidEvent),
-                scopeProvider = unavailableProvider,
+                attestationProvider = unavailableProvider,
             ),
             PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
@@ -648,16 +477,7 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun unknownPolicyProvenanceAndSourceIdentitiesFailClosed() {
-        val fixture = fixture()
-        val unknownPolicy = identityPolicy(
-            trustedPolicyVersions = setOf("scope-policy:other/v1")
-        )
-        assertFailure(
-            fixture.build(identityPolicy = unknownPolicy),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-
+    fun unknownSourceIdentitiesFailClosed() {
         val unknownLab = lab(analyteId = "analyte:unknown/v1")
         val unknownLabFixture = fixture(labs = listOf(unknownLab))
         assertFailure(
@@ -704,29 +524,8 @@ class PkCalibrationScopeEvidenceTest {
                 eventTypeIdByRoute = EventTypeIds,
                 routeIdByRoute = RouteIds + (PkRoute.ORAL to "route:other/v1"),
                 compoundIdByCompound = CompoundIds,
-                trustedPolicyVersions = setOf(PolicyVersion),
-                trustedIssuerIds = setOf(IssuerId),
-                trustedProvenanceRefs = setOf(ProvenanceRef),
             )
         )
-    }
-
-    @Test
-    fun unauthorizedExtraWithUnknownIdentityIsIgnored() {
-        val fixture = fixture()
-        val unauthorized = lab(
-            resultId = uuid(77),
-            analyteId = "analyte:unknown/v1",
-            sourceUnitSnapshot = "unsupported_unit",
-            unitId = "unit:unknown/v1",
-            sourceValue = Double.NaN,
-            canonicalValuePgml = Double.NaN,
-        )
-
-        val ready = ready(fixture.build(labs = fixture.labs + unauthorized))
-
-        assertEquals(1, ready.authorizedE2ResultCount)
-        assertEquals(fixture.labs.single().resultId, ready.canonicalInput.authorizedLabs.single().resultId)
     }
 
     @Test
@@ -789,7 +588,7 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = original.resultId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedReviewDigest = null,
+                acceptedRecord = null,
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -809,8 +608,9 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
 
-        assertEquals(first.canonicalInput.reviewDigestFor(original.resultId),
-            second.canonicalInput.reviewDigestFor(original.resultId))
+        // ponytail: an excluded row has no acceptance record — it cannot be ACCEPTED as-is.
+        assertNull(first.canonicalInput.acceptanceRecordFor(original.resultId))
+        assertNull(second.canonicalInput.acceptanceRecordFor(original.resultId))
         assertNull(first.excluded.single().observedPgml)
         assertNull(second.excluded.single().observedPgml)
     }
@@ -850,73 +650,6 @@ class PkCalibrationScopeEvidenceTest {
             PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
         )
 
-        val authorization = requireNotNull(
-            PkAuthorizedE2Result.create(
-                fixture.labs.single().resultId,
-                fixture.labs.single().resultScopeDigest(),
-            )
-        )
-        val scopeInput = requireNotNull(
-            PkCalibrationScopeInputSnapshot.create(
-                listOf(authorization),
-                fixture.events,
-                BodyWeightKg,
-                ForwardModelVersion,
-            )
-        )
-        assertNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(99),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.MAX,
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = scopeInput.digest,
-                authorizedE2Results = listOf(authorization),
-            )
-        )
-        assertNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(99),
-                revision = 9_007_199_254_740_992L,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.EPOCH,
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = scopeInput.digest,
-                authorizedE2Results = listOf(authorization),
-            )
-        )
-    }
-
-    @Test
-    fun scopeDigestMismatchesRevokeBeforeEvidenceEvaluation() {
-        val fixture = fixture()
-        val movedLab = lab(
-            resultId = fixture.labs.single().resultId,
-            collectedAtEpochMillis = fixture.labs.single().collectedAtEpochMillis + 1,
-        )
-        assertFailure(
-            fixture.build(labs = listOf(movedLab)),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-
-        val editedEvent = medicationEvent(
-            eventId = fixture.events.single().event.id,
-            route = PkRoute.ORAL,
-            timeH = 0.0,
-            doseMg = Math.nextUp(fixture.events.single().event.doseMg),
-        )
-        assertFailure(
-            fixture.build(events = listOf(editedEvent)),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-
-        assertFailure(
-            fixture.build(weightKg = Math.nextUp(BodyWeightKg)),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
     }
 
     @Test
@@ -933,7 +666,7 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = zeroLab.resultId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedReviewDigest = null,
+                acceptedRecord = null,
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -1128,21 +861,21 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun exclusionAndAcceptanceUseNonrecursiveWholeReviewDigests() {
+    fun exclusionAndAcceptanceUseCurrentAcceptanceRecords() {
         val labs = listOf(
             lab(uuid(1), sourceValue = 100.0, canonicalValuePgml = 100.0),
             lab(uuid(2), sourceValue = 120.0, canonicalValuePgml = 120.0),
         )
         val fixture = fixture(labs = labs)
         val autoReady = ready(fixture.build())
-        val currentDigest = requireNotNull(
-            autoReady.canonicalInput.reviewDigestFor(uuid(1))
+        val currentRecord = requireNotNull(
+            autoReady.canonicalInput.acceptanceRecordFor(uuid(1))
         )
         val accepted = requireNotNull(
             E2CalibrationMetadata.create(
                 uuid(1),
                 E2CalibrationDisposition.ACCEPTED,
-                currentDigest,
+                currentRecord,
                 Instant.EPOCH,
             )
         )
@@ -1152,22 +885,22 @@ class PkCalibrationScopeEvidenceTest {
             .single { evidence -> evidence.resultId == uuid(1) }
         assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED, acceptedEvidence.effectiveDisposition)
         assertEquals(
-            currentDigest,
-            acceptedReady.canonicalInput.reviewDigestFor(uuid(1)),
+            currentRecord,
+            acceptedReady.canonicalInput.acceptanceRecordFor(uuid(1)),
         )
 
-        val staleDigest = requireNotNull(
-            CanonicalDigest.create(
-                PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-                "SHA-256",
-                "f".repeat(64),
+        val staleRecord = requireNotNull(
+            PkCalibrationAcceptanceRecord.create(
+                calibrationModelVersion = CalibrationModelVersion,
+                sourceValueBits = "4058c00000000000",
+                collectedAtEpochMillis = labs[0].collectedAtEpochMillis,
             )
         )
         val stale = requireNotNull(
             E2CalibrationMetadata.create(
                 uuid(1),
                 E2CalibrationDisposition.ACCEPTED,
-                staleDigest,
+                staleRecord,
                 Instant.ofEpochMilli(999),
             )
         )
@@ -1185,11 +918,6 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
         val excludedReady = ready(fixture.build(metadata = listOf(excluded)))
-        assertNotEquals(
-            currentDigest,
-            excludedReady.canonicalInput.reviewDigestFor(uuid(1)),
-        )
-
         val changedExcludedLab = lab(
             uuid(1),
             sourceValue = Math.nextUp(100.0),
@@ -1202,13 +930,13 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
         assertEquals(
-            excludedReady.canonicalInput.reviewDigestFor(uuid(2)),
-            changedExcluded.canonicalInput.reviewDigestFor(uuid(2)),
+            excludedReady.canonicalInput.acceptanceRecordFor(uuid(2)),
+            changedExcluded.canonicalInput.acceptanceRecordFor(uuid(2)),
         )
     }
 
     @Test
-    fun engineCompute_staleAcceptedDigestMakesTheOutlierActionableAgain() {
+    fun engineCompute_staleAcceptedRecordMakesTheOutlierActionableAgain() {
         val event = medicationEvent(uuid(201), PkRoute.ORAL, timeH = 0.0)
         val forward = requireNotNull(
             PkE2ForwardModel.create(listOf(event.event), BodyWeightKg)
@@ -1232,8 +960,8 @@ class PkCalibrationScopeEvidenceTest {
             )
         }
         val fixture = fixture(labs = labs, events = listOf(event))
-        val currentDigest = requireNotNull(
-            ready(fixture.build()).canonicalInput.reviewDigestFor(outlierId)
+        val currentRecord = requireNotNull(
+            ready(fixture.build()).canonicalInput.acceptanceRecordFor(outlierId)
         )
 
         fun compute(
@@ -1245,7 +973,7 @@ class PkCalibrationScopeEvidenceTest {
                 metadata = metadata,
                 identityPolicy = fixture.policy,
                 config = fixture.config,
-                scopeDecisionProvider = fixture.provider,
+                attestationProvider = fixture.attestationProvider,
             )
             assertEquals(PkCalibrationGlobalState.READY, result.globalState)
             return result.routeResults.single { route ->
@@ -1260,7 +988,7 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = outlierId,
                 disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedReviewDigest = currentDigest,
+                acceptedRecord = currentRecord,
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -1273,21 +1001,20 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun includedSourceOneBitChangeChangesReviewButNotScopeAuthorization() {
+    fun includedSourceOneBitChangeStalesAcceptanceRecord() {
         val originalLab = lab(sourceValue = 100.0, canonicalValuePgml = 100.0)
         val changedLab = lab(
             resultId = originalLab.resultId,
             sourceValue = Math.nextUp(100.0),
             canonicalValuePgml = Math.nextUp(100.0),
         )
-        assertEquals(originalLab.resultScopeDigest(), changedLab.resultScopeDigest())
 
         val fixture = fixture(labs = listOf(originalLab))
-        val originalDigest = ready(fixture.build()).canonicalInput
-            .reviewDigestFor(originalLab.resultId)
-        val changedDigest = ready(fixture.build(labs = listOf(changedLab))).canonicalInput
-            .reviewDigestFor(originalLab.resultId)
-        assertNotEquals(originalDigest, changedDigest)
+        val originalRecord = ready(fixture.build()).canonicalInput
+            .acceptanceRecordFor(originalLab.resultId)
+        val changedRecord = ready(fixture.build(labs = listOf(changedLab))).canonicalInput
+            .acceptanceRecordFor(originalLab.resultId)
+        assertNotEquals(originalRecord, changedRecord)
     }
 
     @Test
@@ -1299,7 +1026,9 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = resultId,
                 disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedReviewDigest = original.canonicalInput.reviewDigestFor(resultId),
+                acceptedRecord = requireNotNull(
+                    original.canonicalInput.acceptanceRecordFor(resultId)
+                ),
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -1327,13 +1056,16 @@ class PkCalibrationScopeEvidenceTest {
                 .effectiveDisposition,
         )
         assertNotEquals(
-            acceptedReady.canonicalInput.reviewDigestFor(resultId),
-            changedVersionReady.canonicalInput.reviewDigestFor(resultId),
+            acceptedReady.canonicalInput.acceptanceRecordFor(resultId),
+            changedVersionReady.canonicalInput.acceptanceRecordFor(resultId),
         )
     }
 
     @Test
-    fun otherRouteValueChangeInvalidatesWholeReviewAcceptance() {
+    fun otherRouteValueChangeKeepsAcceptance() {
+        // v10.0 §A2: acceptance staleness is per-result. Editing a different lab
+        // no longer invalidates an acceptance the way the whole-snapshot review
+        // digest deliberately did.
         val input = routeSeparatedInput(included = true)
         val fixture = fixture(labs = input.labs, events = input.events)
         val original = ready(fixture.build())
@@ -1342,7 +1074,9 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = acceptedResultId,
                 disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedReviewDigest = original.canonicalInput.reviewDigestFor(acceptedResultId),
+                acceptedRecord = requireNotNull(
+                    original.canonicalInput.acceptanceRecordFor(acceptedResultId)
+                ),
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -1364,16 +1098,16 @@ class PkCalibrationScopeEvidenceTest {
         val acceptedEvidence = acceptedReady.routeEvidence
             .single { route -> route.route == PkCalibrationRoute.INJECTION }
             .dominantCandidates.single()
-        val invalidatedEvidence = changedReady.routeEvidence
+        val survivingEvidence = changedReady.routeEvidence
             .single { route -> route.route == PkCalibrationRoute.INJECTION }
             .dominantCandidates.single()
         assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
             acceptedEvidence.effectiveDisposition)
-        assertEquals(PkCalibrationEffectiveDisposition.AUTO,
-            invalidatedEvidence.effectiveDisposition)
-        assertNotEquals(
-            acceptedReady.canonicalInput.reviewDigestFor(acceptedResultId),
-            changedReady.canonicalInput.reviewDigestFor(acceptedResultId),
+        assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
+            survivingEvidence.effectiveDisposition)
+        assertEquals(
+            acceptedReady.canonicalInput.acceptanceRecordFor(acceptedResultId),
+            changedReady.canonicalInput.acceptanceRecordFor(acceptedResultId),
         )
     }
 
@@ -1431,7 +1165,7 @@ class PkCalibrationScopeEvidenceTest {
     private data class Fixture(
         val labs: List<PkCalibrationE2LabSource>,
         val events: List<PkCalibrationMedicationEventSource>,
-        val provider: PkCalibrationScopeDecisionProvider,
+        val attestationProvider: PkCalibrationAttestationProvider,
         val policy: PkCalibrationIdentityPolicy,
         val config: PkCalibrationConfig,
     ) {
@@ -1462,7 +1196,7 @@ class PkCalibrationScopeEvidenceTest {
             metadata: List<E2CalibrationMetadata> = emptyList(),
             identityPolicy: PkCalibrationIdentityPolicy = policy,
             config: PkCalibrationConfig = this.config,
-            scopeProvider: PkCalibrationScopeDecisionProvider = provider,
+            attestationProvider: PkCalibrationAttestationProvider = this.attestationProvider,
             originMillis: Long = OriginMillis,
             forwardModelVersion: String = ForwardModelVersion,
             calibrationModelVersion: String = CalibrationModelVersion,
@@ -1475,7 +1209,7 @@ class PkCalibrationScopeEvidenceTest {
                 metadata = metadata,
                 identityPolicy = identityPolicy,
                 config = config,
-                scopeDecisionProvider = scopeProvider,
+                attestationProvider = attestationProvider,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )
@@ -1488,43 +1222,12 @@ class PkCalibrationScopeEvidenceTest {
             medicationEvent(uuid(11), PkRoute.ORAL, timeH = 0.0)
         ),
     ): Fixture {
-        val authorizations = labs.map { source ->
-            requireNotNull(
-                PkAuthorizedE2Result.create(source.resultId, source.resultScopeDigest())
-            )
-        }
-        val scopeInput = requireNotNull(
-            PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = authorizations,
-                medicationEvents = events,
-                resolvedCurrentWeightKg = BodyWeightKg,
-                forwardModelVersion = ForwardModelVersion,
-            )
-        )
-        val decision = requireNotNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(99),
-                revision = 1,
-                policyVersion = PolicyVersion,
-                issuerId = IssuerId,
-                issuedAt = Instant.ofEpochMilli(1234),
-                provenanceRef = ProvenanceRef,
-                inputSnapshotDigest = scopeInput.digest,
-                authorizedE2Results = authorizations,
-            )
-        )
-        val provider = requireNotNull(
-            ResearchOrTestPkCalibrationScopeDecisionProvider.create(
-                decision,
-                PolicyVersion,
-                IssuerId,
-                ProvenanceRef,
-            )
-        )
         return Fixture(
             labs = labs,
             events = events,
-            provider = provider,
+            attestationProvider = PkCalibrationAttestationProvider {
+                PkCalibrationAttestation(1_234L)
+            },
             policy = identityPolicy(),
             config = requireNotNull(
                 PkCalibrationConfig.researchOrTest(
@@ -1536,7 +1239,6 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     private fun identityPolicy(
-        trustedPolicyVersions: Set<String> = setOf(PolicyVersion),
         unitIdBySourceSnapshot: Map<String, String> = mapOf(SourceUnitSnapshot to UnitId),
     ): PkCalibrationIdentityPolicy {
         return requireNotNull(
@@ -1549,9 +1251,6 @@ class PkCalibrationScopeEvidenceTest {
                 eventTypeIdByRoute = EventTypeIds,
                 routeIdByRoute = RouteIds,
                 compoundIdByCompound = CompoundIds,
-                trustedPolicyVersions = trustedPolicyVersions,
-                trustedIssuerIds = setOf(IssuerId),
-                trustedProvenanceRefs = setOf(ProvenanceRef),
             )
         )
     }
@@ -1677,23 +1376,6 @@ class PkCalibrationScopeEvidenceTest {
         assertEquals(expected, (result as PkCalibrationEvidenceBuildResult.Failed).failure)
     }
 
-    private fun assertCanonicalFixture(
-        expectedCanonicalJson: String,
-        expectedSha256: String,
-        actualDigest: CanonicalDigest,
-    ) {
-        val expectedBytes = expectedCanonicalJson.toByteArray(StandardCharsets.UTF_8)
-        val fixtureSha256 = MessageDigest.getInstance("SHA-256")
-            .digest(expectedBytes)
-            .joinToString(separator = "") { byte ->
-                "%02x".format(byte.toInt() and 0xff)
-            }
-        assertFalse(expectedCanonicalJson.endsWith('\n'))
-        assertEquals(expectedSha256, fixtureSha256)
-        assertEquals("SHA-256", actualDigest.algorithm)
-        assertEquals(expectedSha256, actualDigest.hexLower)
-    }
-
     private fun uuid(value: Long): UUID = UUID(0, value)
 
     private companion object {
@@ -1709,71 +1391,8 @@ class PkCalibrationScopeEvidenceTest {
         const val PmolSourceUnitSnapshot = "pmol_l"
         const val ProviderId = "provider:test/v1"
         const val AssayId = "assay:test/v1"
-        const val PolicyVersion = "scope-policy:test/v1"
-        const val IssuerId = "issuer:test/v1"
-        const val ProvenanceRef = "urn:test:scope-provenance:v1"
         const val ForwardModelVersion = "pk-forward:test/v1"
         const val CalibrationModelVersion = "pk-calibration:test/v9"
-
-        const val ScopeResultSha256 =
-            "2693c3f5f1863cabd0ded54e9aa32d82cc44b572da629719edd6340dbb736231"
-        const val ScopeResultCanonicalJson =
-            """{"analyteId":"hrttracker:analyte/e2/v1","assayMethodId":"assay:test/v1","collectedAt":1700028800000,"providerId":"provider:test/v1","resultId":"00000000-0000-0000-0000-000000000001","schema":"hrttracker.calibration-scope-result/v1"}"""
-
-        const val ScopeInputSha256 =
-            "eba73f49bbfd74522a84cc56680dd0793dfa9be9149d9a0dee71ff1153350ddb"
-        const val ScopeInputCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"2693c3f5f1863cabd0ded54e9aa32d82cc44b572da629719edd6340dbb736231","schema":"hrttracker.calibration-scope-result/v1"}}],"forwardModelVersion":"pk-forward:test/v1","medicationEvents":[{"areaCm2":null,"compoundId":"compound:e2/v1","doseMg":"4000000000000000","epochMillis":1700000000000,"eventTypeId":"event:oral-dose/v1","eventUuid":"00000000-0000-0000-0000-00000000000b","hormoneId":"hrttracker:hormone/estradiol/v1","releaseRateMcgPerDay":null,"routeId":"oral","sourceGroupUuid":null,"sublingualTheta":null}],"resolvedCurrentWeight":"4051800000000000","schema":"hrttracker.calibration-scope-input/v1"}"""
-
-        const val RouteReassignedScopeInputSha256 =
-            "3ca8003343bb8606ce548b599bf8f44e99c18c77855250b8848bfeb41a5f4a7b"
-        const val RouteReassignedScopeInputCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"2693c3f5f1863cabd0ded54e9aa32d82cc44b572da629719edd6340dbb736231","schema":"hrttracker.calibration-scope-result/v1"}}],"forwardModelVersion":"pk-forward:test/v1","medicationEvents":[{"areaCm2":null,"compoundId":"compound:e2/v1","doseMg":"4000000000000000","epochMillis":1700000000000,"eventTypeId":"event:gel-dose/v1","eventUuid":"00000000-0000-0000-0000-00000000000b","hormoneId":"hrttracker:hormone/estradiol/v1","releaseRateMcgPerDay":null,"routeId":"gel","sourceGroupUuid":null,"sublingualTheta":null}],"resolvedCurrentWeight":"4051800000000000","schema":"hrttracker.calibration-scope-input/v1"}"""
-
-        const val NegativeZeroDoseScopeInputSha256 =
-            "6bb1afcf24b25de4dd26f8655a89ff5f3507b08cacf64ede1ea09dd4c0639185"
-        const val NegativeZeroDoseScopeInputCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"2693c3f5f1863cabd0ded54e9aa32d82cc44b572da629719edd6340dbb736231","schema":"hrttracker.calibration-scope-result/v1"}}],"forwardModelVersion":"pk-forward:test/v1","medicationEvents":[{"areaCm2":null,"compoundId":"compound:e2/v1","doseMg":"0000000000000000","epochMillis":1700000000000,"eventTypeId":"event:oral-dose/v1","eventUuid":"00000000-0000-0000-0000-00000000000b","hormoneId":"hrttracker:hormone/estradiol/v1","releaseRateMcgPerDay":null,"routeId":"oral","sourceGroupUuid":null,"sublingualTheta":null}],"resolvedCurrentWeight":"4051800000000000","schema":"hrttracker.calibration-scope-input/v1"}"""
-
-        const val MinimumTimestampScopeResultSha256 =
-            "29b13127c1584b640f1fd711bf854eb825e1e53fb4648ef3bdcb38474f4972f4"
-        const val MinimumTimestampScopeResultCanonicalJson =
-            """{"analyteId":"hrttracker:analyte/e2/v1","assayMethodId":"assay:test/v1","collectedAt":-9007199254740991,"providerId":"provider:test/v1","resultId":"00000000-0000-0000-0000-000000000001","schema":"hrttracker.calibration-scope-result/v1"}"""
-
-        const val MaximumTimestampScopeResultSha256 =
-            "27f7a04e4c231782d988bddd33dcf11656ffa2f8fa2199388f4759322bebdca4"
-        const val MaximumTimestampScopeResultCanonicalJson =
-            """{"analyteId":"hrttracker:analyte/e2/v1","assayMethodId":"assay:test/v1","collectedAt":9007199254740991,"providerId":"provider:test/v1","resultId":"00000000-0000-0000-0000-000000000002","schema":"hrttracker.calibration-scope-result/v1"}"""
-
-        const val TimestampEdgesScopeInputSha256 =
-            "6a7100d58f19f23b0a3f333adf10f3b13257abe7a3d1739cedc6edfc4bc3be1e"
-        const val TimestampEdgesScopeInputCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"29b13127c1584b640f1fd711bf854eb825e1e53fb4648ef3bdcb38474f4972f4","schema":"hrttracker.calibration-scope-result/v1"}},{"resultId":"00000000-0000-0000-0000-000000000002","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"27f7a04e4c231782d988bddd33dcf11656ffa2f8fa2199388f4759322bebdca4","schema":"hrttracker.calibration-scope-result/v1"}}],"forwardModelVersion":"pk-forward:test/v1","medicationEvents":[{"areaCm2":null,"compoundId":"compound:e2/v1","doseMg":"4000000000000000","epochMillis":-9007199254740991,"eventTypeId":"event:oral-dose/v1","eventUuid":"00000000-0000-0000-0000-00000000000b","hormoneId":"hrttracker:hormone/estradiol/v1","releaseRateMcgPerDay":null,"routeId":"oral","sourceGroupUuid":null,"sublingualTheta":null},{"areaCm2":null,"compoundId":"compound:e2/v1","doseMg":"4000000000000000","epochMillis":9007199254740991,"eventTypeId":"event:oral-dose/v1","eventUuid":"00000000-0000-0000-0000-00000000000c","hormoneId":"hrttracker:hormone/estradiol/v1","releaseRateMcgPerDay":null,"routeId":"oral","sourceGroupUuid":null,"sublingualTheta":null}],"resolvedCurrentWeight":"4051800000000000","schema":"hrttracker.calibration-scope-input/v1"}"""
-
-        const val MinimumTimestampScopeDecisionSha256 =
-            "9f7c40f624e64665ebffa1017830e2c929607d256e61ce7097866fc3f1a60cb7"
-        const val MinimumTimestampScopeDecisionCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"29b13127c1584b640f1fd711bf854eb825e1e53fb4648ef3bdcb38474f4972f4","schema":"hrttracker.calibration-scope-result/v1"}},{"resultId":"00000000-0000-0000-0000-000000000002","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"27f7a04e4c231782d988bddd33dcf11656ffa2f8fa2199388f4759322bebdca4","schema":"hrttracker.calibration-scope-result/v1"}}],"decisionId":"00000000-0000-0000-0000-000000000063","inputSnapshotDigest":{"algorithm":"SHA-256","hexLower":"6a7100d58f19f23b0a3f333adf10f3b13257abe7a3d1739cedc6edfc4bc3be1e","schema":"hrttracker.calibration-scope-input/v1"},"issuedAt":-9007199254740991,"issuerId":"issuer:test/v1","policyVersion":"scope-policy:test/v1","provenanceRef":"urn:test:scope-provenance:v1","revision":1,"schema":"hrttracker.calibration-scope-decision/v1"}"""
-
-        const val MaximumTimestampScopeDecisionSha256 =
-            "d3001c9728396dd1d027ddac23322219abccbaf188f8a39f0a46014865b6f282"
-        const val MaximumTimestampScopeDecisionCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"29b13127c1584b640f1fd711bf854eb825e1e53fb4648ef3bdcb38474f4972f4","schema":"hrttracker.calibration-scope-result/v1"}},{"resultId":"00000000-0000-0000-0000-000000000002","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"27f7a04e4c231782d988bddd33dcf11656ffa2f8fa2199388f4759322bebdca4","schema":"hrttracker.calibration-scope-result/v1"}}],"decisionId":"00000000-0000-0000-0000-000000000063","inputSnapshotDigest":{"algorithm":"SHA-256","hexLower":"6a7100d58f19f23b0a3f333adf10f3b13257abe7a3d1739cedc6edfc4bc3be1e","schema":"hrttracker.calibration-scope-input/v1"},"issuedAt":9007199254740991,"issuerId":"issuer:test/v1","policyVersion":"scope-policy:test/v1","provenanceRef":"urn:test:scope-provenance:v1","revision":1,"schema":"hrttracker.calibration-scope-decision/v1"}"""
-
-        const val ScopeDecisionSha256 =
-            "7bb0d143af02c1ec92018a57c5c08ef1b4d0b581f715f0ac8287dc218d267924"
-        const val ScopeDecisionCanonicalJson =
-            """{"authorizedE2Results":[{"resultId":"00000000-0000-0000-0000-000000000001","resultScopeDigest":{"algorithm":"SHA-256","hexLower":"2693c3f5f1863cabd0ded54e9aa32d82cc44b572da629719edd6340dbb736231","schema":"hrttracker.calibration-scope-result/v1"}}],"decisionId":"00000000-0000-0000-0000-000000000063","inputSnapshotDigest":{"algorithm":"SHA-256","hexLower":"eba73f49bbfd74522a84cc56680dd0793dfa9be9149d9a0dee71ff1153350ddb","schema":"hrttracker.calibration-scope-input/v1"},"issuedAt":1234,"issuerId":"issuer:test/v1","policyVersion":"scope-policy:test/v1","provenanceRef":"urn:test:scope-provenance:v1","revision":1,"schema":"hrttracker.calibration-scope-decision/v1"}"""
-
-        const val OutlierReviewSha256 =
-            "46c32943fbb09499ab42d4275e7734bb4b3d1a02678c4ecfe1d82be6caf3d36f"
-        const val OutlierReviewCanonicalJson =
-            """{"calibrationModelVersion":"pk-calibration:test/v9","constants":{"canonicalRouteOrder":["injection","patch","gel","oral","sublingual"],"displayScaleCaps":[{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"injection"},{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"patch"},{"maxInclusive":"4008000000000000","minInclusive":"3fd0000000000000","routeId":"gel"},{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"oral"},{"maxInclusive":"4008000000000000","minInclusive":"3fd0000000000000","routeId":"sublingual"}],"dominanceLaw":"d>=w0*D","dominantRouteShareMin":"3fe999999999999a","drugMinInformativePgml":"3d719799812dea11","drugSignalLogRangeMin":"3fe62e42fefa39ef","eventRouteMapping":[{"calibrationRouteId":"injection","eventTypeId":"event:injection-dose/v1","routeId":"injection"},{"calibrationRouteId":"patch","eventTypeId":"event:patch-apply/v1","routeId":"patch"},{"calibrationRouteId":null,"eventTypeId":"event:patch-remove/v1","routeId":"patch"},{"calibrationRouteId":"gel","eventTypeId":"event:gel-dose/v1","routeId":"gel"},{"calibrationRouteId":"oral","eventTypeId":"event:oral-dose/v1","routeId":"oral"},{"calibrationRouteId":"sublingual","eventTypeId":"event:sublingual-dose/v1","routeId":"sublingual"}],"exactRouteResidualLaw":"a=y-(D-d)","extremeScaleCoreMax":"4000000000000000","extremeScaleCoreMin":"3fe0000000000000","globalSearchNumericGuardAbsBeta":"4034000000000000","gridMinNodes":16,"gridStepLog":"3f50624dd2f1a9fc","minDominantLabsForExtremeScale":3,"minDominantLabsForPromotion":2,"outlierWeightMin":"3fd0000000000000","rLog":"3fa47ae147ae147b","robustRmseGateFactor":"4000000000000000","routeAttributableMinFraction":"3fa999999999999a","routeAttributableMinPgml":"3d719799812dea11","routeLogScalePosteriorSdMaxForFullCalibration":"3fc999999999999a","routeLogScalePriorSd":"3fd3333333333333","stationaryRootBetaAbsTol":"3d719799812dea11","stationaryRootMaxEval":200,"studentTNu":"4010000000000000","targetCompoundIds":["compound:e2/v1","compound:eb/v1","compound:ev/v1","compound:ec/v1","compound:en/v1","compound:eu/v1"],"targetHormoneId":"hrttracker:hormone/estradiol/v1"},"excludedAuthorizedE2ResultIds":[],"forwardModelVersion":"pk-forward:test/v1","includedAuthorizedE2Results":[{"analyteId":"hrttracker:analyte/e2/v1","assayMethodId":"assay:test/v1","collectedAt":1700028800000,"providerId":"provider:test/v1","resultId":"00000000-0000-0000-0000-000000000001","sourceValue":"4059000000000000","unitId":"hrttracker:unit/pg-ml/v1"}],"schema":"hrttracker.calibration-outlier-review/v1","scopeDecisionDigest":{"algorithm":"SHA-256","hexLower":"7bb0d143af02c1ec92018a57c5c08ef1b4d0b581f715f0ac8287dc218d267924","schema":"hrttracker.calibration-scope-decision/v1"},"targetResultId":"00000000-0000-0000-0000-000000000001"}"""
-
-        const val ConvertedUnitOutlierReviewSha256 =
-            "890ac1bb3501ffa8d35a9e35bde2e8fd18f7d36ff5787b42a2b6fdbd4762b804"
-        const val ConvertedUnitOutlierReviewCanonicalJson =
-            """{"calibrationModelVersion":"pk-calibration:test/v9","constants":{"canonicalRouteOrder":["injection","patch","gel","oral","sublingual"],"displayScaleCaps":[{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"injection"},{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"patch"},{"maxInclusive":"4008000000000000","minInclusive":"3fd0000000000000","routeId":"gel"},{"maxInclusive":"4000000000000000","minInclusive":"3fe0000000000000","routeId":"oral"},{"maxInclusive":"4008000000000000","minInclusive":"3fd0000000000000","routeId":"sublingual"}],"dominanceLaw":"d>=w0*D","dominantRouteShareMin":"3fe999999999999a","drugMinInformativePgml":"3d719799812dea11","drugSignalLogRangeMin":"3fe62e42fefa39ef","eventRouteMapping":[{"calibrationRouteId":"injection","eventTypeId":"event:injection-dose/v1","routeId":"injection"},{"calibrationRouteId":"patch","eventTypeId":"event:patch-apply/v1","routeId":"patch"},{"calibrationRouteId":null,"eventTypeId":"event:patch-remove/v1","routeId":"patch"},{"calibrationRouteId":"gel","eventTypeId":"event:gel-dose/v1","routeId":"gel"},{"calibrationRouteId":"oral","eventTypeId":"event:oral-dose/v1","routeId":"oral"},{"calibrationRouteId":"sublingual","eventTypeId":"event:sublingual-dose/v1","routeId":"sublingual"}],"exactRouteResidualLaw":"a=y-(D-d)","extremeScaleCoreMax":"4000000000000000","extremeScaleCoreMin":"3fe0000000000000","globalSearchNumericGuardAbsBeta":"4034000000000000","gridMinNodes":16,"gridStepLog":"3f50624dd2f1a9fc","minDominantLabsForExtremeScale":3,"minDominantLabsForPromotion":2,"outlierWeightMin":"3fd0000000000000","rLog":"3fa47ae147ae147b","robustRmseGateFactor":"4000000000000000","routeAttributableMinFraction":"3fa999999999999a","routeAttributableMinPgml":"3d719799812dea11","routeLogScalePosteriorSdMaxForFullCalibration":"3fc999999999999a","routeLogScalePriorSd":"3fd3333333333333","stationaryRootBetaAbsTol":"3d719799812dea11","stationaryRootMaxEval":200,"studentTNu":"4010000000000000","targetCompoundIds":["compound:e2/v1","compound:eb/v1","compound:ev/v1","compound:ec/v1","compound:en/v1","compound:eu/v1"],"targetHormoneId":"hrttracker:hormone/estradiol/v1"},"excludedAuthorizedE2ResultIds":[],"forwardModelVersion":"pk-forward:test/v1","includedAuthorizedE2Results":[{"analyteId":"hrttracker:analyte/e2/v1","assayMethodId":"assay:test/v1","collectedAt":1700028800000,"providerId":"provider:test/v1","resultId":"00000000-0000-0000-0000-000000000001","sourceValue":"4076f1999999999a","unitId":"hrttracker:unit/pmol-l/v1"}],"schema":"hrttracker.calibration-outlier-review/v1","scopeDecisionDigest":{"algorithm":"SHA-256","hexLower":"7bb0d143af02c1ec92018a57c5c08ef1b4d0b581f715f0ac8287dc218d267924","schema":"hrttracker.calibration-scope-decision/v1"},"targetResultId":"00000000-0000-0000-0000-000000000001"}"""
 
         val EventTypeIds = linkedMapOf(
             PkRoute.INJECTION to "event:injection-dose/v1",

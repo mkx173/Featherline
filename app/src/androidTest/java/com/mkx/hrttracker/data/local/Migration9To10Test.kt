@@ -90,8 +90,8 @@ class Migration9To10Test {
         db.execSQL(
             """
             INSERT INTO e2_calibration_metadata (
-                resultUuid, disposition, acceptedReviewDigestSchema,
-                acceptedReviewDigestAlgorithm, acceptedReviewDigestHexLower,
+                resultUuid, disposition, acceptedModelVersion,
+                acceptedSourceValueBits, acceptedCollectedAtEpochMillis,
                 updatedAtEpochMillis
             ) VALUES ('result-1', 'EXCLUDED', NULL, NULL, NULL, 1000)
             """.trimIndent()

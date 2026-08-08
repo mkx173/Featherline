@@ -861,27 +861,12 @@ class PkCalibrationSolverTest {
                 assayMethodId = "assay:test/v1",
             )
         )
-        val authorization = requireNotNull(
-            PkAuthorizedE2Result.create(resultId, lab.resultScopeDigest())
-        )
         val scopeInput = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
+                labs = listOf(lab),
                 medicationEvents = emptyList(),
                 resolvedCurrentWeightKg = 70.0,
                 forwardModelVersion = "pk-forward:test/v1",
-            )
-        )
-        val decision = requireNotNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(9_002),
-                revision = 1,
-                policyVersion = "scope-policy:test/v1",
-                issuerId = "issuer:test/v1",
-                issuedAt = Instant.EPOCH,
-                provenanceRef = "provenance:test/v1",
-                inputSnapshotDigest = scopeInput.digest,
-                authorizedE2Results = listOf(authorization),
             )
         )
         return PkCalibrationCanonicalInputSnapshot.create(
@@ -890,13 +875,12 @@ class PkCalibrationSolverTest {
             forwardTimeOriginEpochMillis = 0L,
             resolvedCurrentWeightKg = 70.0,
             metadata = emptyList(),
-            scopeDecision = decision,
-            scopeDecisionDigest = decision.digest(),
+            attestation = PkCalibrationAttestation(0L),
             scopeInputSnapshot = scopeInput,
             forwardModelVersion = "pk-forward:test/v1",
             calibrationModelVersion = "pk-calibration:test/v9",
             config = config,
-            reviewDigestByResultId = emptyMap(),
+            acceptanceRecordByResultId = emptyMap(),
         )
     }
 

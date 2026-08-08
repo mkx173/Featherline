@@ -533,7 +533,6 @@ object PkCalibrationSolver {
             routeResults = routeResults,
             promotedRoutes = promotedRoutes,
             displayParams = displayParams,
-            scopeDecisionDigest = evidence.canonicalInput.scopeDecisionDigest,
             forwardModelVersion = evidence.canonicalInput.forwardModelVersion,
             calibrationModelVersion = evidence.canonicalInput.calibrationModelVersion,
         )

@@ -42,7 +42,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
+import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -817,11 +817,11 @@ class BackupExportServiceTest {
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000061")
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000062")
         val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000063")
-        val reviewDigest = checkNotNull(
-            CanonicalDigest.create(
-                PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-                "SHA-256",
-                "a".repeat(64),
+        val acceptanceRecord = checkNotNull(
+            PkCalibrationAcceptanceRecord.create(
+                calibrationModelVersion = "pk-calibration:test/v9",
+                sourceValueBits = "4059000000000000",
+                collectedAtEpochMillis = 600L,
             )
         )
         val importedMedicine = Medicine(
@@ -895,7 +895,7 @@ class BackupExportServiceTest {
                 E2CalibrationMetadata.create(
                     resultId = resultUuid,
                     disposition = E2CalibrationDisposition.ACCEPTED,
-                    acceptedReviewDigest = reviewDigest,
+                    acceptedRecord = acceptanceRecord,
                     updatedAt = Instant.parse("2026-04-26T02:20:00Z"),
                 )
             )
@@ -915,9 +915,9 @@ class BackupExportServiceTest {
         assertEquals("oyama", result.importSourceApp)
         assertEquals("result-60", result.importExternalId)
         assertEquals("ACCEPTED", result.calibrationDisposition)
-        assertEquals(PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA, result.acceptedReviewDigestSchema)
-        assertEquals("SHA-256", result.acceptedReviewDigestAlgorithm)
-        assertEquals("a".repeat(64), result.acceptedReviewDigestHexLower)
+        assertEquals("pk-calibration:test/v9", result.acceptedModelVersion)
+        assertEquals("4059000000000000", result.acceptedSourceValueBits)
+        assertEquals(600L, result.acceptedCollectedAtEpochMillis)
         assertEquals(
             Instant.parse("2026-04-26T02:20:00Z").toEpochMilli(),
             result.calibrationMetadataUpdatedAtEpochMillis,

@@ -148,11 +148,6 @@ class PkCalibrationRendererTest {
             originMillis = changedOrigin,
             promotedQByRoute = mapOf(PkCalibrationRoute.ORAL to ln(1.1)),
         )
-        val scopeChanged = evaluation(
-            events = baseEvents,
-            scopeRevision = 2L,
-            promotedQByRoute = mapOf(PkCalibrationRoute.ORAL to ln(1.1)),
-        )
         val rLogChanged = evaluation(
             events = baseEvents,
             config = config(rLog = 0.05),
@@ -165,10 +160,6 @@ class PkCalibrationRendererTest {
         assertNotEquals(baseRender.domainDigest, render(weightChanged, renderDomain).domainDigest)
         assertNotEquals(baseRender.domainDigest, render(originChanged, renderDomain).domainDigest)
         assertNotEquals(
-            requireReady(base).scopeDecisionDigest,
-            requireReady(scopeChanged).scopeDecisionDigest,
-        )
-        assertNotEquals(
             render(base, renderDomain).bandKnots,
             render(rLogChanged, renderDomain).bandKnots,
         )
@@ -176,7 +167,7 @@ class PkCalibrationRendererTest {
         assertEquals(0.05, requireNotNull(requireReady(rLogChanged).config.rLog), 0.0)
         assertEquals(OriginMillis, requireReady(base).forwardTimeOriginEpochMillis)
         assertEquals(changedOrigin, requireReady(originChanged).forwardTimeOriginEpochMillis)
-        assertTrue(requireReady(base).reviewDigestByResultId.isNotEmpty())
+        assertTrue(requireReady(base).acceptanceRecordByResultId.isNotEmpty())
     }
 
     @Test
@@ -455,7 +446,6 @@ class PkCalibrationRendererTest {
         weightKg: Double = WeightKg,
         originMillis: Long = OriginMillis,
         config: PkCalibrationConfig = Config,
-        scopeRevision: Long = 1L,
         forwardModelVersion: String = ForwardModelVersion,
         calibrationModelVersion: String = CalibrationModelVersion,
     ): PkCalibrationEngineEvaluation {
@@ -464,7 +454,6 @@ class PkCalibrationRendererTest {
             weightKg = weightKg,
             originMillis = originMillis,
             config = config,
-            scopeRevision = scopeRevision,
             forwardModelVersion = forwardModelVersion,
             calibrationModelVersion = calibrationModelVersion,
         )
@@ -500,7 +489,6 @@ class PkCalibrationRendererTest {
         weightKg: Double,
         originMillis: Long,
         config: PkCalibrationConfig,
-        scopeRevision: Long,
         forwardModelVersion: String,
         calibrationModelVersion: String,
     ): PkCalibrationCanonicalInputSnapshot {
@@ -535,34 +523,19 @@ class PkCalibrationRendererTest {
                 assayMethodId = "assay:test/v1",
             )
         )
-        val authorization = requireNotNull(
-            PkAuthorizedE2Result.create(resultId, lab.resultScopeDigest())
-        )
         val scopeInput = requireNotNull(
             PkCalibrationScopeInputSnapshot.create(
-                authorizedE2Results = listOf(authorization),
+                labs = listOf(lab),
                 medicationEvents = events,
                 resolvedCurrentWeightKg = weightKg,
                 forwardModelVersion = forwardModelVersion,
             )
         )
-        val decision = requireNotNull(
-            PkCalibrationScopeDecision.create(
-                decisionId = uuid(9_100 + scopeRevision),
-                revision = scopeRevision,
-                policyVersion = "scope-policy:test/v1",
-                issuerId = "issuer:test/v1",
-                issuedAt = Instant.ofEpochMilli(scopeRevision),
-                provenanceRef = "provenance:test/v1",
-                inputSnapshotDigest = scopeInput.digest,
-                authorizedE2Results = listOf(authorization),
-            )
-        )
-        val reviewDigest = requireNotNull(
-            CanonicalDigest.create(
-                schema = PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-                algorithm = "SHA-256",
-                hexLower = "b".repeat(64),
+        val acceptanceRecord = requireNotNull(
+            PkCalibrationAcceptanceRecord.create(
+                calibrationModelVersion = calibrationModelVersion,
+                sourceValueBits = "4059000000000000",
+                collectedAtEpochMillis = originMillis,
             )
         )
         return requireNotNull(
@@ -572,13 +545,12 @@ class PkCalibrationRendererTest {
                 forwardTimeOriginEpochMillis = originMillis,
                 resolvedCurrentWeightKg = weightKg,
                 metadata = emptyList(),
-                scopeDecision = decision,
-                scopeDecisionDigest = decision.digest(),
+                attestation = PkCalibrationAttestation(0L),
                 scopeInputSnapshot = scopeInput,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
                 config = config,
-                reviewDigestByResultId = mapOf(resultId to reviewDigest),
+                acceptanceRecordByResultId = mapOf(resultId to acceptanceRecord),
             )
         )
     }

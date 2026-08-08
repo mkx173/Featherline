@@ -6,7 +6,7 @@ import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionService
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
+import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
@@ -913,11 +913,11 @@ class PkCalibrationDebugViewModelTest {
         resultId: UUID,
         disposition: E2CalibrationDisposition,
     ): E2CalibrationMetadata {
-        val digest = if (disposition == E2CalibrationDisposition.ACCEPTED) {
-            requireNotNull(CanonicalDigest.create(
-                schema = PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-                algorithm = "SHA-256",
-                hexLower = "c".repeat(64),
+        val record = if (disposition == E2CalibrationDisposition.ACCEPTED) {
+            requireNotNull(PkCalibrationAcceptanceRecord.create(
+                calibrationModelVersion = "pk-calibration:test/v9",
+                sourceValueBits = "4059000000000000",
+                collectedAtEpochMillis = 600L,
             ))
         } else {
             null
@@ -925,7 +925,7 @@ class PkCalibrationDebugViewModelTest {
         return requireNotNull(E2CalibrationMetadata.create(
             resultId = resultId,
             disposition = disposition,
-            acceptedReviewDigest = digest,
+            acceptedRecord = record,
             updatedAt = Instant.EPOCH,
         ))
     }

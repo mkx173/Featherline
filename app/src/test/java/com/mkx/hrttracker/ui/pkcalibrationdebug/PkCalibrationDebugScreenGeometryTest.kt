@@ -128,7 +128,6 @@ class PkCalibrationDebugScreenGeometryTest {
         assertTrue(routeRows.all { row -> "reasons=" in row })
         assertTrue(fitLines.any { line -> line.startsWith("promotedRoutes=") })
         assertTrue(fitLines.any { line -> line.startsWith("displayParams=") })
-        assertTrue(fitLines.any { line -> line.startsWith("scopeDecisionDigest=") })
         assertTrue(fitLines.any { line -> line.startsWith("forwardModelVersion=") })
         assertTrue(fitLines.any { line -> line.startsWith("calibrationModelVersion=") })
         assertTrue(renderLines.any { line -> line.startsWith("domainDigest=") })

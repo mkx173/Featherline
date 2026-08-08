@@ -5,11 +5,10 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.personalization.UserProfile
-import com.mkx.hrttracker.model.pk.PkAuthorizedE2Result
 import com.mkx.hrttracker.model.pk.PkCalibrationConfig
 import com.mkx.hrttracker.model.pk.PkCalibrationE2LabSource
 import com.mkx.hrttracker.model.pk.PkCalibrationIdentityPolicy
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeDecision
+import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkCompound
 import com.mkx.hrttracker.model.pk.PkRoute
@@ -252,7 +251,7 @@ class PkCalibrationLiveRepositoryTest {
         return requireNotNull(PkCalibrationRuntimePolicy.ResearchOrTest.create(
             identityPolicy = mockk<PkCalibrationIdentityPolicy>(relaxed = true),
             config = requireNotNull(PkCalibrationConfig.researchOrTest(1.0, 0.1)),
-            scopeDecision = mockk<PkCalibrationScopeDecision>(relaxed = true),
+            attestation = PkCalibrationAttestation(0L),
             forwardModelVersion = "test:forward/v1",
             calibrationModelVersion = "test:calibration/v1",
             labIdentityByResultId = mapOf(
@@ -292,25 +291,11 @@ class PkCalibrationLiveRepositoryTest {
             providerId = PROVIDER_ID,
             assayMethodId = ASSAY_ID,
         ))
-        val authorization = requireNotNull(PkAuthorizedE2Result.create(
-            resultId,
-            lab.resultScopeDigest(),
-        ))
         val scopeInput = requireNotNull(PkCalibrationScopeInputSnapshot.create(
-            authorizedE2Results = listOf(authorization),
+            labs = listOf(lab),
             medicationEvents = emptyList(),
             resolvedCurrentWeightKg = 70.0,
             forwardModelVersion = FORWARD_VERSION,
-        ))
-        val decision = requireNotNull(PkCalibrationScopeDecision.create(
-            decisionId = UUID(0L, 44L),
-            revision = 1L,
-            policyVersion = POLICY_VERSION,
-            issuerId = ISSUER_ID,
-            issuedAt = collectedAt,
-            provenanceRef = PROVENANCE_REF,
-            inputSnapshotDigest = scopeInput.digest,
-            authorizedE2Results = listOf(authorization),
         ))
         val eventTypeIds = linkedMapOf(
             PkRoute.INJECTION to "event:injection-dose/v1",
@@ -345,14 +330,11 @@ class PkCalibrationLiveRepositoryTest {
             eventTypeIdByRoute = eventTypeIds,
             routeIdByRoute = routeIds,
             compoundIdByCompound = compoundIds,
-            trustedPolicyVersions = setOf(POLICY_VERSION),
-            trustedIssuerIds = setOf(ISSUER_ID),
-            trustedProvenanceRefs = setOf(PROVENANCE_REF),
         ))
         val policy = requireNotNull(PkCalibrationRuntimePolicy.ResearchOrTest.create(
             identityPolicy = identityPolicy,
             config = requireNotNull(PkCalibrationConfig.researchOrTest(1.0, 0.1)),
-            scopeDecision = decision,
+            attestation = PkCalibrationAttestation(0L),
             forwardModelVersion = FORWARD_VERSION,
             calibrationModelVersion = CALIBRATION_VERSION,
             labIdentityByResultId = mapOf(

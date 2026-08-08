@@ -13,7 +13,7 @@ import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PK_CALIBRATION_DISPLAY_SCHEMA
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
+import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
@@ -310,9 +310,12 @@ class PkCalibrationPersistenceTest {
             E2CalibrationMetadata.create(
                 resultId = acceptedId,
                 disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedReviewDigest = digest(
-                    PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-                    'c',
+                acceptedRecord = checkNotNull(
+                    PkCalibrationAcceptanceRecord.create(
+                        calibrationModelVersion = "pk-calibration:test/v9",
+                        sourceValueBits = "4059000000000000",
+                        collectedAtEpochMillis = 600L,
+                    )
                 ),
                 updatedAt = Instant.ofEpochMilli(2_000L),
             )
@@ -321,7 +324,7 @@ class PkCalibrationPersistenceTest {
             E2CalibrationMetadata.create(
                 resultId = excludedId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedReviewDigest = null,
+                acceptedRecord = null,
                 updatedAt = Instant.ofEpochMilli(3_000L),
             )
         )
@@ -509,9 +512,7 @@ class PkCalibrationPersistenceTest {
     private fun excludedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(
         resultUuid = resultUuid,
         disposition = "EXCLUDED",
-        acceptedReviewDigestSchema = null,
-        acceptedReviewDigestAlgorithm = null,
-        acceptedReviewDigestHexLower = null,
+        acceptedModelVersion = null,        acceptedSourceValueBits = null,        acceptedCollectedAtEpochMillis = null,
         updatedAtEpochMillis = 1_000L,
     )
 
@@ -575,7 +576,7 @@ class PkCalibrationPersistenceTest {
         E2CalibrationMetadata.create(
             resultId = resultId,
             disposition = E2CalibrationDisposition.EXCLUDED,
-            acceptedReviewDigest = null,
+            acceptedRecord = null,
             updatedAt = Instant.ofEpochMilli(4_000L),
         )
     )

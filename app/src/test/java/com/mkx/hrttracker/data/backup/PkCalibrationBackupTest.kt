@@ -2,7 +2,6 @@ package com.mkx.hrttracker.data.backup
 
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -18,9 +17,9 @@ class PkCalibrationBackupTest {
         )
         val legacyJson = BackupSnapshotJsonCodec.encode(snapshot)
             .replace(",\"calibrationDisposition\":null", "")
-            .replace(",\"acceptedReviewDigestSchema\":null", "")
-            .replace(",\"acceptedReviewDigestAlgorithm\":null", "")
-            .replace(",\"acceptedReviewDigestHexLower\":null", "")
+            .replace(",\"acceptedModelVersion\":null", "")
+            .replace(",\"acceptedSourceValueBits\":null", "")
+            .replace(",\"acceptedCollectedAtEpochMillis\":null", "")
             .replace(",\"calibrationMetadataUpdatedAtEpochMillis\":null", "")
 
         assertFalse(legacyJson.contains("calibrationDisposition"))
@@ -33,13 +32,13 @@ class PkCalibrationBackupTest {
     }
 
     @Test
-    fun version7AcceptedAndExcludedMetadata_validateWithExactDigestContract() {
+    fun version7AcceptedAndExcludedMetadata_validateWithExactRecordContract() {
         val accepted = result(
             uuid = "00000000-0000-0000-0000-000000000911",
             disposition = "ACCEPTED",
-            digestSchema = PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-            digestAlgorithm = "SHA-256",
-            digestHex = "a".repeat(64),
+            acceptedModelVersion = "pk-calibration:test/v9",
+            acceptedSourceValueBits = "4059000000000000",
+            acceptedCollectedAtEpochMillis = 600L,
             updatedAt = 2_000L,
         )
         val excluded = result(
@@ -54,27 +53,27 @@ class PkCalibrationBackupTest {
 
         assertEquals("ACCEPTED", metadata.getValue(accepted.uuid).disposition)
         assertEquals(
-            PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-            metadata.getValue(accepted.uuid).acceptedReviewDigestSchema,
+            "pk-calibration:test/v9",
+            metadata.getValue(accepted.uuid).acceptedModelVersion,
         )
         assertEquals("EXCLUDED", metadata.getValue(excluded.uuid).disposition)
-        assertNull(metadata.getValue(excluded.uuid).acceptedReviewDigestHexLower)
+        assertNull(metadata.getValue(excluded.uuid).acceptedSourceValueBits)
     }
 
     @Test
-    fun acceptedMetadataWithNonContractDigestSchema_isRejected() {
+    fun acceptedMetadataWithNonContractValueBits_isRejected() {
         val invalid = result(
             uuid = "00000000-0000-0000-0000-000000000921",
             disposition = "ACCEPTED",
-            digestSchema = "hrttracker.outlier-review/v1",
-            digestAlgorithm = "SHA-256",
-            digestHex = "b".repeat(64),
+            acceptedModelVersion = "pk-calibration:test/v9",
+            acceptedSourceValueBits = "not-binary64-bits",
+            acceptedCollectedAtEpochMillis = 600L,
             updatedAt = 4_000L,
         )
 
         try {
             snapshot(results = listOf(invalid)).toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
-            fail("Expected the non-contract review digest schema to be rejected.")
+            fail("Expected the non-contract acceptance value bits to be rejected.")
         } catch (_: IllegalArgumentException) {
             // Expected.
         }
@@ -126,9 +125,9 @@ class PkCalibrationBackupTest {
     private fun result(
         uuid: String,
         disposition: String? = null,
-        digestSchema: String? = null,
-        digestAlgorithm: String? = null,
-        digestHex: String? = null,
+        acceptedModelVersion: String? = null,
+        acceptedSourceValueBits: String? = null,
+        acceptedCollectedAtEpochMillis: Long? = null,
         updatedAt: Long? = null,
     ): BackupBloodTestResultSnapshot {
         return BackupBloodTestResultSnapshot(
@@ -141,9 +140,9 @@ class PkCalibrationBackupTest {
             unitSnapshot = BloodUnitKey.PG_ML.storageValue,
             canonicalValue = 100.0,
             calibrationDisposition = disposition,
-            acceptedReviewDigestSchema = digestSchema,
-            acceptedReviewDigestAlgorithm = digestAlgorithm,
-            acceptedReviewDigestHexLower = digestHex,
+            acceptedModelVersion = acceptedModelVersion,
+            acceptedSourceValueBits = acceptedSourceValueBits,
+            acceptedCollectedAtEpochMillis = acceptedCollectedAtEpochMillis,
             calibrationMetadataUpdatedAtEpochMillis = updatedAt,
         )
     }

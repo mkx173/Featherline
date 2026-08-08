@@ -184,10 +184,9 @@ class BackupRestoreServiceTest {
                             unitSnapshot = BloodUnitKey.PG_ML.storageValue,
                             canonicalValue = 100.0,
                             calibrationDisposition = "ACCEPTED",
-                            acceptedReviewDigestSchema =
-                                "hrttracker.calibration-outlier-review/v1",
-                            acceptedReviewDigestAlgorithm = "SHA-256",
-                            acceptedReviewDigestHexLower = "a".repeat(64),
+                            acceptedModelVersion = "pk-calibration:test/v9",
+                            acceptedSourceValueBits = "4059000000000000",
+                            acceptedCollectedAtEpochMillis = 600L,
                             calibrationMetadataUpdatedAtEpochMillis = 2_000L,
                         )
                     ),
@@ -212,7 +211,7 @@ class BackupRestoreServiceTest {
         val restored = metadataSlot.captured.single()
         assertEquals(resultUuid, restored.resultUuid)
         assertEquals("ACCEPTED", restored.disposition)
-        assertEquals("a".repeat(64), restored.acceptedReviewDigestHexLower)
+        assertEquals("4059000000000000", restored.acceptedSourceValueBits)
     }
 
     @Test

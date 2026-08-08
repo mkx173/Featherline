@@ -5,10 +5,38 @@ import java.util.Collections
 import java.util.UUID
 import kotlin.math.exp
 
-const val PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA =
-    "hrttracker.calibration-outlier-review/v1"
 const val PK_CALIBRATION_DISPLAY_SCHEMA =
     "hrttracker.calibration-display/v9"
+
+/**
+ * v10.0 §A2: an ACCEPTED outlier review is stale when the fit context it was
+ * made in changes. The context is the calibration model plus the accepted
+ * result's own value and collection time; editing other labs no longer stales
+ * an acceptance (the whole-snapshot digest this replaces was schema
+ * conservatism, not a safety property the Student-t weight lacks).
+ */
+@ConsistentCopyVisibility
+data class PkCalibrationAcceptanceRecord private constructor(
+    val calibrationModelVersion: String,
+    val sourceValueBits: String,
+    val collectedAtEpochMillis: Long,
+) {
+    companion object {
+        fun create(
+            calibrationModelVersion: String,
+            sourceValueBits: String,
+            collectedAtEpochMillis: Long,
+        ): PkCalibrationAcceptanceRecord? {
+            if (!calibrationModelVersion.isStableAsciiIdentity()) return null
+            if (!sourceValueBits.matches(Regex("[0-9a-f]{16}"))) return null
+            return PkCalibrationAcceptanceRecord(
+                calibrationModelVersion = calibrationModelVersion,
+                sourceValueBits = sourceValueBits,
+                collectedAtEpochMillis = collectedAtEpochMillis,
+            )
+        }
+    }
+}
 
 /**
  * Supplies the one calibration-model identity currently approved to reach Home.
@@ -41,33 +69,27 @@ enum class E2CalibrationDisposition {
 data class E2CalibrationMetadata private constructor(
     val resultId: UUID,
     val disposition: E2CalibrationDisposition,
-    val acceptedReviewDigest: CanonicalDigest?,
+    val acceptedRecord: PkCalibrationAcceptanceRecord?,
     val updatedAt: Instant,
 ) {
     companion object {
         fun create(
             resultId: UUID,
             disposition: E2CalibrationDisposition,
-            acceptedReviewDigest: CanonicalDigest?,
+            acceptedRecord: PkCalibrationAcceptanceRecord?,
             updatedAt: Instant,
         ): E2CalibrationMetadata? {
             when (disposition) {
-                E2CalibrationDisposition.ACCEPTED -> {
-                    if (acceptedReviewDigest?.schema !=
-                        PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA
-                    ) {
-                        return null
-                    }
-                }
+                E2CalibrationDisposition.ACCEPTED -> if (acceptedRecord == null) return null
 
                 E2CalibrationDisposition.AUTO,
                 E2CalibrationDisposition.EXCLUDED,
-                -> if (acceptedReviewDigest != null) return null
+                -> if (acceptedRecord != null) return null
             }
             return E2CalibrationMetadata(
                 resultId = resultId,
                 disposition = disposition,
-                acceptedReviewDigest = acceptedReviewDigest,
+                acceptedRecord = acceptedRecord,
                 updatedAt = updatedAt,
             )
         }

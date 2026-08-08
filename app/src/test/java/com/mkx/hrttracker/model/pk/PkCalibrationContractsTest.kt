@@ -438,40 +438,12 @@ class PkCalibrationContractsTest {
 
     @Test
     fun calibrationResult_factoryEnforcesGlobalAndCanonicalPromotionInvariants() {
-        val scopeDigest = scopeDigest()
         val populationRoutes = PkCalibrationRoute.entries.map { route ->
             requireNotNull(routeResult(route))
         }
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.READY,
-                routeResults = populationRoutes,
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.READY,
-                routeResults = populationRoutes,
-                scopeDecisionDigest = digest(),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.READY,
-                routeResults = populationRoutes,
-                scopeDecisionDigest = digest("unknown-scope-schema/v1"),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
         val readyPopulation = PkCalibrationResult.create(
             globalState = PkCalibrationGlobalState.READY,
             routeResults = populationRoutes,
-            scopeDecisionDigest = scopeDigest,
             forwardModelVersion = "forward-v1",
             calibrationModelVersion = "calibration-v9",
         )
@@ -489,7 +461,6 @@ class PkCalibrationContractsTest {
             PkCalibrationResult.create(
                 globalState = PkCalibrationGlobalState.READY,
                 routeResults = populationRoutes.reversed(),
-                scopeDecisionDigest = scopeDigest,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -513,7 +484,6 @@ class PkCalibrationContractsTest {
                 displayParams = requireNotNull(
                     PkPersonalParams.create(mapOf(PkCalibrationRoute.INJECTION to beta))
                 ),
-                scopeDecisionDigest = scopeDigest,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -524,7 +494,6 @@ class PkCalibrationContractsTest {
                 routeResults = mixedRoutes,
                 promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
                 displayParams = PkPersonalParams.population(),
-                scopeDecisionDigest = scopeDigest,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -545,7 +514,6 @@ class PkCalibrationContractsTest {
                 routeResults = zeroBetaPromotedRoutes,
                 promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
                 displayParams = PkPersonalParams.population(),
-                scopeDecisionDigest = scopeDigest,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -972,10 +940,6 @@ class PkCalibrationContractsTest {
             unreviewedOutlierLabIds = outlierIds,
             rLog = TestRLog,
         )
-    }
-
-    private fun scopeDigest(): CanonicalDigest {
-        return digest(PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA)
     }
 
     private fun digest(schema: String = "pk-render-domain-v1"): CanonicalDigest {

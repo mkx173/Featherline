@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "4ed92a741afd1ce54f69f7b6d1448131",
+    "identityHash": "698de3d459374f5209e7da4a827d7c13",
     "entities": [
       {
         "tableName": "medicines",
@@ -1058,7 +1058,7 @@
       },
       {
         "tableName": "e2_calibration_metadata",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultUuid` TEXT NOT NULL, `disposition` TEXT NOT NULL, `acceptedReviewDigestSchema` TEXT, `acceptedReviewDigestAlgorithm` TEXT, `acceptedReviewDigestHexLower` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`resultUuid`), FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultUuid` TEXT NOT NULL, `disposition` TEXT NOT NULL, `acceptedModelVersion` TEXT, `acceptedSourceValueBits` TEXT, `acceptedCollectedAtEpochMillis` INTEGER, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`resultUuid`), FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "resultUuid",
@@ -1073,19 +1073,19 @@
             "notNull": true
           },
           {
-            "fieldPath": "acceptedReviewDigestSchema",
-            "columnName": "acceptedReviewDigestSchema",
+            "fieldPath": "acceptedModelVersion",
+            "columnName": "acceptedModelVersion",
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "acceptedReviewDigestAlgorithm",
-            "columnName": "acceptedReviewDigestAlgorithm",
+            "fieldPath": "acceptedSourceValueBits",
+            "columnName": "acceptedSourceValueBits",
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "acceptedReviewDigestHexLower",
-            "columnName": "acceptedReviewDigestHexLower",
-            "affinity": "TEXT"
+            "fieldPath": "acceptedCollectedAtEpochMillis",
+            "columnName": "acceptedCollectedAtEpochMillis",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "updatedAtEpochMillis",
@@ -1338,7 +1338,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4ed92a741afd1ce54f69f7b6d1448131')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '698de3d459374f5209e7da4a827d7c13')"
     ]
   }
 }

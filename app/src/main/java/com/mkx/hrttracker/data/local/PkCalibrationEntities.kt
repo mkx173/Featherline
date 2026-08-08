@@ -18,9 +18,9 @@ import androidx.room.PrimaryKey
 data class E2CalibrationMetadataEntity(
     @PrimaryKey val resultUuid: String,
     val disposition: String,
-    val acceptedReviewDigestSchema: String?,
-    val acceptedReviewDigestAlgorithm: String?,
-    val acceptedReviewDigestHexLower: String?,
+    val acceptedModelVersion: String?,
+    val acceptedSourceValueBits: String?,
+    val acceptedCollectedAtEpochMillis: Long?,
     val updatedAtEpochMillis: Long,
 )
 

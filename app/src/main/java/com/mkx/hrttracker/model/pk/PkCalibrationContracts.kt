@@ -192,9 +192,6 @@ enum class PkCalibrationReason {
     NUMERIC_FAILURE,
 }
 
-const val PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA =
-    "hrttracker.calibration-scope-decision/v1"
-
 /** Canonical SHA-256 digest value used at trust and cache boundaries. */
 @ConsistentCopyVisibility
 data class CanonicalDigest private constructor(
@@ -557,7 +554,6 @@ data class PkCalibrationResult private constructor(
     val routeResults: List<PkRouteCalibrationResult>,
     val promotedRoutes: List<PkCalibrationRoute>,
     val displayParams: PkPersonalParams,
-    val scopeDecisionDigest: CanonicalDigest?,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
 ) {
@@ -568,7 +564,6 @@ data class PkCalibrationResult private constructor(
             routeResults: List<PkRouteCalibrationResult> = emptyList(),
             promotedRoutes: List<PkCalibrationRoute> = emptyList(),
             displayParams: PkPersonalParams = PkPersonalParams.population(),
-            scopeDecisionDigest: CanonicalDigest? = null,
             forwardModelVersion: String,
             calibrationModelVersion: String,
         ): PkCalibrationResult? {
@@ -577,11 +572,6 @@ data class PkCalibrationResult private constructor(
                 if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
                 if (displayParams != PkPersonalParams.population()) return null
             } else {
-                if (scopeDecisionDigest?.schema !=
-                    PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA
-                ) {
-                    return null
-                }
                 val expectedRoutes = PkCalibrationRoute.entries
                 if (routeResults.map(PkRouteCalibrationResult::route) != expectedRoutes) return null
 
@@ -606,7 +596,6 @@ data class PkCalibrationResult private constructor(
                 routeResults = immutableList(routeResults),
                 promotedRoutes = immutableList(promotedRoutes),
                 displayParams = displayParams,
-                scopeDecisionDigest = scopeDecisionDigest,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )

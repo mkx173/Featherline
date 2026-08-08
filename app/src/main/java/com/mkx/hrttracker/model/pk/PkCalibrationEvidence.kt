@@ -36,9 +36,6 @@ data class PkCalibrationIdentityPolicy private constructor(
     val eventTypeIdByRoute: Map<PkRoute, String>,
     val routeIdByRoute: Map<PkRoute, String>,
     val compoundIdByCompound: Map<PkCompound, String>,
-    val trustedPolicyVersions: Set<String>,
-    val trustedIssuerIds: Set<String>,
-    val trustedProvenanceRefs: Set<String>,
 ) {
     companion object {
         fun researchOrTest(
@@ -50,9 +47,6 @@ data class PkCalibrationIdentityPolicy private constructor(
             eventTypeIdByRoute: Map<PkRoute, String>,
             routeIdByRoute: Map<PkRoute, String>,
             compoundIdByCompound: Map<PkCompound, String>,
-            trustedPolicyVersions: Set<String>,
-            trustedIssuerIds: Set<String>,
-            trustedProvenanceRefs: Set<String>,
         ): PkCalibrationIdentityPolicy? {
             if (!builtinE2AnalyteId.isStableAsciiIdentity() ||
                 !targetHormoneId.isStableAsciiIdentity()
@@ -64,9 +58,6 @@ data class PkCalibrationIdentityPolicy private constructor(
                 unitIdBySourceSnapshot.values.toSet(),
                 supportedProviderIds,
                 supportedAssayMethodIds,
-                trustedPolicyVersions,
-                trustedIssuerIds,
-                trustedProvenanceRefs,
             )
             if (identitySets.any { values ->
                     values.isEmpty() || values.any { value -> !value.isStableAsciiIdentity() }
@@ -103,9 +94,6 @@ data class PkCalibrationIdentityPolicy private constructor(
                 eventTypeIdByRoute = immutableMap(eventTypeIdByRoute),
                 routeIdByRoute = immutableMap(routeIdByRoute),
                 compoundIdByCompound = immutableMap(compoundIdByCompound),
-                trustedPolicyVersions = immutableSet(trustedPolicyVersions),
-                trustedIssuerIds = immutableSet(trustedIssuerIds),
-                trustedProvenanceRefs = immutableSet(trustedProvenanceRefs),
             )
         }
     }
@@ -182,16 +170,17 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
     val forwardTimeOriginEpochMillis: Long,
     val resolvedCurrentWeightKg: Double,
     val metadata: List<E2CalibrationMetadata>,
-    val scopeDecision: PkCalibrationScopeDecision,
-    val scopeDecisionDigest: CanonicalDigest,
+    val attestation: PkCalibrationAttestation,
     val scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
-    /** Exact validated config used for evidence classification and review digests. */
+    /** Exact validated config used for evidence classification. */
     val config: PkCalibrationConfig,
-    val reviewDigestByResultId: Map<UUID, CanonicalDigest>,
+    val acceptanceRecordByResultId: Map<UUID, PkCalibrationAcceptanceRecord>,
 ) {
-    fun reviewDigestFor(resultId: UUID): CanonicalDigest? = reviewDigestByResultId[resultId]
+    /** The acceptance record a Keep action must persist for [resultId] right now. */
+    fun acceptanceRecordFor(resultId: UUID): PkCalibrationAcceptanceRecord? =
+        acceptanceRecordByResultId[resultId]
 
     companion object {
         internal fun create(
@@ -200,13 +189,12 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
             forwardTimeOriginEpochMillis: Long,
             resolvedCurrentWeightKg: Double,
             metadata: List<E2CalibrationMetadata>,
-            scopeDecision: PkCalibrationScopeDecision,
-            scopeDecisionDigest: CanonicalDigest,
+            attestation: PkCalibrationAttestation,
             scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
             forwardModelVersion: String,
             calibrationModelVersion: String,
             config: PkCalibrationConfig,
-            reviewDigestByResultId: Map<UUID, CanonicalDigest>,
+            acceptanceRecordByResultId: Map<UUID, PkCalibrationAcceptanceRecord>,
         ): PkCalibrationCanonicalInputSnapshot? {
             if (!config.isSolverEligible()) return null
             return PkCalibrationCanonicalInputSnapshot(
@@ -215,13 +203,12 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
                 forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
                 resolvedCurrentWeightKg = resolvedCurrentWeightKg,
                 metadata = immutableList(metadata),
-                scopeDecision = scopeDecision,
-                scopeDecisionDigest = scopeDecisionDigest,
+                attestation = attestation,
                 scopeInputSnapshot = scopeInputSnapshot,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
                 config = config,
-                reviewDigestByResultId = immutableMap(reviewDigestByResultId),
+                acceptanceRecordByResultId = immutableMap(acceptanceRecordByResultId),
             )
         }
     }
@@ -290,11 +277,10 @@ sealed interface PkCalibrationEvidenceBuildResult {
 }
 
 internal data class PkCalibrationValidatedScopeInput(
-    val decision: PkCalibrationScopeDecision,
+    val attestation: PkCalibrationAttestation,
     val authorizedLabs: List<PkCalibrationE2LabSource>,
     val resolvedCurrentWeightKg: Double,
     val scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
-    val scopeDecisionDigest: CanonicalDigest,
 )
 
 internal sealed interface PkCalibrationScopeInputValidationResult {
@@ -319,32 +305,23 @@ internal object PkCalibrationScopeInputValidator {
         resolvedCurrentWeightKg: Double?,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+        attestationProvider: PkCalibrationAttestationProvider,
         forwardModelVersion: String,
         calibrationModelVersion: String,
     ): PkCalibrationScopeInputValidationResult {
-        val decision = runCatching { scopeDecisionProvider.currentDecision() }.getOrNull()
+        val attestation = runCatching { attestationProvider.currentAttestation() }.getOrNull()
             ?: return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-        if (decision.policyVersion !in identityPolicy.trustedPolicyVersions ||
-            decision.issuerId !in identityPolicy.trustedIssuerIds ||
-            decision.provenanceRef !in identityPolicy.trustedProvenanceRefs
-        ) {
-            return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-        }
         if (!config.isSolverEligible()) {
             return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
         }
 
-        val authorizedLabs = ArrayList<PkCalibrationE2LabSource>()
-        for (authorization in decision.authorizedE2Results) {
-            val lab = labs.singleOrNull { candidate ->
-                candidate.resultId == authorization.resultId
-            } ?: return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-            if (lab.resultScopeDigest() != authorization.resultScopeDigest) {
-                return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-            }
-            authorizedLabs += lab
+        if (labs.isEmpty()) {
+            return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
         }
+        if (labs.map(PkCalibrationE2LabSource::resultId).distinct().size != labs.size) {
+            return failedScope(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
+        }
+        val authorizedLabs = ArrayList(labs)
         if (authorizedLabs.any { lab -> !identityPolicy.acceptsScopeIdentity(lab) }) {
             return failedScope(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         }
@@ -368,21 +345,17 @@ internal object PkCalibrationScopeInputValidator {
         }
 
         val scopeInputSnapshot = PkCalibrationScopeInputSnapshot.create(
-            authorizedE2Results = decision.authorizedE2Results,
+            labs = authorizedLabs,
             medicationEvents = medicationEvents,
             resolvedCurrentWeightKg = weightKg,
             forwardModelVersion = forwardModelVersion,
         ) ?: return failedScope(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-        if (scopeInputSnapshot.digest != decision.inputSnapshotDigest) {
-            return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-        }
         return PkCalibrationScopeInputValidationResult.Ready(
             PkCalibrationValidatedScopeInput(
-                decision = decision,
+                attestation = attestation,
                 authorizedLabs = immutableList(authorizedLabs),
                 resolvedCurrentWeightKg = weightKg,
                 scopeInputSnapshot = scopeInputSnapshot,
-                scopeDecisionDigest = decision.digest(),
             )
         )
     }
@@ -405,7 +378,7 @@ object PkCalibrationEvidenceAdapter {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        scopeDecisionProvider: PkCalibrationScopeDecisionProvider,
+        attestationProvider: PkCalibrationAttestationProvider,
         forwardModelVersion: String,
         calibrationModelVersion: String,
     ): PkCalibrationEvidenceBuildResult {
@@ -417,7 +390,7 @@ object PkCalibrationEvidenceAdapter {
                 resolvedCurrentWeightKg = resolvedCurrentWeightKg,
                 identityPolicy = identityPolicy,
                 config = config,
-                scopeDecisionProvider = scopeDecisionProvider,
+                attestationProvider = attestationProvider,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )
@@ -428,14 +401,13 @@ object PkCalibrationEvidenceAdapter {
 
             is PkCalibrationScopeInputValidationResult.Ready -> validation.value
         }
-        val decision = validatedScope.decision
+        val attestation = validatedScope.attestation
         val authorizedLabs = validatedScope.authorizedLabs
         val weightKg = validatedScope.resolvedCurrentWeightKg
         val scopeInputSnapshot = validatedScope.scopeInputSnapshot
-        val scopeDecisionDigest = validatedScope.scopeDecisionDigest
 
-        val authorizedResultIds = decision.authorizedE2Results
-            .map(PkAuthorizedE2Result::resultId)
+        val authorizedResultIds = authorizedLabs
+            .map(PkCalibrationE2LabSource::resultId)
             .toSet()
         val authorizedMetadata = metadata.filter { item ->
             item.resultId in authorizedResultIds
@@ -537,18 +509,18 @@ object PkCalibrationEvidenceAdapter {
             .map(E2CalibrationMetadata::resultId)
             .toSet()
 
-        val reviewDigests = linkedMapOf<UUID, CanonicalDigest>()
+        val acceptanceRecords = linkedMapOf<UUID, PkCalibrationAcceptanceRecord>()
         for (lab in authorizedLabs) {
-            reviewDigests[lab.resultId] = wholeReviewDigest(
-                targetResultId = lab.resultId,
-                authorizedLabs = authorizedLabs,
-                excludedResultIds = excludedIds,
-                scopeDecisionDigest = scopeDecisionDigest,
-                forwardModelVersion = forwardModelVersion,
+            // An explicitly excluded row skips value binding entirely; it can never
+            // be ACCEPTED, so it needs no current acceptance record.
+            if (lab.resultId in excludedIds) continue
+            val sourceValueBits = lab.sourceValueBits
+                ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
+            acceptanceRecords[lab.resultId] = PkCalibrationAcceptanceRecord.create(
                 calibrationModelVersion = calibrationModelVersion,
-                config = config,
-                identityPolicy = identityPolicy,
-            )
+                sourceValueBits = sourceValueBits,
+                collectedAtEpochMillis = lab.collectedAtEpochMillis,
+            ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         }
 
         val canonicalMedicationEvents = scopeInputSnapshot.medicationEvents
@@ -573,7 +545,7 @@ object PkCalibrationEvidenceAdapter {
             }
             val acceptedEffective = storedMetadata?.disposition ==
                     E2CalibrationDisposition.ACCEPTED &&
-                    storedMetadata.acceptedReviewDigest == reviewDigests[lab.resultId]
+                    storedMetadata.acceptedRecord == acceptanceRecords[lab.resultId]
             val effectiveDisposition = if (acceptedEffective) {
                 PkCalibrationEffectiveDisposition.ACCEPTED
             } else {
@@ -641,13 +613,12 @@ object PkCalibrationEvidenceAdapter {
             forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
             resolvedCurrentWeightKg = weightKg,
             metadata = sortedAuthorizedMetadata,
-            scopeDecision = decision,
-            scopeDecisionDigest = scopeDecisionDigest,
+            attestation = attestation,
             scopeInputSnapshot = scopeInputSnapshot,
             forwardModelVersion = forwardModelVersion,
             calibrationModelVersion = calibrationModelVersion,
             config = config,
-            reviewDigestByResultId = reviewDigests,
+            acceptanceRecordByResultId = acceptanceRecords,
         ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         val partition = PkCalibrationEvidencePartition.create(
             canonicalInput = canonicalInput,
@@ -795,128 +766,6 @@ private fun PkCalibrationE2LabSource.evidence(
         otherRoutePopulationPgml = otherRoutePopulationPgml,
         routeAttributableObservedPgml = routeAttributableObservedPgml,
         effectiveDisposition = effectiveDisposition,
-    )
-}
-
-private fun wholeReviewDigest(
-    targetResultId: UUID,
-    authorizedLabs: List<PkCalibrationE2LabSource>,
-    excludedResultIds: Set<UUID>,
-    scopeDecisionDigest: CanonicalDigest,
-    forwardModelVersion: String,
-    calibrationModelVersion: String,
-    config: PkCalibrationConfig,
-    identityPolicy: PkCalibrationIdentityPolicy,
-): CanonicalDigest {
-    val includedResults = authorizedLabs.asSequence()
-        .filterNot { lab -> lab.resultId in excludedResultIds }
-        .sortedBy { lab -> lab.resultId.toString() }
-        .map { lab ->
-            linkedMapOf<String, Any?>(
-                "resultId" to lab.resultId.toString().lowercase(),
-                "sourceValue" to requireNotNull(lab.sourceValueBits),
-                "unitId" to lab.unitId,
-                "analyteId" to lab.analyteId,
-                "providerId" to lab.providerId,
-                "assayMethodId" to lab.assayMethodId,
-                "collectedAt" to lab.collectedAtEpochMillis,
-            )
-        }
-        .toList()
-    val excluded = excludedResultIds.map { resultId -> resultId.toString().lowercase() }
-        .sorted()
-    return canonicalDigest(
-        schema = PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-        payload = linkedMapOf(
-            "schema" to PK_CALIBRATION_OUTLIER_REVIEW_DIGEST_SCHEMA,
-            "targetResultId" to targetResultId.toString().lowercase(),
-            "includedAuthorizedE2Results" to includedResults,
-            "excludedAuthorizedE2ResultIds" to excluded,
-            "scopeDecisionDigest" to linkedMapOf(
-                "schema" to scopeDecisionDigest.schema,
-                "algorithm" to scopeDecisionDigest.algorithm,
-                "hexLower" to scopeDecisionDigest.hexLower,
-            ),
-            "forwardModelVersion" to forwardModelVersion,
-            "calibrationModelVersion" to calibrationModelVersion,
-            "constants" to reviewConstantsPayload(config, identityPolicy),
-        ),
-    )
-}
-
-private fun reviewConstantsPayload(
-    config: PkCalibrationConfig,
-    identityPolicy: PkCalibrationIdentityPolicy,
-): Map<String, Any?> {
-    val caps = PkCalibrationRoute.entries.map { route ->
-        val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE.getValue(route)
-        linkedMapOf(
-            "routeId" to route.stableId,
-            "minInclusive" to cap.minInclusive.toCanonicalBinary64Bits(),
-            "maxInclusive" to cap.maxInclusive.toCanonicalBinary64Bits(),
-        )
-    }
-    val eventRouteMapping = PkRoute.entries.map { eventRoute ->
-        linkedMapOf(
-            "eventTypeId" to identityPolicy.eventTypeIdByRoute.getValue(eventRoute),
-            "routeId" to identityPolicy.routeIdByRoute.getValue(eventRoute),
-            "calibrationRouteId" to eventRoute.calibrationRoute()?.stableId,
-        )
-    }
-    val compoundIdentities = CalibrationE2CompoundOrder.map { compound ->
-        identityPolicy.compoundIdByCompound.getValue(compound)
-    }
-    return linkedMapOf(
-        "canonicalRouteOrder" to PkCalibrationRoute.entries.map(PkCalibrationRoute::stableId),
-        "eventRouteMapping" to eventRouteMapping,
-        "targetHormoneId" to identityPolicy.targetHormoneId,
-        "targetCompoundIds" to compoundIdentities,
-        "exactRouteResidualLaw" to "a=y-(D-d)",
-        "dominanceLaw" to "d>=w0*D",
-        "studentTNu" to PkCalibrationDefaults.STUDENT_T_NU.toCanonicalBinary64Bits(),
-        "routeLogScalePriorSd" to
-                PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD.toCanonicalBinary64Bits(),
-        "rLog" to requireNotNull(config.rLog).toCanonicalBinary64Bits(),
-        "drugMinInformativePgml" to
-                requireNotNull(config.drugMinInformativePgml).toCanonicalBinary64Bits(),
-        "dominantRouteShareMin" to
-                PkCalibrationDefaults.DOMINANT_ROUTE_SHARE_MIN.toCanonicalBinary64Bits(),
-        "minDominantLabsForPromotion" to
-                PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_PROMOTION,
-        "minDominantLabsForExtremeScale" to
-                PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_EXTREME_SCALE,
-        "extremeScaleCoreMin" to
-                PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN.toCanonicalBinary64Bits(),
-        "extremeScaleCoreMax" to
-                PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX.toCanonicalBinary64Bits(),
-        "routeAttributableMinFraction" to
-                PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_FRACTION
-                    .toCanonicalBinary64Bits(),
-        "routeAttributableMinPgml" to
-                PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_PGML
-                    .toCanonicalBinary64Bits(),
-        "displayScaleCaps" to caps,
-        "drugSignalLogRangeMin" to
-                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN.toCanonicalBinary64Bits(),
-        "routeLogScalePosteriorSdMaxForFullCalibration" to
-                PkCalibrationDefaults
-                    .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
-                    .toCanonicalBinary64Bits(),
-        "robustRmseGateFactor" to
-                PkCalibrationDefaults.ROBUST_RMSE_GATE_FACTOR
-                    .toCanonicalBinary64Bits(),
-        "outlierWeightMin" to
-                PkCalibrationDefaults.OUTLIER_WEIGHT_MIN.toCanonicalBinary64Bits(),
-        "globalSearchNumericGuardAbsBeta" to
-                PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
-                    .toCanonicalBinary64Bits(),
-        "gridStepLog" to
-                PkCalibrationDefaults.GRID_STEP_LOG.toCanonicalBinary64Bits(),
-        "gridMinNodes" to PkCalibrationDefaults.GRID_MIN_NODES,
-        "stationaryRootBetaAbsTol" to
-                PkCalibrationDefaults.STATIONARY_ROOT_BETA_ABS_TOL
-                    .toCanonicalBinary64Bits(),
-        "stationaryRootMaxEval" to PkCalibrationDefaults.STATIONARY_ROOT_MAX_EVAL,
     )
 }
 

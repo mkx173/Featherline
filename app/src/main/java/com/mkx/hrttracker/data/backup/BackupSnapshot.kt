@@ -233,9 +233,9 @@ data class BackupBloodTestResultSnapshot(
     val importSourceApp: String? = null,
     val importExternalId: String? = null,
     val calibrationDisposition: String? = null,
-    val acceptedReviewDigestSchema: String? = null,
-    val acceptedReviewDigestAlgorithm: String? = null,
-    val acceptedReviewDigestHexLower: String? = null,
+    val acceptedModelVersion: String? = null,
+    val acceptedSourceValueBits: String? = null,
+    val acceptedCollectedAtEpochMillis: Long? = null,
     val calibrationMetadataUpdatedAtEpochMillis: Long? = null,
 )
 

@@ -9,14 +9,32 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.squareup.moshi.Moshi
 import org.erdtman.jcs.JsonCanonicalizer
 import java.security.MessageDigest
-import java.time.Instant
 import java.util.Collections
 import java.util.UUID
 
-const val PK_CALIBRATION_SCOPE_RESULT_DIGEST_SCHEMA =
-    "hrttracker.calibration-scope-result/v1"
 const val PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA =
     "hrttracker.calibration-scope-input/v1"
+
+/**
+ * v10.0 §A2: the user, not an external clinical authority, attests the scope
+ * premises (stable regimen, adequate suppression, comparable lab/assay). A
+ * missing attestation leaves every route at population, exactly like the
+ * former missing scope decision.
+ */
+data class PkCalibrationAttestation(val attestedAtEpochMillis: Long) {
+    init {
+        require(attestedAtEpochMillis.isJcsSafeInteger())
+    }
+}
+
+fun interface PkCalibrationAttestationProvider {
+    fun currentAttestation(): PkCalibrationAttestation?
+
+    companion object {
+        /** Production default until the Phase-2 attestation flow ships. */
+        val Unavailable = PkCalibrationAttestationProvider { null }
+    }
+}
 
 internal sealed interface PkCalibrationCanonicalE2ValueVerification {
     data class Verified(val canonicalValuePgml: Double) :
@@ -24,25 +42,6 @@ internal sealed interface PkCalibrationCanonicalE2ValueVerification {
 
     data object InvalidInput : PkCalibrationCanonicalE2ValueVerification
     data object NumericFailure : PkCalibrationCanonicalE2ValueVerification
-}
-
-/** A result authorization bound to the exact v1 result-scope payload. */
-@ConsistentCopyVisibility
-data class PkAuthorizedE2Result private constructor(
-    val resultId: UUID,
-    val resultScopeDigest: CanonicalDigest,
-) {
-    companion object {
-        fun create(
-            resultId: UUID,
-            resultScopeDigest: CanonicalDigest,
-        ): PkAuthorizedE2Result? {
-            if (resultScopeDigest.schema != PK_CALIBRATION_SCOPE_RESULT_DIGEST_SCHEMA) {
-                return null
-            }
-            return PkAuthorizedE2Result(resultId, resultScopeDigest)
-        }
-    }
 }
 
 /**
@@ -91,18 +90,6 @@ data class PkCalibrationE2LabSource private constructor(
             derivedCanonicalValue.normalizePositiveZero()
         )
     }
-
-    fun resultScopeDigest(): CanonicalDigest = canonicalDigest(
-        schema = PK_CALIBRATION_SCOPE_RESULT_DIGEST_SCHEMA,
-        payload = linkedMapOf(
-            "schema" to PK_CALIBRATION_SCOPE_RESULT_DIGEST_SCHEMA,
-            "resultId" to resultId.toCanonicalString(),
-            "analyteId" to analyteId,
-            "collectedAt" to collectedAtEpochMillis,
-            "providerId" to providerId,
-            "assayMethodId" to assayMethodId,
-        ),
-    )
 
     companion object {
         fun create(
@@ -207,10 +194,13 @@ data class PkCalibrationMedicationEventSource private constructor(
     }
 }
 
-/** Exact v1 scope-input snapshot, ordered before hashing or forward evaluation. */
+/**
+ * Exact scope-input snapshot, ordered before hashing or forward evaluation. Its
+ * digest is cache identity for the durable display artifact, not a trust claim.
+ */
 @ConsistentCopyVisibility
 data class PkCalibrationScopeInputSnapshot private constructor(
-    val authorizedE2Results: List<PkAuthorizedE2Result>,
+    val labs: List<PkCalibrationE2LabSource>,
     val medicationEvents: List<PkCalibrationMedicationEventSource>,
     val resolvedCurrentWeightKg: Double,
     val forwardModelVersion: String,
@@ -218,19 +208,17 @@ data class PkCalibrationScopeInputSnapshot private constructor(
 ) {
     companion object {
         fun create(
-            authorizedE2Results: List<PkAuthorizedE2Result>,
+            labs: List<PkCalibrationE2LabSource>,
             medicationEvents: List<PkCalibrationMedicationEventSource>,
             resolvedCurrentWeightKg: Double,
             forwardModelVersion: String,
         ): PkCalibrationScopeInputSnapshot? {
-            if (authorizedE2Results.isEmpty()) return null
+            if (labs.isEmpty()) return null
             if (!resolvedCurrentWeightKg.isFinite() || resolvedCurrentWeightKg <= 0.0) {
                 return null
             }
             if (!forwardModelVersion.isStableAsciiIdentity()) return null
-            if (authorizedE2Results.map(PkAuthorizedE2Result::resultId).distinct().size !=
-                authorizedE2Results.size
-            ) {
+            if (labs.map(PkCalibrationE2LabSource::resultId).distinct().size != labs.size) {
                 return null
             }
             if (medicationEvents.map { source -> source.event.id }.distinct().size !=
@@ -239,9 +227,7 @@ data class PkCalibrationScopeInputSnapshot private constructor(
                 return null
             }
 
-            val orderedResults = authorizedE2Results.sortedBy { authorization ->
-                authorization.resultId.toCanonicalString()
-            }
+            val orderedLabs = labs.sortedBy { lab -> lab.resultId.toCanonicalString() }
             val orderedEvents = medicationEvents.sortedWith(
                 compareBy<PkCalibrationMedicationEventSource>(
                     PkCalibrationMedicationEventSource::epochMillis,
@@ -250,132 +236,18 @@ data class PkCalibrationScopeInputSnapshot private constructor(
             )
             val payload = linkedMapOf<String, Any?>(
                 "schema" to PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA,
-                "authorizedE2Results" to orderedResults.map(::authorizationPayload),
+                "labs" to orderedLabs.map(::labIdentityPayload),
                 "medicationEvents" to orderedEvents.map(::medicationEventPayload),
                 "resolvedCurrentWeight" to resolvedCurrentWeightKg.toCanonicalBinary64Bits(),
                 "forwardModelVersion" to forwardModelVersion,
             )
             return PkCalibrationScopeInputSnapshot(
-                authorizedE2Results = immutableList(orderedResults),
+                labs = immutableList(orderedLabs),
                 medicationEvents = immutableList(orderedEvents),
                 resolvedCurrentWeightKg = resolvedCurrentWeightKg.normalizePositiveZero(),
                 forwardModelVersion = forwardModelVersion,
                 digest = canonicalDigest(PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA, payload),
             )
-        }
-    }
-}
-
-/** Trusted external scope decision; it is a policy assertion, never a fitted value. */
-@ConsistentCopyVisibility
-data class PkCalibrationScopeDecision private constructor(
-    val decisionId: UUID,
-    val revision: Long,
-    val policyVersion: String,
-    val issuerId: String,
-    val issuedAt: Instant,
-    val provenanceRef: String,
-    val inputSnapshotDigest: CanonicalDigest,
-    val authorizedE2Results: List<PkAuthorizedE2Result>,
-) {
-    fun digest(): CanonicalDigest = canonicalDigest(
-        schema = PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA,
-        payload = linkedMapOf(
-            "schema" to PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA,
-            "decisionId" to decisionId.toCanonicalString(),
-            "revision" to revision,
-            "policyVersion" to policyVersion,
-            "issuerId" to issuerId,
-            "issuedAt" to issuedAt.toEpochMilli(),
-            "provenanceRef" to provenanceRef,
-            "inputSnapshotDigest" to inputSnapshotDigest.toPayload(),
-            "authorizedE2Results" to authorizedE2Results.map(::authorizationPayload),
-        ),
-    )
-
-    companion object {
-        fun create(
-            decisionId: UUID,
-            revision: Long,
-            policyVersion: String,
-            issuerId: String,
-            issuedAt: Instant,
-            provenanceRef: String,
-            inputSnapshotDigest: CanonicalDigest,
-            authorizedE2Results: List<PkAuthorizedE2Result>,
-        ): PkCalibrationScopeDecision? {
-            if (!policyVersion.isStableAsciiIdentity() ||
-                !issuerId.isStableAsciiIdentity() ||
-                !provenanceRef.isStableAsciiIdentity()
-            ) {
-                return null
-            }
-            if (inputSnapshotDigest.schema != PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA) {
-                return null
-            }
-            if (authorizedE2Results.isEmpty()) return null
-            if (!revision.isJcsSafeInteger()) return null
-            if (authorizedE2Results.map(PkAuthorizedE2Result::resultId).distinct().size !=
-                authorizedE2Results.size
-            ) {
-                return null
-            }
-            val ordered = authorizedE2Results.sortedBy { authorization ->
-                authorization.resultId.toCanonicalString()
-            }
-            val issuedAtEpochMillis = runCatching(issuedAt::toEpochMilli).getOrNull()
-                ?: return null
-            if (!issuedAtEpochMillis.isJcsSafeInteger()) return null
-            return PkCalibrationScopeDecision(
-                decisionId = decisionId,
-                revision = revision,
-                policyVersion = policyVersion,
-                issuerId = issuerId,
-                issuedAt = Instant.ofEpochMilli(issuedAtEpochMillis),
-                provenanceRef = provenanceRef,
-                inputSnapshotDigest = inputSnapshotDigest,
-                authorizedE2Results = immutableList(ordered),
-            )
-        }
-    }
-}
-
-/** Trusted integration seam. Production intentionally has no decision producer. */
-interface PkCalibrationScopeDecisionProvider {
-    fun currentDecision(): PkCalibrationScopeDecision?
-}
-
-object ProductionUnavailablePkCalibrationScopeDecisionProvider :
-    PkCalibrationScopeDecisionProvider {
-    override fun currentDecision(): PkCalibrationScopeDecision? = null
-}
-
-/** Explicit fixed decision for research and deterministic tests only. */
-class ResearchOrTestPkCalibrationScopeDecisionProvider private constructor(
-    private val decision: PkCalibrationScopeDecision,
-) : PkCalibrationScopeDecisionProvider {
-    override fun currentDecision(): PkCalibrationScopeDecision = decision
-
-    companion object {
-        fun create(
-            decision: PkCalibrationScopeDecision,
-            expectedPolicyVersion: String,
-            expectedIssuerId: String,
-            expectedProvenanceRef: String,
-        ): ResearchOrTestPkCalibrationScopeDecisionProvider? {
-            if (!expectedPolicyVersion.isStableAsciiIdentity() ||
-                !expectedIssuerId.isStableAsciiIdentity() ||
-                !expectedProvenanceRef.isStableAsciiIdentity()
-            ) {
-                return null
-            }
-            if (decision.policyVersion != expectedPolicyVersion ||
-                decision.issuerId != expectedIssuerId ||
-                decision.provenanceRef != expectedProvenanceRef
-            ) {
-                return null
-            }
-            return ResearchOrTestPkCalibrationScopeDecisionProvider(decision)
         }
     }
 }
@@ -405,10 +277,13 @@ internal fun String.isStableAsciiIdentity(): Boolean {
     return isNotEmpty() && all { character -> character.code in 0x21..0x7e }
 }
 
-private fun authorizationPayload(authorization: PkAuthorizedE2Result): Map<String, Any?> {
+private fun labIdentityPayload(lab: PkCalibrationE2LabSource): Map<String, Any?> {
     return linkedMapOf(
-        "resultId" to authorization.resultId.toCanonicalString(),
-        "resultScopeDigest" to authorization.resultScopeDigest.toPayload(),
+        "resultId" to lab.resultId.toCanonicalString(),
+        "analyteId" to lab.analyteId,
+        "collectedAt" to lab.collectedAtEpochMillis,
+        "providerId" to lab.providerId,
+        "assayMethodId" to lab.assayMethodId,
     )
 }
 
