@@ -41,9 +41,8 @@ object PkCalibrationDefaults {
         ROBUST_RMSE_GATE_FACTOR * sqrt(rLog)
 
     const val GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA = 20.0
-    const val STATIONARY_INTERVAL_MAX_CELLS_PER_ROUTE = 50_000
-    const val STATIONARY_ROOT_ENCLOSURE_BETA_TOL = 1e-12
-    const val STATIONARY_ROOT_MIN_SEPARATION = 1e-9
+    const val GRID_STEP_LOG = 1e-3
+    const val GRID_MIN_NODES = 16
     const val STATIONARY_ROOT_BETA_ABS_TOL = 1e-12
     const val STATIONARY_ROOT_MAX_EVAL = 200
 

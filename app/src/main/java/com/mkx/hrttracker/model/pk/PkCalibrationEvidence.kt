@@ -910,14 +910,9 @@ private fun reviewConstantsPayload(
         "globalSearchNumericGuardAbsBeta" to
                 PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
                     .toCanonicalBinary64Bits(),
-        "stationaryIntervalMaxCellsPerRoute" to
-                PkCalibrationDefaults.STATIONARY_INTERVAL_MAX_CELLS_PER_ROUTE,
-        "stationaryRootEnclosureBetaTol" to
-                PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
-                    .toCanonicalBinary64Bits(),
-        "stationaryRootMinSeparation" to
-                PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
-                    .toCanonicalBinary64Bits(),
+        "gridStepLog" to
+                PkCalibrationDefaults.GRID_STEP_LOG.toCanonicalBinary64Bits(),
+        "gridMinNodes" to PkCalibrationDefaults.GRID_MIN_NODES,
         "stationaryRootBetaAbsTol" to
                 PkCalibrationDefaults.STATIONARY_ROOT_BETA_ABS_TOL
                     .toCanonicalBinary64Bits(),

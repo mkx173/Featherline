@@ -2,9 +2,9 @@ package com.mkx.hrttracker.model.pk
 
 import org.hipparchus.analysis.UnivariateFunction
 import org.hipparchus.analysis.solvers.BisectionSolver
-import java.util.ArrayDeque
 import java.util.Collections
 import java.util.UUID
+import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.ln1p
@@ -24,26 +24,12 @@ internal data class PkStudentTPoint(
 internal class PkRouteStudentTObjective private constructor(
     val points: List<PkStudentTPoint>,
     val rLog: Double,
-) : PkCertifiedStationaryFunction {
+) {
     private val sqrtRLog = sqrt(rLog)
     private val nuRLog = PkCalibrationDefaults.STUDENT_T_NU * rLog
     private val priorVariance = PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD *
             PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD
     private val priorPrecision = 1.0 / priorVariance
-
-    override val stationaryDomain: OutwardInterval
-        get() {
-            var minimumQ = points.first().qLogRatio
-            var maximumQ = minimumQ
-            for (index in 1 until points.size) {
-                val q = points[index].qLogRatio
-                minimumQ = min(minimumQ, q)
-                maximumQ = max(maximumQ, q)
-            }
-            return requireNotNull(
-                OutwardInterval.create(min(0.0, minimumQ), max(0.0, maximumQ))
-            )
-        }
 
     fun objective(beta: Double): Double? {
         if (!beta.isFinite()) return null
@@ -65,7 +51,7 @@ internal class PkRouteStudentTObjective private constructor(
         return sum.takeIf(Double::isFinite)
     }
 
-    override fun score(beta: Double): Double? {
+    fun score(beta: Double): Double? {
         if (!beta.isFinite()) return null
         var sum = 0.0
         for (point in points) {
@@ -84,7 +70,7 @@ internal class PkRouteStudentTObjective private constructor(
         return sum.takeIf(Double::isFinite)
     }
 
-    override fun hessian(beta: Double): Double? {
+    fun hessian(beta: Double): Double? {
         if (!beta.isFinite()) return null
         var sum = 0.0
         for (point in points) {
@@ -101,48 +87,6 @@ internal class PkRouteStudentTObjective private constructor(
         }
         sum += priorPrecision
         return sum.takeIf(Double::isFinite)
-    }
-
-    override fun scoreInterval(beta: OutwardInterval): OutwardInterval? {
-        var sum = OutwardInterval.singleton(0.0) ?: return null
-        val nuR = OutwardInterval.singleton(nuRLog) ?: return null
-        val negativeNuPlusOne = OutwardInterval.singleton(
-            -(PkCalibrationDefaults.STUDENT_T_NU + 1.0)
-        ) ?: return null
-        for (point in points) {
-            val residual = OutwardInterval.singleton(point.qLogRatio)?.subtract(beta)
-                ?: return null
-            val residualSquared = residual.square() ?: return null
-            val denominator = nuR.add(residualSquared) ?: return null
-            val numerator = negativeNuPlusOne.multiply(residual) ?: return null
-            val term = numerator.divideByStrictlyPositive(denominator) ?: return null
-            sum = sum.add(term) ?: return null
-        }
-        val prior = beta.divideByStrictlyPositive(
-            OutwardInterval.singleton(priorVariance) ?: return null
-        ) ?: return null
-        return sum.add(prior)
-    }
-
-    override fun hessianInterval(beta: OutwardInterval): OutwardInterval? {
-        var sum = OutwardInterval.singleton(0.0) ?: return null
-        val nuR = OutwardInterval.singleton(nuRLog) ?: return null
-        val nuPlusOne = OutwardInterval.singleton(
-            PkCalibrationDefaults.STUDENT_T_NU + 1.0
-        ) ?: return null
-        for (point in points) {
-            val residual = OutwardInterval.singleton(point.qLogRatio)?.subtract(beta)
-                ?: return null
-            val residualSquared = residual.square() ?: return null
-            val denominator = nuR.add(residualSquared) ?: return null
-            val denominatorSquared = denominator.square() ?: return null
-            val difference = nuR.subtract(residualSquared) ?: return null
-            val numerator = nuPlusOne.multiply(difference) ?: return null
-            val term = numerator.divideByStrictlyPositive(denominatorSquared)
-                ?: return null
-            sum = sum.add(term) ?: return null
-        }
-        return sum.add(OutwardInterval.singleton(priorPrecision) ?: return null)
     }
 
     fun diagnostics(beta: Double): PkRouteFitDiagnostics? {
@@ -277,553 +221,112 @@ internal data class PkRouteFitDiagnostics(
     val unreviewedOutlierLabIds: Set<UUID>,
 )
 
-/** Minimal outward-rounded interval operations audited by the v9 certificate. */
-@ConsistentCopyVisibility
-internal data class OutwardInterval private constructor(
-    val lower: Double,
-    val upper: Double,
-) {
-    val containsZero: Boolean get() = lower <= 0.0 && upper >= 0.0
-    val isStrictlyPositive: Boolean get() = lower > 0.0
-    val isStrictlyNegative: Boolean get() = upper < 0.0
-
-    /** Certified upper bound on this interval's real width. */
-    fun widthUpperBound(): Double? {
-        if (lower == upper) return 0.0
-        val rawWidth = upper - lower
-        if (!rawWidth.isFinite() || rawWidth <= 0.0) return null
-        return Math.nextUp(rawWidth).takeIf { value -> value.isFinite() && value > 0.0 }
-    }
-
-    /** Certified lower bound on the real gap after [previous]. */
-    fun separationLowerBoundAfter(previous: OutwardInterval): Double? {
-        val rawSeparation = lower - previous.upper
-        if (!rawSeparation.isFinite()) return null
-        return Math.nextDown(rawSeparation).takeIf(Double::isFinite)
-    }
-
-    fun midpoint(): Double? {
-        val difference = upper - lower
-        if (!difference.isFinite() || difference <= 0.0) return null
-        val midpoint = lower + difference / 2.0
-        return midpoint.takeIf { value -> value.isFinite() && value > lower && value < upper }
-    }
-
-    fun contains(value: Double): Boolean = value.isFinite() && value in lower..upper
-
-    fun add(other: OutwardInterval): OutwardInterval? {
-        return rounded(lower + other.lower, upper + other.upper)
-    }
-
-    fun subtract(other: OutwardInterval): OutwardInterval? {
-        return rounded(lower - other.upper, upper - other.lower)
-    }
-
-    fun multiply(other: OutwardInterval): OutwardInterval? {
-        val products = doubleArrayOf(
-            lower * other.lower,
-            lower * other.upper,
-            upper * other.lower,
-            upper * other.upper,
-        )
-        if (products.any { value -> !value.isFinite() }) return null
-        var rawLower = products[0]
-        var rawUpper = products[0]
-        for (index in 1 until products.size) {
-            rawLower = min(rawLower, products[index])
-            rawUpper = max(rawUpper, products[index])
-        }
-        return rounded(rawLower, rawUpper)
-    }
-
-    fun square(): OutwardInterval? {
-        val lowerSquared = lower * lower
-        val upperSquared = upper * upper
-        if (!lowerSquared.isFinite() || !upperSquared.isFinite()) return null
-        val rawLower = if (containsZero) 0.0 else min(lowerSquared, upperSquared)
-        val rawUpper = max(lowerSquared, upperSquared)
-        return rounded(rawLower, rawUpper)
-    }
-
-    fun divideByStrictlyPositive(denominator: OutwardInterval): OutwardInterval? {
-        if (!denominator.isStrictlyPositive) return null
-        val quotients = doubleArrayOf(
-            lower / denominator.lower,
-            lower / denominator.upper,
-            upper / denominator.lower,
-            upper / denominator.upper,
-        )
-        if (quotients.any { value -> !value.isFinite() }) return null
-        var rawLower = quotients[0]
-        var rawUpper = quotients[0]
-        for (index in 1 until quotients.size) {
-            rawLower = min(rawLower, quotients[index])
-            rawUpper = max(rawUpper, quotients[index])
-        }
-        return rounded(rawLower, rawUpper)
-    }
-
-    companion object {
-        fun create(lower: Double, upper: Double): OutwardInterval? {
-            if (!lower.isFinite() || !upper.isFinite() || lower > upper) return null
-            return OutwardInterval(lower, upper)
-        }
-
-        fun singleton(value: Double): OutwardInterval? {
-            if (!value.isFinite()) return null
-            return OutwardInterval(value, value)
-        }
-
-        private fun rounded(rawLower: Double, rawUpper: Double): OutwardInterval? {
-            if (!rawLower.isFinite() || !rawUpper.isFinite() || rawLower > rawUpper) return null
-            val lower = Math.nextDown(rawLower)
-            val upper = Math.nextUp(rawUpper)
-            if (!lower.isFinite() || !upper.isFinite() || lower > upper) return null
-            return OutwardInterval(lower, upper)
-        }
-    }
-}
-
-internal interface PkCertifiedStationaryFunction {
-    val stationaryDomain: OutwardInterval
-    fun score(beta: Double): Double?
-    fun hessian(beta: Double): Double?
-    fun scoreInterval(beta: OutwardInterval): OutwardInterval?
-    fun hessianInterval(beta: OutwardInterval): OutwardInterval?
-}
-
-internal enum class PkStationaryRootKind {
-    MINIMUM,
-    MAXIMUM,
-}
-
-internal data class PkCertifiedStationaryRoot(
-    val kind: PkStationaryRootKind,
-    val enclosure: OutwardInterval,
-    val refinedBeta: Double,
-)
-
-internal sealed interface PkStationaryCertificateResult {
-    data class Covered(val roots: List<PkCertifiedStationaryRoot>) :
-        PkStationaryCertificateResult
-
-    data object NumericFailure : PkStationaryCertificateResult
-}
-
-internal data class PkStationaryCertificateBudget(
-    val maxCells: Int,
-    val maxRefinementEvaluations: Int,
-) {
-    init {
-        require(maxCells > 0)
-        require(maxRefinementEvaluations > 0)
-    }
-
-    companion object {
-        val Production = PkStationaryCertificateBudget(
-            maxCells = PkCalibrationDefaults.STATIONARY_INTERVAL_MAX_CELLS_PER_ROUTE,
-            maxRefinementEvaluations = PkCalibrationDefaults.STATIONARY_ROOT_MAX_EVAL,
-        )
-    }
-}
-
-/** Exhaustive outward-interval stationary-root certificate from normative v9 §5.1. */
-internal object PkStationaryRootCertificate {
-    fun certify(
-        function: PkCertifiedStationaryFunction,
-        budget: PkStationaryCertificateBudget = PkStationaryCertificateBudget.Production,
-    ): PkStationaryCertificateResult {
-        val domain = function.stationaryDomain
-        if (domain.lower < -PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA ||
-            domain.upper > PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
-        ) {
-            return PkStationaryCertificateResult.NumericFailure
-        }
-        val counter = CellCounter(budget.maxCells)
-        if (domain.lower == domain.upper) {
-            return certifySingleton(function, domain, counter)
-        }
-
-        val pending = ArrayDeque<OutwardInterval>()
-        pending.add(domain)
-        val roots = mutableListOf<PkCertifiedStationaryRoot>()
-        while (pending.isNotEmpty()) {
-            if (!counter.consume()) return PkStationaryCertificateResult.NumericFailure
-            val cell = pending.removeLast()
-            val gradient = function.scoreInterval(cell)
-                ?: return PkStationaryCertificateResult.NumericFailure
-            if (!gradient.containsZero) continue
-            val hessian = function.hessianInterval(cell)
-                ?: return PkStationaryCertificateResult.NumericFailure
-            val leftGradient = function.scoreInterval(
-                OutwardInterval.singleton(cell.lower)
-                    ?: return PkStationaryCertificateResult.NumericFailure
-            )
-                ?: return PkStationaryCertificateResult.NumericFailure
-            val rightGradient = function.scoreInterval(
-                OutwardInterval.singleton(cell.upper)
-                    ?: return PkStationaryCertificateResult.NumericFailure
-            )
-                ?: return PkStationaryCertificateResult.NumericFailure
-
-            val crossingKind = crossingKind(hessian, leftGradient, rightGradient)
-            if (crossingKind != null) {
-                val root = refineCertifiedBracket(
-                    function = function,
-                    initial = cell,
-                    kind = crossingKind,
-                    counter = counter,
-                    maxRefinementEvaluations = budget.maxRefinementEvaluations,
-                ) ?: return PkStationaryCertificateResult.NumericFailure
-                roots += root
-                continue
-            }
-            if (isCertifiedMonotoneRootFree(hessian, leftGradient, rightGradient)) {
-                continue
-            }
-
-            val midpoint = cell.midpoint()
-                ?: return PkStationaryCertificateResult.NumericFailure
-            val midpointGradient = function.scoreInterval(
-                OutwardInterval.singleton(midpoint)
-                    ?: return PkStationaryCertificateResult.NumericFailure
-            )
-                ?: return PkStationaryCertificateResult.NumericFailure
-            if (midpointGradient.containsZero) {
-                val root = certifyBoundaryRoot(
-                    function = function,
-                    parent = cell,
-                    boundary = midpoint,
-                    counter = counter,
-                    maxRefinementEvaluations = budget.maxRefinementEvaluations,
-                ) ?: return PkStationaryCertificateResult.NumericFailure
-                roots += root
-                if (cell.lower < root.enclosure.lower) {
-                    pending.add(
-                        requireNotNull(
-                            OutwardInterval.create(cell.lower, root.enclosure.lower)
-                        )
-                    )
-                }
-                if (root.enclosure.upper < cell.upper) {
-                    pending.add(
-                        requireNotNull(
-                            OutwardInterval.create(root.enclosure.upper, cell.upper)
-                        )
-                    )
-                }
-                continue
-            }
-
-            pending.add(requireNotNull(OutwardInterval.create(midpoint, cell.upper)))
-            pending.add(requireNotNull(OutwardInterval.create(cell.lower, midpoint)))
-        }
-
-        val orderedRoots = roots.sortedBy { root -> root.enclosure.lower }
-        for (index in 1 until orderedRoots.size) {
-            val previous = orderedRoots[index - 1].enclosure
-            val current = orderedRoots[index].enclosure
-            val separationLowerBound = current.separationLowerBoundAfter(previous)
-            if (separationLowerBound == null ||
-                separationLowerBound <=
-                PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
-            ) {
-                return PkStationaryCertificateResult.NumericFailure
-            }
-        }
-        return PkStationaryCertificateResult.Covered(immutableList(orderedRoots))
-    }
-
-    private fun certifySingleton(
-        function: PkCertifiedStationaryFunction,
-        domain: OutwardInterval,
-        counter: CellCounter,
-    ): PkStationaryCertificateResult {
-        if (!counter.consume()) return PkStationaryCertificateResult.NumericFailure
-        val gradient = function.scoreInterval(domain)
-            ?: return PkStationaryCertificateResult.NumericFailure
-        val hessian = function.hessianInterval(domain)
-            ?: return PkStationaryCertificateResult.NumericFailure
-        val pointGradient = function.score(domain.lower)
-            ?: return PkStationaryCertificateResult.NumericFailure
-        if (!gradient.containsZero || !hessian.isStrictlyPositive || pointGradient != 0.0) {
-            return PkStationaryCertificateResult.NumericFailure
-        }
-        return PkStationaryCertificateResult.Covered(
-            listOf(
-                PkCertifiedStationaryRoot(
-                    kind = PkStationaryRootKind.MINIMUM,
-                    enclosure = domain,
-                    refinedBeta = domain.lower.normalizePositiveZero(),
-                )
-            )
-        )
-    }
-
-    private fun crossingKind(
-        hessian: OutwardInterval,
-        leftGradient: OutwardInterval,
-        rightGradient: OutwardInterval,
-    ): PkStationaryRootKind? {
-        return when {
-            hessian.isStrictlyPositive && leftGradient.isStrictlyNegative &&
-                    rightGradient.isStrictlyPositive -> PkStationaryRootKind.MINIMUM
-
-            hessian.isStrictlyNegative && leftGradient.isStrictlyPositive &&
-                    rightGradient.isStrictlyNegative -> PkStationaryRootKind.MAXIMUM
-
-            else -> null
-        }
-    }
-
-    private fun isCertifiedMonotoneRootFree(
-        hessian: OutwardInterval,
-        leftGradient: OutwardInterval,
-        rightGradient: OutwardInterval,
-    ): Boolean {
-        if (hessian.isStrictlyPositive) {
-            return leftGradient.isStrictlyPositive || rightGradient.isStrictlyNegative
-        }
-        if (hessian.isStrictlyNegative) {
-            return leftGradient.isStrictlyNegative || rightGradient.isStrictlyPositive
-        }
-        return false
-    }
-
-    private fun refineCertifiedBracket(
-        function: PkCertifiedStationaryFunction,
-        initial: OutwardInterval,
-        kind: PkStationaryRootKind,
-        counter: CellCounter,
-        maxRefinementEvaluations: Int,
-    ): PkCertifiedStationaryRoot? {
-        var bracket = initial
-        while (true) {
-            val width = bracket.widthUpperBound() ?: return null
-            if (width <= PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL) break
-            if (!counter.consume()) return null
-            val midpoint = bracket.midpoint() ?: return null
-            val midpointGradient = function.scoreInterval(
-                OutwardInterval.singleton(midpoint) ?: return null
-            )
-                ?: return null
-            if (midpointGradient.containsZero) {
-                bracket = shrinkAroundBoundaryRoot(
-                    function = function,
-                    initial = bracket,
-                    boundary = midpoint,
-                    kind = kind,
-                    counter = counter,
-                ) ?: return null
-                break
-            }
-            bracket = when (kind) {
-                PkStationaryRootKind.MINIMUM -> when {
-                    midpointGradient.isStrictlyNegative -> requireNotNull(
-                        OutwardInterval.create(midpoint, bracket.upper)
-                    )
-
-                    midpointGradient.isStrictlyPositive -> requireNotNull(
-                        OutwardInterval.create(bracket.lower, midpoint)
-                    )
-
-                    else -> return null
-                }
-
-                PkStationaryRootKind.MAXIMUM -> when {
-                    midpointGradient.isStrictlyPositive -> requireNotNull(
-                        OutwardInterval.create(midpoint, bracket.upper)
-                    )
-
-                    midpointGradient.isStrictlyNegative -> requireNotNull(
-                        OutwardInterval.create(bracket.lower, midpoint)
-                    )
-
-                    else -> return null
-                }
-            }
-        }
-        return refineWithHipparchus(
-            function = function,
-            bracket = bracket,
-            kind = kind,
-            maxRefinementEvaluations = maxRefinementEvaluations,
-        )
-    }
-
-    private fun certifyBoundaryRoot(
-        function: PkCertifiedStationaryFunction,
-        parent: OutwardInterval,
-        boundary: Double,
-        counter: CellCounter,
-        maxRefinementEvaluations: Int,
-    ): PkCertifiedStationaryRoot? {
-        var left = midpoint(parent.lower, boundary) ?: return null
-        var right = midpoint(boundary, parent.upper) ?: return null
-        while (true) {
-            if (!counter.consume()) return null
-            val candidate = OutwardInterval.create(left, right) ?: return null
-            val hessian = function.hessianInterval(candidate) ?: return null
-            val leftGradient = function.scoreInterval(
-                OutwardInterval.singleton(left) ?: return null
-            )
-                ?: return null
-            val rightGradient = function.scoreInterval(
-                OutwardInterval.singleton(right) ?: return null
-            )
-                ?: return null
-            val kind = crossingKind(hessian, leftGradient, rightGradient)
-            if (kind != null) {
-                return refineCertifiedBracket(
-                    function = function,
-                    initial = candidate,
-                    kind = kind,
-                    counter = counter,
-                    maxRefinementEvaluations = maxRefinementEvaluations,
-                )
-            }
-            left = midpoint(left, boundary) ?: return null
-            right = midpoint(boundary, right) ?: return null
-        }
-    }
-
-    private fun shrinkAroundBoundaryRoot(
-        function: PkCertifiedStationaryFunction,
-        initial: OutwardInterval,
-        boundary: Double,
-        kind: PkStationaryRootKind,
-        counter: CellCounter,
-    ): OutwardInterval? {
-        var bracket = initial
-        while ((bracket.widthUpperBound() ?: return null) >
-            PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
-        ) {
-            if (!counter.consume()) return null
-            val left = midpoint(bracket.lower, boundary) ?: return null
-            val right = midpoint(boundary, bracket.upper) ?: return null
-            val candidate = OutwardInterval.create(left, right) ?: return null
-            val hessian = function.hessianInterval(candidate) ?: return null
-            val leftGradient = function.scoreInterval(
-                OutwardInterval.singleton(left) ?: return null
-            )
-                ?: return null
-            val rightGradient = function.scoreInterval(
-                OutwardInterval.singleton(right) ?: return null
-            )
-                ?: return null
-            if (crossingKind(hessian, leftGradient, rightGradient) != kind) return null
-            bracket = candidate
-        }
-        return bracket
-    }
-
-    private fun refineWithHipparchus(
-        function: PkCertifiedStationaryFunction,
-        bracket: OutwardInterval,
-        kind: PkStationaryRootKind,
-        maxRefinementEvaluations: Int,
-    ): PkCertifiedStationaryRoot? {
-        val width = bracket.widthUpperBound() ?: return null
-        if (width > PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL) return null
-        val gradient = function.scoreInterval(bracket) ?: return null
-        val hessian = function.hessianInterval(bracket) ?: return null
-        val leftGradient = function.scoreInterval(
-            OutwardInterval.singleton(bracket.lower) ?: return null
-        )
-            ?: return null
-        val rightGradient = function.scoreInterval(
-            OutwardInterval.singleton(bracket.upper) ?: return null
-        )
-            ?: return null
-        if (!gradient.containsZero ||
-            crossingKind(hessian, leftGradient, rightGradient) != kind
-        ) {
-            return null
-        }
-
-        // Hipparchus 4.0.3 API: BisectionSolver(absAccuracy).solve(maxEval, f, min, max).
-        // The outward checks above are the certificate; Hipparchus only refines its report.
-        val refined = runCatching {
-            BisectionSolver(PkCalibrationDefaults.STATIONARY_ROOT_BETA_ABS_TOL).solve(
-                maxRefinementEvaluations,
-                UnivariateFunction { beta -> function.score(beta) ?: Double.NaN },
-                bracket.lower,
-                bracket.upper,
-            )
-        }.getOrNull()?.takeIf(Double::isFinite) ?: return null
-        if (!bracket.contains(refined)) return null
-        return PkCertifiedStationaryRoot(
-            kind = kind,
-            enclosure = bracket,
-            refinedBeta = refined.normalizePositiveZero(),
-        )
-    }
-
-    private fun midpoint(lower: Double, upper: Double): Double? {
-        if (!lower.isFinite() || !upper.isFinite() || lower >= upper) return null
-        val difference = upper - lower
-        if (!difference.isFinite()) return null
-        return (lower + difference / 2.0).takeIf { value ->
-            value.isFinite() && value > lower && value < upper
-        }
-    }
-
-    private class CellCounter(private val maximum: Int) {
-        private var consumed = 0
-
-        fun consume(): Boolean {
-            if (consumed >= maximum) return false
-            consumed += 1
-            return true
-        }
-    }
-}
-
+/**
+ * Deterministic grid + bisection stationary search (v10.0 §A1).
+ *
+ * Every stationary point of the smooth, coercive route objective lies in
+ * I_stat = [min(0, min q), max(0, max q)]. J' is evaluated on a uniform grid
+ * whose node spacing is at most GRID_STEP_LOG; each strict sign change (and
+ * each exact node zero) is refined with the pinned Hipparchus bisection solver
+ * and classified by the sign of J''. Exactly one positive-curvature minimum is
+ * required: none is route-local numeric failure, two or more are
+ * POSTERIOR_MODE_AMBIGUOUS. The certified enclosure apparatus this replaces is
+ * recorded in the v10.0 amendment; the accepted residual risk is a root pair
+ * closer than one grid step, far below the ~sqrt(R_LOG) basin width.
+ */
 internal sealed interface PkRouteMapFitResult {
-    data class Certified(val diagnostics: PkRouteFitDiagnostics) : PkRouteMapFitResult
+    data class Fitted(val diagnostics: PkRouteFitDiagnostics) : PkRouteMapFitResult
     data object PosteriorModeAmbiguous : PkRouteMapFitResult
     data object NumericFailure : PkRouteMapFitResult
 }
 
-internal sealed interface PkMinimumSelection {
-    data class Unique(val root: PkCertifiedStationaryRoot) : PkMinimumSelection
-    data object Ambiguous : PkMinimumSelection
-    data object NumericFailure : PkMinimumSelection
-}
-
 internal object PkRouteMapSolver {
-    fun fit(
-        objective: PkRouteStudentTObjective,
-        budget: PkStationaryCertificateBudget = PkStationaryCertificateBudget.Production,
-    ): PkRouteMapFitResult {
-        val certificate = PkStationaryRootCertificate.certify(objective, budget)
-        if (certificate !is PkStationaryCertificateResult.Covered) {
+    fun fit(objective: PkRouteStudentTObjective): PkRouteMapFitResult {
+        var minimumQ = 0.0
+        var maximumQ = 0.0
+        for (point in objective.points) {
+            minimumQ = min(minimumQ, point.qLogRatio)
+            maximumQ = max(maximumQ, point.qLogRatio)
+        }
+        val guard = PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
+        if (!minimumQ.isFinite() || !maximumQ.isFinite() ||
+            minimumQ < -guard || maximumQ > guard
+        ) {
             return PkRouteMapFitResult.NumericFailure
         }
-        val selection = selectMinimum(certificate)
-        if (selection == PkMinimumSelection.NumericFailure) {
-            return PkRouteMapFitResult.NumericFailure
-        }
-        if (selection == PkMinimumSelection.Ambiguous) {
-            return PkRouteMapFitResult.PosteriorModeAmbiguous
-        }
-        val root = (selection as PkMinimumSelection.Unique).root
-        val diagnostics = objective.diagnostics(root.refinedBeta)
+
+        val roots = findStationaryRoots(objective, minimumQ, maximumQ)
             ?: return PkRouteMapFitResult.NumericFailure
-        return PkRouteMapFitResult.Certified(diagnostics)
+        var minimumBeta: Double? = null
+        for (root in roots) {
+            val hessian = objective.hessian(root) ?: return PkRouteMapFitResult.NumericFailure
+            when {
+                hessian > 0.0 -> {
+                    if (minimumBeta != null) return PkRouteMapFitResult.PosteriorModeAmbiguous
+                    minimumBeta = root
+                }
+                hessian < 0.0 -> Unit
+                else -> return PkRouteMapFitResult.NumericFailure
+            }
+        }
+        val beta = minimumBeta ?: return PkRouteMapFitResult.NumericFailure
+        val diagnostics = objective.diagnostics(beta)
+            ?: return PkRouteMapFitResult.NumericFailure
+        return PkRouteMapFitResult.Fitted(diagnostics)
     }
 
-    fun selectMinimum(
-        certificate: PkStationaryCertificateResult.Covered,
-    ): PkMinimumSelection {
-        val minima = certificate.roots.filter { root ->
-            root.kind == PkStationaryRootKind.MINIMUM
+    /** Ascending stationary-point locations, or null on any non-finite evaluation. */
+    private fun findStationaryRoots(
+        objective: PkRouteStudentTObjective,
+        minimumQ: Double,
+        maximumQ: Double,
+    ): List<Double>? {
+        // I_stat collapses to a point only when every q is zero.
+        if (minimumQ == maximumQ) return listOf(0.0)
+        val width = maximumQ - minimumQ
+        if (!width.isFinite() || width <= 0.0) return null
+        val segments = max(
+            PkCalibrationDefaults.GRID_MIN_NODES,
+            ceil(width / PkCalibrationDefaults.GRID_STEP_LOG).toInt(),
+        )
+        val roots = ArrayList<Double>(2)
+        var previousBeta = minimumQ
+        var previousScore = objective.score(previousBeta) ?: return null
+        if (previousScore == 0.0) roots += previousBeta
+        for (index in 1..segments) {
+            val beta = if (index == segments) {
+                maximumQ
+            } else {
+                minimumQ + width * index / segments
+            }
+            val score = objective.score(beta) ?: return null
+            if (score == 0.0) {
+                roots += beta
+            } else if (previousScore != 0.0 && (previousScore < 0.0) != (score < 0.0)) {
+                val refined = refineBracket(objective, previousBeta, beta) ?: return null
+                roots += refined
+            }
+            previousBeta = beta
+            previousScore = score
         }
-        return when (minima.size) {
-            0 -> PkMinimumSelection.NumericFailure
-            1 -> PkMinimumSelection.Unique(minima.single())
-            else -> PkMinimumSelection.Ambiguous
-        }
+        return roots
+    }
+
+    private fun refineBracket(
+        objective: PkRouteStudentTObjective,
+        lower: Double,
+        upper: Double,
+    ): Double? {
+        // Hipparchus 4.0.3 API: BisectionSolver(absAccuracy).solve(maxEval, f, min, max).
+        val refined = runCatching {
+            BisectionSolver(PkCalibrationDefaults.STATIONARY_ROOT_BETA_ABS_TOL).solve(
+                PkCalibrationDefaults.STATIONARY_ROOT_MAX_EVAL,
+                UnivariateFunction { beta -> objective.score(beta) ?: Double.NaN },
+                lower,
+                upper,
+            )
+        }.getOrNull() ?: return null
+        return refined.takeIf { value -> value.isFinite() && value in lower..upper }
     }
 }
 
@@ -876,7 +379,7 @@ internal object PkRouteCalibrationSolver {
                 )
             )
 
-            is PkRouteMapFitResult.Certified -> classify(routeEvidence, fit.diagnostics, rLog)
+            is PkRouteMapFitResult.Fitted -> classify(routeEvidence, fit.diagnostics, rLog)
         }
     }
 

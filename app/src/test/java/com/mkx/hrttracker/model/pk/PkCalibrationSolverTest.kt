@@ -76,191 +76,35 @@ class PkCalibrationSolverTest {
     }
 
     @Test
-    fun outwardIntervalPrimitives_encloseDecimalOraclesAndFailClosed() {
-        val left = requireNotNull(OutwardInterval.create(0.1, 0.2))
-        val right = requireNotNull(OutwardInterval.create(0.3, 0.4))
-        val sum = requireNotNull(left.add(right))
-        val exactLower = BigDecimal("0.1").add(BigDecimal("0.3")).toDouble()
-        val exactUpper = BigDecimal("0.2").add(BigDecimal("0.4")).toDouble()
-        assertTrue(sum.lower <= exactLower)
-        assertTrue(sum.upper >= exactUpper)
+    fun allQZero_fitsDirectlyAtZeroBeta() {
+        val fit = PkRouteMapSolver.fit(objective(0.0, 0.0, 0.0))
+                as PkRouteMapFitResult.Fitted
 
-        val product = requireNotNull(
-            requireNotNull(OutwardInterval.create(-3.0, 4.0)).multiply(
-                requireNotNull(OutwardInterval.create(2.0, 5.0))
-            )
-        )
-        assertTrue(product.lower <= -15.0)
-        assertTrue(product.upper >= 20.0)
-
-        val quotient = requireNotNull(
-            requireNotNull(OutwardInterval.create(-4.0, 6.0)).divideByStrictlyPositive(
-                requireNotNull(OutwardInterval.create(2.0, 3.0))
-            )
-        )
-        assertTrue(quotient.lower <= -2.0)
-        assertTrue(quotient.upper >= 3.0)
-
-        assertNull(
-            left.divideByStrictlyPositive(requireNotNull(OutwardInterval.create(-1.0, 1.0)))
-        )
-        assertNull(
-            requireNotNull(OutwardInterval.singleton(Double.MAX_VALUE)).multiply(
-                requireNotNull(OutwardInterval.singleton(2.0))
-            )
-        )
-        assertNull(OutwardInterval.create(2.0, 1.0))
-        assertNull(OutwardInterval.singleton(Double.NaN))
-        assertNull(OutwardInterval.singleton(Double.NEGATIVE_INFINITY))
-        assertNull(OutwardInterval.singleton(Double.POSITIVE_INFINITY))
+        assertEquals(0L, fit.diagnostics.fittedBeta.toBits())
     }
 
     @Test
-    fun outwardWidthAndSeparationBounds_makeOneBitThresholdDecisionsConservatively() {
-        val widthTolerance = PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
-        val acceptedWidth = requireNotNull(
-            OutwardInterval.create(0.0, Math.nextDown(widthTolerance))
-        )
-        val rejectedWidth = requireNotNull(OutwardInterval.create(0.0, widthTolerance))
-        assertTrue(requireNotNull(acceptedWidth.widthUpperBound()) <= widthTolerance)
-        assertTrue(requireNotNull(rejectedWidth.widthUpperBound()) > widthTolerance)
-
-        val separation = PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
-        val previous = requireNotNull(OutwardInterval.singleton(0.0))
-        val rejectedSeparation = requireNotNull(
-            OutwardInterval.singleton(Math.nextUp(separation))
-        )
-        val acceptedSeparation = requireNotNull(
-            OutwardInterval.singleton(Math.nextUp(Math.nextUp(separation)))
-        )
-        assertTrue(
-            requireNotNull(rejectedSeparation.separationLowerBoundAfter(previous)) <= separation
-        )
-        assertTrue(
-            requireNotNull(acceptedSeparation.separationLowerBoundAfter(previous)) > separation
-        )
-    }
-
-    @Test
-    fun allQZero_isCertifiedDirectlyAtPositiveCurvatureMinimum() {
-        val objective = objective(0.0, 0.0, 0.0)
-        val certificate = PkStationaryRootCertificate.certify(objective)
-            as PkStationaryCertificateResult.Covered
-        val root = certificate.roots.single()
-
-        assertEquals(PkStationaryRootKind.MINIMUM, root.kind)
-        assertEquals(0L, root.refinedBeta.toBits())
-        assertEquals(0.0, requireNotNull(root.enclosure.widthUpperBound()), 0.0)
-        assertTrue(requireNotNull(objective.hessianInterval(root.enclosure)).isStrictlyPositive)
-    }
-
-    @Test
-    fun certifiedBracket_isExhaustivelyCoveredThenRefinedByBisection() {
+    fun gridSearch_locatesUniqueMinimumToBisectionTolerance() {
         val objective = objective(-0.4, 0.15, 0.7, 0.9)
-        val certificate = PkStationaryRootCertificate.certify(objective)
-            as PkStationaryCertificateResult.Covered
-        val minima = certificate.roots.filter { root ->
-            root.kind == PkStationaryRootKind.MINIMUM
-        }
+        val fit = PkRouteMapSolver.fit(objective) as PkRouteMapFitResult.Fitted
+        val beta = fit.diagnostics.fittedBeta
 
-        assertEquals(1, minima.size)
-        val root = minima.single()
-        assertTrue(
-            requireNotNull(root.enclosure.widthUpperBound()) <=
-                    PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
-        )
-        assertTrue(root.enclosure.contains(root.refinedBeta))
-        assertTrue(requireNotNull(objective.scoreInterval(root.enclosure)).containsZero)
-        assertTrue(requireNotNull(objective.hessianInterval(root.enclosure)).isStrictlyPositive)
-        assertTrue(abs(requireNotNull(objective.score(root.refinedBeta))) < 1e-8)
+        assertTrue(abs(requireNotNull(objective.score(beta))) < 1e-8)
+        assertTrue(requireNotNull(objective.hessian(beta)) > 0.0)
     }
 
     @Test
-    fun boundaryRootProcedure_ownsExactSplitRootWithoutDuplicates() {
-        val certificate = PkStationaryRootCertificate.certify(BoundaryStationaryFunction)
-            as PkStationaryCertificateResult.Covered
-
-        assertEquals(1, certificate.roots.size)
-        assertEquals(PkStationaryRootKind.MINIMUM, certificate.roots.single().kind)
-        assertTrue(certificate.roots.single().enclosure.contains(0.0))
-    }
-
-    @Test
-    fun stationaryCertificate_rejectsEitherEndpointOutsideTheTwentyBetaGuard() {
+    fun gridSearch_rejectsEitherEndpointOutsideTheTwentyBetaGuard() {
         val guard = PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
-        val domains = listOf(
-            requireNotNull(OutwardInterval.create(-guard, Math.nextUp(guard))),
-            requireNotNull(OutwardInterval.create(Math.nextDown(-guard), guard)),
-        )
-
-        for (domain in domains) {
-            assertEquals(
-                PkStationaryCertificateResult.NumericFailure,
-                PkStationaryRootCertificate.certify(LinearStationaryFunction(domain)),
-            )
-        }
-    }
-
-    @Test
-    fun stationaryCertificate_failsClosedAtMinimumRootSeparationAndAcceptsNearbyGap() {
-        val minimum = PkCalibrationDefaults.STATIONARY_ROOT_MIN_SEPARATION
-        val enclosureTolerance =
-            PkCalibrationDefaults.STATIONARY_ROOT_ENCLOSURE_BETA_TOL
 
         assertEquals(
-            PkStationaryCertificateResult.NumericFailure,
-            PkStationaryRootCertificate.certify(SymmetricTripleRootFunction(minimum)),
+            PkRouteMapFitResult.NumericFailure,
+            PkRouteMapSolver.fit(objective(Math.nextUp(guard), 0.0)),
         )
-
-        val nearby = minimum + 8.0 * enclosureTolerance
-        val covered = PkStationaryRootCertificate.certify(
-            SymmetricTripleRootFunction(nearby)
-        ) as PkStationaryCertificateResult.Covered
-        assertEquals(3, covered.roots.size)
         assertEquals(
-            listOf(
-                PkStationaryRootKind.MINIMUM,
-                PkStationaryRootKind.MAXIMUM,
-                PkStationaryRootKind.MINIMUM,
-            ),
-            covered.roots.map(PkCertifiedStationaryRoot::kind),
+            PkRouteMapFitResult.NumericFailure,
+            PkRouteMapSolver.fit(objective(-Math.nextUp(guard), 0.0)),
         )
-        assertTrue(
-            covered.roots.zipWithNext().all { (previous, current) ->
-                requireNotNull(
-                    current.enclosure.separationLowerBoundAfter(previous.enclosure)
-                ) > minimum
-            }
-        )
-    }
-
-    @Test
-    fun flatNonfiniteAndBudgetExhaustion_failClosed() {
-        assertTrue(
-            PkStationaryRootCertificate.certify(
-                FlatStationaryFunction,
-                PkStationaryCertificateBudget(maxCells = 8, maxRefinementEvaluations = 8),
-            ) is PkStationaryCertificateResult.NumericFailure
-        )
-        assertTrue(
-            PkStationaryRootCertificate.certify(NonFiniteStationaryFunction) is
-                    PkStationaryCertificateResult.NumericFailure
-        )
-
-        val noRoot = PkStationaryRootCertificate.certify(NoRootStationaryFunction)
-            as PkStationaryCertificateResult.Covered
-        assertTrue(noRoot.roots.isEmpty())
-        assertEquals(PkMinimumSelection.NumericFailure, PkRouteMapSolver.selectMinimum(noRoot))
-    }
-
-    @Test
-    fun uniqueMinimumSelection_rejectsCompetingModesDeterministically() {
-        val first = certifiedRoot(PkStationaryRootKind.MINIMUM, -1.0)
-        val maximum = certifiedRoot(PkStationaryRootKind.MAXIMUM, 0.0)
-        val second = certifiedRoot(PkStationaryRootKind.MINIMUM, 1.0)
-        val covered = PkStationaryCertificateResult.Covered(listOf(first, maximum, second))
-
-        assertEquals(PkMinimumSelection.Ambiguous, PkRouteMapSolver.selectMinimum(covered))
     }
 
     @Test
@@ -380,17 +224,12 @@ class PkCalibrationSolverTest {
             requireNotNull(reversed.hessian(0.123)).toBits(),
         )
 
-        val forwardRoot = (
-                PkStationaryRootCertificate.certify(forward)
-                        as PkStationaryCertificateResult.Covered
-                ).roots.single { root -> root.kind == PkStationaryRootKind.MINIMUM }
-        val reversedRoot = (
-                PkStationaryRootCertificate.certify(reversed)
-                        as PkStationaryCertificateResult.Covered
-                ).roots.single { root -> root.kind == PkStationaryRootKind.MINIMUM }
-        assertEquals(forwardRoot.refinedBeta.toBits(), reversedRoot.refinedBeta.toBits())
-        assertEquals(forwardRoot.enclosure.lower.toBits(), reversedRoot.enclosure.lower.toBits())
-        assertEquals(forwardRoot.enclosure.upper.toBits(), reversedRoot.enclosure.upper.toBits())
+        val forwardFit = PkRouteMapSolver.fit(forward) as PkRouteMapFitResult.Fitted
+        val reversedFit = PkRouteMapSolver.fit(reversed) as PkRouteMapFitResult.Fitted
+        assertEquals(
+            forwardFit.diagnostics.fittedBeta.toBits(),
+            reversedFit.diagnostics.fittedBeta.toBits(),
+        )
     }
 
     @Test
@@ -1083,106 +922,9 @@ class PkCalibrationSolverTest {
                 PkCalibrationRouteEvidence
     }
 
-    private fun certifiedRoot(
-        kind: PkStationaryRootKind,
-        beta: Double,
-    ): PkCertifiedStationaryRoot {
-        return PkCertifiedStationaryRoot(
-            kind = kind,
-            enclosure = requireNotNull(OutwardInterval.singleton(beta)),
-            refinedBeta = beta,
-        )
-    }
-
     private fun uuid(value: Long): UUID = UUID(0, value)
 
-    private object BoundaryStationaryFunction : PkCertifiedStationaryFunction {
-        override val stationaryDomain = requireNotNull(OutwardInterval.create(-1.0, 1.0))
-        override fun score(beta: Double): Double = beta
-        override fun hessian(beta: Double): Double = 1.0
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval = beta
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval {
-            return if (requireNotNull(beta.widthUpperBound()) > 0.25) {
-                requireNotNull(OutwardInterval.create(-1.0, 1.0))
-            } else {
-                requireNotNull(OutwardInterval.singleton(1.0))
-            }
-        }
-    }
-
-    private class LinearStationaryFunction(
-        override val stationaryDomain: OutwardInterval,
-    ) : PkCertifiedStationaryFunction {
-        override fun score(beta: Double): Double = beta
-        override fun hessian(beta: Double): Double = 1.0
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval = beta
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
-            requireNotNull(OutwardInterval.singleton(1.0))
-    }
-
     /** score(beta) = beta * (beta^2 - separation^2), with roots -s, 0, +s. */
-    private class SymmetricTripleRootFunction(
-        private val separation: Double,
-    ) : PkCertifiedStationaryFunction {
-        private val separationSquared = separation * separation
-
-        override val stationaryDomain = requireNotNull(
-            OutwardInterval.create(-1.5 * separation, 1.5 * separation)
-        )
-
-        override fun score(beta: Double): Double =
-            beta * (beta * beta - separationSquared)
-
-        override fun hessian(beta: Double): Double =
-            3.0 * beta * beta - separationSquared
-
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval? {
-            val centeredSquare = beta.square()?.subtract(
-                OutwardInterval.singleton(separationSquared) ?: return null
-            ) ?: return null
-            return beta.multiply(centeredSquare)
-        }
-
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval? {
-            val scaledSquare = beta.square()?.multiply(
-                OutwardInterval.singleton(3.0) ?: return null
-            ) ?: return null
-            return scaledSquare.subtract(
-                OutwardInterval.singleton(separationSquared) ?: return null
-            )
-        }
-    }
-
-    private object FlatStationaryFunction : PkCertifiedStationaryFunction {
-        override val stationaryDomain = requireNotNull(OutwardInterval.create(-1.0, 1.0))
-        override fun score(beta: Double): Double = 0.0
-        override fun hessian(beta: Double): Double = 0.0
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval =
-            requireNotNull(OutwardInterval.singleton(0.0))
-
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
-            requireNotNull(OutwardInterval.singleton(0.0))
-    }
-
-    private object NonFiniteStationaryFunction : PkCertifiedStationaryFunction {
-        override val stationaryDomain = requireNotNull(OutwardInterval.create(-1.0, 1.0))
-        override fun score(beta: Double): Double? = null
-        override fun hessian(beta: Double): Double? = null
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval? = null
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval? = null
-    }
-
-    private object NoRootStationaryFunction : PkCertifiedStationaryFunction {
-        override val stationaryDomain = requireNotNull(OutwardInterval.create(-1.0, 1.0))
-        override fun score(beta: Double): Double = 1.0
-        override fun hessian(beta: Double): Double = 0.0
-        override fun scoreInterval(beta: OutwardInterval): OutwardInterval =
-            requireNotNull(OutwardInterval.singleton(1.0))
-
-        override fun hessianInterval(beta: OutwardInterval): OutwardInterval =
-            requireNotNull(OutwardInterval.singleton(0.0))
-    }
-
     private companion object {
         const val RLog = 0.04
     }
