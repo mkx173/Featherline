@@ -177,10 +177,6 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
-        // Numerical parity fixtures are intentionally absent from `main`: they are
-        // compiled only into host tests and the minified benchmark app entrypoint.
-        getByName("test").kotlin.srcDir("$projectDir/src/pkCalibrationParity/java")
-        getByName("benchmark").kotlin.srcDir("$projectDir/src/pkCalibrationParity/java")
     }
 }
 
