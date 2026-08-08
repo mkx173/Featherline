@@ -253,6 +253,7 @@ data class PkRouteCalibrationResult private constructor(
             minStudentTWeight: Double? = null,
             atDisplayCapBoundary: Boolean = false,
             unreviewedOutlierLabIds: Set<UUID> = emptySet(),
+            rLog: Double? = null,
         ): PkRouteCalibrationResult? {
             if (!isFiniteOrNull(fittedBeta)) return null
             if (!displayBeta.isFinite()) return null
@@ -261,6 +262,14 @@ data class PkRouteCalibrationResult private constructor(
             if (!isFiniteNonNegativeOrNull(laplaceVarianceBeta)) return null
             if (!isFiniteNonNegativeOrNull(drugSignalLogRange)) return null
             if (!isFiniteNonNegativeOrNull(robustRmseLog)) return null
+            val rmseGate = if (robustRmseLog != null) {
+                val noise = rLog?.takeIf { value -> value.isFinite() && value > 0.0 }
+                    ?: return null
+                PkCalibrationDefaults.robustRmseLogMaxForPromotion(noise)
+                    .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
+            } else {
+                null
+            }
             val maximumStudentTWeight =
                 (PkCalibrationDefaults.STUDENT_T_NU + 1.0) /
                         PkCalibrationDefaults.STUDENT_T_NU
@@ -349,9 +358,8 @@ data class PkRouteCalibrationResult private constructor(
                             ) &&
                             dominantLabCount <
                             PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_EXTREME_SCALE
-                    val hasPoorFit = robustRmseLog != null &&
-                            robustRmseLog >
-                            PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    val hasPoorFit = robustRmseLog != null && rmseGate != null &&
+                            robustRmseLog > rmseGate
                     val hasUnreviewedOutlier = unreviewedOutlierLabIds.isNotEmpty()
                     val hasInsufficientContrast = drugSignalLogRange != null &&
                             drugSignalLogRange <
@@ -431,7 +439,7 @@ data class PkRouteCalibrationResult private constructor(
                 if (dominantLabCount < requiredLabCount) return null
 
                 val rmseLog = robustRmseLog ?: return null
-                if (rmseLog > PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION) return null
+                if (rmseLog > (rmseGate ?: return null)) return null
                 if (unreviewedOutlierLabIds.isNotEmpty()) return null
                 if (PkCalibrationReason.UNREVIEWED_OUTLIER in reasons) return null
 

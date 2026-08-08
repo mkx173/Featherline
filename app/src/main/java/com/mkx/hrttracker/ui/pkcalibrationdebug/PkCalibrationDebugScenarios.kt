@@ -552,6 +552,7 @@ private fun PkCalibrationLiveState.toDebugSourceResult(): PkCalibrationDebugSour
 internal object PkCalibrationDebugFixtures {
     private const val DebugForwardModelVersion = "debug:pk-forward/v1"
     private const val DebugCalibrationModelVersion = "debug:route-calibration/v9"
+    private const val DebugRLog = 0.04
     private val ScopeDigest = requireNotNull(CanonicalDigest.create(
         PK_CALIBRATION_SCOPE_DECISION_DIGEST_SCHEMA,
         "SHA-256",
@@ -796,11 +797,12 @@ internal object PkCalibrationDebugFixtures {
                     PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE &&
                     !unreviewedOutlier
                 ) {
-                    0.4
+                    0.5
                 } else {
                     0.1
                 }
             },
+            rLog = fittedBeta?.let { DebugRLog },
             minStudentTWeight = fittedBeta?.let { if (unreviewedOutlier) 0.1 else 0.8 },
             atDisplayCapBoundary = atDisplayCapBoundary,
             unreviewedOutlierLabIds = if (unreviewedOutlier) {

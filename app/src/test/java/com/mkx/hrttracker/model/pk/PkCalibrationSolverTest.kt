@@ -296,9 +296,10 @@ class PkCalibrationSolverTest {
                 dominantCandidateLabCount = 2,
                 dominantLabCount = 2,
                 robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)
                 ),
                 minStudentTWeight = maximum,
+                rLog = RLog,
             )
         )
         assertNull(
@@ -312,9 +313,10 @@ class PkCalibrationSolverTest {
                 dominantCandidateLabCount = 2,
                 dominantLabCount = 2,
                 robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)
                 ),
                 minStudentTWeight = Math.nextUp(maximum),
+                rLog = RLog,
             )
         )
     }
@@ -421,6 +423,7 @@ class PkCalibrationSolverTest {
             val exact = PkRouteCalibrationSolver.classify(
                 twoLabs,
                 diagnostics(fittedBeta = betaForExactScale(scale)),
+                RLog,
             )
             assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
             assertFalse(
@@ -433,6 +436,7 @@ class PkCalibrationSolverTest {
             val outsideCore = PkRouteCalibrationSolver.classify(
                 twoLabs,
                 diagnostics(fittedBeta = beta),
+                RLog,
             )
             assertEquals(
                 PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
@@ -460,6 +464,7 @@ class PkCalibrationSolverTest {
                 val atBoundary = PkRouteCalibrationSolver.classify(
                     evidence,
                     diagnostics(fittedBeta = betaForExactScale(scale)),
+                    RLog,
                 )
                 assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, atBoundary.displayState)
                 assertTrue(atBoundary.atDisplayCapBoundary)
@@ -473,6 +478,7 @@ class PkCalibrationSolverTest {
                 val exceeded = PkRouteCalibrationSolver.classify(
                     evidence,
                     diagnostics(fittedBeta = beta),
+                    RLog,
                 )
                 assertEquals(
                     PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
@@ -500,6 +506,7 @@ class PkCalibrationSolverTest {
                 posteriorSd =
                     PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION,
             ),
+            RLog,
         )
         assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
 
@@ -510,6 +517,7 @@ class PkCalibrationSolverTest {
                     PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
                 )
             ),
+            RLog,
         )
         assertEquals(
             PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
@@ -527,6 +535,7 @@ class PkCalibrationSolverTest {
                         .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
                 )
             ),
+            RLog,
         )
         assertEquals(
             PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
@@ -550,10 +559,11 @@ class PkCalibrationSolverTest {
                 drugSignalLogRange = 0.0,
                 posteriorSd = 0.21,
                 robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)
                 ),
                 unreviewedOutlierLabIds = setOf(outlierId),
             ),
+            RLog,
         )
 
         assertEquals(
@@ -602,22 +612,26 @@ class PkCalibrationSolverTest {
                     listOf(10.0, 20.0, 40.0),
                 ),
                 diagnostics(fittedBeta = betaProducingScaleAbove(2.0)),
+                RLog,
             ).displayState,
             PkRouteCalibrationSolver.classify(
                 calibratedEvidence,
                 diagnostics(
                     robustRmseLog = Math.nextUp(
-                        PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                        PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)
                     )
                 ),
+                RLog,
             ).displayState,
             PkRouteCalibrationSolver.classify(
                 calibratedEvidence,
                 diagnostics(drugSignalLogRange = 0.0),
+                RLog,
             ).displayState,
             PkRouteCalibrationSolver.classify(
                 calibratedEvidence,
                 diagnostics(),
+                RLog,
             ).displayState,
         )
 

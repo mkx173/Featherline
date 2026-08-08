@@ -9,6 +9,8 @@ import org.junit.Test
 import java.util.UUID
 import kotlin.math.ln
 
+private const val TestRLog = 0.04
+
 class PkCalibrationContractsTest {
     @Test
     fun routeStableIds_areCanonicalAndUnknownFailsClosed() {
@@ -177,6 +179,7 @@ class PkCalibrationContractsTest {
                 robustRmseLog = robustRmseLog,
                 atDisplayCapBoundary = atDisplayCapBoundary,
                 unreviewedOutlierLabIds = outlierIds,
+                rLog = TestRLog,
             )
         }
 
@@ -233,7 +236,7 @@ class PkCalibrationContractsTest {
                 setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
                 fittedBeta = 0.0,
                 robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog)
                 ),
             )
         )
@@ -255,7 +258,7 @@ class PkCalibrationContractsTest {
                 ),
                 fittedBeta = ln(2.0),
                 robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog)
                 ),
                 atDisplayCapBoundary = true,
             )
@@ -279,7 +282,7 @@ class PkCalibrationContractsTest {
                 drugSignalLogRange =
                     PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
                 robustRmseLog =
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
                 candidateCount = 2,
                 includedCount = 2,
                 outlierIds = setOf(outlierId),
@@ -317,6 +320,7 @@ class PkCalibrationContractsTest {
                 robustRmseLog = robustRmseLog,
                 atDisplayCapBoundary = atDisplayCapBoundary,
                 unreviewedOutlierLabIds = outlierIds,
+                rLog = TestRLog,
             )
         }
 
@@ -346,7 +350,7 @@ class PkCalibrationContractsTest {
                 setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
                 fittedBeta = 1_000.0,
                 robustRmseLog =
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
         assertNull(
@@ -355,7 +359,7 @@ class PkCalibrationContractsTest {
                 setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
                 fittedBeta = -1_000.0,
                 robustRmseLog =
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
 
@@ -374,7 +378,7 @@ class PkCalibrationContractsTest {
                 emptySet(),
                 fittedBeta = 0.0,
                 robustRmseLog =
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
         assertNull(
@@ -427,7 +431,7 @@ class PkCalibrationContractsTest {
                 setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
                 fittedBeta = ln(2.0),
                 robustRmseLog =
-                    PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
     }
@@ -599,7 +603,7 @@ class PkCalibrationContractsTest {
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
-                robustRmseLog = PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION + 0.01,
+                robustRmseLog = PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
         assertNull(
@@ -932,6 +936,7 @@ class PkCalibrationContractsTest {
             dominantLabCount = includedCount,
             robustRmseLog = robustRmseLog,
             unreviewedOutlierLabIds = outlierIds,
+            rLog = TestRLog,
         )
     }
 
@@ -965,6 +970,7 @@ class PkCalibrationContractsTest {
             robustRmseLog = robustRmseLog,
             atDisplayCapBoundary = atDisplayCapBoundary,
             unreviewedOutlierLabIds = outlierIds,
+            rLog = TestRLog,
         )
     }
 

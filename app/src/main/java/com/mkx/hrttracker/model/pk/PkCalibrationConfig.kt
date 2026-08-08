@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.pk
 
 import java.util.Collections
+import kotlin.math.sqrt
 
 @ConsistentCopyVisibility
 data class ScaleCap private constructor(
@@ -29,8 +30,15 @@ object PkCalibrationDefaults {
     const val ROUTE_ATTRIBUTABLE_MIN_PGML = 1e-12
     const val DRUG_SIGNAL_LOG_RANGE_MIN = 0.6931471805599453
     const val ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION = 0.20
-    const val ROBUST_RMSE_LOG_MAX_FOR_PROMOTION = 0.30
+    const val ROBUST_RMSE_GATE_FACTOR = 2.0
     const val OUTLIER_WEIGHT_MIN = 0.25
+
+    /**
+     * v10.0 §A3: the RMSE promotion gate scales with the observation-noise model,
+     * like the Student-t outlier gate, instead of being an absolute constant.
+     */
+    fun robustRmseLogMaxForPromotion(rLog: Double): Double =
+        ROBUST_RMSE_GATE_FACTOR * sqrt(rLog)
 
     const val GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA = 20.0
     const val STATIONARY_INTERVAL_MAX_CELLS_PER_ROUTE = 50_000

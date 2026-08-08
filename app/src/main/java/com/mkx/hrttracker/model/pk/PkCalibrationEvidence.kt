@@ -902,8 +902,8 @@ private fun reviewConstantsPayload(
                 PkCalibrationDefaults
                     .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
                     .toCanonicalBinary64Bits(),
-        "robustRmseLogMaxForPromotion" to
-                PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+        "robustRmseGateFactor" to
+                PkCalibrationDefaults.ROBUST_RMSE_GATE_FACTOR
                     .toCanonicalBinary64Bits(),
         "outlierWeightMin" to
                 PkCalibrationDefaults.OUTLIER_WEIGHT_MIN.toCanonicalBinary64Bits(),

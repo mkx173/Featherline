@@ -876,13 +876,14 @@ internal object PkRouteCalibrationSolver {
                 )
             )
 
-            is PkRouteMapFitResult.Certified -> classify(routeEvidence, fit.diagnostics)
+            is PkRouteMapFitResult.Certified -> classify(routeEvidence, fit.diagnostics, rLog)
         }
     }
 
     internal fun classify(
         routeEvidence: PkCalibrationRouteEvidence,
         diagnostics: PkRouteFitDiagnostics,
+        rLog: Double,
     ): PkRouteCalibrationResult {
         val scale = exp(diagnostics.fittedBeta)
         if (!scale.isFinite() || scale <= 0.0 ||
@@ -900,7 +901,7 @@ internal object PkRouteCalibrationSolver {
                 routeEvidence.dominantLabCount <
                 PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_EXTREME_SCALE
         val poorFit = diagnostics.robustRmseLog >
-                PkCalibrationDefaults.ROBUST_RMSE_LOG_MAX_FOR_PROMOTION
+                PkCalibrationDefaults.robustRmseLogMaxForPromotion(rLog)
         val hasUnreviewedOutlier = diagnostics.unreviewedOutlierLabIds.isNotEmpty()
         val insufficientContrast = diagnostics.drugSignalLogRange <
                 PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
@@ -956,6 +957,7 @@ internal object PkRouteCalibrationSolver {
             minStudentTWeight = diagnostics.minStudentTWeight,
             atDisplayCapBoundary = atCapBoundary,
             unreviewedOutlierLabIds = diagnostics.unreviewedOutlierLabIds,
+            rLog = rLog,
         ) ?: numericFailure(routeEvidence)
     }
 
