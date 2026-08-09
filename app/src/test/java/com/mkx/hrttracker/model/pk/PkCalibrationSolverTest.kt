@@ -325,6 +325,56 @@ class PkCalibrationSolverTest {
     }
 
     @Test
+    fun coupledTwoRouteConflict_flagsGlobalPosteriorModeAmbiguity() {
+        // Phase-3 finding #7 (Option A): the same symmetric-cluster conflict on
+        // two separate routes puts every joint mode at a point where both
+        // coordinates are displaced; the pairwise (b_i*, b_j*) starts must
+        // surface at least two of the four separable modes.
+        val q = sqrt(3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog)
+        val labs = (0 until 3).map { index ->
+            lab(10L + index, observed = 10.0 * exp(-q), injection = 10.0)
+        } + (0 until 3).map { index ->
+            lab(20L + index, observed = 10.0 * exp(q), injection = 10.0)
+        } + (0 until 3).map { index ->
+            lab(30L + index, observed = 10.0 * exp(-q), oral = 10.0)
+        } + (0 until 3).map { index ->
+            lab(40L + index, observed = 10.0 * exp(q), oral = 10.0)
+        }
+        val result = solve(*labs.toTypedArray())
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isEmpty())
+        assertNull(result.promotedBetaCovariance)
+        for (row in result.routeResults) {
+            assertEquals(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                row.displayState,
+            )
+            assertEquals(setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS), row.reasons)
+            assertNull(row.fittedBeta)
+        }
+    }
+
+    @Test
+    fun conditionalStartEnumerationFailure_failsClosedAsGlobalNumericFailure() {
+        // Phase-3 finding #6: a drug contribution large enough to overflow the
+        // 1-D grid scan at its positive edge (halfWidth = 0.5625 for one lab)
+        // must be a global numeric failure, never an unseeded search that
+        // reports a confident fit.
+        val result = solve(lab(1, observed = 10.0, injection = 1.5e308))
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isEmpty())
+        for (row in result.routeResults) {
+            assertEquals(
+                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+                row.displayState,
+            )
+            assertEquals(setOf(PkCalibrationReason.NUMERIC_FAILURE), row.reasons)
+        }
+    }
+
+    @Test
     fun malformedEvidence_failsClosedGloballyAsNumericFailure() {
         val malformed = unsafePool(
             included = listOf(

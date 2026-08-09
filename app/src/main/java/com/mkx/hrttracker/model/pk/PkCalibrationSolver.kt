@@ -238,13 +238,18 @@ internal sealed interface PkJointFitOutcome {
  * v10.0 §A10.3 deterministic multi-start damped Newton.
  *
  * Starts are beta = 0 plus, per active route, the 1-D conditional MAP found by
- * the §A1 grid + bisection restricted to that coordinate (others held at 0).
- * The 1-D search interval is the a-priori stationary bound intersected with
- * the [-20, 20] numeric guard; the guard itself applies to the converged MAP,
- * where it is a data-sanity check. Exactly one distinct positive-definite
- * minimum is required: none is numeric failure, two or more is a global
- * POSTERIOR_MODE_AMBIGUOUS. Failure granularity is deliberately global — the
- * safe direction is every route back at population.
+ * the §A1 grid + bisection restricted to that coordinate (others held at 0),
+ * plus every pairwise combination (b_i*, b_j*) of those conditional minima for
+ * each active route pair (Option A, 2026-08-09): axis-aligned starts alone
+ * cannot reach a mode where two routes move together. Ceiling: a mode
+ * requiring three or more routes to move jointly can still be missed — the
+ * ambiguity gate is best-effort beyond pairwise coupling, an accepted
+ * limitation. The 1-D search interval is the a-priori stationary bound
+ * intersected with the [-20, 20] numeric guard; the guard itself applies to
+ * the converged MAP, where it is a data-sanity check. Exactly one distinct
+ * positive-definite minimum is required: none is numeric failure, two or more
+ * is a global POSTERIOR_MODE_AMBIGUOUS. Failure granularity is deliberately
+ * global — the safe direction is every route back at population.
  */
 internal object PkJointMapSolver {
     private const val MAX_LINE_SEARCH_HALVINGS = 60
@@ -253,16 +258,40 @@ internal object PkJointMapSolver {
         if (objective.activeRouteIndices.isEmpty()) {
             return PkJointFitOutcome.NumericFailure
         }
-        val starts = ArrayList<DoubleArray>(1 + objective.activeRouteIndices.size)
-        starts += DoubleArray(objective.routeCount)
+        // Every 1-D conditional minimum seeds a start: a route whose
+        // restricted objective is bimodal must surface both basins so the
+        // joint search can flag POSTERIOR_MODE_AMBIGUOUS. A failed 1-D
+        // enumeration is a numeric failure, never an empty start list — an
+        // unseeded search would report whatever single basin it stumbles into
+        // as a confident fit.
+        val conditionalsByRoute = linkedMapOf<Int, List<Double>>()
         for (routeIndex in objective.activeRouteIndices) {
-            // Every 1-D conditional minimum seeds a start: a route whose
-            // restricted objective is bimodal must surface both basins so the
-            // joint search can flag POSTERIOR_MODE_AMBIGUOUS.
-            for (conditional in conditionalStartBetas(objective, routeIndex).orEmpty()) {
+            conditionalsByRoute[routeIndex] = conditionalStartBetas(objective, routeIndex)
+                ?: return PkJointFitOutcome.NumericFailure
+        }
+
+        val starts = ArrayList<DoubleArray>()
+        starts += DoubleArray(objective.routeCount)
+        for ((routeIndex, conditionals) in conditionalsByRoute) {
+            for (conditional in conditionals) {
                 val start = DoubleArray(objective.routeCount)
                 start[routeIndex] = conditional
                 starts += start
+            }
+        }
+        // Pairwise coupled starts: (b_i*, b_j*) for every active route pair
+        // and every combination of their 1-D conditional minima.
+        val active = objective.activeRouteIndices
+        for (first in active.indices) {
+            for (second in first + 1 until active.size) {
+                for (firstBeta in conditionalsByRoute.getValue(active[first])) {
+                    for (secondBeta in conditionalsByRoute.getValue(active[second])) {
+                        val start = DoubleArray(objective.routeCount)
+                        start[active[first]] = firstBeta
+                        start[active[second]] = secondBeta
+                        starts += start
+                    }
+                }
             }
         }
 
@@ -285,8 +314,23 @@ internal object PkJointMapSolver {
             }
             if (existingIndex < 0) {
                 minima += point to value
-            } else if (value < minima[existingIndex].second) {
-                minima[existingIndex] = point to value
+            } else {
+                // Dedup failsafe (Option A): two converged points separated by
+                // more than the numeric tolerance yet under the distinctness
+                // tolerance, with meaningfully different objective values, are
+                // numerically inconsistent for a smooth objective — fail
+                // instead of silently merging a near-distinct mode.
+                val (existing, existingValue) = minima[existingIndex]
+                if (supNormDifference(existing, point) >
+                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL &&
+                    abs(value - existingValue) >
+                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL
+                ) {
+                    return PkJointFitOutcome.NumericFailure
+                }
+                if (value < existingValue) {
+                    minima[existingIndex] = point to value
+                }
             }
         }
         if (minima.isEmpty()) return PkJointFitOutcome.NumericFailure

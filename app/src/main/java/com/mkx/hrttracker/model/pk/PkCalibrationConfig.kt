@@ -56,6 +56,13 @@ object PkCalibrationDefaults {
     const val JOINT_MAX_ITER = 100
     const val JOINT_MODE_DISTINCT_TOL = 1e-6
 
+    /**
+     * Below this separation two converged points are the same numeric mode;
+     * between it and [JOINT_MODE_DISTINCT_TOL] a differing objective value is
+     * a dedup-failsafe numeric failure (Option A, 2026-08-09).
+     */
+    const val JOINT_MODE_NUMERIC_TOL = 1e-9
+
     const val BAND_GH_NODES = 16
     const val BAND_GH_REFINEMENT_NODES = 32
     const val BAND_ROOT_X_ABS_TOL = 1e-8
