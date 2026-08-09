@@ -428,16 +428,21 @@ private fun CalibrationScreenContent(
         PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_EDU -> PkCalibrationEduSheet(onDismissRequest = { pkSheet = null })
-        PK_SHEET_ATTEST -> PkCalibrationAttestationSheet(
-            attested = pkCalibrationState?.ui?.globalState !=
-                PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
-            // Persisting the attestation record is release-blocker work (v10
-            // handoff §U5 blocker 1); the production attestation provider stays
-            // Unavailable, so confirm/withdraw only close the sheet for now.
-            onConfirm = {},
-            onWithdraw = {},
-            onDismissRequest = { pkSheet = null },
-        )
+        // Guarded on non-null state like PK_SHEET_ROUTES: a null emission
+        // (process-death restore, flow restart) must never render the
+        // already-attested variant to a not-attested user.
+        PK_SHEET_ATTEST -> pkCalibrationState?.let { state ->
+            PkCalibrationAttestationSheet(
+                attested = state.ui.globalState !=
+                    PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+                // Persisting the attestation record is release-blocker work (v10
+                // handoff §U5 blocker 1); the production attestation provider stays
+                // Unavailable, so confirm/withdraw only close the sheet for now.
+                onConfirm = {},
+                onWithdraw = {},
+                onDismissRequest = { pkSheet = null },
+            )
+        }
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
