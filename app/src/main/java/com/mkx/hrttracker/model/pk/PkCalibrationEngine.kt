@@ -166,6 +166,10 @@ object PkCalibrationEngine {
                         PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED to
                                 PkCalibrationReason.SCOPE_NOT_CONFIRMED
 
+                    PkCalibrationEvidenceFailure.NO_USABLE_LABS ->
+                        PkCalibrationGlobalState.NO_USABLE_LABS to
+                                PkCalibrationReason.NO_USABLE_LABS
+
                     PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID ->
                         PkCalibrationGlobalState.SHARED_INPUT_INVALID to
                                 PkCalibrationReason.SHARED_INPUT_INVALID

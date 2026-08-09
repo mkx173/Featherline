@@ -148,6 +148,8 @@ data class PkForwardBreakdown private constructor(
 enum class PkCalibrationGlobalState {
     READY,
     SCOPE_NOT_CONFIRMED,
+    /** Attested, but zero authorized E2 labs exist — distinct from a scope or input problem. */
+    NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
     SHARED_NUMERIC_FAILURE,
 }
@@ -176,6 +178,7 @@ enum class PkCalibrationBandState {
 
 enum class PkCalibrationReason {
     SCOPE_NOT_CONFIRMED,
+    NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
     INVALID_NONPOSITIVE_E2,
     NO_SUPPORTING_LABS,

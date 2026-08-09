@@ -1038,6 +1038,8 @@
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_scope_not_confirmed_title">尚未使用您的检测结果</string>
     <string name="calibration_pk_global_scope_not_confirmed_body">只有在治疗方案稳定、激素抑制充分、且各次检测结果相互可比时，根据检测结果调整估算才有意义。应用无法核实这些条件——需要由您自行确认。</string>
+    <string name="calibration_pk_global_no_usable_labs_title">添加一条 E2 检测结果</string>
+    <string name="calibration_pk_global_no_usable_labs_body">目前还没有可用的 E2 血液检测结果，因此显示群体估算。添加一条 E2 检测结果即可启用调整。</string>
     <string name="calibration_pk_global_input_invalid_title">请检查一条 E2 检测结果</string>
     <string name="calibration_pk_global_input_invalid_body">有一条血液检测数值无法用于调整，因此当前显示群体估算。请更正或排除被标记的结果。</string>
     <string name="calibration_pk_global_numeric_failure_title">无法根据您的检测结果更新</string>

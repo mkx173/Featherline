@@ -1038,6 +1038,8 @@
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_scope_not_confirmed_title">仲未使用你嘅檢測結果</string>
     <string name="calibration_pk_global_scope_not_confirmed_body">只有喺治療方案穩定、荷爾蒙抑制充分、而且各次檢測結果互相可比嘅情況下，根據檢測結果調整估算先至有意義。應用程式冇辦法核實呢啲條件——要由你自己確認。</string>
+    <string name="calibration_pk_global_no_usable_labs_title">新增一筆 E2 檢測結果</string>
+    <string name="calibration_pk_global_no_usable_labs_body">而家仲未有可以用嘅 E2 血液檢測結果，所以顯示緊群體估算。新增一筆 E2 檢測結果就可以啟用調整。</string>
     <string name="calibration_pk_global_input_invalid_title">請檢查一筆 E2 檢測結果</string>
     <string name="calibration_pk_global_input_invalid_body">有一筆血液檢測數值用唔到嚟做調整，所以而家顯示緊群體估算。請更正或者排除被標記嘅結果。</string>
     <string name="calibration_pk_global_numeric_failure_title">無法根據你嘅檢測結果更新</string>

@@ -443,6 +443,8 @@ internal object PkCalibrationDebugFixtures {
                 scenario.nonPositiveInput -> PkCalibrationReason.INVALID_NONPOSITIVE_E2
                 globalState == PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED ->
                     PkCalibrationReason.SCOPE_NOT_CONFIRMED
+                globalState == PkCalibrationGlobalState.NO_USABLE_LABS ->
+                    PkCalibrationReason.NO_USABLE_LABS
                 globalState == PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
                     PkCalibrationReason.SHARED_INPUT_INVALID
                 else -> PkCalibrationReason.NUMERIC_FAILURE

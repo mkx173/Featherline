@@ -676,6 +676,36 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
+    fun emptyLabsIsNoUsableLabsOnlyWhenAttested() {
+        // Phase-3 finding #5: "declined attestation" and "no labs yet" must be
+        // distinct states — the attestation gate keeps precedence.
+        val fixture = fixture()
+
+        assertFailure(
+            fixture.build(labs = emptyList()),
+            PkCalibrationEvidenceFailure.NO_USABLE_LABS,
+        )
+        assertFailure(
+            fixture.build(
+                labs = emptyList(),
+                attestationProvider = PkCalibrationAttestationProvider.Unavailable,
+            ),
+            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
+        )
+
+        val result = PkCalibrationEngine.compute(
+            input = fixture.input(labs = emptyList()),
+            metadata = emptyList(),
+            identityPolicy = fixture.policy,
+            config = fixture.config,
+            attestationProvider = fixture.attestationProvider,
+        )
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, result.globalState)
+        assertEquals(setOf(PkCalibrationReason.NO_USABLE_LABS), result.globalReasons)
+        assertTrue(result.routeResults.isEmpty())
+    }
+
+    @Test
     fun invalidNonpositiveFailureCarriesOnlyDrugWindowLabIds() {
         // Phase-3 finding #4: a nonpositive lab drawn before any dose is
         // Unassigned and blocks nothing; only the drug-window lab may be

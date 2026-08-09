@@ -145,6 +145,7 @@ private fun PkCalibrationStatusCard(
         !ready -> {
             iconRes = when (uiState.globalState) {
                 PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED -> R.drawable.ic_privacy_tip
+                PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_labs
                 PkCalibrationGlobalState.SHARED_INPUT_INVALID -> R.drawable.ic_error_outline
                 else -> R.drawable.ic_sync_alt
             }
@@ -264,7 +265,11 @@ private fun PkCalibrationStatusCard(
                     }
                 }
 
-                PkCalibrationGlobalState.SHARED_INPUT_INVALID -> Unit
+                // The body copy is the call to action ("add an E2 result");
+                // Phase 3.1 decides any richer affordance.
+                PkCalibrationGlobalState.NO_USABLE_LABS,
+                PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                -> Unit
             }
         }
     }

@@ -20,6 +20,8 @@ val PkCalibrationGlobalState.statusTitleRes: Int?
         PkCalibrationGlobalState.READY -> null
         PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED ->
             R.string.calibration_pk_global_scope_not_confirmed_title
+        PkCalibrationGlobalState.NO_USABLE_LABS ->
+            R.string.calibration_pk_global_no_usable_labs_title
         PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
             R.string.calibration_pk_global_input_invalid_title
         PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE ->
@@ -32,6 +34,8 @@ val PkCalibrationGlobalState.statusBodyRes: Int?
         PkCalibrationGlobalState.READY -> null
         PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED ->
             R.string.calibration_pk_global_scope_not_confirmed_body
+        PkCalibrationGlobalState.NO_USABLE_LABS ->
+            R.string.calibration_pk_global_no_usable_labs_body
         PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
             R.string.calibration_pk_global_input_invalid_body
         PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE ->
@@ -136,6 +140,7 @@ val PkCalibrationReason.detailRes: Int?
             R.string.calibration_pk_route_boundary_notice
 
         PkCalibrationReason.SCOPE_NOT_CONFIRMED,
+        PkCalibrationReason.NO_USABLE_LABS,
         PkCalibrationReason.SHARED_INPUT_INVALID,
         PkCalibrationReason.INVALID_NONPOSITIVE_E2,
         PkCalibrationReason.NO_SUPPORTING_LABS,

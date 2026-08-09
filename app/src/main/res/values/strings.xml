@@ -1112,6 +1112,8 @@
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_scope_not_confirmed_title">Not using your labs yet</string>
     <string name="calibration_pk_global_scope_not_confirmed_body">Adjusting the estimate from your labs is only meaningful if your regimen is stable, your hormone suppression is adequate, and your labs are comparable with each other. The app cannot check any of that—you confirm it yourself.</string>
+    <string name="calibration_pk_global_no_usable_labs_title">Add an E2 result</string>
+    <string name="calibration_pk_global_no_usable_labs_body">No E2 blood-test results are available yet, so the population estimate is shown. Add an E2 result to enable adjustment.</string>
     <string name="calibration_pk_global_input_invalid_title">Check an E2 result</string>
     <string name="calibration_pk_global_input_invalid_body">A blood-test value cannot be used for adjustment, so the population estimate is shown. Correct or exclude the flagged result.</string>
     <string name="calibration_pk_global_numeric_failure_title">Couldn’t update from your labs</string>

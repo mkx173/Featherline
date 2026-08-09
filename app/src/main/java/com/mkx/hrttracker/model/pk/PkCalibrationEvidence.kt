@@ -5,6 +5,7 @@ import java.util.UUID
 
 enum class PkCalibrationEvidenceFailure {
     SCOPE_NOT_CONFIRMED,
+    NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
     SHARED_NUMERIC_FAILURE,
     INVALID_NONPOSITIVE_E2,
@@ -256,8 +257,10 @@ internal object PkCalibrationScopeInputValidator {
             return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
         }
 
+        // Attested but zero labs is its own state (Phase-3 finding #5): the UI
+        // must say "add an E2 result", never loop on the attestation CTA.
         if (labs.isEmpty()) {
-            return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
+            return failedScope(PkCalibrationEvidenceFailure.NO_USABLE_LABS)
         }
         if (labs.map(PkCalibrationE2LabSource::resultId).distinct().size != labs.size) {
             return failedScope(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
