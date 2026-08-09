@@ -913,6 +913,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             result.toValidatedCalibrationMetadata(
                 resultUuid = resultUuid,
                 isBuiltinE2 = builtinAnalyteKey == BloodAnalyteKey.E2,
+                snapshotVersion = snapshotVersion,
             )?.let(calibrationMetadataEntities::add)
         }
     }
@@ -938,6 +939,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
 private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     resultUuid: String,
     isBuiltinE2: Boolean,
+    snapshotVersion: Int,
 ): E2CalibrationMetadataEntity? {
     val hasAnyMetadata = calibrationDisposition != null ||
         acceptedModelVersion != null ||
@@ -970,9 +972,24 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     } else {
         null
     }
+    // v7 backups written before the acceptance-record rename carried digest
+    // fields this codec no longer decodes, so their ACCEPTED rows arrive with
+    // no record. That acceptance cannot be honored under the attestation
+    // model: the outlier returns to review (AUTO) instead of aborting the
+    // whole restore. Mirrors MIGRATION_10_11. From v8 on, ACCEPTED without a
+    // record is invalid data and still fails loud below.
+    val effectiveDisposition = if (
+        snapshotVersion <= 7 &&
+        disposition == E2CalibrationDisposition.ACCEPTED &&
+        record == null
+    ) {
+        E2CalibrationDisposition.AUTO
+    } else {
+        disposition
+    }
     val metadata = E2CalibrationMetadata.create(
         resultId = UUID.fromString(resultUuid),
-        disposition = disposition,
+        disposition = effectiveDisposition,
         acceptedRecord = record,
         updatedAt = Instant.ofEpochMilli(
             calibrationMetadataUpdatedAtEpochMillis

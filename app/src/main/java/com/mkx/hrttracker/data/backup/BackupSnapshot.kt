@@ -292,7 +292,13 @@ data class BackupNoteSnapshot(
 // result fields are nullable so v2–v6 backups remain readable, a pre-v7 app
 // would ignore them and silently lose explicit exclusions/acceptances.
 //
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
+// The 7→8 bump renamed the acceptance fields from the digest binding
+// (acceptedReviewDigest*) to the model §A2 staleness record
+// (acceptedModelVersion/SourceValueBits/CollectedAtEpochMillis). v7 backups
+// written before the rename decode with no record on ACCEPTED rows; restore
+// downgrades those to AUTO instead of aborting (mirrors MIGRATION_10_11).
+//
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 8
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their
