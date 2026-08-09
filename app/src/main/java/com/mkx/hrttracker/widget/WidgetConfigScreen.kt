@@ -97,6 +97,7 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.journal.AddDateSheet
 import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
 import com.mkx.hrttracker.ui.journal.HeroBackgroundColors
@@ -130,6 +131,13 @@ internal fun WidgetConfigScreen(
         anchorId: String,
         backgroundFlag: PrideFlag?,
     ) -> Unit = { _, _, _ -> },
+    onAddAnchor: (
+        name: String,
+        icon: String,
+        date: java.time.LocalDate,
+        paletteKey: String?,
+        pinned: Boolean,
+    ) -> Unit = { _, _, _, _, _ -> },
     onSave: (WidgetAppearance) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -174,6 +182,18 @@ internal fun WidgetConfigScreen(
     // selection AND Save stays disabled (below), so a stale id can never be rewritten to
     // leave the widget stuck on its empty state.
     val selectedAnchor = resolveSelectedAnchor(anchors, selectedAnchorId)
+    LaunchedEffect(configType, anchors, selectedAnchorId) {
+        // Intentional for both a newly created date and one pre-existing date: when
+        // there is no choice to make, select it so Save is immediately available.
+        val automaticSelection = autoSelectSingleAnchorId(
+            configType = configType,
+            anchors = anchors,
+            selectedAnchorId = selectedAnchorId,
+        )
+        if (automaticSelection != selectedAnchorId) {
+            selectedAnchorId = automaticSelection
+        }
+    }
     // Gradient-flag selection (ANCHOR mode). Non-null = a pride-flag wash layered over the
     // seeded card; null = plain card. Stored by name so rememberSaveable can persist it.
     var selectedFlagName by rememberSaveable { mutableStateOf(initialBackgroundFlag?.name) }
@@ -457,8 +477,15 @@ internal fun WidgetConfigScreen(
                                         title = stringResource(
                                             R.string.anchor_config_row_title,
                                         ),
-                                        supportingText = selectedAnchor?.name
-                                            ?: stringResource(R.string.anchor_config_choose),
+                                        // With no dates yet the row opens AddDateSheet, not the
+                                        // selector, so it must promise the action it performs.
+                                        supportingText = selectedAnchor?.name ?: stringResource(
+                                            if (anchors.isEmpty()) {
+                                                R.string.journal_add_date
+                                            } else {
+                                                R.string.anchor_config_choose
+                                            },
+                                        ),
                                         onClick = { isAnchorSheetOpen = true },
                                         leadingContent = {
                                             RowLeadingIcon(
@@ -597,13 +624,29 @@ internal fun WidgetConfigScreen(
     }
 
     if (isAnchorSheetOpen) {
-        AnchorSelectorSheet(
-            title = stringResource(R.string.anchor_config_choose),
-            anchors = anchors,
-            today = today,
-            onDismissRequest = { isAnchorSheetOpen = false },
-            onSelect = { id -> selectedAnchorId = id },
-        )
+        // Freeze the sheet type for this open session. The repository can emit the
+        // newly added date before AddDateSheet finishes hiding; switching branches at
+        // that point would briefly animate AnchorSelectorSheet into its place.
+        val showAddSheet = remember { anchors.isEmpty() }
+        if (showAddSheet) {
+            AddDateSheet(
+                today = today,
+                anchor = null,
+                initiallyPinned = true,
+                onDismissRequest = { isAnchorSheetOpen = false },
+                onConfirm = { name, icon, date, paletteKey, pinned ->
+                    onAddAnchor(name, icon, date, paletteKey, pinned)
+                },
+            )
+        } else {
+            AnchorSelectorSheet(
+                title = stringResource(R.string.anchor_config_choose),
+                anchors = anchors,
+                today = today,
+                onDismissRequest = { isAnchorSheetOpen = false },
+                onSelect = { id -> selectedAnchorId = id },
+            )
+        }
     }
 }
 
@@ -889,6 +932,21 @@ internal fun resolveSelectedAnchor(
     selectedAnchorId: String?,
 ): com.mkx.hrttracker.model.journal.TrackedDate? =
     anchors.firstOrNull { it.id == selectedAnchorId }
+
+internal fun autoSelectSingleAnchorId(
+    configType: WidgetConfigType,
+    anchors: List<com.mkx.hrttracker.model.journal.TrackedDate>,
+    selectedAnchorId: String?,
+): String? =
+    if (
+        configType == WidgetConfigType.ANCHOR &&
+        selectedAnchorId == null &&
+        anchors.size == 1
+    ) {
+        anchors.single().id
+    } else {
+        selectedAnchorId
+    }
 
 private const val WALLPAPER_WINDOW_CORNER_DP = 28
 
