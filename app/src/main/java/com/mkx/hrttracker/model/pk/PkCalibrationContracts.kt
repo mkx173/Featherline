@@ -615,12 +615,12 @@ data class PkCalibrationResult private constructor(
             calibrationModelVersion: String,
         ): PkCalibrationResult? {
             if (forwardModelVersion.isBlank() || calibrationModelVersion.isBlank()) return null
-            if (invalidNonpositiveLabIds.isNotEmpty() &&
-                (globalState != PkCalibrationGlobalState.SHARED_INPUT_INVALID ||
-                    PkCalibrationReason.INVALID_NONPOSITIVE_E2 !in globalReasons)
-            ) {
-                return null
-            }
+            // Bidirectional: the nonpositive failure always names its labs, and
+            // only that failure may name any.
+            val invalidNonpositiveActive =
+                globalState == PkCalibrationGlobalState.SHARED_INPUT_INVALID &&
+                    PkCalibrationReason.INVALID_NONPOSITIVE_E2 in globalReasons
+            if (invalidNonpositiveLabIds.isNotEmpty() != invalidNonpositiveActive) return null
             if (globalState != PkCalibrationGlobalState.READY) {
                 if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
                 if (displayParams != PkPersonalParams.population()) return null

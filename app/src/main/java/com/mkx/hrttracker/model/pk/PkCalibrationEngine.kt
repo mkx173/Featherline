@@ -174,12 +174,22 @@ object PkCalibrationEngine {
                         PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE to
                                 PkCalibrationReason.NUMERIC_FAILURE
                 }
+                // Ids ride only their own failure kind; a mismatched Failed
+                // payload degrades to the plain failure instead of tripping
+                // the result factory's fail-closed null.
+                val invalidNonpositiveLabIds = if (
+                    evidence.failure == PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2
+                ) {
+                    evidence.invalidNonpositiveLabIds
+                } else {
+                    emptySet()
+                }
                 PkCalibrationEngineEvaluation.notReady(
                     failureResult(
                         input,
                         state,
                         reason,
-                        invalidNonpositiveLabIds = evidence.invalidNonpositiveLabIds,
+                        invalidNonpositiveLabIds = invalidNonpositiveLabIds,
                     )
                 )
             }

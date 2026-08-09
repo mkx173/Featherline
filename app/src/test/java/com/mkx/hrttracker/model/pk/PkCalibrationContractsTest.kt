@@ -593,6 +593,15 @@ class PkCalibrationContractsTest {
                 calibrationModelVersion = "calibration-v9",
             )
         )
+        // The guard is bidirectional: the active failure must name its labs.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                globalReasons = setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
         // The matching state without the matching reason cannot carry ids.
         assertNull(
             PkCalibrationResult.create(

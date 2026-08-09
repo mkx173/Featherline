@@ -416,8 +416,11 @@ internal object PkCalibrationDebugFixtures {
         )
     }
 
+    /** ASCII "DEBUGLAB" — shared msb namespace for every synthetic debug lab id. */
+    private const val DebugLabIdMsb = 0x44454255474c4142L
+
     fun outlierId(route: PkCalibrationRoute): UUID = UUID(
-        0x44454255474c4142L,
+        DebugLabIdMsb,
         when (route) {
             PkCalibrationRoute.INJECTION -> 1L
             PkCalibrationRoute.PATCH -> 2L
@@ -427,7 +430,7 @@ internal object PkCalibrationDebugFixtures {
         },
     )
 
-    fun nonPositiveLabId(): UUID = UUID(0x44454255474c4142L, 6L)
+    fun nonPositiveLabId(): UUID = UUID(DebugLabIdMsb, 6L)
 
     private fun buildResult(scenario: PkCalibrationDebugScenario): PkCalibrationResult {
         val globalState = if (scenario.nonPositiveInput) {

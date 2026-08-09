@@ -359,7 +359,7 @@ object PkCalibrationEvidenceAdapter {
         val metadataGroups = sortedAuthorizedMetadata.groupBy(E2CalibrationMetadata::resultId)
         var hasSharedInputFailure = metadataGroups.values.any { items -> items.size != 1 }
         var hasSharedNumericFailure = false
-        var hasInvalidNonpositiveE2 = false
+        val invalidNonpositiveLabIds = linkedSetOf<UUID>()
 
         // A duplicate row is itself invalid input, but an unambiguous disposition
         // still lets the higher-precedence non-positive predicate be evaluated.
@@ -417,7 +417,7 @@ object PkCalibrationEvidenceAdapter {
                     classificationByResultId[lab.resultId] = classification
                     when (classification) {
                         PkCalibrationObservationClassification.InvalidNonpositive -> {
-                            hasInvalidNonpositiveE2 = true
+                            invalidNonpositiveLabIds += lab.resultId
                         }
 
                         PkCalibrationObservationClassification.NumericFailure -> {
@@ -432,15 +432,10 @@ object PkCalibrationEvidenceAdapter {
             }
         }
 
-        if (hasInvalidNonpositiveE2) {
+        if (invalidNonpositiveLabIds.isNotEmpty()) {
             return PkCalibrationEvidenceBuildResult.Failed(
                 failure = PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2,
-                invalidNonpositiveLabIds = immutableSet(
-                    classificationByResultId.filterValues { classification ->
-                        classification ==
-                            PkCalibrationObservationClassification.InvalidNonpositive
-                    }.keys
-                ),
+                invalidNonpositiveLabIds = immutableSet(invalidNonpositiveLabIds),
             )
         }
         if (hasSharedInputFailure) {
