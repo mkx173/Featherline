@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
 import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
@@ -206,6 +207,7 @@ class PkCalibrationLiveRepository @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val storageRepository: PkCalibrationStorageRepository,
     private val runtimePolicyProvider: PkCalibrationRuntimePolicyProvider,
+    private val renderClock: PkCalibrationRenderClock,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @AppScope appScope: CoroutineScope,
 ) : PkCalibrationCurrentEvaluationContextProvider {
@@ -386,13 +388,24 @@ class PkCalibrationLiveRepository @Inject constructor(
         ) ?: return StableRead.Unavailable(
             PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
         )
-        val domainEnd = runCatching { Math.addExact(origin, THIRTY_DAYS_MILLIS) }
+        // Phase-3 #9: the render domain tracks the chart's visible window
+        // around the current clock — the widest selectable past span (plus a
+        // day of start-of-day flooring slack) through the widest future span —
+        // instead of anchoring at earliest-event + 30 days, which put every
+        // knot outside the chart for any history older than a month.
+        val nowMillis = renderClock.nowEpochMillis()
+        val domainStart = runCatching { Math.subtractExact(nowMillis, RENDER_PAST_MILLIS) }
+            .getOrNull()
+            ?: return StableRead.Unavailable(
+                PkCalibrationLiveUnavailableReason.RENDER_DOMAIN_UNAVAILABLE
+            )
+        val domainEnd = runCatching { Math.addExact(nowMillis, RENDER_FUTURE_MILLIS) }
             .getOrNull()
             ?: return StableRead.Unavailable(
                 PkCalibrationLiveUnavailableReason.RENDER_DOMAIN_UNAVAILABLE
             )
         val domain = PkChartDomain.create(
-            rangeStartEpochMillis = origin,
+            rangeStartEpochMillis = domainStart,
             rangeEndEpochMillis = domainEnd,
             samplingIntervalMillis = SIX_HOURS_MILLIS,
             chartGridVersion = DEBUG_CHART_GRID_VERSION,
@@ -424,7 +437,20 @@ class PkCalibrationLiveRepository @Inject constructor(
     private companion object {
         private const val MAX_STABLE_READ_ATTEMPTS = 3
         private const val SIX_HOURS_MILLIS = 6L * 60L * 60L * 1_000L
-        private const val THIRTY_DAYS_MILLIS = 30L * 24L * 60L * 60L * 1_000L
+        private const val DAY_MILLIS = 24L * 60L * 60L * 1_000L
+        private val RENDER_PAST_MILLIS =
+            (HomeE2ChartWindowOption.entries.maxOf { option -> option.pastDays } + 1L) *
+                DAY_MILLIS
+        private val RENDER_FUTURE_MILLIS =
+            HomeE2ChartWindowOption.entries.maxOf { option -> option.futureDays } * DAY_MILLIS
         private const val DEBUG_CHART_GRID_VERSION = "hrttracker.calibration-debug-grid/v1"
     }
+}
+
+/**
+ * Clock the live render domain is anchored to. Injectable so repository tests
+ * stay deterministic; production binds the system clock.
+ */
+fun interface PkCalibrationRenderClock {
+    fun nowEpochMillis(): Long
 }

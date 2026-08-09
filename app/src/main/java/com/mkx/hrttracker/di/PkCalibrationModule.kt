@@ -2,6 +2,7 @@ package com.mkx.hrttracker.di
 
 import com.mkx.hrttracker.data.repository.PkCalibrationCurrentEvaluationContextProvider
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationRenderClock
 import com.mkx.hrttracker.data.repository.PkCalibrationRuntimePolicyProvider
 import com.mkx.hrttracker.data.repository.ProductionUnavailablePkCalibrationRuntimePolicyProvider
 import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
@@ -43,4 +44,9 @@ object PkCalibrationModule {
     @Provides
     @Singleton
     fun providePkCalibrationDebugGate(): PkCalibrationDebugGate = PkCalibrationDebugGate.Build
+
+    @Provides
+    @Singleton
+    fun providePkCalibrationRenderClock(): PkCalibrationRenderClock =
+        PkCalibrationRenderClock { System.currentTimeMillis() }
 }

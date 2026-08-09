@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MainE2CalibrationOverlayTest {
@@ -42,6 +43,7 @@ class MainE2CalibrationOverlayTest {
                 now = now,
                 zoneId = zone,
                 pastDays = 6,
+                windowHours = 168,
                 displayUnit = BloodUnitKey.PMOL_L,
             )
         )
@@ -50,6 +52,31 @@ class MainE2CalibrationOverlayTest {
         // pg/mL → pmol/L uses the app's own conversion, keeping the band in
         // the same selected unit as the line and axes (§7).
         assertEquals(100.0 * 3.671, band.p50Sanity(0).toDouble(), 0.5)
+    }
+
+    @Test
+    fun buildBand_withNoKnotInsideTheVisibleWindow_returnsNull() {
+        // Phase-3 #9: a READY band whose every knot misses the visible window
+        // must not surface a legend row for an invisible band.
+        val now = LocalDateTime.of(2026, 5, 8, 12, 0)
+        val zone = ZoneOffset.UTC
+        val windowStart = mainE2ChartWindowStart(now, pastDays = 6)
+            .atZone(zone).toInstant().toEpochMilli()
+        val staleKnots = listOf(
+            knot(windowStart - 60L * 24 * 3_600_000L, 100.0),
+            knot(windowStart - 59L * 24 * 3_600_000L, 200.0),
+        )
+
+        assertNull(
+            buildMainE2CalibrationBand(
+                bandKnots = staleKnots,
+                now = now,
+                zoneId = zone,
+                pastDays = 6,
+                windowHours = 168,
+                displayUnit = BloodUnitKey.PMOL_L,
+            )
+        )
     }
 
     private fun MainE2CalibrationBand.p50Sanity(index: Int): Float {

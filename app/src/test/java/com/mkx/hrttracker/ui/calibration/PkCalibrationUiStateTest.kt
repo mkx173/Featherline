@@ -148,6 +148,24 @@ class PkCalibrationUiStateTest {
     }
 
     @Test
+    fun debugFixtureCurves_spanTheInjectedClock() {
+        // Phase-3 #9: forced bands must be visible in QA, so fixture geometry
+        // anchors at the injected clock (now ± 24 h), not a fixed 2023 epoch.
+        val nowMillis = 1_800_000_000_000L
+        val dayMillis = 24L * 60L * 60L * 1_000L
+        val snapshot = PkCalibrationDebugFixtures.build(
+            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL),
+            nowMillis = nowMillis,
+        )
+        val render = requireNotNull(snapshot.render)
+
+        assertEquals(nowMillis - dayMillis, render.centralCurve.first().epochMillis)
+        assertEquals(nowMillis + dayMillis, render.centralCurve.last().epochMillis)
+        assertEquals(nowMillis - dayMillis, render.bandKnots.first().epochMillis)
+        assertEquals(nowMillis + dayMillis, render.bandKnots.last().epochMillis)
+    }
+
+    @Test
     fun labRowFlags_flagOnlyEngineClassifiedInvalidNonpositiveLabs() {
         // Phase-3 finding #4: the blocking footer keys off the engine's per-lab
         // classification, never the raw canonical value — a nonpositive lab the

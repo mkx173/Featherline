@@ -113,6 +113,17 @@ class PkCalibrationLiveRepositoryTest {
             available.evaluation.result.globalState,
         )
         assertTrue(dispatchCount > 0)
+        // Phase-3 #9: the render domain tracks the injected clock (widest past
+        // span + 1 day flooring slack .. widest future span), not the earliest
+        // event.
+        assertEquals(
+            FixedNowMillis - 17L * 24L * 3_600_000L,
+            available.domain.rangeStartEpochMillis,
+        )
+        assertEquals(
+            FixedNowMillis + 14L * 24L * 3_600_000L,
+            available.domain.rangeEndEpochMillis,
+        )
         assertSame(available.context, repository.currentEvaluationContext())
         runtimePolicy.value = PkCalibrationRuntimePolicy.Unavailable()
         assertNull(repository.currentEvaluationContext())
@@ -235,6 +246,7 @@ class PkCalibrationLiveRepositoryTest {
             runtimePolicyProvider = object : PkCalibrationRuntimePolicyProvider {
                 override val policy = policy
             },
+            renderClock = PkCalibrationRenderClock { FixedNowMillis },
             defaultDispatcher = defaultDispatcher,
             appScope = appScope,
         )
@@ -359,5 +371,6 @@ class PkCalibrationLiveRepositoryTest {
         const val PROVENANCE_REF = "urn:test:scope-provenance:v1"
         const val FORWARD_VERSION = "pk-forward:test/v1"
         const val CALIBRATION_VERSION = "pk-calibration:test/v9"
+        const val FixedNowMillis = 1_700_000_000_000L
     }
 }

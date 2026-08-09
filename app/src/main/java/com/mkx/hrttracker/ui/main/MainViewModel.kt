@@ -460,6 +460,7 @@ class MainViewModel @Inject constructor(
                                 now = now,
                                 zoneId = zoneId,
                                 pastDays = chartWindowOption.pastDays,
+                                windowHours = chartWindowOption.chartWindowHours,
                                 displayUnit = homeE2DisplayUnit,
                             )
                         },

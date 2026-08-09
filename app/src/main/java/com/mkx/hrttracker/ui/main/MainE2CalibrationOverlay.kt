@@ -74,13 +74,16 @@ data class MainE2CalibrationBand(
 /**
  * Converts validated band knots into the chart's coordinate space: hours since
  * the chart window start, values in the selected display unit (§7: line,
- * bands, card, labs, and axes share one unit).
+ * bands, card, labs, and axes share one unit). Returns null when no knot lands
+ * inside the visible window ([0, windowHours]): a READY band with no in-window
+ * geometry must not surface a legend row (Phase-3 #9).
  */
 fun buildMainE2CalibrationBand(
     bandKnots: List<PkPredictiveBandKnot>,
     now: LocalDateTime,
     zoneId: ZoneId,
     pastDays: Long,
+    windowHours: Long,
     displayUnit: BloodUnitKey,
 ): MainE2CalibrationBand? {
     if (bandKnots.isEmpty()) {
@@ -90,6 +93,12 @@ fun buildMainE2CalibrationBand(
         .atZone(zoneId)
         .toInstant()
         .toEpochMilli()
+    val xHours = bandKnots.map { knot ->
+        (knot.epochMillis - windowStartEpochMillis) / 3_600_000.0
+    }
+    if (xHours.none { x -> x in 0.0..windowHours.toDouble() }) {
+        return null
+    }
 
     fun display(canonicalPgml: Double): Float = BloodTestCatalog.fromCanonical(
         analyteKey = BloodAnalyteKey.E2,
@@ -98,9 +107,7 @@ fun buildMainE2CalibrationBand(
     ).toFloat()
 
     return MainE2CalibrationBand(
-        xHours = bandKnots.map { knot ->
-            (knot.epochMillis - windowStartEpochMillis) / 3_600_000.0
-        },
+        xHours = xHours,
         p025 = bandKnots.map { knot -> display(knot.p025Pgml) },
         p158655254 = bandKnots.map { knot -> display(knot.p158655254Pgml) },
         p841344746 = bandKnots.map { knot -> display(knot.p841344746Pgml) },

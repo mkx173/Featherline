@@ -350,16 +350,20 @@ internal object PkCalibrationDebugFixtures {
     private const val DebugForwardModelVersion = "debug:pk-forward/v1"
     private const val DebugCalibrationModelVersion = "debug:route-calibration/v10"
     private const val DebugRLog = 0.04
+    private const val DAY_MILLIS = 24L * 60L * 60L * 1_000L
     private val DomainDigest = requireNotNull(CanonicalDigest.create(
         PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA,
         "SHA-256",
         "d".repeat(64),
     ))
 
-    fun build(scenario: PkCalibrationDebugScenario): PkCalibrationDebugSnapshot {
+    fun build(
+        scenario: PkCalibrationDebugScenario,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): PkCalibrationDebugSnapshot {
         val result = buildResult(scenario)
         val render = if (result.globalState == PkCalibrationGlobalState.READY) {
-            buildRender(result, scenario)
+            buildRender(result, scenario, nowMillis)
         } else {
             null
         }
@@ -398,6 +402,7 @@ internal object PkCalibrationDebugFixtures {
         result: PkCalibrationResult,
         scenario: PkCalibrationDebugScenario,
         reviewDispositionByResultId: Map<UUID, E2CalibrationDisposition>,
+        nowMillis: Long = System.currentTimeMillis(),
     ): PkCalibrationDebugSnapshot {
         require(
             scenario.centralUnavailable || scenario.bandUnavailable ||
@@ -406,7 +411,7 @@ internal object PkCalibrationDebugFixtures {
         return PkCalibrationDebugSnapshot(
             result = result,
             render = if (result.globalState == PkCalibrationGlobalState.READY) {
-                buildRender(result, scenario)
+                buildRender(result, scenario, nowMillis)
             } else {
                 null
             },
@@ -628,6 +633,7 @@ internal object PkCalibrationDebugFixtures {
     private fun buildRender(
         result: PkCalibrationResult,
         scenario: PkCalibrationDebugScenario,
+        nowMillis: Long,
     ): PkCalibrationRenderResult {
         if (scenario.centralUnavailable) {
             return requireNotNull(PkCalibrationRenderResult.create(
@@ -649,10 +655,12 @@ internal object PkCalibrationDebugFixtures {
             }
         }
         val effectiveParams = requireNotNull(PkPersonalParams.create(effectiveBetas))
+        // Phase-3 #9: forced curves span now ± 24 h so QA actually sees the
+        // band inside the chart window instead of at a fixed 2023 epoch.
         val centralCurve = listOf(
-            requireNotNull(PkCurvePoint.create(1_700_000_000_000L, 90.0)),
-            requireNotNull(PkCurvePoint.create(1_700_003_600_000L, 120.0)),
-            requireNotNull(PkCurvePoint.create(1_700_007_200_000L, 105.0)),
+            requireNotNull(PkCurvePoint.create(nowMillis - DAY_MILLIS, 90.0)),
+            requireNotNull(PkCurvePoint.create(nowMillis, 120.0)),
+            requireNotNull(PkCurvePoint.create(nowMillis + DAY_MILLIS, 105.0)),
         )
         if (effectiveRoutes.isEmpty()) {
             return requireNotNull(PkCalibrationRenderResult.create(
