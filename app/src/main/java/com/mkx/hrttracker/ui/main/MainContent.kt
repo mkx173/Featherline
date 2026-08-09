@@ -273,11 +273,12 @@ private fun RenderHomeCard(
             displayUnit = uiState.homeE2DisplayUnit,
             trendReady = uiState.e2TrendReady,
             hideReferenceRanges = uiState.hideReferenceRanges,
+            pkCalibration = uiState.pkCalibration?.ui,
         )
 
         HomeCardType.E2_CHART -> MainE2ChartCard(
             section = uiState.e2Chart,
-            calibrationDisplay = uiState.calibrationDisplay,
+            pkCalibration = uiState.pkCalibration,
             now = uiState.now,
             appLocale = appLocale,
             unit = uiState.e2Hero.unit,

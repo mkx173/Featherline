@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
@@ -17,10 +19,16 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkPersonalParams
 import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
+import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
+import com.mkx.hrttracker.ui.calibration.pkCalibrationSurfaceEnabled
+import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
@@ -39,6 +47,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -53,6 +62,8 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
+    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
+    private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
@@ -118,13 +129,49 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        val homeStateFlow = combine(
+        // Phase-2 calibration overlay input (D2-gated). Only a validated live
+        // evaluation reaches the build; Loading/Unavailable keep the overlay
+        // structurally absent.
+        val pkCalibrationFlow: Flow<PkHomeCalibrationInput?> =
+            if (!pkCalibrationSurfaceEnabled) {
+                flowOf(null)
+            } else {
+                combine(
+                    pkCalibrationLiveRepository.liveState,
+                    pkUiFixtureBridge.fixture,
+                ) { liveState, fixture ->
+                    when {
+                        // Debug harness fixture drives the real surface (plan D3).
+                        fixture != null -> PkHomeCalibrationInput(
+                            ui = pkCalibrationUiState(fixture.result, fixture.render),
+                            render = fixture.render,
+                        )
+
+                        else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+                            PkHomeCalibrationInput(
+                                ui = pkCalibrationUiState(
+                                    available.evaluation.result,
+                                    available.render,
+                                ),
+                                render = available.render,
+                            )
+                        }
+                    }
+                }
+            }
+        val keyedInputsWithPkFlow = combine(
             keyedInputsFlow,
+            pkCalibrationFlow,
+        ) { keyedInputs, pkLive -> keyedInputs to pkLive }
+
+        val homeStateFlow = combine(
+            keyedInputsWithPkFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        ) { keyedInputsWithPk, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+            val (keyedInputs, pkLive) = keyedInputsWithPk
             if (!keyedInputs.key.matches(timeSnapshot)) {
                 return@combine null
             }
@@ -148,6 +195,7 @@ class MainViewModel @Inject constructor(
             withContext(defaultDispatcher) {
                 buildHomeUiState(
                     inputs = inputs,
+                    pkLive = pkLive,
                     now = timeSnapshot.minute,
                     zoneId = timeSnapshot.zone,
                     timeZoneNotice = timeZoneNotice,
@@ -301,6 +349,7 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
+        pkLive: PkHomeCalibrationInput?,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -332,7 +381,13 @@ class MainViewModel @Inject constructor(
             ?.toValidatedPersonalParams()
         val activeCalibrationDisplay = inputs.calibrationDisplay
             ?.takeIf { calibrationPersonalParams != null }
-        val freshProjection = inputs.pkProjection?.takeIf {
+        // With the Phase-2 surface active, the render result is the only
+        // sanctioned source for the chart's personalized parameters (§11): its
+        // effectiveDisplayParams honor range-local route fallbacks the
+        // fit-level persisted display cannot see (plan R1). The cached
+        // projection and persisted-display path stay authoritative when the
+        // surface is off.
+        val freshProjection = inputs.pkProjection?.takeIf { pkLive == null }?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
         }?.takeIf {
             // A projection stored beside a malformed display payload may be personalized. The
@@ -341,6 +396,11 @@ class MainViewModel @Inject constructor(
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
+        }
+        val simulationPersonalParams = if (pkLive != null) {
+            pkLive.render?.effectiveDisplayParams ?: PkPersonalParams.population()
+        } else {
+            calibrationPersonalParams ?: PkPersonalParams.population()
         }
         val trendResult = freshProjection?.toMainEstradiolTrend(
             now = now,
@@ -354,7 +414,7 @@ class MainViewModel @Inject constructor(
                 now = now,
                 zoneId = zoneId,
                 option = chartWindowOption,
-                personalParams = calibrationPersonalParams ?: PkPersonalParams.population(),
+                personalParams = simulationPersonalParams,
             )
 
         // When the cached projection is invalid the trend falls back to
@@ -387,7 +447,24 @@ class MainViewModel @Inject constructor(
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
-            calibrationDisplay = activeCalibrationDisplay,
+            pkCalibration = pkLive?.let { live ->
+                MainPkCalibrationUiState(
+                    ui = live.ui,
+                    band = live.render
+                        ?.takeIf { render ->
+                            render.bandState == PkCalibrationBandState.READY
+                        }
+                        ?.let { render ->
+                            buildMainE2CalibrationBand(
+                                bandKnots = render.bandKnots,
+                                now = now,
+                                zoneId = zoneId,
+                                pastDays = chartWindowOption.pastDays,
+                                displayUnit = homeE2DisplayUnit,
+                            )
+                        },
+                )
+            },
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
@@ -495,6 +572,16 @@ class MainViewModel @Inject constructor(
     )
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
+
+    /**
+     * Internal build input for the calibration overlay. The render result is
+     * consumed here for `effectiveDisplayParams` and band knots only — raw fit
+     * parameters never reach [MainUiState].
+     */
+    private data class PkHomeCalibrationInput(
+        val ui: PkCalibrationUiState,
+        val render: PkCalibrationRenderResult?,
+    )
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&

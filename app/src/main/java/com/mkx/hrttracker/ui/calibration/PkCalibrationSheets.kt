@@ -1,0 +1,543 @@
+package com.mkx.hrttracker.ui.calibration
+
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
+import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
+import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.medicationApplicationIconRes
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.labelRes
+import kotlinx.coroutines.CoroutineScope
+
+/*
+ * The four Phase-2 calibration sheets (routes detail, coaching, disclaimer,
+ * how-it-works) plus the §U1 attestation sheet. All ride HazeModalBottomSheet
+ * with hideBottomSheet-driven dismissal, matching every other sheet in the app.
+ */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PkCalibrationSheet(
+    onDismissRequest: () -> Unit,
+    content: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit,
+) {
+    val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope: CoroutineScope = rememberCoroutineScope()
+    HazeModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(
+                    start = dimensionResource(R.dimen.padding_large),
+                    end = dimensionResource(R.dimen.padding_large),
+                    bottom = dimensionResource(R.dimen.padding_large),
+                ),
+        ) {
+            content { hideBottomSheet(scope, sheetState, onDismissRequest) }
+        }
+    }
+}
+
+@Composable
+private fun PkCalibrationSheetTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.cjkTextOffset(text),
+    )
+}
+
+/** Icon-box + title + body row shared by the coaching/edu/attestation sheets. */
+@Composable
+private fun PkCalibrationSheetItem(
+    @DrawableRes iconRes: Int,
+    @StringRes titleRes: Int,
+    @StringRes bodyRes: Int,
+) {
+    Row(modifier = Modifier.padding(top = 12.dp)) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            val title = stringResource(titleRes)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.cjkTextOffset(title),
+            )
+            val body = stringResource(bodyRes)
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .cjkTextOffset(body),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PkCalibrationSheetNote(@StringRes textRes: Int) {
+    val text = stringResource(textRes)
+    Row(
+        modifier = Modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(12.dp),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_privacy_tip),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.cjkTextOffset(text),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Routes detail sheet
+// ---------------------------------------------------------------------------
+
+@Composable
+fun PkCalibrationRoutesSheet(
+    uiState: PkCalibrationUiState,
+    onDismissRequest: () -> Unit,
+) {
+    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
+        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_routes_card_title))
+        val intro = stringResource(R.string.calibration_pk_routes_sheet_intro)
+        Text(
+            text = intro,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .cjkTextOffset(intro),
+        )
+        uiState.routeRows.forEachIndexed { index, row ->
+            if (index > 0) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                )
+            }
+            PkCalibrationRouteDetailBlock(row)
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        HrtButton(
+            text = stringResource(R.string.calibration_pk_got_it),
+            onClick = dismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
+    val routeScheme = rememberMedicationGroupColorScheme(
+        colorKey = row.route.medicationGroupColorKey,
+    )
+    val adjusted = row.displayState.isAdjusted
+    Column(modifier = Modifier.padding(top = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(routeScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(
+                        medicationApplicationIconRes(row.route.applicationType)
+                    ),
+                    contentDescription = null,
+                    tint = routeScheme.onPrimaryContainer,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(11.dp))
+            Text(
+                text = stringResource(row.route.applicationType.labelRes),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            val stateLabel = buildString {
+                append(stringResource(row.displayState.labelRes))
+                row.displayState.tagRes?.let { tag ->
+                    append(" · ")
+                    append(stringResource(tag))
+                }
+            }
+            HrtPill(
+                label = stateLabel,
+                containerColor = if (adjusted) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+                contentColor = if (adjusted) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                size = HrtPillSize.Small,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        val reason = stringResource(row.displayState.reasonRes)
+        Text(
+            text = reason,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .cjkTextOffset(reason),
+        )
+        PkCalibrationRouteDetailLine(
+            iconRes = R.drawable.ic_bloodtype,
+            text = buildString {
+                append(
+                    pluralStringResource(
+                        R.plurals.calibration_pk_supporting_lab_count,
+                        row.supportingLabCount,
+                        row.supportingLabCount,
+                    )
+                )
+                if (row.displayState ==
+                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS
+                ) {
+                    append(" — ")
+                    append(stringResource(R.string.calibration_pk_supporting_labs_requirement))
+                }
+            },
+        )
+        if (row.atDisplayCapBoundary) {
+            PkCalibrationRouteDetailLine(
+                iconRes = R.drawable.ic_data_info_alert,
+                text = stringResource(R.string.calibration_pk_route_boundary_notice),
+            )
+        }
+        PkCalibrationRouteDetailLine(
+            iconRes = R.drawable.ic_check_circle,
+            text = stringResource(row.displayState.nextStepRes),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun PkCalibrationRouteDetailLine(
+    @DrawableRes iconRes: Int,
+    text: String,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Row(modifier = Modifier.padding(top = 8.dp)) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(modifier = Modifier.width(9.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.cjkTextOffset(text),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Coaching sheet (§9)
+// ---------------------------------------------------------------------------
+
+@Composable
+fun PkCalibrationCoachingSheet(onDismissRequest: () -> Unit) {
+    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
+        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_coaching_row_title))
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_schedule,
+            titleRes = R.string.calibration_pk_coaching_time_title,
+            bodyRes = R.string.calibration_pk_coaching_time_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_history,
+            titleRes = R.string.calibration_pk_coaching_history_title,
+            bodyRes = R.string.calibration_pk_coaching_history_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_experiment,
+            titleRes = R.string.calibration_pk_coaching_assay_title,
+            bodyRes = R.string.calibration_pk_coaching_assay_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_labs,
+            titleRes = R.string.calibration_pk_coaching_variety_title,
+            bodyRes = R.string.calibration_pk_coaching_variety_body,
+        )
+        PkCalibrationSheetNote(R.string.calibration_pk_coaching_safety_note)
+        Spacer(modifier = Modifier.height(20.dp))
+        HrtButton(
+            text = stringResource(R.string.calibration_pk_got_it),
+            onClick = dismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Disclaimer sheet ("About these estimates")
+// ---------------------------------------------------------------------------
+
+@Composable
+fun PkCalibrationDisclaimerSheet(onDismissRequest: () -> Unit) {
+    val lines = listOf(
+        R.string.calibration_pk_disclaimer_line_treatment_derived,
+        R.string.calibration_pk_disclaimer_line_absorbs,
+        R.string.calibration_pk_disclaimer_line_not_verified,
+        R.string.calibration_pk_disclaimer_line_shifts,
+    )
+    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
+        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_disclaimer_row_title))
+        Spacer(modifier = Modifier.height(4.dp))
+        lines.forEach { lineRes ->
+            val line = stringResource(lineRes)
+            Row(modifier = Modifier.padding(top = 12.dp)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_privacy_tip),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.cjkTextOffset(line),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        MedicalDisclaimerText(kinds = listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT))
+        Spacer(modifier = Modifier.height(16.dp))
+        HrtButton(
+            text = stringResource(R.string.calibration_pk_got_it),
+            onClick = dismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// How-it-works sheet (§8.7)
+// ---------------------------------------------------------------------------
+
+@Composable
+fun PkCalibrationEduSheet(onDismissRequest: () -> Unit) {
+    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
+        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_edu_title))
+        val intro = stringResource(R.string.calibration_pk_edu_intro)
+        Text(
+            text = intro,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .cjkTextOffset(intro),
+        )
+        PkCalibrationEduHeader(R.string.calibration_pk_edu_does_header)
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_tune,
+            titleRes = R.string.calibration_pk_edu_does_routes_title,
+            bodyRes = R.string.calibration_pk_edu_does_routes_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_labs,
+            titleRes = R.string.calibration_pk_edu_does_band_title,
+            bodyRes = R.string.calibration_pk_edu_does_band_body,
+        )
+        PkCalibrationEduHeader(R.string.calibration_pk_edu_doesnt_header)
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_block,
+            titleRes = R.string.calibration_pk_edu_doesnt_measure_title,
+            bodyRes = R.string.calibration_pk_edu_doesnt_measure_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_block,
+            titleRes = R.string.calibration_pk_edu_doesnt_verify_title,
+            bodyRes = R.string.calibration_pk_edu_doesnt_verify_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_block,
+            titleRes = R.string.calibration_pk_edu_doesnt_learn_title,
+            bodyRes = R.string.calibration_pk_edu_doesnt_learn_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_block,
+            titleRes = R.string.calibration_pk_edu_doesnt_advise_title,
+            bodyRes = R.string.calibration_pk_edu_doesnt_advise_body,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        MedicalDisclaimerText(kinds = listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT))
+        Spacer(modifier = Modifier.height(16.dp))
+        HrtButton(
+            text = stringResource(R.string.calibration_pk_got_it),
+            onClick = dismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun PkCalibrationEduHeader(@StringRes textRes: Int) {
+    Text(
+        text = stringResource(textRes).uppercase(),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 18.dp),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Attestation sheet (§U1) — the action resolving SCOPE_NOT_CONFIRMED
+// ---------------------------------------------------------------------------
+
+@Composable
+fun PkCalibrationAttestationSheet(
+    attested: Boolean,
+    onConfirm: () -> Unit,
+    onWithdraw: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
+        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_attest_action))
+        val body = stringResource(R.string.calibration_pk_attest_body)
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .cjkTextOffset(body),
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_history,
+            titleRes = R.string.calibration_pk_attest_premise_regimen_title,
+            bodyRes = R.string.calibration_pk_attest_premise_regimen_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_help_clinic,
+            titleRes = R.string.calibration_pk_attest_premise_suppression_title,
+            bodyRes = R.string.calibration_pk_attest_premise_suppression_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_experiment,
+            titleRes = R.string.calibration_pk_attest_premise_labs_title,
+            bodyRes = R.string.calibration_pk_attest_premise_labs_body,
+        )
+        PkCalibrationSheetItem(
+            iconRes = R.drawable.ic_monitor_weight,
+            titleRes = R.string.calibration_pk_attest_premise_records_title,
+            bodyRes = R.string.calibration_pk_attest_premise_records_body,
+        )
+        PkCalibrationSheetNote(R.string.calibration_pk_attest_withdraw_note)
+        PkCalibrationSheetNote(R.string.calibration_pk_attest_exclusion_hint)
+        Spacer(modifier = Modifier.height(20.dp))
+        if (attested) {
+            HrtOutlinedButton(
+                text = stringResource(R.string.calibration_pk_attest_withdraw),
+                onClick = {
+                    onWithdraw()
+                    dismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            HrtButton(
+                text = stringResource(R.string.calibration_pk_done),
+                onClick = dismiss,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            HrtButton(
+                text = stringResource(R.string.calibration_pk_attest_confirm),
+                onClick = {
+                    onConfirm()
+                    dismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}

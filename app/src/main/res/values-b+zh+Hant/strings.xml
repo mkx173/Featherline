@@ -1035,4 +1035,148 @@
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">此日期已刪除</string>
 
+    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+    <string name="calibration_pk_global_scope_not_confirmed_title">尚未使用您的檢測結果</string>
+    <string name="calibration_pk_global_scope_not_confirmed_body">只有在治療方案穩定、激素抑制充分、且各次檢測結果相互可比時，根據檢測結果調整估算才有意義。應用程式無法核實這些條件——需要由您自行確認。</string>
+    <string name="calibration_pk_global_input_invalid_title">請檢查一筆 E2 檢測結果</string>
+    <string name="calibration_pk_global_input_invalid_body">有一筆血液檢測數值無法用於調整，因此目前顯示群體估算。請更正或排除被標記的結果。</string>
+    <string name="calibration_pk_global_numeric_failure_title">無法根據您的檢測結果更新</string>
+    <string name="calibration_pk_global_numeric_failure_body">有一項計算未能完成，因此保留了群體估算。請在資料或模型更新後重試。</string>
+
+    <!-- Route-isolated E2 calibration (PK) — per-route display states -->
+    <string name="calibration_pk_route_label_population">群體估算</string>
+    <string name="calibration_pk_route_label_adjusted">已按途徑調整</string>
+    <string name="calibration_pk_route_tag_no_supporting_labs">暫無支持性結果</string>
+    <string name="calibration_pk_route_tag_insufficient_supporting_labs">還需更多支持性結果</string>
+    <string name="calibration_pk_route_tag_low_confidence">需要複查</string>
+    <string name="calibration_pk_route_tag_cap_exceeded">超出支持範圍</string>
+    <string name="calibration_pk_route_tag_numeric_failure">調整不可用</string>
+    <string name="calibration_pk_route_tag_provisional">可信度有限</string>
+    <string name="calibration_pk_route_reason_no_supporting_labs">目前還沒有檢測結果的訊號主要來自該途徑，因此該途徑使用群體估算。</string>
+    <string name="calibration_pk_route_reason_insufficient_supporting_labs">該途徑至少需要兩筆支持性檢測結果才能進行調整。</string>
+    <string name="calibration_pk_route_reason_low_confidence">目前的結果無法為該途徑確定一個可靠的調整。</string>
+    <string name="calibration_pk_route_reason_cap_exceeded">該途徑推算出的調整超出了其支持範圍，因此回退到群體估算。</string>
+    <string name="calibration_pk_route_reason_numeric_failure">該途徑的一項計算未能完成。</string>
+    <string name="calibration_pk_route_reason_provisional">已對該途徑進行調整，但調整仍不確定。</string>
+    <string name="calibration_pk_route_reason_calibrated">已滿足全部模型標準。應用程式並未核實您所確認的前提條件。</string>
+    <string name="calibration_pk_route_next_no_supporting_labs">了解檢測結果如何支持某一途徑</string>
+    <string name="calibration_pk_route_next_insufficient_supporting_labs">在臨床合適時，補充一筆時機有意義的檢測</string>
+    <string name="calibration_pk_route_next_low_confidence">處理離群結果或複查調整</string>
+    <string name="calibration_pk_route_next_cap_exceeded">檢查檢測與用藥記錄</string>
+    <string name="calibration_pk_route_next_numeric_failure">請在資料或模型更新後重試</string>
+    <string name="calibration_pk_route_next_provisional">補充在更多不同時間採集的檢測</string>
+    <string name="calibration_pk_route_next_calibrated">保持記錄及時更新</string>
+
+    <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
+    <string name="calibration_pk_reason_insufficient_contrast">可用的結果處於相近的模型訊號水平。</string>
+    <string name="calibration_pk_reason_posterior_sd_too_wide">該途徑的調整仍不確定。</string>
+    <string name="calibration_pk_reason_residual_fit_poor">目前的結果無法支持一個可靠的途徑調整。</string>
+    <string name="calibration_pk_reason_posterior_mode_ambiguous">這些結果支持不止一種可能的調整，因此調整暫時不可用。</string>
+    <string name="calibration_pk_reason_unreviewed_outlier">有一筆被標記的結果需要複查後，該途徑才能進行調整。</string>
+    <string name="calibration_pk_reason_extreme_scale_three_labs">較大的調整至少需要三筆支持性檢測結果。</string>
+    <string name="calibration_pk_route_boundary_notice">該途徑處於模型支持範圍的邊界。</string>
+
+    <!-- Route-isolated E2 calibration (PK) — hero and counts -->
+    <string name="calibration_pk_hero_population">群體估算</string>
+    <string name="calibration_pk_hero_adjusted">已按檢測調整 · %1$s</string>
+    <string name="calibration_pk_hero_limited_confidence">部分途徑可信度有限</string>
+    <plurals name="calibration_pk_supporting_lab_count">
+        <item quantity="other">%1$d 筆支持性檢測結果</item>
+    </plurals>
+    <string name="calibration_pk_supporting_labs_requirement">需要兩筆支持性檢測結果才能調整某一途徑。</string>
+
+    <!-- Route-isolated E2 calibration (PK) — status section -->
+    <string name="calibration_pk_section_title">檢測調整</string>
+    <string name="calibration_pk_status_population_title">正在使用群體估算</string>
+    <string name="calibration_pk_status_population_body">尚無途徑擁有足夠的支持性檢測結果來進行調整。目前顯示的是與所有人相同的模型曲線。</string>
+    <string name="calibration_pk_status_adjusted_title">已按檢測調整的治療估算</string>
+    <string name="calibration_pk_status_adjusted_body">已根據您的檢測結果對%1$s進行調整；其餘途徑使用群體估算。這仍是估算值而非實測值——應用程式並未核實您所確認的前提條件。</string>
+    <string name="calibration_pk_status_attested_reminder">您已確認使用檢測結果所需的條件。如果治療方案或檢測機構發生重大變化，請撤回並重新確認。</string>
+    <string name="calibration_pk_status_manage">管理</string>
+    <string name="calibration_pk_attest_action">使用我的檢測結果調整估算</string>
+    <string name="calibration_pk_retry">重試</string>
+    <string name="calibration_pk_routes_card_title">途徑調整</string>
+    <string name="calibration_pk_routes_card_all_population">全部為群體估算</string>
+    <plurals name="calibration_pk_routes_card_adjusted_count">
+        <item quantity="other">%1$d 個已調整</item>
+    </plurals>
+    <plurals name="calibration_pk_routes_card_review_count">
+        <item quantity="other">%1$d 個待複查</item>
+    </plurals>
+    <string name="calibration_pk_chip_adjusted">已調整</string>
+    <string name="calibration_pk_chip_adjusted_limited">已調整 · 可信度有限</string>
+    <string name="calibration_pk_coaching_row_title">幫助途徑完成校準</string>
+    <string name="calibration_pk_coaching_row_subtitle">讓檢測調整更精準的建議</string>
+    <string name="calibration_pk_disclaimer_row_title">關於這些估算</string>
+    <string name="calibration_pk_disclaimer_row_subtitle">檢測調整是什麼，不是什麼</string>
+
+    <!-- Route-isolated E2 calibration (PK) — sheets -->
+    <string name="calibration_pk_got_it">知道了</string>
+    <string name="calibration_pk_done">完成</string>
+    <string name="calibration_pk_routes_sheet_intro">每一筆可用的檢測結果都會按照採樣時該途徑提供的模型訊號比例，參與各個途徑的調整。</string>
+    <string name="calibration_pk_coaching_time_title">記錄實際採樣時間</string>
+    <string name="calibration_pk_coaching_time_body">請填寫標本採集的時間，而不是您記錄的時間。</string>
+    <string name="calibration_pk_coaching_history_title">保持用藥記錄準確</string>
+    <string name="calibration_pk_coaching_history_body">劑量、途徑、藥物和目前體重都會影響與檢測結果對比的模型訊號。</string>
+    <string name="calibration_pk_coaching_assay_title">使用同一檢測機構和方法</string>
+    <string name="calibration_pk_coaching_assay_body">在條件允許時，盡量在同一機構使用同一方法檢測 E2，讓結果相互可比。</string>
+    <string name="calibration_pk_coaching_variety_title">在不同時間檢測</string>
+    <string name="calibration_pk_coaching_variety_body">在某一途徑提供大部分訊號的時間採樣，能讓該途徑的調整更精準。</string>
+    <string name="calibration_pk_coaching_safety_note">切勿在沒有醫生指導的情況下更改用藥或檢測時間。多樣的結果可以暴露曲線形狀的不足，但不能驗證抑制情況或途徑生理特性。</string>
+    <string name="calibration_pk_disclaimer_line_treatment_derived">這是基於治療記錄的模型估算 E2 水平，不是經過驗證的個人藥代動力學，也不是用藥建議。</string>
+    <string name="calibration_pk_disclaimer_line_absorbs">途徑調整可能吸收生物利用度、體重誤差、檢測偏差和依從性等影響——它不是生物學真相。</string>
+    <string name="calibration_pk_disclaimer_line_not_verified">應用程式沒有核實激素抑制情況，也沒有核實您的檢測使用了可比的方法。</string>
+    <string name="calibration_pk_disclaimer_line_shifts">更換檢測機構、體重變化或改變治療方案都可能使這些估算發生變化，包括更早日期的估算。</string>
+    <string name="calibration_pk_edu_title">檢測調整的運作原理</string>
+    <string name="calibration_pk_edu_intro">應用程式可以讓每種給藥途徑的雌二醇貢獻向您自己的血液檢測靠攏。以下是它能做什麼、不能做什麼。</string>
+    <string name="calibration_pk_edu_does_header">它能做什麼</string>
+    <string name="calibration_pk_edu_doesnt_header">它不能做什麼</string>
+    <string name="calibration_pk_edu_does_routes_title">獨立調整每個途徑</string>
+    <string name="calibration_pk_edu_does_routes_body">每個途徑學習自己的水平校正——沒有單一的全域乘數。每筆可用檢測按該途徑提供的訊號比例支持每個途徑。</string>
+    <string name="calibration_pk_edu_does_band_title">顯示範圍，而非單一真值</string>
+    <string name="calibration_pk_edu_does_band_body">陰影區間表示另一筆觀測結果可能落在的範圍——數據越少越寬。它不是臨床信賴區間，也不是目標範圍。</string>
+    <string name="calibration_pk_edu_doesnt_measure_title">測量您的真實激素水平</string>
+    <string name="calibration_pk_edu_doesnt_measure_body">它是根據治療記錄構建的模型估算，不是血液檢測。</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">驗證抑制情況或檢測可比性</string>
+    <string name="calibration_pk_edu_doesnt_verify_body">應用程式不會使用 FSH、LH、睪酮或醫生解讀來確認這些條件。</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">學習您身體的時間特性或吸收</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">它只調整途徑的整體水平，不改變曲線形狀。</string>
+    <string name="calibration_pk_edu_doesnt_advise_title">提供用藥建議</string>
+    <string name="calibration_pk_edu_doesnt_advise_body">任何調整請諮詢您的醫生。</string>
+    <string name="calibration_pk_attest_body">只有在治療方案穩定、激素抑制充分、且各次檢測結果相互可比時，調整才有意義。應用程式無法核實其中任何一項——由您自行確認。結果仍是基於治療記錄的估算值，不是經過驗證的激素水平。</string>
+    <string name="calibration_pk_attest_premise_regimen_title">我的治療方案保持穩定</string>
+    <string name="calibration_pk_attest_premise_regimen_body">近期沒有更改藥物、劑量或途徑。</string>
+    <string name="calibration_pk_attest_premise_suppression_title">我的激素抑制充分</string>
+    <string name="calibration_pk_attest_premise_suppression_body">由我的醫生管理。應用程式無法檢查這一點。</string>
+    <string name="calibration_pk_attest_premise_labs_title">我的 E2 檢測相互可比</string>
+    <string name="calibration_pk_attest_premise_labs_body">來自同一檢測機構和方法，或我認為可比的機構和方法。</string>
+    <string name="calibration_pk_attest_premise_records_title">我在應用程式中的記錄準確</string>
+    <string name="calibration_pk_attest_premise_records_body">用藥記錄和目前體重都是最新的。</string>
+    <string name="calibration_pk_attest_withdraw_note">如果治療方案或檢測機構發生重大變化，請撤回並重新確認。撤回後所有途徑會立即回到群體估算。</string>
+    <string name="calibration_pk_attest_exclusion_hint">治療開始前後、更換機構或檢測方法後的結果往往不可比——可以考慮將其排除出調整。</string>
+    <string name="calibration_pk_attest_confirm">我確認以上內容</string>
+    <string name="calibration_pk_attest_withdraw">撤回確認</string>
+
+    <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
+    <string name="calibration_pk_lab_invalid_title">這筆 E2 結果無法用於調整</string>
+    <string name="calibration_pk_lab_invalid_body">請輸入大於零的數值，或將其排除出調整。如果報告註明「低於定量限」，請保留原始報告。</string>
+    <string name="calibration_pk_lab_invalid_exclude">排除</string>
+    <string name="calibration_pk_lab_invalid_correct">更正數值</string>
+    <string name="calibration_pk_lab_outlier_title">請複查這筆結果</string>
+    <string name="calibration_pk_lab_outlier_body">它與目前基於治療的估算差異很大，正在阻礙%1$s的調整。請在保留或排除之前檢查數值、單位、採樣時間、途徑和用藥記錄。</string>
+    <string name="calibration_pk_lab_outlier_keep">保留用於調整</string>
+    <string name="calibration_pk_lab_outlier_exclude">排除出調整</string>
+    <string name="calibration_pk_lab_excluded_note">已排除出調整。</string>
+    <string name="calibration_pk_lab_reinclude">重新納入</string>
+    <string name="calibration_pk_review_action_rejected">無法套用此變更——您的記錄已發生變化，請重試。</string>
+    <string name="medical_disclaimer_lab_adjustment">檢測調整產生的是基於治療記錄的模型估算值，不是經過驗證的激素水平或用藥建議——不能替代檢測或醫生的指導。</string>
+
+    <!-- Route-isolated E2 calibration (PK) — home chart -->
+    <string name="calibration_pk_chart_unavailable_title">此檢視下圖表不可用</string>
+    <string name="calibration_pk_chart_unavailable_body">有一項計算未能完成，為避免誤導，此處不繪製曲線。您已儲存的調整不受影響。</string>
+    <string name="calibration_pk_band_unavailable_note">可以顯示調整後的曲線，但此檢視的陰影不確定範圍無法計算。</string>
+    <string name="calibration_pk_chart_fallback_note">在此範圍內%1$s以群體估算顯示——已儲存的調整不受影響，只是無法在此繪製。</string>
+    <string name="calibration_pk_band_legend">68% / 95% 範圍</string>
+    <string name="calibration_pk_band_a11y_summary">中心線由受支持途徑的檢測調整貢獻與其餘途徑的群體估算貢獻組合而成。陰影區域表示模型可能產生的檢測值的大致範圍，包含途徑調整的不確定性和正常的結果波動。</string>
+
 </resources>

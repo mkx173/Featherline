@@ -1109,4 +1109,151 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
+    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+    <string name="calibration_pk_global_scope_not_confirmed_title">Not using your labs yet</string>
+    <string name="calibration_pk_global_scope_not_confirmed_body">Adjusting the estimate from your labs is only meaningful if your regimen is stable, your hormone suppression is adequate, and your labs are comparable with each other. The app cannot check any of that—you confirm it yourself.</string>
+    <string name="calibration_pk_global_input_invalid_title">Check an E2 result</string>
+    <string name="calibration_pk_global_input_invalid_body">A blood-test value cannot be used for adjustment, so the population estimate is shown. Correct or exclude the flagged result.</string>
+    <string name="calibration_pk_global_numeric_failure_title">Couldn’t update from your labs</string>
+    <string name="calibration_pk_global_numeric_failure_body">A calculation didn’t complete, so the population estimate was kept. Try again after a data or model update.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — per-route display states -->
+    <string name="calibration_pk_route_label_population">Population</string>
+    <string name="calibration_pk_route_label_adjusted">Route-adjusted</string>
+    <string name="calibration_pk_route_tag_no_supporting_labs">no supporting labs</string>
+    <string name="calibration_pk_route_tag_insufficient_supporting_labs">more supporting labs needed</string>
+    <string name="calibration_pk_route_tag_low_confidence">review fit</string>
+    <string name="calibration_pk_route_tag_cap_exceeded">outside supported range</string>
+    <string name="calibration_pk_route_tag_numeric_failure">adjustment unavailable</string>
+    <string name="calibration_pk_route_tag_provisional">limited confidence</string>
+    <string name="calibration_pk_route_reason_no_supporting_labs">No lab result so far provides much of its signal from this route, so it uses the population estimate.</string>
+    <string name="calibration_pk_route_reason_insufficient_supporting_labs">This route needs at least two supporting labs before it can be adjusted.</string>
+    <string name="calibration_pk_route_reason_low_confidence">The current results don’t support one reliable adjustment for this route.</string>
+    <string name="calibration_pk_route_reason_cap_exceeded">The adjustment implied for this route fell outside its supported range, so it fell back to the population estimate.</string>
+    <string name="calibration_pk_route_reason_numeric_failure">A calculation didn’t complete for this route.</string>
+    <string name="calibration_pk_route_reason_provisional">Adjusted for this route, but the adjustment is still uncertain.</string>
+    <string name="calibration_pk_route_reason_calibrated">Full model criteria met. The app did not verify the premises you confirmed.</string>
+    <string name="calibration_pk_route_next_no_supporting_labs">Learn how labs support a route</string>
+    <string name="calibration_pk_route_next_insufficient_supporting_labs">Add a meaningfully timed lab when clinically appropriate</string>
+    <string name="calibration_pk_route_next_low_confidence">Resolve an outlier or review the fit</string>
+    <string name="calibration_pk_route_next_cap_exceeded">Review lab and treatment records</string>
+    <string name="calibration_pk_route_next_numeric_failure">Retry after a data or model update</string>
+    <string name="calibration_pk_route_next_provisional">Add labs collected at more varied times</string>
+    <string name="calibration_pk_route_next_calibrated">Keep your records current</string>
+
+    <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
+    <string name="calibration_pk_reason_insufficient_contrast">The usable results are at similar modeled signal levels.</string>
+    <string name="calibration_pk_reason_posterior_sd_too_wide">The route adjustment is still uncertain.</string>
+    <string name="calibration_pk_reason_residual_fit_poor">The current results do not support one reliable route adjustment.</string>
+    <string name="calibration_pk_reason_posterior_mode_ambiguous">The results support more than one possible adjustment, so adjustment is temporarily unavailable.</string>
+    <string name="calibration_pk_reason_unreviewed_outlier">A flagged result needs review before this route can be adjusted.</string>
+    <string name="calibration_pk_reason_extreme_scale_three_labs">A large adjustment needs at least three supporting labs.</string>
+    <string name="calibration_pk_route_boundary_notice">At the supported model boundary for this route.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — hero and counts -->
+    <string name="calibration_pk_hero_population">Population estimate</string>
+    <string name="calibration_pk_hero_adjusted">Lab-adjusted · %1$s</string>
+    <string name="calibration_pk_hero_limited_confidence">Limited confidence for some routes</string>
+    <plurals name="calibration_pk_supporting_lab_count">
+        <item quantity="one">%1$d supporting lab</item>
+        <item quantity="other">%1$d supporting labs</item>
+    </plurals>
+    <string name="calibration_pk_supporting_labs_requirement">Two supporting labs are needed before a route can be adjusted.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — status section -->
+    <string name="calibration_pk_section_title">Lab adjustment</string>
+    <string name="calibration_pk_status_population_title">Using the population estimate</string>
+    <string name="calibration_pk_status_population_body">No route has enough supporting labs to adjust yet. This is the same model curve shown for everyone.</string>
+    <string name="calibration_pk_status_adjusted_title">Lab-adjusted treatment estimate</string>
+    <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement—and the app didn’t verify the premises you confirmed.</string>
+    <string name="calibration_pk_status_attested_reminder">You confirmed the conditions for using your labs. If your regimen or lab provider changes materially, withdraw and re-confirm.</string>
+    <string name="calibration_pk_status_manage">Manage</string>
+    <string name="calibration_pk_attest_action">Use my labs to adjust the estimate</string>
+    <string name="calibration_pk_retry">Try again</string>
+    <string name="calibration_pk_routes_card_title">Route adjustments</string>
+    <string name="calibration_pk_routes_card_all_population">All population</string>
+    <plurals name="calibration_pk_routes_card_adjusted_count">
+        <item quantity="one">%1$d adjusted</item>
+        <item quantity="other">%1$d adjusted</item>
+    </plurals>
+    <plurals name="calibration_pk_routes_card_review_count">
+        <item quantity="one">%1$d to review</item>
+        <item quantity="other">%1$d to review</item>
+    </plurals>
+    <string name="calibration_pk_chip_adjusted">Adjusted</string>
+    <string name="calibration_pk_chip_adjusted_limited">Adjusted · limited</string>
+    <string name="calibration_pk_coaching_row_title">Helping a route calibrate</string>
+    <string name="calibration_pk_coaching_row_subtitle">Tips for sharper lab adjustment</string>
+    <string name="calibration_pk_disclaimer_row_title">About these estimates</string>
+    <string name="calibration_pk_disclaimer_row_subtitle">What lab adjustment is, and isn’t</string>
+
+    <!-- Route-isolated E2 calibration (PK) — sheets -->
+    <string name="calibration_pk_got_it">Got it</string>
+    <string name="calibration_pk_done">Done</string>
+    <string name="calibration_pk_routes_sheet_intro">Every usable lab result contributes to the adjustment of each route, in proportion to how much of the modeled signal that route provided at the collection time.</string>
+    <string name="calibration_pk_coaching_time_title">Record the actual collection time</string>
+    <string name="calibration_pk_coaching_time_body">Enter when the specimen was taken, not when you logged it.</string>
+    <string name="calibration_pk_coaching_history_title">Keep your treatment history accurate</string>
+    <string name="calibration_pk_coaching_history_body">Dose, route, medication, and Current Weight all feed the modeled signal your labs are compared against.</string>
+    <string name="calibration_pk_coaching_assay_title">Use the same lab and assay method</string>
+    <string name="calibration_pk_coaching_assay_body">When you can, get E2 results from the same provider and method so they stay comparable with each other.</string>
+    <string name="calibration_pk_coaching_variety_title">Vary when you test</string>
+    <string name="calibration_pk_coaching_variety_body">Labs collected at times when one route provides most of the signal make route-specific adjustment more precise.</string>
+    <string name="calibration_pk_coaching_safety_note">Never change medication or lab timing without clinician guidance. Varied results can expose an inadequate curve shape; they don’t verify suppression or route physiology.</string>
+    <string name="calibration_pk_disclaimer_line_treatment_derived">This is a treatment-derived, model-estimated E2 level—not verified personal pharmacokinetics or dosing advice.</string>
+    <string name="calibration_pk_disclaimer_line_absorbs">A route adjustment can absorb bioavailability, weight error, assay bias, and adherence—it is not biological truth.</string>
+    <string name="calibration_pk_disclaimer_line_not_verified">The app did not verify hormone suppression or that your labs use a comparable method.</string>
+    <string name="calibration_pk_disclaimer_line_shifts">Switching labs, changing weight, or changing your routine can shift these estimates, including earlier dates.</string>
+    <string name="calibration_pk_edu_title">How lab adjustment works</string>
+    <string name="calibration_pk_edu_intro">The app can nudge each delivery route’s estradiol contribution toward your own blood tests. Here’s what that does, and what it doesn’t.</string>
+    <string name="calibration_pk_edu_does_header">What it does</string>
+    <string name="calibration_pk_edu_doesnt_header">What it doesn’t</string>
+    <string name="calibration_pk_edu_does_routes_title">Adjusts each route on its own</string>
+    <string name="calibration_pk_edu_does_routes_body">Each route learns its own level correction—there is no single global multiplier. Every usable lab supports every route in proportion to the signal that route provided.</string>
+    <string name="calibration_pk_edu_does_band_title">Shows a range, not a single truth</string>
+    <string name="calibration_pk_edu_does_band_body">The shaded band is where another observed result could land—wider when data is thin. It’s not a clinical confidence interval or a target.</string>
+    <string name="calibration_pk_edu_doesnt_measure_title">Measure your real hormone levels</string>
+    <string name="calibration_pk_edu_doesnt_measure_body">It’s a model estimate built from your treatment records, not a blood test.</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">Verify suppression or assay comparability</string>
+    <string name="calibration_pk_edu_doesnt_verify_body">The app doesn’t use FSH, LH, testosterone, or a clinician reading to confirm those conditions.</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">Learn your body’s timing or absorption</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">It only adjusts a route’s overall level, not the shape of its curve.</string>
+    <string name="calibration_pk_edu_doesnt_advise_title">Give dosing advice</string>
+    <string name="calibration_pk_edu_doesnt_advise_body">Talk to your clinician about any changes.</string>
+    <string name="calibration_pk_attest_body">The adjustment is only meaningful if your regimen is stable, your hormone suppression is adequate, and your labs are comparable with each other. The app cannot verify any of this—you are confirming it yourself. The result stays a treatment-derived estimate, not a verified hormone level.</string>
+    <string name="calibration_pk_attest_premise_regimen_title">My regimen has been stable</string>
+    <string name="calibration_pk_attest_premise_regimen_body">No recent change to medication, dose, or route.</string>
+    <string name="calibration_pk_attest_premise_suppression_title">My suppression is adequate</string>
+    <string name="calibration_pk_attest_premise_suppression_body">Managed by my clinician. The app cannot check this.</string>
+    <string name="calibration_pk_attest_premise_labs_title">My E2 labs are comparable</string>
+    <string name="calibration_pk_attest_premise_labs_body">Same lab and assay method, or ones I believe are comparable.</string>
+    <string name="calibration_pk_attest_premise_records_title">My records in the app are accurate</string>
+    <string name="calibration_pk_attest_premise_records_body">Medication history and Current Weight are up to date.</string>
+    <string name="calibration_pk_attest_withdraw_note">If your regimen or lab provider changes materially, withdraw and re-confirm. Withdrawing returns every route to the population estimate immediately.</string>
+    <string name="calibration_pk_attest_exclusion_hint">Results from around treatment start, or from a different provider or assay method, are often not comparable—consider excluding them from adjustment.</string>
+    <string name="calibration_pk_attest_confirm">I confirm the above</string>
+    <string name="calibration_pk_attest_withdraw">Withdraw confirmation</string>
+
+    <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
+    <string name="calibration_pk_lab_invalid_title">This E2 result can’t be used for adjustment</string>
+    <string name="calibration_pk_lab_invalid_body">Enter a value greater than zero, or exclude it from adjustment. If the report says “below the quantification limit,” keep the original report.</string>
+    <string name="calibration_pk_lab_invalid_exclude">Exclude</string>
+    <string name="calibration_pk_lab_invalid_correct">Correct value</string>
+    <string name="calibration_pk_lab_outlier_title">Review this result</string>
+    <string name="calibration_pk_lab_outlier_body">It differs strongly from the current treatment-based estimate and is holding back adjustment for %1$s. Check the value, unit, collection time, route, and treatment history before keeping or excluding it.</string>
+    <string name="calibration_pk_lab_outlier_keep">Keep for adjustment</string>
+    <string name="calibration_pk_lab_outlier_exclude">Exclude from adjustment</string>
+    <string name="calibration_pk_lab_excluded_note">Excluded from adjustment.</string>
+    <string name="calibration_pk_lab_reinclude">Include again</string>
+    <string name="calibration_pk_review_action_rejected">Couldn’t apply this change—your records changed. Try again.</string>
+    <string name="medical_disclaimer_lab_adjustment">Lab adjustment produces a treatment-derived model estimate, not a verified hormone level or dosing advice—it does not replace lab tests or your clinician’s guidance.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — home chart -->
+    <string name="calibration_pk_chart_unavailable_title">Chart unavailable for this view</string>
+    <string name="calibration_pk_chart_unavailable_body">A calculation didn’t complete, so a possibly misleading line isn’t drawn here. Your saved adjustments are unchanged.</string>
+    <string name="calibration_pk_band_unavailable_note">The adjusted curve can be shown, but its shaded uncertainty range couldn’t be calculated for this view.</string>
+    <string name="calibration_pk_chart_fallback_note">%1$s is shown with the population estimate in this range—the saved adjustment is unchanged, but couldn’t be rendered here.</string>
+    <string name="calibration_pk_band_legend">68% / 95% range</string>
+    <string name="calibration_pk_band_a11y_summary">The center line combines lab-adjusted contributions for supported routes with population contributions for the other routes. The shaded areas show approximate ranges of lab values the model could produce, including uncertainty in route adjustments and ordinary result variability.</string>
+
 </resources>

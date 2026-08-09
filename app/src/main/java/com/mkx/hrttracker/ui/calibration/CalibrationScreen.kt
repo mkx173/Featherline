@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +74,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -123,6 +125,19 @@ fun CalibrationScreen(
     viewModel: CalibrationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
+
+    // Rejected review actions surface as a toast; resolve the string at emit
+    // time so an in-place locale swap can't pin a stale translation.
+    val pkRejectionContext = LocalContext.current
+    val pkRejectionMessage by rememberUpdatedState(
+        stringResource(R.string.calibration_pk_review_action_rejected)
+    )
+    LaunchedEffect(Unit) {
+        viewModel.pkReviewRejections.collect {
+            Toast.makeText(pkRejectionContext, pkRejectionMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Hold the navigation lock while the delete-all runs. The confirm dialog
     // closes before the delete does, so without this a back press (this is a
@@ -144,6 +159,11 @@ fun CalibrationScreen(
 
     CalibrationScreenContent(
         uiState = uiState,
+        pkCalibrationState = pkCalibrationState,
+        onPkRetry = viewModel::retryPkCalibration,
+        onPkKeepOutlier = viewModel::keepPkOutlier,
+        onPkExcludeLab = viewModel::excludePkLab,
+        onPkReincludeLab = viewModel::reincludePkLab,
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
@@ -160,6 +180,11 @@ fun CalibrationScreen(
 @Composable
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
+    pkCalibrationState: PkCalibrationScreenState?,
+    onPkRetry: () -> Unit,
+    onPkKeepOutlier: (UUID) -> Unit,
+    onPkExcludeLab: (UUID) -> Unit,
+    onPkReincludeLab: (UUID) -> Unit,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: LocalDateFormatter,
     onNavigateBack: () -> Unit,
@@ -177,6 +202,12 @@ private fun CalibrationScreenContent(
     val context = LocalContext.current
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
+    var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    val pkLabFlags = remember(pkCalibrationState, uiState.panels) {
+        pkCalibrationState?.let { state ->
+            pkCalibrationLabRowFlags(state, uiState.panels)
+        }.orEmpty()
+    }
     val deleteAllEntriesSuccessMessage =
         stringResource(R.string.settings_calibration_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
@@ -286,6 +317,24 @@ private fun CalibrationScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
+                if (pkCalibrationState != null) {
+                    item(key = "pk-calibration-section") {
+                        Column {
+                            PkCalibrationSection(
+                                uiState = pkCalibrationState.ui,
+                                onRetry = onPkRetry,
+                                onAttest = { pkSheet = PK_SHEET_ATTEST },
+                                onManageAttestation = { pkSheet = PK_SHEET_ATTEST },
+                                onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
+                                onOpenCoaching = { pkSheet = PK_SHEET_COACHING },
+                                onOpenDisclaimer = { pkSheet = PK_SHEET_DISCLAIMER },
+                                onInfo = { pkSheet = PK_SHEET_EDU },
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
+
                 item(key = "calibration-info") {
                     val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
                     Column(
@@ -332,6 +381,7 @@ private fun CalibrationScreenContent(
                             items = monthGroup.panels,
                             key = { _, panel -> panel.uuid },
                         ) { index, panel ->
+                            val pkFlag = pkLabFlags[panel.uuid]
                             CalibrationPanelRow(
                                 panel = panel,
                                 settingsState = uiState.settingsState,
@@ -339,6 +389,17 @@ private fun CalibrationScreenContent(
                                 index = index,
                                 count = monthGroup.panels.size,
                                 onClick = { onPanelClick(panel.uuid) },
+                                pkFooter = pkFlag?.let { flag ->
+                                    {
+                                        PkCalibrationLabRowFooter(
+                                            flag = flag,
+                                            onCorrect = { onPanelClick(panel.uuid) },
+                                            onExclude = { onPkExcludeLab(flag.resultId) },
+                                            onKeep = { onPkKeepOutlier(flag.resultId) },
+                                            onReinclude = { onPkReincludeLab(flag.resultId) },
+                                        )
+                                    }
+                                },
                             )
                             if (index < monthGroup.panels.size - 1) {
                                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
@@ -354,6 +415,29 @@ private fun CalibrationScreenContent(
                 }
             }
         }
+    }
+
+    when (pkSheet) {
+        PK_SHEET_ROUTES -> pkCalibrationState?.let { state ->
+            PkCalibrationRoutesSheet(
+                uiState = state.ui,
+                onDismissRequest = { pkSheet = null },
+            )
+        }
+
+        PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
+        PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
+        PK_SHEET_EDU -> PkCalibrationEduSheet(onDismissRequest = { pkSheet = null })
+        PK_SHEET_ATTEST -> PkCalibrationAttestationSheet(
+            attested = pkCalibrationState?.ui?.globalState !=
+                PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+            // Persisting the attestation record is release-blocker work (v10
+            // handoff §U5 blocker 1); the production attestation provider stays
+            // Unavailable, so confirm/withdraw only close the sheet for now.
+            onConfirm = {},
+            onWithdraw = {},
+            onDismissRequest = { pkSheet = null },
+        )
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
@@ -536,6 +620,12 @@ private fun CalibrationMonthHeader(
     }
 }
 
+private const val PK_SHEET_ROUTES = "routes"
+private const val PK_SHEET_COACHING = "coaching"
+private const val PK_SHEET_DISCLAIMER = "disclaimer"
+private const val PK_SHEET_EDU = "edu"
+private const val PK_SHEET_ATTEST = "attest"
+
 internal data class CalibrationPanelMonthGroup(
     val yearMonth: YearMonth,
     val monthLabel: String,
@@ -572,6 +662,8 @@ private fun CalibrationPanelRow(
     index: Int,
     count: Int,
     onClick: () -> Unit,
+    // Phase-2 calibration review footer (invalid / outlier / excluded row).
+    pkFooter: (@Composable () -> Unit)? = null,
 ) {
     val deviceZone = remember { ZoneId.systemDefault() }
     val panelZone = remember(panel.collectedAtTimeZoneId, deviceZone) {
@@ -597,6 +689,7 @@ private fun CalibrationPanelRow(
         count = count,
         onClick = onClick,
     ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
         ConstraintLayout(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -667,6 +760,8 @@ private fun CalibrationPanelRow(
                     }
                 )
             }
+        }
+        pkFooter?.invoke()
         }
     }
 }
@@ -1360,6 +1455,11 @@ private fun CalibrationScreenPreview() {
                     )
                 ),
             ),
+            pkCalibrationState = null,
+            onPkRetry = { },
+            onPkKeepOutlier = { },
+            onPkExcludeLab = { },
+            onPkReincludeLab = { },
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },

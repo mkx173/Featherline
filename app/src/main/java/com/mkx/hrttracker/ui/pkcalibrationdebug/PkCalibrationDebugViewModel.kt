@@ -161,6 +161,7 @@ data class PkCalibrationDebugViewModelConfig(
 class PkCalibrationDebugViewModel @Inject constructor(
     private val scenarioSource: PkCalibrationDebugScenarioSource,
     private val reviewActionHandler: PkCalibrationDebugReviewActionHandler,
+    private val uiFixtureBridge: PkCalibrationUiFixtureBridge,
     config: PkCalibrationDebugViewModelConfig,
 ) : ViewModel() {
     private val debugGate = config.debugGate
@@ -173,9 +174,11 @@ class PkCalibrationDebugViewModel @Inject constructor(
             UnavailablePkCalibrationDebugReviewActionHandler,
         debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
         autoLoadLive: Boolean = true,
+        uiFixtureBridge: PkCalibrationUiFixtureBridge = PkCalibrationUiFixtureBridge(),
     ) : this(
         scenarioSource = scenarioSource,
         reviewActionHandler = reviewActionHandler,
+        uiFixtureBridge = uiFixtureBridge,
         config = PkCalibrationDebugViewModelConfig(debugGate, autoLoadLive),
     )
     private val _uiState = MutableStateFlow(
@@ -195,6 +198,31 @@ class PkCalibrationDebugViewModel @Inject constructor(
     private var activeLiveReviewToken: Long? = null
 
     init {
+        // Mirror the selected fixture to the real Home + Calibration screens
+        // (plan D3): fixture mode publishes; live mode publishes null so the
+        // production surfaces fall back to the live evaluation.
+        if (debugGate.isEnabled()) {
+            viewModelScope.launch {
+                uiState.collect { state ->
+                    val fixtureResult = state
+                        .takeIf { it.mode == PkCalibrationDebugMode.FIXTURE }
+                        ?.rawResult
+                    uiFixtureBridge.publish(
+                        fixtureResult?.let { result ->
+                            PkCalibrationUiFixture(
+                                result = result,
+                                render = state.rawRender,
+                                excludedResultIds = state.reviewDispositionByResultId
+                                    .filterValues { disposition ->
+                                        disposition == E2CalibrationDisposition.EXCLUDED
+                                    }
+                                    .keys,
+                            )
+                        }
+                    )
+                }
+            }
+        }
         if (autoLoadLive && debugGate.isEnabled()) {
             loadLive(cause = "INITIAL_LIVE_LOAD")
             viewModelScope.launch {
@@ -212,6 +240,12 @@ class PkCalibrationDebugViewModel @Inject constructor(
         }
     }
 
+    // Deliberately no onCleared() reset: navigating from the harness to Home or
+    // Calibration pops this destination and clears the ViewModel, and the whole
+    // point of the bridge is that the fixture survives that hop so QA can see it
+    // on the real screens. The fixture clears on "reset to live" (the collector
+    // publishes null in LIVE mode, including the fresh harness's initial live
+    // load) or process death.
     fun resetToLive(): PkCalibrationDebugDispatchResult {
         transitionRejection("RESET_TO_LIVE")?.let { rejection -> return rejection }
         loadLive(cause = "RESET_TO_LIVE")

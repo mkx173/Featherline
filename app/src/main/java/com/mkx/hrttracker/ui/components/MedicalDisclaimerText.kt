@@ -20,6 +20,7 @@ enum class MedicalDisclaimerKind(@param:StringRes val textRes: Int) {
     REFERENCE_RANGES(R.string.medical_disclaimer_reference_ranges),
     WPATH_REFERENCE_RANGES(R.string.medical_disclaimer_wpath_reference_ranges),
     PLASMA_CONCENTRATION_ESTIMATES(R.string.medical_disclaimer_plasma_concentration_estimates),
+    LAB_ADJUSTMENT(R.string.medical_disclaimer_lab_adjustment),
 }
 
 object MedicalDisclaimerSets {

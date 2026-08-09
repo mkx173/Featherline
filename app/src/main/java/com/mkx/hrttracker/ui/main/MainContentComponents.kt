@@ -124,7 +124,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -374,7 +375,6 @@ private enum class MainTodayTimeRange(
 
 internal const val MainE2ChartContentTestTag = "main-e2-chart-content"
 internal const val MainE2ChartSkeletonTestTag = "main-e2-chart-skeleton"
-internal const val MainPkCalibrationIndicatorTestTag = "main-pk-calibration-indicator"
 
 private const val SkeletonShimmerPeriodMillis = 1400
 
@@ -489,6 +489,7 @@ internal fun MainE2HeroCard(
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
+    pkCalibration: PkCalibrationUiState? = null,
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -720,6 +721,10 @@ internal fun MainE2HeroCard(
                             },
                             text = lastDoseSummary,
                         )
+
+                        if (!showSkeleton && pkCalibration != null) {
+                            MainPkCalibrationHeroPills(pkCalibration)
+                        }
                     }
                 }
             }
@@ -764,7 +769,7 @@ private fun MainE2RangeStatusPill(
 @Composable
 internal fun MainE2ChartCard(
     section: MainE2ChartUiState,
-    calibrationDisplay: PersistedPkCalibrationDisplay? = null,
+    pkCalibration: MainPkCalibrationUiState? = null,
     now: LocalDateTime,
     appLocale: Locale,
     unit: String,
@@ -807,9 +812,6 @@ internal fun MainE2ChartCard(
                     chartWindowOption = section.chartWindowOption,
                     onChartWindowOptionSelected = onChartWindowOptionSelected,
                 )
-                calibrationDisplay?.let { display ->
-                    MainPkCalibrationIndicator(display)
-                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -859,6 +861,36 @@ internal fun MainE2ChartCard(
                         )
                     }
                 }
+            }
+        }
+        return
+    }
+    // Shared central-render failure (§6): hide the plot rather than drawing a
+    // possibly misleading line. Fit-level states and the saved adjustments are
+    // untouched; only this render is unavailable.
+    if (pkCalibration?.ui?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE) {
+        Surface(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(bottom = 6.dp),
+            ) {
+                MainE2ChartCardHeader(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    targetRangeLow = targetRangeLow,
+                    targetRangeHigh = targetRangeHigh,
+                    displayUnit = displayUnit,
+                    unit = unit,
+                    hideReferenceRanges = hideReferenceRanges,
+                    chartWindowOption = section.chartWindowOption,
+                    onChartWindowOptionSelected = onChartWindowOptionSelected,
+                )
+                MainPkCalibrationChartUnavailableCard()
             }
         }
         return
@@ -1194,10 +1226,6 @@ internal fun MainE2ChartCard(
                 onChartWindowOptionSelected = onChartWindowOptionSelected,
             )
 
-            calibrationDisplay?.let { display ->
-                MainPkCalibrationIndicator(display)
-            }
-
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1211,6 +1239,25 @@ internal fun MainE2ChartCard(
                 val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
+                val calibrationBandOuterColor = lineColor.copy(alpha = 0.10f)
+                val calibrationBandInnerColor = lineColor.copy(alpha = 0.20f)
+                val calibrationBandDecoration = remember(
+                    pkCalibration?.band,
+                    yAxisSpec.maxY,
+                    calibrationBandOuterColor,
+                    calibrationBandInnerColor,
+                    chartCoordinateMapper,
+                ) {
+                    pkCalibration?.band?.let { band ->
+                        MainE2CalibrationBandDecoration(
+                            band = band,
+                            maxY = yAxisSpec.maxY,
+                            outerColor = calibrationBandOuterColor,
+                            innerColor = calibrationBandInnerColor,
+                            coordinateMapper = chartCoordinateMapper,
+                        )
+                    }
+                }
                 val currentTimeDecoration = remember(
                     currentTimeLineColor,
                     chartCoordinateMapper,
@@ -1409,6 +1456,7 @@ internal fun MainE2ChartCard(
                                         rangeProvider = rangeProvider,
                                     ),
                                     decorations = listOfNotNull(
+                                        calibrationBandDecoration,
                                         currentTimeDecoration,
                                         interactionMarkerDecoration,
                                     ),
@@ -1556,37 +1604,13 @@ internal fun MainE2ChartCard(
                         }
                     },
                 )
+
+                pkCalibration?.let { pk ->
+                    MainPkCalibrationChartNote(pk)
+                }
             }
         }
     }
-}
-
-internal fun rawPkCalibrationIndicatorText(
-    display: PersistedPkCalibrationDisplay,
-): String {
-    val promoted = display.promotedRoutes.joinToString(separator = ", ") { route ->
-        val beta = display.displayRouteLogScaleByRoute[route] ?: 0.0
-        "${route.stableId}(beta=$beta)"
-    }
-    return "${display.schema} promoted=[$promoted]"
-}
-
-@Composable
-private fun MainPkCalibrationIndicator(display: PersistedPkCalibrationDisplay) {
-    // Phase 1 exposes raw contract diagnostics only. Keep this guard at the rendering
-    // boundary so a production calibration payload can never surface schema/beta text on Home.
-    if (!BuildConfig.DEBUG) return
-
-    val rawText = remember(display) { rawPkCalibrationIndicatorText(display) }
-    Text(
-        text = rawText,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(MainPkCalibrationIndicatorTestTag)
-            .semantics { contentDescription = rawText },
-    )
 }
 
 internal data class MainE2ChartVisibleXRange(
@@ -1666,7 +1690,7 @@ private fun mainE2ChartMinimapFullVisibleRange(chartWindowHours: Int): MainE2Cha
     )
 }
 
-private data class MainE2ChartViewportSnapshot(
+internal data class MainE2ChartViewportSnapshot(
     val rawVisibleRange: MainE2ChartVisibleXRange,
     val visibleRange: MainE2ChartVisibleXRange,
     val spec: MainE2ChartViewSpec?,
@@ -2622,7 +2646,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
     }
 }
 
-private class MainE2ChartCoordinateMapper {
+internal class MainE2ChartCoordinateMapper {
     private val _viewportSnapshot = MutableStateFlow<MainE2ChartViewportSnapshot?>(null)
     private var drawingStart: Float = 0f
     private var layerLeft: Float = 0f
@@ -2829,7 +2853,7 @@ private class VerticalLineDecoration(
         with(context) {
             coordinateMapper?.update(context)
             val x = xProvider(context) ?: return
-            val canvasX = canvasXForLine(x) ?: return
+            val canvasX = mainE2ChartCanvasXForLine(x, clampToLayerBounds) ?: return
 
             val strokeWidth = lineWidth.pixels
             val paint = Paint().apply {
@@ -2868,7 +2892,7 @@ private class VerticalLineDecoration(
         with(context) {
             coordinateMapper?.update(context)
             val x = xProvider(context) ?: return
-            val canvasX = canvasXForLine(x) ?: return
+            val canvasX = mainE2ChartCanvasXForLine(x, clampToLayerBounds) ?: return
             if (pointMaxY <= 0.0 || layerBounds.height <= 0f) {
                 return
             }
@@ -2899,25 +2923,6 @@ private class VerticalLineDecoration(
         }
     }
 
-    private fun CartesianDrawingContext.canvasXForLine(x: Double): Float? {
-        if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
-            return null
-        }
-
-        val drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
-                layoutDirectionMultiplier * layerDimensions.startPadding -
-                scroll
-        val canvasX = drawingStart +
-                layoutDirectionMultiplier *
-                layerDimensions.xSpacing *
-                ((x - ranges.minX) / ranges.xStep).toFloat()
-        if (clampToLayerBounds) {
-            return canvasX.coerceIn(layerBounds.left, layerBounds.right)
-        }
-        return canvasX.takeIf { value ->
-            value >= layerBounds.left && value <= layerBounds.right
-        }
-    }
 }
 
 @Composable
