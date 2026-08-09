@@ -58,11 +58,16 @@ sealed interface PkCalibrationRuntimePolicy {
             PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE,
     ) : PkCalibrationRuntimePolicy
 
-    /** Explicit research-only inputs; source records never fabricate these identities. */
+    /**
+     * Explicit research-only inputs; source records never fabricate these
+     * identities. [attestation] is null while the user has not (or no longer)
+     * attested — the evaluation then lands on SCOPE_NOT_CONFIRMED, keeping the
+     * calibration surface alive with its attestation CTA (Phase 3.3).
+     */
     class ResearchOrTest private constructor(
         val identityPolicy: PkCalibrationIdentityPolicy,
         val config: PkCalibrationConfig,
-        val attestation: PkCalibrationAttestation,
+        val attestation: PkCalibrationAttestation?,
         val forwardModelVersion: String,
         val calibrationModelVersion: String,
     ) : PkCalibrationRuntimePolicy {
@@ -70,7 +75,7 @@ sealed interface PkCalibrationRuntimePolicy {
             fun create(
                 identityPolicy: PkCalibrationIdentityPolicy,
                 config: PkCalibrationConfig,
-                attestation: PkCalibrationAttestation,
+                attestation: PkCalibrationAttestation?,
                 forwardModelVersion: String,
                 calibrationModelVersion: String,
             ): ResearchOrTest? {
