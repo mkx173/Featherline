@@ -146,9 +146,13 @@ class PkCalibrationLiveRepositoryTest {
             repository.liveState.collect()
         }
         runCurrent()
+        // Empty sources are no longer fail-closed: with no doses and no labs
+        // the origin falls back to the clock and the evaluation lands on
+        // NO_USABLE_LABS, keeping the calibration surface alive.
         assertEquals(
-            PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID,
-            (repository.liveState.value as PkCalibrationLiveState.Unavailable).reason,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_USABLE_LABS,
+            (repository.liveState.value as PkCalibrationLiveState.Available)
+                .evaluation.result.globalState,
         )
 
         generations.value = 5L
@@ -225,8 +229,9 @@ class PkCalibrationLiveRepositoryTest {
 
         assertEquals(2, reads)
         assertEquals(
-            PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID,
-            (repository.liveState.value as PkCalibrationLiveState.Unavailable).reason,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_USABLE_LABS,
+            (repository.liveState.value as PkCalibrationLiveState.Available)
+                .evaluation.result.globalState,
         )
         collector.cancel()
     }

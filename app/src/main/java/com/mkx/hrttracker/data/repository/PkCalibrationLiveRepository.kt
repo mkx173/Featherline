@@ -316,10 +316,16 @@ class PkCalibrationLiveRepository @Inject constructor(
             }
         }
         val relevantEntries = entries.filter { it.category == MedicationCategory.ESTRADIOL }
+        // A user with no logged doses and no labs still gets a live surface:
+        // an empty history is anchored by any origin, so fall back to the
+        // clock instead of failing closed. The evaluation then lands on
+        // SCOPE_NOT_CONFIRMED (not attested) or NO_USABLE_LABS (attested) and
+        // the calibration section renders its CTA — previously it was
+        // structurally absent until the first dose was logged.
         val origin = (e2Rows.map { it.first.collectedAt.toEpochMilli() } +
                 relevantEntries.map { it.appliedAt.toEpochMilli() })
             .minOrNull()
-            ?: return StableRead.Unavailable(PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID)
+            ?: renderClock.nowEpochMillis()
 
         val labs = ArrayList<PkCalibrationE2LabSource>(e2Rows.size)
         for ((panel, result) in e2Rows) {
