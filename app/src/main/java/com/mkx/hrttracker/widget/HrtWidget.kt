@@ -658,7 +658,7 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
 // event must be rendered at the exact reported dp size. Without this synchronous repaint,
 // some OEM launchers stretch the last RemoteViews throughout a resize gesture and only
 // Glance's background session is notified; that session can remain idle until the app next
-// draws a frame. Reusing the normal push path keeps compact-width breakpoints, text wrapping,
+// draws a frame. Reusing the normal push path keeps the header fit check, text wrapping,
 // and row capacity responsive at each size the launcher actually exposes.
 private fun scheduleDoseWidgetResizeUpdate(context: Context) {
     val applicationContext = context.applicationContext
@@ -1151,12 +1151,43 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
 
 // ── Large widget (4×2 default, 3×2 minimum) ──────────────────────────────────
 
+// Header row metrics. The font size is passed to WidgetLabel rather than left to its
+// default so the measurement below and the rendered text can never drift apart.
+private const val LargeHeaderFontSizeSp = 18f
+private const val LargeHeaderRoomyGapDp = 48f
+private const val LargeHeaderTightGapDp = 10f
+
+// Does the header still fit once the roomy gap and the fixed-width E2 slot are taken out
+// of the shell's inner width? Measured uppercased and bold to mirror WidgetLabel, with
+// Paint's default sans-serif standing in for Glance's default text (as anchorDirectionLineFits does).
+internal fun largeHeaderFitsRoomyGap(
+    headerText: String,
+    e2PlaceholderText: String,
+    headerFontSizePx: Float,
+    e2FontSizePx: Float,
+    roomyGapPx: Float,
+    availableWidthPx: Float,
+): Boolean {
+    val headerPaint = android.graphics.Paint().apply {
+        textSize = headerFontSizePx
+        typeface = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT,
+            android.graphics.Typeface.BOLD,
+        )
+    }
+    val e2Paint = android.graphics.Paint().apply { textSize = e2FontSizePx }
+    val needed = headerPaint.measureText(headerText.uppercase()) +
+        roomyGapPx +
+        e2Paint.measureText(e2PlaceholderText)
+    return needed <= availableWidthPx
+}
+
 @Composable
 private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
     val scale = widgetScale(WIDGET_BASELINE_KEY_LARGE)
-    val compactWidth = LocalSize.current.width < 260.dp
+    val size = LocalSize.current
     WidgetShell(
         scale = scale,
         contentAlignment = Alignment.Center,
@@ -1248,6 +1279,32 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
         }
 
+        val todayLabel = context.getString(R.string.widget_today)
+        val countLabel = widgetLargeCountLabel(
+            doneCount = doneCount,
+            totalCount = totalCount,
+            manualCount = record.manualCount,
+            doneLabel = context.getString(R.string.main_today_summary_done_label),
+            manualLabel = context.getString(R.string.main_today_summary_manual_label),
+        )
+        val headerText = if (countLabel != null) "$todayLabel · $countLabel" else todayLabel
+        // A fit decision, not a width decision: how much room the header needs depends on
+        // the counts and the locale, so a long label clips at widths where a short one is
+        // still comfortable.
+        val density = context.resources.displayMetrics.density
+        val fontScale = context.resources.configuration.fontScale
+        val e2GapDp = remember(headerText, e2DisplayUnit, size, scale, density, fontScale) {
+            val fits = largeHeaderFitsRoomyGap(
+                headerText = headerText,
+                e2PlaceholderText = widgetE2PlaceholderText(e2DisplayUnit),
+                headerFontSizePx = LargeHeaderFontSizeSp * scale * fontScale * density,
+                e2FontSizePx = 16f * scale * fontScale * density,
+                roomyGapPx = LargeHeaderRoomyGapDp * scale * density,
+                availableWidthPx = (size.width - WidgetShellPadding * 2).value * density,
+            )
+            if (fits) LargeHeaderRoomyGapDp else LargeHeaderTightGapDp
+        }
+
         Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth().wrapContentHeight(),
@@ -1255,17 +1312,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        val todayLabel = context.getString(R.string.widget_today)
-                        val countLabel = widgetLargeCountLabel(
-                            doneCount = doneCount,
-                            totalCount = totalCount,
-                            manualCount = record.manualCount,
-                            doneLabel = context.getString(R.string.main_today_summary_done_label),
-                            manualLabel = context.getString(R.string.main_today_summary_manual_label),
-                        )
-                        WidgetLabel(
-                            if (countLabel != null) "$todayLabel · $countLabel" else todayLabel
-                        )
+                        WidgetLabel(headerText, fontSize = LargeHeaderFontSizeSp.sp)
                     }
                     // The bar tracks plan adherence; hide it on plan-less days rather than
                     // drawing a misleading empty track.
@@ -1275,9 +1322,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     }
                 }
                 if (e2Text != null) {
-                    Spacer(
-                        GlanceModifier.width(((if (compactWidth) 10f else 48f) * scale).dp)
-                    )
+                    Spacer(GlanceModifier.width((e2GapDp * scale).dp))
                     // Reserve the width of the widest (4-digit) E2 label via an invisible
                     // placeholder, then draw the live value over it, end-aligned. The bar shares
                     // this row through the weighted column, so pinning the E2 slot to a constant

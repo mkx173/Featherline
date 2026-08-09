@@ -146,9 +146,8 @@ hosts two `GlanceAppWidget` subclasses:
   Renders a progress row over today's count and a next-dose /
   done-badge panel below.
 - `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell by
-  default and allowing resize down to a 3×2 minimum,
-  with a scrollable `LazyColumn` of dose rows grouped under `Last
-  night` / `Today` / `Tonight` headers.
+  default and resizable down to 3×2, with a scrollable `LazyColumn` of
+  dose rows grouped under `Last night` / `Today` / `Tonight` headers.
 
 Each widget also declares a `previewSizeMode = SizeMode.Responsive(...)`
 that drives the launcher picker preview (via `providePreview`); the
@@ -181,10 +180,15 @@ The `appwidget-provider` XML
 declares `resizeMode="horizontal|vertical"`. The large provider keeps its
 4×2 placement defaults in `minWidth` / `minHeight` and `targetCellWidth` /
 `targetCellHeight`, while `minResizeWidth` / `minResizeHeight` allow the
-launcher to resize it down to 3×2. The large layout treats widths below
-260 dp as compact
-and reduces header spacing so its content remains usable at the 3×2
-minimum; all other visual scaling follows the baseline logic below.
+launcher to resize it down to 3×2.
+
+At the 3×2 minimum the large header keeps its `Today · x/y done` label
+readable by measuring rather than by a width threshold:
+`largeHeaderFitsRoomyGap` measures the label and the fixed-width E2 slot,
+and tightens the gap between them only when the label would otherwise
+clip. How much room the header needs depends on the counts and the
+locale, so a width breakpoint cannot express it. All other visual scaling
+follows the baseline logic below.
 
 #### Per-device baseline scaling
 
