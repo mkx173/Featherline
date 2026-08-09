@@ -467,6 +467,7 @@ object PkCalibrationEvidenceAdapter {
                 calibrationModelVersion = calibrationModelVersion,
                 sourceValueBits = sourceValueBits,
                 collectedAtEpochMillis = lab.collectedAtEpochMillis,
+                unitId = lab.unitId,
             ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         }
 

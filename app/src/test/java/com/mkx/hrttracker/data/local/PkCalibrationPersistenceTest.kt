@@ -315,6 +315,7 @@ class PkCalibrationPersistenceTest {
                         calibrationModelVersion = "pk-calibration:test/v9",
                         sourceValueBits = "4059000000000000",
                         collectedAtEpochMillis = 600L,
+                        unitId = "hrttracker:unit/pg-ml/v1",
                     )
                 ),
                 updatedAt = Instant.ofEpochMilli(2_000L),
@@ -513,6 +514,7 @@ class PkCalibrationPersistenceTest {
         resultUuid = resultUuid,
         disposition = "EXCLUDED",
         acceptedModelVersion = null,        acceptedSourceValueBits = null,        acceptedCollectedAtEpochMillis = null,
+        acceptedUnitId = null,
         updatedAtEpochMillis = 1_000L,
     )
 

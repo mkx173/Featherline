@@ -39,6 +39,7 @@ class PkCalibrationBackupTest {
             acceptedModelVersion = "pk-calibration:test/v9",
             acceptedSourceValueBits = "4059000000000000",
             acceptedCollectedAtEpochMillis = 600L,
+            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
             updatedAt = 2_000L,
         )
         val excluded = result(
@@ -58,6 +59,27 @@ class PkCalibrationBackupTest {
         )
         assertEquals("EXCLUDED", metadata.getValue(excluded.uuid).disposition)
         assertNull(metadata.getValue(excluded.uuid).acceptedSourceValueBits)
+        assertEquals("hrttracker:unit/pg-ml/v1", metadata.getValue(accepted.uuid).acceptedUnitId)
+    }
+
+    @Test
+    fun version8AcceptedRecordWithoutUnitId_downgradesToAuto() {
+        val accepted = result(
+            uuid = "00000000-0000-0000-0000-000000000913",
+            disposition = "ACCEPTED",
+            acceptedModelVersion = "pk-calibration:test/v9",
+            acceptedSourceValueBits = "4059000000000000",
+            acceptedCollectedAtEpochMillis = 600L,
+            updatedAt = 2_000L,
+        )
+
+        val validated = snapshot(version = 8, results = listOf(accepted))
+            .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
+        val metadata = validated.e2CalibrationMetadata.single()
+
+        assertEquals("AUTO", metadata.disposition)
+        assertNull(metadata.acceptedModelVersion)
+        assertNull(metadata.acceptedUnitId)
     }
 
     @Test
@@ -68,6 +90,7 @@ class PkCalibrationBackupTest {
             acceptedModelVersion = "pk-calibration:test/v9",
             acceptedSourceValueBits = "not-binary64-bits",
             acceptedCollectedAtEpochMillis = 600L,
+            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
             updatedAt = 4_000L,
         )
 
@@ -128,6 +151,7 @@ class PkCalibrationBackupTest {
         acceptedModelVersion: String? = null,
         acceptedSourceValueBits: String? = null,
         acceptedCollectedAtEpochMillis: Long? = null,
+        acceptedUnitId: String? = null,
         updatedAt: Long? = null,
     ): BackupBloodTestResultSnapshot {
         return BackupBloodTestResultSnapshot(
@@ -143,6 +167,7 @@ class PkCalibrationBackupTest {
             acceptedModelVersion = acceptedModelVersion,
             acceptedSourceValueBits = acceptedSourceValueBits,
             acceptedCollectedAtEpochMillis = acceptedCollectedAtEpochMillis,
+            acceptedUnitId = acceptedUnitId,
             calibrationMetadataUpdatedAtEpochMillis = updatedAt,
         )
     }

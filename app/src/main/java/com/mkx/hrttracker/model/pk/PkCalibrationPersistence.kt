@@ -11,28 +11,33 @@ const val PK_CALIBRATION_DISPLAY_SCHEMA =
 /**
  * v10.0 §A2: an ACCEPTED outlier review is stale when the fit context it was
  * made in changes. The context is the calibration model plus the accepted
- * result's own value and collection time; editing other labs no longer stales
- * an acceptance (the whole-snapshot digest this replaces was schema
- * conservatism, not a safety property the Student-t weight lacks).
+ * result's own value, collection time, and unit identity (Phase-3 #8: a unit
+ * edit re-scales the canonical value, so the acceptance made under the old
+ * unit must return to review; deliberately narrower than §A2's "value bits +
+ * instant only" wording). Editing other labs no longer stales an acceptance.
  */
 @ConsistentCopyVisibility
 data class PkCalibrationAcceptanceRecord private constructor(
     val calibrationModelVersion: String,
     val sourceValueBits: String,
     val collectedAtEpochMillis: Long,
+    val unitId: String,
 ) {
     companion object {
         fun create(
             calibrationModelVersion: String,
             sourceValueBits: String,
             collectedAtEpochMillis: Long,
+            unitId: String,
         ): PkCalibrationAcceptanceRecord? {
             if (!calibrationModelVersion.isStableAsciiIdentity()) return null
             if (!sourceValueBits.matches(Regex("[0-9a-f]{16}"))) return null
+            if (!unitId.isStableAsciiIdentity()) return null
             return PkCalibrationAcceptanceRecord(
                 calibrationModelVersion = calibrationModelVersion,
                 sourceValueBits = sourceValueBits,
                 collectedAtEpochMillis = collectedAtEpochMillis,
+                unitId = unitId,
             )
         }
     }

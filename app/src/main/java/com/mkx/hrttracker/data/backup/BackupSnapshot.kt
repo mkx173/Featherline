@@ -236,6 +236,7 @@ data class BackupBloodTestResultSnapshot(
     val acceptedModelVersion: String? = null,
     val acceptedSourceValueBits: String? = null,
     val acceptedCollectedAtEpochMillis: Long? = null,
+    val acceptedUnitId: String? = null,
     val calibrationMetadataUpdatedAtEpochMillis: Long? = null,
 )
 
@@ -298,7 +299,13 @@ data class BackupNoteSnapshot(
 // written before the rename decode with no record on ACCEPTED rows; restore
 // downgrades those to AUTO instead of aborting (mirrors MIGRATION_10_11).
 //
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 8
+// The 8→9 bump added acceptedUnitId to the acceptance record (Phase-3 #8):
+// the record now binds the accepted result's unit identity, so a unit edit
+// stales the acceptance. v8 ACCEPTED rows carry a record without the unit
+// binding; restore downgrades those to AUTO instead of aborting (mirrors
+// MIGRATION_11_12). From v9 on, a record without acceptedUnitId fails loud.
+//
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 9
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

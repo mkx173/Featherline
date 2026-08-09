@@ -543,6 +543,7 @@ class PkCalibrationRendererTest {
                 calibrationModelVersion = calibrationModelVersion,
                 sourceValueBits = "4059000000000000",
                 collectedAtEpochMillis = originMillis,
+                unitId = "hrttracker:unit/pg-ml/v1",
             )
         )
         return requireNotNull(

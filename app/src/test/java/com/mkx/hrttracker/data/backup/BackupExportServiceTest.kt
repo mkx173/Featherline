@@ -130,7 +130,7 @@ class BackupExportServiceTest {
 
     @Test
     fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
-        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertEquals(9, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -641,7 +641,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(9, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -822,6 +822,7 @@ class BackupExportServiceTest {
                 calibrationModelVersion = "pk-calibration:test/v9",
                 sourceValueBits = "4059000000000000",
                 collectedAtEpochMillis = 600L,
+                unitId = "hrttracker:unit/pg-ml/v1",
             )
         )
         val importedMedicine = Medicine(

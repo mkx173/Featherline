@@ -868,6 +868,7 @@ class PkCalibrationScopeEvidenceTest {
                 calibrationModelVersion = CalibrationModelVersion,
                 sourceValueBits = "4058c00000000000",
                 collectedAtEpochMillis = labs[0].collectedAtEpochMillis,
+                unitId = UnitId,
             )
         )
         val stale = requireNotNull(
@@ -1025,6 +1026,66 @@ class PkCalibrationScopeEvidenceTest {
         assertNotEquals(
             acceptedReady.canonicalInput.acceptanceRecordFor(resultId),
             changedVersionReady.canonicalInput.acceptanceRecordFor(resultId),
+        )
+    }
+
+    @Test
+    fun unitEditWithSameSourceValueStalesAcceptedReview() {
+        // Phase-3 #8: the acceptance record binds unitId. The same source value
+        // re-entered under a different unit keeps identical sourceValueBits and
+        // collection time, so only the unit binding can return the kept
+        // outlier to review.
+        val policy = identityPolicy(
+            unitIdBySourceSnapshot = mapOf(
+                SourceUnitSnapshot to UnitId,
+                PmolSourceUnitSnapshot to PmolUnitId,
+            )
+        )
+        val originalLab = lab(sourceValue = 100.0, canonicalValuePgml = 100.0)
+        val fixture = fixture(labs = listOf(originalLab))
+        val original = ready(fixture.build(identityPolicy = policy))
+        val resultId = originalLab.resultId
+        val accepted = requireNotNull(
+            E2CalibrationMetadata.create(
+                resultId = resultId,
+                disposition = E2CalibrationDisposition.ACCEPTED,
+                acceptedRecord = requireNotNull(
+                    original.canonicalInput.acceptanceRecordFor(resultId)
+                ),
+                updatedAt = Instant.EPOCH,
+            )
+        )
+        assertEquals(
+            PkCalibrationEffectiveDisposition.ACCEPTED,
+            ready(fixture.build(metadata = listOf(accepted), identityPolicy = policy))
+                .included.single().effectiveDisposition,
+        )
+
+        val pmolLab = lab(
+            resultId = resultId,
+            sourceValue = 100.0,
+            canonicalValuePgml = BloodTestCatalog.toCanonical(
+                analyteKey = BloodAnalyteKey.E2,
+                value = 100.0,
+                unit = BloodUnitKey.PMOL_L,
+            ),
+            sourceUnitSnapshot = PmolSourceUnitSnapshot,
+            unitId = PmolUnitId,
+        )
+        val changed = ready(
+            fixture.build(
+                labs = listOf(pmolLab),
+                metadata = listOf(accepted),
+                identityPolicy = policy,
+            )
+        )
+        assertEquals(
+            PkCalibrationEffectiveDisposition.AUTO,
+            changed.included.single().effectiveDisposition,
+        )
+        assertNotEquals(
+            original.canonicalInput.acceptanceRecordFor(resultId),
+            changed.canonicalInput.acceptanceRecordFor(resultId),
         )
     }
 

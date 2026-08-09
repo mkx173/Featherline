@@ -187,6 +187,7 @@ class BackupRestoreServiceTest {
                             acceptedModelVersion = "pk-calibration:test/v9",
                             acceptedSourceValueBits = "4059000000000000",
                             acceptedCollectedAtEpochMillis = 600L,
+                            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
                             calibrationMetadataUpdatedAtEpochMillis = 2_000L,
                         )
                     ),
@@ -212,6 +213,7 @@ class BackupRestoreServiceTest {
         assertEquals(resultUuid, restored.resultUuid)
         assertEquals("ACCEPTED", restored.disposition)
         assertEquals("4059000000000000", restored.acceptedSourceValueBits)
+        assertEquals("hrttracker:unit/pg-ml/v1", restored.acceptedUnitId)
     }
 
     // v7 backups written before the acceptance-record rename decode ACCEPTED
@@ -275,6 +277,45 @@ class BackupRestoreServiceTest {
         )
     }
 
+    // v8 acceptance records pre-date the unit binding: an ACCEPTED row whose
+    // record lacks acceptedUnitId cannot honor it, so restore drops the
+    // acceptance and downgrades to AUTO (mirrors MIGRATION_11_12).
+    @Test
+    fun restoreBackup_v8AcceptedRecordWithoutUnitId_downgradesToAutoInsteadOfAborting() = runTest {
+        val resultUuid = "00000000-0000-0000-0000-0000000008d1"
+        val snapshot = emptySnapshot().copy(
+            snapshotVersion = 8,
+            bloodTestPanels = listOf(
+                calibrationMetadataPanel(
+                    panelUuid = "00000000-0000-0000-0000-0000000008d0",
+                    resultUuid = resultUuid,
+                    calibrationDisposition = "ACCEPTED",
+                    acceptedModelVersion = "pk-calibration:test/v9",
+                    acceptedSourceValueBits = "4059000000000000",
+                    acceptedCollectedAtEpochMillis = 600L,
+                )
+            ),
+        )
+        val metadataSlot = slot<List<E2CalibrationMetadataEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                BackupSnapshotJsonCodec.encode(snapshot),
+                "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify { pkCalibrationDao.insertMetadata(capture(metadataSlot)) }
+        val restored = metadataSlot.captured.single()
+        assertEquals(resultUuid, restored.resultUuid)
+        assertEquals("AUTO", restored.disposition)
+        assertNull(restored.acceptedModelVersion)
+        assertNull(restored.acceptedSourceValueBits)
+        assertNull(restored.acceptedCollectedAtEpochMillis)
+        assertNull(restored.acceptedUnitId)
+    }
+
     private fun calibrationMetadataPanel(
         panelUuid: String,
         resultUuid: String,
@@ -282,6 +323,7 @@ class BackupRestoreServiceTest {
         acceptedModelVersion: String?,
         acceptedSourceValueBits: String?,
         acceptedCollectedAtEpochMillis: Long?,
+        acceptedUnitId: String? = null,
     ): BackupBloodTestPanelSnapshot = BackupBloodTestPanelSnapshot(
         uuid = panelUuid,
         collectedAtInstantEpochMillis = 1_000L,
@@ -305,6 +347,7 @@ class BackupRestoreServiceTest {
                 acceptedModelVersion = acceptedModelVersion,
                 acceptedSourceValueBits = acceptedSourceValueBits,
                 acceptedCollectedAtEpochMillis = acceptedCollectedAtEpochMillis,
+                acceptedUnitId = acceptedUnitId,
                 calibrationMetadataUpdatedAtEpochMillis = 2_000L,
             )
         ),

@@ -21,6 +21,7 @@ data class E2CalibrationMetadataEntity(
     val acceptedModelVersion: String?,
     val acceptedSourceValueBits: String?,
     val acceptedCollectedAtEpochMillis: Long?,
+    val acceptedUnitId: String?,
     val updatedAtEpochMillis: Long,
 )
 

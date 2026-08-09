@@ -518,6 +518,7 @@ class BackupExportService @Inject constructor(
                 calibrationMetadata?.acceptedRecord?.sourceValueBits,
             acceptedCollectedAtEpochMillis =
                 calibrationMetadata?.acceptedRecord?.collectedAtEpochMillis,
+            acceptedUnitId = calibrationMetadata?.acceptedRecord?.unitId,
             calibrationMetadataUpdatedAtEpochMillis =
                 calibrationMetadata?.updatedAt?.toEpochMilli(),
         )

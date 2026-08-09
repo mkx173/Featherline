@@ -180,6 +180,7 @@ internal fun E2CalibrationMetadata.toEntity(): E2CalibrationMetadataEntity {
         acceptedModelVersion = acceptedRecord?.calibrationModelVersion,
         acceptedSourceValueBits = acceptedRecord?.sourceValueBits,
         acceptedCollectedAtEpochMillis = acceptedRecord?.collectedAtEpochMillis,
+        acceptedUnitId = acceptedRecord?.unitId,
         updatedAtEpochMillis = updatedAt.toEpochMilli(),
     )
 }
@@ -188,12 +189,14 @@ internal fun E2CalibrationMetadataEntity.toModel(): E2CalibrationMetadata? {
     val parsedDisposition = runCatching { E2CalibrationDisposition.valueOf(disposition) }
         .getOrNull() ?: return null
     val hasAnyRecordField = acceptedModelVersion != null ||
-        acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null
+        acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null ||
+        acceptedUnitId != null
     val record = if (hasAnyRecordField) {
         PkCalibrationAcceptanceRecord.create(
             calibrationModelVersion = acceptedModelVersion ?: return null,
             sourceValueBits = acceptedSourceValueBits ?: return null,
             collectedAtEpochMillis = acceptedCollectedAtEpochMillis ?: return null,
+            unitId = acceptedUnitId ?: return null,
         ) ?: return null
     } else {
         null

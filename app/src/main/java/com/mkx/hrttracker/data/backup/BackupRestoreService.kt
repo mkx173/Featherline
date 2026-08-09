@@ -945,6 +945,7 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
         acceptedModelVersion != null ||
         acceptedSourceValueBits != null ||
         acceptedCollectedAtEpochMillis != null ||
+        acceptedUnitId != null ||
         calibrationMetadataUpdatedAtEpochMillis != null
     if (!hasAnyMetadata) return null
 
@@ -958,15 +959,25 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
             "Unsupported calibration disposition $calibrationDisposition for result $resultUuid."
         )
     }
-    val hasAnyRecordField = acceptedModelVersion != null ||
+    val hasCoreRecordFields = acceptedModelVersion != null ||
         acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null
-    val record = if (hasAnyRecordField) {
+    val hasAnyRecordField = hasCoreRecordFields || acceptedUnitId != null
+    // v8 acceptance records pre-date the unit binding (Phase-3 #8): an ACCEPTED
+    // row whose record lacks acceptedUnitId cannot honor the binding, so the
+    // acceptance is dropped and the row downgrades to AUTO below (mirrors
+    // MIGRATION_11_12). From v9 on, a record without the unit id fails loud.
+    val droppedPreUnitAcceptance = snapshotVersion <= 8 &&
+        disposition == E2CalibrationDisposition.ACCEPTED &&
+        hasCoreRecordFields && acceptedUnitId == null
+    val record = if (hasAnyRecordField && !droppedPreUnitAcceptance) {
         PkCalibrationAcceptanceRecord.create(
             calibrationModelVersion = acceptedModelVersion
                 ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
             sourceValueBits = acceptedSourceValueBits
                 ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
             collectedAtEpochMillis = acceptedCollectedAtEpochMillis
+                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
+            unitId = acceptedUnitId
                 ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
         ) ?: throw IllegalArgumentException("Invalid acceptance record for result $resultUuid.")
     } else {
@@ -976,12 +987,11 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     // fields this codec no longer decodes, so their ACCEPTED rows arrive with
     // no record. That acceptance cannot be honored under the attestation
     // model: the outlier returns to review (AUTO) instead of aborting the
-    // whole restore. Mirrors MIGRATION_10_11. From v8 on, ACCEPTED without a
-    // record is invalid data and still fails loud below.
+    // whole restore. Mirrors MIGRATION_10_11. From v8 on, ACCEPTED without any
+    // record field is invalid data and still fails loud below.
     val effectiveDisposition = if (
-        snapshotVersion <= 7 &&
-        disposition == E2CalibrationDisposition.ACCEPTED &&
-        record == null
+        disposition == E2CalibrationDisposition.ACCEPTED && record == null &&
+        (snapshotVersion <= 7 || droppedPreUnitAcceptance)
     ) {
         E2CalibrationDisposition.AUTO
     } else {
@@ -1006,6 +1016,7 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
         acceptedModelVersion = metadata.acceptedRecord?.calibrationModelVersion,
         acceptedSourceValueBits = metadata.acceptedRecord?.sourceValueBits,
         acceptedCollectedAtEpochMillis = metadata.acceptedRecord?.collectedAtEpochMillis,
+        acceptedUnitId = metadata.acceptedRecord?.unitId,
         updatedAtEpochMillis = metadata.updatedAt.toEpochMilli(),
     )
 }

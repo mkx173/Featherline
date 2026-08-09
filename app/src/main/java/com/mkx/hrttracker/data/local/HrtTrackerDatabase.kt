@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -316,6 +316,28 @@ internal val MIGRATION_10_11: Migration = object : Migration(10, 11) {
         db.execSQL("DROP TABLE `e2_calibration_metadata`")
         db.execSQL(
             "ALTER TABLE `e2_calibration_metadata_v11` RENAME TO `e2_calibration_metadata`"
+        )
+    }
+}
+
+// v11 → v12: the acceptance record additionally binds the accepted result's
+// unit identity (Phase-3 #8): a unit edit re-scales the canonical value, so an
+// acceptance made under the old unit must return to review. Pre-v12 records
+// carry no unit binding and cannot honor it — ACCEPTED rows fall back to AUTO
+// (the outlier returns to review), mirroring MIGRATION_10_11's digest-row
+// handling; exclusions are untouched.
+internal val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `e2_calibration_metadata` ADD COLUMN `acceptedUnitId` TEXT")
+        db.execSQL(
+            """
+            UPDATE `e2_calibration_metadata`
+            SET `disposition` = 'AUTO',
+                `acceptedModelVersion` = NULL,
+                `acceptedSourceValueBits` = NULL,
+                `acceptedCollectedAtEpochMillis` = NULL
+            WHERE `disposition` = 'ACCEPTED'
+            """.trimIndent()
         )
     }
 }
