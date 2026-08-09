@@ -1,23 +1,12 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveUnavailableReason
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
-import com.mkx.hrttracker.model.pk.PkCalibrationEngineEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -329,91 +318,15 @@ class PkCalibrationDebugScenarioSourceTest {
     }
 
     @Test
-    fun sourceBoundariesRejectRelease_andNeverTouchLiveProvider() = runTest {
-        var evaluationCalls = 0
-        var domainCalls = 0
-        val provider = object : PkCalibrationDebugLiveSnapshotProvider {
-            override suspend fun currentEvaluation(): PkCalibrationEngineEvaluation? {
-                evaluationCalls += 1
-                return null
-            }
-
-            override suspend fun currentRenderDomain(): PkChartDomain? {
-                domainCalls += 1
-                return null
-            }
-        }
+    fun sourceBoundaryRejectsRelease() {
         val disabledSource = DefaultPkCalibrationDebugScenarioSource(
-            liveSnapshotProvider = provider,
             debugGate = PkCalibrationDebugGate { false },
         )
 
-        assertSame(PkCalibrationDebugSourceResult.DebugDisabled, disabledSource.loadLive())
         assertSame(
             PkCalibrationDebugSourceResult.DebugDisabled,
             disabledSource.loadFixture(requireNotNull(PkCalibrationDebugScenario.create())),
         )
-        assertEquals(0, evaluationCalls)
-        assertEquals(0, domainCalls)
-    }
-
-    @Test
-    fun liveSourceUsesBoundEvaluationAndItsRenderer() = runTest {
-        val fixture = source.loadFixture(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
-        ).availableSnapshot()
-        val domain = requireNotNull(PkChartDomain.create(
-            rangeStartEpochMillis = 1_700_000_000_000L,
-            rangeEndEpochMillis = 1_700_007_200_000L,
-            samplingIntervalMillis = 3_600_000L,
-            chartGridVersion = "debug-test-grid/v1",
-        ))
-        val evaluation = mockk<PkCalibrationEngineEvaluation>()
-        every { evaluation.isReady } returns true
-        every { evaluation.result } returns fixture.result
-        every { evaluation.renderFor(domain) } returns fixture.render
-        val provider = object : PkCalibrationDebugLiveSnapshotProvider {
-            override suspend fun currentEvaluation(): PkCalibrationEngineEvaluation = evaluation
-            override suspend fun currentRenderDomain(): PkChartDomain = domain
-            override suspend fun currentReviewDispositions() =
-                fixture.reviewDispositionByResultId
-        }
-        val liveSource = DefaultPkCalibrationDebugScenarioSource(provider, enabled)
-
-        val live = liveSource.loadLive().availableSnapshot()
-
-        assertEquals(PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION, live.kind)
-        assertSame(fixture.result, live.result)
-        assertSame(fixture.render, live.render)
-        assertNull(live.scenario)
-    }
-
-    @Test
-    fun repositoryLiveAdapter_preservesExplicitUnavailableReason_andDelegatesRetry() = runTest {
-        val repository = mockk<PkCalibrationLiveRepository>()
-        val state = MutableStateFlow<PkCalibrationLiveState>(
-            PkCalibrationLiveState.Unavailable(
-                PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE
-            )
-        )
-        every { repository.liveState } returns state
-        every { repository.retry() } returns Unit
-        val liveSource = DefaultPkCalibrationDebugScenarioSource(
-            RepositoryPkCalibrationDebugLiveSnapshotProvider(repository),
-            enabled,
-        )
-
-        val current = liveSource.loadLive() as PkCalibrationDebugSourceResult.Unavailable
-        val observed = liveSource.observeLive().first() as
-            PkCalibrationDebugSourceResult.Unavailable
-        liveSource.retryLive()
-
-        assertEquals(
-            PkCalibrationDebugSourceUnavailableReason.LIVE_RUNTIME_POLICY_UNAVAILABLE,
-            current.reason,
-        )
-        assertEquals(current, observed)
-        verify(exactly = 1) { repository.retry() }
     }
 
     private fun PkCalibrationDebugSourceResult.availableSnapshot(): PkCalibrationDebugSnapshot {

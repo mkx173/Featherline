@@ -1,138 +1,67 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
-import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionRejection
-import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionResult
-import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionService
-import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
-import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
-import io.mockk.coVerify
-import io.mockk.mockk
-import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class PkCalibrationDebugViewModelTest {
-    private val dispatcher = StandardTestDispatcher()
     private val enabled = PkCalibrationDebugGate { true }
     private val fixtureSource = DefaultPkCalibrationDebugScenarioSource(debugGate = enabled)
 
-    @Before
-    fun setUp() {
-        Dispatchers.setMain(dispatcher)
-    }
-
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
-
     @Test
-    fun defaultMode_loadsBoundLiveSnapshot_andExposesRawContractReadout() = runTest {
-        val liveSnapshot = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
-        )
-        val source = RecordingSource(liveResult = available(liveSnapshot))
+    fun applyingAScenario_publishesTheValidatedFixtureThroughTheBridge() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        val viewModel = viewModel(bridge = bridge)
+        assertNull(bridge.fixture.value)
+        assertFalse(viewModel.uiState.value.forcedStateActive)
 
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = source,
-            debugGate = enabled,
+        assertEquals(
+            PkCalibrationDebugDispatchResult.ACCEPTED,
+            viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_CALIBRATED),
         )
-        advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals(PkCalibrationDebugMode.LIVE, state.mode)
-        assertEquals(PkCalibrationDebugLoadState.AVAILABLE, state.loadState)
-        assertEquals(PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION, state.snapshotKind)
-        assertEquals(PkCalibrationGlobalState.READY, state.globalState)
-        assertEquals(PkCalibrationRoute.entries.toList(), state.routeRows.map { it.route })
-        assertEquals(listOf(PkCalibrationRoute.INJECTION), state.promotedRoutes)
-        assertEquals(PkCalibrationRenderState.PERSONALIZED, state.renderState)
-        assertEquals(PkCalibrationBandState.READY, state.bandState)
-        assertTrue(state.centralCurve.isNotEmpty())
-        assertTrue(state.bandKnots.isNotEmpty())
-        assertSame(liveSnapshot.result, state.rawResult)
-        assertSame(liveSnapshot.render, state.rawRender)
-        assertNull(state.scenario)
-        assertEquals(1, source.liveCalls)
-        assertEquals(listOf(1L), state.actionLog.map { it.sequence })
+        assertTrue(state.forcedStateActive)
+        val fixture = requireNotNull(bridge.fixture.value)
+        assertSame(state.rawResult, fixture.result)
+        assertSame(state.rawRender, fixture.render)
+        assertEquals(
+            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED),
+            fixture.scenario,
+        )
+        assertTrue(fixture.excludedResultIds.isEmpty())
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION),
+            fixture.result.promotedRoutes,
+        )
     }
-
-    @Test
-    fun observableLiveSource_updatesContinuously_fixtureIgnoresIt_resetReplaysLatest_andRetryDelegates() =
-        runTest {
-            val first = liveSnapshot(
-                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
-            )
-            val second = liveSnapshot(
-                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
-            )
-            val source = ObservableRecordingSource(available(first))
-            val viewModel = PkCalibrationDebugViewModel(
-                scenarioSource = source,
-                debugGate = enabled,
-            )
-            advanceUntilIdle()
-            assertSame(first.result, viewModel.uiState.value.rawResult)
-
-            viewModel.applyPreset(PkCalibrationDebugPreset.ORAL_OUT_OF_RANGE)
-            val fixtureResult = viewModel.uiState.value.rawResult
-            source.live.value = available(second)
-            advanceUntilIdle()
-            assertEquals(PkCalibrationDebugMode.FIXTURE, viewModel.uiState.value.mode)
-            assertSame(fixtureResult, viewModel.uiState.value.rawResult)
-
-            viewModel.resetToLive()
-            advanceUntilIdle()
-            assertEquals(PkCalibrationDebugMode.LIVE, viewModel.uiState.value.mode)
-            assertSame(second.result, viewModel.uiState.value.rawResult)
-
-            viewModel.refreshLive()
-            advanceUntilIdle()
-            assertEquals(1, source.retryCalls)
-        }
 
     @Test
     fun everyGlobalAndRouteEnum_reachesTheViewModelWithExactCardinality() {
-        val viewModel = fixtureViewModel()
+        val viewModel = viewModel()
 
         PkCalibrationGlobalState.entries.forEach { globalState ->
             assertEquals(
                 PkCalibrationDebugDispatchResult.ACCEPTED,
                 viewModel.selectGlobalState(globalState),
             )
-            val state = viewModel.uiState.value
-            assertEquals(globalState, state.globalState)
+            val result = requireNotNull(viewModel.uiState.value.rawResult)
+            assertEquals(globalState, result.globalState)
             assertEquals(
                 if (globalState == PkCalibrationGlobalState.READY) 5 else 0,
-                state.routeRows.size,
+                result.routeResults.size,
             )
         }
 
@@ -142,12 +71,15 @@ class PkCalibrationDebugViewModelTest {
                     PkCalibrationDebugDispatchResult.ACCEPTED,
                     viewModel.selectRouteState(route, displayState),
                 )
-                val state = viewModel.uiState.value
-                assertEquals(PkCalibrationGlobalState.READY, state.globalState)
-                assertEquals(PkCalibrationRoute.entries.toList(), state.routeRows.map { it.route })
+                val result = requireNotNull(viewModel.uiState.value.rawResult)
+                assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+                assertEquals(
+                    PkCalibrationRoute.entries.toList(),
+                    result.routeResults.map { it.route },
+                )
                 assertEquals(
                     displayState,
-                    state.routeRows.single { row -> row.route == route }.displayState,
+                    result.routeResults.single { row -> row.route == route }.displayState,
                 )
             }
         }
@@ -155,10 +87,13 @@ class PkCalibrationDebugViewModelTest {
 
     @Test
     fun presets_mixedStateAndFaultToggles_republishValidatedFixtureFields() {
-        val viewModel = fixtureViewModel()
+        val viewModel = viewModel()
 
         PkCalibrationDebugPreset.entries.forEach { preset ->
-            assertEquals(PkCalibrationDebugDispatchResult.ACCEPTED, viewModel.applyPreset(preset))
+            assertEquals(
+                PkCalibrationDebugDispatchResult.ACCEPTED,
+                viewModel.applyPreset(preset),
+            )
             assertEquals(
                 PkCalibrationDebugScenario.preset(preset),
                 viewModel.uiState.value.scenario,
@@ -168,98 +103,87 @@ class PkCalibrationDebugViewModelTest {
         viewModel.applyPreset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
         assertEquals(
             listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
-            viewModel.uiState.value.promotedRoutes,
+            viewModel.uiState.value.rawResult?.promotedRoutes,
         )
 
         viewModel.setRouteRenderFallback(PkCalibrationRoute.INJECTION)
         assertEquals(
             listOf(PkCalibrationRoute.INJECTION),
-            viewModel.uiState.value.routeRenderFallbacks,
+            viewModel.uiState.value.rawRender?.routeRenderFallbacks,
         )
         assertEquals(
             listOf(PkCalibrationRoute.ORAL),
-            viewModel.uiState.value.effectivePromotedRoutes,
+            viewModel.uiState.value.rawRender?.effectivePromotedRoutes,
         )
 
         viewModel.setBandUnavailable(true)
-        assertEquals(PkCalibrationBandState.NUMERIC_UNAVAILABLE, viewModel.uiState.value.bandState)
-        assertTrue(viewModel.uiState.value.bandKnots.isEmpty())
-        assertTrue(viewModel.uiState.value.centralCurve.isNotEmpty())
+        assertEquals(
+            PkCalibrationBandState.NUMERIC_UNAVAILABLE,
+            viewModel.uiState.value.rawRender?.bandState,
+        )
+        assertTrue(viewModel.uiState.value.rawRender?.bandKnots.orEmpty().isEmpty())
+        assertTrue(viewModel.uiState.value.rawRender?.centralCurve.orEmpty().isNotEmpty())
 
         viewModel.setCentralUnavailable(true)
-        assertEquals(PkCalibrationRenderState.NUMERIC_UNAVAILABLE, viewModel.uiState.value.renderState)
-        assertTrue(viewModel.uiState.value.centralCurve.isEmpty())
+        assertEquals(
+            PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
+            viewModel.uiState.value.rawRender?.renderState,
+        )
+        assertTrue(viewModel.uiState.value.rawRender?.centralCurve.orEmpty().isEmpty())
 
         viewModel.setCentralUnavailable(false)
         viewModel.setNonPositiveInput(true)
-        assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, viewModel.uiState.value.globalState)
-        assertTrue(viewModel.uiState.value.routeRows.isEmpty())
+        assertEquals(
+            PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+            viewModel.uiState.value.rawResult?.globalState,
+        )
+        assertTrue(viewModel.uiState.value.rawResult?.routeResults.orEmpty().isEmpty())
 
         viewModel.setNonPositiveInput(false)
         viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.PATCH)
-        val patch = viewModel.uiState.value.routeRows.single { it.route == PkCalibrationRoute.PATCH }
+        val patch = requireNotNull(viewModel.uiState.value.rawResult)
+            .routeResults.single { it.route == PkCalibrationRoute.PATCH }
         assertTrue(patch.atDisplayCapBoundary)
     }
 
     @Test
-    fun fixtureReviewCycle_mutatesOnlyDebugState_andNeverCallsLiveHandler() {
-        var handlerCalls = 0
-        val handler = PkCalibrationDebugReviewActionHandler {
-            handlerCalls += 1
-            PkCalibrationDebugReviewExecution.Unavailable
-        }
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = fixtureSource,
-            reviewActionHandler = handler,
-            debugGate = enabled,
-            autoLoadLive = false,
-        )
+    fun fixtureReviewCycle_mutatesDispositions_andPublishedExclusions() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        val viewModel = viewModel(bridge = bridge)
         viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
         val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-
-        assertEquals(
-            PkCalibrationDebugSnapshotKind.SYNTHETIC_ENGINE_EVALUATION,
-            viewModel.uiState.value.snapshotKind,
-        )
 
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
             viewModel.uiState.value.applicableActionCommands.map { it.action },
         )
+
         viewModel.performReviewAction(
             PkCalibrationDebugActionCommand(PkCalibrationDebugReviewAction.KEEP, resultId)
-        )
-        assertTrue(
-            viewModel.uiState.value.actionLog.last().effect.startsWith(
-                "FIXTURE_DISPOSITION:AUTO->ACCEPTED;"
-            )
         )
         assertEquals(
             E2CalibrationDisposition.ACCEPTED,
             viewModel.uiState.value.reviewDispositionByResultId[resultId],
         )
         assertFalse(
-            resultId in viewModel.uiState.value.routeRows.single {
-                it.route == PkCalibrationRoute.INJECTION
-            }.unreviewedOutlierLabIds,
+            resultId in requireNotNull(viewModel.uiState.value.rawResult)
+                .routeResults.single { it.route == PkCalibrationRoute.INJECTION }
+                .unreviewedOutlierLabIds,
         )
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.EXCLUDE),
             viewModel.uiState.value.applicableActionCommands.map { it.action },
         )
+        assertTrue(bridge.fixture.value?.excludedResultIds.orEmpty().isEmpty())
 
         viewModel.performReviewAction(
             PkCalibrationDebugActionCommand(PkCalibrationDebugReviewAction.EXCLUDE, resultId)
-        )
-        assertTrue(
-            viewModel.uiState.value.actionLog.last().effect.startsWith(
-                "FIXTURE_DISPOSITION:ACCEPTED->EXCLUDED;"
-            )
         )
         assertEquals(
             E2CalibrationDisposition.EXCLUDED,
             viewModel.uiState.value.reviewDispositionByResultId[resultId],
         )
+        assertEquals(setOf(resultId), bridge.fixture.value?.excludedResultIds)
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.REINCLUDE),
             viewModel.uiState.value.applicableActionCommands.map { it.action },
@@ -268,21 +192,34 @@ class PkCalibrationDebugViewModelTest {
         viewModel.performReviewAction(
             PkCalibrationDebugActionCommand(PkCalibrationDebugReviewAction.REINCLUDE, resultId)
         )
-        assertTrue(
-            viewModel.uiState.value.actionLog.last().effect.startsWith(
-                "FIXTURE_DISPOSITION:EXCLUDED->AUTO;"
-            )
-        )
         assertEquals(
             E2CalibrationDisposition.AUTO,
             viewModel.uiState.value.reviewDispositionByResultId[resultId],
         )
-        assertEquals(0, handlerCalls)
+        assertTrue(bridge.fixture.value?.excludedResultIds.orEmpty().isEmpty())
+    }
+
+    @Test
+    fun inapplicableReviewCommand_isRejectedWithoutMutatingState() {
+        val viewModel = viewModel()
+        viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
+        val before = viewModel.uiState.value
+
+        assertEquals(
+            PkCalibrationDebugDispatchResult.REJECTED_NOT_APPLICABLE,
+            viewModel.performReviewAction(
+                PkCalibrationDebugActionCommand(
+                    PkCalibrationDebugReviewAction.REINCLUDE,
+                    PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION),
+                )
+            ),
+        )
+        assertSame(before, viewModel.uiState.value)
     }
 
     @Test
     fun outlierToggle_keepsUiCommandsAlignedWithFittedEvidence() {
-        val viewModel = fixtureViewModel()
+        val viewModel = viewModel()
         val route = PkCalibrationRoute.GEL
         val resultId = PkCalibrationDebugFixtures.outlierId(route)
 
@@ -296,7 +233,8 @@ class PkCalibrationDebugViewModelTest {
         )
         assertEquals(
             setOf(resultId),
-            outlierState.routeRows.single { row -> row.route == route }
+            requireNotNull(outlierState.rawResult)
+                .routeResults.single { row -> row.route == route }
                 .unreviewedOutlierLabIds,
         )
 
@@ -304,490 +242,173 @@ class PkCalibrationDebugViewModelTest {
         val clearedState = viewModel.uiState.value
         assertNull(clearedState.scenario?.outlierRoute)
         assertTrue(
-            clearedState.routeRows.single { row -> row.route == route }
+            requireNotNull(clearedState.rawResult)
+                .routeResults.single { row -> row.route == route }
                 .unreviewedOutlierLabIds.isEmpty()
         )
         assertFalse(resultId in clearedState.reviewDispositionByResultId)
         assertTrue(clearedState.applicableActionCommands.isEmpty())
-        assertEquals(
-            (1L..clearedState.actionLog.size.toLong()).toList(),
-            clearedState.actionLog.map { entry -> entry.sequence },
-        )
     }
 
     @Test
-    fun liveReview_callsHandler_refreshesLive_andLogsAppliedTransition() = runTest {
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-        )
-        val accepted = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-                .withFixtureDisposition(PkCalibrationDebugFixtureDisposition.ACCEPTED)
-        )
-        val source = RecordingSource(available(initial))
-        var handled: PkCalibrationDebugActionCommand? = null
-        val handler = PkCalibrationDebugReviewActionHandler { command ->
-            handled = command
-            PkCalibrationDebugReviewExecution.Completed(
-                PkCalibrationReviewActionResult.Applied(acceptedMetadata(resultId))
-            )
-        }
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = source,
-            reviewActionHandler = handler,
-            debugGate = enabled,
-        )
-        advanceUntilIdle()
-        source.liveResult = available(accepted)
-        val command = PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            resultId,
-        )
+    fun resetForcedState_publishesNull_andClearsTheHarness() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        val viewModel = viewModel(bridge = bridge)
+        viewModel.applyPreset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
+        assertTrue(viewModel.uiState.value.forcedStateActive)
 
-        assertEquals(PkCalibrationDebugDispatchResult.ACCEPTED, viewModel.performReviewAction(command))
-        advanceUntilIdle()
-
-        assertEquals(command, handled)
-        assertEquals(2, source.liveCalls)
-        assertEquals(
-            E2CalibrationDisposition.ACCEPTED,
-            viewModel.uiState.value.reviewDispositionByResultId[resultId],
-        )
-        assertFalse(viewModel.uiState.value.liveReviewActionInFlight)
-        assertTrue(viewModel.uiState.value.actionLog.any { it.effect == "COMMITTED:ACCEPTED" })
-    }
-
-    @Test
-    fun liveReview_isSingleFlight_blocksEveryTransition_andPreservesSequentialCommits() = runTest {
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-        )
-        val accepted = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-                .withFixtureDisposition(PkCalibrationDebugFixtureDisposition.ACCEPTED)
-        )
-        val excluded = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-                .withFixtureDisposition(PkCalibrationDebugFixtureDisposition.EXCLUDED)
-        )
-        val firstHandlerRelease = CompletableDeferred<Unit>()
-        val source = RecordingSource(available(initial))
-        var handlerCalls = 0
-        val handler = PkCalibrationDebugReviewActionHandler { command ->
-            handlerCalls += 1
-            if (handlerCalls == 1) firstHandlerRelease.await()
-            val disposition = when (command.action) {
-                PkCalibrationDebugReviewAction.KEEP -> E2CalibrationDisposition.ACCEPTED
-                PkCalibrationDebugReviewAction.EXCLUDE -> E2CalibrationDisposition.EXCLUDED
-                PkCalibrationDebugReviewAction.REINCLUDE -> E2CalibrationDisposition.AUTO
-            }
-            source.liveResult = available(
-                if (disposition == E2CalibrationDisposition.ACCEPTED) accepted else excluded
-            )
-            PkCalibrationDebugReviewExecution.Completed(
-                PkCalibrationReviewActionResult.Applied(metadata(resultId, disposition))
-            )
-        }
-        val viewModel = PkCalibrationDebugViewModel(source, handler, enabled)
-        advanceUntilIdle()
-        val keep = PkCalibrationDebugActionCommand(PkCalibrationDebugReviewAction.KEEP, resultId)
-
-        assertEquals(PkCalibrationDebugDispatchResult.ACCEPTED, viewModel.performReviewAction(keep))
-        runCurrent()
-        assertTrue(viewModel.uiState.value.liveReviewActionInFlight)
-        val rawBeforeRejectedTransitions = viewModel.uiState.value.rawResult
-        val rejectedTransitions = listOf(
-            viewModel.resetToLive(),
-            viewModel.refreshLive(),
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-            viewModel.selectGlobalState(PkCalibrationGlobalState.SHARED_INPUT_INVALID),
-            viewModel.selectRouteState(
-                PkCalibrationRoute.PATCH,
-                PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-            ),
-            viewModel.setRouteRenderFallback(PkCalibrationRoute.INJECTION),
-            viewModel.setBandUnavailable(true),
-            viewModel.setCentralUnavailable(true),
-            viewModel.setOutlierRoute(PkCalibrationRoute.ORAL),
-            viewModel.setNonPositiveInput(true),
-            viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.PATCH),
-            viewModel.performReviewAction(keep),
-        )
-
-        assertTrue(rejectedTransitions.all {
-            it == PkCalibrationDebugDispatchResult.REJECTED_LIVE_REVIEW_IN_FLIGHT
-        })
-        assertSame(rawBeforeRejectedTransitions, viewModel.uiState.value.rawResult)
-        assertEquals(PkCalibrationDebugMode.LIVE, viewModel.uiState.value.mode)
-        assertEquals(1, handlerCalls)
-        assertEquals(1, source.liveCalls)
-        assertEquals(0, source.fixtureCalls)
-
-        firstHandlerRelease.complete(Unit)
-        advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.liveReviewActionInFlight)
-        assertEquals(E2CalibrationDisposition.ACCEPTED,
-            viewModel.uiState.value.reviewDispositionByResultId[resultId])
-
-        val exclude = PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.EXCLUDE,
-            resultId,
-        )
         assertEquals(
             PkCalibrationDebugDispatchResult.ACCEPTED,
-            viewModel.performReviewAction(exclude),
+            viewModel.resetForcedState(),
         )
-        advanceUntilIdle()
 
-        assertEquals(2, handlerCalls)
-        assertEquals(3, source.liveCalls)
+        assertNull(bridge.fixture.value)
+        val state = viewModel.uiState.value
+        assertFalse(state.forcedStateActive)
+        assertNull(state.scenario)
+        assertNull(state.rawResult)
+        assertNull(state.rawRender)
+        assertTrue(state.applicableActionCommands.isEmpty())
+    }
+
+    @Test
+    fun freshViewModel_restoresTheForcedScenarioPublishedByAPredecessor() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        val first = viewModel(bridge = bridge)
+        first.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
+        first.performReviewAction(
+            PkCalibrationDebugActionCommand(
+                PkCalibrationDebugReviewAction.EXCLUDE,
+                PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION),
+            )
+        )
+        val published = requireNotNull(bridge.fixture.value)
+
+        // Simulates navigating away (ViewModel cleared) and re-entering the harness.
+        val second = viewModel(bridge = bridge)
+
+        val restored = second.uiState.value
+        assertEquals(published.scenario, restored.scenario)
+        assertEquals(published.result, restored.rawResult)
         assertEquals(
-            listOf("COMMITTED:ACCEPTED", "COMMITTED:EXCLUDED"),
-            viewModel.uiState.value.actionLog
-                .map { it.effect }
-                .filter { it.startsWith("COMMITTED:") },
+            published.excludedResultIds,
+            restored.reviewDispositionByResultId
+                .filterValues { it == E2CalibrationDisposition.EXCLUDED }
+                .keys,
         )
+        assertEquals(published, bridge.fixture.value)
     }
 
     @Test
-    fun modeSnapshotBoundaryMismatch_failsClosedAndExposesNoRealActions() = runTest {
-        val fixture = fixtureSource.loadFixture(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-        ).availableSnapshot()
-        val invalidLiveSnapshots = listOf(
-            fixture,
-            fixture.copy(kind = PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION),
-        )
-        invalidLiveSnapshots.forEach { invalidSnapshot ->
-            val viewModel = PkCalibrationDebugViewModel(
-                scenarioSource = RecordingSource(available(invalidSnapshot)),
-                debugGate = enabled,
-            )
-            advanceUntilIdle()
+    fun sourceFailures_keepTheLastGoodForcedState_andSurfaceTheFailure() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        val source = SwitchableSource()
+        val viewModel = viewModel(source = source, bridge = bridge)
+        viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
+        val goodState = viewModel.uiState.value
+        val goodFixture = bridge.fixture.value
 
-            assertEquals(PkCalibrationDebugMode.LIVE, viewModel.uiState.value.mode)
-            assertEquals(PkCalibrationDebugLoadState.UNAVAILABLE, viewModel.uiState.value.loadState)
-            assertEquals(
-                PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH,
-                viewModel.uiState.value.sourceUnavailableReason,
-            )
-            assertNull(viewModel.uiState.value.rawResult)
-            assertTrue(viewModel.uiState.value.applicableActionCommands.isEmpty())
-        }
-
-        val invalidFixtureSnapshots = listOf(
-            fixture.copy(
-                kind = PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION,
-                scenario = null,
-            ),
-            fixture.copy(scenario = null),
-        )
-        invalidFixtureSnapshots.forEach { invalidSnapshot ->
-            val source = object : PkCalibrationDebugScenarioSource {
-                override suspend fun loadLive() = available(liveSnapshot(
-                    PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
-                ))
-
-                override fun loadFixture(scenario: PkCalibrationDebugScenario) =
-                    available(invalidSnapshot)
-            }
-            val viewModel = PkCalibrationDebugViewModel(
-                scenarioSource = source,
-                debugGate = enabled,
-                autoLoadLive = false,
-            )
-
-            assertEquals(
-                PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH,
-                viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT),
-            )
-            assertEquals(PkCalibrationDebugMode.FIXTURE, viewModel.uiState.value.mode)
-            assertEquals(PkCalibrationDebugLoadState.UNAVAILABLE, viewModel.uiState.value.loadState)
-            assertNull(viewModel.uiState.value.rawResult)
-            assertTrue(viewModel.uiState.value.applicableActionCommands.isEmpty())
-        }
-    }
-
-    @Test
-    fun sourceAndHandlerExceptions_failClosed_withoutLeavingLoadingOrBusyState() = runTest {
-        val throwingLiveSource = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult =
-                throw IllegalStateException("live source failure")
-
-            override fun loadFixture(scenario: PkCalibrationDebugScenario) =
-                fixtureSource.loadFixture(scenario)
-        }
-        val liveFailureViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = throwingLiveSource,
-            debugGate = enabled,
-        )
-        advanceUntilIdle()
-        assertEquals(PkCalibrationDebugLoadState.UNAVAILABLE,
-            liveFailureViewModel.uiState.value.loadState)
-        assertEquals(PkCalibrationDebugSourceUnavailableReason.SOURCE_EXCEPTION,
-            liveFailureViewModel.uiState.value.sourceUnavailableReason)
-        assertEquals("UNAVAILABLE:SOURCE_EXCEPTION",
-            liveFailureViewModel.uiState.value.actionLog.last().effect)
-
-        val throwingFixtureSource = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive() = PkCalibrationDebugSourceResult.Unavailable(
-                PkCalibrationDebugSourceUnavailableReason.LIVE_EVALUATION_UNAVAILABLE
-            )
-
-            override fun loadFixture(scenario: PkCalibrationDebugScenario):
-                PkCalibrationDebugSourceResult = throw IllegalArgumentException("fixture failure")
-        }
-        val fixtureFailureViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = throwingFixtureSource,
-            debugGate = enabled,
-            autoLoadLive = false,
-        )
+        source.throwing = IllegalStateException("fixture failure")
         assertEquals(
             PkCalibrationDebugDispatchResult.REJECTED_SOURCE_EXCEPTION,
-            fixtureFailureViewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
         )
-        assertEquals(PkCalibrationDebugLoadState.UNAVAILABLE,
-            fixtureFailureViewModel.uiState.value.loadState)
-        assertTrue(fixtureFailureViewModel.uiState.value.applicableActionCommands.isEmpty())
-
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
+        assertEquals(
+            PkCalibrationDebugSourceUnavailableReason.SOURCE_EXCEPTION,
+            viewModel.uiState.value.loadFailure,
         )
-        val handlerFailureViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = RecordingSource(available(initial)),
-            reviewActionHandler = PkCalibrationDebugReviewActionHandler {
-                throw IllegalStateException("handler failure")
-            },
-            debugGate = enabled,
+        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
+        assertSame(goodFixture, bridge.fixture.value)
+
+        source.throwing = null
+        source.override = PkCalibrationDebugSourceResult.Unavailable(
+            PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH
         )
-        advanceUntilIdle()
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-        handlerFailureViewModel.performReviewAction(PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            resultId,
-        ))
-        advanceUntilIdle()
-        assertFalse(handlerFailureViewModel.uiState.value.liveReviewActionInFlight)
-        assertEquals(PkCalibrationDebugLoadState.AVAILABLE,
-            handlerFailureViewModel.uiState.value.loadState)
-        assertEquals("REJECTED:HANDLER_EXCEPTION",
-            handlerFailureViewModel.uiState.value.actionLog.last().effect)
-    }
-
-    @Test
-    fun committedReviewIsLoggedEvenWhenPostCommitRefetchThrows() = runTest {
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
+        assertEquals(
+            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_UNAVAILABLE,
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
         )
-        var liveCalls = 0
-        val source = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult {
-                liveCalls += 1
-                if (liveCalls == 1) return available(initial)
-                throw IllegalStateException("post-commit refetch failed")
-            }
-
-            override fun loadFixture(scenario: PkCalibrationDebugScenario) =
-                fixtureSource.loadFixture(scenario)
-        }
-        val handler = PkCalibrationDebugReviewActionHandler {
-            PkCalibrationDebugReviewExecution.Completed(
-                PkCalibrationReviewActionResult.Applied(
-                    metadata(resultId, E2CalibrationDisposition.ACCEPTED)
-                )
-            )
-        }
-        val viewModel = PkCalibrationDebugViewModel(source, handler, enabled)
-        advanceUntilIdle()
-
-        viewModel.performReviewAction(PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            resultId,
-        ))
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.liveReviewActionInFlight)
-        assertEquals(PkCalibrationDebugLoadState.UNAVAILABLE, viewModel.uiState.value.loadState)
-        assertTrue(viewModel.uiState.value.actionLog.any { it.effect == "COMMITTED:ACCEPTED" })
-        assertEquals("UNAVAILABLE:SOURCE_EXCEPTION", viewModel.uiState.value.actionLog.last().effect)
-    }
-
-    @Test
-    fun postCommitRefetchCancellation_rethrowsAndClearsStaleActionRouting() = runTest {
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
+        assertEquals(
+            PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH,
+            viewModel.uiState.value.loadFailure,
         )
-        var liveCalls = 0
-        val source = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult {
-                liveCalls += 1
-                if (liveCalls == 1) return available(initial)
-                throw CancellationException("cancel post-commit refetch")
-            }
+        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
 
-            override fun loadFixture(scenario: PkCalibrationDebugScenario) =
-                fixtureSource.loadFixture(scenario)
-        }
-        val handler = PkCalibrationDebugReviewActionHandler {
-            PkCalibrationDebugReviewExecution.Completed(
-                PkCalibrationReviewActionResult.Applied(
-                    metadata(resultId, E2CalibrationDisposition.ACCEPTED)
-                )
-            )
-        }
-        val viewModel = PkCalibrationDebugViewModel(source, handler, enabled)
-        advanceUntilIdle()
-
-        viewModel.performReviewAction(PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            resultId,
-        ))
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.liveReviewActionInFlight)
-        assertEquals(PkCalibrationDebugLoadState.IDLE, viewModel.uiState.value.loadState)
-        assertNull(viewModel.uiState.value.rawResult)
-        assertTrue(viewModel.uiState.value.applicableActionCommands.isEmpty())
-        assertTrue(viewModel.uiState.value.actionLog.any { it.effect == "COMMITTED:ACCEPTED" })
-        assertFalse(viewModel.uiState.value.actionLog.any {
-            it.effect == "UNAVAILABLE:SOURCE_EXCEPTION"
-        })
-    }
-
-    @Test
-    fun cancellation_isRethrownWithoutBeingMisclassifiedAsAnOrdinaryFailure() = runTest {
-        val cancellingSource = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult =
-                throw CancellationException("cancel live")
-
-            override fun loadFixture(scenario: PkCalibrationDebugScenario):
-                PkCalibrationDebugSourceResult = throw CancellationException("cancel fixture")
-        }
-        val liveViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = cancellingSource,
-            debugGate = enabled,
-        )
-        advanceUntilIdle()
-        assertEquals(PkCalibrationDebugLoadState.IDLE, liveViewModel.uiState.value.loadState)
-        assertTrue(liveViewModel.uiState.value.actionLog.isEmpty())
-
-        val fixtureViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = cancellingSource,
-            debugGate = enabled,
-            autoLoadLive = false,
-        )
-        assertThrows(CancellationException::class.java) {
-            fixtureViewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY)
-        }
-        assertEquals(PkCalibrationDebugLoadState.IDLE, fixtureViewModel.uiState.value.loadState)
-        assertTrue(fixtureViewModel.uiState.value.actionLog.isEmpty())
-
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-        )
-        val handlerViewModel = PkCalibrationDebugViewModel(
-            scenarioSource = RecordingSource(available(initial)),
-            reviewActionHandler = PkCalibrationDebugReviewActionHandler {
-                throw CancellationException("cancel handler")
-            },
-            debugGate = enabled,
-        )
-        advanceUntilIdle()
-        val logSizeBefore = handlerViewModel.uiState.value.actionLog.size
-        handlerViewModel.performReviewAction(PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION),
-        ))
-        advanceUntilIdle()
-        assertFalse(handlerViewModel.uiState.value.liveReviewActionInFlight)
-        assertEquals(logSizeBefore, handlerViewModel.uiState.value.actionLog.size)
-    }
-
-    @Test
-    fun fixtureSelectionInvalidatesAnInFlightLiveLoad() = runTest {
-        val deferredLive = CompletableDeferred<PkCalibrationDebugSourceResult>()
-        val source = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult = deferredLive.await()
-            override fun loadFixture(
-                scenario: PkCalibrationDebugScenario,
-            ): PkCalibrationDebugSourceResult = fixtureSource.loadFixture(scenario)
-        }
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = source,
-            debugGate = enabled,
-        )
-        advanceUntilIdle()
-        viewModel.applyPreset(PkCalibrationDebugPreset.ORAL_OUT_OF_RANGE)
-        val fixtureState = viewModel.uiState.value
-
-        deferredLive.complete(available(liveSnapshot(PkCalibrationDebugScenario.preset(
-            PkCalibrationDebugPreset.INJECTION_CALIBRATED
-        ))))
-        advanceUntilIdle()
-
-        assertEquals(PkCalibrationDebugMode.FIXTURE, viewModel.uiState.value.mode)
-        assertEquals(fixtureState.rawResult, viewModel.uiState.value.rawResult)
-        assertEquals(fixtureState.actionLog, viewModel.uiState.value.actionLog)
-    }
-
-    @Test
-    fun resetReturnsToLive_withoutClearingAppendOnlyCauseEffectLog() = runTest {
-        val source = RecordingSource(available(liveSnapshot(
+        val scenarioLessSnapshot = (fixtureSource.loadFixture(
             PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
-        )))
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = source,
-            debugGate = enabled,
-            autoLoadLive = false,
+        ) as PkCalibrationDebugSourceResult.Available).snapshot.copy(scenario = null)
+        source.override = PkCalibrationDebugSourceResult.Available(scenarioLessSnapshot)
+        assertEquals(
+            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH,
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
         )
-        viewModel.applyPreset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
-        viewModel.setBandUnavailable(true)
-        val beforeReset = viewModel.uiState.value.actionLog
+        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
 
-        assertEquals(PkCalibrationDebugDispatchResult.ACCEPTED, viewModel.resetToLive())
-        advanceUntilIdle()
-
-        val log = viewModel.uiState.value.actionLog
-        assertEquals(beforeReset, log.take(beforeReset.size))
-        assertEquals((1L..log.size.toLong()).toList(), log.map { it.sequence })
-        assertEquals("RESET_TO_LIVE", log.last().cause)
-        assertEquals(PkCalibrationDebugMode.LIVE, viewModel.uiState.value.mode)
-        assertNull(viewModel.uiState.value.scenario)
+        // Recovery clears the surfaced failure.
+        source.override = null
+        assertEquals(
+            PkCalibrationDebugDispatchResult.ACCEPTED,
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
+        )
+        assertNull(viewModel.uiState.value.loadFailure)
     }
 
     @Test
-    fun releaseViewModelHandlers_areNoOpsAndRejectBeforeAnySourceOrActionCall() = runTest {
-        var sourceCalls = 0
-        var actionCalls = 0
-        val source = object : PkCalibrationDebugScenarioSource {
-            override suspend fun loadLive(): PkCalibrationDebugSourceResult {
-                sourceCalls += 1
-                return PkCalibrationDebugSourceResult.DebugDisabled
-            }
+    fun sourceDebugDisabled_disablesTheHarness() {
+        val source = SwitchableSource()
+        val viewModel = viewModel(source = source)
+        source.override = PkCalibrationDebugSourceResult.DebugDisabled
 
-            override fun loadFixture(
-                scenario: PkCalibrationDebugScenario,
-            ): PkCalibrationDebugSourceResult {
-                sourceCalls += 1
-                return PkCalibrationDebugSourceResult.DebugDisabled
+        assertEquals(
+            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_DISABLED,
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
+        )
+        assertFalse(viewModel.uiState.value.debugEnabled)
+    }
+
+    @Test
+    fun cancellation_isRethrownWithoutBeingMisclassifiedAsAnOrdinaryFailure() {
+        val source = SwitchableSource()
+        val viewModel = viewModel(source = source)
+        source.throwing = CancellationException("cancel fixture")
+
+        assertThrows(CancellationException::class.java) {
+            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY)
+        }
+        assertNull(viewModel.uiState.value.loadFailure)
+        assertFalse(viewModel.uiState.value.forcedStateActive)
+    }
+
+    @Test
+    fun releaseGate_rejectsEveryEventBeforeTouchingSourceOrBridge() {
+        val bridge = PkCalibrationUiFixtureBridge()
+        // A forced state left behind by a debug session must survive a disabled gate.
+        bridge.publish(
+            (fixtureSource.loadFixture(
+                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
+            ) as PkCalibrationDebugSourceResult.Available).snapshot.let { snapshot ->
+                PkCalibrationUiFixture(
+                    result = snapshot.result,
+                    render = snapshot.render,
+                    excludedResultIds = emptySet(),
+                    scenario = snapshot.scenario,
+                )
             }
+        )
+        val fixtureBefore = bridge.fixture.value
+        var sourceCalls = 0
+        val source = PkCalibrationDebugScenarioSource { scenario ->
+            sourceCalls += 1
+            fixtureSource.loadFixture(scenario)
         }
         val viewModel = PkCalibrationDebugViewModel(
             scenarioSource = source,
-            reviewActionHandler = PkCalibrationDebugReviewActionHandler {
-                actionCalls += 1
-                PkCalibrationDebugReviewExecution.DebugDisabled
-            },
             debugGate = PkCalibrationDebugGate { false },
+            uiFixtureBridge = bridge,
         )
-        val resultId = UUID(1L, 1L)
+
         val results = listOf(
-            viewModel.resetToLive(),
-            viewModel.refreshLive(),
+            viewModel.resetForcedState(),
             viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
             viewModel.selectGlobalState(PkCalibrationGlobalState.READY),
             viewModel.selectRouteState(
@@ -800,162 +421,41 @@ class PkCalibrationDebugViewModelTest {
             viewModel.setOutlierRoute(PkCalibrationRoute.INJECTION),
             viewModel.setNonPositiveInput(true),
             viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.INJECTION),
-            viewModel.performReviewAction(PkCalibrationDebugActionCommand(
-                PkCalibrationDebugReviewAction.EXCLUDE,
-                resultId,
-            )),
+            viewModel.performReviewAction(
+                PkCalibrationDebugActionCommand(
+                    PkCalibrationDebugReviewAction.EXCLUDE,
+                    UUID(1L, 1L),
+                )
+            ),
         )
-        advanceUntilIdle()
 
         assertTrue(results.all {
             it == PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
         })
         assertEquals(0, sourceCalls)
-        assertEquals(0, actionCalls)
         assertFalse(viewModel.uiState.value.debugEnabled)
-        assertEquals(PkCalibrationDebugLoadState.DEBUG_DISABLED, viewModel.uiState.value.loadState)
-        assertTrue(viewModel.uiState.value.actionLog.isEmpty())
+        assertNull(viewModel.uiState.value.scenario)
+        assertSame(fixtureBefore, bridge.fixture.value)
     }
 
-    @Test
-    fun guardedServiceHandler_rejectsReleaseBeforeCallingService() = runTest {
-        val service = mockk<PkCalibrationReviewActionService>()
-        val handler = GuardedPkCalibrationDebugReviewActionHandler(
-            service = service,
-            debugGate = PkCalibrationDebugGate { false },
-        )
-        val command = PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            UUID(2L, 2L),
-        )
+    private fun viewModel(
+        source: PkCalibrationDebugScenarioSource = fixtureSource,
+        bridge: PkCalibrationUiFixtureBridge = PkCalibrationUiFixtureBridge(),
+    ): PkCalibrationDebugViewModel = PkCalibrationDebugViewModel(
+        scenarioSource = source,
+        debugGate = enabled,
+        uiFixtureBridge = bridge,
+    )
 
-        assertSame(PkCalibrationDebugReviewExecution.DebugDisabled, handler.execute(command))
-        coVerify(exactly = 0) { service.keepForAdjustment(any()) }
-        coVerify(exactly = 0) { service.exclude(any()) }
-        coVerify(exactly = 0) { service.reinclude(any()) }
-    }
-
-    @Test
-    fun inapplicableAndRejectedLiveActions_areVisibleInTheActionLog() = runTest {
-        val initial = liveSnapshot(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
-        )
-        val source = RecordingSource(available(initial))
-        val handler = PkCalibrationDebugReviewActionHandler {
-            PkCalibrationDebugReviewExecution.Completed(
-                PkCalibrationReviewActionResult.Rejected(
-                    PkCalibrationReviewActionRejection.NOT_CURRENT_UNREVIEWED_OUTLIER
-                )
-            )
-        }
-        val viewModel = PkCalibrationDebugViewModel(source, handler, enabled)
-        advanceUntilIdle()
-        val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
-
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_NOT_APPLICABLE,
-            viewModel.performReviewAction(PkCalibrationDebugActionCommand(
-                PkCalibrationDebugReviewAction.REINCLUDE,
-                resultId,
-            )),
-        )
-        assertEquals("REJECTED:NOT_APPLICABLE", viewModel.uiState.value.actionLog.last().effect)
-
-        viewModel.performReviewAction(PkCalibrationDebugActionCommand(
-            PkCalibrationDebugReviewAction.KEEP,
-            resultId,
-        ))
-        advanceUntilIdle()
-        assertEquals(
-            "REJECTED:NOT_CURRENT_UNREVIEWED_OUTLIER",
-            viewModel.uiState.value.actionLog.last().effect,
-        )
-    }
-
-    private fun fixtureViewModel(): PkCalibrationDebugViewModel =
-        PkCalibrationDebugViewModel(
-            scenarioSource = fixtureSource,
-            debugGate = enabled,
-            autoLoadLive = false,
-        )
-
-    private fun liveSnapshot(scenario: PkCalibrationDebugScenario): PkCalibrationDebugSnapshot {
-        val fixture = fixtureSource.loadFixture(scenario).availableSnapshot()
-        return fixture.copy(
-            kind = PkCalibrationDebugSnapshotKind.LIVE_BOUND_EVALUATION,
-            scenario = null,
-        )
-    }
-
-    private fun acceptedMetadata(resultId: UUID): E2CalibrationMetadata =
-        metadata(resultId, E2CalibrationDisposition.ACCEPTED)
-
-    private fun metadata(
-        resultId: UUID,
-        disposition: E2CalibrationDisposition,
-    ): E2CalibrationMetadata {
-        val record = if (disposition == E2CalibrationDisposition.ACCEPTED) {
-            requireNotNull(PkCalibrationAcceptanceRecord.create(
-                calibrationModelVersion = "pk-calibration:test/v9",
-                sourceValueBits = "4059000000000000",
-                collectedAtEpochMillis = 600L,
-            ))
-        } else {
-            null
-        }
-        return requireNotNull(E2CalibrationMetadata.create(
-            resultId = resultId,
-            disposition = disposition,
-            acceptedRecord = record,
-            updatedAt = Instant.EPOCH,
-        ))
-    }
-
-    private fun available(
-        snapshot: PkCalibrationDebugSnapshot,
-    ): PkCalibrationDebugSourceResult = PkCalibrationDebugSourceResult.Available(snapshot)
-
-    private fun PkCalibrationDebugSourceResult.availableSnapshot(): PkCalibrationDebugSnapshot =
-        (this as PkCalibrationDebugSourceResult.Available).snapshot
-
-    private inner class RecordingSource(
-        var liveResult: PkCalibrationDebugSourceResult,
-    ) : PkCalibrationDebugScenarioSource {
-        var liveCalls: Int = 0
-            private set
-        var fixtureCalls: Int = 0
-            private set
-
-        override suspend fun loadLive(): PkCalibrationDebugSourceResult {
-            liveCalls += 1
-            return liveResult
-        }
+    private inner class SwitchableSource : PkCalibrationDebugScenarioSource {
+        var throwing: Exception? = null
+        var override: PkCalibrationDebugSourceResult? = null
 
         override fun loadFixture(
             scenario: PkCalibrationDebugScenario,
         ): PkCalibrationDebugSourceResult {
-            fixtureCalls += 1
-            return fixtureSource.loadFixture(scenario)
+            throwing?.let { throw it }
+            return override ?: fixtureSource.loadFixture(scenario)
         }
-    }
-
-    private inner class ObservableRecordingSource(
-        initial: PkCalibrationDebugSourceResult,
-    ) : PkCalibrationDebugScenarioSource {
-        val live = MutableStateFlow(initial)
-        var retryCalls: Int = 0
-            private set
-
-        override suspend fun loadLive(): PkCalibrationDebugSourceResult = live.value
-
-        override fun observeLive(): Flow<PkCalibrationDebugSourceResult> = live
-
-        override fun retryLive() {
-            retryCalls += 1
-        }
-
-        override fun loadFixture(
-            scenario: PkCalibrationDebugScenario,
-        ): PkCalibrationDebugSourceResult = fixtureSource.loadFixture(scenario)
     }
 }

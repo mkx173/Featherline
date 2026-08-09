@@ -14,19 +14,22 @@ import kotlinx.coroutines.flow.asStateFlow
  * Debug harness fixture, published for the real Home and Calibration screens
  * (Phase-2 plan D3/2.5): QA exercises every §14 state against the shipping
  * surfaces instead of a lookalike. Values are validated production contract
- * objects built by [PkCalibrationDebugFixtures].
+ * objects built by [PkCalibrationDebugFixtures]. [scenario] carries the picker
+ * state so a fresh harness ViewModel can replay the active forced state.
  */
 data class PkCalibrationUiFixture(
     val result: PkCalibrationResult,
     val render: PkCalibrationRenderResult?,
     val excludedResultIds: Set<UUID>,
+    val scenario: PkCalibrationDebugScenario? = null,
 )
 
 /**
  * Singleton bridge between the debug harness (writer) and the production
  * ViewModels (readers). Release builds never publish: writes are refused
  * outside debug, and the D2 surface gate keeps readers dark regardless. The
- * bridge dies together with `ui/pkcalibrationdebug` once §14 QA signs off.
+ * forced state survives navigation on purpose; the harness's reset control
+ * (publishing null) is the only deliberate clear besides process death.
  */
 @Singleton
 class PkCalibrationUiFixtureBridge @Inject constructor() {
