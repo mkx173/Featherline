@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.ui.calibration
 
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
+import com.mkx.hrttracker.model.bloodtest.BloodTestResult
+import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
@@ -12,6 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
+import java.util.UUID
 
 /**
  * Mapper-level assertions for every §14 state the status surface consumes.
@@ -139,6 +145,58 @@ class PkCalibrationUiStateTest {
         assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
         assertEquals(snapshot.result.promotedRoutes, uiState.effectivePromotedRoutes)
         assertEquals(PkCalibrationRenderState.POPULATION, uiState.renderState)
+    }
+
+    @Test
+    fun labRowFlags_flagOnlyEngineClassifiedInvalidNonpositiveLabs() {
+        // Phase-3 finding #4: the blocking footer keys off the engine's per-lab
+        // classification, never the raw canonical value — a nonpositive lab the
+        // engine left Unassigned (no-drug window) must not be flagged.
+        val scenario = PkCalibrationDebugScenario
+            .preset(PkCalibrationDebugPreset.POPULATION_ONLY)
+            .withNonPositiveInput(true)
+        val snapshot = PkCalibrationDebugFixtures.build(scenario)
+        val uiState = pkCalibrationUiState(snapshot.result, snapshot.render)
+        val blockingId = PkCalibrationDebugFixtures.nonPositiveLabId()
+        assertEquals(setOf(blockingId), uiState.invalidNonpositiveLabIds)
+
+        val blockingPanel = panel(resultId = blockingId, canonicalValue = 0.0)
+        val unassignedPanel = panel(resultId = UUID.randomUUID(), canonicalValue = 0.0)
+        val flags = pkCalibrationLabRowFlags(
+            state = PkCalibrationScreenState(ui = uiState, excludedResultIds = emptySet()),
+            panels = listOf(blockingPanel, unassignedPanel),
+        )
+
+        assertEquals(
+            mapOf<UUID, PkCalibrationLabRowFlag>(
+                blockingPanel.uuid to PkCalibrationLabRowFlag.InvalidNonPositive(blockingId),
+            ),
+            flags,
+        )
+    }
+
+    private fun panel(resultId: UUID, canonicalValue: Double): BloodTestPanel {
+        return BloodTestPanel(
+            uuid = UUID.randomUUID(),
+            collectedAt = Instant.EPOCH,
+            collectedAtTimeZoneId = "UTC",
+            notes = null,
+            timeSinceLastEstradiolDoseMillis = null,
+            timeSinceLastTestosteroneDoseMillis = null,
+            results = listOf(
+                BloodTestResult(
+                    uuid = resultId,
+                    createdAt = Instant.EPOCH,
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
+                    value = canonicalValue,
+                    unitSnapshot = "pg/mL",
+                    canonicalValue = canonicalValue,
+                ),
+            ),
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+        )
     }
 
     @Test

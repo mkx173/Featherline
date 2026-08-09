@@ -597,6 +597,8 @@ data class PkCalibrationResult private constructor(
     val promotedRoutes: List<PkCalibrationRoute>,
     val displayParams: PkPersonalParams,
     val promotedBetaCovariance: PkCalibrationPromotedCovariance?,
+    /** Labs the engine classified invalid-nonpositive; only these block all routes. */
+    val invalidNonpositiveLabIds: Set<UUID>,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
 ) {
@@ -608,10 +610,17 @@ data class PkCalibrationResult private constructor(
             promotedRoutes: List<PkCalibrationRoute> = emptyList(),
             displayParams: PkPersonalParams = PkPersonalParams.population(),
             promotedBetaCovariance: PkCalibrationPromotedCovariance? = null,
+            invalidNonpositiveLabIds: Set<UUID> = emptySet(),
             forwardModelVersion: String,
             calibrationModelVersion: String,
         ): PkCalibrationResult? {
             if (forwardModelVersion.isBlank() || calibrationModelVersion.isBlank()) return null
+            if (invalidNonpositiveLabIds.isNotEmpty() &&
+                (globalState != PkCalibrationGlobalState.SHARED_INPUT_INVALID ||
+                    PkCalibrationReason.INVALID_NONPOSITIVE_E2 !in globalReasons)
+            ) {
+                return null
+            }
             if (globalState != PkCalibrationGlobalState.READY) {
                 if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
                 if (displayParams != PkPersonalParams.population()) return null
@@ -658,6 +667,7 @@ data class PkCalibrationResult private constructor(
                 promotedRoutes = immutableList(promotedRoutes),
                 displayParams = displayParams,
                 promotedBetaCovariance = promotedBetaCovariance,
+                invalidNonpositiveLabIds = immutableSet(invalidNonpositiveLabIds),
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )

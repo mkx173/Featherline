@@ -427,6 +427,8 @@ internal object PkCalibrationDebugFixtures {
         },
     )
 
+    fun nonPositiveLabId(): UUID = UUID(0x44454255474c4142L, 6L)
+
     private fun buildResult(scenario: PkCalibrationDebugScenario): PkCalibrationResult {
         val globalState = if (scenario.nonPositiveInput) {
             PkCalibrationGlobalState.SHARED_INPUT_INVALID
@@ -445,6 +447,11 @@ internal object PkCalibrationDebugFixtures {
             return requireNotNull(PkCalibrationResult.create(
                 globalState = globalState,
                 globalReasons = setOf(reason),
+                invalidNonpositiveLabIds = if (scenario.nonPositiveInput) {
+                    setOf(nonPositiveLabId())
+                } else {
+                    emptySet()
+                },
                 forwardModelVersion = DebugForwardModelVersion,
                 calibrationModelVersion = DebugCalibrationModelVersion,
             ))

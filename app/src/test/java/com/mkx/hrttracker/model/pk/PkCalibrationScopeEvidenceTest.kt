@@ -676,6 +676,35 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
+    fun invalidNonpositiveFailureCarriesOnlyDrugWindowLabIds() {
+        // Phase-3 finding #4: a nonpositive lab drawn before any dose is
+        // Unassigned and blocks nothing; only the drug-window lab may be
+        // surfaced as blocking on the failure result.
+        val blocking = lab(resultId = uuid(1), sourceValue = 0.0, canonicalValuePgml = 0.0)
+        val preDose = lab(
+            resultId = uuid(2),
+            collectedAtEpochMillis = OriginMillis - 8 * HourMillis,
+            sourceValue = 0.0,
+            canonicalValuePgml = 0.0,
+        )
+        val fixture = fixture(labs = listOf(blocking, preDose))
+
+        val failed = fixture.build() as PkCalibrationEvidenceBuildResult.Failed
+        assertEquals(PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2, failed.failure)
+        assertEquals(setOf(blocking.resultId), failed.invalidNonpositiveLabIds)
+
+        val result = PkCalibrationEngine.compute(
+            input = fixture.input(),
+            metadata = emptyList(),
+            identityPolicy = fixture.policy,
+            config = fixture.config,
+            attestationProvider = fixture.attestationProvider,
+        )
+        assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, result.globalState)
+        assertEquals(setOf(blocking.resultId), result.invalidNonpositiveLabIds)
+    }
+
+    @Test
     fun mixedRouteObservationIsIncludedWithFullBreakdown() {
         // v10.0 §A10.1: no dominance rule — an even route split is included.
         val evenSplit = breakdown(

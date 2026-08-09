@@ -63,6 +63,8 @@ data class PkCalibrationUiState(
     val routeRows: List<PkCalibrationRouteRowUiState>,
     /** Routes driving the hero for the current render, canonical order. */
     val effectivePromotedRoutes: List<PkCalibrationRoute>,
+    /** Engine-classified invalid non-positive labs; only these block all routes. */
+    val invalidNonpositiveLabIds: Set<UUID>,
     val renderState: PkCalibrationRenderState,
     val bandState: PkCalibrationBandState,
     val routeRenderFallbacks: List<PkCalibrationRoute>,
@@ -94,8 +96,9 @@ sealed interface PkCalibrationLabRowFlag {
 
 /**
  * Derives the per-panel review footer, keyed by panel uuid. Explicit exclusion
- * wins (an excluded row blocks nothing); the invalid non-positive footer only
- * appears while the shared input actually blocks all routes.
+ * wins (an excluded row blocks nothing); the invalid non-positive footer comes
+ * from the engine's per-lab classification, so a non-positive value drawn in a
+ * no-drug window (engine-classified Unassigned) is never flagged as blocking.
  */
 fun pkCalibrationLabRowFlags(
     state: PkCalibrationScreenState,
@@ -107,9 +110,6 @@ fun pkCalibrationLabRowFlags(
             outlierRoutes.getOrPut(resultId) { mutableListOf() }.add(row.route)
         }
     }
-    val invalidActive = state.ui.globalState == PkCalibrationGlobalState.SHARED_INPUT_INVALID &&
-        PkCalibrationReason.INVALID_NONPOSITIVE_E2 in state.ui.globalReasons
-
     val flags = linkedMapOf<UUID, PkCalibrationLabRowFlag>()
     panels.forEach { panel ->
         val e2Result = panel.results.firstOrNull { result ->
@@ -120,7 +120,7 @@ fun pkCalibrationLabRowFlags(
             resultId in state.excludedResultIds ->
                 PkCalibrationLabRowFlag.Excluded(resultId)
 
-            invalidActive && e2Result.canonicalValue <= 0.0 ->
+            resultId in state.ui.invalidNonpositiveLabIds ->
                 PkCalibrationLabRowFlag.InvalidNonPositive(resultId)
 
             resultId in outlierRoutes ->
@@ -181,6 +181,7 @@ fun pkCalibrationUiState(
             )
         },
         effectivePromotedRoutes = effectivePromoted,
+        invalidNonpositiveLabIds = result.invalidNonpositiveLabIds,
         renderState = render?.renderState ?: PkCalibrationRenderState.POPULATION,
         bandState = render?.bandState ?: PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
         routeRenderFallbacks = render?.routeRenderFallbacks.orEmpty(),

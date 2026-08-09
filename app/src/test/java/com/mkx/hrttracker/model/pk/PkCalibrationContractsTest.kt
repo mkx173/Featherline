@@ -582,6 +582,51 @@ class PkCalibrationContractsTest {
     }
 
     @Test
+    fun calibrationResult_factoryBindsInvalidNonpositiveIdsToTheMatchingFailure() {
+        val labId = UUID.randomUUID()
+        assertNotNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                globalReasons = setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
+                invalidNonpositiveLabIds = setOf(labId),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        // The matching state without the matching reason cannot carry ids.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                globalReasons = setOf(PkCalibrationReason.SHARED_INPUT_INVALID),
+                invalidNonpositiveLabIds = setOf(labId),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        // Any other global state cannot carry ids, READY included.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+                globalReasons = setOf(PkCalibrationReason.SCOPE_NOT_CONFIRMED),
+                invalidNonpositiveLabIds = setOf(labId),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.READY,
+                routeResults = PkCalibrationRoute.entries.map { route ->
+                    requireNotNull(routeResult(route))
+                },
+                invalidNonpositiveLabIds = setOf(labId),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+    }
+
+    @Test
     fun promotedCovariance_factoryRequiresCanonicalRoutesSymmetryAndPositiveDiagonal() {
         val valid = requireNotNull(
             PkCalibrationPromotedCovariance.create(

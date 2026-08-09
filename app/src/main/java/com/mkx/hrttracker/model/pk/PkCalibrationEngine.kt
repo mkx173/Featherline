@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.pk
 
 import java.util.Collections
+import java.util.UUID
 
 /**
  * One explicit, immutable read of the semantic inputs consumed by calibration.
@@ -174,7 +175,12 @@ object PkCalibrationEngine {
                                 PkCalibrationReason.NUMERIC_FAILURE
                 }
                 PkCalibrationEngineEvaluation.notReady(
-                    failureResult(input, state, reason)
+                    failureResult(
+                        input,
+                        state,
+                        reason,
+                        invalidNonpositiveLabIds = evidence.invalidNonpositiveLabIds,
+                    )
                 )
             }
         }
@@ -184,11 +190,13 @@ object PkCalibrationEngine {
         input: PkCalibrationInputSnapshot,
         state: PkCalibrationGlobalState,
         reason: PkCalibrationReason,
+        invalidNonpositiveLabIds: Set<UUID> = emptySet(),
     ): PkCalibrationResult {
         return requireNotNull(
             PkCalibrationResult.create(
                 globalState = state,
                 globalReasons = setOf(reason),
+                invalidNonpositiveLabIds = invalidNonpositiveLabIds,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )

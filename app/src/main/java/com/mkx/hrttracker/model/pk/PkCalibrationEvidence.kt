@@ -210,8 +210,11 @@ sealed interface PkCalibrationEvidenceBuildResult {
     data class Ready(val pool: PkCalibrationEvidencePool) :
         PkCalibrationEvidenceBuildResult
 
-    data class Failed(val failure: PkCalibrationEvidenceFailure) :
-        PkCalibrationEvidenceBuildResult
+    data class Failed(
+        val failure: PkCalibrationEvidenceFailure,
+        /** Per-lab verdicts behind an [PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2] failure. */
+        val invalidNonpositiveLabIds: Set<UUID> = emptySet(),
+    ) : PkCalibrationEvidenceBuildResult
 }
 
 internal data class PkCalibrationValidatedScopeInput(
@@ -430,7 +433,15 @@ object PkCalibrationEvidenceAdapter {
         }
 
         if (hasInvalidNonpositiveE2) {
-            return failed(PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2)
+            return PkCalibrationEvidenceBuildResult.Failed(
+                failure = PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2,
+                invalidNonpositiveLabIds = immutableSet(
+                    classificationByResultId.filterValues { classification ->
+                        classification ==
+                            PkCalibrationObservationClassification.InvalidNonpositive
+                    }.keys
+                ),
+            )
         }
         if (hasSharedInputFailure) {
             return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
