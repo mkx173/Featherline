@@ -179,8 +179,12 @@ The `appwidget-provider` XML
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_large_info.xml))
 declares `resizeMode="horizontal|vertical"`. The large provider keeps its
 4×2 placement defaults in `minWidth` / `minHeight` and `targetCellWidth` /
-`targetCellHeight`, while `minResizeWidth` / `minResizeHeight` allow the
-launcher to resize it down to 3×2.
+`targetCellHeight`, while `minResizeWidth` / `minResizeHeight` set the
+3×2 floor; the medium provider's floor is its 2×2 default. Those floors
+are dp values the launcher divides by the device's real cell size, so
+they need measuring rather than deriving. Both providers ship a `-v31`
+variant that fully overrides the base file, so every size attribute must
+be edited in both — `WidgetProviderInfoResourceTest` pins each pair.
 
 At the 3×2 minimum the large header keeps its `Today · x/y done` label
 readable by measuring rather than by a width threshold:

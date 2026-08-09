@@ -68,10 +68,13 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 import androidx.glance.preview.Preview as GlancePreview
@@ -655,18 +658,29 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
 }
 
 // Launchers remain free to snap the outer frame to their own grid, but every options-change
-// event must be rendered at the exact reported dp size. Without this synchronous repaint,
-// some OEM launchers stretch the last RemoteViews throughout a resize gesture and only
-// Glance's background session is notified; that session can remain idle until the app next
-// draws a frame. Reusing the normal push path keeps the header fit check, text wrapping,
-// and row capacity responsive at each size the launcher actually exposes.
+// event must be rendered at the exact reported dp size. super's handling only notifies
+// Glance's background session, which is driven by the app's frame clock and can stall
+// while the launcher keeps stretching the last RemoteViews. Fire-and-forget on appScope,
+// NOT goAsync: GlanceAppWidgetReceiver's contract forbids overrides calling it (same
+// reasoning as cleanupAppearance below).
+private val doseWidgetResizePushQueued = AtomicBoolean(false)
+private val doseWidgetResizePushMutex = Mutex()
+
 private fun scheduleDoseWidgetResizeUpdate(context: Context) {
+    // A drag fires options-changed on every grid snap and each push re-renders every dose
+    // widget, so overlapping events collapse into one trailing push: it reads the options
+    // at compose time, so it paints the size the user settled on. Serializing also stops
+    // two pushes from racing to paint different sizes.
+    if (!doseWidgetResizePushQueued.compareAndSet(false, true)) return
     val applicationContext = context.applicationContext
     EntryPointAccessors.fromApplication(applicationContext, WidgetEntryPoint::class.java)
         .appScope()
         .launch {
-            runCatching { updateAllHrtWidgets(applicationContext) }
-                .onFailure { if (it is CancellationException) throw it }
+            doseWidgetResizePushMutex.withLock {
+                doseWidgetResizePushQueued.set(false)
+                runCatching { updateAllHrtWidgets(applicationContext) }
+                    .onFailure { if (it is CancellationException) throw it }
+            }
         }
 }
 
