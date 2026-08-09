@@ -69,14 +69,15 @@ class Migration9To10Test {
 
         // MigrationTestHelper validates the exported JSON. Reopening the same encrypted
         // file through Room additionally exercises Room's runtime identity-hash check
-        // with the SQLCipher factory used by production.
+        // with the SQLCipher factory used by production — which now also runs the
+        // 10→11 repair, so the asserts below observe the record-shape schema.
         val roomDatabase = Room.databaseBuilder(
             context,
             HrtTrackerDatabase::class.java,
             testDb,
         )
             .openHelperFactory(cipherFactory())
-            .addMigrations(MIGRATION_9_10)
+            .addMigrations(MIGRATION_9_10, MIGRATION_10_11)
             .allowMainThreadQueries()
             .build()
         migrationHelper.closeWhenFinished(roomDatabase)
