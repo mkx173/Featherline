@@ -301,27 +301,8 @@ class PkCalibrationSolverTest {
 
     @Test
     fun symmetricBimodalEvidence_flagsGlobalPosteriorModeAmbiguity() {
-        // At q^2 = 3 * nu * R_LOG, three observations in each symmetric
-        // cluster make beta=0 a local maximum with two finite side minima.
-        val q = sqrt(3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog)
-        val labs = (0 until 3).map { index ->
-            lab(10L + index, observed = 10.0 * exp(-q), injection = 10.0)
-        } + (0 until 3).map { index ->
-            lab(20L + index, observed = 10.0 * exp(q), injection = 10.0)
-        }
-        val result = solve(*labs.toTypedArray())
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        assertTrue(result.promotedRoutes.isEmpty())
-        assertNull(result.promotedBetaCovariance)
-        for (row in result.routeResults) {
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                row.displayState,
-            )
-            assertEquals(setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS), row.reasons)
-            assertNull(row.fittedBeta)
-        }
+        val labs = symmetricClusterLabs(baseId = 10, injection = 10.0)
+        assertGlobalAmbiguity(solve(*labs.toTypedArray()))
     }
 
     @Test
@@ -330,29 +311,9 @@ class PkCalibrationSolverTest {
         // two separate routes puts every joint mode at a point where both
         // coordinates are displaced; the pairwise (b_i*, b_j*) starts must
         // surface at least two of the four separable modes.
-        val q = sqrt(3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog)
-        val labs = (0 until 3).map { index ->
-            lab(10L + index, observed = 10.0 * exp(-q), injection = 10.0)
-        } + (0 until 3).map { index ->
-            lab(20L + index, observed = 10.0 * exp(q), injection = 10.0)
-        } + (0 until 3).map { index ->
-            lab(30L + index, observed = 10.0 * exp(-q), oral = 10.0)
-        } + (0 until 3).map { index ->
-            lab(40L + index, observed = 10.0 * exp(q), oral = 10.0)
-        }
-        val result = solve(*labs.toTypedArray())
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        assertTrue(result.promotedRoutes.isEmpty())
-        assertNull(result.promotedBetaCovariance)
-        for (row in result.routeResults) {
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                row.displayState,
-            )
-            assertEquals(setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS), row.reasons)
-            assertNull(row.fittedBeta)
-        }
+        val labs = symmetricClusterLabs(baseId = 10, injection = 10.0) +
+            symmetricClusterLabs(baseId = 30, oral = 10.0)
+        assertGlobalAmbiguity(solve(*labs.toTypedArray()))
     }
 
     @Test
@@ -361,17 +322,7 @@ class PkCalibrationSolverTest {
         // 1-D grid scan at its positive edge (halfWidth = 0.5625 for one lab)
         // must be a global numeric failure, never an unseeded search that
         // reports a confident fit.
-        val result = solve(lab(1, observed = 10.0, injection = 1.5e308))
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        assertTrue(result.promotedRoutes.isEmpty())
-        for (row in result.routeResults) {
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-                row.displayState,
-            )
-            assertEquals(setOf(PkCalibrationReason.NUMERIC_FAILURE), row.reasons)
-        }
+        assertGlobalNumericFailure(solve(lab(1, observed = 10.0, injection = 1.5e308)))
     }
 
     @Test
@@ -388,17 +339,7 @@ class PkCalibrationSolverTest {
                 )
             ),
         )
-        val result = requireNotNull(PkCalibrationSolver.solve(malformed))
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        assertTrue(result.promotedRoutes.isEmpty())
-        for (row in result.routeResults) {
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-                row.displayState,
-            )
-            assertEquals(setOf(PkCalibrationReason.NUMERIC_FAILURE), row.reasons)
-        }
+        assertGlobalNumericFailure(requireNotNull(PkCalibrationSolver.solve(malformed)))
     }
 
     // ------------------------------------------------------------------
@@ -700,6 +641,56 @@ class PkCalibrationSolverTest {
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    /**
+     * At q^2 = 3 * nu * R_LOG, three observations in each symmetric cluster
+     * make beta=0 a local maximum of the route's restricted objective with two
+     * finite side minima — the load-bearing bimodality construction shared by
+     * every ambiguity test.
+     */
+    private fun symmetricClusterLabs(
+        baseId: Long,
+        injection: Double = 0.0,
+        oral: Double = 0.0,
+    ): List<PkCalibrationLabEvidence> {
+        val q = sqrt(3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog)
+        return (0 until 3).map { index ->
+            lab(baseId + index, observed = 10.0 * exp(-q), injection = injection, oral = oral)
+        } + (0 until 3).map { index ->
+            lab(baseId + 10 + index, observed = 10.0 * exp(q), injection = injection, oral = oral)
+        }
+    }
+
+    private fun assertGlobalAmbiguity(result: PkCalibrationResult) {
+        assertGlobalPopulationFallback(
+            result,
+            PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+            PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
+        )
+    }
+
+    private fun assertGlobalNumericFailure(result: PkCalibrationResult) {
+        assertGlobalPopulationFallback(
+            result,
+            PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+            PkCalibrationReason.NUMERIC_FAILURE,
+        )
+    }
+
+    private fun assertGlobalPopulationFallback(
+        result: PkCalibrationResult,
+        expectedState: PkRouteCalibrationDisplayState,
+        expectedReason: PkCalibrationReason,
+    ) {
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isEmpty())
+        assertNull(result.promotedBetaCovariance)
+        for (row in result.routeResults) {
+            assertEquals(expectedState, row.displayState)
+            assertEquals(setOf(expectedReason), row.reasons)
+            assertNull(row.fittedBeta)
+        }
+    }
 
     private fun breakdownMap(
         injection: Double = 0.0,

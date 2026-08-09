@@ -409,6 +409,7 @@ class PkCalibrationReviewActionServiceTest {
                     }
                 },
                 clock = FixedClock,
+                defaultDispatcher = kotlinx.coroutines.Dispatchers.Unconfined,
             )
         }
 

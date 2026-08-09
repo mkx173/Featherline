@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
@@ -7,6 +8,8 @@ import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidator
 import com.mkx.hrttracker.model.pk.PkCalibrationValidatedScopeInput
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -48,18 +51,23 @@ class PkCalibrationReviewActionService @Inject constructor(
     private val storageRepository: PkCalibrationStorageRepository,
     private val currentContextProvider: PkCalibrationCurrentEvaluationContextProvider,
     private val clock: Clock,
+    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) {
     suspend fun keepForAdjustment(resultId: UUID): PkCalibrationReviewActionResult {
         val current = currentContext() ?: return rejected(
             PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE
         )
-        val evaluation = PkCalibrationEngine.evaluate(
-            input = current.input,
-            metadata = current.metadata,
-            identityPolicy = current.identityPolicy,
-            config = current.config,
-            attestationProvider = current.attestationProvider,
-        )
+        // The full multi-start solve is CPU work; callers launch from the UI
+        // scope, so it must never run on Main.
+        val evaluation = withContext(defaultDispatcher) {
+            PkCalibrationEngine.evaluate(
+                input = current.input,
+                metadata = current.metadata,
+                identityPolicy = current.identityPolicy,
+                config = current.config,
+                attestationProvider = current.attestationProvider,
+            )
+        }
         val evidence = evaluation.readyEvidence ?: return rejected(
             PkCalibrationReviewActionRejection.CALIBRATION_NOT_READY
         )

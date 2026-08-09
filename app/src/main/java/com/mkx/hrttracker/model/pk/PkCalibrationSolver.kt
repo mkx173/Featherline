@@ -241,15 +241,20 @@ internal sealed interface PkJointFitOutcome {
  * the §A1 grid + bisection restricted to that coordinate (others held at 0),
  * plus every pairwise combination (b_i*, b_j*) of those conditional minima for
  * each active route pair (Option A, 2026-08-09): axis-aligned starts alone
- * cannot reach a mode where two routes move together. Ceiling: a mode
- * requiring three or more routes to move jointly can still be missed — the
- * ambiguity gate is best-effort beyond pairwise coupling, an accepted
- * limitation. The 1-D search interval is the a-priori stationary bound
- * intersected with the [-20, 20] numeric guard; the guard itself applies to
- * the converged MAP, where it is a data-sanity check. Exactly one distinct
- * positive-definite minimum is required: none is numeric failure, two or more
- * is a global POSTERIOR_MODE_AMBIGUOUS. Failure granularity is deliberately
- * global — the safe direction is every route back at population.
+ * often miss the basin of a mode where two routes are jointly displaced.
+ * Ceiling: a mode requiring three or more routes to move jointly can still be
+ * missed — the ambiguity gate is best-effort beyond pairwise coupling, an
+ * accepted limitation. The 1-D search interval is the a-priori stationary
+ * bound intersected with the [-20, 20] numeric guard; the guard itself
+ * applies to the converged MAP, where it is a data-sanity check.
+ *
+ * Terminal outcomes: exactly one distinct positive-definite minimum is the
+ * MAP; none is numeric failure; two or more separated by over
+ * JOINT_MODE_DISTINCT_TOL is a global POSTERIOR_MODE_AMBIGUOUS; and two
+ * converged points inside the (JOINT_MODE_NUMERIC_TOL, JOINT_MODE_DISTINCT_TOL]
+ * band with materially different objective values are the dedup-failsafe
+ * numeric failure. Failure granularity is deliberately global — the safe
+ * direction is every route back at population.
  */
 internal object PkJointMapSolver {
     private const val MAX_LINE_SEARCH_HALVINGS = 60
@@ -261,35 +266,48 @@ internal object PkJointMapSolver {
         // Every 1-D conditional minimum seeds a start: a route whose
         // restricted objective is bimodal must surface both basins so the
         // joint search can flag POSTERIOR_MODE_AMBIGUOUS. A failed 1-D
-        // enumeration is a numeric failure, never an empty start list — an
+        // enumeration is a numeric failure, never an unseeded route — an
         // unseeded search would report whatever single basin it stumbles into
-        // as a confident fit.
-        val conditionalsByRoute = linkedMapOf<Int, List<Double>>()
-        for (routeIndex in objective.activeRouteIndices) {
-            conditionalsByRoute[routeIndex] = conditionalStartBetas(objective, routeIndex)
-                ?: return PkJointFitOutcome.NumericFailure
+        // as a confident fit. An EMPTY minima list gets the same treatment:
+        // the prior makes the restricted objective coercive, so no interior
+        // minimum means the scan window was clamped below the stationary
+        // bound (or the roots degenerated numerically) and the route's basins
+        // are unreachable.
+        val active = objective.activeRouteIndices
+        val conditionalsByPosition = ArrayList<List<Double>>(active.size)
+        for (routeIndex in active) {
+            val conditionals = conditionalStartBetas(objective, routeIndex)
+            if (conditionals.isNullOrEmpty()) return PkJointFitOutcome.NumericFailure
+            conditionalsByPosition += conditionals
         }
 
+        // Duplicate starts (a conditional minimum at ~0 reproduces an axis or
+        // zero start) would each burn a full redundant Newton polish.
         val starts = ArrayList<DoubleArray>()
-        starts += DoubleArray(objective.routeCount)
-        for ((routeIndex, conditionals) in conditionalsByRoute) {
-            for (conditional in conditionals) {
-                val start = DoubleArray(objective.routeCount)
-                start[routeIndex] = conditional
+        fun addStart(vararg entries: Pair<Int, Double>) {
+            val start = DoubleArray(objective.routeCount)
+            for ((routeIndex, beta) in entries) start[routeIndex] = beta
+            if (starts.none { existing ->
+                    supNormDifference(existing, start) <=
+                        PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL
+                }
+            ) {
                 starts += start
+            }
+        }
+        addStart()
+        for (position in active.indices) {
+            for (conditional in conditionalsByPosition[position]) {
+                addStart(active[position] to conditional)
             }
         }
         // Pairwise coupled starts: (b_i*, b_j*) for every active route pair
         // and every combination of their 1-D conditional minima.
-        val active = objective.activeRouteIndices
         for (first in active.indices) {
             for (second in first + 1 until active.size) {
-                for (firstBeta in conditionalsByRoute.getValue(active[first])) {
-                    for (secondBeta in conditionalsByRoute.getValue(active[second])) {
-                        val start = DoubleArray(objective.routeCount)
-                        start[active[first]] = firstBeta
-                        start[active[second]] = secondBeta
-                        starts += start
+                for (firstBeta in conditionalsByPosition[first]) {
+                    for (secondBeta in conditionalsByPosition[second]) {
+                        addStart(active[first] to firstBeta, active[second] to secondBeta)
                     }
                 }
             }
@@ -303,34 +321,45 @@ internal object PkJointMapSolver {
         }
         if (converged.isEmpty()) return PkJointFitOutcome.NumericFailure
 
+        // Deterministic clustering: candidates ordered by objective value then
+        // coordinates, so each cluster's representative is fixed as its
+        // best-valued member and the verdict cannot depend on start order.
+        val candidates = converged.sortedWith(
+            compareBy<Pair<DoubleArray, Double>>({ (_, value) -> value })
+                .thenComparator { (left, _), (right, _) -> compareBetas(left, right) }
+        )
         val minima = ArrayList<Pair<DoubleArray, Double>>()
-        for ((point, value) in converged) {
+        for ((point, value) in candidates) {
             val hessian = objective.hessian(point)
                 ?: return PkJointFitOutcome.NumericFailure
             if (choleskyOrNull(hessian) == null) continue
-            val existingIndex = minima.indexOfFirst { (existing, _) ->
-                supNormDifference(existing, point) <=
-                        PkCalibrationDefaults.JOINT_MODE_DISTINCT_TOL
+            var nearestIndex = -1
+            var nearestDifference = Double.POSITIVE_INFINITY
+            for (index in minima.indices) {
+                val difference = supNormDifference(minima[index].first, point)
+                if (difference < nearestDifference) {
+                    nearestDifference = difference
+                    nearestIndex = index
+                }
             }
-            if (existingIndex < 0) {
-                minima += point to value
-            } else {
-                // Dedup failsafe (Option A): two converged points separated by
-                // more than the numeric tolerance yet under the distinctness
-                // tolerance, with meaningfully different objective values, are
+            when {
+                nearestIndex < 0 ||
+                    nearestDifference > PkCalibrationDefaults.JOINT_MODE_DISTINCT_TOL ->
+                    minima += point to value
+
+                // Dedup failsafe (Option A): a point separated from its cluster
+                // by more than the numeric tolerance yet under the distinctness
+                // tolerance, with a materially worse objective value, is
                 // numerically inconsistent for a smooth objective — fail
-                // instead of silently merging a near-distinct mode.
-                val (existing, existingValue) = minima[existingIndex]
-                if (supNormDifference(existing, point) >
-                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL &&
-                    abs(value - existingValue) >
-                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL
-                ) {
+                // instead of silently merging a near-distinct mode. (Value
+                // ordering makes the representative the cluster's best, so the
+                // difference is never negative.)
+                nearestDifference > PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL &&
+                    value - minima[nearestIndex].second >
+                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL ->
                     return PkJointFitOutcome.NumericFailure
-                }
-                if (value < existingValue) {
-                    minima[existingIndex] = point to value
-                }
+
+                else -> Unit
             }
         }
         if (minima.isEmpty()) return PkJointFitOutcome.NumericFailure
@@ -409,7 +438,9 @@ internal object PkJointMapSolver {
                     beta = candidate
                     currentValue = candidateValue
                     accepted = true
-                    if (stepNorm <= PkCalibrationDefaults.JOINT_STEP_TOL) return beta
+                    if (stepNorm <= PkCalibrationDefaults.JOINT_STEP_TOL) {
+                        return beta.takeIf { point -> stepExitConverged(objective, point) }
+                    }
                     break
                 }
                 stepScale /= 2.0
@@ -418,7 +449,9 @@ internal object PkJointMapSolver {
                 // No descent along the damped direction: converged when the
                 // full step is already below tolerance, otherwise this start
                 // fails and another start must find the mode.
-                return if (supNorm(direction) <= PkCalibrationDefaults.JOINT_STEP_TOL) {
+                return if (supNorm(direction) <= PkCalibrationDefaults.JOINT_STEP_TOL &&
+                    stepExitConverged(objective, beta)
+                ) {
                     beta
                 } else {
                     null
@@ -515,6 +548,31 @@ internal object PkJointMapSolver {
             minima += root
         }
         return minima
+    }
+
+    /**
+     * A step-tolerance exit is only a convergence when the gradient is small
+     * enough that the point provably sits within the dedup failsafe's value
+     * tolerance of its basin minimum: |J - J*| <= g^2 / (2 * priorPrecision)
+     * ~= 5e-14 at g = [PkCalibrationDefaults.JOINT_STEP_EXIT_GRAD_TOL], so two
+     * step-exit points in one basin can never look like near-distinct modes.
+     * A stalled line search with a large gradient fails the start instead.
+     */
+    private fun stepExitConverged(
+        objective: PkJointStudentTObjective,
+        beta: DoubleArray,
+    ): Boolean {
+        val gradient = objective.gradient(beta) ?: return false
+        return supNorm(gradient) <= PkCalibrationDefaults.JOINT_STEP_EXIT_GRAD_TOL
+    }
+
+    /** Deterministic total order on converged points, independent of start order. */
+    private fun compareBetas(left: DoubleArray, right: DoubleArray): Int {
+        for (index in left.indices) {
+            val comparison = left[index].compareTo(right[index])
+            if (comparison != 0) return comparison
+        }
+        return 0
     }
 
     private fun choleskyOrNull(matrix: Array<DoubleArray>): CholeskyDecomposition? {

@@ -63,6 +63,16 @@ object PkCalibrationDefaults {
      */
     const val JOINT_MODE_NUMERIC_TOL = 1e-9
 
+    /**
+     * Gradient acceptance bound for a step-tolerance Newton exit (the primary
+     * exit requires [JOINT_GRAD_TOL]). At gradient g the objective sits at
+     * most g^2 * ROUTE_LOG_SCALE_PRIOR_SD^2 / 2 above its basin minimum
+     * (~5e-14 here), far below [JOINT_MODE_NUMERIC_TOL], so an accepted
+     * step-exit point can never trip the dedup failsafe against a properly
+     * converged point in the same basin.
+     */
+    const val JOINT_STEP_EXIT_GRAD_TOL = 1e-6
+
     const val BAND_GH_NODES = 16
     const val BAND_GH_REFINEMENT_NODES = 32
     const val BAND_ROOT_X_ABS_TOL = 1e-8
