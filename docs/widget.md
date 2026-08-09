@@ -145,9 +145,9 @@ hosts two `GlanceAppWidget` subclasses:
 - `HrtWidgetMedium` — `SizeMode.Exact`, targeting a 2×2 launcher cell.
   Renders a progress row over today's count and a next-dose /
   done-badge panel below.
-- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell,
-  with a scrollable `LazyColumn` of dose rows grouped under `Last
-  night` / `Today` / `Tonight` headers.
+- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell by
+  default and resizable down to 3×2, with a scrollable `LazyColumn` of
+  dose rows grouped under `Last night` / `Today` / `Tonight` headers.
 
 Each widget also declares a `previewSizeMode = SizeMode.Responsive(...)`
 that drives the launcher picker preview (via `providePreview`); the
@@ -177,16 +177,29 @@ live in
 The `appwidget-provider` XML
 ([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_medium_info.xml),
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/res/xml/hrt_widget_large_info.xml))
-declares `resizeMode="horizontal|vertical"` plus a `minWidth` /
-`minHeight` smaller than the target cell, so the launcher can resize
-the widget down. The Glance composition does not branch on size — it
-scales (see below) rather than swapping to a compact layout.
+declares `resizeMode="horizontal|vertical"`. The large provider keeps its
+4×2 placement defaults in `minWidth` / `minHeight` and `targetCellWidth` /
+`targetCellHeight`, while `minResizeWidth` / `minResizeHeight` set the
+3×2 floor; the medium provider's floor is its 2×2 default. Those floors
+are dp values the launcher divides by the device's real cell size, so
+they need measuring rather than deriving. Both providers ship a `-v31`
+variant that fully overrides the base file, so every size attribute must
+be edited in both — `WidgetProviderInfoResourceTest` pins each pair.
+
+At the 3×2 minimum the large header keeps its `Today · x/y done` label
+readable by measuring rather than by a width threshold:
+`largeHeaderFitsRoomyGap` measures the label and the fixed-width E2 slot,
+and tightens the gap between them only when the label would otherwise
+clip. How much room the header needs depends on the counts and the
+locale, so a width breakpoint cannot express it. All other visual scaling
+follows the baseline logic below.
 
 #### Per-device baseline scaling
 
 `SizeMode.Exact` means the live widget renders at whatever dp size the
-launcher hands out for the 2×2 / 4×2 cell, which varies by device and
-launcher. To keep the visual scale stable across devices and resizes,
+launcher hands out for the 2×2 / 4×2 default cell (or the 3×2 resized
+minimum), which varies by device and launcher. To keep the visual scale
+stable across devices and resizes,
 `widgetScale(widgetKey)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 captures a device baseline on the widget's first update and reuses it
@@ -516,6 +529,11 @@ applies the user-configurable background alpha and the rounded
 container, and wraps the entire widget in `clickable(actionStartActivity<MainActivity>())`
 so the top-level tap target is the app, with row-level and
 button-level clickables consuming taps that should not propagate.
+
+The shell, row cards, and action controls use pre-rendered rounded bitmap
+masks on every supported Android version instead of relying on a launcher
+outline radius. This keeps their corner geometry intact while the launcher
+temporarily reparents and scales the widget during long-press move/resize.
 
 The widget never resolves colors at composition time for surfaces that
 might cross the day/night boundary — bitmap icons are tinted with
