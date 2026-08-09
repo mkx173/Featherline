@@ -477,8 +477,15 @@ internal fun WidgetConfigScreen(
                                         title = stringResource(
                                             R.string.anchor_config_row_title,
                                         ),
-                                        supportingText = selectedAnchor?.name
-                                            ?: stringResource(R.string.anchor_config_choose),
+                                        // With no dates yet the row opens AddDateSheet, not the
+                                        // selector, so it must promise the action it performs.
+                                        supportingText = selectedAnchor?.name ?: stringResource(
+                                            if (anchors.isEmpty()) {
+                                                R.string.journal_add_date
+                                            } else {
+                                                R.string.anchor_config_choose
+                                            },
+                                        ),
                                         onClick = { isAnchorSheetOpen = true },
                                         leadingContent = {
                                             RowLeadingIcon(
