@@ -478,6 +478,7 @@ fun PkCalibrationAttestationSheet(
     attested: Boolean,
     onConfirm: () -> Unit,
     onWithdraw: () -> Unit,
+    onDecline: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
@@ -534,6 +535,18 @@ fun PkCalibrationAttestationSheet(
                 text = stringResource(R.string.calibration_pk_attest_confirm),
                 onClick = {
                     onConfirm()
+                    dismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // §U1 + Phase-3.1 decision: declining is its own explicit action —
+            // it persists, stops the first-entry auto-present for good, and
+            // the surface banner carries the re-open affordance.
+            HrtOutlinedButton(
+                text = stringResource(R.string.calibration_pk_attest_decline),
+                onClick = {
+                    onDecline()
                     dismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),

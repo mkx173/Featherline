@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.calibration
 
 import com.mkx.hrttracker.BuildConfig
+import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -21,6 +22,21 @@ import java.util.UUID
  */
 val pkCalibrationSurfaceEnabled: Boolean
     get() = BuildConfig.DEBUG
+
+/**
+ * First Calibration entry with a loaded UNSEEN attestation auto-presents the
+ * §U1 sheet exactly once per entry (Phase-3.1 decision). A null (not yet
+ * loaded) store state never presents, and DECLINED never re-pesters — the
+ * banner carries the re-open affordance instead.
+ */
+fun shouldAutoPresentPkAttestation(
+    attestationState: PkCalibrationAttestationState?,
+    surfacePresent: Boolean,
+    alreadyAutoPresented: Boolean,
+): Boolean {
+    return surfacePresent && !alreadyAutoPresented &&
+        attestationState == PkCalibrationAttestationState.Unseen
+}
 
 /** Hero presentation kind (UI handoff v9.0 §5.1). */
 enum class PkCalibrationHeroKind {

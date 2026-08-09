@@ -1157,6 +1157,9 @@
     <string name="calibration_pk_attest_withdraw_note">如果治療方案或檢測機構發生重大變化，請撤回並重新確認。撤回後所有途徑會立即回到群體估算。</string>
     <string name="calibration_pk_attest_exclusion_hint">治療開始前後、更換機構或檢測方法後的結果往往不可比——可以考慮將其排除出調整。</string>
     <string name="calibration_pk_attest_confirm">我確認以上內容</string>
+    <string name="calibration_pk_attest_decline">不使用我的檢測結果</string>
+    <string name="calibration_pk_attest_declined_banner_title">未啟用檢測結果調整</string>
+    <string name="calibration_pk_attest_declined_banner_body">您未確認前提條件，因此顯示群體估算。點按可重新查看。</string>
     <string name="calibration_pk_attest_withdraw">撤回確認</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->

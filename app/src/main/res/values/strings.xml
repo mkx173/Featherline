@@ -1234,6 +1234,9 @@
     <string name="calibration_pk_attest_withdraw_note">If your regimen or lab provider changes materially, withdraw and re-confirm. Withdrawing returns every route to the population estimate immediately.</string>
     <string name="calibration_pk_attest_exclusion_hint">Results from around treatment start, or from a different provider or assay method, are often not comparable—consider excluding them from adjustment.</string>
     <string name="calibration_pk_attest_confirm">I confirm the above</string>
+    <string name="calibration_pk_attest_decline">Don’t use my labs</string>
+    <string name="calibration_pk_attest_declined_banner_title">Lab adjustment is off</string>
+    <string name="calibration_pk_attest_declined_banner_body">You chose not to confirm the premises, so the population estimate is shown. Tap to review again.</string>
     <string name="calibration_pk_attest_withdraw">Withdraw confirmation</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->

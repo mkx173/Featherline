@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationAttestationRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
 import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionResult
@@ -35,6 +37,7 @@ class CalibrationViewModel @Inject constructor(
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
     private val pkReviewActionService: PkCalibrationReviewActionService,
     private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
+    private val pkAttestationRepository: PkCalibrationAttestationRepository,
 ) : ViewModel() {
     private val isDeletingAllEntries = MutableStateFlow(false)
     private val deleteAllEntriesResult =
@@ -106,6 +109,26 @@ class CalibrationViewModel @Inject constructor(
                     initialValue = null,
                 )
         }
+
+    /**
+     * Durable §U1 attestation record (Phase 3.1). Null until the store's
+     * first read lands — the first-entry auto-present keys off a loaded
+     * UNSEEN only, never off the loading placeholder.
+     */
+    val pkAttestationState: StateFlow<PkCalibrationAttestationState?> =
+        pkAttestationRepository.state
+
+    fun confirmPkAttestation() {
+        viewModelScope.launch { pkAttestationRepository.confirm() }
+    }
+
+    fun declinePkAttestation() {
+        viewModelScope.launch { pkAttestationRepository.decline() }
+    }
+
+    fun withdrawPkAttestation() {
+        viewModelScope.launch { pkAttestationRepository.withdraw() }
+    }
 
     private val pkReviewRejectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 

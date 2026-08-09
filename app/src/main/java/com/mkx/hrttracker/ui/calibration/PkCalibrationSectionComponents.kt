@@ -56,9 +56,11 @@ import com.mkx.hrttracker.util.rememberAppLocale
 @Composable
 fun PkCalibrationSection(
     uiState: PkCalibrationUiState,
+    attestationDeclined: Boolean,
     onRetry: () -> Unit,
     onAttest: () -> Unit,
     onManageAttestation: () -> Unit,
+    onReviewAttestation: () -> Unit,
     onOpenRoutes: () -> Unit,
     onOpenCoaching: () -> Unit,
     onOpenDisclaimer: () -> Unit,
@@ -71,6 +73,11 @@ fun PkCalibrationSection(
         modifier = modifier,
         topPadding = false,
     ) {
+        if (attestationDeclined) {
+            item {
+                PkCalibrationAttestationDeclinedBanner(onReview = onReviewAttestation)
+            }
+        }
         item {
             PkCalibrationStatusCard(
                 uiState = uiState,
@@ -124,6 +131,28 @@ private fun PkCalibrationRowChevron() {
         imageVector = Icons.Rounded.ChevronRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Persistent decline banner (Phase-3.1 decision): adjustment is off because
+ * the premises weren't confirmed; tapping re-opens the §U1 sheet. This is the
+ * only re-entry nudge — the sheet never auto-presents after a decline.
+ */
+@Composable
+private fun PkCalibrationAttestationDeclinedBanner(onReview: () -> Unit) {
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.calibration_pk_attest_declined_banner_title),
+        supportingText = stringResource(R.string.calibration_pk_attest_declined_banner_body),
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_privacy_tip),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        trailingContent = { PkCalibrationRowChevron() },
+        onClick = onReview,
     )
 }
 

@@ -74,7 +74,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -126,6 +126,7 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
+    val pkAttestationState by viewModel.pkAttestationState.collectAsStateWithLifecycle()
 
     // Rejected review actions surface as a toast; resolve the string at emit
     // time so an in-place locale swap can't pin a stale translation.
@@ -160,6 +161,10 @@ fun CalibrationScreen(
     CalibrationScreenContent(
         uiState = uiState,
         pkCalibrationState = pkCalibrationState,
+        pkAttestationState = pkAttestationState,
+        onPkAttestConfirm = viewModel::confirmPkAttestation,
+        onPkAttestDecline = viewModel::declinePkAttestation,
+        onPkAttestWithdraw = viewModel::withdrawPkAttestation,
         onPkRetry = viewModel::retryPkCalibration,
         onPkKeepOutlier = viewModel::keepPkOutlier,
         onPkExcludeLab = viewModel::excludePkLab,
@@ -181,6 +186,10 @@ fun CalibrationScreen(
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
     pkCalibrationState: PkCalibrationScreenState?,
+    pkAttestationState: PkCalibrationAttestationState?,
+    onPkAttestConfirm: () -> Unit,
+    onPkAttestDecline: () -> Unit,
+    onPkAttestWithdraw: () -> Unit,
     onPkRetry: () -> Unit,
     onPkKeepOutlier: (UUID) -> Unit,
     onPkExcludeLab: (UUID) -> Unit,
@@ -203,6 +212,20 @@ private fun CalibrationScreenContent(
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    // Phase-3.1: first entry with a loaded UNSEEN attestation auto-presents
+    // the §U1 sheet exactly once; DECLINED/ATTESTED never re-pester.
+    var pkAttestationAutoPresented by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(pkCalibrationState != null, pkAttestationState) {
+        if (shouldAutoPresentPkAttestation(
+                attestationState = pkAttestationState,
+                surfacePresent = pkCalibrationState != null,
+                alreadyAutoPresented = pkAttestationAutoPresented,
+            )
+        ) {
+            pkAttestationAutoPresented = true
+            pkSheet = PK_SHEET_ATTEST
+        }
+    }
     val pkLabFlags = remember(pkCalibrationState, uiState.panels) {
         pkCalibrationState?.let { state ->
             pkCalibrationLabRowFlags(state, uiState.panels)
@@ -322,9 +345,12 @@ private fun CalibrationScreenContent(
                         Column {
                             PkCalibrationSection(
                                 uiState = pkCalibrationState.ui,
+                                attestationDeclined = pkAttestationState ==
+                                    PkCalibrationAttestationState.Declined,
                                 onRetry = onPkRetry,
                                 onAttest = { pkSheet = PK_SHEET_ATTEST },
                                 onManageAttestation = { pkSheet = PK_SHEET_ATTEST },
+                                onReviewAttestation = { pkSheet = PK_SHEET_ATTEST },
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
                                 onOpenCoaching = { pkSheet = PK_SHEET_COACHING },
                                 onOpenDisclaimer = { pkSheet = PK_SHEET_DISCLAIMER },
@@ -428,21 +454,16 @@ private fun CalibrationScreenContent(
         PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_EDU -> PkCalibrationEduSheet(onDismissRequest = { pkSheet = null })
-        // Guarded on non-null state like PK_SHEET_ROUTES: a null emission
-        // (process-death restore, flow restart) must never render the
-        // already-attested variant to a not-attested user.
-        PK_SHEET_ATTEST -> pkCalibrationState?.let { state ->
-            PkCalibrationAttestationSheet(
-                attested = state.ui.globalState !=
-                    PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
-                // Persisting the attestation record is release-blocker work (v10
-                // handoff §U5 blocker 1); the production attestation provider stays
-                // Unavailable, so confirm/withdraw only close the sheet for now.
-                onConfirm = {},
-                onWithdraw = {},
-                onDismissRequest = { pkSheet = null },
-            )
-        }
+        // Phase 3.1: the sheet variant follows the durable attestation store,
+        // never a (possibly fixture-forced) engine state — a not-attested user
+        // can never see the withdraw variant, including across process death.
+        PK_SHEET_ATTEST -> PkCalibrationAttestationSheet(
+            attested = pkAttestationState is PkCalibrationAttestationState.Attested,
+            onConfirm = onPkAttestConfirm,
+            onWithdraw = onPkAttestWithdraw,
+            onDecline = onPkAttestDecline,
+            onDismissRequest = { pkSheet = null },
+        )
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
@@ -1461,6 +1482,10 @@ private fun CalibrationScreenPreview() {
                 ),
             ),
             pkCalibrationState = null,
+            pkAttestationState = null,
+            onPkAttestConfirm = { },
+            onPkAttestDecline = { },
+            onPkAttestWithdraw = { },
             onPkRetry = { },
             onPkKeepOutlier = { },
             onPkExcludeLab = { },

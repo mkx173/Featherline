@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.calibration
 
+import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
@@ -145,6 +146,36 @@ class PkCalibrationUiStateTest {
         assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
         assertEquals(snapshot.result.promotedRoutes, uiState.effectivePromotedRoutes)
         assertEquals(PkCalibrationRenderState.POPULATION, uiState.renderState)
+    }
+
+    @Test
+    fun attestationAutoPresent_firesExactlyOnceForLoadedUnseen() {
+        val unseen = PkCalibrationAttestationState.Unseen
+        assertTrue(
+            shouldAutoPresentPkAttestation(
+                attestationState = unseen,
+                surfacePresent = true,
+                alreadyAutoPresented = false,
+            )
+        )
+        // Exactly once per entry.
+        assertFalse(shouldAutoPresentPkAttestation(unseen, true, alreadyAutoPresented = true))
+        // A not-yet-loaded store never presents — null is not UNSEEN.
+        assertFalse(shouldAutoPresentPkAttestation(null, true, false))
+        // No calibration surface, nothing to present onto.
+        assertFalse(shouldAutoPresentPkAttestation(unseen, false, false))
+        // DECLINED never re-pesters (the banner is the re-open affordance);
+        // ATTESTED has nothing left to ask.
+        assertFalse(
+            shouldAutoPresentPkAttestation(PkCalibrationAttestationState.Declined, true, false)
+        )
+        assertFalse(
+            shouldAutoPresentPkAttestation(
+                PkCalibrationAttestationState.Attested(1_700_000_000_000L),
+                true,
+                false,
+            )
+        )
     }
 
     @Test
