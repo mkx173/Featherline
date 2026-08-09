@@ -582,8 +582,6 @@ class PkCalibrationReviewActionServiceTest {
                 result = result,
                 analyteId = AnalyteId,
                 unitId = UnitId,
-                providerId = ProviderId,
-                assayMethodId = AssayId,
             )
         )
     }
@@ -631,8 +629,6 @@ class PkCalibrationReviewActionServiceTest {
         const val AnalyteId = "hrttracker:analyte/e2/v1"
         const val HormoneId = "hrttracker:hormone/estradiol/v1"
         const val UnitId = "hrttracker:unit/pg-ml/v1"
-        const val ProviderId = "provider:test/v1"
-        const val AssayId = "assay:test/v1"
         const val PolicyVersion = "scope-policy:test/v1"
         const val IssuerId = "issuer:test/v1"
         const val ProvenanceRef = "urn:test:scope-provenance:v1"
@@ -675,8 +671,6 @@ class PkCalibrationReviewActionServiceTest {
                 builtinE2AnalyteId = AnalyteId,
                 targetHormoneId = HormoneId,
                 unitIdBySourceSnapshot = mapOf("pg_ml" to UnitId),
-                supportedProviderIds = setOf(ProviderId),
-                supportedAssayMethodIds = setOf(AssayId),
                 eventTypeIdByRoute = EventTypeIds,
                 routeIdByRoute = RouteIds,
                 compoundIdByCompound = CompoundIds,

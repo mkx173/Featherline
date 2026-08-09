@@ -266,9 +266,6 @@ class PkCalibrationLiveRepositoryTest {
             attestation = PkCalibrationAttestation(0L),
             forwardModelVersion = "test:forward/v1",
             calibrationModelVersion = "test:calibration/v1",
-            labIdentityByResultId = mapOf(
-                UUID(0L, 1L) to PkCalibrationLabSourceIdentity("test:provider", "test:assay")
-            ),
         ))
     }
 
@@ -300,8 +297,6 @@ class PkCalibrationLiveRepositoryTest {
             result = result,
             analyteId = ANALYTE_ID,
             unitId = UNIT_ID,
-            providerId = PROVIDER_ID,
-            assayMethodId = ASSAY_ID,
         ))
         val scopeInput = requireNotNull(PkCalibrationScopeInputSnapshot.create(
             labs = listOf(lab),
@@ -337,8 +332,6 @@ class PkCalibrationLiveRepositoryTest {
             builtinE2AnalyteId = ANALYTE_ID,
             targetHormoneId = "hrttracker:hormone/estradiol/v1",
             unitIdBySourceSnapshot = mapOf("pg_ml" to UNIT_ID),
-            supportedProviderIds = setOf(PROVIDER_ID),
-            supportedAssayMethodIds = setOf(ASSAY_ID),
             eventTypeIdByRoute = eventTypeIds,
             routeIdByRoute = routeIds,
             compoundIdByCompound = compoundIds,
@@ -349,9 +342,6 @@ class PkCalibrationLiveRepositoryTest {
             attestation = PkCalibrationAttestation(0L),
             forwardModelVersion = FORWARD_VERSION,
             calibrationModelVersion = CALIBRATION_VERSION,
-            labIdentityByResultId = mapOf(
-                resultId to PkCalibrationLabSourceIdentity(PROVIDER_ID, ASSAY_ID)
-            ),
         ))
         return ValidResearchFixture(panel, policy)
     }
@@ -364,8 +354,6 @@ class PkCalibrationLiveRepositoryTest {
     private companion object {
         const val ANALYTE_ID = "hrttracker:analyte/e2/v1"
         const val UNIT_ID = "hrttracker:unit/pg-ml/v1"
-        const val PROVIDER_ID = "provider:test/v1"
-        const val ASSAY_ID = "assay:test/v1"
         const val POLICY_VERSION = "scope-policy:test/v1"
         const val ISSUER_ID = "issuer:test/v1"
         const val PROVENANCE_REF = "urn:test:scope-provenance:v1"

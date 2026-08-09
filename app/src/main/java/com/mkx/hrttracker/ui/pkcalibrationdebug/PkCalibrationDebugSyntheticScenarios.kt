@@ -502,8 +502,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
             result = result,
             analyteId = DebugAnalyteId,
             unitId = DebugUnitId,
-            providerId = DebugProviderId,
-            assayMethodId = DebugAssayId,
         )
     }
 
@@ -629,8 +627,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private const val DebugHormoneId = "debug:hormone/estradiol/v1"
     private const val DebugUnitId = "debug:unit/pg-ml/v1"
     private const val SourceUnitSnapshot = "pg_ml"
-    private const val DebugProviderId = "debug:provider/synthetic/v1"
-    private const val DebugAssayId = "debug:assay/synthetic/v1"
     private const val DebugPolicyVersion = "debug:scope-policy/v1"
     private const val DebugIssuerId = "debug:issuer/synthetic/v1"
     private const val DebugProvenanceRef = "urn:debug:scope-provenance:v1"
@@ -673,8 +669,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
             builtinE2AnalyteId = DebugAnalyteId,
             targetHormoneId = DebugHormoneId,
             unitIdBySourceSnapshot = mapOf(SourceUnitSnapshot to DebugUnitId),
-            supportedProviderIds = setOf(DebugProviderId),
-            supportedAssayMethodIds = setOf(DebugAssayId),
             eventTypeIdByRoute = EventTypeIds,
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds,

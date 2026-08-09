@@ -29,8 +29,6 @@ data class PkCalibrationIdentityPolicy private constructor(
     val builtinE2AnalyteId: String,
     val targetHormoneId: String,
     val unitIdBySourceSnapshot: Map<String, String>,
-    val supportedProviderIds: Set<String>,
-    val supportedAssayMethodIds: Set<String>,
     val eventTypeIdByRoute: Map<PkRoute, String>,
     val routeIdByRoute: Map<PkRoute, String>,
     val compoundIdByCompound: Map<PkCompound, String>,
@@ -40,8 +38,6 @@ data class PkCalibrationIdentityPolicy private constructor(
             builtinE2AnalyteId: String,
             targetHormoneId: String,
             unitIdBySourceSnapshot: Map<String, String>,
-            supportedProviderIds: Set<String>,
-            supportedAssayMethodIds: Set<String>,
             eventTypeIdByRoute: Map<PkRoute, String>,
             routeIdByRoute: Map<PkRoute, String>,
             compoundIdByCompound: Map<PkCompound, String>,
@@ -54,8 +50,6 @@ data class PkCalibrationIdentityPolicy private constructor(
             val identitySets = listOf(
                 unitIdBySourceSnapshot.keys,
                 unitIdBySourceSnapshot.values.toSet(),
-                supportedProviderIds,
-                supportedAssayMethodIds,
             )
             if (identitySets.any { values ->
                     values.isEmpty() || values.any { value -> !value.isStableAsciiIdentity() }
@@ -87,8 +81,6 @@ data class PkCalibrationIdentityPolicy private constructor(
                 builtinE2AnalyteId = builtinE2AnalyteId,
                 targetHormoneId = targetHormoneId,
                 unitIdBySourceSnapshot = immutableMap(unitIdBySourceSnapshot),
-                supportedProviderIds = immutableSet(supportedProviderIds),
-                supportedAssayMethodIds = immutableSet(supportedAssayMethodIds),
                 eventTypeIdByRoute = immutableMap(eventTypeIdByRoute),
                 routeIdByRoute = immutableMap(routeIdByRoute),
                 compoundIdByCompound = immutableMap(compoundIdByCompound),
@@ -590,9 +582,7 @@ internal fun classifyCalibrationObservation(
 internal fun PkCalibrationIdentityPolicy.acceptsScopeIdentity(
     lab: PkCalibrationE2LabSource,
 ): Boolean {
-    return lab.analyteId == builtinE2AnalyteId &&
-            lab.providerId in supportedProviderIds &&
-            lab.assayMethodId in supportedAssayMethodIds
+    return lab.analyteId == builtinE2AnalyteId
 }
 
 private fun PkCalibrationIdentityPolicy.acceptsFitIdentity(

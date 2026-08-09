@@ -12,8 +12,11 @@ import java.security.MessageDigest
 import java.util.Collections
 import java.util.UUID
 
+// v2 (Phase-3 decision, 2026-08-09): the per-lab payload dropped
+// providerId/assayMethodId — lab comparability is user-attested (§A2), not
+// tracked as structured identity.
 const val PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA =
-    "hrttracker.calibration-scope-input/v1"
+    "hrttracker.calibration-scope-input/v2"
 
 /**
  * v10.0 §A2: the user, not an external clinical authority, attests the scope
@@ -47,9 +50,10 @@ internal sealed interface PkCalibrationCanonicalE2ValueVerification {
 /**
  * Immutable E2 source row used by the pure calibration adapter.
  *
- * Provider, assay, unit, and analyte identities are explicit because today's
- * blood-test model has no trusted provider/assay mapping. Display labels are
- * never converted into digest identities.
+ * Unit and analyte identities are explicit; display labels are never
+ * converted into digest identities. Provider/assay identity is deliberately
+ * absent: lab comparability is a §A2 attestation premise the user confirms,
+ * not structured state the app tracks (Phase-3 decision, 2026-08-09).
  */
 @ConsistentCopyVisibility
 data class PkCalibrationE2LabSource private constructor(
@@ -58,8 +62,6 @@ data class PkCalibrationE2LabSource private constructor(
     val analyteId: String,
     val sourceUnitSnapshot: String,
     val unitId: String,
-    val providerId: String,
-    val assayMethodId: String,
     val sourceValue: Double,
     val canonicalValuePgml: Double,
 ) {
@@ -97,8 +99,6 @@ data class PkCalibrationE2LabSource private constructor(
             result: BloodTestResult,
             analyteId: String,
             unitId: String,
-            providerId: String,
-            assayMethodId: String,
         ): PkCalibrationE2LabSource? {
             val storedResult = panel.results.singleOrNull { candidate ->
                 candidate.uuid == result.uuid
@@ -109,11 +109,7 @@ data class PkCalibrationE2LabSource private constructor(
             ) {
                 return null
             }
-            if (!analyteId.isStableAsciiIdentity() ||
-                !unitId.isStableAsciiIdentity() ||
-                !providerId.isStableAsciiIdentity() ||
-                !assayMethodId.isStableAsciiIdentity()
-            ) {
+            if (!analyteId.isStableAsciiIdentity() || !unitId.isStableAsciiIdentity()) {
                 return null
             }
             val collectedAtEpochMillis = runCatching(panel.collectedAt::toEpochMilli)
@@ -125,8 +121,6 @@ data class PkCalibrationE2LabSource private constructor(
                 analyteId = analyteId,
                 sourceUnitSnapshot = result.unitSnapshot,
                 unitId = unitId,
-                providerId = providerId,
-                assayMethodId = assayMethodId,
                 sourceValue = result.value.let { value ->
                     if (value == 0.0) 0.0 else value
                 },
@@ -282,8 +276,6 @@ private fun labIdentityPayload(lab: PkCalibrationE2LabSource): Map<String, Any?>
         "resultId" to lab.resultId.toCanonicalString(),
         "analyteId" to lab.analyteId,
         "collectedAt" to lab.collectedAtEpochMillis,
-        "providerId" to lab.providerId,
-        "assayMethodId" to lab.assayMethodId,
     )
 }
 

@@ -365,16 +365,12 @@ class PkCalibrationScopeEvidenceTest {
                 result = bloodPanel(source.resultId, 100.0, 100.0).results.single(),
                 analyteId = "é2",
                 unitId = UnitId,
-                providerId = ProviderId,
-                assayMethodId = AssayId,
             )
         )
         assertNull(PkCalibrationIdentityPolicy.researchOrTest(
             builtinE2AnalyteId = AnalyteId,
             targetHormoneId = HormoneId,
             unitIdBySourceSnapshot = mapOf(SourceUnitSnapshot to UnitId),
-            supportedProviderIds = setOf(ProviderId),
-            supportedAssayMethodIds = setOf(AssayId),
             eventTypeIdByRoute = EventTypeIds - PkRoute.GEL,
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds,
@@ -383,8 +379,6 @@ class PkCalibrationScopeEvidenceTest {
             builtinE2AnalyteId = AnalyteId,
             targetHormoneId = HormoneId,
             unitIdBySourceSnapshot = mapOf(SourceUnitSnapshot to UnitId),
-            supportedProviderIds = setOf(ProviderId),
-            supportedAssayMethodIds = setOf(AssayId),
             eventTypeIdByRoute = EventTypeIds,
             routeIdByRoute = RouteIds,
             compoundIdByCompound = CompoundIds +
@@ -402,8 +396,6 @@ class PkCalibrationScopeEvidenceTest {
                 result = mismatchedCanonicalPanel.results.single(),
                 analyteId = AnalyteId,
                 unitId = UnitId,
-                providerId = ProviderId,
-                assayMethodId = AssayId,
             )
         )
         assertFailure(
@@ -504,8 +496,6 @@ class PkCalibrationScopeEvidenceTest {
                 result = panel.results.single(),
                 analyteId = AnalyteId,
                 unitId = "hrttracker:unit/other/v1",
-                providerId = ProviderId,
-                assayMethodId = AssayId,
             )
         )
         val wrongUnitFixture = fixture(labs = listOf(wrongUnit))
@@ -519,8 +509,6 @@ class PkCalibrationScopeEvidenceTest {
                 builtinE2AnalyteId = AnalyteId,
                 targetHormoneId = HormoneId,
                 unitIdBySourceSnapshot = mapOf(SourceUnitSnapshot to UnitId),
-                supportedProviderIds = setOf(ProviderId),
-                supportedAssayMethodIds = setOf(AssayId),
                 eventTypeIdByRoute = EventTypeIds,
                 routeIdByRoute = RouteIds + (PkRoute.ORAL to "route:other/v1"),
                 compoundIdByCompound = CompoundIds,
@@ -628,8 +616,6 @@ class PkCalibrationScopeEvidenceTest {
                 result = result,
                 analyteId = AnalyteId,
                 unitId = UnitId,
-                providerId = ProviderId,
-                assayMethodId = AssayId,
             )
         )
         val ordinaryEvent = medicationEvent(uuid(44), PkRoute.ORAL, 0.0).event
@@ -1252,8 +1238,6 @@ class PkCalibrationScopeEvidenceTest {
                 builtinE2AnalyteId = AnalyteId,
                 targetHormoneId = HormoneId,
                 unitIdBySourceSnapshot = unitIdBySourceSnapshot,
-                supportedProviderIds = setOf(ProviderId),
-                supportedAssayMethodIds = setOf(AssayId),
                 eventTypeIdByRoute = EventTypeIds,
                 routeIdByRoute = RouteIds,
                 compoundIdByCompound = CompoundIds,
@@ -1269,8 +1253,6 @@ class PkCalibrationScopeEvidenceTest {
         analyteId: String = AnalyteId,
         sourceUnitSnapshot: String = SourceUnitSnapshot,
         unitId: String = UnitId,
-        providerId: String = ProviderId,
-        assayMethodId: String = AssayId,
     ): PkCalibrationE2LabSource {
         val panel = bloodPanel(
             resultId = resultId,
@@ -1285,8 +1267,6 @@ class PkCalibrationScopeEvidenceTest {
                 result = panel.results.single(),
                 analyteId = analyteId,
                 unitId = unitId,
-                providerId = providerId,
-                assayMethodId = assayMethodId,
             )
         )
     }
@@ -1387,8 +1367,6 @@ class PkCalibrationScopeEvidenceTest {
         const val SourceUnitSnapshot = "pg_ml"
         const val PmolUnitId = "hrttracker:unit/pmol-l/v1"
         const val PmolSourceUnitSnapshot = "pmol_l"
-        const val ProviderId = "provider:test/v1"
-        const val AssayId = "assay:test/v1"
         const val ForwardModelVersion = "pk-forward:test/v1"
         const val CalibrationModelVersion = "pk-calibration:test/v9"
 

@@ -856,8 +856,6 @@ class PkCalibrationSolverTest {
                 result = result,
                 analyteId = "hrttracker:analyte/e2/v1",
                 unitId = "hrttracker:unit/pg-ml/v1",
-                providerId = "provider:test/v1",
-                assayMethodId = "assay:test/v1",
             )
         )
         val scopeInput = requireNotNull(

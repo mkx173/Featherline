@@ -26,7 +26,6 @@ import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
 import java.time.Instant
 import java.util.Collections
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -48,20 +47,9 @@ enum class PkCalibrationLiveUnavailableReason {
     RUNTIME_POLICY_UNAVAILABLE,
     INPUT_GENERATION_UNSTABLE,
     SOURCE_READ_FAILED,
-    SOURCE_PROVIDER_ASSAY_IDENTITY_UNAVAILABLE,
     SOURCE_DATA_INVALID,
     RENDER_DOMAIN_UNAVAILABLE,
     RENDER_UNAVAILABLE,
-}
-
-data class PkCalibrationLabSourceIdentity(
-    val providerId: String,
-    val assayMethodId: String,
-) {
-    init {
-        require(providerId.isStableAsciiIdentity())
-        require(assayMethodId.isStableAsciiIdentity())
-    }
 }
 
 sealed interface PkCalibrationRuntimePolicy {
@@ -77,7 +65,6 @@ sealed interface PkCalibrationRuntimePolicy {
         val attestation: PkCalibrationAttestation,
         val forwardModelVersion: String,
         val calibrationModelVersion: String,
-        val labIdentityByResultId: Map<UUID, PkCalibrationLabSourceIdentity>,
     ) : PkCalibrationRuntimePolicy {
         companion object {
             fun create(
@@ -86,12 +73,10 @@ sealed interface PkCalibrationRuntimePolicy {
                 attestation: PkCalibrationAttestation,
                 forwardModelVersion: String,
                 calibrationModelVersion: String,
-                labIdentityByResultId: Map<UUID, PkCalibrationLabSourceIdentity>,
             ): ResearchOrTest? {
                 if (!config.personalizedOutputEnabled || !config.isResearchOrTest ||
                     !forwardModelVersion.isStableAsciiIdentity() ||
-                    !calibrationModelVersion.isStableAsciiIdentity() ||
-                    labIdentityByResultId.isEmpty()
+                    !calibrationModelVersion.isStableAsciiIdentity()
                 ) {
                     return null
                 }
@@ -101,9 +86,6 @@ sealed interface PkCalibrationRuntimePolicy {
                     attestation = attestation,
                     forwardModelVersion = forwardModelVersion,
                     calibrationModelVersion = calibrationModelVersion,
-                    labIdentityByResultId = Collections.unmodifiableMap(
-                        LinkedHashMap(labIdentityByResultId)
-                    ),
                 )
             }
         }
@@ -336,11 +318,6 @@ class PkCalibrationLiveRepository @Inject constructor(
 
         val labs = ArrayList<PkCalibrationE2LabSource>(e2Rows.size)
         for ((panel, result) in e2Rows) {
-            val identity = policy.labIdentityByResultId[result.uuid]
-                ?: return StableRead.Unavailable(
-                    PkCalibrationLiveUnavailableReason
-                        .SOURCE_PROVIDER_ASSAY_IDENTITY_UNAVAILABLE
-                )
             val unitId = policy.identityPolicy.unitIdBySourceSnapshot[result.unitSnapshot]
                 ?: return StableRead.Unavailable(
                     PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
@@ -350,8 +327,6 @@ class PkCalibrationLiveRepository @Inject constructor(
                 result = result,
                 analyteId = policy.identityPolicy.builtinE2AnalyteId,
                 unitId = unitId,
-                providerId = identity.providerId,
-                assayMethodId = identity.assayMethodId,
             ) ?: return StableRead.Unavailable(
                 PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
             )
