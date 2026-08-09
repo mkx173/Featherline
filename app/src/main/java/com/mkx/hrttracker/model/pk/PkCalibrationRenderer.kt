@@ -142,7 +142,7 @@ object PkCalibrationRenderer {
         val bandKnots = buildPredictiveBand(
             centralKnots = centralKnots,
             effectivePromotedRoutes = effectivePromotedRoutes,
-            routeResults = calibrationResult.routeResults,
+            promotedBetaCovariance = calibrationResult.promotedBetaCovariance,
             rLog = input.config.rLog,
         )
         val bandState = if (bandKnots == null) {
@@ -172,20 +172,15 @@ object PkCalibrationRenderer {
     private fun buildPredictiveBand(
         centralKnots: List<CentralKnot>,
         effectivePromotedRoutes: List<PkCalibrationRoute>,
-        routeResults: List<PkRouteCalibrationResult>,
+        promotedBetaCovariance: PkCalibrationPromotedCovariance?,
         rLog: Double?,
     ): List<PkPredictiveBandKnot>? {
         val observationVariance = rLog
             ?.takeIf { value -> value.isFinite() && value > 0.0 }
             ?: return null
-        val varianceByRoute = linkedMapOf<PkCalibrationRoute, Double>()
-        for (route in effectivePromotedRoutes) {
-            val routeResult = routeResults.singleOrNull { item -> item.route == route }
-                ?: return null
-            val variance = routeResult.laplaceVarianceBeta
-                ?.takeIf { value -> value.isFinite() && value > 0.0 }
-                ?: return null
-            varianceByRoute[route] = variance
+        val covariance = promotedBetaCovariance ?: return null
+        if (effectivePromotedRoutes.any { route -> route !in covariance.routes }) {
+            return null
         }
 
         val lawCache = HashMap<BandLawKey, BandLogQuantiles>()
@@ -201,7 +196,7 @@ object PkCalibrationRenderer {
             val effectiveVariance = PkPredictiveBandMath.effectiveVariance(
                 totalPgml = median,
                 contributionByRoutePgml = knot.byRouteDrugPgml,
-                varianceByRoute = varianceByRoute,
+                covariance = covariance,
                 promotedRoutes = effectivePromotedRoutes,
             ) ?: return null
             val lawKey = BandLawKey(effectiveVariance.toBits(), observationVariance.toBits())
@@ -291,31 +286,47 @@ internal object PkPredictiveBandMath {
         return BandLogQuantiles(q16, q32)
     }
 
-    /** Exact alpha-squared delta aggregation used by the v9 predictive law. */
+    /**
+     * v10.0 §A10.5 delta aggregation V_eff = alpha' Sigma alpha over the
+     * promoted block. The alphas are exactly d log m / d beta_r, so this is
+     * the v9 delta expansion with the joint covariance replacing the
+     * independence assumption. The exact quadratic form is non-negative;
+     * a tiny negative from floating-point accumulation clamps to zero.
+     */
     internal fun effectiveVariance(
         totalPgml: Double,
         contributionByRoutePgml: Map<PkCalibrationRoute, Double>,
-        varianceByRoute: Map<PkCalibrationRoute, Double>,
+        covariance: PkCalibrationPromotedCovariance,
         promotedRoutes: Collection<PkCalibrationRoute>,
     ): Double? {
         if (!totalPgml.isFinite() || totalPgml <= 0.0) return null
-        var aggregate = 0.0
-        for (route in PkCalibrationRoute.entries) {
-            if (route !in promotedRoutes) continue
+        val orderedRoutes = PkCalibrationRoute.entries.filter(promotedRoutes::contains)
+        val alphaByRoute = linkedMapOf<PkCalibrationRoute, Double>()
+        for (route in orderedRoutes) {
             val contribution = contributionByRoutePgml[route]
                 ?.takeIf { value -> value.isFinite() && value >= 0.0 }
                 ?: return null
-            val variance = varianceByRoute[route]
-                ?.takeIf { value -> value.isFinite() && value > 0.0 }
-                ?: return null
             val alpha = contribution / totalPgml
-            val term = alpha * alpha * variance
-            if (!term.isFinite() || term < 0.0) return null
-            aggregate += term
-            if (!aggregate.isFinite() || aggregate < 0.0) return null
+            if (!alpha.isFinite() || alpha < 0.0) return null
+            alphaByRoute[route] = alpha
+        }
+        var aggregate = 0.0
+        for (row in orderedRoutes) {
+            for (column in orderedRoutes) {
+                val entry = covariance.covariance(row, column) ?: return null
+                val term = alphaByRoute.getValue(row) * alphaByRoute.getValue(column) * entry
+                if (!term.isFinite()) return null
+                aggregate += term
+                if (!aggregate.isFinite()) return null
+            }
+        }
+        if (aggregate < 0.0) {
+            aggregate = if (aggregate >= -NEGATIVE_VARIANCE_CLAMP_TOL) 0.0 else return null
         }
         return aggregate.normalizePositiveZero()
     }
+
+    private const val NEGATIVE_VARIANCE_CLAMP_TOL = 1e-12
 
     /** Read-only numerical seam for independent fixed-vector parity tests. */
     internal fun hermiteRuleForValidation(nodeCount: Int): PkHermiteRule? {

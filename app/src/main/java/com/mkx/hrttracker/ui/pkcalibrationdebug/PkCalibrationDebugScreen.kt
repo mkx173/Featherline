@@ -238,20 +238,6 @@ internal fun PkCalibrationDebugBody(
             },
         )
 
-        Text("Guard-dropped route")
-        DebugControlButton(
-            label = "Guard-dropped route: none",
-            enabled = controlsEnabled,
-            onClick = { viewModel.setGuardDroppedRoute(null) },
-        )
-        PkCalibrationRoute.entries.forEach { route ->
-            DebugControlButton(
-                label = "Guard-dropped route: ${route.name}",
-                enabled = controlsEnabled,
-                onClick = { viewModel.setGuardDroppedRoute(route) },
-            )
-        }
-
         Text("Display-cap-boundary route")
         DebugControlButton(
             label = "Display-cap-boundary route: none",
@@ -344,8 +330,7 @@ internal fun pkCalibrationDebugVisibleRouteRows(
 internal fun PkRouteCalibrationResult.rawDebugRowText(): String {
     return "$route · $displayState · displayBeta=$displayBeta · " +
             "reasons=$reasons · " +
-            "dominantLabCount=$dominantLabCount · " +
-            "dominantCandidateLabCount=$dominantCandidateLabCount · " +
+            "supportingLabCount=$supportingLabCount · " +
             "atDisplayCapBoundary=$atDisplayCapBoundary · " +
             "hasUnreviewedOutlier=${unreviewedOutlierLabIds.isNotEmpty()}"
 }

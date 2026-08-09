@@ -672,39 +672,19 @@ class PkCalibrationScopeEvidenceTest {
         )
         val ready = ready(fixture.build(metadata = listOf(excluded)))
         assertEquals(1, ready.excluded.size)
-        assertTrue(ready.routeEvidence.all { route -> route.dominantLabCount == 0 })
+        assertTrue(ready.included.isEmpty())
     }
 
     @Test
-    fun dominanceUsesExactMultiplyComparisonForAllRoutes() {
-        for (route in PkCalibrationRoute.entries) {
-            val exact = breakdown(route to 8.0, otherRoute(route) to 2.0)
-            val classification = classifyCalibrationObservation(100.0, exact, 1.0)
-            val candidate = classification as PkCalibrationObservationClassification.Candidate
-            assertEquals(route, candidate.route)
-            assertTrue(candidate.included)
-        }
-
-        val below = Math.nextDown(8.0)
-        val noOwner = breakdown(
-            PkCalibrationRoute.INJECTION to below,
-            PkCalibrationRoute.ORAL to 10.0 - below,
-        )
-        assertEquals(10.0, noOwner.totalDrugPgml, 0.0)
-        assertTrue(
-            classifyCalibrationObservation(100.0, noOwner, 1.0) is
-                    PkCalibrationObservationClassification.Unassigned
-        )
-
-        val overlap = breakdown(
+    fun mixedRouteObservationIsIncludedWithFullBreakdown() {
+        // v10.0 §A10.1: no dominance rule — an even route split is included.
+        val evenSplit = breakdown(
             PkCalibrationRoute.INJECTION to 5.0,
             PkCalibrationRoute.ORAL to 5.0,
         )
-        val overlapResult = classifyCalibrationObservation(100.0, overlap, 1.0)
-        assertEquals(
-            PkCalibrationLabEvidenceState.UNASSIGNED_NO_DOMINANT_ROUTE,
-            (overlapResult as PkCalibrationObservationClassification.Unassigned).state,
-        )
+        val included = classifyCalibrationObservation(100.0, evenSplit, 1.0)
+            as PkCalibrationObservationClassification.Included
+        assertEquals(evenSplit, included.breakdown)
     }
 
     @Test
@@ -714,150 +694,86 @@ class PkCalibrationScopeEvidenceTest {
             breakdown = breakdown(PkCalibrationRoute.ORAL to 1.0),
             drugMinInformativePgml = 1.0,
         )
-        assertTrue(atThreshold is PkCalibrationObservationClassification.Candidate)
+        assertTrue(atThreshold is PkCalibrationObservationClassification.Included)
 
         val oneBitBelow = classifyCalibrationObservation(
             observedPgml = 100.0,
             breakdown = breakdown(PkCalibrationRoute.ORAL to Math.nextDown(1.0)),
             drugMinInformativePgml = 1.0,
         ) as PkCalibrationObservationClassification.Unassigned
-        assertEquals(
-            PkCalibrationLabEvidenceState.UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
-            oneBitBelow.state,
-        )
+        assertEquals(Math.nextDown(1.0), oneBitBelow.totalDrugPgml, 0.0)
 
         val zeroSignal = classifyCalibrationObservation(
             observedPgml = 100.0,
             breakdown = breakdown(),
             drugMinInformativePgml = 1.0,
         ) as PkCalibrationObservationClassification.Unassigned
-        assertEquals(
-            PkCalibrationLabEvidenceState.UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
-            zeroSignal.state,
-        )
         assertEquals(0L, zeroSignal.totalDrugPgml.toBits())
+
+        // Precedence: below-informative-signal wins over a nonpositive observation.
+        assertTrue(
+            classifyCalibrationObservation(
+                observedPgml = 0.0,
+                breakdown = breakdown(PkCalibrationRoute.ORAL to Math.nextDown(1.0)),
+                drugMinInformativePgml = 1.0,
+            ) is PkCalibrationObservationClassification.Unassigned
+        )
     }
 
     @Test
-    fun residualAndGuardRespectPositiveZeroCancellationAndAbsoluteFloor() {
-        val pureRoute = classifyCalibrationObservation(
-            observedPgml = 0.5,
-            breakdown = breakdown(PkCalibrationRoute.ORAL to 10.0),
-            drugMinInformativePgml = 1e-20,
-        ) as PkCalibrationObservationClassification.Candidate
-        assertEquals(0L, pureRoute.otherRoutePopulationPgml.toBits())
-        assertTrue(pureRoute.included)
-
-        val cancellation = classifyCalibrationObservation(
-            observedPgml = 2.0,
-            breakdown = breakdown(
-                PkCalibrationRoute.ORAL to 8.0,
-                PkCalibrationRoute.INJECTION to 2.0,
-            ),
-            drugMinInformativePgml = 1e-20,
-        ) as PkCalibrationObservationClassification.Candidate
-        assertEquals(0L, cancellation.routeAttributableObservedPgml.toBits())
-        assertFalse(cancellation.included)
-
-        val tinySignal = breakdown(PkCalibrationRoute.ORAL to 1e-15)
-        val absoluteFloorEquality = classifyCalibrationObservation(
-            observedPgml = PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_PGML,
-            breakdown = tinySignal,
-            drugMinInformativePgml = 1e-20,
-        ) as PkCalibrationObservationClassification.Candidate
-        val absoluteFloorOneBitBelow = classifyCalibrationObservation(
-            observedPgml = Math.nextDown(PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_PGML),
-            breakdown = tinySignal,
-            drugMinInformativePgml = 1e-20,
-        ) as PkCalibrationObservationClassification.Candidate
-        assertTrue(absoluteFloorEquality.included)
-        assertFalse(absoluteFloorOneBitBelow.included)
-    }
-
-    @Test
-    fun positivityGuardUsesExactSubtractionMaxAndEqualityInclusion() {
-        val breakdown = breakdown(
+    fun observationBelowOtherRoutePopulationContributionIsStillIncluded() {
+        // v10.0 §A10.1: no positivity guard — an observation smaller than the
+        // other routes' population contribution still joins the shared pool.
+        val skewed = breakdown(
             PkCalibrationRoute.INJECTION to 8.0,
             PkCalibrationRoute.ORAL to 2.0,
         )
-        val equal = classifyCalibrationObservation(2.5, breakdown, 1.0)
-            as PkCalibrationObservationClassification.Candidate
-        val below = classifyCalibrationObservation(Math.nextDown(2.5), breakdown, 1.0)
-            as PkCalibrationObservationClassification.Candidate
-
-        assertEquals(2.0, equal.otherRoutePopulationPgml, 0.0)
-        assertEquals(0.5, equal.routeAttributableObservedPgml, 0.0)
-        assertTrue(equal.included)
-        assertFalse(below.included)
-        assertTrue(below.routeAttributableObservedPgml < 0.5)
+        val included = classifyCalibrationObservation(0.5, skewed, 1.0)
+            as PkCalibrationObservationClassification.Included
+        assertEquals(skewed, included.breakdown)
+        assertTrue(
+            classifyCalibrationObservation(0.0, skewed, 1.0) is
+                    PkCalibrationObservationClassification.InvalidNonpositive
+        )
     }
 
     @Test
-    fun adapterKeepsCandidateAndIncludedCountsDistinct() {
-        val event = medicationEvent(uuid(11), PkRoute.ORAL, timeH = 0.0)
-        val forward = requireNotNull(
-            PkE2ForwardModel.create(listOf(event.event), BodyWeightKg)
-        )
-        val total = requireNotNull(forward.breakdownAt(8.0)).totalDrugPgml
-        val guard = PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_FRACTION * total
-        val includedLab = lab(
-            resultId = uuid(1),
-            collectedAtEpochMillis = OriginMillis + 8 * HourMillis,
-            sourceValue = guard,
-            canonicalValuePgml = guard,
-        )
-        val droppedLab = lab(
-            resultId = uuid(2),
-            collectedAtEpochMillis = OriginMillis + 8 * HourMillis,
-            sourceValue = Math.nextDown(guard),
-            canonicalValuePgml = Math.nextDown(guard),
-        )
-        val fixture = fixture(labs = listOf(includedLab, droppedLab), events = listOf(event))
-        val oral = ready(fixture.build()).routeEvidence
-            .single { route -> route.route == PkCalibrationRoute.ORAL }
-
-        assertEquals(2, oral.dominantCandidateLabCount)
-        assertEquals(1, oral.dominantLabCount)
-        assertEquals(
-            setOf(
-                PkCalibrationLabEvidenceState.INCLUDED,
-                PkCalibrationLabEvidenceState.GUARD_DROPPED,
+    fun adapterIncludesMixedRouteLabInSharedPool() {
+        val events = listOf(
+            medicationEvent(uuid(11), PkRoute.ORAL, timeH = 0.0),
+            medicationEvent(
+                uuid(12),
+                PkRoute.INJECTION,
+                timeH = 0.0,
+                compound = PkCompound.EV,
             ),
-            oral.dominantCandidates.map(PkCalibrationLabEvidence::state).toSet(),
         )
-    }
-
-    @Test
-    fun allGuardDroppedCandidatesStayIsolatedToTheirRoutes() {
-        val input = routeSeparatedInput(included = false)
-        val ready = ready(fixture(labs = input.labs, events = input.events).build())
-
-        val injection = ready.routeEvidence.single { route ->
-            route.route == PkCalibrationRoute.INJECTION
-        }
-        val oral = ready.routeEvidence.single { route ->
-            route.route == PkCalibrationRoute.ORAL
-        }
-        assertEquals(1, injection.dominantCandidateLabCount)
-        assertEquals(0, injection.dominantLabCount)
-        assertEquals(input.labs[0].resultId, injection.dominantCandidates.single().resultId)
-        assertEquals(1, oral.dominantCandidateLabCount)
-        assertEquals(0, oral.dominantLabCount)
-        assertEquals(input.labs[1].resultId, oral.dominantCandidates.single().resultId)
+        val forward = requireNotNull(
+            PkE2ForwardModel.create(events.map { source -> source.event }, BodyWeightKg)
+        )
+        val breakdown = requireNotNull(forward.breakdownAt(8.0))
         assertTrue(
-            ready.routeEvidence
-                .filterNot { route ->
-                    route.route == PkCalibrationRoute.INJECTION ||
-                            route.route == PkCalibrationRoute.ORAL
-                }
-                .all { route -> route.dominantCandidateLabCount == 0 }
+            PkCalibrationRoute.entries.count { route ->
+                breakdown.byRouteDrugPgml.getValue(route) > 0.0
+            } >= 2
         )
-        assertTrue(ready.unassigned.isEmpty())
-        assertTrue(
-            ready.routeEvidence
-                .flatMap(PkCalibrationRouteEvidence::dominantCandidates)
-                .all { evidence -> evidence.state == PkCalibrationLabEvidenceState.GUARD_DROPPED }
+        val observed = breakdown.totalDrugPgml * 0.25
+        val mixedLab = lab(
+            collectedAtEpochMillis = OriginMillis + 8 * HourMillis,
+            sourceValue = observed,
+            canonicalValuePgml = observed,
         )
+        val pool = ready(fixture(labs = listOf(mixedLab), events = events).build())
+
+        val evidence = pool.included.single()
+        assertEquals(PkCalibrationLabEvidenceState.INCLUDED, evidence.state)
+        assertEquals(observed, requireNotNull(evidence.observedPgml), 0.0)
+        assertEquals(
+            requireNotNull(evidence.breakdown).totalDrugPgml.toBits(),
+            requireNotNull(evidence.totalDrugPgml).toBits(),
+        )
+        assertTrue(pool.unassigned.isEmpty())
+        assertTrue(pool.excluded.isEmpty())
     }
 
     @Test
@@ -880,8 +796,7 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
         val acceptedReady = ready(fixture.build(metadata = listOf(accepted)))
-        val acceptedEvidence = acceptedReady.routeEvidence
-            .flatMap(PkCalibrationRouteEvidence::dominantCandidates)
+        val acceptedEvidence = acceptedReady.included
             .single { evidence -> evidence.resultId == uuid(1) }
         assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED, acceptedEvidence.effectiveDisposition)
         assertEquals(
@@ -904,8 +819,7 @@ class PkCalibrationScopeEvidenceTest {
                 Instant.ofEpochMilli(999),
             )
         )
-        val staleEvidence = ready(fixture.build(metadata = listOf(stale))).routeEvidence
-            .flatMap(PkCalibrationRouteEvidence::dominantCandidates)
+        val staleEvidence = ready(fixture.build(metadata = listOf(stale))).included
             .single { evidence -> evidence.resultId == uuid(1) }
         assertEquals(PkCalibrationEffectiveDisposition.AUTO, staleEvidence.effectiveDisposition)
 
@@ -1043,17 +957,11 @@ class PkCalibrationScopeEvidenceTest {
 
         assertEquals(
             PkCalibrationEffectiveDisposition.ACCEPTED,
-            acceptedReady.routeEvidence
-                .flatMap(PkCalibrationRouteEvidence::dominantCandidates)
-                .single()
-                .effectiveDisposition,
+            acceptedReady.included.single().effectiveDisposition,
         )
         assertEquals(
             PkCalibrationEffectiveDisposition.AUTO,
-            changedVersionReady.routeEvidence
-                .flatMap(PkCalibrationRouteEvidence::dominantCandidates)
-                .single()
-                .effectiveDisposition,
+            changedVersionReady.included.single().effectiveDisposition,
         )
         assertNotEquals(
             acceptedReady.canonicalInput.acceptanceRecordFor(resultId),
@@ -1066,7 +974,7 @@ class PkCalibrationScopeEvidenceTest {
         // v10.0 §A2: acceptance staleness is per-result. Editing a different lab
         // no longer invalidates an acceptance the way the whole-snapshot review
         // digest deliberately did.
-        val input = routeSeparatedInput(included = true)
+        val input = routeSeparatedInput()
         val fixture = fixture(labs = input.labs, events = input.events)
         val original = ready(fixture.build())
         val acceptedResultId = input.labs[0].resultId
@@ -1095,12 +1003,10 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
 
-        val acceptedEvidence = acceptedReady.routeEvidence
-            .single { route -> route.route == PkCalibrationRoute.INJECTION }
-            .dominantCandidates.single()
-        val survivingEvidence = changedReady.routeEvidence
-            .single { route -> route.route == PkCalibrationRoute.INJECTION }
-            .dominantCandidates.single()
+        val acceptedEvidence = acceptedReady.included
+            .single { evidence -> evidence.resultId == acceptedResultId }
+        val survivingEvidence = changedReady.included
+            .single { evidence -> evidence.resultId == acceptedResultId }
         assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
             acceptedEvidence.effectiveDisposition)
         assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
@@ -1116,7 +1022,7 @@ class PkCalibrationScopeEvidenceTest {
         val events: List<PkCalibrationMedicationEventSource>,
     )
 
-    private fun routeSeparatedInput(included: Boolean): RouteSeparatedInput {
+    private fun routeSeparatedInput(): RouteSeparatedInput {
         val events = listOf(
             medicationEvent(
                 uuid(81),
@@ -1129,29 +1035,9 @@ class PkCalibrationScopeEvidenceTest {
         val forward = requireNotNull(
             PkE2ForwardModel.create(events.map { source -> source.event }, BodyWeightKg)
         )
-        val observations = listOf(
-            Triple(uuid(83), PkCalibrationRoute.INJECTION, 8.0),
-            Triple(uuid(84), PkCalibrationRoute.ORAL, 2_008.0),
-        )
-        val labs = observations.map { (resultId, route, timeH) ->
-            val breakdown = requireNotNull(forward.breakdownAt(timeH))
-            val dominant = breakdown.byRouteDrugPgml.getValue(route)
-            val baseline = (breakdown.totalDrugPgml - dominant).let { value ->
-                if (value == 0.0) 0.0 else value
-            }
-            val guard = kotlin.math.max(
-                PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_FRACTION *
-                        breakdown.totalDrugPgml,
-                PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_PGML,
-            )
-            val attributable = if (included) guard * 2.0 else guard * 0.25
-            val observed = baseline + attributable
-            val classification = classifyCalibrationObservation(
-                observedPgml = observed,
-                breakdown = breakdown,
-                drugMinInformativePgml = 1e-20,
-            ) as PkCalibrationObservationClassification.Candidate
-            check(classification.route == route && classification.included == included)
+        val labs = listOf(uuid(83) to 8.0, uuid(84) to 2_008.0).map { (resultId, timeH) ->
+            val observed = requireNotNull(forward.breakdownAt(timeH)).totalDrugPgml
+            check(observed.isFinite() && observed > 0.0)
             lab(
                 resultId = resultId,
                 collectedAtEpochMillis = OriginMillis + (timeH * HourMillis).toLong(),
@@ -1355,18 +1241,10 @@ class PkCalibrationScopeEvidenceTest {
         return requireNotNull(PkForwardBreakdown.create(canonical))
     }
 
-    private fun otherRoute(route: PkCalibrationRoute): PkCalibrationRoute {
-        return if (route == PkCalibrationRoute.INJECTION) {
-            PkCalibrationRoute.ORAL
-        } else {
-            PkCalibrationRoute.INJECTION
-        }
-    }
-
     private fun ready(
         result: PkCalibrationEvidenceBuildResult,
-    ): PkCalibrationEvidencePartition {
-        return (result as PkCalibrationEvidenceBuildResult.Ready).partition
+    ): PkCalibrationEvidencePool {
+        return (result as PkCalibrationEvidenceBuildResult.Ready).pool
     }
 
     private fun assertFailure(

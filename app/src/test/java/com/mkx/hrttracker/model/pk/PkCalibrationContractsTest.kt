@@ -126,8 +126,7 @@ class PkCalibrationContractsTest {
                 betaPosteriorSd = 0.1,
                 laplaceVarianceBeta = 0.01,
                 robustRmseLog = 0.1,
-                candidateCount = 3,
-                includedCount = 2,
+                supportingLabCount = 2,
                 outlierIds = setOf(outlierId),
             )
         )
@@ -142,8 +141,7 @@ class PkCalibrationContractsTest {
         assertNull(
             routeResult(
                 route = PkCalibrationRoute.ORAL,
-                candidateCount = 1,
-                includedCount = 2,
+                supportingLabCount = -1,
             )
         )
     }
@@ -161,8 +159,7 @@ class PkCalibrationContractsTest {
                 PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
             },
             robustRmseLog: Double? = fittedBeta?.let { 0.1 },
-            candidateCount: Int = 3,
-            includedCount: Int = 3,
+            supportingLabCount: Int = 3,
             atDisplayCapBoundary: Boolean = false,
             outlierIds: Set<UUID> = emptySet(),
         ): PkRouteCalibrationResult? {
@@ -173,8 +170,7 @@ class PkCalibrationContractsTest {
                 laplaceVarianceBeta = laplaceVarianceBeta,
                 displayState = state,
                 reasons = reasons,
-                dominantCandidateLabCount = candidateCount,
-                dominantLabCount = includedCount,
+                supportingLabCount = supportingLabCount,
                 drugSignalLogRange = drugSignalLogRange,
                 robustRmseLog = robustRmseLog,
                 atDisplayCapBoundary = atDisplayCapBoundary,
@@ -185,36 +181,40 @@ class PkCalibrationContractsTest {
 
         assertNotNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
-                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
-                candidateCount = 0,
-                includedCount = 0,
+                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                supportingLabCount = 0,
             )
         )
         assertNotNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
-                setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS),
-                candidateCount = 1,
-                includedCount = 1,
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
+                supportingLabCount = 1,
             )
         )
         assertNotNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
-                setOf(PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS),
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS),
                 route = PkCalibrationRoute.GEL,
                 fittedBeta = ln(2.5),
-                candidateCount = 2,
-                includedCount = 2,
+                supportingLabCount = 2,
+            )
+        )
+        // v10.0 §A10.3: ambiguity is a global joint-posterior property, so the
+        // ambiguous row is valid at any supporting count, including zero.
+        assertNotNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
+                supportingLabCount = 0,
             )
         )
         assertNotNull(
             populationResult(
                 PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
                 setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
-                candidateCount = 2,
-                includedCount = 2,
             )
         )
         assertNotNull(
@@ -269,7 +269,7 @@ class PkCalibrationContractsTest {
                 PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
                 setOf(
                     PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
-                    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS,
+                    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
                     PkCalibrationReason.RESIDUAL_FIT_POOR,
                     PkCalibrationReason.UNREVIEWED_OUTLIER,
                     PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
@@ -283,8 +283,7 @@ class PkCalibrationContractsTest {
                     PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
                 robustRmseLog =
                     PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
-                candidateCount = 2,
-                includedCount = 2,
+                supportingLabCount = 2,
                 outlierIds = setOf(outlierId),
             )
         )
@@ -302,8 +301,7 @@ class PkCalibrationContractsTest {
                 PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
             },
             robustRmseLog: Double? = fittedBeta?.let { 0.1 },
-            candidateCount: Int = 3,
-            includedCount: Int = 3,
+            supportingLabCount: Int = 3,
             atDisplayCapBoundary: Boolean = false,
             outlierIds: Set<UUID> = emptySet(),
         ): PkRouteCalibrationResult? {
@@ -314,8 +312,7 @@ class PkCalibrationContractsTest {
                 laplaceVarianceBeta = laplaceVarianceBeta,
                 displayState = state,
                 reasons = reasons,
-                dominantCandidateLabCount = candidateCount,
-                dominantLabCount = includedCount,
+                supportingLabCount = supportingLabCount,
                 drugSignalLogRange = drugSignalLogRange,
                 robustRmseLog = robustRmseLog,
                 atDisplayCapBoundary = atDisplayCapBoundary,
@@ -326,22 +323,29 @@ class PkCalibrationContractsTest {
 
         assertNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
-                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
             )
         )
         assertNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
-                setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS),
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
             )
         )
         assertNull(
             populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
-                setOf(PkCalibrationReason.NO_DOMINANT_LABS),
-                candidateCount = 1,
-                includedCount = 0,
+                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                supportingLabCount = 1,
+            )
+        )
+        // An ambiguous joint mode never certifies a fitted beta or diagnostics.
+        assertNull(
+            populationResult(
+                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
+                fittedBeta = 0.0,
             )
         )
         assertNull(
@@ -476,14 +480,23 @@ class PkCalibrationContractsTest {
                 )
             )
         }
+        // Diagonal must bit-equal the promoted row's laplaceVarianceBeta (0.01).
+        val injectionCovariance = requireNotNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION),
+                values = listOf(listOf(0.01)),
+            )
+        )
+        val mixedDisplayParams = requireNotNull(
+            PkPersonalParams.create(mapOf(PkCalibrationRoute.INJECTION to beta))
+        )
         assertNotNull(
             PkCalibrationResult.create(
                 globalState = PkCalibrationGlobalState.READY,
                 routeResults = mixedRoutes,
                 promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
-                displayParams = requireNotNull(
-                    PkPersonalParams.create(mapOf(PkCalibrationRoute.INJECTION to beta))
-                ),
+                displayParams = mixedDisplayParams,
+                promotedBetaCovariance = injectionCovariance,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -494,6 +507,53 @@ class PkCalibrationContractsTest {
                 routeResults = mixedRoutes,
                 promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
                 displayParams = PkPersonalParams.population(),
+                promotedBetaCovariance = injectionCovariance,
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        // Promoted routes require the joint covariance block.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.READY,
+                routeResults = mixedRoutes,
+                promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
+                displayParams = mixedDisplayParams,
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        // Covariance diagonal must bit-equal the promoted row's marginal variance.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.READY,
+                routeResults = mixedRoutes,
+                promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
+                displayParams = mixedDisplayParams,
+                promotedBetaCovariance = requireNotNull(
+                    PkCalibrationPromotedCovariance.create(
+                        routes = listOf(PkCalibrationRoute.INJECTION),
+                        values = listOf(listOf(0.02)),
+                    )
+                ),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        // No promoted routes means no covariance, READY or not.
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.READY,
+                routeResults = populationRoutes,
+                promotedBetaCovariance = injectionCovariance,
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+                promotedBetaCovariance = injectionCovariance,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
             )
@@ -514,8 +574,82 @@ class PkCalibrationContractsTest {
                 routeResults = zeroBetaPromotedRoutes,
                 promotedRoutes = listOf(PkCalibrationRoute.INJECTION),
                 displayParams = PkPersonalParams.population(),
+                promotedBetaCovariance = injectionCovariance,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
+            )
+        )
+    }
+
+    @Test
+    fun promotedCovariance_factoryRequiresCanonicalRoutesSymmetryAndPositiveDiagonal() {
+        val valid = requireNotNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+                values = listOf(
+                    listOf(0.04, -0.01),
+                    listOf(-0.01, 0.09),
+                ),
+            )
+        )
+        assertEquals(
+            -0.01,
+            requireNotNull(
+                valid.covariance(PkCalibrationRoute.ORAL, PkCalibrationRoute.INJECTION)
+            ),
+            0.0,
+        )
+        assertEquals(
+            0.09,
+            requireNotNull(
+                valid.covariance(PkCalibrationRoute.ORAL, PkCalibrationRoute.ORAL)
+            ),
+            0.0,
+        )
+        assertNull(valid.covariance(PkCalibrationRoute.GEL, PkCalibrationRoute.ORAL))
+
+        assertNull(PkCalibrationPromotedCovariance.create(emptyList(), emptyList()))
+        // Non-canonical route order fails closed.
+        assertNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.ORAL, PkCalibrationRoute.INJECTION),
+                values = listOf(
+                    listOf(0.04, 0.0),
+                    listOf(0.0, 0.09),
+                ),
+            )
+        )
+        // Bitwise asymmetry fails closed.
+        assertNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+                values = listOf(
+                    listOf(0.04, 0.01),
+                    listOf(-0.01, 0.09),
+                ),
+            )
+        )
+        // Non-positive diagonal fails closed.
+        assertNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+                values = listOf(
+                    listOf(0.04, 0.0),
+                    listOf(0.0, 0.0),
+                ),
+            )
+        )
+        assertNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION),
+                values = listOf(listOf(Double.NaN)),
+            )
+        )
+        // Dimension mismatch fails closed.
+        assertNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = listOf(PkCalibrationRoute.INJECTION),
+                values = listOf(listOf(0.04, 0.0)),
             )
         )
     }
@@ -542,8 +676,7 @@ class PkCalibrationContractsTest {
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
-                candidateCount = 1,
-                includedCount = 1,
+                supportingLabCount = 1,
             )
         )
         assertNull(
@@ -594,24 +727,21 @@ class PkCalibrationContractsTest {
             promotedRouteResult(
                 route = PkCalibrationRoute.GEL,
                 displayBeta = extremeBeta,
-                candidateCount = 2,
-                includedCount = 2,
+                supportingLabCount = 2,
             )
         )
         assertNotNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.GEL,
                 displayBeta = extremeBeta,
-                candidateCount = 3,
-                includedCount = 3,
+                supportingLabCount = 3,
             )
         )
         assertNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = ln(2.1),
-                candidateCount = 3,
-                includedCount = 3,
+                supportingLabCount = 3,
             )
         )
 
@@ -708,7 +838,7 @@ class PkCalibrationContractsTest {
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
-                reasons = setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+                reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
             )
         )
         assertNull(
@@ -880,16 +1010,15 @@ class PkCalibrationContractsTest {
     private fun routeResult(
         route: PkCalibrationRoute,
         displayState: PkRouteCalibrationDisplayState =
-            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
         displayBeta: Double = 0.0,
         reasons: Set<PkCalibrationReason> =
-            setOf(PkCalibrationReason.NO_DOMINANT_LABS),
+            setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
         fittedBeta: Double? = null,
         betaPosteriorSd: Double? = null,
         laplaceVarianceBeta: Double? = null,
         robustRmseLog: Double? = null,
-        candidateCount: Int = 0,
-        includedCount: Int = 0,
+        supportingLabCount: Int = 0,
         outlierIds: Set<UUID> = emptySet(),
     ): PkRouteCalibrationResult? {
         return PkRouteCalibrationResult.create(
@@ -900,8 +1029,7 @@ class PkCalibrationContractsTest {
             betaPosteriorSd = betaPosteriorSd,
             laplaceVarianceBeta = laplaceVarianceBeta,
             reasons = reasons,
-            dominantCandidateLabCount = candidateCount,
-            dominantLabCount = includedCount,
+            supportingLabCount = supportingLabCount,
             robustRmseLog = robustRmseLog,
             unreviewedOutlierLabIds = outlierIds,
             rLog = TestRLog,
@@ -916,8 +1044,7 @@ class PkCalibrationContractsTest {
         fittedBeta: Double? = displayBeta,
         betaPosteriorSd: Double? = 0.10,
         laplaceVarianceBeta: Double? = 0.01,
-        candidateCount: Int = 2,
-        includedCount: Int = 2,
+        supportingLabCount: Int = 2,
         drugSignalLogRange: Double? = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
         robustRmseLog: Double? = 0.10,
         reasons: Set<PkCalibrationReason> = emptySet(),
@@ -932,8 +1059,7 @@ class PkCalibrationContractsTest {
             laplaceVarianceBeta = laplaceVarianceBeta,
             displayState = displayState,
             reasons = reasons,
-            dominantCandidateLabCount = candidateCount,
-            dominantLabCount = includedCount,
+            supportingLabCount = supportingLabCount,
             drugSignalLogRange = drugSignalLogRange,
             robustRmseLog = robustRmseLog,
             atDisplayCapBoundary = atDisplayCapBoundary,

@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationEngineEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
+import com.mkx.hrttracker.model.pk.PkCalibrationPromotedCovariance
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
@@ -88,7 +89,6 @@ data class PkCalibrationDebugScenario private constructor(
     val centralUnavailable: Boolean,
     val outlierRoute: PkCalibrationRoute?,
     val nonPositiveInput: Boolean,
-    val guardDroppedRoute: PkCalibrationRoute?,
     val displayCapBoundaryRoute: PkCalibrationRoute?,
     val fixtureDisposition: PkCalibrationDebugFixtureDisposition,
 ) {
@@ -101,7 +101,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute,
             nonPositiveInput = nonPositiveInput,
-            guardDroppedRoute = guardDroppedRoute,
             displayCapBoundaryRoute = displayCapBoundaryRoute,
             fixtureDisposition = fixtureDisposition,
         ))
@@ -117,7 +116,6 @@ data class PkCalibrationDebugScenario private constructor(
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute.takeUnless { it == route },
         nonPositiveInput = false,
-        guardDroppedRoute = guardDroppedRoute,
         displayCapBoundaryRoute = displayCapBoundaryRoute.takeUnless { it == route },
         fixtureDisposition = PkCalibrationDebugFixtureDisposition.AUTO,
     ))
@@ -136,7 +134,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute.takeUnless { it == route },
             nonPositiveInput = false,
-            guardDroppedRoute = guardDroppedRoute,
             displayCapBoundaryRoute = displayCapBoundaryRoute,
             fixtureDisposition = if (outlierRoute == route) {
                 PkCalibrationDebugFixtureDisposition.AUTO
@@ -162,7 +159,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute,
             nonPositiveInput = false,
-            guardDroppedRoute = guardDroppedRoute,
             displayCapBoundaryRoute = displayCapBoundaryRoute,
             fixtureDisposition = fixtureDisposition,
         ))
@@ -176,7 +172,6 @@ data class PkCalibrationDebugScenario private constructor(
         centralUnavailable = value,
         outlierRoute = outlierRoute,
         nonPositiveInput = false,
-        guardDroppedRoute = guardDroppedRoute,
         displayCapBoundaryRoute = displayCapBoundaryRoute,
         fixtureDisposition = fixtureDisposition,
     ))
@@ -190,7 +185,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = route,
             nonPositiveInput = false,
-            guardDroppedRoute = guardDroppedRoute.takeUnless { it == route },
             displayCapBoundaryRoute = displayCapBoundaryRoute.takeUnless { it == route },
             fixtureDisposition = PkCalibrationDebugFixtureDisposition.AUTO,
         ))
@@ -203,28 +197,9 @@ data class PkCalibrationDebugScenario private constructor(
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute,
         nonPositiveInput = value,
-        guardDroppedRoute = guardDroppedRoute,
         displayCapBoundaryRoute = displayCapBoundaryRoute,
         fixtureDisposition = fixtureDisposition,
     ))
-
-    fun withGuardDroppedRoute(route: PkCalibrationRoute?): PkCalibrationDebugScenario =
-        requireNotNull(create(
-            globalState = globalState,
-            routeStateByRoute = routeStateByRoute,
-            routeRenderFallback = routeRenderFallback,
-            bandUnavailable = bandUnavailable,
-            centralUnavailable = centralUnavailable,
-            outlierRoute = outlierRoute.takeUnless { it == route },
-            nonPositiveInput = nonPositiveInput,
-            guardDroppedRoute = route,
-            displayCapBoundaryRoute = displayCapBoundaryRoute,
-            fixtureDisposition = if (outlierRoute == route) {
-                PkCalibrationDebugFixtureDisposition.AUTO
-            } else {
-                fixtureDisposition
-            },
-        ))
 
     fun withDisplayCapBoundaryRoute(
         route: PkCalibrationRoute?,
@@ -242,7 +217,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute.takeUnless { it == route },
             nonPositiveInput = false,
-            guardDroppedRoute = guardDroppedRoute,
             displayCapBoundaryRoute = route,
             fixtureDisposition = if (outlierRoute == route) {
                 PkCalibrationDebugFixtureDisposition.AUTO
@@ -262,7 +236,6 @@ data class PkCalibrationDebugScenario private constructor(
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute,
         nonPositiveInput = nonPositiveInput,
-        guardDroppedRoute = guardDroppedRoute,
         displayCapBoundaryRoute = displayCapBoundaryRoute,
         fixtureDisposition = value,
     ))
@@ -277,7 +250,6 @@ data class PkCalibrationDebugScenario private constructor(
             centralUnavailable: Boolean = false,
             outlierRoute: PkCalibrationRoute? = null,
             nonPositiveInput: Boolean = false,
-            guardDroppedRoute: PkCalibrationRoute? = null,
             displayCapBoundaryRoute: PkCalibrationRoute? = null,
             fixtureDisposition: PkCalibrationDebugFixtureDisposition =
                 PkCalibrationDebugFixtureDisposition.AUTO,
@@ -292,7 +264,6 @@ data class PkCalibrationDebugScenario private constructor(
             ) {
                 return null
             }
-            if (outlierRoute != null && outlierRoute == guardDroppedRoute) return null
             if (outlierRoute != null && outlierRoute == displayCapBoundaryRoute) return null
             if (displayCapBoundaryRoute != null &&
                 routeStateByRoute.getValue(displayCapBoundaryRoute).isPopulationState()
@@ -307,7 +278,6 @@ data class PkCalibrationDebugScenario private constructor(
                 centralUnavailable = centralUnavailable,
                 outlierRoute = outlierRoute,
                 nonPositiveInput = nonPositiveInput,
-                guardDroppedRoute = guardDroppedRoute,
                 displayCapBoundaryRoute = displayCapBoundaryRoute,
                 fixtureDisposition = fixtureDisposition,
             )
@@ -348,7 +318,7 @@ data class PkCalibrationDebugScenario private constructor(
             PkCalibrationRoute,
             PkRouteCalibrationDisplayState,
         > = PkCalibrationRoute.entries.associateWith {
-            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS
+            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
         }
     }
 }
@@ -550,7 +520,7 @@ private fun PkCalibrationLiveState.toDebugSourceResult(): PkCalibrationDebugSour
  */
 internal object PkCalibrationDebugFixtures {
     private const val DebugForwardModelVersion = "debug:pk-forward/v1"
-    private const val DebugCalibrationModelVersion = "debug:route-calibration/v9"
+    private const val DebugCalibrationModelVersion = "debug:route-calibration/v10"
     private const val DebugRLog = 0.04
     private val DomainDigest = requireNotNull(CanonicalDigest.create(
         PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA,
@@ -654,19 +624,16 @@ internal object PkCalibrationDebugFixtures {
 
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val state = when {
-                scenario.guardDroppedRoute == route ->
-                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS
                 scenario.outlierRoute != route -> scenario.routeStateByRoute.getValue(route)
                 scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO ->
                     PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
                 scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.ACCEPTED ->
                     PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-                else -> PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS
+                else -> PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS
             }
             routeResult(
                 route = route,
                 state = state,
-                guardDropped = scenario.guardDroppedRoute == route,
                 unreviewedOutlier = scenario.outlierRoute == route &&
                         scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO,
                 atDisplayCapBoundary = scenario.displayCapBoundaryRoute == route,
@@ -681,11 +648,29 @@ internal object PkCalibrationDebugFixtures {
                 displayBetas[routeResult.route] = routeResult.displayBeta
             }
         }
+        val promotedBetaCovariance = if (promotedRoutes.isEmpty()) {
+            null
+        } else {
+            val variances = promotedRoutes.map { route ->
+                requireNotNull(
+                    routeResults.first { item -> item.route == route }.laplaceVarianceBeta
+                )
+            }
+            requireNotNull(PkCalibrationPromotedCovariance.create(
+                routes = promotedRoutes,
+                values = List(promotedRoutes.size) { row ->
+                    List(promotedRoutes.size) { column ->
+                        if (row == column) variances[row] else 0.0
+                    }
+                },
+            ))
+        }
         return requireNotNull(PkCalibrationResult.create(
             globalState = PkCalibrationGlobalState.READY,
             routeResults = routeResults,
             promotedRoutes = promotedRoutes,
             displayParams = requireNotNull(PkPersonalParams.create(displayBetas)),
+            promotedBetaCovariance = promotedBetaCovariance,
             forwardModelVersion = DebugForwardModelVersion,
             calibrationModelVersion = DebugCalibrationModelVersion,
         ))
@@ -694,7 +679,6 @@ internal object PkCalibrationDebugFixtures {
     private fun routeResult(
         route: PkCalibrationRoute,
         state: PkRouteCalibrationDisplayState,
-        guardDropped: Boolean,
         unreviewedOutlier: Boolean,
         atDisplayCapBoundary: Boolean,
     ): PkRouteCalibrationResult {
@@ -707,20 +691,16 @@ internal object PkCalibrationDebugFixtures {
             )
             else -> ln(1.25)
         }
-        val dominantLabCount = when {
-            guardDropped -> 0
-            else -> when (state) {
-                PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS -> 0
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS -> 1
-                else -> 3
-            }
+        val supportingLabCount = when (state) {
+            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS -> 0
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS -> 1
+            else -> 3
         }
-        val candidateCount = if (guardDropped) 1 else dominantLabCount
         val baseReasons = when (state) {
-            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS ->
-                setOf(PkCalibrationReason.NO_DOMINANT_LABS)
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS ->
-                setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS)
+            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
+                setOf(PkCalibrationReason.NO_SUPPORTING_LABS)
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS ->
+                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS)
             PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE -> if (unreviewedOutlier) {
                 setOf(PkCalibrationReason.UNREVIEWED_OUTLIER)
             } else {
@@ -745,8 +725,8 @@ internal object PkCalibrationDebugFixtures {
                 ln(cap.maxInclusive * 1.1)
             }
             PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
             -> null
             else -> displayBeta
         }
@@ -777,8 +757,7 @@ internal object PkCalibrationDebugFixtures {
             },
             displayState = state,
             reasons = reasons,
-            dominantCandidateLabCount = candidateCount,
-            dominantLabCount = dominantLabCount,
+            supportingLabCount = supportingLabCount,
             drugSignalLogRange = when (state) {
                 PkRouteCalibrationDisplayState.LAB_CALIBRATED,
                 PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,

@@ -328,6 +328,19 @@ class PkCalibrationRendererTest {
         val centralByTime = actual.centralCurve.associateBy(PkCurvePoint::epochMillis)
 
         assertEquals(PkCalibrationBandState.READY, actual.bandState)
+        // The band now reads the joint covariance block; its diagonal must
+        // bit-match each promoted row's marginal Laplace variance.
+        val covariance = requireNotNull(evaluation.result.promotedBetaCovariance)
+        assertEquals(evaluation.result.promotedRoutes, covariance.routes)
+        for (routeResult in evaluation.result.routeResults) {
+            if (routeResult.route !in covariance.routes) continue
+            assertEquals(
+                requireNotNull(routeResult.laplaceVarianceBeta).toBits(),
+                requireNotNull(
+                    covariance.covariance(routeResult.route, routeResult.route)
+                ).toBits(),
+            )
+        }
         for (knot in actual.bandKnots) {
             val values = listOf(
                 knot.p025Pgml,
@@ -457,25 +470,19 @@ class PkCalibrationRendererTest {
             forwardModelVersion = forwardModelVersion,
             calibrationModelVersion = calibrationModelVersion,
         )
-        val routeEvidence = PkCalibrationRoute.entries.map { route ->
+        val included = PkCalibrationRoute.entries.flatMap { route ->
             val q = promotedQByRoute[route] ?: diagnosticQByRoute[route]
-            if (q == null) {
-                requireNotNull(
-                    PkCalibrationRouteEvidence.create(route, emptyList(), emptyList())
-                )
-            } else {
-                routeEvidence(route, q)
-            }
+            if (q == null) emptyList() else includedEvidence(route, q)
         }
-        val partition = requireNotNull(
-            PkCalibrationEvidencePartition.create(
+        val pool = requireNotNull(
+            PkCalibrationEvidencePool.create(
                 canonicalInput = canonicalInput,
-                routeEvidence = routeEvidence,
+                included = included,
                 unassigned = emptyList(),
                 excluded = emptyList(),
             )
         )
-        val solution = requireNotNull(PkCalibrationSolver.solveBound(partition))
+        val solution = requireNotNull(PkCalibrationSolver.solveBound(pool))
         val evaluation = requireNotNull(PkCalibrationEngineEvaluation.ready(solution))
         assertEquals(
             PkCalibrationRoute.entries.filter(promotedQByRoute::containsKey),
@@ -555,32 +562,33 @@ class PkCalibrationRendererTest {
         )
     }
 
-    private fun routeEvidence(
+    /**
+     * Three single-route labs whose observed values imply route log-scale q.
+     * Single-route breakdowns keep the joint objective decoupled per route, so
+     * each route's MAP is determined by its own labs alone.
+     */
+    private fun includedEvidence(
         route: PkCalibrationRoute,
         q: Double,
-    ): PkCalibrationRouteEvidence {
+    ): List<PkCalibrationLabEvidence> {
         val totals = listOf(10.0, 20.0, 40.0)
-        val included = totals.mapIndexed { index, total ->
-            val attributable = exp(q) * total
+        return totals.mapIndexed { index, total ->
+            val breakdown = requireNotNull(
+                PkForwardBreakdown.create(
+                    PkCalibrationRoute.entries.associateWith { entry ->
+                        if (entry == route) total else 0.0
+                    }
+                )
+            )
             PkCalibrationLabEvidence(
                 resultId = uuid(1_000L + route.ordinal * 100L + index),
                 state = PkCalibrationLabEvidenceState.INCLUDED,
-                route = route,
-                observedPgml = attributable,
-                totalDrugPgml = total,
-                dominantRouteDrugPgml = total,
-                otherRoutePopulationPgml = 0.0,
-                routeAttributableObservedPgml = attributable,
+                observedPgml = exp(q) * total,
+                totalDrugPgml = breakdown.totalDrugPgml,
+                breakdown = breakdown,
                 effectiveDisposition = PkCalibrationEffectiveDisposition.AUTO,
             )
         }
-        return requireNotNull(
-            PkCalibrationRouteEvidence.create(
-                route = route,
-                dominantCandidates = included,
-                included = included,
-            )
-        )
     }
 
     private fun render(

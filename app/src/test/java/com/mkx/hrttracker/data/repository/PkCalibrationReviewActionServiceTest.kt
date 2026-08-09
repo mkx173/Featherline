@@ -120,16 +120,14 @@ class PkCalibrationReviewActionServiceTest {
         val accepted = fixture.readyEvidence(repository.getAllMetadata(), currentInput)
         assertEquals(
             PkCalibrationEffectiveDisposition.ACCEPTED,
-            accepted.routeEvidence
-                .flatMap { route -> route.dominantCandidates }
+            accepted.included
                 .single { evidence -> evidence.resultId == targetId }
                 .effectiveDisposition,
         )
 
         currentInput = fixture.withOneBitOutlierValueChange()
         val stale = fixture.readyEvidence(repository.getAllMetadata(), currentInput)
-        val staleTarget = stale.routeEvidence
-            .flatMap { route -> route.dominantCandidates }
+        val staleTarget = stale.included
             .single { evidence -> evidence.resultId == targetId }
         assertEquals(PkCalibrationEffectiveDisposition.AUTO, staleTarget.effectiveDisposition)
         assertEquals(kept.metadata, repository.getAllMetadata().single())
@@ -439,7 +437,7 @@ class PkCalibrationReviewActionServiceTest {
             attestationProvider = provider,
             forwardModelVersion = input.forwardModelVersion,
             calibrationModelVersion = input.calibrationModelVersion,
-        ) as PkCalibrationEvidenceBuildResult.Ready).partition
+        ) as PkCalibrationEvidenceBuildResult.Ready).pool
 
         fun withOneBitOutlierValueChange(): PkCalibrationInputSnapshot {
             return replaceOutlierValue(Math.nextUp(labs.last().sourceValue))

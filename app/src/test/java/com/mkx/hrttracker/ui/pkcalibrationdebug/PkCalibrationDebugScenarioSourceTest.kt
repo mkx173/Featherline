@@ -124,7 +124,7 @@ class PkCalibrationDebugScenarioSourceTest {
             )
             .withRouteState(
                 PkCalibrationRoute.SUBLINGUAL,
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
+                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
             )
 
         val snapshot = source.loadFixture(mixed).availableSnapshot()
@@ -179,7 +179,7 @@ class PkCalibrationDebugScenarioSourceTest {
             PkCalibrationRoute.entries.forEach { route ->
                 assertEquals(
                     expected[route]
-                        ?: PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                        ?: PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
                     snapshot.result.routeResults.single { it.route == route }.displayState,
                 )
             }
@@ -233,7 +233,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
                 .forEach { result ->
                     assertEquals(
-                        PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS,
+                        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
                         result.displayState,
                     )
                 }
@@ -299,7 +299,7 @@ class PkCalibrationDebugScenarioSourceTest {
     }
 
     @Test
-    fun outlier_nonpositive_andGuardDropToggles_areExplicitAndDeterministic() {
+    fun outlierAndNonpositiveToggles_areExplicitAndDeterministic() {
         val outlierScenario = requireNotNull(PkCalibrationDebugScenario.create())
             .withOutlierRoute(PkCalibrationRoute.ORAL)
         val first = source.loadFixture(outlierScenario).availableSnapshot()
@@ -326,52 +326,6 @@ class PkCalibrationDebugScenarioSourceTest {
             nonpositive.result.globalReasons,
         )
         assertTrue(nonpositive.result.routeResults.isEmpty())
-
-        val guardDropped = source.loadFixture(
-            requireNotNull(PkCalibrationDebugScenario.create())
-                .withGuardDroppedRoute(PkCalibrationRoute.GEL)
-        ).availableSnapshot()
-        val gel = guardDropped.result.routeResults.single { it.route == PkCalibrationRoute.GEL }
-        assertEquals(1, gel.dominantCandidateLabCount)
-        assertEquals(0, gel.dominantLabCount)
-        assertEquals(
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_DOMINANT_LABS,
-            gel.displayState,
-        )
-        assertEquals(setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS), gel.reasons)
-    }
-
-    @Test
-    fun guardDropAndOutlier_onTheSameRoute_areMutuallyExclusiveInEitherSequence() {
-        val outlierId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.GEL)
-        val outlierFirst = requireNotNull(PkCalibrationDebugScenario.create())
-            .withOutlierRoute(PkCalibrationRoute.GEL)
-        val guardWins = outlierFirst.withGuardDroppedRoute(PkCalibrationRoute.GEL)
-        val guardSnapshot = source.loadFixture(guardWins).availableSnapshot()
-        val guardRoute = guardSnapshot.result.routeResults.single { result ->
-            result.route == PkCalibrationRoute.GEL
-        }
-
-        assertNull(guardWins.outlierRoute)
-        assertEquals(PkCalibrationRoute.GEL, guardWins.guardDroppedRoute)
-        assertTrue(guardRoute.unreviewedOutlierLabIds.isEmpty())
-        assertFalse(outlierId in guardSnapshot.reviewDispositionByResultId)
-        assertEquals(1, guardRoute.dominantCandidateLabCount)
-        assertEquals(0, guardRoute.dominantLabCount)
-
-        val outlierWins = guardWins.withOutlierRoute(PkCalibrationRoute.GEL)
-        val outlierSnapshot = source.loadFixture(outlierWins).availableSnapshot()
-        val outlierRoute = outlierSnapshot.result.routeResults.single { result ->
-            result.route == PkCalibrationRoute.GEL
-        }
-
-        assertEquals(PkCalibrationRoute.GEL, outlierWins.outlierRoute)
-        assertNull(outlierWins.guardDroppedRoute)
-        assertEquals(setOf(outlierId), outlierRoute.unreviewedOutlierLabIds)
-        assertEquals(
-            E2CalibrationDisposition.AUTO,
-            outlierSnapshot.reviewDispositionByResultId[outlierId],
-        )
     }
 
     @Test

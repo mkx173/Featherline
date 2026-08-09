@@ -74,7 +74,7 @@ class PkCalibrationPredictiveBandValidationTest {
             PkPredictiveBandMath.effectiveVariance(
                 totalPgml = 100.0,
                 contributionByRoutePgml = mapOf(PkCalibrationRoute.ORAL to 40.0),
-                varianceByRoute = mapOf(PkCalibrationRoute.ORAL to 0.09),
+                covariance = diagonalCovariance(mapOf(PkCalibrationRoute.ORAL to 0.09)),
                 promotedRoutes = listOf(PkCalibrationRoute.ORAL),
             )
         )
@@ -90,9 +90,11 @@ class PkCalibrationPredictiveBandValidationTest {
                     PkCalibrationRoute.INJECTION to 50.0,
                     PkCalibrationRoute.GEL to 80.0,
                 ),
-                varianceByRoute = mapOf(
-                    PkCalibrationRoute.INJECTION to 0.04,
-                    PkCalibrationRoute.GEL to 0.09,
+                covariance = diagonalCovariance(
+                    mapOf(
+                        PkCalibrationRoute.INJECTION to 0.04,
+                        PkCalibrationRoute.GEL to 0.09,
+                    )
                 ),
                 promotedRoutes = listOf(
                     PkCalibrationRoute.INJECTION,
@@ -104,6 +106,40 @@ class PkCalibrationPredictiveBandValidationTest {
             (50.0 / 200.0).let { alpha -> alpha * alpha * 0.04 } +
                     (80.0 / 200.0).let { alpha -> alpha * alpha * 0.09 }
         assertEquals(multiRouteOracle, multiRoute, 0.0)
+
+        // v10.0 §A10.5: the full quadratic form couples routes, so a negative
+        // off-diagonal must reduce the aggregate versus the diagonal-only sum.
+        val negativeCoupling = requireNotNull(
+            PkPredictiveBandMath.effectiveVariance(
+                totalPgml = 200.0,
+                contributionByRoutePgml = mapOf(
+                    PkCalibrationRoute.INJECTION to 50.0,
+                    PkCalibrationRoute.GEL to 80.0,
+                ),
+                covariance = requireNotNull(
+                    PkCalibrationPromotedCovariance.create(
+                        routes = listOf(
+                            PkCalibrationRoute.INJECTION,
+                            PkCalibrationRoute.GEL,
+                        ),
+                        values = listOf(
+                            listOf(0.04, -0.01),
+                            listOf(-0.01, 0.09),
+                        ),
+                    )
+                ),
+                promotedRoutes = listOf(
+                    PkCalibrationRoute.INJECTION,
+                    PkCalibrationRoute.GEL,
+                ),
+            )
+        )
+        assertTrue(negativeCoupling < multiRoute)
+        assertEquals(
+            multiRouteOracle + 2.0 * (50.0 / 200.0) * (80.0 / 200.0) * -0.01,
+            negativeCoupling,
+            1e-15,
+        )
     }
 
     @Test
@@ -135,9 +171,11 @@ class PkCalibrationPredictiveBandValidationTest {
                     PkCalibrationRoute.INJECTION to injectionContribution,
                     PkCalibrationRoute.GEL to gelContribution,
                 ),
-                varianceByRoute = mapOf(
-                    PkCalibrationRoute.INJECTION to injectionVariance,
-                    PkCalibrationRoute.GEL to gelVariance,
+                covariance = diagonalCovariance(
+                    mapOf(
+                        PkCalibrationRoute.INJECTION to injectionVariance,
+                        PkCalibrationRoute.GEL to gelVariance,
+                    )
                 ),
                 promotedRoutes = listOf(
                     PkCalibrationRoute.INJECTION,
@@ -163,6 +201,22 @@ class PkCalibrationPredictiveBandValidationTest {
                     PkCalibrationDefaults.BAND_VALIDATE_REL * abs(expected)
             assertEquals(expected, actual, normativeValidationBound)
         }
+    }
+
+    private fun diagonalCovariance(
+        varianceByRoute: Map<PkCalibrationRoute, Double>,
+    ): PkCalibrationPromotedCovariance {
+        val routes = PkCalibrationRoute.entries.filter(varianceByRoute::containsKey)
+        return requireNotNull(
+            PkCalibrationPromotedCovariance.create(
+                routes = routes,
+                values = routes.map { row ->
+                    routes.map { column ->
+                        if (row == column) varianceByRoute.getValue(row) else 0.0
+                    }
+                },
+            )
+        )
     }
 
     private fun assertRuleMatches(

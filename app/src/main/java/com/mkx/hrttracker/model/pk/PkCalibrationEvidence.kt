@@ -2,7 +2,6 @@ package com.mkx.hrttracker.model.pk
 
 import java.util.Collections
 import java.util.UUID
-import kotlin.math.max
 
 enum class PkCalibrationEvidenceFailure {
     SCOPE_NOT_CONFIRMED,
@@ -14,8 +13,6 @@ enum class PkCalibrationEvidenceFailure {
 enum class PkCalibrationLabEvidenceState {
     EXCLUDED,
     UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
-    UNASSIGNED_NO_DOMINANT_ROUTE,
-    GUARD_DROPPED,
     INCLUDED,
 }
 
@@ -99,69 +96,19 @@ data class PkCalibrationIdentityPolicy private constructor(
     }
 }
 
+/**
+ * v10.0 §A10.1: one shared evidence pool, no per-route ownership. An INCLUDED
+ * lab carries the full population decomposition; every route it touches is
+ * informed in proportion to its modeled share.
+ */
 data class PkCalibrationLabEvidence(
     val resultId: UUID,
     val state: PkCalibrationLabEvidenceState,
-    val route: PkCalibrationRoute?,
     val observedPgml: Double?,
     val totalDrugPgml: Double?,
-    val dominantRouteDrugPgml: Double?,
-    val otherRoutePopulationPgml: Double?,
-    val routeAttributableObservedPgml: Double?,
+    val breakdown: PkForwardBreakdown?,
     val effectiveDisposition: PkCalibrationEffectiveDisposition,
 )
-
-@ConsistentCopyVisibility
-data class PkCalibrationRouteEvidence private constructor(
-    val route: PkCalibrationRoute,
-    val dominantCandidates: List<PkCalibrationLabEvidence>,
-    val included: List<PkCalibrationLabEvidence>,
-) {
-    val dominantCandidateLabCount: Int get() = dominantCandidates.size
-    val dominantLabCount: Int get() = included.size
-
-    companion object {
-        internal fun create(
-            route: PkCalibrationRoute,
-            dominantCandidates: List<PkCalibrationLabEvidence>,
-            included: List<PkCalibrationLabEvidence>,
-        ): PkCalibrationRouteEvidence? {
-            val candidateIds = dominantCandidates.map(PkCalibrationLabEvidence::resultId)
-            val includedIds = included.map(PkCalibrationLabEvidence::resultId)
-            if (candidateIds.distinct().size != candidateIds.size ||
-                includedIds.distinct().size != includedIds.size
-            ) {
-                return null
-            }
-            if (dominantCandidates.any { item ->
-                    item.route != route ||
-                            (item.state != PkCalibrationLabEvidenceState.INCLUDED &&
-                                    item.state != PkCalibrationLabEvidenceState.GUARD_DROPPED)
-                } || included.any { item ->
-                    item.route != route || item.state != PkCalibrationLabEvidenceState.INCLUDED
-                }
-            ) {
-                return null
-            }
-            val candidateById = dominantCandidates.associateBy(
-                PkCalibrationLabEvidence::resultId
-            )
-            if (included.any { item -> candidateById[item.resultId] != item }) return null
-
-            val canonicalCandidates = dominantCandidates.sortedBy { item ->
-                item.resultId.toString().lowercase()
-            }
-            val canonicalIncluded = included.sortedBy { item ->
-                item.resultId.toString().lowercase()
-            }
-            return PkCalibrationRouteEvidence(
-                route = route,
-                dominantCandidates = immutableList(canonicalCandidates),
-                included = immutableList(canonicalIncluded),
-            )
-        }
-    }
-}
 
 @ConsistentCopyVisibility
 data class PkCalibrationCanonicalInputSnapshot private constructor(
@@ -215,9 +162,9 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
 }
 
 @ConsistentCopyVisibility
-data class PkCalibrationEvidencePartition private constructor(
+data class PkCalibrationEvidencePool private constructor(
     val canonicalInput: PkCalibrationCanonicalInputSnapshot,
-    val routeEvidence: List<PkCalibrationRouteEvidence>,
+    val included: List<PkCalibrationLabEvidence>,
     val unassigned: List<PkCalibrationLabEvidence>,
     val excluded: List<PkCalibrationLabEvidence>,
 ) {
@@ -227,40 +174,31 @@ data class PkCalibrationEvidencePartition private constructor(
     companion object {
         internal fun create(
             canonicalInput: PkCalibrationCanonicalInputSnapshot,
-            routeEvidence: List<PkCalibrationRouteEvidence>,
+            included: List<PkCalibrationLabEvidence>,
             unassigned: List<PkCalibrationLabEvidence>,
             excluded: List<PkCalibrationLabEvidence>,
-        ): PkCalibrationEvidencePartition? {
+        ): PkCalibrationEvidencePool? {
             if (!canonicalInput.config.isSolverEligible()) return null
-            if (routeEvidence.map(PkCalibrationRouteEvidence::route) !=
-                PkCalibrationRoute.entries
-            ) {
-                return null
-            }
-            if (routeEvidence.any { item ->
-                    PkCalibrationRouteEvidence.create(
-                        route = item.route,
-                        dominantCandidates = item.dominantCandidates,
-                        included = item.included,
-                    ) == null
+            val allIds = (included + unassigned + excluded)
+                .map(PkCalibrationLabEvidence::resultId)
+            if (allIds.distinct().size != allIds.size) return null
+            if (included.any { item ->
+                    item.state != PkCalibrationLabEvidenceState.INCLUDED ||
+                            item.breakdown == null ||
+                            item.observedPgml?.takeIf { value ->
+                                value.isFinite() && value > 0.0
+                            } == null ||
+                            item.totalDrugPgml?.toBits() !=
+                            item.breakdown.totalDrugPgml.toBits()
                 }
             ) {
                 return null
             }
-            val candidateIds = routeEvidence.flatMap { item ->
-                item.dominantCandidates.map(PkCalibrationLabEvidence::resultId)
-            }
-            val includedIds = routeEvidence.flatMap { item ->
-                item.included.map(PkCalibrationLabEvidence::resultId)
-            }
-            if (candidateIds.distinct().size != candidateIds.size ||
-                includedIds.distinct().size != includedIds.size
-            ) {
-                return null
-            }
-            return PkCalibrationEvidencePartition(
+            return PkCalibrationEvidencePool(
                 canonicalInput = canonicalInput,
-                routeEvidence = immutableList(routeEvidence),
+                included = immutableList(
+                    included.sortedBy { item -> item.resultId.toString().lowercase() }
+                ),
                 unassigned = immutableList(unassigned),
                 excluded = immutableList(excluded),
             )
@@ -269,7 +207,7 @@ data class PkCalibrationEvidencePartition private constructor(
 }
 
 sealed interface PkCalibrationEvidenceBuildResult {
-    data class Ready(val partition: PkCalibrationEvidencePartition) :
+    data class Ready(val pool: PkCalibrationEvidencePool) :
         PkCalibrationEvidenceBuildResult
 
     data class Failed(val failure: PkCalibrationEvidenceFailure) :
@@ -367,7 +305,7 @@ internal object PkCalibrationScopeInputValidator {
     }
 }
 
-/** Pure scope validation, canonical snapshot, and dominant-route evidence adapter. */
+/** Pure scope validation, canonical snapshot, and shared-pool evidence adapter. */
 object PkCalibrationEvidenceAdapter {
     @Suppress("LongParameterList")
     fun build(
@@ -483,7 +421,7 @@ object PkCalibrationEvidenceAdapter {
                             hasSharedNumericFailure = true
                         }
 
-                        is PkCalibrationObservationClassification.Candidate,
+                        is PkCalibrationObservationClassification.Included,
                         is PkCalibrationObservationClassification.Unassigned,
                         -> Unit
                     }
@@ -525,12 +463,7 @@ object PkCalibrationEvidenceAdapter {
 
         val canonicalMedicationEvents = scopeInputSnapshot.medicationEvents
 
-        val candidatesByRoute = linkedMapOf<PkCalibrationRoute, MutableList<PkCalibrationLabEvidence>>()
-        val includedByRoute = linkedMapOf<PkCalibrationRoute, MutableList<PkCalibrationLabEvidence>>()
-        for (route in PkCalibrationRoute.entries) {
-            candidatesByRoute[route] = mutableListOf()
-            includedByRoute[route] = mutableListOf()
-        }
+        val included = mutableListOf<PkCalibrationLabEvidence>()
         val unassigned = mutableListOf<PkCalibrationLabEvidence>()
         val excluded = mutableListOf<PkCalibrationLabEvidence>()
         for (lab in authorizedLabs) {
@@ -559,54 +492,26 @@ object PkCalibrationEvidenceAdapter {
 
                 is PkCalibrationObservationClassification.Unassigned -> {
                     unassigned += lab.evidence(
-                        state = classification.state,
+                        state = PkCalibrationLabEvidenceState
+                            .UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
                         observedPgml = verifiedCanonicalValueByResultId.getValue(lab.resultId),
                         totalDrugPgml = classification.totalDrugPgml,
                         effectiveDisposition = effectiveDisposition,
                     )
                 }
 
-                is PkCalibrationObservationClassification.Candidate -> {
-                    val evidence = lab.evidence(
-                        state = if (classification.included) {
-                            PkCalibrationLabEvidenceState.INCLUDED
-                        } else {
-                            PkCalibrationLabEvidenceState.GUARD_DROPPED
-                        },
+                is PkCalibrationObservationClassification.Included -> {
+                    included += lab.evidence(
+                        state = PkCalibrationLabEvidenceState.INCLUDED,
                         observedPgml = verifiedCanonicalValueByResultId.getValue(lab.resultId),
-                        route = classification.route,
-                        totalDrugPgml = classification.totalDrugPgml,
-                        dominantRouteDrugPgml = classification.dominantRouteDrugPgml,
-                        otherRoutePopulationPgml = classification.otherRoutePopulationPgml,
-                        routeAttributableObservedPgml =
-                            classification.routeAttributableObservedPgml,
+                        totalDrugPgml = classification.breakdown.totalDrugPgml,
+                        breakdown = classification.breakdown,
                         effectiveDisposition = effectiveDisposition,
                     )
-                    candidatesByRoute.getValue(classification.route) += evidence
-                    if (classification.included) {
-                        includedByRoute.getValue(classification.route) += evidence
-                    }
                 }
             }
         }
 
-        val routeEvidence = ArrayList<PkCalibrationRouteEvidence>(
-            PkCalibrationRoute.entries.size
-        )
-        for (route in PkCalibrationRoute.entries) {
-            val candidates = candidatesByRoute.getValue(route).sortedBy { item ->
-                item.resultId.toString()
-            }
-            val included = includedByRoute.getValue(route).sortedBy { item ->
-                item.resultId.toString()
-            }
-            val item = PkCalibrationRouteEvidence.create(
-                route = route,
-                dominantCandidates = candidates,
-                included = included,
-            ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-            routeEvidence += item
-        }
         val canonicalInput = PkCalibrationCanonicalInputSnapshot.create(
             authorizedLabs = authorizedLabs,
             medicationEvents = canonicalMedicationEvents,
@@ -620,13 +525,13 @@ object PkCalibrationEvidenceAdapter {
             config = config,
             acceptanceRecordByResultId = acceptanceRecords,
         ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-        val partition = PkCalibrationEvidencePartition.create(
+        val pool = PkCalibrationEvidencePool.create(
             canonicalInput = canonicalInput,
-            routeEvidence = routeEvidence,
+            included = included,
             unassigned = unassigned.sortedBy { item -> item.resultId.toString() },
             excluded = excluded.sortedBy { item -> item.resultId.toString() },
         ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-        return PkCalibrationEvidenceBuildResult.Ready(partition)
+        return PkCalibrationEvidenceBuildResult.Ready(pool)
     }
 }
 
@@ -635,20 +540,20 @@ internal sealed interface PkCalibrationObservationClassification {
     data object NumericFailure : PkCalibrationObservationClassification
 
     data class Unassigned(
-        val state: PkCalibrationLabEvidenceState,
         val totalDrugPgml: Double,
     ) : PkCalibrationObservationClassification
 
-    data class Candidate(
-        val route: PkCalibrationRoute,
-        val totalDrugPgml: Double,
-        val dominantRouteDrugPgml: Double,
-        val otherRoutePopulationPgml: Double,
-        val routeAttributableObservedPgml: Double,
-        val included: Boolean,
+    data class Included(
+        val breakdown: PkForwardBreakdown,
     ) : PkCalibrationObservationClassification
 }
 
+/**
+ * v10.0 §A10.1: no dominance partition and no positivity guard. Every
+ * informative positive lab joins the one shared evidence set; the model mean
+ * over all routes is positive for every finite beta, so there is nothing to
+ * protect by dropping data.
+ */
 internal fun classifyCalibrationObservation(
     observedPgml: Double,
     breakdown: PkForwardBreakdown,
@@ -664,52 +569,12 @@ internal fun classifyCalibrationObservation(
         return PkCalibrationObservationClassification.NumericFailure
     }
     if (total < drugMinInformativePgml) {
-        return PkCalibrationObservationClassification.Unassigned(
-            state = PkCalibrationLabEvidenceState.UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
-            totalDrugPgml = total,
-        )
+        return PkCalibrationObservationClassification.Unassigned(totalDrugPgml = total)
     }
     if (observedPgml <= 0.0) {
         return PkCalibrationObservationClassification.InvalidNonpositive
     }
-
-    var dominantRoute: PkCalibrationRoute? = null
-    var dominantContribution = 0.0
-    for (route in PkCalibrationRoute.entries) {
-        val contribution = breakdown.byRouteDrugPgml[route]
-            ?: return PkCalibrationObservationClassification.NumericFailure
-        if (contribution >= PkCalibrationDefaults.DOMINANT_ROUTE_SHARE_MIN * total) {
-            if (dominantRoute != null) {
-                return PkCalibrationObservationClassification.NumericFailure
-            }
-            dominantRoute = route
-            dominantContribution = contribution
-        }
-    }
-    val route = dominantRoute ?: return PkCalibrationObservationClassification.Unassigned(
-        state = PkCalibrationLabEvidenceState.UNASSIGNED_NO_DOMINANT_ROUTE,
-        totalDrugPgml = total,
-    )
-    val baseline = (total - dominantContribution).normalizePositiveZero()
-    if (!baseline.isFinite() || baseline < 0.0 || baseline > total) {
-        return PkCalibrationObservationClassification.NumericFailure
-    }
-    val attributable = observedPgml - baseline
-    if (!attributable.isFinite()) {
-        return PkCalibrationObservationClassification.NumericFailure
-    }
-    val guard = max(
-        PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_FRACTION * total,
-        PkCalibrationDefaults.ROUTE_ATTRIBUTABLE_MIN_PGML,
-    )
-    return PkCalibrationObservationClassification.Candidate(
-        route = route,
-        totalDrugPgml = total,
-        dominantRouteDrugPgml = dominantContribution,
-        otherRoutePopulationPgml = baseline,
-        routeAttributableObservedPgml = attributable,
-        included = attributable >= guard,
-    )
+    return PkCalibrationObservationClassification.Included(breakdown = breakdown)
 }
 
 internal fun PkCalibrationIdentityPolicy.acceptsScopeIdentity(
@@ -749,22 +614,16 @@ private fun PkCalibrationIdentityPolicy.accepts(
 private fun PkCalibrationE2LabSource.evidence(
     state: PkCalibrationLabEvidenceState,
     observedPgml: Double?,
-    route: PkCalibrationRoute? = null,
     totalDrugPgml: Double? = null,
-    dominantRouteDrugPgml: Double? = null,
-    otherRoutePopulationPgml: Double? = null,
-    routeAttributableObservedPgml: Double? = null,
+    breakdown: PkForwardBreakdown? = null,
     effectiveDisposition: PkCalibrationEffectiveDisposition,
 ): PkCalibrationLabEvidence {
     return PkCalibrationLabEvidence(
         resultId = resultId,
         state = state,
-        route = route,
         observedPgml = observedPgml,
         totalDrugPgml = totalDrugPgml,
-        dominantRouteDrugPgml = dominantRouteDrugPgml,
-        otherRoutePopulationPgml = otherRoutePopulationPgml,
-        routeAttributableObservedPgml = routeAttributableObservedPgml,
+        breakdown = breakdown,
         effectiveDisposition = effectiveDisposition,
     )
 }
@@ -774,8 +633,6 @@ private fun failed(
 ): PkCalibrationEvidenceBuildResult.Failed {
     return PkCalibrationEvidenceBuildResult.Failed(failure)
 }
-
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this
 
 private fun <T> immutableList(source: List<T>): List<T> {
     return Collections.unmodifiableList(ArrayList(source))

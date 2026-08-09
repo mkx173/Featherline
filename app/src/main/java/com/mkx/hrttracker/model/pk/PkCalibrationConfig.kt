@@ -21,13 +21,17 @@ data class ScaleCap private constructor(
 object PkCalibrationDefaults {
     const val STUDENT_T_NU = 4.0
     const val ROUTE_LOG_SCALE_PRIOR_SD = 0.30
-    const val DOMINANT_ROUTE_SHARE_MIN = 0.8
-    const val MIN_DOMINANT_LABS_FOR_PROMOTION = 2
-    const val MIN_DOMINANT_LABS_FOR_EXTREME_SCALE = 3
+
+    /**
+     * v10.0 §A10.4: promotion floor, never data eligibility. A lab supports
+     * route r when its population share d_ir/D_i is at least this value; no
+     * lab is ever excluded from the joint fit by it.
+     */
+    const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
+    const val MIN_SUPPORTING_LABS_FOR_PROMOTION = 2
+    const val MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE = 3
     const val EXTREME_SCALE_CORE_MIN = 0.5
     const val EXTREME_SCALE_CORE_MAX = 2.0
-    const val ROUTE_ATTRIBUTABLE_MIN_FRACTION = 0.05
-    const val ROUTE_ATTRIBUTABLE_MIN_PGML = 1e-12
     const val DRUG_SIGNAL_LOG_RANGE_MIN = 0.6931471805599453
     const val ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION = 0.20
     const val ROBUST_RMSE_GATE_FACTOR = 2.0
@@ -45,6 +49,12 @@ object PkCalibrationDefaults {
     const val GRID_MIN_NODES = 16
     const val STATIONARY_ROOT_BETA_ABS_TOL = 1e-12
     const val STATIONARY_ROOT_MAX_EVAL = 200
+
+    /** v10.0 §A10.3 joint multi-start damped Newton. */
+    const val JOINT_GRAD_TOL = 1e-10
+    const val JOINT_STEP_TOL = 1e-12
+    const val JOINT_MAX_ITER = 100
+    const val JOINT_MODE_DISTINCT_TOL = 1e-6
 
     const val BAND_GH_NODES = 16
     const val BAND_GH_REFINEMENT_NODES = 32

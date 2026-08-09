@@ -50,7 +50,7 @@ data class PkCalibrationInputSnapshot private constructor(
  */
 class PkCalibrationEngineEvaluation private constructor(
     val result: PkCalibrationResult,
-    internal val readyEvidence: PkCalibrationEvidencePartition?,
+    internal val readyEvidence: PkCalibrationEvidencePool?,
     proof: Any,
 ) {
     init {
@@ -141,7 +141,7 @@ object PkCalibrationEngine {
             )
         ) {
             is PkCalibrationEvidenceBuildResult.Ready -> {
-                val solved = PkCalibrationSolver.solveBound(evidence.partition)
+                val solved = PkCalibrationSolver.solveBound(evidence.pool)
                 if (solved != null) {
                     requireNotNull(PkCalibrationEngineEvaluation.ready(solved))
                 } else {

@@ -196,10 +196,6 @@ class PkCalibrationDebugViewModelTest {
         assertTrue(viewModel.uiState.value.routeRows.isEmpty())
 
         viewModel.setNonPositiveInput(false)
-        viewModel.setGuardDroppedRoute(PkCalibrationRoute.GEL)
-        val gel = viewModel.uiState.value.routeRows.single { it.route == PkCalibrationRoute.GEL }
-        assertEquals(1, gel.dominantCandidateLabCount - gel.dominantLabCount)
-
         viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.PATCH)
         val patch = viewModel.uiState.value.routeRows.single { it.route == PkCalibrationRoute.PATCH }
         assertTrue(patch.atDisplayCapBoundary)
@@ -285,50 +281,37 @@ class PkCalibrationDebugViewModelTest {
     }
 
     @Test
-    fun outlierThenGuardDropThenOutlier_keepsUiCommandsAlignedWithFittedEvidence() {
+    fun outlierToggle_keepsUiCommandsAlignedWithFittedEvidence() {
         val viewModel = fixtureViewModel()
         val route = PkCalibrationRoute.GEL
         val resultId = PkCalibrationDebugFixtures.outlierId(route)
 
         viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY)
         viewModel.setOutlierRoute(route)
-        assertEquals(
-            listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
-            viewModel.uiState.value.applicableActionCommands.map { command -> command.action },
-        )
-        assertEquals(
-            setOf(resultId),
-            viewModel.uiState.value.routeRows.single { row -> row.route == route }
-                .unreviewedOutlierLabIds,
-        )
-
-        viewModel.setGuardDroppedRoute(route)
-        val guardState = viewModel.uiState.value
-        val guardRow = guardState.routeRows.single { row -> row.route == route }
-        assertNull(guardState.scenario?.outlierRoute)
-        assertEquals(route, guardState.scenario?.guardDroppedRoute)
-        assertEquals(1, guardRow.dominantCandidateLabCount)
-        assertEquals(0, guardRow.dominantLabCount)
-        assertTrue(guardRow.unreviewedOutlierLabIds.isEmpty())
-        assertFalse(resultId in guardState.reviewDispositionByResultId)
-        assertTrue(guardState.applicableActionCommands.isEmpty())
-
-        viewModel.setOutlierRoute(route)
         val outlierState = viewModel.uiState.value
         assertEquals(route, outlierState.scenario?.outlierRoute)
-        assertNull(outlierState.scenario?.guardDroppedRoute)
-        assertEquals(
-            setOf(resultId),
-            outlierState.routeRows.single { row -> row.route == route }
-                .unreviewedOutlierLabIds,
-        )
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
             outlierState.applicableActionCommands.map { command -> command.action },
         )
         assertEquals(
-            (1L..outlierState.actionLog.size.toLong()).toList(),
-            outlierState.actionLog.map { entry -> entry.sequence },
+            setOf(resultId),
+            outlierState.routeRows.single { row -> row.route == route }
+                .unreviewedOutlierLabIds,
+        )
+
+        viewModel.setOutlierRoute(null)
+        val clearedState = viewModel.uiState.value
+        assertNull(clearedState.scenario?.outlierRoute)
+        assertTrue(
+            clearedState.routeRows.single { row -> row.route == route }
+                .unreviewedOutlierLabIds.isEmpty()
+        )
+        assertFalse(resultId in clearedState.reviewDispositionByResultId)
+        assertTrue(clearedState.applicableActionCommands.isEmpty())
+        assertEquals(
+            (1L..clearedState.actionLog.size.toLong()).toList(),
+            clearedState.actionLog.map { entry -> entry.sequence },
         )
     }
 
@@ -429,7 +412,6 @@ class PkCalibrationDebugViewModelTest {
             viewModel.setCentralUnavailable(true),
             viewModel.setOutlierRoute(PkCalibrationRoute.ORAL),
             viewModel.setNonPositiveInput(true),
-            viewModel.setGuardDroppedRoute(PkCalibrationRoute.GEL),
             viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.PATCH),
             viewModel.performReviewAction(keep),
         )
@@ -817,7 +799,6 @@ class PkCalibrationDebugViewModelTest {
             viewModel.setCentralUnavailable(true),
             viewModel.setOutlierRoute(PkCalibrationRoute.INJECTION),
             viewModel.setNonPositiveInput(true),
-            viewModel.setGuardDroppedRoute(PkCalibrationRoute.INJECTION),
             viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.INJECTION),
             viewModel.performReviewAction(PkCalibrationDebugActionCommand(
                 PkCalibrationDebugReviewAction.EXCLUDE,

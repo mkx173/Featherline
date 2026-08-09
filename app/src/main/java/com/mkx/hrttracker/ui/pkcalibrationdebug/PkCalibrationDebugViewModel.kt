@@ -272,12 +272,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
         cause = "SET_NONPOSITIVE_INPUT:$value",
     ) { scenario -> scenario.withNonPositiveInput(value) }
 
-    fun setGuardDroppedRoute(
-        route: PkCalibrationRoute?,
-    ): PkCalibrationDebugDispatchResult = updateFixture(
-        cause = "SET_GUARD_DROPPED_ROUTE:${route?.stableId ?: "none"}",
-    ) { scenario -> scenario.withGuardDroppedRoute(route) }
-
     fun setDisplayCapBoundaryRoute(
         route: PkCalibrationRoute?,
     ): PkCalibrationDebugDispatchResult = updateFixture(

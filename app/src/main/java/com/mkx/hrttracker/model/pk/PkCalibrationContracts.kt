@@ -153,8 +153,8 @@ enum class PkCalibrationGlobalState {
 }
 
 enum class PkRouteCalibrationDisplayState {
-    POPULATION_NO_DOMINANT_LABS,
-    POPULATION_INSUFFICIENT_DOMINANT_LABS,
+    POPULATION_NO_SUPPORTING_LABS,
+    POPULATION_INSUFFICIENT_SUPPORTING_LABS,
     POPULATION_LOW_CONFIDENCE,
     POPULATION_DISPLAY_CAP_EXCEEDED,
     POPULATION_NUMERIC_FAILURE,
@@ -178,9 +178,9 @@ enum class PkCalibrationReason {
     SCOPE_NOT_CONFIRMED,
     SHARED_INPUT_INVALID,
     INVALID_NONPOSITIVE_E2,
-    NO_DOMINANT_LABS,
-    INSUFFICIENT_DOMINANT_LABS,
-    EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS,
+    NO_SUPPORTING_LABS,
+    INSUFFICIENT_SUPPORTING_LABS,
+    EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
     INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
     POSTERIOR_SD_TOO_WIDE,
     DISPLAY_SCALE_EXCEEDED,
@@ -225,8 +225,7 @@ data class PkRouteCalibrationResult private constructor(
     val laplaceVarianceBeta: Double?,
     val displayState: PkRouteCalibrationDisplayState,
     val reasons: Set<PkCalibrationReason>,
-    val dominantCandidateLabCount: Int,
-    val dominantLabCount: Int,
+    val supportingLabCount: Int,
     val drugSignalLogRange: Double?,
     val robustRmseLog: Double?,
     val minStudentTWeight: Double?,
@@ -243,8 +242,7 @@ data class PkRouteCalibrationResult private constructor(
             laplaceVarianceBeta: Double? = null,
             displayState: PkRouteCalibrationDisplayState,
             reasons: Set<PkCalibrationReason> = emptySet(),
-            dominantCandidateLabCount: Int = 0,
-            dominantLabCount: Int = 0,
+            supportingLabCount: Int = 0,
             drugSignalLogRange: Double? = null,
             robustRmseLog: Double? = null,
             minStudentTWeight: Double? = null,
@@ -276,11 +274,7 @@ data class PkRouteCalibrationResult private constructor(
             ) {
                 return null
             }
-            if (dominantCandidateLabCount < 0 ||
-                dominantLabCount !in 0..dominantCandidateLabCount
-            ) {
-                return null
-            }
+            if (supportingLabCount < 0) return null
 
             val isPopulation = displayState.isPopulationState()
             if (isPopulation && displayBeta.toBits() != 0.0.toBits()) return null
@@ -306,36 +300,41 @@ data class PkRouteCalibrationResult private constructor(
                     ) {
                         return null
                     }
-                } else if (dominantCandidateLabCount == 0) {
+                } else if (PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS in reasons) {
+                    // v10.0 §A10.3: an ambiguous joint posterior mode is global and
+                    // reaches every route row regardless of its supporting count.
                     if (displayState !=
-                        PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS ||
-                        reasons != setOf(PkCalibrationReason.NO_DOMINANT_LABS) ||
+                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE ||
+                        reasons != setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS) ||
+                        fittedBeta != null ||
+                        hasFitDiagnostics
+                    ) {
+                        return null
+                    }
+                } else if (supportingLabCount == 0) {
+                    if (displayState !=
+                        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ||
+                        reasons != setOf(PkCalibrationReason.NO_SUPPORTING_LABS) ||
                         fittedBeta != null ||
                         hasFitDiagnostics
                     ) {
                         return null
                     }
                 } else if (
-                    dominantLabCount <
-                    PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_PROMOTION
+                    supportingLabCount <
+                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION
                 ) {
                     if (displayState !=
                         PkRouteCalibrationDisplayState
-                            .POPULATION_INSUFFICIENT_DOMINANT_LABS ||
-                        reasons != setOf(PkCalibrationReason.INSUFFICIENT_DOMINANT_LABS) ||
+                            .POPULATION_INSUFFICIENT_SUPPORTING_LABS ||
+                        reasons != setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS) ||
                         fittedBeta != null ||
                         hasFitDiagnostics
                     ) {
                         return null
                     }
                 } else if (fittedBeta == null) {
-                    if (displayState !=
-                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE ||
-                        reasons != setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS) ||
-                        hasFitDiagnostics
-                    ) {
-                        return null
-                    }
+                    return null
                 } else {
                     val fittedScale = exp(fittedBeta)
                     if (!fittedScale.isFinite() || fittedScale <= 0.0) return null
@@ -353,8 +352,8 @@ data class PkRouteCalibrationResult private constructor(
                                     fittedScale >
                                     PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
                             ) &&
-                            dominantLabCount <
-                            PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_EXTREME_SCALE
+                            supportingLabCount <
+                            PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
                     val hasPoorFit = robustRmseLog != null && rmseGate != null &&
                             robustRmseLog > rmseGate
                     val hasUnreviewedOutlier = unreviewedOutlierLabIds.isNotEmpty()
@@ -375,7 +374,7 @@ data class PkRouteCalibrationResult private constructor(
                     }
                     if (lacksExtremeCount) {
                         applicableReasons +=
-                            PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_DOMINANT_LABS
+                            PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS
                     }
                     if (hasPoorFit) {
                         applicableReasons += PkCalibrationReason.RESIDUAL_FIT_POOR
@@ -399,7 +398,7 @@ data class PkRouteCalibrationResult private constructor(
                                 .POPULATION_DISPLAY_CAP_EXCEEDED
                         lacksExtremeCount ->
                             PkRouteCalibrationDisplayState
-                                .POPULATION_INSUFFICIENT_DOMINANT_LABS
+                                .POPULATION_INSUFFICIENT_SUPPORTING_LABS
                         hasPoorFit || hasUnreviewedOutlier ->
                             PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
                         else -> null
@@ -429,11 +428,11 @@ data class PkRouteCalibrationResult private constructor(
                     displayScale < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN ||
                     displayScale > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
                 ) {
-                    PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_EXTREME_SCALE
+                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
                 } else {
-                    PkCalibrationDefaults.MIN_DOMINANT_LABS_FOR_PROMOTION
+                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION
                 }
-                if (dominantLabCount < requiredLabCount) return null
+                if (supportingLabCount < requiredLabCount) return null
 
                 val rmseLog = robustRmseLog ?: return null
                 if (rmseLog > (rmseGate ?: return null)) return null
@@ -483,8 +482,7 @@ data class PkRouteCalibrationResult private constructor(
                 laplaceVarianceBeta = laplaceVarianceBeta,
                 displayState = displayState,
                 reasons = immutableSet(reasons),
-                dominantCandidateLabCount = dominantCandidateLabCount,
-                dominantLabCount = dominantLabCount,
+                supportingLabCount = supportingLabCount,
                 drugSignalLogRange = drugSignalLogRange,
                 robustRmseLog = robustRmseLog,
                 minStudentTWeight = minStudentTWeight,
@@ -547,6 +545,50 @@ data class PkPredictiveBandKnot private constructor(
     }
 }
 
+/**
+ * v10.0 §A10.5: the symmetric Laplace covariance block over the promoted
+ * routes, indexed in canonical route order. The diagonal is the per-route
+ * marginal variance; off-diagonal terms carry the joint-fit coupling that the
+ * v9 independent-route band law assumed away.
+ */
+@ConsistentCopyVisibility
+data class PkCalibrationPromotedCovariance private constructor(
+    val routes: List<PkCalibrationRoute>,
+    val values: List<List<Double>>,
+) {
+    fun covariance(first: PkCalibrationRoute, second: PkCalibrationRoute): Double? {
+        val row = routes.indexOf(first)
+        val column = routes.indexOf(second)
+        if (row < 0 || column < 0) return null
+        return values[row][column]
+    }
+
+    companion object {
+        fun create(
+            routes: List<PkCalibrationRoute>,
+            values: List<List<Double>>,
+        ): PkCalibrationPromotedCovariance? {
+            if (routes.isEmpty()) return null
+            if (routes.distinct().size != routes.size) return null
+            if (routes != PkCalibrationRoute.entries.filter(routes::contains)) return null
+            if (values.size != routes.size) return null
+            if (values.any { row -> row.size != routes.size }) return null
+            for (row in values.indices) {
+                for (column in values.indices) {
+                    val value = values[row][column]
+                    if (!value.isFinite()) return null
+                    if (value.toBits() != values[column][row].toBits()) return null
+                }
+                if (values[row][row] <= 0.0) return null
+            }
+            return PkCalibrationPromotedCovariance(
+                routes = immutableList(routes),
+                values = immutableList(values.map { row -> immutableList(row) }),
+            )
+        }
+    }
+}
+
 @ConsistentCopyVisibility
 data class PkCalibrationResult private constructor(
     val globalState: PkCalibrationGlobalState,
@@ -554,6 +596,7 @@ data class PkCalibrationResult private constructor(
     val routeResults: List<PkRouteCalibrationResult>,
     val promotedRoutes: List<PkCalibrationRoute>,
     val displayParams: PkPersonalParams,
+    val promotedBetaCovariance: PkCalibrationPromotedCovariance?,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
 ) {
@@ -564,6 +607,7 @@ data class PkCalibrationResult private constructor(
             routeResults: List<PkRouteCalibrationResult> = emptyList(),
             promotedRoutes: List<PkCalibrationRoute> = emptyList(),
             displayParams: PkPersonalParams = PkPersonalParams.population(),
+            promotedBetaCovariance: PkCalibrationPromotedCovariance? = null,
             forwardModelVersion: String,
             calibrationModelVersion: String,
         ): PkCalibrationResult? {
@@ -571,6 +615,7 @@ data class PkCalibrationResult private constructor(
             if (globalState != PkCalibrationGlobalState.READY) {
                 if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
                 if (displayParams != PkPersonalParams.population()) return null
+                if (promotedBetaCovariance != null) return null
             } else {
                 val expectedRoutes = PkCalibrationRoute.entries
                 if (routeResults.map(PkRouteCalibrationResult::route) != expectedRoutes) return null
@@ -588,6 +633,22 @@ data class PkCalibrationResult private constructor(
                     }
                 }
                 if (displayParams.routeLogScale != expectedNonZeroBetas) return null
+
+                if (promotedRoutes.isEmpty()) {
+                    if (promotedBetaCovariance != null) return null
+                } else {
+                    val covariance = promotedBetaCovariance ?: return null
+                    if (covariance.routes != promotedRoutes) return null
+                    for (routeResult in routeResults) {
+                        if (routeResult.route !in promotedRoutes) continue
+                        val marginal = routeResult.laplaceVarianceBeta ?: return null
+                        val diagonal = covariance.covariance(
+                            routeResult.route,
+                            routeResult.route,
+                        ) ?: return null
+                        if (marginal.toBits() != diagonal.toBits()) return null
+                    }
+                }
             }
 
             return PkCalibrationResult(
@@ -596,6 +657,7 @@ data class PkCalibrationResult private constructor(
                 routeResults = immutableList(routeResults),
                 promotedRoutes = immutableList(promotedRoutes),
                 displayParams = displayParams,
+                promotedBetaCovariance = promotedBetaCovariance,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )

@@ -56,7 +56,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
             centralUnavailable = false,
             outlierRoute = scenario.outlierRoute,
             nonPositiveInput = scenario.nonPositiveInput,
-            guardDroppedRoute = scenario.guardDroppedRoute,
             displayCapBoundaryRoute = scenario.displayCapBoundaryRoute,
             fixtureDisposition = scenario.fixtureDisposition,
         ) ?: return PkCalibrationDebugSourceResult.Unavailable(
@@ -284,7 +283,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
                 .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
                 .any { result ->
                     result.displayState !=
-                            PkRouteCalibrationDisplayState.POPULATION_NO_DOMINANT_LABS
+                            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
                 }
         ) {
             return null
@@ -441,13 +440,11 @@ internal object PkCalibrationDebugSyntheticScenarios {
         if (resultId == null || disposition == null) return true
         val evidence = readyEvidence ?: return false
         return when (disposition) {
-            E2CalibrationDisposition.AUTO -> evidence.routeEvidence
-                .flatMap { route -> route.dominantCandidates }
+            E2CalibrationDisposition.AUTO -> evidence.included
                 .singleOrNull { item -> item.resultId == resultId }
                 ?.effectiveDisposition == PkCalibrationEffectiveDisposition.AUTO
 
-            E2CalibrationDisposition.ACCEPTED -> evidence.routeEvidence
-                .flatMap { route -> route.dominantCandidates }
+            E2CalibrationDisposition.ACCEPTED -> evidence.included
                 .singleOrNull { item -> item.resultId == resultId }
                 ?.effectiveDisposition == PkCalibrationEffectiveDisposition.ACCEPTED
 
@@ -638,7 +635,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private const val DebugIssuerId = "debug:issuer/synthetic/v1"
     private const val DebugProvenanceRef = "urn:debug:scope-provenance:v1"
     private const val DebugForwardModelVersion = "debug:pk-forward/v1"
-    private const val DebugCalibrationModelVersion = "debug:route-calibration/v9"
+    private const val DebugCalibrationModelVersion = "debug:route-calibration/v10"
     private const val DebugChartGridVersion = "debug:pk-chart-grid/v1"
 
     private val EventTypeIds = linkedMapOf(
