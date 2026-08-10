@@ -1,12 +1,12 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Surface
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -48,7 +48,7 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteType: NavigationSuiteType,
     navigationChromeHazeState: HazeState?,
     modifier: Modifier = Modifier,
-    navigationSuiteItems: NavigationSuiteScope.() -> Unit,
+    navigationSuiteItems: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
@@ -70,8 +70,9 @@ fun EdgeToEdgeNavigationSuiteScaffold(
                 }
                 Box(navigationModifier) {
                     NavigationSuite(
-                        layoutType = navigationSuiteType,
+                        navigationSuiteType = navigationSuiteType,
                         colors = hazeNavigationSuiteColors(navigationChromeHazeState),
+                        verticalArrangement = navigationSuiteVerticalArrangement(isBottomBar),
                         content = navigationSuiteItems,
                     )
                 }
@@ -115,3 +116,10 @@ fun EdgeToEdgeNavigationSuiteScaffold(
         }
     }
 }
+
+/**
+ * Keep the bottom navigation's stock ordering, but center the items when the
+ * adaptive suite becomes a side rail on wide/foldable windows.
+ */
+internal fun navigationSuiteVerticalArrangement(isBottomBar: Boolean): Arrangement.Vertical =
+    if (isBottomBar) Arrangement.Top else Arrangement.Center

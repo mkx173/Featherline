@@ -200,7 +200,10 @@ internal fun LazyListScope.selectedDaySectionItems(
             hasOffPlanRecord = offPlanCount > 0,
             countLabel = countLabel,
             appLocale = appLocale,
-            modifier = Modifier.padding(top = 4.dp)
+            // HistoryEntryGroupHeader contributes 4dp above and 2dp below its pill;
+            // this outer 4dp/2dp pair keeps the calendar-to-pill and pill-to-card
+            // gaps equal once the empty-state spacer is included.
+            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
         )
     }
 

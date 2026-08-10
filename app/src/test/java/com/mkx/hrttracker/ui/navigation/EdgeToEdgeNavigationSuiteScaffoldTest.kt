@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +14,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,16 +41,24 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
     private var suiteType by mutableStateOf(NavigationSuiteType.ShortNavigationBarCompact)
     private val recordedInsets = mutableListOf<Dp>()
 
+    @Test
+    fun wideRailUsesCenteredItemArrangement_whileBottomBarKeepsStockOrder() {
+        assertSame(Arrangement.Center, navigationSuiteVerticalArrangement(isBottomBar = false))
+        assertSame(Arrangement.Top, navigationSuiteVerticalArrangement(isBottomBar = true))
+    }
+
     private fun setScaffold() {
         composeRule.setContent {
             EdgeToEdgeNavigationSuiteScaffold(
                 navigationSuiteType = suiteType,
                 navigationChromeHazeState = null,
                 navigationSuiteItems = {
-                    item(
+                    NavigationSuiteItem(
                         selected = true,
                         onClick = { },
                         icon = { Box(Modifier.size(24.dp)) },
+                        label = null,
+                        navigationSuiteType = suiteType,
                     )
                 },
             ) {

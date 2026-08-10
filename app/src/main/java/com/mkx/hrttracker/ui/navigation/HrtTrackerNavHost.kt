@@ -18,6 +18,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -725,7 +726,7 @@ fun HrtTrackerNavHost(
         navigationChromeHazeState = navigationChromeHazeState,
         navigationSuiteItems = {
             topLevelNavigationItems.forEach { navItem ->
-                item(
+                NavigationSuiteItem(
                     selected = selectedBottomScreen == navItem.screen,
                     onClick = {
                         // Re-evaluated at tap time (not captured at composition)
@@ -789,7 +790,8 @@ fun HrtTrackerNavHost(
                             text = screenLabelText,
                             modifier = Modifier.cjkTextOffset(screenLabelText)
                         )
-                    }
+                    },
+                    navigationSuiteType = navigationSuiteType,
                 )
             }
         }
