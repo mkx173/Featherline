@@ -124,6 +124,14 @@ interface BloodTestDao {
     @Query("DELETE FROM e2_calibration_metadata WHERE resultUuid IN (:resultUuids)")
     suspend fun deleteCalibrationMetadataForResults(resultUuids: List<String>)
 
+    @Query(
+        """
+        DELETE FROM e2_calibration_metadata
+        WHERE resultUuid IN (:resultUuids) AND disposition = 'ACCEPTED'
+        """
+    )
+    suspend fun deleteAcceptedCalibrationMetadataForResults(resultUuids: List<String>)
+
     // A direct swap violates both unique(panelUuid, displayOrder) and, for an
     // analyte swap, unique(panelUuid, builtinAnalyteKey/customAnalyteUuid).
     // Park the affected rows inside the surrounding transaction before their
@@ -178,6 +186,7 @@ interface BloodTestDao {
         require(results.all { result -> result.panelUuid == panel.uuid })
         require(results.map(BloodTestResultEntity::uuid).distinct().size == results.size)
 
+        val existingPanelRow = getPanel(panel.uuid)?.panel
         val existing = getResultsForPanel(panel.uuid)
         val incomingByUuid = results.associateBy(BloodTestResultEntity::uuid)
         val removedUuids = existing.mapNotNull { result ->
@@ -190,11 +199,30 @@ interface BloodTestDao {
                     result.customAnalyteUuid != replacement.customAnalyteUuid
             }
         }
+        // Phase-3 decision 7: editing a field the acceptance record binds
+        // (value, unit, or the panel's collection time) clears a kept-outlier
+        // acceptance outright — a durable transition back to AUTO — instead of
+        // leaving a stale ACCEPTED row that silently resurrects when the old
+        // value is re-entered. Explicit exclusions survive edits.
+        val collectedAtChanged = existingPanelRow != null &&
+            existingPanelRow.collectedAtInstantEpochMillis !=
+            panel.collectedAtInstantEpochMillis
+        val acceptanceBoundChangedUuids = existing.mapNotNull { result ->
+            val replacement = incomingByUuid[result.uuid] ?: return@mapNotNull null
+            result.uuid.takeIf {
+                collectedAtChanged ||
+                    result.value.toBits() != replacement.value.toBits() ||
+                    result.unitSnapshot != replacement.unitSnapshot
+            }
+        }
 
         upsertPanel(panel)
         if (removedUuids.isNotEmpty()) deleteResultsByUuid(removedUuids)
         if (identityChangedUuids.isNotEmpty()) {
             deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+        if (acceptanceBoundChangedUuids.isNotEmpty()) {
+            deleteAcceptedCalibrationMetadataForResults(acceptanceBoundChangedUuids)
         }
 
         val survivingUuids = existing.mapTo(mutableSetOf(), BloodTestResultEntity::uuid)
@@ -233,6 +261,18 @@ interface BloodTestDao {
         }
         if (identityChangedUuids.isNotEmpty()) {
             deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+        // Same acceptance-clearing rule as the editor path (decision 7):
+        // an imported value/unit change invalidates a kept acceptance.
+        val acceptanceBoundChangedUuids = oldByUuid.values.mapNotNull { existing ->
+            val replacement = replacementsByUuid.getValue(existing.uuid)
+            existing.uuid.takeIf {
+                existing.value.toBits() != replacement.value.toBits() ||
+                    existing.unitSnapshot != replacement.unitSnapshot
+            }
+        }
+        if (acceptanceBoundChangedUuids.isNotEmpty()) {
+            deleteAcceptedCalibrationMetadataForResults(acceptanceBoundChangedUuids)
         }
 
         if (currentRows.isNotEmpty()) {

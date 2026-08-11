@@ -244,6 +244,53 @@ class PkCalibrationPersistenceTest {
     }
 
     @Test
+    fun panelSave_boundFieldEditClearsAcceptance_exclusionAndUntouchedSurvive() = runTest {
+        // Decision 7: value/unit/collection-time edits clear a kept-outlier
+        // acceptance outright (durable AUTO transition, no stale-record
+        // resurrection); explicit exclusions and untouched acceptances stay.
+        val dao = database.bloodTestDao()
+        val edited = panel("panel-acc-edit")
+        val editedResult = result("result-acc-edit", edited.uuid, 0, "e2", value = 300.0)
+        val untouched = panel("panel-acc-keep")
+        val untouchedResult = result("result-acc-keep", untouched.uuid, 0, "e2", value = 90.0)
+        val timeShift = panel("panel-acc-time")
+        val timeShiftResult = result("result-acc-time", timeShift.uuid, 0, "e2", value = 80.0)
+        val excludedPanel = panel("panel-excl-edit")
+        val excludedResult = result("result-excl-edit", excludedPanel.uuid, 0, "e2", value = 70.0)
+        dao.insertPanels(listOf(edited, untouched, timeShift, excludedPanel))
+        dao.insertResults(
+            listOf(editedResult, untouchedResult, timeShiftResult, excludedResult)
+        )
+        database.pkCalibrationDao().insertMetadata(
+            listOf(
+                acceptedMetadata(editedResult.uuid),
+                acceptedMetadata(untouchedResult.uuid),
+                acceptedMetadata(timeShiftResult.uuid),
+                excludedMetadata(excludedResult.uuid),
+            )
+        )
+
+        dao.upsertPanelWithResults(edited, listOf(editedResult.copy(value = 250.0)))
+        dao.upsertPanelWithResults(untouched, listOf(untouchedResult))
+        dao.upsertPanelWithResults(
+            timeShift.copy(collectedAtInstantEpochMillis = 5_000L),
+            listOf(timeShiftResult),
+        )
+        dao.upsertPanelWithResults(
+            excludedPanel,
+            listOf(excludedResult.copy(value = 75.0)),
+        )
+
+        assertNull(database.pkCalibrationDao().getMetadata(editedResult.uuid))
+        assertNotNull(database.pkCalibrationDao().getMetadata(untouchedResult.uuid))
+        assertNull(database.pkCalibrationDao().getMetadata(timeShiftResult.uuid))
+        assertEquals(
+            "EXCLUDED",
+            database.pkCalibrationDao().getMetadata(excludedResult.uuid)?.disposition,
+        )
+    }
+
+    @Test
     fun panelSave_deletesOnlyRemovedResult_andCascadeDeletesItsMetadata() = runTest {
         val dao = database.bloodTestDao()
         val panel = panel("panel-b")
@@ -508,6 +555,16 @@ class PkCalibrationPersistenceTest {
         value = value,
         unitSnapshot = "pg_ml",
         canonicalValue = value,
+    )
+
+    private fun acceptedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(
+        resultUuid = resultUuid,
+        disposition = "ACCEPTED",
+        acceptedModelVersion = "pk-calibration:test/v9",
+        acceptedSourceValueBits = "4059000000000000",
+        acceptedCollectedAtEpochMillis = 600L,
+        acceptedUnitId = "hrttracker:unit/pg-ml/v1",
+        updatedAtEpochMillis = 1_000L,
     )
 
     private fun excludedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(

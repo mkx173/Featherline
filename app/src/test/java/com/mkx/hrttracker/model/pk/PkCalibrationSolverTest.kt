@@ -343,6 +343,88 @@ class PkCalibrationSolverTest {
     }
 
     // ------------------------------------------------------------------
+    // Decision 7: acceptance-aware RMSE gate + review-fit affordance
+    // ------------------------------------------------------------------
+
+    @Test
+    fun acceptedConflictingLab_noLongerHoldsTheRouteAtPopulation() {
+        // Issue-1 repro: one good lab + one kept conflicting lab previously
+        // failed the RMSE gate forever ("review fit" with the Keep action
+        // apparently ignored). Acceptance excludes the vouched lab from the
+        // gate, so the route promotes; the consistency signal survives via
+        // minStudentTWeight for the confidence tier.
+        val result = solve(
+            lab(1, observed = 42.0, oral = 40.0),
+            lab(
+                2,
+                observed = 300.0,
+                oral = 44.0,
+                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
+            ),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertTrue(
+            oral.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
+                oral.displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED
+        )
+        assertTrue(oral.unreviewedOutlierLabIds.isEmpty())
+        // The kept outlier stays visible to the consistency tier.
+        assertTrue(
+            requireNotNull(oral.minStudentTWeight) < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN
+        )
+    }
+
+    @Test
+    fun poorFitWithNothingFlagged_flagsTheWorstUnacceptedLab() {
+        // Labs ~1.6x apart fail the RMSE gate while neither crosses the |z|>4
+        // outlier threshold — previously a "review fit" dead end with no
+        // affordance. The worst-fitting unaccepted lab is now actionable.
+        val result = solve(
+            lab(1, observed = 40.0, oral = 50.0),
+            lab(2, observed = 110.0, oral = 50.0),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertEquals(
+            PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+            oral.displayState,
+        )
+        assertEquals(setOf(uuid(2)), oral.unreviewedOutlierLabIds)
+        assertTrue(PkCalibrationReason.RESIDUAL_FIT_POOR in oral.reasons)
+        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in oral.reasons)
+    }
+
+    @Test
+    fun everySupportingLabAccepted_isNotANumericFailure() {
+        // The unvouched-evidence pool can be empty; that passes the gate
+        // trivially instead of tripping the weightSum guard.
+        val result = solve(
+            lab(
+                1,
+                observed = 40.0,
+                oral = 50.0,
+                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
+            ),
+            lab(
+                2,
+                observed = 110.0,
+                oral = 50.0,
+                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
+            ),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertFalse(
+            oral.displayState == PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
+        )
+        assertTrue(oral.unreviewedOutlierLabIds.isEmpty())
+    }
+
+    // ------------------------------------------------------------------
     // §A10.4 outlier review: one weight per lab, blocks supported routes
     // ------------------------------------------------------------------
 

@@ -52,24 +52,34 @@ val PkRouteCalibrationDisplayState.isAdjusted: Boolean
         this == PkRouteCalibrationDisplayState.LAB_CALIBRATED
 
 /**
- * Coarse per-route confidence for adjusted routes (user decision,
- * 2026-08-12), anchored to existing gates only — no new thresholds:
- * HIGH is a route that passed every full-calibration gate (LAB_CALIBRATED);
- * MEDIUM is provisional whose posterior already meets the full-calibration
- * sd gate (signal contrast still missing); LOW is provisional with a
- * posterior wider than that gate.
+ * Coarse per-route confidence for adjusted routes (user decisions,
+ * 2026-08-12), anchored to existing gates only — no new thresholds.
+ *
+ * Consistency comes first: a kept outlier supporting the route means the
+ * published fit disagrees with a data point the user vouched for — never
+ * better than LOW, regardless of posterior sharpness (the posterior sd only
+ * measures curvature at the winning mode, which an ignored outlier barely
+ * moves). Otherwise: HIGH is a route that passed every full-calibration gate
+ * (LAB_CALIBRATED, which implies multiple labs with real signal contrast);
+ * MEDIUM is provisional whose posterior already meets the full-calibration sd
+ * gate; LOW is provisional with a posterior wider than that gate.
  */
 enum class PkCalibrationRouteConfidence { LOW, MEDIUM, HIGH }
 
 fun pkRouteCalibrationConfidence(
     routeResult: PkRouteCalibrationResult,
 ): PkCalibrationRouteConfidence? {
+    if (!routeResult.displayState.isAdjusted) return null
+    // On a promoted row an unaccepted outlier is impossible (it would have
+    // blocked promotion), so a supporting weight under the outlier threshold
+    // is exactly "a kept outlier supports this route".
+    val minWeight = routeResult.minStudentTWeight
+    if (minWeight != null && minWeight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN) {
+        return PkCalibrationRouteConfidence.LOW
+    }
     return when {
         routeResult.displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED ->
             PkCalibrationRouteConfidence.HIGH
-
-        routeResult.displayState !=
-            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL -> null
 
         (routeResult.betaPosteriorSd ?: return null) <=
             PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION ->

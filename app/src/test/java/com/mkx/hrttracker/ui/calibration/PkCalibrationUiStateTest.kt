@@ -306,6 +306,31 @@ class PkCalibrationUiStateTest {
             PkCalibrationRouteConfidence.MEDIUM,
             pkRouteCalibrationConfidence(mediumRow),
         )
+
+        // Consistency cap (decision 7): a kept outlier supporting the route
+        // (min Student-t weight under the outlier threshold on a promoted
+        // row) is never better than LOW — even at LAB_CALIBRATED, because the
+        // posterior sd only measures curvature at the mode the outlier lost.
+        val keptOutlierRow = requireNotNull(
+            com.mkx.hrttracker.model.pk.PkRouteCalibrationResult.create(
+                route = PkCalibrationRoute.ORAL,
+                fittedBeta = kotlin.math.ln(1.25),
+                displayBeta = kotlin.math.ln(1.25),
+                betaPosteriorSd = 0.1,
+                laplaceVarianceBeta = 0.01,
+                displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                supportingLabCount = 3,
+                drugSignalLogRange = com.mkx.hrttracker.model.pk.PkCalibrationDefaults
+                    .DRUG_SIGNAL_LOG_RANGE_MIN,
+                robustRmseLog = 0.1,
+                minStudentTWeight = 0.1,
+                rLog = 0.04,
+            )
+        )
+        assertEquals(
+            PkCalibrationRouteConfidence.LOW,
+            pkRouteCalibrationConfidence(keptOutlierRow),
+        )
     }
 
     @Test

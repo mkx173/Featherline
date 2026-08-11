@@ -765,9 +765,18 @@ object PkCalibrationSolver {
 
             // Share-weighted robust RMSE over every lab with a positive
             // population share on this route (§A10.4), canonical UUID order.
+            // ACCEPTED labs are excluded (Phase-3 decision 7): acceptance
+            // means the user vouches for the point, so the gate judges only
+            // unvouched evidence — otherwise a kept conflicting lab held the
+            // route at population forever, defeating the Keep action. The
+            // Student-t weights still bound the kept lab's influence on the
+            // fit itself.
             var weightedSquaredResidualSum = 0.0
             var weightSum = 0.0
             for (point in objective.points) {
+                if (point.effectiveDisposition == PkCalibrationEffectiveDisposition.ACCEPTED) {
+                    continue
+                }
                 val share = point.populationShare(routeIndex)
                 if (!share.isFinite() || share <= 0.0) continue
                 val residual = residualByResultId.getValue(point.resultId)
@@ -778,9 +787,13 @@ object PkCalibrationSolver {
                     return null
                 }
             }
-            if (weightSum <= 0.0) return null
-            val rmse = sqrt(weightedSquaredResidualSum / weightSum)
-                .takeIf { value -> value.isFinite() && value >= 0.0 } ?: return null
+            // Every contributing lab vouched-for: nothing unvouched to judge.
+            val rmse = if (weightSum <= 0.0) {
+                0.0
+            } else {
+                sqrt(weightedSquaredResidualSum / weightSum)
+                    .takeIf { value -> value.isFinite() && value >= 0.0 } ?: return null
+            }
 
             var minimumLogTotal = Double.POSITIVE_INFINITY
             var maximumLogTotal = Double.NEGATIVE_INFINITY
@@ -801,6 +814,26 @@ object PkCalibrationSolver {
             val logRange = maximumLogTotal - minimumLogTotal
             if (!logRange.isFinite() || logRange < 0.0) return null
             if (!minimumWeight.isFinite()) return null
+
+            // Phase-3 decision 7: a poor fit with nothing flagged was a dead
+            // end — "review the fit" with no affordance (labs 1.35–1.8x apart
+            // fail the RMSE gate without any crossing the outlier weight
+            // threshold). Flag the worst-fitting unaccepted supporting lab so
+            // Keep/Exclude can always resolve the state.
+            if (unreviewed.isEmpty() &&
+                rmse > PkCalibrationDefaults.robustRmseLogMaxForPromotion(objective.rLog)
+            ) {
+                objective.points
+                    .filter { point ->
+                        point.resultId in supportingIds &&
+                            point.effectiveDisposition !=
+                            PkCalibrationEffectiveDisposition.ACCEPTED
+                    }
+                    .maxByOrNull { point ->
+                        abs(residualByResultId.getValue(point.resultId))
+                    }
+                    ?.let { worst -> unreviewed += worst.resultId }
+            }
 
             result[route] = PkJointRouteDiagnostics(
                 supportingLabCount = supportingIds.size,
