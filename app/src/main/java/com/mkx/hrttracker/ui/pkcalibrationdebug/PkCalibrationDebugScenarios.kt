@@ -85,10 +85,11 @@ data class PkCalibrationDebugScenario private constructor(
             fixtureDisposition = fixtureDisposition,
         ))
 
+    /** Null when the combination is unrepresentable by the contract. */
     fun withRouteState(
         route: PkCalibrationRoute,
         value: PkRouteCalibrationDisplayState,
-    ): PkCalibrationDebugScenario = requireNotNull(create(
+    ): PkCalibrationDebugScenario? = create(
         globalState = PkCalibrationGlobalState.READY,
         routeStateByRoute = routeStateByRoute + (route to value),
         routeRenderFallback = routeRenderFallback,
@@ -98,7 +99,7 @@ data class PkCalibrationDebugScenario private constructor(
         nonPositiveInput = false,
         displayCapBoundaryRoute = displayCapBoundaryRoute.takeUnless { it == route },
         fixtureDisposition = PkCalibrationDebugFixtureDisposition.AUTO,
-    ))
+    )
 
     fun withRouteRenderFallback(route: PkCalibrationRoute?): PkCalibrationDebugScenario {
         val states = if (route != null && routeStateByRoute.getValue(route).isPopulationState()) {
@@ -250,6 +251,18 @@ data class PkCalibrationDebugScenario private constructor(
             ) {
                 return null
             }
+            // Floor = 1 (decision 6): the count-based insufficient state is
+            // gone; POPULATION_INSUFFICIENT_SUPPORTING_LABS remains reachable
+            // only as the extreme-scale fallback, which requires a scale
+            // outside the core range yet inside the route's display cap.
+            if (routeStateByRoute.any { (route, state) ->
+                    state == PkRouteCalibrationDisplayState
+                        .POPULATION_INSUFFICIENT_SUPPORTING_LABS &&
+                        !route.supportsExtremeScaleFallback()
+                }
+            ) {
+                return null
+            }
             return PkCalibrationDebugScenario(
                 globalState = globalState,
                 routeStateByRoute = Collections.unmodifiableMap(canonicalStates),
@@ -325,6 +338,8 @@ fun interface PkCalibrationDebugScenarioSource {
 
 class DefaultPkCalibrationDebugScenarioSource(
     private val debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
+    /** Injectable so identical loads are bit-deterministic in tests. */
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) : PkCalibrationDebugScenarioSource {
     override fun loadFixture(
         scenario: PkCalibrationDebugScenario,
@@ -336,7 +351,7 @@ class DefaultPkCalibrationDebugScenarioSource(
             return result
         }
         return PkCalibrationDebugSourceResult.Available(
-            PkCalibrationDebugFixtures.build(scenario)
+            PkCalibrationDebugFixtures.build(scenario, nowMillis())
         )
     }
 }
@@ -474,7 +489,7 @@ internal object PkCalibrationDebugFixtures {
                     PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
                 scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.ACCEPTED ->
                     PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-                else -> PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS
+                else -> PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
             }
             routeResult(
                 route = route,
@@ -538,14 +553,16 @@ internal object PkCalibrationDebugFixtures {
         }
         val supportingLabCount = when (state) {
             PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS -> 0
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS -> 1
+            // Extreme-scale fallback shape: two labs, one short of the
+            // three the extreme guard requires.
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS -> 2
             else -> 3
         }
         val baseReasons = when (state) {
             PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
                 setOf(PkCalibrationReason.NO_SUPPORTING_LABS)
             PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS ->
-                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS)
+                setOf(PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS)
             PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE -> if (unreviewedOutlier) {
                 setOf(PkCalibrationReason.UNREVIEWED_OUTLIER)
             } else {
@@ -571,8 +588,10 @@ internal object PkCalibrationDebugFixtures {
             }
             PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
             PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
             -> null
+            // Extreme-but-capped fit: above the core range, inside the cap.
+            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS ->
+                ln(2.5)
             else -> displayBeta
         }
         return requireNotNull(PkRouteCalibrationResult.create(
@@ -701,6 +720,18 @@ internal object PkCalibrationDebugFixtures {
             },
         ))
     }
+}
+
+/**
+ * Whether an extreme fitted scale (outside the core range) can still sit
+ * inside this route's display cap — the only remaining way to reach the
+ * POPULATION_INSUFFICIENT_SUPPORTING_LABS display state under the one-lab
+ * promotion floor.
+ */
+internal fun PkCalibrationRoute.supportsExtremeScaleFallback(): Boolean {
+    val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE.getValue(this)
+    return cap.maxInclusive > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX ||
+        cap.minInclusive < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN
 }
 
 internal fun PkRouteCalibrationDisplayState.isPopulationState(): Boolean {

@@ -1106,7 +1106,11 @@
         <item quantity="other">%1$d 個待覆查</item>
     </plurals>
     <string name="calibration_pk_chip_adjusted">已調整</string>
-    <string name="calibration_pk_chip_adjusted_limited">已調整 · 可信度有限</string>
+    <string name="calibration_pk_chip_adjusted_confidence">已調整 · 置信度%1$s</string>
+    <string name="calibration_pk_confidence_low">低</string>
+    <string name="calibration_pk_confidence_medium">中等</string>
+    <string name="calibration_pk_confidence_high">高</string>
+    <string name="calibration_pk_route_confidence_line">置信度：%1$s——愈多檢測結果支持呢個途徑就會愈高。</string>
     <string name="calibration_pk_coaching_row_title">幫途徑完成校準</string>
     <string name="calibration_pk_coaching_row_subtitle">令檢測調整更精準嘅建議</string>
     <string name="calibration_pk_disclaimer_row_title">關於呢啲估算</string>

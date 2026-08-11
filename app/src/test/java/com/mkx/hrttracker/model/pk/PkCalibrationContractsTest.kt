@@ -186,7 +186,10 @@ class PkCalibrationContractsTest {
                 supportingLabCount = 0,
             )
         )
-        assertNotNull(
+        // Floor = 1 (decision 6): any positive supporting count promotes, so
+        // the count-based insufficient shape is no longer representable —
+        // only the extreme-scale fallback below remains.
+        assertNull(
             populationResult(
                 PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
                 setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
@@ -726,11 +729,20 @@ class PkCalibrationContractsTest {
                 fittedBeta = ln(1.4),
             )
         )
-        assertNull(
+        // Floor = 1 (decision 6): a single supporting lab certifies a
+        // promoted fit; zero labs still cannot.
+        assertNotNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
                 supportingLabCount = 1,
+            )
+        )
+        assertNull(
+            promotedRouteResult(
+                route = PkCalibrationRoute.INJECTION,
+                displayBeta = beta,
+                supportingLabCount = 0,
             )
         )
         assertNull(

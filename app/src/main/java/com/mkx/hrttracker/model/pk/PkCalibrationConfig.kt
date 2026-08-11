@@ -28,7 +28,14 @@ object PkCalibrationDefaults {
      * lab is ever excluded from the joint fit by it.
      */
     const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
-    const val MIN_SUPPORTING_LABS_FOR_PROMOTION = 2
+    /**
+     * User decision (2026-08-12): a single supporting lab promotes — the fit
+     * lands at LAB_ADJUSTED_PROVISIONAL (zero signal contrast + wide
+     * posterior) and the UI labels it low confidence instead of hiding the
+     * adjustment behind a two-lab floor. The three-lab extreme-scale guard
+     * below is unchanged: one wild lab implying a >2x scale still falls back.
+     */
+    const val MIN_SUPPORTING_LABS_FOR_PROMOTION = 1
     const val MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE = 3
     const val EXTREME_SCALE_CORE_MIN = 0.5
     const val EXTREME_SCALE_CORE_MAX = 2.0

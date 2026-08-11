@@ -604,9 +604,15 @@ class PkCalibrationSolverTest {
             PkCalibrationRoute.entries,
             result.routeResults.map(PkRouteCalibrationResult::route),
         )
-        assertEquals(listOf(PkCalibrationRoute.INJECTION), result.promotedRoutes)
+        // Floor = 1 (decision 6): the single-lab patch route promotes as a
+        // provisional adjustment (zero signal contrast) instead of hiding
+        // behind an insufficient-labs count.
         assertEquals(
-            PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.PATCH),
+            result.promotedRoutes,
+        )
+        assertEquals(
+            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
             result.routeResults[PkCalibrationRoute.PATCH.ordinal].displayState,
         )
         assertEquals(1, result.routeResults[PkCalibrationRoute.PATCH.ordinal].supportingLabCount)
@@ -614,10 +620,7 @@ class PkCalibrationSolverTest {
             PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
             result.routeResults[PkCalibrationRoute.GEL.ordinal].displayState,
         )
-        assertEquals(
-            setOf(PkCalibrationRoute.INJECTION),
-            result.displayParams.routeLogScale.keys,
-        )
+        assertTrue(PkCalibrationRoute.INJECTION in result.displayParams.routeLogScale.keys)
         val covariance = requireNotNull(result.promotedBetaCovariance)
         assertEquals(result.promotedRoutes, covariance.routes)
     }

@@ -13,6 +13,15 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
  * the v10.0 amendment (supporting-lab wording, attestation scope).
  */
 
+/** Coarse confidence tier word (user decision, 2026-08-12). */
+@get:StringRes
+val PkCalibrationRouteConfidence.labelRes: Int
+    get() = when (this) {
+        PkCalibrationRouteConfidence.LOW -> R.string.calibration_pk_confidence_low
+        PkCalibrationRouteConfidence.MEDIUM -> R.string.calibration_pk_confidence_medium
+        PkCalibrationRouteConfidence.HIGH -> R.string.calibration_pk_confidence_high
+    }
+
 /** Status-card title for a non-READY global state; READY composes §5 instead. */
 @get:StringRes
 val PkCalibrationGlobalState.statusTitleRes: Int?

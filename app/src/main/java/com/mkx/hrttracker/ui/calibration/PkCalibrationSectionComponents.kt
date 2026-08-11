@@ -382,15 +382,17 @@ private fun PkCalibrationRouteChip(row: PkCalibrationRouteRowUiState) {
         colorKey = row.route.medicationGroupColorKey,
     )
     val adjusted = row.displayState.isAdjusted
-    val stateWord = stringResource(
-        when {
-            row.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ->
-                R.string.calibration_pk_chip_adjusted_limited
+    // Adjusted chips carry the coarse confidence tier (user decision,
+    // 2026-08-12) instead of the former binary "limited" qualifier.
+    val stateWord = when {
+        row.confidence != null -> stringResource(
+            R.string.calibration_pk_chip_adjusted_confidence,
+            stringResource(row.confidence.labelRes),
+        )
 
-            adjusted -> R.string.calibration_pk_chip_adjusted
-            else -> R.string.calibration_pk_route_label_population
-        }
-    )
+        adjusted -> stringResource(R.string.calibration_pk_chip_adjusted)
+        else -> stringResource(R.string.calibration_pk_route_label_population)
+    }
     HrtPill(
         containerColor = if (adjusted) {
             MaterialTheme.colorScheme.primaryContainer

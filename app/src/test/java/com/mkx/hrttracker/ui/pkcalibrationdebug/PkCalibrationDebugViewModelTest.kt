@@ -18,7 +18,10 @@ import org.junit.Test
 
 class PkCalibrationDebugViewModelTest {
     private val enabled = PkCalibrationDebugGate { true }
-    private val fixtureSource = DefaultPkCalibrationDebugScenarioSource(debugGate = enabled)
+    private val fixtureSource = DefaultPkCalibrationDebugScenarioSource(
+        debugGate = enabled,
+        nowMillis = { 1_800_000_000_000L },
+    )
 
     @Test
     fun applyingAScenario_publishesTheValidatedFixtureThroughTheBridge() {
@@ -67,6 +70,19 @@ class PkCalibrationDebugViewModelTest {
 
         PkCalibrationRoute.entries.forEach { route ->
             PkRouteCalibrationDisplayState.entries.forEach { displayState ->
+                // Floor = 1: the insufficient-labs state is unrepresentable
+                // for routes whose cap cannot hold an extreme scale — the
+                // harness rejects the combination instead of crashing.
+                if (displayState ==
+                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS &&
+                    !route.supportsExtremeScaleFallback()
+                ) {
+                    assertEquals(
+                        PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH,
+                        viewModel.selectRouteState(route, displayState),
+                    )
+                    return@forEach
+                }
                 assertEquals(
                     PkCalibrationDebugDispatchResult.ACCEPTED,
                     viewModel.selectRouteState(route, displayState),

@@ -282,6 +282,15 @@ private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
                 }
             },
         )
+        row.confidence?.let { confidence ->
+            PkCalibrationRouteDetailLine(
+                iconRes = R.drawable.ic_experiment,
+                text = stringResource(
+                    R.string.calibration_pk_route_confidence_line,
+                    stringResource(confidence.labelRes),
+                ),
+            )
+        }
         if (row.atDisplayCapBoundary) {
             PkCalibrationRouteDetailLine(
                 iconRes = R.drawable.ic_data_info_alert,

@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationDefaults
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
@@ -13,6 +14,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.UUID
 
 /**
@@ -50,6 +52,34 @@ val PkRouteCalibrationDisplayState.isAdjusted: Boolean
         this == PkRouteCalibrationDisplayState.LAB_CALIBRATED
 
 /**
+ * Coarse per-route confidence for adjusted routes (user decision,
+ * 2026-08-12), anchored to existing gates only — no new thresholds:
+ * HIGH is a route that passed every full-calibration gate (LAB_CALIBRATED);
+ * MEDIUM is provisional whose posterior already meets the full-calibration
+ * sd gate (signal contrast still missing); LOW is provisional with a
+ * posterior wider than that gate.
+ */
+enum class PkCalibrationRouteConfidence { LOW, MEDIUM, HIGH }
+
+fun pkRouteCalibrationConfidence(
+    routeResult: PkRouteCalibrationResult,
+): PkCalibrationRouteConfidence? {
+    return when {
+        routeResult.displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED ->
+            PkCalibrationRouteConfidence.HIGH
+
+        routeResult.displayState !=
+            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL -> null
+
+        (routeResult.betaPosteriorSd ?: return null) <=
+            PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION ->
+            PkCalibrationRouteConfidence.MEDIUM
+
+        else -> PkCalibrationRouteConfidence.LOW
+    }
+}
+
+/**
  * Fit-level route row for the calibration status surface. Deliberately carries
  * no diagnostic fit fields — `fittedBeta`, `displayBeta`, posterior/variance,
  * RMSE, weights, and contrast never reach the view layer (handoff §5.4). The
@@ -62,6 +92,8 @@ data class PkCalibrationRouteRowUiState(
     val supportingLabCount: Int,
     val atDisplayCapBoundary: Boolean,
     val unreviewedOutlierLabIds: Set<UUID>,
+    /** Coarse tier for adjusted routes; null on population rows. */
+    val confidence: PkCalibrationRouteConfidence?,
 )
 
 /**
@@ -194,6 +226,7 @@ fun pkCalibrationUiState(
                 supportingLabCount = routeResult.supportingLabCount,
                 atDisplayCapBoundary = routeResult.atDisplayCapBoundary,
                 unreviewedOutlierLabIds = routeResult.unreviewedOutlierLabIds,
+                confidence = pkRouteCalibrationConfidence(routeResult),
             )
         },
         effectivePromotedRoutes = effectivePromoted,

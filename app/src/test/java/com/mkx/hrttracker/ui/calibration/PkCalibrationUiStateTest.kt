@@ -34,9 +34,15 @@ class PkCalibrationUiStateTest {
 
     @Test
     fun heroDerivation_coversEveryRouteState_underReadyGlobal() {
+        // GEL is the one canonical-order-earliest route whose display cap can
+        // hold an extreme scale, so every display state (including the
+        // extreme-fallback POPULATION_INSUFFICIENT_SUPPORTING_LABS) is
+        // representable on it under the one-lab promotion floor.
         val base = PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
         for (state in PkRouteCalibrationDisplayState.entries) {
-            val uiState = ui(base.withRouteState(PkCalibrationRoute.INJECTION, state))
+            val uiState = ui(
+                requireNotNull(base.withRouteState(PkCalibrationRoute.GEL, state))
+            )
             val adjusted = state == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
                 state == PkRouteCalibrationDisplayState.LAB_CALIBRATED
 
@@ -50,9 +56,15 @@ class PkCalibrationUiStateTest {
                 state == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
                 uiState.limitedConfidence,
             )
-            // Exactly five rows in canonical order, first row carrying the state.
+            // Exactly five rows in canonical order, the forced row carrying
+            // the state.
             assertEquals(PkCalibrationRoute.entries, uiState.routeRows.map { it.route })
-            assertEquals(state, uiState.routeRows.first().displayState)
+            assertEquals(
+                state,
+                uiState.routeRows
+                    .single { row -> row.route == PkCalibrationRoute.GEL }
+                    .displayState,
+            )
         }
     }
 
@@ -245,6 +257,54 @@ class PkCalibrationUiStateTest {
             ),
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,
+        )
+    }
+
+    @Test
+    fun routeConfidence_tiersAnchorToExistingGatesOnly() {
+        // HIGH = every full-calibration gate passed; LOW = provisional with a
+        // posterior wider than the sd gate (the fixture's provisional rows use
+        // sd 0.3 > 0.20); population rows carry no tier.
+        val uiState = ui(
+            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
+        )
+        assertEquals(
+            PkCalibrationRouteConfidence.HIGH,
+            uiState.routeRows.single { it.route == PkCalibrationRoute.INJECTION }.confidence,
+        )
+        assertEquals(
+            PkCalibrationRouteConfidence.LOW,
+            uiState.routeRows.single { it.route == PkCalibrationRoute.ORAL }.confidence,
+        )
+        assertTrue(
+            uiState.routeRows
+                .filterNot { row -> row.displayState.isAdjusted }
+                .all { row -> row.confidence == null }
+        )
+
+        // MEDIUM = provisional whose posterior already meets the
+        // full-calibration sd gate (only signal contrast still missing).
+        val mediumRow = requireNotNull(
+            com.mkx.hrttracker.model.pk.PkRouteCalibrationResult.create(
+                route = PkCalibrationRoute.ORAL,
+                fittedBeta = kotlin.math.ln(1.25),
+                displayBeta = kotlin.math.ln(1.25),
+                betaPosteriorSd = 0.15,
+                laplaceVarianceBeta = 0.0225,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                reasons = setOf(
+                    com.mkx.hrttracker.model.pk.PkCalibrationReason
+                        .INSUFFICIENT_DRUG_SIGNAL_CONTRAST
+                ),
+                supportingLabCount = 3,
+                drugSignalLogRange = 0.5,
+                robustRmseLog = 0.1,
+                rLog = 0.04,
+            )
+        )
+        assertEquals(
+            PkCalibrationRouteConfidence.MEDIUM,
+            pkRouteCalibrationConfidence(mediumRow),
         )
     }
 

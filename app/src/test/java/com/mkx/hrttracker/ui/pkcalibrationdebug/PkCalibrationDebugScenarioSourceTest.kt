@@ -17,7 +17,10 @@ import org.junit.Test
 
 class PkCalibrationDebugScenarioSourceTest {
     private val enabled = PkCalibrationDebugGate { true }
-    private val source = DefaultPkCalibrationDebugScenarioSource(debugGate = enabled)
+    private val source = DefaultPkCalibrationDebugScenarioSource(
+        debugGate = enabled,
+        nowMillis = { 1_800_000_000_000L },
+    )
 
     @Test
     fun everyGlobalState_preservesContractCardinality() {
@@ -47,8 +50,19 @@ class PkCalibrationDebugScenarioSourceTest {
     fun everyRouteAndEveryDisplayState_isReachableThroughValidatedContracts() {
         PkCalibrationRoute.entries.forEach { route ->
             PkRouteCalibrationDisplayState.entries.forEach { displayState ->
-                val scenario = requireNotNull(PkCalibrationDebugScenario.create())
+                val forced = requireNotNull(PkCalibrationDebugScenario.create())
                     .withRouteState(route, displayState)
+                // Floor = 1: the insufficient-labs state exists only as the
+                // extreme-scale fallback, which fits inside the display cap
+                // for GEL/SUBLINGUAL only.
+                if (displayState ==
+                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS &&
+                    !route.supportsExtremeScaleFallback()
+                ) {
+                    assertNull(forced)
+                    return@forEach
+                }
+                val scenario = requireNotNull(forced)
                 val snapshot = source.loadFixture(scenario).availableSnapshot()
                 val result = snapshot.result
 
@@ -94,27 +108,29 @@ class PkCalibrationDebugScenarioSourceTest {
 
     @Test
     fun arbitraryMixedCombination_preservesCanonicalRouteOrderAndIsolation() {
-        val mixed = requireNotNull(PkCalibrationDebugScenario.create())
-            .withRouteState(
-                PkCalibrationRoute.INJECTION,
-                PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-            )
-            .withRouteState(
-                PkCalibrationRoute.PATCH,
-                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-            )
-            .withRouteState(
-                PkCalibrationRoute.GEL,
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-            )
-            .withRouteState(
-                PkCalibrationRoute.ORAL,
-                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-            )
-            .withRouteState(
-                PkCalibrationRoute.SUBLINGUAL,
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-            )
+        val mixed = requireNotNull(
+            requireNotNull(PkCalibrationDebugScenario.create())
+                .withRouteState(
+                    PkCalibrationRoute.INJECTION,
+                    PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                )
+                ?.withRouteState(
+                    PkCalibrationRoute.PATCH,
+                    PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                )
+                ?.withRouteState(
+                    PkCalibrationRoute.GEL,
+                    PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                )
+                ?.withRouteState(
+                    PkCalibrationRoute.ORAL,
+                    PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+                )
+                ?.withRouteState(
+                    PkCalibrationRoute.SUBLINGUAL,
+                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+                )
+        )
 
         val snapshot = source.loadFixture(mixed).availableSnapshot()
 

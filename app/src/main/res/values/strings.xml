@@ -1183,7 +1183,11 @@
         <item quantity="other">%1$d to review</item>
     </plurals>
     <string name="calibration_pk_chip_adjusted">Adjusted</string>
-    <string name="calibration_pk_chip_adjusted_limited">Adjusted · limited</string>
+    <string name="calibration_pk_chip_adjusted_confidence">Adjusted · %1$s confidence</string>
+    <string name="calibration_pk_confidence_low">low</string>
+    <string name="calibration_pk_confidence_medium">medium</string>
+    <string name="calibration_pk_confidence_high">high</string>
+    <string name="calibration_pk_route_confidence_line">Confidence: %1$s — sharpens as more labs support this route.</string>
     <string name="calibration_pk_coaching_row_title">Helping a route calibrate</string>
     <string name="calibration_pk_coaching_row_subtitle">Tips for sharper lab adjustment</string>
     <string name="calibration_pk_disclaimer_row_title">About these estimates</string>

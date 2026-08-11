@@ -152,14 +152,18 @@ class PkCalibrationDebugViewModel @Inject constructor(
     }
 
     private fun updateFixture(
-        transform: (PkCalibrationDebugScenario) -> PkCalibrationDebugScenario,
+        transform: (PkCalibrationDebugScenario) -> PkCalibrationDebugScenario?,
     ): PkCalibrationDebugDispatchResult {
         if (!debugGate.isEnabled()) {
             return PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
         }
         val base = _uiState.value.scenario
             ?: PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
-        return replaceFixture(transform(base))
+        // An unrepresentable combination keeps the last good forced state and
+        // surfaces a contract mismatch instead of crashing the harness.
+        val next = transform(base)
+            ?: return PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH
+        return replaceFixture(next)
     }
 
     // Failures keep the last good forced state (so the harness stays consistent
