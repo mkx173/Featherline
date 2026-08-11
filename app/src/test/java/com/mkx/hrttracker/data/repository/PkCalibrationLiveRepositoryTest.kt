@@ -131,6 +131,44 @@ class PkCalibrationLiveRepositoryTest {
     }
 
     @Test
+    fun unsetWeight_fallsBackToTheAppDefault_insteadOfFailingInvalid() = runTest {
+        val fixture = validResearchFixture()
+        val generations = MutableStateFlow(1L)
+        every { storage.observeHomeDataGeneration() } returns generations
+        coEvery { storage.captureHomeDataGeneration() } returns 1L
+        coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
+        coEvery { medicationLogs.getEntries() } returns emptyList()
+        // Current Weight never set: calibration resolves the same 70 kg
+        // default as the Home projection instead of reporting the whole
+        // evaluation as SHARED_INPUT_INVALID ("Check an E2 result").
+        coEvery { userProfiles.getCurrentProfile() } returns UserProfile()
+        coEvery { storage.getAllMetadata() } returns emptyList()
+        val repository = repository(
+            generations,
+            MutableStateFlow<PkCalibrationRuntimePolicy>(fixture.policy),
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.liveState.collect()
+        }
+
+        runCurrent()
+
+        val available = repository.liveState.value as PkCalibrationLiveState.Available
+        assertEquals(
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.READY,
+            available.evaluation.result.globalState,
+        )
+        assertEquals(
+            com.mkx.hrttracker.model.pk.PkMedicationSimulation.DefaultBodyWeightKg,
+            checkNotNull(available.context.input.resolvedCurrentWeightKg),
+            0.0,
+        )
+        collector.cancel()
+    }
+
+    @Test
     fun generationChange_andRetry_reReadWithoutCreatingAnotherVersion() = runTest {
         val generations = MutableStateFlow(4L)
         every { storage.observeHomeDataGeneration() } returns generations

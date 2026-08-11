@@ -305,7 +305,8 @@ object PkMedicationSimulation {
     private const val MainChartWindowHours = MainChartWindowDays * 24
     private const val MainChartFallbackSteps = MainChartWindowHours + 1
     private const val MainChartDenseSampleIntervalHours = 0.1
-    private const val DefaultBodyWeightKg = 70.0
+    /** App-wide fallback when Current Weight is unset; calibration uses it too. */
+    const val DefaultBodyWeightKg = 70.0
     private const val ChartXPrecisionScale = 10_000.0
 
     internal const val hoursPerDay = HoursPerDay

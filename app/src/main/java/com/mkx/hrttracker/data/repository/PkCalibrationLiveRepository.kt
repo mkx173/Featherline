@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
 import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkChartDomain
+import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
 import java.time.Instant
@@ -364,11 +365,17 @@ class PkCalibrationLiveRepository @Inject constructor(
             )
         }
 
+        // Same resolution as the Home projection (PkMedicationSimulation):
+        // an unset Current Weight falls back to the app-wide default instead
+        // of failing the whole evaluation as SHARED_INPUT_INVALID.
+        val resolvedWeightKg = profile.weightKg
+            ?.takeIf { value -> value.isFinite() && value > 0.0 }
+            ?: PkMedicationSimulation.DefaultBodyWeightKg
         val input = PkCalibrationInputSnapshot.create(
             labs = labs,
             medicationEvents = medicationSources,
             forwardTimeOriginEpochMillis = origin,
-            resolvedCurrentWeightKg = profile.weightKg,
+            resolvedCurrentWeightKg = resolvedWeightKg,
             forwardModelVersion = policy.forwardModelVersion,
             calibrationModelVersion = policy.calibrationModelVersion,
         ) ?: return StableRead.Unavailable(
