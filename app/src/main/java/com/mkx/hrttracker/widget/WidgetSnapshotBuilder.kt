@@ -6,6 +6,8 @@ import com.mkx.hrttracker.data.repository.HomePkProjectionRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isArchived
@@ -157,6 +159,17 @@ internal fun buildWidgetSnapshotRecord(
     )
 }
 
+private fun widgetRouteLabel(
+    medicine: Medicine?,
+    applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType,
+    context: Context,
+): String {
+    if (medicine?.selection is MedicineSelection.Custom) {
+        return context.getString(R.string.medication_category_custom)
+    }
+    return medicationRouteLabel(applicationType, context)
+}
+
 private fun MedicationLogEntry.toManualWidgetDoseRow(
     context: Context,
     zoneId: ZoneId,
@@ -168,7 +181,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         medicationName = medicationEntryTitle(medicine, applicationType, context),
         groupName = "",
         colorKey = colorKey,
-        routeLabel = medicationRouteLabel(applicationType, context),
+        routeLabel = widgetRouteLabel(medicine, applicationType, context),
         doseText = listOfNotNull(
             doseInstructionText(
                 context = context,
@@ -217,7 +230,11 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         ),
         groupName = groupName,
         colorKey = groupColorKey,
-        routeLabel = medicationRouteLabel(medication.applicationType, context),
+        routeLabel = widgetRouteLabel(
+            medication.medicine,
+            medication.applicationType,
+            context,
+        ),
         doseText = listOfNotNull(
             doseInstructionText(
                 context = context,

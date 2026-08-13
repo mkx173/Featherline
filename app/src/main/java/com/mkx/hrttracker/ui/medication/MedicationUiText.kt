@@ -168,13 +168,15 @@ fun medicationEntrySupportingText(
     extraSupportingText: String? = null,
     doseAmountDelta: Double? = null,
 ): String {
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
-        .takeIf {
-            shouldIncludeApplicationTypeInSupportingText(
-                hasMedicine = medicine != null,
-                applicationType = applicationType,
-            )
-        }
+    val applicationTypeLabel = when (medicine?.selection) {
+        is MedicineSelection.Custom -> stringResource(R.string.medication_category_custom)
+        else -> stringResource(applicationType.labelRes)
+    }.takeIf {
+        shouldIncludeApplicationTypeInSupportingText(
+            hasMedicine = medicine != null,
+            applicationType = applicationType,
+        )
+    }
     val doseText = medicine?.let {
         doseInstructionSummary(
             medicine = it,
