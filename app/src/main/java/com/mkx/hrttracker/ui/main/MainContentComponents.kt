@@ -4125,6 +4125,7 @@ private fun MainRouteIconSurface(
                     applicationType = applicationType,
                     contentDescription = applicationTypeLabel,
                     modifier = Modifier.size(iconSize),
+                    medicine = medicine,
                     outlined = outlinedIcon,
                 )
             }

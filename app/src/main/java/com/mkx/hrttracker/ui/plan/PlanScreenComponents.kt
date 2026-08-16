@@ -956,6 +956,7 @@ private fun SelectedDayMedicationIconSurface(
                     applicationType = applicationType,
                     contentDescription = applicationTypeLabel,
                     modifier = Modifier.size(20.dp),
+                    medicine = medicine,
                     outlined = useOutlinedIcon,
                 )
             }
@@ -1046,6 +1047,7 @@ private fun RegimenMedicationChip(
             applicationType = applicationType,
             contentDescription = applicationTypeLabel,
             modifier = Modifier.size(14.dp),
+            medicine = medicine,
         )
         // PATCH_OFF is titled by the removal string ("Remove patch"); its route label
         // is the shortened "Patch", which adds nothing next to that title, so omit it.

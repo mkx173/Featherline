@@ -433,6 +433,7 @@ internal fun MedicationCard(
                                         contentDescription = leadingIconContentDescription
                                             ?: applicationTypeLabel,
                                         modifier = Modifier.size(20.dp),
+                                        medicine = medicine,
                                     )
                                 }
                             }
