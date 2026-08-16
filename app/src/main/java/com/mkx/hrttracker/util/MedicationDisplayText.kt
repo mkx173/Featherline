@@ -56,10 +56,22 @@ fun medicationEntryTitle(
     }
 }
 
+// A CUSTOM-category medicine's route is hard-wired to ORAL by the catalog, so the
+// inferred route carries no information — label it "Custom" instead. Keying on the
+// category (not `selection is MedicineSelection.Custom`) preserves the real,
+// user-chosen route of medicines that merely *name* themselves custom: imported
+// external-tracker medicines and catalog compounds whose entries force custom
+// naming (e.g. testosterone).
 fun medicationRouteLabel(
+    medicine: Medicine?,
     applicationType: MedicationApplicationType,
     context: Context,
-): String = context.getString(applicationType.labelRes)
+): String {
+    if (medicine?.category == MedicationCategory.CUSTOM) {
+        return context.getString(R.string.medication_category_custom)
+    }
+    return context.getString(applicationType.labelRes)
+}
 
 fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
     // Read the locale from the caller's context (the widget passes a settings-derived

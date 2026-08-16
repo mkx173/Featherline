@@ -1,10 +1,8 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
-import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
@@ -16,11 +14,7 @@ fun medicationDetailLine(
 ): String {
     // A PATCH_OFF slot has no medicine; medicine == null suppresses the dose line.
     val name = medicationEntryTitle(medication.medicine, medication.applicationType, context)
-    val appType = if (medication.medicine?.selection is MedicineSelection.Custom) {
-        context.getString(R.string.medication_category_custom)
-    } else {
-        medicationRouteLabel(medication.applicationType, context)
-    }
+    val appType = medicationRouteLabel(medication.medicine, medication.applicationType, context)
     val doseText = doseInstructionText(
         context = context,
         medicine = medication.medicine,

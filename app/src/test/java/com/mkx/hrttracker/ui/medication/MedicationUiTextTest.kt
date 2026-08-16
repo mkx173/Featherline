@@ -158,8 +158,11 @@ class MedicationUiTextTest {
         var text: String? = null
 
         composeRule.setContent {
+            // A catalog patch, not a custom medicine — CUSTOM-category medicines
+            // label their route "Custom", which would mask the short-route assertion.
             text = medicationEntrySupportingText(
-                medicine = testCustomMedicine(
+                medicine = testMedicine(
+                    key = MedicationKey.ESTRADIOL_PATCH,
                     preparation = MedicinePreparation.Patch(
                         MedicinePreparation.PatchSpecification.TotalMg(valueMg = 1.44),
                     ),

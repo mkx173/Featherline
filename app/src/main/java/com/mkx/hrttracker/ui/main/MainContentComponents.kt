@@ -121,6 +121,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -130,6 +131,7 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
+import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -3104,7 +3106,7 @@ private fun MainAntiandrogenMedicationSubCard(
         colorKey = if (card.isManualRow) null else card.groupColorKey
     )
     val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
-    val routeLabel = stringResource(displayedApplicationType.labelRes)
+    val routeLabel = medicationRouteLabel(displayedMedicine, displayedApplicationType)
     val doseSummary = displayedMedicine?.let {
         doseInstructionSummary(
             medicine = it,
@@ -3169,6 +3171,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 MainRouteIconSurface(
                     applicationType = displayedApplicationType,
                     groupColorScheme = groupColorScheme,
+                    medicine = displayedMedicine,
                 )
 
                 Column(
@@ -3607,7 +3610,7 @@ private fun MainTodayDoseRow(
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
-    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val routeLabel = medicationRouteLabel(medication.medicine, medication.applicationType)
     val doseText = medication.medicine?.let {
         doseInstructionSummary(
             medicine = it,
@@ -3688,6 +3691,7 @@ private fun MainTodayDoseRow(
                 MainRouteIconSurface(
                     applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
+                    medicine = medication.medicine,
                     outlinedIcon = routeIconOutlined
                 )
 
@@ -3772,7 +3776,7 @@ private fun MainUpcomingDoseRow(
     val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
-    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val routeLabel = medicationRouteLabel(medication.medicine, medication.applicationType)
     val doseText = medication.medicine?.let {
         doseInstructionSummary(
             medicine = it,
@@ -3822,6 +3826,7 @@ private fun MainUpcomingDoseRow(
                 MainRouteIconSurface(
                     applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
+                    medicine = medication.medicine,
                 )
 
                 Column(
@@ -4093,11 +4098,14 @@ private fun MainRouteIconSurface(
     applicationType: MedicationApplicationType,
     groupColorScheme: ColorScheme,
     modifier: Modifier = Modifier,
+    medicine: Medicine? = null,
     surfaceSize: Dp = 36.dp,
     iconSize: Dp = 20.dp,
     outlinedIcon: Boolean = false,
 ) {
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    // Announce what the row's visible route text says ("Custom" for a
+    // CUSTOM-category medicine), not the raw route, so TalkBack matches the screen.
+    val applicationTypeLabel = medicationRouteLabel(medicine, applicationType)
 
     Box(
         modifier = modifier.size(surfaceSize),
