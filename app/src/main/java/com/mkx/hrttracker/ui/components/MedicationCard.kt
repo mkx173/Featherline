@@ -74,10 +74,10 @@ import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
+import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
-import com.mkx.hrttracker.util.labelRes
 
 internal const val MedicationCardLeadingIconTestTag = "medication-card-leading-icon"
 private const val MedicationCardLeadingIconTransitionDurationMillis = 220
@@ -281,7 +281,9 @@ internal fun MedicationCard(
     // the key so selection transitions still animate.
 ) = key(medicine?.uuid, applicationType, groupColorKey) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    // Icon contentDescription must match the visible supporting text ("Custom" for
+    // a CUSTOM-category medicine) so TalkBack agrees with the screen.
+    val applicationTypeLabel = medicationRouteLabel(medicine, applicationType)
     val medicationName = medicationEntryTitle(medicine, applicationType)
     // The medicine manager describes a medicine, not an entry — its supporting
     // line should be the preparation summary, not the route/dose. Other callers
@@ -431,6 +433,7 @@ internal fun MedicationCard(
                                         contentDescription = leadingIconContentDescription
                                             ?: applicationTypeLabel,
                                         modifier = Modifier.size(20.dp),
+                                        medicine = medicine,
                                     )
                                 }
                             }

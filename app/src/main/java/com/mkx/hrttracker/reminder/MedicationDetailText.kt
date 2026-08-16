@@ -14,7 +14,7 @@ fun medicationDetailLine(
 ): String {
     // A PATCH_OFF slot has no medicine; medicine == null suppresses the dose line.
     val name = medicationEntryTitle(medication.medicine, medication.applicationType, context)
-    val appType = medicationRouteLabel(medication.applicationType, context)
+    val appType = medicationRouteLabel(medication.medicine, medication.applicationType, context)
     val doseText = doseInstructionText(
         context = context,
         medicine = medication.medicine,

@@ -379,9 +379,39 @@ class MedicationDisplayTextTest {
         )
     }
 
+    // "Custom" replaces the route only where the route is meaningless: the CUSTOM
+    // category hard-wires ORAL. Testosterone forces MedicineSelection.Custom naming
+    // but the user picks its route, so keying on selection would erase real data.
+    @Test
+    fun routeLabelSaysCustomOnlyForCustomCategoryMedicines() {
+        assertEquals(
+            "Custom",
+            medicationRouteLabel(
+                testCustomMedicine(),
+                MedicationApplicationType.ORAL,
+                realContext,
+            ),
+        )
+        assertEquals(
+            "Sublingual",
+            medicationRouteLabel(
+                testCustomMedicine(category = MedicationCategory.TESTOSTERONE),
+                MedicationApplicationType.SUBLINGUAL,
+                realContext,
+            ),
+        )
+        assertEquals(
+            "Oral",
+            medicationRouteLabel(testMedicine(), MedicationApplicationType.ORAL, realContext),
+        )
+    }
+
     @Test
     fun patchRouteLabelsKeepPatchOnShortAndPatchOffTitleFallback() {
-        assertEquals("Patch", medicationRouteLabel(MedicationApplicationType.PATCH_ON, realContext))
+        assertEquals(
+            "Patch",
+            medicationRouteLabel(null, MedicationApplicationType.PATCH_ON, realContext),
+        )
         assertEquals(
             "Remove patch",
             medicationEntryTitle(

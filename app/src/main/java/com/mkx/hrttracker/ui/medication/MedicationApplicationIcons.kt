@@ -11,19 +11,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.form
+import com.mkx.hrttracker.util.usesCustomRouteLabel
 
 @Composable
 internal fun MedicationApplicationIcon(
     applicationType: MedicationApplicationType,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    // A CUSTOM-category medicine's route is hard-wired to ORAL, so the oral glyph
+    // carries no information — display surfaces pass the medicine to get the
+    // generic medication glyph instead (matching the "Custom" route label). The
+    // route picker passes null: there the user is choosing a real route.
+    medicine: Medicine? = null,
     outlined: Boolean = false,
 ) {
     val applicationTypeIcon = ImageVector.vectorResource(
-        if (outlined) {
+        if (medicine.usesCustomRouteLabel()) {
+            if (outlined) R.drawable.ic_medication_alt else R.drawable.ic_medication
+        } else if (outlined) {
             medicationApplicationOutlinedIconRes(applicationType)
         } else {
             medicationApplicationIconRes(applicationType)

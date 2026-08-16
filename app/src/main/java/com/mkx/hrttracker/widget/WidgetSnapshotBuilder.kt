@@ -168,7 +168,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
         medicationName = medicationEntryTitle(medicine, applicationType, context),
         groupName = "",
         colorKey = colorKey,
-        routeLabel = medicationRouteLabel(applicationType, context),
+        routeLabel = medicationRouteLabel(medicine, applicationType, context),
         doseText = listOfNotNull(
             doseInstructionText(
                 context = context,
@@ -217,7 +217,11 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         ),
         groupName = groupName,
         colorKey = groupColorKey,
-        routeLabel = medicationRouteLabel(medication.applicationType, context),
+        routeLabel = medicationRouteLabel(
+            medication.medicine,
+            medication.applicationType,
+            context,
+        ),
         doseText = listOfNotNull(
             doseInstructionText(
                 context = context,

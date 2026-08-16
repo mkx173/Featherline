@@ -166,7 +166,7 @@ class MedicationDetailTextTest {
 
     @Test
     fun medicationDetailLine_capsulePreparationRendersActiveOnlyAtSingleCount() {
-        every { context.getString(R.string.medication_application_oral) } returns "Oral"
+        every { context.getString(R.string.medication_category_custom) } returns "Custom"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
             context.getString(R.string.dose_instruction_summary_active_amount, "100", "mg")
@@ -184,7 +184,7 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Progesterone", medication)
 
-        assertEquals("Progesterone · Progesterone · Oral · 100 mg", result)
+        assertEquals("Progesterone · Progesterone · Custom · 100 mg", result)
     }
 
     @Test
@@ -201,7 +201,7 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(realContext, "Progesterone", medication)
 
-        assertEquals("Progesterone · Progesterone · Oral · 2 capsules · 10 mg", result)
+        assertEquals("Progesterone · Progesterone · Custom · 2 capsules · 10 mg", result)
     }
 
     @Test

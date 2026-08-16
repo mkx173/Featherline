@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.importedExternalMedicineDisplayKey
 import com.mkx.hrttracker.util.labelRes
+import com.mkx.hrttracker.util.medicationRouteLabel
 import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
@@ -159,6 +160,19 @@ fun medicationEntryTitle(
     }
 }
 
+// Compose wrapper over the single source of truth in MedicationDisplayText's
+// medicationRouteLabel — in-app cards and the widget/reminder (the Context-based
+// callers) must agree on when a route reads "Custom".
+@Composable
+fun medicationRouteLabel(
+    medicine: Medicine?,
+    applicationType: MedicationApplicationType,
+): String = medicationRouteLabel(
+    medicine = medicine,
+    applicationType = applicationType,
+    context = LocalContext.current,
+)
+
 @Composable
 fun medicationEntrySupportingText(
     medicine: Medicine?,
@@ -168,13 +182,12 @@ fun medicationEntrySupportingText(
     extraSupportingText: String? = null,
     doseAmountDelta: Double? = null,
 ): String {
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
-        .takeIf {
-            shouldIncludeApplicationTypeInSupportingText(
-                hasMedicine = medicine != null,
-                applicationType = applicationType,
-            )
-        }
+    val applicationTypeLabel = medicationRouteLabel(medicine, applicationType).takeIf {
+        shouldIncludeApplicationTypeInSupportingText(
+            hasMedicine = medicine != null,
+            applicationType = applicationType,
+        )
+    }
     val doseText = medicine?.let {
         doseInstructionSummary(
             medicine = it,

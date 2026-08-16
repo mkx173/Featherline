@@ -59,6 +59,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.formatSummary
@@ -74,6 +75,7 @@ import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
+import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -408,6 +410,7 @@ private fun SelectedDayRow(
         ) {
             SelectedDayMedicationIconSurface(
                 state = rowState,
+                medicine = row.medicine,
                 applicationType = row.applicationType,
                 colorScheme = rowColorScheme,
                 showUnreadLoggedBadge = outsideScheduleWindowLoggedAt != null
@@ -798,6 +801,7 @@ internal fun RegimenGroupCard(
                     ).joinToString(separator = " · ")
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,
+                        medicine = medication.medicine,
                         applicationType = medication.applicationType,
                         medicationName = medicationEntryTitle(
                             medication.medicine,
@@ -919,11 +923,14 @@ private fun scheduleIntervalLabel(
 @Composable
 private fun SelectedDayMedicationIconSurface(
     state: SelectedDayRowState,
+    medicine: Medicine?,
     applicationType: MedicationApplicationType,
     colorScheme: ColorScheme,
     showUnreadLoggedBadge: Boolean = false,
 ) {
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    // Announce what the row's visible route text says ("Custom" for a
+    // CUSTOM-category medicine), not the raw route, so TalkBack matches the screen.
+    val applicationTypeLabel = medicationRouteLabel(medicine, applicationType)
     val showLoggedBadge = state == SelectedDayRowState.LOGGED
     val showDueBadge = state == SelectedDayRowState.DUE
     val showPastDueBadge = state == SelectedDayRowState.PAST_DUE && !showUnreadLoggedBadge
@@ -949,6 +956,7 @@ private fun SelectedDayMedicationIconSurface(
                     applicationType = applicationType,
                     contentDescription = applicationTypeLabel,
                     modifier = Modifier.size(20.dp),
+                    medicine = medicine,
                     outlined = useOutlinedIcon,
                 )
             }
@@ -1023,11 +1031,12 @@ internal fun selectedDayHeaderCountLabel(
 @Composable
 private fun RegimenMedicationChip(
     groupColorScheme: ColorScheme,
+    medicine: Medicine?,
     applicationType: MedicationApplicationType,
     medicationName: String,
     doseSummary: String,
 ) {
-    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    val applicationTypeLabel = medicationRouteLabel(medicine, applicationType)
 
     HrtPill(
         containerColor = groupColorScheme.primaryContainer,
@@ -1038,6 +1047,7 @@ private fun RegimenMedicationChip(
             applicationType = applicationType,
             contentDescription = applicationTypeLabel,
             modifier = Modifier.size(14.dp),
+            medicine = medicine,
         )
         // PATCH_OFF is titled by the removal string ("Remove patch"); its route label
         // is the shortened "Patch", which adds nothing next to that title, so omit it.
