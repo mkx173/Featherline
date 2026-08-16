@@ -11,11 +11,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.form
+import com.mkx.hrttracker.util.usesCustomRouteLabel
 
 @Composable
 internal fun MedicationApplicationIcon(
@@ -30,7 +30,7 @@ internal fun MedicationApplicationIcon(
     outlined: Boolean = false,
 ) {
     val applicationTypeIcon = ImageVector.vectorResource(
-        if (medicine?.category == MedicationCategory.CUSTOM) {
+        if (medicine.usesCustomRouteLabel()) {
             if (outlined) R.drawable.ic_medication_alt else R.drawable.ic_medication
         } else if (outlined) {
             medicationApplicationOutlinedIconRes(applicationType)

@@ -62,12 +62,14 @@ fun medicationEntryTitle(
 // user-chosen route of medicines that merely *name* themselves custom: imported
 // external-tracker medicines and catalog compounds whose entries force custom
 // naming (e.g. testosterone).
+fun Medicine?.usesCustomRouteLabel(): Boolean = this?.category == MedicationCategory.CUSTOM
+
 fun medicationRouteLabel(
     medicine: Medicine?,
     applicationType: MedicationApplicationType,
     context: Context,
 ): String {
-    if (medicine?.category == MedicationCategory.CUSTOM) {
+    if (medicine.usesCustomRouteLabel()) {
         return context.getString(R.string.medication_category_custom)
     }
     return context.getString(applicationType.labelRes)
