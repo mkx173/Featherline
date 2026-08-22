@@ -192,38 +192,25 @@ readable by measuring rather than by a width threshold:
 and tightens the gap between them only when the label would otherwise
 clip. How much room the header needs depends on the counts and the
 locale, so a width breakpoint cannot express it. All other visual scaling
-follows the baseline logic below.
+follows the user-controlled content-scale contract below.
 
-#### Per-device baseline scaling
+#### Content scale and launcher resizing
 
 `SizeMode.Exact` means the live widget renders at whatever dp size the
 launcher hands out for the 2×2 / 4×2 default cell (or the 3×2 resized
-minimum), which varies by device and launcher. To keep the visual scale
-stable across devices and resizes,
-`widgetScale(widgetKey)` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
-captures a device baseline on the widget's first update and reuses it
-forever. The baseline is the launcher's **portrait** target-cell
-height, read straight from `OPTION_APPWIDGET_MAX_HEIGHT`
-(`portraitBaselineHeightDp`) and threaded in through
-`LocalDeviceBaselineHeight` — the same value on every `SizeMode.Exact`
-pass, so capture does not depend on whether the portrait or landscape
-composition runs (and persists) first. It is stored in the
-`hrt_widget_baseline` SharedPreferences (`medium_height_dp_v3` /
-`large_height_dp_v3` — the suffix is bumped when the capture logic
-changes so stale baselines are dropped). Every later render returns
-`(baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current`
-— so resize shrinks the underlying cell but not the rendered scale.
-`WidgetShell` republishes the resulting value through `LocalWidgetScale`
-so every child composable picks it up.
+minimum), which varies by device and launcher. Launcher allocation controls
+only the available viewport: it never multiplies the visual scale. The
+sanitized `WidgetAppearance.contentScale` value (50–150%) is provided directly
+through `LocalWidgetScale`, and `MediumWidgetContent`, `LargeWidgetContent`,
+and `AnchorWidgetContent` use that value unchanged. `WidgetShell` republishes
+the same value to its descendants.
 
-The baseline is only captured once the launcher reports options; until
-then — and for heights outside `[50, 400]` dp (e.g. 0dp loading frames)
-— nothing is persisted and the render falls back to
-`WIDGET_BASELINE_REFERENCE_DP = 276f`, so a transient frame can't lock a
-wrong baseline. During launcher-picker previews,
-`LocalPreviewBaselineHeight` is provided in `HrtPreviewContent` and
-short-circuits this whole path.
+This makes the setting portable and literal: 100% / 150% mean the same thing
+across launchers, devices, widget types, resizes, and backup restores. Resizing
+can expose more or less content, and an unusually small launcher allocation may
+clip content at larger user-selected scales; it does not silently shrink text,
+icons, rows, or controls to fit. Launcher-picker previews remain independent and
+use the fixed `WIDGET_PREVIEW_CONTENT_SCALE` miniature scale described below.
 
 ## Launcher preview
 
@@ -240,9 +227,8 @@ live snapshot — fed by two delivery channels:
   `HrtWidgetLarge` override `providePreview(context, widgetCategory)`,
   which routes through `provideHrtPreviewContent`. That host runs the
   same Compose content as the live widget but supplies a fabricated
-  `previewSnapshot(context)` plus three preview-only locals:
+  `previewSnapshot(context)` plus two preview-only locals:
   `LocalWidgetScale = WIDGET_PREVIEW_CONTENT_SCALE`,
-  `LocalPreviewBaselineHeight = WIDGET_BASELINE_REFERENCE_DP`, and
   `LocalPreviewE2Text` (a pre-formatted trend pill that bypasses
   `PkProjection`, whose windowing dislikes fabricated data).
 
@@ -293,11 +279,11 @@ The preview is a host-free render of the real widget:
 `composeWidgetPreviewRemoteViews` in `HrtWidget.kt` runs the same
 `GlanceRemoteViews().compose` / `MediumWidgetContent` / `LargeWidgetContent`
 path as the live push (sharing `resolveWidgetRenderSize`, so the two cannot
-diverge), composed at the widget's **actual** launcher cell size and device
-baseline for true WYSIWYG — falling back to the fixed reference preview size
-when no live options are available (fresh placement). A conflated
-`snapshotFlow` over the control values keeps the preview on the latest values
-without queueing renders, and the resulting `RemoteViews` is applied with the
+diverge), composed at the widget's **actual** launcher cell size with the same
+user-selected content scale for true WYSIWYG — falling back to the fixed
+reference preview size when no live options are available (fresh placement).
+A conflated `snapshotFlow` over the control values keeps the preview on the latest
+values without queueing renders, and the resulting `RemoteViews` is applied with the
 **application** context (the AppCompat activity's inflater would otherwise
 inflate `AppCompatImageView`, whose setters lack `@RemotableViewMethod`). The
 preview host intercepts touches, blocks descendant focus, and hides a11y
@@ -416,8 +402,8 @@ Two render paths exist in
   recomposes from the just-written DataStore instead of re-asserting stale
   content when the launcher re-attaches the widget (page swipe, reconfigure
   dismiss). Tradeoff: a single composed size instead of Glance's
-  portrait/landscape variants — fine because content scale is frozen to the
-  baseline.
+  portrait/landscape variants; content scale remains the same user-selected
+  value in either orientation.
 
   The synchronous push is gated **per widget** by
   `shouldUseSynchronousWidgetPush`:
@@ -550,8 +536,8 @@ dose widgets it does **not** read the home snapshot: its per-instance
 Glance state is just an `anchorId`
 ([`AnchorWidgetState.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/AnchorWidgetState.kt)),
 and the name, date, and day count are read live from the journal at
-compose time; only the chrome (background, opacity, palette) comes from
-the shared `WidgetAppearance`.
+compose time; the chrome and content scale (background, opacity, palette,
+dark mode, and scale) come from the shared `WidgetAppearance`.
 
 Because it is journal-driven, the anchor surfaces sit outside the
 six-source `WidgetSnapshotRepository` funnel and have their own manager.
