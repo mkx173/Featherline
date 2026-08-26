@@ -19,11 +19,15 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
+import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixture
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
@@ -39,7 +43,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -125,34 +131,13 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        // Calibration overlay input. Only a validated live evaluation reaches
-        // the build; Loading/Unavailable keep the overlay structurally absent.
-        val pkCalibrationFlow: Flow<PkHomeCalibrationInput?> = combine(
-            pkCalibrationLiveRepository.liveState,
-            pkUiFixtureBridge.fixture,
-        ) { liveState, fixture ->
-            when {
-                // Debug harness fixture drives the real surface (plan D3).
-                fixture != null -> PkHomeCalibrationInput(
-                    ui = pkCalibrationUiState(fixture.result, fixture.render),
-                    render = fixture.render,
-                )
-
-                else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
-                    PkHomeCalibrationInput(
-                        ui = pkCalibrationUiState(
-                            available.evaluation.result,
-                            available.render,
-                        ),
-                        render = available.render,
-                    )
-                }
-            }
-        }
+        // The Home calibration presentation comes from the snapshot, so it is
+        // on the first frame with the curve. The debug harness fixture (plan
+        // D3) overrides it so QA exercises the shipping surface.
         val keyedInputsWithPkFlow = combine(
             keyedInputsFlow,
-            pkCalibrationFlow,
-        ) { keyedInputs, pkLive -> keyedInputs to pkLive }
+            pkUiFixtureBridge.fixture,
+        ) { keyedInputs, fixture -> keyedInputs to fixture }
 
         val homeStateFlow = combine(
             keyedInputsWithPkFlow,
@@ -161,7 +146,7 @@ class MainViewModel @Inject constructor(
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
         ) { keyedInputsWithPk, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-            val (keyedInputs, pkLive) = keyedInputsWithPk
+            val (keyedInputs, fixture) = keyedInputsWithPk
             if (!keyedInputs.key.matches(timeSnapshot)) {
                 return@combine null
             }
@@ -185,7 +170,7 @@ class MainViewModel @Inject constructor(
             withContext(defaultDispatcher) {
                 buildHomeUiState(
                     inputs = inputs,
-                    pkLive = pkLive,
+                    fixture = fixture,
                     now = timeSnapshot.minute,
                     zoneId = timeSnapshot.zone,
                     timeZoneNotice = timeZoneNotice,
@@ -339,7 +324,7 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
-        pkLive: PkHomeCalibrationInput?,
+        fixture: PkCalibrationUiFixture?,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -423,26 +408,18 @@ class MainViewModel @Inject constructor(
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
-            // The band comes from the snapshot (same doses, same calibration
-            // as the cached curve) and is dropped with it on expiry; the live
-            // evaluation only supplies the hero/status.
-            pkCalibration = run {
-                val band = freshProjection?.let {
-                    buildMainE2CalibrationBand(
-                        bandKnots = inputs.pkBandKnots,
-                        now = now,
-                        zoneId = zoneId,
-                        pastDays = chartWindowOption.pastDays,
-                        windowHours = chartWindowOption.chartWindowHours,
-                        displayUnit = homeE2DisplayUnit,
-                    )
-                }
-                if (pkLive == null && band == null) {
-                    null
-                } else {
-                    MainPkCalibrationUiState(ui = pkLive?.ui, band = band)
-                }
-            },
+            // Hero, notes and band all come from the snapshot (same doses, same
+            // calibration as the cached curve); the band is dropped with the
+            // projection on expiry until the snapshot rebuilds.
+            pkCalibration = buildMainPkCalibration(
+                inputs = inputs,
+                fixture = fixture,
+                bandKnots = if (freshProjection != null) inputs.pkBandKnots else emptyList(),
+                now = now,
+                zoneId = zoneId,
+                chartWindowOption = chartWindowOption,
+                displayUnit = homeE2DisplayUnit,
+            ),
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
@@ -551,15 +528,58 @@ class MainViewModel @Inject constructor(
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
 
-    /**
-     * Internal build input for the calibration overlay. The render result is
-     * consumed here for `effectiveDisplayParams` and band knots only — raw fit
-     * parameters never reach [MainUiState].
-     */
-    private data class PkHomeCalibrationInput(
-        val ui: PkCalibrationUiState,
-        val render: PkCalibrationRenderResult?,
-    )
+    /** Route details for the hero's info sheet; the live evaluation (or the debug fixture). */
+    val pkCalibrationDetails: StateFlow<PkCalibrationUiState?> = combine(
+        pkCalibrationLiveRepository.liveState,
+        pkUiFixtureBridge.fixture,
+    ) { liveState, fixture ->
+        when {
+            fixture != null -> pkCalibrationUiState(fixture.result, fixture.render)
+            else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+                pkCalibrationUiState(available.evaluation.result, available.render)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private fun buildMainPkCalibration(
+        inputs: HomeInputs,
+        fixture: PkCalibrationUiFixture?,
+        bandKnots: List<PkPredictiveBandKnot>,
+        now: LocalDateTime,
+        zoneId: ZoneId,
+        chartWindowOption: HomeE2ChartWindowOption,
+        displayUnit: BloodUnitKey,
+    ): MainPkCalibrationUiState? {
+        fun band(knots: List<PkPredictiveBandKnot>) = buildMainE2CalibrationBand(
+            bandKnots = knots,
+            now = now,
+            zoneId = zoneId,
+            pastDays = chartWindowOption.pastDays,
+            windowHours = chartWindowOption.chartWindowHours,
+            displayUnit = displayUnit,
+        )
+        if (fixture != null) {
+            val ui = pkCalibrationUiState(fixture.result, fixture.render)
+            return MainPkCalibrationUiState(
+                effectivePromotedRoutes = ui.effectivePromotedRoutes,
+                limitedConfidence = ui.limitedConfidence,
+                renderUnavailable = ui.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
+                bandUnavailable = ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
+                band = fixture.render
+                    ?.takeIf { it.bandState == PkCalibrationBandState.READY }
+                    ?.let { band(it.bandKnots) },
+            )
+        }
+        val record = inputs.pkCalibration ?: return null
+        return MainPkCalibrationUiState(
+            effectivePromotedRoutes = record.effectivePromotedRoutes
+                .mapNotNull(PkCalibrationRoute::fromStableId),
+            limitedConfidence = record.limitedConfidence,
+            renderUnavailable = record.renderUnavailable,
+            bandUnavailable = record.bandUnavailable,
+            band = band(bandKnots),
+        )
+    }
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&

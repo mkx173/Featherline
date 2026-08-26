@@ -38,6 +38,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.mkx.hrttracker.ui.calibration.PkCalibrationRoutesSheet
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -132,6 +134,8 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val highlightRequest by viewModel.highlightRequest.collectAsStateWithLifecycle()
+    val pkCalibrationDetails by viewModel.pkCalibrationDetails.collectAsStateWithLifecycle()
+    var showPkRoutesSheet by rememberSaveable { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     var highlightFlashReady by remember { mutableStateOf(false) }
     var showCardLayoutDialog by remember { mutableStateOf(false) }
@@ -235,10 +239,21 @@ fun MainScreen(
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
                 onOpenTimeline = onOpenTimeline,
+                onPkCalibrationInfoClick = { showPkRoutesSheet = true },
                 claimE2ChartIntroAnimation = viewModel::claimHomeE2ChartIntroAnimation,
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+
+    // Route details reuse the calibration page's sheet; the pill itself never
+    // waits for this data, so a tap before the live evaluation lands is a no-op.
+    val pkRoutesSheetState = pkCalibrationDetails
+    if (showPkRoutesSheet && pkRoutesSheetState != null) {
+        PkCalibrationRoutesSheet(
+            uiState = pkRoutesSheetState,
+            onDismissRequest = { showPkRoutesSheet = false },
+        )
     }
 
     if (showCardLayoutDialog) {

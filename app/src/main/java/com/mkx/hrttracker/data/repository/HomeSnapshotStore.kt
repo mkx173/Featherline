@@ -172,6 +172,8 @@ data class HomeSnapshotRecord(
     val pkRouteLogScale: Map<String, Double> = emptyMap(),
     /** Predictive band over the Home projection window (logged + planned doses). */
     val pkBandKnots: List<HomePkBandKnotRecord> = emptyList(),
+    /** Hero/status summary of the calibration this snapshot was built with; null when none ran. */
+    val pkCalibration: HomePkCalibrationRecord? = null,
     // First pinned tracked date (the Home hero anchor), cached so cold start can
     // render the hero on the first frame instead of waiting on Room. Null when no
     // date is pinned. Defaulted for forward-compat with pre-field snapshots.
@@ -185,6 +187,15 @@ data class HomePkBandKnotRecord(
     val p50Pgml: Double,
     val p841344746Pgml: Double,
     val p975Pgml: Double,
+)
+
+/** What Home needs to draw the calibration hero and chart notes on first frame. */
+data class HomePkCalibrationRecord(
+    /** Routes shaping the visible curve, by [PkCalibrationRoute.stableId]. */
+    val effectivePromotedRoutes: List<String>,
+    val limitedConfidence: Boolean,
+    val renderUnavailable: Boolean,
+    val bandUnavailable: Boolean,
 )
 
 fun HomeSnapshotRecord.pkBandKnots(): List<PkPredictiveBandKnot> = pkBandKnots.map { knot ->
@@ -335,6 +346,13 @@ internal object HomeSnapshotCodec {
                 writeDouble(knot.p841344746Pgml)
                 writeDouble(knot.p975Pgml)
             }
+            stream.writeBoolean(record.pkCalibration != null)
+            record.pkCalibration?.let { calibration ->
+                stream.writeList(calibration.effectivePromotedRoutes) { route -> writeString(route) }
+                stream.writeBoolean(calibration.limitedConfidence)
+                stream.writeBoolean(calibration.renderUnavailable)
+                stream.writeBoolean(calibration.bandUnavailable)
+            }
         }
         return output.toByteArray()
     }
@@ -372,6 +390,16 @@ internal object HomeSnapshotCodec {
                         p841344746Pgml = readDouble(),
                         p975Pgml = readDouble(),
                     )
+                },
+                pkCalibration = if (stream.readBoolean()) {
+                    HomePkCalibrationRecord(
+                        effectivePromotedRoutes = stream.readList { readString() },
+                        limitedConfidence = stream.readBoolean(),
+                        renderUnavailable = stream.readBoolean(),
+                        bandUnavailable = stream.readBoolean(),
+                    )
+                } else {
+                    null
                 },
             )
         }
@@ -1094,7 +1122,8 @@ private const val TAG = "HomeSnapshotStore"
 // v22 appends the cached Home hero anchor tracked date.
 // v23 appends the calibration route log-scales the projections were simulated with.
 // v24 appends the calibration predictive band over the Home projection window.
-private const val SNAPSHOT_CODEC_VERSION = 24
+// v25 appends the calibration hero/status summary.
+private const val SNAPSHOT_CODEC_VERSION = 25
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

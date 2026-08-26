@@ -48,7 +48,7 @@ interface HrtPillScope {
 
 private class HrtPillScopeImpl(override val iconModifier: Modifier) : HrtPillScope
 
-private data class HrtPillTokens(
+internal data class HrtPillTokens(
     val textStyle: TextStyle,
     val iconSize: Dp,
     val contentPadding: PaddingValues,
@@ -57,7 +57,7 @@ private data class HrtPillTokens(
 )
 
 @Composable
-private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
+internal fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
     val typography = MaterialTheme.typography
     return when (size) {
         HrtPillSize.XSmall -> HrtPillTokens(

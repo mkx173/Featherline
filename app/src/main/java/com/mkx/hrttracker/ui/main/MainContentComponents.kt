@@ -489,7 +489,8 @@ internal fun MainE2HeroCard(
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
-    pkCalibration: PkCalibrationUiState? = null,
+    pkCalibration: MainPkCalibrationUiState? = null,
+    onPkCalibrationInfoClick: () -> Unit = { },
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -723,7 +724,7 @@ internal fun MainE2HeroCard(
                         )
 
                         if (!showSkeleton && pkCalibration != null) {
-                            MainPkCalibrationHeroPills(pkCalibration)
+                            MainPkCalibrationHeroPill(pkCalibration, onInfo = onPkCalibrationInfoClick)
                         }
                     }
                 }
@@ -868,7 +869,7 @@ internal fun MainE2ChartCard(
     // Shared central-render failure (§6): hide the plot rather than drawing a
     // possibly misleading line. Fit-level states and the saved adjustments are
     // untouched; only this render is unavailable.
-    if (pkCalibration?.ui?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE) {
+    if (pkCalibration?.renderUnavailable == true) {
         Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.extraLarge,

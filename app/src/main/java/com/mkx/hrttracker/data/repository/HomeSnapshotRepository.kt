@@ -4,6 +4,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.PkCalibrationLab
@@ -696,8 +698,8 @@ class HomeSnapshotRepository @Inject constructor(
         }
         // The band follows the same projected curve as the chart: logged plus
         // planned doses, over the projection window.
-        val bandKnots = if (calibration == null || calibrationInput == null) {
-            emptyList()
+        val homeRender = if (calibration == null || calibrationInput == null) {
+            null
         } else {
             withContext(defaultDispatcher) {
                 val anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis)
@@ -710,20 +712,38 @@ class HomeSnapshotRepository @Inject constructor(
                     samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
                 )?.let { domain ->
                     calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
-                }?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
-                    ?.bandKnots
-                    ?.map { knot ->
-                        HomePkBandKnotRecord(
-                            epochMillis = knot.epochMillis,
-                            p025Pgml = knot.p025Pgml,
-                            p158655254Pgml = knot.p158655254Pgml,
-                            p50Pgml = knot.p50Pgml,
-                            p841344746Pgml = knot.p841344746Pgml,
-                            p975Pgml = knot.p975Pgml,
-                        )
-                    }
-                    .orEmpty()
+                }
             }
+        }
+        val bandKnots = homeRender
+            ?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
+            ?.bandKnots
+            ?.map { knot ->
+                HomePkBandKnotRecord(
+                    epochMillis = knot.epochMillis,
+                    p025Pgml = knot.p025Pgml,
+                    p158655254Pgml = knot.p158655254Pgml,
+                    p50Pgml = knot.p50Pgml,
+                    p841344746Pgml = knot.p841344746Pgml,
+                    p975Pgml = knot.p975Pgml,
+                )
+            }
+            .orEmpty()
+        // Hero/status summary, so Home never waits for the live evaluation.
+        val calibrationRecord = calibration?.let { evaluation ->
+            val effective = homeRender?.effectivePromotedRoutes.orEmpty()
+            val provisional = evaluation.result.routeResults
+                .filter { row ->
+                    row.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+                }
+                .map { row -> row.route }
+            HomePkCalibrationRecord(
+                effectivePromotedRoutes = effective.map { route -> route.stableId },
+                limitedConfidence = effective.any(provisional::contains),
+                renderUnavailable = evaluation.isReady &&
+                        homeRender?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
+                bandUnavailable = homeRender?.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
+            )
         }
         // Expire at the soonest planned dose after generation time — the
         // moment a slot transitions from "future" to "should be logged by now"
@@ -802,6 +822,7 @@ class HomeSnapshotRepository @Inject constructor(
             pkRouteLogScale = personalParams.routeLogScale
                 .mapKeys { (route, _) -> route.stableId },
             pkBandKnots = bandKnots,
+            pkCalibration = calibrationRecord,
         )
 
         withContext(Dispatchers.IO) {

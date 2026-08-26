@@ -32,13 +32,14 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.ui.calibration.PkCalibrationHeroKind
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.applicationType
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.hrtPillTokens
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -57,11 +58,21 @@ import java.time.ZoneId
  * View-safe calibration state for Home. Carries display states and the
  * validated, display-unit band geometry only — never raw fit parameters.
  */
+/** Snapshot-sourced calibration presentation for Home; nothing here waits for the live evaluation. */
 data class MainPkCalibrationUiState(
-    /** Null until the live evaluation lands; the band does not wait for it. */
-    val ui: PkCalibrationUiState?,
+    val effectivePromotedRoutes: List<PkCalibrationRoute>,
+    val limitedConfidence: Boolean,
+    val renderUnavailable: Boolean,
+    val bandUnavailable: Boolean,
     val band: MainE2CalibrationBand?,
-)
+) {
+    val heroKind: PkCalibrationHeroKind
+        get() = if (effectivePromotedRoutes.isEmpty()) {
+            PkCalibrationHeroKind.POPULATION
+        } else {
+            PkCalibrationHeroKind.ADJUSTED
+        }
+}
 
 /** Band knots mapped to chart coordinates (xHours + display-unit values). */
 data class MainE2CalibrationBand(
@@ -235,61 +246,60 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 // Hero pill (§5.1)
 // ---------------------------------------------------------------------------
 
+/** One pill: state + routes (+ limited confidence), with a trailing info affordance opening the routes sheet. */
 @Composable
-internal fun MainPkCalibrationHeroPills(pk: PkCalibrationUiState) {
+internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState, onInfo: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
-    if (pk.heroKind == PkCalibrationHeroKind.ADJUSTED) {
-        val appLocale = rememberAppLocale()
-        val names = pk.effectivePromotedRoutes
-            .map { route -> stringResource(route.applicationType.labelRes) }
-        val joinedNames = remember(names, appLocale) {
-            ListFormatter.getInstance(appLocale).format(names)
-        }
-        HrtPill(
-            label = stringResource(R.string.calibration_pk_hero_adjusted, joinedNames),
-            containerColor = colorScheme.primaryContainer.copy(alpha = 0.7f),
-            contentColor = colorScheme.onPrimaryContainer,
-            size = HrtPillSize.Small,
-            fontWeight = FontWeight.SemiBold,
-            icon = {
-                Icon(
-                    painter = painterResource(
-                        if (pk.limitedConfidence) {
-                            R.drawable.ic_experiment
-                        } else {
-                            R.drawable.ic_check_circle_heavy
-                        }
-                    ),
-                    contentDescription = null,
-                    modifier = iconModifier,
-                    tint = colorScheme.onPrimaryContainer,
-                )
-            },
-        )
-        if (pk.limitedConfidence) {
-            HrtPill(
-                label = stringResource(R.string.calibration_pk_hero_limited_confidence),
-                containerColor = colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                contentColor = colorScheme.onTertiaryContainer,
-                size = HrtPillSize.Small,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+    val adjusted = pk.heroKind == PkCalibrationHeroKind.ADJUSTED
+    val appLocale = rememberAppLocale()
+    val names = pk.effectivePromotedRoutes
+        .map { route -> stringResource(route.applicationType.labelRes) }
+    val joinedNames = remember(names, appLocale) {
+        ListFormatter.getInstance(appLocale).format(names)
+    }
+    val limitedSuffix = stringResource(R.string.calibration_pk_hero_limited_confidence_short)
+    val label = when {
+        !adjusted -> stringResource(R.string.calibration_pk_hero_population)
+        pk.limitedConfidence ->
+            stringResource(R.string.calibration_pk_hero_adjusted, joinedNames) + " · " + limitedSuffix
+        else -> stringResource(R.string.calibration_pk_hero_adjusted, joinedNames)
+    }
+    val containerColor = if (adjusted) {
+        colorScheme.primaryContainer.copy(alpha = 0.7f)
     } else {
-        HrtPill(
-            label = stringResource(R.string.calibration_pk_hero_population),
-            containerColor = colorScheme.surfaceContainer,
-            contentColor = colorScheme.onSurfaceVariant,
-            size = HrtPillSize.Small,
+        colorScheme.surfaceContainer
+    }
+    val contentColor = if (adjusted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+    val tokens = hrtPillTokens(HrtPillSize.Small)
+    HrtPill(
+        containerColor = containerColor,
+        contentColor = contentColor,
+        size = HrtPillSize.Small,
+        onClick = onInfo,
+    ) {
+        Icon(
+            painter = painterResource(
+                when {
+                    !adjusted -> R.drawable.ic_labs
+                    pk.limitedConfidence -> R.drawable.ic_experiment
+                    else -> R.drawable.ic_check_circle_heavy
+                }
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(tokens.iconSize),
+            tint = contentColor,
+        )
+        Text(
+            text = label,
+            style = tokens.textStyle,
             fontWeight = FontWeight.SemiBold,
-            icon = {
-                Icon(
-                    painter = painterResource(R.drawable.ic_labs),
-                    contentDescription = null,
-                    modifier = iconModifier,
-                    tint = colorScheme.onSurfaceVariant,
-                )
-            },
+            maxLines = 1,
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_info),
+            contentDescription = stringResource(R.string.calibration_pk_routes_card_title),
+            modifier = Modifier.size(tokens.iconSize),
+            tint = contentColor,
         )
     }
 }
@@ -342,7 +352,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
  */
 @Composable
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
-    val bandUnavailable = pk.ui?.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE
+    val bandUnavailable = pk.bandUnavailable
     val bandSummary = stringResource(R.string.calibration_pk_band_a11y_summary)
 
     Column(modifier = Modifier.fillMaxWidth()) {

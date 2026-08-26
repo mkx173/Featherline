@@ -155,6 +155,7 @@ class HomeRepository @Inject constructor(
                     estradiolPkPlannedEntries = simulationEntries.planned,
                     pkPersonalParams = usable.pkPersonalParams(),
                     pkBandKnots = usable.pkBandKnots(),
+                    pkCalibration = usable.pkCalibration,
                     stockWarnings = stockWarnings,
                     homeAnchor = usable.homeAnchor,
                     source = HomeInputSource.SNAPSHOT,
@@ -267,6 +268,7 @@ class HomeRepository @Inject constructor(
                         pkPersonalParams = usableSnapshot?.pkPersonalParams()
                             ?: PkPersonalParams.population(),
                         pkBandKnots = usableSnapshot?.pkBandKnots().orEmpty(),
+                        pkCalibration = usableSnapshot?.pkCalibration,
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
@@ -597,6 +599,8 @@ data class HomeInputs(
     val pkPersonalParams: PkPersonalParams = PkPersonalParams.population(),
     /** Band over the cached projection; valid exactly as long as the projection is. */
     val pkBandKnots: List<PkPredictiveBandKnot> = emptyList(),
+    /** Calibration hero/status summary from the snapshot; null when no calibration ran. */
+    val pkCalibration: HomePkCalibrationRecord? = null,
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,
