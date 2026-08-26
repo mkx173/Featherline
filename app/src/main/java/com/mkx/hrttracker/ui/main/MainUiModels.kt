@@ -512,10 +512,13 @@ internal fun splitMainE2ChartSeries(
 internal fun mainE2ChartYAxisSpec(
     points: List<Float>,
     doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
+    /** Upper band edge, so the 95% envelope is inside the axis, not clipped at the top tick. */
+    bandUpper: List<Float> = emptyList(),
 ): MainE2ChartYAxisSpec {
     val rawMax = (
             points.asSequence().map(Float::toDouble) +
-                    doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() }
+                    doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() } +
+                    bandUpper.asSequence().map(Float::toDouble)
             )
         .filter { value -> value.isFinite() && value > 0.0 }
         .maxOrNull()

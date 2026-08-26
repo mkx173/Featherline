@@ -1049,10 +1049,11 @@ internal fun MainE2ChartCard(
         }
     }
     val bottomAxisItemPlacer = remember { ExtraStoreAwareHorizontalAxisItemPlacer() }
-    val yAxisSpec = remember(section.points, section.doseMarkers) {
+    val yAxisSpec = remember(section.points, section.doseMarkers, pkCalibration?.band) {
         mainE2ChartYAxisSpec(
             points = section.points,
             doseMarkers = section.doseMarkers,
+            bandUpper = pkCalibration?.band?.p975.orEmpty(),
         )
     }
     val startAxisItemPlacer = remember(yAxisSpec.tickStep) {

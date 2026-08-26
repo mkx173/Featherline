@@ -8,6 +8,9 @@ import java.util.TreeSet
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -128,8 +131,12 @@ object PkCalibrationRenderer {
                 covariance = covariance,
                 promotedRoutes = effectivePromotedRoutes,
             ) ?: return null
-            val law = lawCache.getOrPut(effectiveVariance.toBits()) {
-                PkPredictiveBandMath.logQuantiles(effectiveVariance, rLog) ?: return null
+            // ponytail: the law is solved per distinct variance; quantizing to
+            // three significant digits (<0.5% variance error, invisible at
+            // chart scale) keeps dense multi-route knot grids to a few solves.
+            val quantizedVariance = quantizeVariance(effectiveVariance)
+            val law = lawCache.getOrPut(quantizedVariance.toBits()) {
+                PkPredictiveBandMath.logQuantiles(quantizedVariance, rLog) ?: return null
             }
             val logMedian = ln(median)
             val q = law.map { offset -> exp(logMedian + offset) }
@@ -138,6 +145,12 @@ object PkCalibrationRenderer {
         }
         return result.takeIf(List<PkPredictiveBandKnot>::isNotEmpty)
     }
+}
+
+private fun quantizeVariance(variance: Double): Double {
+    if (variance <= 0.0) return 0.0
+    val scale = 10.0.pow(floor(log10(variance)) - 2)
+    return (variance / scale).roundToLong() * scale
 }
 
 private data class CentralKnot(

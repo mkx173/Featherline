@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkPersonalParams
 import java.time.Instant
 import java.util.UUID
+import kotlin.math.roundToLong
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
@@ -706,10 +707,18 @@ class HomeSnapshotRepository @Inject constructor(
                 val plannedEvents = simulationEntries.planned.mapNotNull { entry ->
                     entry.buildEstradiolPkDoseEvent(anchor, isPlanned = true)
                 }
+                // Sample the band exactly where the curve is sampled (dense
+                // around doses), so its edges follow the peaks instead of
+                // cutting chords across them.
+                val windowStartMillis = projection.windowStart.toEpochMilli()
+                val windowEndMillis = projection.windowEnd.toEpochMilli()
                 PkChartDomain.create(
-                    rangeStartEpochMillis = projection.windowStart.toEpochMilli(),
-                    rangeEndEpochMillis = projection.windowEnd.toEpochMilli(),
+                    rangeStartEpochMillis = windowStartMillis,
+                    rangeEndEpochMillis = windowEndMillis,
                     samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
+                    protectedKnotEpochMillis = projection.timeH
+                        .map { hours -> windowStartMillis + (hours * 3_600_000.0).roundToLong() }
+                        .filter { millis -> millis in windowStartMillis..windowEndMillis },
                 )?.let { domain ->
                     calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
                 }
