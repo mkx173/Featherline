@@ -393,7 +393,7 @@ internal object PkCalibrationDebugFixtures {
         val reasons = when {
             !provisional -> emptySet()
             unreviewedOutlier -> setOf(PkCalibrationReason.UNREVIEWED_OUTLIER)
-            else -> setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE)
+            else -> setOf(PkCalibrationReason.UNCERTAIN)
         }
         return PkRouteCalibrationResult(
             route = route,

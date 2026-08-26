@@ -56,7 +56,7 @@ class PkCalibrationContractsTest {
                 route = PkCalibrationRoute.ORAL,
                 displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
                 fittedBeta = 0.1,
-                reasons = setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE),
+                reasons = setOf(PkCalibrationReason.UNCERTAIN),
             )
         }
         assertThrows(IllegalArgumentException::class.java) {

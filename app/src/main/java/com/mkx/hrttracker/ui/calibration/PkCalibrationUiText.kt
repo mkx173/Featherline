@@ -102,18 +102,14 @@ val PkCalibrationReason.detailRes: Int
     get() = when (this) {
         PkCalibrationReason.NO_SUPPORTING_LABS ->
             R.string.calibration_pk_reason_no_supporting_labs
-        PkCalibrationReason.DISPLAY_SCALE_EXCEEDED ->
-            R.string.calibration_pk_reason_display_scale_exceeded
-        PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST ->
-            R.string.calibration_pk_reason_insufficient_contrast
-        PkCalibrationReason.POSTERIOR_SD_TOO_WIDE ->
-            R.string.calibration_pk_reason_posterior_sd_too_wide
+        PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE ->
+            R.string.calibration_pk_reason_scale_outside_usual_range
+        PkCalibrationReason.UNCERTAIN ->
+            R.string.calibration_pk_reason_uncertain
         PkCalibrationReason.RESIDUAL_FIT_POOR ->
             R.string.calibration_pk_reason_residual_fit_poor
         PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS ->
             R.string.calibration_pk_reason_posterior_mode_ambiguous
         PkCalibrationReason.UNREVIEWED_OUTLIER ->
             R.string.calibration_pk_reason_unreviewed_outlier
-        PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS ->
-            R.string.calibration_pk_reason_extreme_scale_three_labs
     }

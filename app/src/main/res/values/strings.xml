@@ -1122,7 +1122,7 @@
     <string name="calibration_pk_route_tag_numeric_failure">adjustment unavailable</string>
     <string name="calibration_pk_route_tag_provisional">limited confidence</string>
     <string name="calibration_pk_route_reason_no_supporting_labs">No usable lab result carries any signal from this route, so it uses the population estimate.</string>
-    <string name="calibration_pk_reason_display_scale_exceeded">The adjustment implied for this route is outside its usual range. Check lab and treatment records.</string>
+    <string name="calibration_pk_reason_scale_outside_usual_range">The adjustment implied for this route is outside its usual range, or is a large shift backed by fewer than three supporting labs. Check lab and treatment records.</string>
     <string name="calibration_pk_route_reason_numeric_failure">A calculation didn’t complete for this route.</string>
     <string name="calibration_pk_route_reason_provisional">Adjusted for this route, but the adjustment is still uncertain.</string>
     <string name="calibration_pk_route_reason_calibrated">Full model criteria met. The app did not verify the premises you confirmed.</string>
@@ -1132,12 +1132,10 @@
     <string name="calibration_pk_route_next_calibrated">Keep your records current</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
-    <string name="calibration_pk_reason_insufficient_contrast">The usable results are at similar modeled signal levels.</string>
-    <string name="calibration_pk_reason_posterior_sd_too_wide">The route adjustment is still uncertain.</string>
+    <string name="calibration_pk_reason_uncertain">The route adjustment is still uncertain: the posterior is wide, or the usable results sit at similar modeled signal levels.</string>
     <string name="calibration_pk_reason_residual_fit_poor">The current results do not support one reliable route adjustment.</string>
     <string name="calibration_pk_reason_posterior_mode_ambiguous">The results support more than one possible adjustment; the best-fitting one is shown.</string>
     <string name="calibration_pk_reason_unreviewed_outlier">A flagged result disagrees with this route’s adjustment. Review it, or exclude it if it isn’t comparable.</string>
-    <string name="calibration_pk_reason_extreme_scale_three_labs">A large adjustment needs at least three supporting labs.</string>
     <string name="calibration_pk_reason_no_supporting_labs">No lab draws much of its signal from this route, so its adjustment mostly follows the population prior.</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->

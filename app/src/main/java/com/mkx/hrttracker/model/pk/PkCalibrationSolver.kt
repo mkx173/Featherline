@@ -738,11 +738,10 @@ object PkCalibrationSolver {
         if (diagnostics.supportingLabCount == 0) {
             reasons += PkCalibrationReason.NO_SUPPORTING_LABS
         }
-        if (scale !in cap) reasons += PkCalibrationReason.DISPLAY_SCALE_EXCEEDED
-        if (isExtreme && diagnostics.supportingLabCount <
-            PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
+        if (scale !in cap || (isExtreme && diagnostics.supportingLabCount <
+                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE)
         ) {
-            reasons += PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS
+            reasons += PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE
         }
         if (diagnostics.robustRmseLog > PkCalibrationDefaults.robustRmseLogMaxForPromotion(rLog)) {
             reasons += PkCalibrationReason.RESIDUAL_FIT_POOR
@@ -750,11 +749,10 @@ object PkCalibrationSolver {
         if (diagnostics.unreviewedOutlierLabIds.isNotEmpty()) {
             reasons += PkCalibrationReason.UNREVIEWED_OUTLIER
         }
-        if (diagnostics.drugSignalLogRange < PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN) {
-            reasons += PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST
-        }
-        if (posteriorSd > PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION) {
-            reasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
+        if (diagnostics.drugSignalLogRange < PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN ||
+            posteriorSd > PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
+        ) {
+            reasons += PkCalibrationReason.UNCERTAIN
         }
         if (ambiguous) reasons += PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS
 

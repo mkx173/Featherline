@@ -113,7 +113,7 @@ class PkCalibrationRendererTest {
         // The extreme injection fit is shown, with its warning, not hidden.
         val injection = result.routeResults[PkCalibrationRoute.INJECTION.ordinal]
         assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, injection.displayState)
-        assertTrue(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED in injection.reasons)
+        assertTrue(PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE in injection.reasons)
     }
 
     @Test

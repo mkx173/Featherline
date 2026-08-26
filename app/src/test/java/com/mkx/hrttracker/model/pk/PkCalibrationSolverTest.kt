@@ -189,7 +189,7 @@ class PkCalibrationSolverTest {
                 PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
                 row.displayState,
             )
-            assertTrue(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE in row.reasons)
+            assertTrue(PkCalibrationReason.UNCERTAIN in row.reasons)
             val posteriorSd = requireNotNull(row.betaPosteriorSd)
             assertTrue(posteriorSd >= bound - 1e-9)
             assertTrue(
@@ -262,7 +262,7 @@ class PkCalibrationSolverTest {
         assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, oralRow.displayState)
         assertNotNull(oralRow.fittedBeta)
         assertTrue(PkCalibrationReason.NO_SUPPORTING_LABS in oralRow.reasons)
-        assertTrue(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST in oralRow.reasons)
+        assertTrue(PkCalibrationReason.UNCERTAIN in oralRow.reasons)
         assertEquals(listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL), excluded.promotedRoutes)
         assertEquals(
             2,
@@ -380,7 +380,7 @@ class PkCalibrationSolverTest {
             val twoLabs = classify(diagnostics(fittedBeta = beta), route = PkCalibrationRoute.GEL)
             assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, twoLabs.displayState)
             assertTrue(
-                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS in twoLabs.reasons
+                PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE in twoLabs.reasons
             )
             assertEquals(beta.toBits(), requireNotNull(twoLabs.fittedBeta).toBits())
 
@@ -413,7 +413,7 @@ class PkCalibrationSolverTest {
                     route = route,
                 )
                 assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, exceeded.displayState)
-                assertTrue(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED in exceeded.reasons)
+                assertTrue(PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE in exceeded.reasons)
                 // No clamping: the fitted value is what the user sees.
                 assertEquals(beta.toBits(), requireNotNull(exceeded.fittedBeta).toBits())
             }
@@ -437,7 +437,7 @@ class PkCalibrationSolverTest {
             )
         )
         assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, lowContrast.displayState)
-        assertTrue(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST in lowContrast.reasons)
+        assertTrue(PkCalibrationReason.UNCERTAIN in lowContrast.reasons)
 
         val widePosterior = classify(
             diagnostics(
@@ -447,7 +447,7 @@ class PkCalibrationSolverTest {
             )
         )
         assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, widePosterior.displayState)
-        assertTrue(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE in widePosterior.reasons)
+        assertTrue(PkCalibrationReason.UNCERTAIN in widePosterior.reasons)
     }
 
     @Test
@@ -470,12 +470,10 @@ class PkCalibrationSolverTest {
         assertEquals(
             setOf(
                 PkCalibrationReason.NO_SUPPORTING_LABS,
-                PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
-                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
+                PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE,
                 PkCalibrationReason.RESIDUAL_FIT_POOR,
                 PkCalibrationReason.UNREVIEWED_OUTLIER,
-                PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
-                PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
+                PkCalibrationReason.UNCERTAIN,
                 PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
             ),
             result.reasons,

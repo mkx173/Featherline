@@ -247,7 +247,7 @@ class PkCalibrationUiStateTest {
             displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
             reasons = setOf(
                 com.mkx.hrttracker.model.pk.PkCalibrationReason
-                    .INSUFFICIENT_DRUG_SIGNAL_CONTRAST
+                    .UNCERTAIN
             ),
             fittedBeta = kotlin.math.ln(1.25),
             betaPosteriorSd = 0.15,

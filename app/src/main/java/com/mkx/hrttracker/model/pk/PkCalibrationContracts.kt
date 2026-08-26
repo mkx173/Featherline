@@ -165,10 +165,10 @@ enum class PkCalibrationBandState {
 enum class PkCalibrationReason {
     /** No included lab draws ≥20% of its modeled signal from this route. */
     NO_SUPPORTING_LABS,
-    EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
-    INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
-    POSTERIOR_SD_TOO_WIDE,
-    DISPLAY_SCALE_EXCEEDED,
+    /** Outside the route's usual range, or a large shift backed by fewer than three labs. */
+    SCALE_OUTSIDE_USUAL_RANGE,
+    /** Posterior still wide, or the supporting labs sit at similar modeled signal levels. */
+    UNCERTAIN,
     POSTERIOR_MODE_AMBIGUOUS,
     RESIDUAL_FIT_POOR,
     UNREVIEWED_OUTLIER,

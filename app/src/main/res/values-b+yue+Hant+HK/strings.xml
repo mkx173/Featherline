@@ -1048,7 +1048,7 @@
     <string name="calibration_pk_route_tag_numeric_failure">調整不可用</string>
     <string name="calibration_pk_route_tag_provisional">可信度有限</string>
     <string name="calibration_pk_route_reason_no_supporting_labs">而家冇可用嘅檢測結果帶有嚟自呢個途徑嘅訊號，所以呢個途徑用緊群體估算。</string>
-    <string name="calibration_pk_reason_display_scale_exceeded">呢個途徑推算出嚟嘅調整超出咗常見範圍。請檢查檢測同用藥記錄。</string>
+    <string name="calibration_pk_reason_scale_outside_usual_range">呢個途徑推算出嘅調整超出咗佢嘅通常範圍，或者係只有少過三筆支持性結果支撐嘅較大調整。請檢查檢測同治療記錄。</string>
     <string name="calibration_pk_route_reason_numeric_failure">呢個途徑有一項計算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已經對呢個途徑做咗調整，但係調整仲係唔確定。</string>
     <string name="calibration_pk_route_reason_calibrated">已經滿足全部模型標準。應用程式並冇核實你所確認嘅前提條件。</string>
@@ -1058,12 +1058,10 @@
     <string name="calibration_pk_route_next_calibrated">保持記錄及時更新</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
-    <string name="calibration_pk_reason_insufficient_contrast">可用嘅結果處於相近嘅模型訊號水平。</string>
-    <string name="calibration_pk_reason_posterior_sd_too_wide">呢個途徑嘅調整仲係唔確定。</string>
+    <string name="calibration_pk_reason_uncertain">呢個途徑嘅調整仲未確定：後驗分佈較闊，或者可用結果處於相近嘅模型訊號水平。</string>
     <string name="calibration_pk_reason_residual_fit_poor">而家嘅結果未能夠支持一個可靠嘅途徑調整。</string>
     <string name="calibration_pk_reason_posterior_mode_ambiguous">結果支持唔止一種可能嘅調整；而家顯示擬合最好嘅一種。</string>
     <string name="calibration_pk_reason_unreviewed_outlier">一筆被標記嘅結果同呢個途徑嘅調整唔一致。請覆查呢個結果；如果唔可比，請將佢排除。</string>
-    <string name="calibration_pk_reason_extreme_scale_three_labs">較大嘅調整至少需要三筆支持性檢測結果。</string>
     <string name="calibration_pk_reason_no_supporting_labs">冇檢測結果嘅訊號主要嚟自呢個途徑，所以佢嘅調整大多沿用群體先驗。</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
