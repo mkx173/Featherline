@@ -150,7 +150,6 @@ data class PkCalibrationEvidencePool private constructor(
     val invalidNonpositive: List<PkCalibrationLabEvidence>,
     val excluded: List<PkCalibrationLabEvidence>,
 ) {
-    val authorizedE2ResultCount: Int get() = canonicalInput.authorizedLabs.size
     val config: PkCalibrationConfig get() = canonicalInput.config
 
     companion object {
@@ -580,15 +579,6 @@ private fun <K, V> immutableMap(source: Map<K, V>): Map<K, V> {
 }
 
 private val CalibrationE2Compounds = setOf(
-    PkCompound.E2,
-    PkCompound.EB,
-    PkCompound.EV,
-    PkCompound.EC,
-    PkCompound.EN,
-    PkCompound.EU,
-)
-
-private val CalibrationE2CompoundOrder = listOf(
     PkCompound.E2,
     PkCompound.EB,
     PkCompound.EV,

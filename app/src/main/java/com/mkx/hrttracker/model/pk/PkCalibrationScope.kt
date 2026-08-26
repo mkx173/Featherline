@@ -277,12 +277,6 @@ private fun medicationEventPayload(
     )
 }
 
-private fun CanonicalDigest.toPayload(): Map<String, Any?> = linkedMapOf(
-    "schema" to schema,
-    "algorithm" to algorithm,
-    "hexLower" to hexLower,
-)
-
 private fun UUID.toCanonicalString(): String = toString().lowercase()
 
 private fun Double?.isFiniteNonNegativeOrNull(): Boolean {

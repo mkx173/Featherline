@@ -22,7 +22,6 @@ class PkCalibrationContractsTest {
         )
         assertNull(PkCalibrationRoute.fromStableId("Injection"))
         assertNull(PkCalibrationRoute.fromStableId("future-route"))
-        assertNull(PkPersonalParams.fromStableIds(mapOf("future-route" to 0.1)))
     }
 
     @Test
@@ -482,26 +481,6 @@ class PkCalibrationContractsTest {
                 renderReasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
                 centralCurve = emptyList(),
                 bandState = PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
-            )
-        )
-        assertNull(
-            PkCalibrationRenderResult.create(
-                domainDigest = digest,
-                renderState = PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                renderReasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
-                centralCurve = emptyList(),
-                bandState = PkCalibrationBandState.NUMERIC_UNAVAILABLE,
-                bandReasons = setOf(PkCalibrationReason.BAND_NUMERIC_FAILURE),
-            )
-        )
-        assertNull(
-            PkCalibrationRenderResult.create(
-                domainDigest = digest,
-                renderState = PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                renderReasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
-                centralCurve = emptyList(),
-                bandState = PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
-                bandReasons = setOf(PkCalibrationReason.BAND_NUMERIC_FAILURE),
             )
         )
 

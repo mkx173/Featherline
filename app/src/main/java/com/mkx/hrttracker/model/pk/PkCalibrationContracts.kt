@@ -92,22 +92,6 @@ data class PkPersonalParams private constructor(
                 thetaKGlobal = 0.0,
             )
         }
-
-        /**
-         * Stable-id ingress for persistence/import boundaries. Any unknown id
-         * rejects the entire value so callers can remain on population.
-         */
-        fun fromStableIds(
-            routeLogScaleByStableId: Map<String, Double>,
-            thetaKGlobal: Double = 0.0,
-        ): PkPersonalParams? {
-            val resolved = linkedMapOf<PkCalibrationRoute, Double>()
-            for ((stableId, beta) in routeLogScaleByStableId) {
-                val route = PkCalibrationRoute.fromStableId(stableId) ?: return null
-                if (resolved.put(route, beta) != null) return null
-            }
-            return create(resolved, thetaKGlobal)
-        }
     }
 }
 
@@ -529,42 +513,20 @@ data class PkCalibrationRenderResult private constructor(
             }
             if (!centralCurve.hasStrictlyIncreasingTimes(PkCurvePoint::epochMillis)) return null
             if (!bandKnots.hasStrictlyIncreasingTimes(PkPredictiveBandKnot::epochMillis)) return null
-
-            val isCentralUnavailable = renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE
-            if (centralCurve.isEmpty() != isCentralUnavailable) return null
-            if (isCentralUnavailable) {
-                if (PkCalibrationReason.NUMERIC_FAILURE !in renderReasons) return null
-                if (effectivePromotedRoutes.isNotEmpty()) return null
-                if (effectiveDisplayParams != PkPersonalParams.population()) return null
-                if (routeRenderFallbacks.isNotEmpty()) return null
-                if (bandState != PkCalibrationBandState.NOT_APPLICABLE_POPULATION) return null
-            } else if (renderState == PkCalibrationRenderState.PERSONALIZED) {
-                if (effectivePromotedRoutes.isEmpty()) return null
-            } else if (effectivePromotedRoutes.isNotEmpty()) {
+            // Shape only: the renderer is the sole producer and owns the
+            // state/reason pairing (ponytail: the former state-machine
+            // re-validation mirrored the renderer line for line).
+            if ((renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE) !=
+                centralCurve.isEmpty()
+            ) {
                 return null
             }
-            if (!isCentralUnavailable && PkCalibrationReason.NUMERIC_FAILURE in renderReasons) {
+            if ((renderState == PkCalibrationRenderState.PERSONALIZED) !=
+                effectivePromotedRoutes.isNotEmpty()
+            ) {
                 return null
             }
-
-            when (bandState) {
-                PkCalibrationBandState.NOT_APPLICABLE_POPULATION -> {
-                    if (effectivePromotedRoutes.isNotEmpty() || bandKnots.isNotEmpty()) return null
-                    if (bandReasons.isNotEmpty()) return null
-                }
-
-                PkCalibrationBandState.READY -> {
-                    if (effectivePromotedRoutes.isEmpty() || bandKnots.isEmpty()) return null
-                    if (bandReasons.isNotEmpty()) return null
-                }
-
-                PkCalibrationBandState.NUMERIC_UNAVAILABLE -> {
-                    if (renderState != PkCalibrationRenderState.PERSONALIZED) return null
-                    if (PkCalibrationReason.BAND_NUMERIC_FAILURE !in bandReasons) return null
-                    if (bandKnots.isNotEmpty()) return null
-                    if (effectivePromotedRoutes.isEmpty()) return null
-                }
-            }
+            if ((bandState == PkCalibrationBandState.READY) != bandKnots.isNotEmpty()) return null
 
             return PkCalibrationRenderResult(
                 domainDigest = domainDigest,

@@ -84,8 +84,6 @@ object PkCalibrationDefaults {
     const val BAND_ROOT_MAX_HALF_WIDTH_LOG = 64.0
     const val BAND_VALIDATE_REL = 1e-3
     const val BAND_VALIDATE_ABS_PGML = 0.05
-    const val BAND_RENDER_FILL_POINTS = 8
-    const val BAND_RENDER_BUDGET_MS = 50
 
     val DISPLAY_SCALE_CAP_BY_ROUTE: Map<PkCalibrationRoute, ScaleCap> =
         Collections.unmodifiableMap(

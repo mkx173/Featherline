@@ -677,18 +677,6 @@ object PkCalibrationSolver {
     private fun PkCalibrationEvidencePool.invalidNonpositiveLabIds(): Set<UUID> =
         invalidNonpositive.mapTo(linkedSetOf(), PkCalibrationLabEvidence::resultId)
 
-    /** Atomic result/evidence pair used to issue a render-capable engine evaluation. */
-    internal fun solveBound(
-        evidence: PkCalibrationEvidencePool,
-    ): PkCalibrationBoundSolution? {
-        val result = solve(evidence) ?: return null
-        return PkCalibrationBoundSolution(
-            result = result,
-            evidence = evidence,
-            proof = PkCalibrationSolverBindingProof,
-        )
-    }
-
     /** S_r = { i in E : d_ir >= 0.2 * D_i }, population decomposition only. */
     private fun supportingLabIdsByRoute(
         included: List<PkCalibrationLabEvidence>,
@@ -947,19 +935,6 @@ private fun PkRouteCalibrationDisplayState.isPopulationDisplayState(): Boolean {
     return this != PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL &&
             this != PkRouteCalibrationDisplayState.LAB_CALIBRATED
 }
-
-/** Cannot be forged from independently selected fit and evidence artifacts. */
-internal class PkCalibrationBoundSolution internal constructor(
-    val result: PkCalibrationResult,
-    val evidence: PkCalibrationEvidencePool,
-    proof: Any,
-) {
-    init {
-        require(proof === PkCalibrationSolverBindingProof)
-    }
-}
-
-private object PkCalibrationSolverBindingProof
 
 private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this
 

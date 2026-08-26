@@ -23,12 +23,12 @@ class PkCalibrationScopeEvidenceTest {
     @Test
     fun engineFacade_mapsGlobalFailuresAndPublishesOnlyCanonicalReadyRoutes() {
         val fixture = fixture()
-        val ready = PkCalibrationEngine.compute(
+        val ready = PkCalibrationEngine.evaluate(
             input = fixture.input(),
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-        )
+        ).result
 
         assertEquals(PkCalibrationGlobalState.READY, ready.globalState)
         assertEquals(
@@ -37,12 +37,12 @@ class PkCalibrationScopeEvidenceTest {
         )
         assertEquals(PkCalibrationRoute.entries.size, ready.routeResults.size)
 
-        val unresolvedWeight = PkCalibrationEngine.compute(
+        val unresolvedWeight = PkCalibrationEngine.evaluate(
             input = fixture.input(weightKg = null),
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-        )
+        ).result
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, unresolvedWeight.globalState)
         assertEquals(setOf(PkCalibrationReason.SHARED_INPUT_INVALID), unresolvedWeight.globalReasons)
         assertTrue(unresolvedWeight.routeResults.isEmpty())
@@ -74,12 +74,12 @@ class PkCalibrationScopeEvidenceTest {
             fixture.build(metadata = duplicateMetadata),
             PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
         )
-        val result = PkCalibrationEngine.compute(
+        val result = PkCalibrationEngine.evaluate(
             input = fixture.input(),
             metadata = duplicateMetadata,
             identityPolicy = fixture.policy,
             config = fixture.config,
-        )
+        ).result
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, result.globalState)
         assertEquals(setOf(PkCalibrationReason.SHARED_INPUT_INVALID), result.globalReasons)
         assertTrue(result.routeResults.isEmpty())
@@ -610,12 +610,12 @@ class PkCalibrationScopeEvidenceTest {
             PkCalibrationEvidenceFailure.NO_USABLE_LABS,
         )
 
-        val result = PkCalibrationEngine.compute(
+        val result = PkCalibrationEngine.evaluate(
             input = fixture.input(labs = emptyList()),
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-        )
+        ).result
         assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, result.globalState)
         assertEquals(setOf(PkCalibrationReason.NO_USABLE_LABS), result.globalReasons)
         assertTrue(result.routeResults.isEmpty())
@@ -639,12 +639,12 @@ class PkCalibrationScopeEvidenceTest {
         assertEquals(listOf(preDose.resultId), pool.unassigned.map { it.resultId })
         assertTrue(pool.included.isEmpty())
 
-        val result = PkCalibrationEngine.compute(
+        val result = PkCalibrationEngine.evaluate(
             input = fixture.input(),
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-        )
+        ).result
         assertEquals(PkCalibrationGlobalState.READY, result.globalState)
         assertEquals(setOf(flagged.resultId), result.invalidNonpositiveLabIds)
         assertTrue(result.promotedRoutes.isEmpty())

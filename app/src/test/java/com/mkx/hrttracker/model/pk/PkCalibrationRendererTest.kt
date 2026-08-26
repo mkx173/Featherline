@@ -11,7 +11,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.lang.reflect.Modifier
 import java.time.Instant
 import java.util.UUID
 import kotlin.math.abs
@@ -92,27 +91,6 @@ class PkCalibrationRendererTest {
         assertPopulationParity(readyRender, readyPopulation)
         assertNull(PkCalibrationRenderer.render(failedEvaluation, domain(hours = 24, intervalHours = 6)))
         assertNull(failedEvaluation.renderFor(domain(hours = 24, intervalHours = 6)))
-    }
-
-    @Test
-    fun rendererApi_acceptsOnlyOneEngineIssuedEvaluationAndDomain() {
-        val renderMethods = PkCalibrationRenderer::class.java.declaredMethods
-            .filter { method -> method.name == "render" }
-        assertEquals(1, renderMethods.size)
-        assertEquals(
-            listOf(PkCalibrationEngineEvaluation::class.java, PkChartDomain::class.java),
-            renderMethods.single().parameterTypes.toList(),
-        )
-        val constructors = PkCalibrationEngineEvaluation::class.java.declaredConstructors
-        assertTrue(constructors.any { constructor -> Modifier.isPrivate(constructor.modifiers) })
-        assertTrue(
-            constructors.filterNot { constructor -> Modifier.isPrivate(constructor.modifiers) }
-                .all { constructor ->
-                    constructor.isSynthetic &&
-                            constructor.parameterTypes.last().name ==
-                            "kotlin.jvm.internal.DefaultConstructorMarker"
-                }
-        )
     }
 
     @Test
@@ -448,9 +426,8 @@ class PkCalibrationRendererTest {
         }
 
         assertTrue(
-            "Expected <= ${PkCalibrationDefaults.BAND_RENDER_BUDGET_MS} ms, was " +
-                    "${bestNanos / 1_000_000.0} ms",
-            bestNanos <= PkCalibrationDefaults.BAND_RENDER_BUDGET_MS * 1_000_000L,
+            "Expected <= $RenderBudgetMs ms, was ${bestNanos / 1_000_000.0} ms",
+            bestNanos <= RenderBudgetMs * 1_000_000L,
         )
     }
 
@@ -484,8 +461,10 @@ class PkCalibrationRendererTest {
                 excluded = emptyList(),
             )
         )
-        val solution = requireNotNull(PkCalibrationSolver.solveBound(pool))
-        val evaluation = requireNotNull(PkCalibrationEngineEvaluation.ready(solution))
+        val evaluation = PkCalibrationEngineEvaluation(
+            requireNotNull(PkCalibrationSolver.solve(pool)),
+            pool,
+        )
         assertEquals(
             PkCalibrationRoute.entries.filter(promotedQByRoute::containsKey),
             evaluation.result.promotedRoutes,
@@ -722,6 +701,7 @@ class PkCalibrationRendererTest {
     private var nextEventId = 1L
 
     private companion object {
+        const val RenderBudgetMs = 50L
         const val OriginMillis = 1_700_000_000_000L
         const val HourMillis = 3_600_000L
         const val WeightKg = 70.0

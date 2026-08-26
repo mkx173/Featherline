@@ -48,75 +48,33 @@ data class PkCalibrationInputSnapshot private constructor(
  * One immutable engine-issued evaluation. A READY instance atomically owns the solver result
  * and the exact canonical evidence/config/scope/review snapshot that produced it.
  */
-class PkCalibrationEngineEvaluation private constructor(
+class PkCalibrationEngineEvaluation internal constructor(
     val result: PkCalibrationResult,
     internal val readyEvidence: PkCalibrationEvidencePool?,
-    proof: Any,
 ) {
     init {
-        require(proof === PkCalibrationEngineEvaluationBindingProof)
+        require((result.globalState == PkCalibrationGlobalState.READY) == (readyEvidence != null))
     }
 
     val isReady: Boolean get() = readyEvidence != null
 
     /**
-     * Pure convenience boundary for the later stateful engine API.
-     *
-     * Frozen Phase-1 contract: a non-READY evaluation returns null, leaving the chart consumer
-     * on its existing population projection. For a READY evaluation, numeric render failure is
-     * represented by a non-null NUMERIC_UNAVAILABLE result instead.
+     * A non-READY evaluation returns null, leaving the chart consumer on its existing
+     * population projection. For a READY evaluation, numeric render failure is represented
+     * by a non-null NUMERIC_UNAVAILABLE result instead.
      */
     fun renderFor(domain: PkChartDomain): PkCalibrationRenderResult? {
         return PkCalibrationRenderer.render(this, domain)
     }
 
     internal companion object {
-        fun ready(solution: PkCalibrationBoundSolution): PkCalibrationEngineEvaluation? {
-            val result = solution.result
-            val evidence = solution.evidence
-            val canonical = evidence.canonicalInput
-            if (result.globalState != PkCalibrationGlobalState.READY ||
-                result.forwardModelVersion != canonical.forwardModelVersion ||
-                result.calibrationModelVersion != canonical.calibrationModelVersion
-            ) {
-                return null
-            }
-            return PkCalibrationEngineEvaluation(
-                result,
-                evidence,
-                PkCalibrationEngineEvaluationBindingProof,
-            )
-        }
-
-        fun notReady(result: PkCalibrationResult): PkCalibrationEngineEvaluation {
-            require(result.globalState != PkCalibrationGlobalState.READY)
-            return PkCalibrationEngineEvaluation(
-                result,
-                null,
-                PkCalibrationEngineEvaluationBindingProof,
-            )
-        }
+        fun notReady(result: PkCalibrationResult): PkCalibrationEngineEvaluation =
+            PkCalibrationEngineEvaluation(result, null)
     }
 }
 
-private object PkCalibrationEngineEvaluationBindingProof
-
 /** Presentation-free facade for one complete, atomic calibration computation. */
 object PkCalibrationEngine {
-    fun compute(
-        input: PkCalibrationInputSnapshot,
-        metadata: List<E2CalibrationMetadata>,
-        identityPolicy: PkCalibrationIdentityPolicy,
-        config: PkCalibrationConfig,
-    ): PkCalibrationResult {
-        return evaluate(
-            input = input,
-            metadata = metadata,
-            identityPolicy = identityPolicy,
-            config = config,
-        ).result
-    }
-
     fun evaluate(
         input: PkCalibrationInputSnapshot,
         metadata: List<E2CalibrationMetadata>,
@@ -137,9 +95,9 @@ object PkCalibrationEngine {
             )
         ) {
             is PkCalibrationEvidenceBuildResult.Ready -> {
-                val solved = PkCalibrationSolver.solveBound(evidence.pool)
+                val solved = PkCalibrationSolver.solve(evidence.pool)
                 if (solved != null) {
-                    requireNotNull(PkCalibrationEngineEvaluation.ready(solved))
+                    PkCalibrationEngineEvaluation(solved, evidence.pool)
                 } else {
                     PkCalibrationEngineEvaluation.notReady(
                         failureResult(

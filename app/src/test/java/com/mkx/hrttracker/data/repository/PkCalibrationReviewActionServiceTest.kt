@@ -342,12 +342,12 @@ class PkCalibrationReviewActionServiceTest {
         fun compute(
             metadata: List<com.mkx.hrttracker.model.pk.E2CalibrationMetadata>,
             input: PkCalibrationInputSnapshot,
-        ) = PkCalibrationEngine.compute(
+        ) = PkCalibrationEngine.evaluate(
             input = input,
             metadata = metadata,
             identityPolicy = IdentityPolicy,
             config = CalibrationConfig,
-        )
+        ).result
 
         fun withAdditionalMedicationHistory(): PkCalibrationInputSnapshot {
             val additional = medicationEvent(uuid(8_001), PkRoute.ORAL, -24.0)
