@@ -18,8 +18,10 @@ import com.mkx.hrttracker.model.pk.PkCalibrationInputSnapshot
 import com.mkx.hrttracker.model.pk.PkCalibrationMedicationEventSource
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.model.pk.PkCompound
+import com.mkx.hrttracker.model.pk.PkRoute
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -33,11 +35,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
 
 enum class PkCalibrationLiveUnavailableReason {
-    RUNTIME_POLICY_UNAVAILABLE,
     INPUT_GENERATION_UNSTABLE,
     SOURCE_READ_FAILED,
     SOURCE_DATA_INVALID,
@@ -53,62 +52,93 @@ enum class PkCalibrationLiveUnavailableReason {
     RENDER_UNAVAILABLE,
 }
 
-sealed interface PkCalibrationRuntimePolicy {
-    data class Unavailable(
-        val reason: PkCalibrationLiveUnavailableReason =
-            PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE,
-    ) : PkCalibrationRuntimePolicy
-
-    /**
-     * Explicit research-only inputs; source records never fabricate these
-     * identities. [attestation] is null while the user has not (or no longer)
-     * attested — the evaluation then lands on SCOPE_NOT_CONFIRMED, keeping the
-     * calibration surface alive with its attestation CTA (Phase 3.3).
-     */
-    class ResearchOrTest private constructor(
-        val identityPolicy: PkCalibrationIdentityPolicy,
-        val config: PkCalibrationConfig,
-        val attestation: PkCalibrationAttestation?,
-        val forwardModelVersion: String,
-        val calibrationModelVersion: String,
-    ) : PkCalibrationRuntimePolicy {
-        companion object {
-            fun create(
-                identityPolicy: PkCalibrationIdentityPolicy,
-                config: PkCalibrationConfig,
-                attestation: PkCalibrationAttestation?,
-                forwardModelVersion: String,
-                calibrationModelVersion: String,
-            ): ResearchOrTest? {
-                if (!config.personalizedOutputEnabled || !config.isResearchOrTest ||
-                    !forwardModelVersion.isStableAsciiIdentity() ||
-                    !calibrationModelVersion.isStableAsciiIdentity()
-                ) {
-                    return null
-                }
-                return ResearchOrTest(
-                    identityPolicy = identityPolicy,
-                    config = config,
-                    attestation = attestation,
-                    forwardModelVersion = forwardModelVersion,
-                    calibrationModelVersion = calibrationModelVersion,
-                )
+/** Explicit identity/config inputs for the live evaluation; source records never fabricate these. */
+class PkCalibrationRuntimePolicy private constructor(
+    val identityPolicy: PkCalibrationIdentityPolicy,
+    val config: PkCalibrationConfig,
+    val forwardModelVersion: String,
+    val calibrationModelVersion: String,
+) {
+    companion object {
+        fun create(
+            identityPolicy: PkCalibrationIdentityPolicy,
+            config: PkCalibrationConfig,
+            forwardModelVersion: String,
+            calibrationModelVersion: String,
+        ): PkCalibrationRuntimePolicy? {
+            if (!forwardModelVersion.isStableAsciiIdentity() ||
+                !calibrationModelVersion.isStableAsciiIdentity()
+            ) {
+                return null
             }
+            return PkCalibrationRuntimePolicy(
+                identityPolicy = identityPolicy,
+                config = config,
+                forwardModelVersion = forwardModelVersion,
+                calibrationModelVersion = calibrationModelVersion,
+            )
+        }
+
+        const val FORWARD_MODEL_VERSION = "hrttracker:pk-forward/v1"
+        const val CALIBRATION_MODEL_VERSION = "hrttracker:route-calibration/v10"
+
+        /**
+         * App policy. Constants (user decision, 2026-08-09), revisitable from
+         * QA telemetry:
+         * - R_LOG = 0.0225 is the §A3 anchor (~15% log-SD from published
+         *   assay CV plus the collection-timing budget).
+         * - D_min = 5 pg/mL of population drug-attributable E2 for a lab to
+         *   count as informative.
+         */
+        val Default: PkCalibrationRuntimePolicy by lazy {
+            requireNotNull(
+                create(
+                    identityPolicy = requireNotNull(
+                        PkCalibrationIdentityPolicy.researchOrTest(
+                            builtinE2AnalyteId = "hrttracker:analyte/e2/v1",
+                            targetHormoneId = "hrttracker:hormone/estradiol/v1",
+                            // Keys are the persisted unit snapshots; exactly the
+                            // units the blood-test catalog allows for E2.
+                            unitIdBySourceSnapshot = mapOf(
+                                BloodUnitKey.PG_ML.storageValue to "hrttracker:unit/pg-ml/v1",
+                                BloodUnitKey.PMOL_L.storageValue to "hrttracker:unit/pmol-l/v1",
+                                BloodUnitKey.NG_DL.storageValue to "hrttracker:unit/ng-dl/v1",
+                            ),
+                            eventTypeIdByRoute = mapOf(
+                                PkRoute.INJECTION to "hrttracker:event/injection-dose/v1",
+                                PkRoute.PATCH_APPLY to "hrttracker:event/patch-apply/v1",
+                                PkRoute.PATCH_REMOVE to "hrttracker:event/patch-remove/v1",
+                                PkRoute.GEL to "hrttracker:event/gel-dose/v1",
+                                PkRoute.ORAL to "hrttracker:event/oral-dose/v1",
+                                PkRoute.SUBLINGUAL to "hrttracker:event/sublingual-dose/v1",
+                            ),
+                            routeIdByRoute = mapOf(
+                                PkRoute.INJECTION to PkCalibrationRoute.INJECTION.stableId,
+                                PkRoute.PATCH_APPLY to PkCalibrationRoute.PATCH.stableId,
+                                PkRoute.PATCH_REMOVE to PkCalibrationRoute.PATCH.stableId,
+                                PkRoute.GEL to PkCalibrationRoute.GEL.stableId,
+                                PkRoute.ORAL to PkCalibrationRoute.ORAL.stableId,
+                                PkRoute.SUBLINGUAL to PkCalibrationRoute.SUBLINGUAL.stableId,
+                            ),
+                            compoundIdByCompound = mapOf(
+                                PkCompound.E2 to "hrttracker:compound/e2/v1",
+                                PkCompound.EB to "hrttracker:compound/eb/v1",
+                                PkCompound.EV to "hrttracker:compound/ev/v1",
+                                PkCompound.EC to "hrttracker:compound/ec/v1",
+                                PkCompound.EN to "hrttracker:compound/en/v1",
+                                PkCompound.EU to "hrttracker:compound/eu/v1",
+                            ),
+                        )
+                    ),
+                    config = requireNotNull(
+                        PkCalibrationConfig.create(drugMinInformativePgml = 5.0, rLog = 0.0225)
+                    ),
+                    forwardModelVersion = FORWARD_MODEL_VERSION,
+                    calibrationModelVersion = CALIBRATION_MODEL_VERSION,
+                )
+            )
         }
     }
-}
-
-interface PkCalibrationRuntimePolicyProvider {
-    val policy: StateFlow<PkCalibrationRuntimePolicy>
-}
-
-@Singleton
-class ProductionUnavailablePkCalibrationRuntimePolicyProvider @Inject constructor() :
-    PkCalibrationRuntimePolicyProvider {
-    private val policyState = MutableStateFlow<PkCalibrationRuntimePolicy>(
-        PkCalibrationRuntimePolicy.Unavailable()
-    )
-    override val policy: StateFlow<PkCalibrationRuntimePolicy> = policyState.asStateFlow()
 }
 
 /** Every value consumed by one evaluation, frozen before solver work begins. */
@@ -118,47 +148,22 @@ class PkCalibrationEvaluationContext private constructor(
     val metadata: List<E2CalibrationMetadata>,
     val identityPolicy: PkCalibrationIdentityPolicy,
     val config: PkCalibrationConfig,
-    val attestationProvider: PkCalibrationAttestationProvider,
-    internal val runtimePolicy: PkCalibrationRuntimePolicy.ResearchOrTest?,
 ) {
     companion object {
         internal fun create(
             inputGeneration: Long,
             input: PkCalibrationInputSnapshot,
             metadata: List<E2CalibrationMetadata>,
-            policy: PkCalibrationRuntimePolicy.ResearchOrTest,
-        ): PkCalibrationEvaluationContext {
-            require(inputGeneration >= 0L)
-            val frozenAttestation = policy.attestation
-            return PkCalibrationEvaluationContext(
-                inputGeneration = inputGeneration,
-                input = input,
-                metadata = Collections.unmodifiableList(ArrayList(metadata)),
-                identityPolicy = policy.identityPolicy,
-                config = policy.config,
-                attestationProvider = PkCalibrationAttestationProvider { frozenAttestation },
-                runtimePolicy = policy,
-            )
-        }
-
-        internal fun forTest(
-            inputGeneration: Long,
-            input: PkCalibrationInputSnapshot,
-            metadata: List<E2CalibrationMetadata>,
             identityPolicy: PkCalibrationIdentityPolicy,
             config: PkCalibrationConfig,
-            attestationProvider: PkCalibrationAttestationProvider,
         ): PkCalibrationEvaluationContext {
             require(inputGeneration >= 0L)
-            val frozenAttestation = attestationProvider.currentAttestation()
             return PkCalibrationEvaluationContext(
                 inputGeneration = inputGeneration,
                 input = input,
                 metadata = Collections.unmodifiableList(ArrayList(metadata)),
                 identityPolicy = identityPolicy,
                 config = config,
-                attestationProvider = PkCalibrationAttestationProvider { frozenAttestation },
-                runtimePolicy = null,
             )
         }
     }
@@ -194,7 +199,7 @@ class PkCalibrationLiveRepository @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val userProfileRepository: UserProfileRepository,
     private val storageRepository: PkCalibrationStorageRepository,
-    private val runtimePolicyProvider: PkCalibrationRuntimePolicyProvider,
+    private val runtimePolicy: PkCalibrationRuntimePolicy,
     private val renderClock: PkCalibrationRenderClock,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @AppScope appScope: CoroutineScope,
@@ -203,18 +208,12 @@ class PkCalibrationLiveRepository @Inject constructor(
 
     val liveState: StateFlow<PkCalibrationLiveState> = combine(
         storageRepository.observeHomeDataGeneration(),
-        runtimePolicyProvider.policy,
         retryVersion,
-    ) { _, policy, _ -> policy }
-        .transformLatest { policy ->
+    ) { _, _ -> }
+        .transformLatest {
             emit(PkCalibrationLiveState.Loading)
-            if (policy is PkCalibrationRuntimePolicy.Unavailable) {
-                emit(PkCalibrationLiveState.Unavailable(policy.reason))
-                return@transformLatest
-            }
-            policy as PkCalibrationRuntimePolicy.ResearchOrTest
             try {
-                when (val read = stableRead(policy)) {
+                when (val read = stableRead(runtimePolicy)) {
                     is StableRead.Unavailable -> emit(PkCalibrationLiveState.Unavailable(read.reason))
                     is StableRead.Ready -> emit(evaluate(read))
                 }
@@ -247,14 +246,11 @@ class PkCalibrationLiveRepository @Inject constructor(
     override suspend fun currentEvaluationContext(): PkCalibrationEvaluationContext? {
         val available = liveState.value as? PkCalibrationLiveState.Available ?: return null
         return available.context.takeIf {
-            runtimePolicyProvider.policy.value === it.runtimePolicy &&
-                    storageRepository.captureHomeDataGeneration() == available.inputGeneration
+            storageRepository.captureHomeDataGeneration() == available.inputGeneration
         }
     }
 
-    private suspend fun stableRead(
-        policy: PkCalibrationRuntimePolicy.ResearchOrTest,
-    ): StableRead {
+    private suspend fun stableRead(policy: PkCalibrationRuntimePolicy): StableRead {
         repeat(MAX_STABLE_READ_ATTEMPTS) {
             val before = storageRepository.captureHomeDataGeneration()
             val panels = bloodTestRepository.getPanels()
@@ -279,7 +275,6 @@ class PkCalibrationLiveRepository @Inject constructor(
                 metadata = context.metadata,
                 identityPolicy = context.identityPolicy,
                 config = context.config,
-                attestationProvider = context.attestationProvider,
             )
             val render = if (evaluation.isReady) {
                 evaluation.renderFor(read.domain)
@@ -307,7 +302,7 @@ class PkCalibrationLiveRepository @Inject constructor(
         entries: List<MedicationLogEntry>,
         profile: UserProfile,
         metadata: List<E2CalibrationMetadata>,
-        policy: PkCalibrationRuntimePolicy.ResearchOrTest,
+        policy: PkCalibrationRuntimePolicy,
     ): StableRead {
         val e2Rows = panels.flatMap { panel ->
             panel.results.mapNotNull { result ->
@@ -320,9 +315,7 @@ class PkCalibrationLiveRepository @Inject constructor(
         // A user with no logged doses and no labs still gets a live surface:
         // an empty history is anchored by any origin, so fall back to the
         // clock instead of failing closed. The evaluation then lands on
-        // SCOPE_NOT_CONFIRMED (not attested) or NO_USABLE_LABS (attested) and
-        // the calibration section renders its CTA — previously it was
-        // structurally absent until the first dose was logged.
+        // NO_USABLE_LABS and the calibration section renders its CTA.
         val origin = (e2Rows.map { it.first.collectedAt.toEpochMilli() } +
                 relevantEntries.map { it.appliedAt.toEpochMilli() })
             .minOrNull()
@@ -411,7 +404,8 @@ class PkCalibrationLiveRepository @Inject constructor(
                 inputGeneration = generation,
                 input = input,
                 metadata = metadata,
-                policy = policy,
+                identityPolicy = policy.identityPolicy,
+                config = policy.config,
             ),
             domain = domain,
         )

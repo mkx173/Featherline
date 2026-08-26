@@ -13,21 +13,13 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationConfig
-import com.mkx.hrttracker.model.pk.PkCalibrationEffectiveDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationE2LabSource
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
-import com.mkx.hrttracker.model.pk.PkCalibrationEvidenceAdapter
-import com.mkx.hrttracker.model.pk.PkCalibrationEvidenceBuildResult
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationIdentityPolicy
 import com.mkx.hrttracker.model.pk.PkCalibrationInputSnapshot
-import com.mkx.hrttracker.model.pk.PkCalibrationLabEvidence
 import com.mkx.hrttracker.model.pk.PkCalibrationMedicationEventSource
-import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkCompound
 import com.mkx.hrttracker.model.pk.PkDoseEvent
 import com.mkx.hrttracker.model.pk.PkE2ForwardModel
@@ -42,7 +34,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -97,40 +88,14 @@ class PkCalibrationReviewActionServiceTest {
     }
 
     @Test
-    fun reviewActions_roundTripThroughRoom_andStaleAcceptanceNormalizesToAuto() = runTest {
+    fun reviewActions_roundTripThroughRoom() = runTest {
         val fixture = outlierFixture()
         insertPersistedLabs(fixture)
-        var currentInput = fixture.input
-        val service = fixture.service(repository) { currentInput }
+        val service = fixture.service(repository) { fixture.input }
         val targetId = fixture.outlierResultId
 
-        val initial = fixture.compute(repository.getAllMetadata(), currentInput)
-        assertTrue(
-            initial.routeResults.any { route ->
-                targetId in route.unreviewedOutlierLabIds
-            }
-        )
-
-        val kept = service.keepForAdjustment(targetId)
-            as PkCalibrationReviewActionResult.Applied
-        assertEquals(E2CalibrationDisposition.ACCEPTED, kept.metadata.disposition)
-        assertNotNull(kept.metadata.acceptedRecord)
-        assertEquals(kept.metadata, repository.getAllMetadata().single())
-
-        val accepted = fixture.readyEvidence(repository.getAllMetadata(), currentInput)
-        assertEquals(
-            PkCalibrationEffectiveDisposition.ACCEPTED,
-            accepted.included
-                .single { evidence -> evidence.resultId == targetId }
-                .effectiveDisposition,
-        )
-
-        currentInput = fixture.withOneBitOutlierValueChange()
-        val stale = fixture.readyEvidence(repository.getAllMetadata(), currentInput)
-        val staleTarget = stale.included
-            .single { evidence -> evidence.resultId == targetId }
-        assertEquals(PkCalibrationEffectiveDisposition.AUTO, staleTarget.effectiveDisposition)
-        assertEquals(kept.metadata, repository.getAllMetadata().single())
+        val initial = fixture.compute(repository.getAllMetadata(), fixture.input)
+        assertEquals(PkCalibrationGlobalState.READY, initial.globalState)
 
         val excluded = service.exclude(targetId) as PkCalibrationReviewActionResult.Applied
         assertEquals(E2CalibrationDisposition.EXCLUDED, excluded.metadata.disposition)
@@ -140,7 +105,7 @@ class PkCalibrationReviewActionServiceTest {
         val reIncluded = service.reinclude(targetId)
             as PkCalibrationReviewActionResult.Applied
         assertEquals(E2CalibrationDisposition.AUTO, reIncluded.metadata.disposition)
-        coVerify(exactly = 3) {
+        coVerify(exactly = 2) {
             homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
                 0L,
                 any(),
@@ -170,7 +135,7 @@ class PkCalibrationReviewActionServiceTest {
         )
 
         assertRejected(
-            service.keepForAdjustment(fixture.outlierResultId),
+            service.exclude(fixture.outlierResultId),
             PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED,
         )
 
@@ -187,14 +152,9 @@ class PkCalibrationReviewActionServiceTest {
     fun invalidAndStaleActions_areExplicitAndNeverPartiallyWrite() = runTest {
         val fixture = outlierFixture()
         insertPersistedLabs(fixture)
-        var currentInput = fixture.input
-        val service = fixture.service(repository) { currentInput }
+        val service = fixture.service(repository) { fixture.input }
         val ordinaryId = fixture.labs.first().resultId
 
-        assertRejected(
-            service.keepForAdjustment(ordinaryId),
-            PkCalibrationReviewActionRejection.NOT_CURRENT_UNREVIEWED_OUTLIER,
-        )
         assertRejected(
             service.exclude(uuid(999)),
             PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2,
@@ -202,13 +162,6 @@ class PkCalibrationReviewActionServiceTest {
         assertRejected(
             service.reinclude(ordinaryId),
             PkCalibrationReviewActionRejection.NOT_CURRENTLY_EXCLUDED,
-        )
-        assertTrue(repository.getAllMetadata().isEmpty())
-
-        currentInput = fixture.withNonOutlierTargetValue()
-        assertRejected(
-            service.keepForAdjustment(fixture.outlierResultId),
-            PkCalibrationReviewActionRejection.NOT_CURRENT_UNREVIEWED_OUTLIER,
         )
         assertTrue(repository.getAllMetadata().isEmpty())
     }
@@ -271,19 +224,9 @@ class PkCalibrationReviewActionServiceTest {
     }
 
     @Test
-    fun excludeAndReinclude_rejectMissingAttestationButSurviveOrdinaryInputChanges() = runTest {
+    fun exclude_survivesOrdinaryInputChanges() = runTest {
         val fixture = outlierFixture(idOffset = 300)
         insertPersistedLabs(fixture)
-
-        val unattestedService = fixture.service(
-            repository,
-            provider = PkCalibrationAttestationProvider { null },
-        ) { fixture.input }
-        assertRejected(
-            unattestedService.exclude(fixture.outlierResultId),
-            PkCalibrationReviewActionRejection.SCOPE_NOT_CURRENT,
-        )
-        assertTrue(repository.getAllMetadata().isEmpty())
 
         // v10.0 §A2: per-lab dispositions are no longer revoked by unrelated input
         // changes; concurrent-edit staleness is the generation guard's job.
@@ -300,12 +243,11 @@ class PkCalibrationReviewActionServiceTest {
     fun currentAuthorizedNonpositiveE2_canStillBeExcluded() = runTest {
         val fixture = outlierFixture(idOffset = 400).withNonpositiveTarget()
         insertPersistedLabs(fixture)
+        // A non-positive E2 is set aside per lab, not a whole-evaluation
+        // failure; the user must still be able to exclude it explicitly.
         val before = fixture.compute(emptyList(), fixture.input)
-        assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, before.globalState)
-        assertEquals(
-            setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
-            before.globalReasons,
-        )
+        assertEquals(PkCalibrationGlobalState.READY, before.globalState)
+        assertEquals(setOf(fixture.outlierResultId), before.invalidNonpositiveLabIds)
 
         val service = fixture.service(repository) { fixture.input }
         val result = service.exclude(fixture.outlierResultId)
@@ -360,21 +302,9 @@ class PkCalibrationReviewActionServiceTest {
                 value = total * exp(q),
             )
         }
-        val scopeInput = requireNotNull(
-            PkCalibrationScopeInputSnapshot.create(
-                labs = labs,
-                medicationEvents = listOf(event),
-                resolvedCurrentWeightKg = WeightKg,
-                forwardModelVersion = ForwardModelVersion,
-            )
-        )
-        val provider = PkCalibrationAttestationProvider {
-            PkCalibrationAttestation(1_234L)
-        }
         return Fixture(
             labs = labs,
             event = event,
-            provider = provider,
             outlierResultId = labs.last().resultId,
         )
     }
@@ -382,7 +312,6 @@ class PkCalibrationReviewActionServiceTest {
     private inner class Fixture(
         val labs: List<PkCalibrationE2LabSource>,
         val event: PkCalibrationMedicationEventSource,
-        val provider: PkCalibrationAttestationProvider,
         val outlierResultId: UUID,
     ) {
         val input: PkCalibrationInputSnapshot
@@ -391,25 +320,22 @@ class PkCalibrationReviewActionServiceTest {
         fun service(
             repository: PkCalibrationStorageRepository,
             inputGeneration: Long = 0L,
-            provider: PkCalibrationAttestationProvider = this.provider,
             currentInput: suspend () -> PkCalibrationInputSnapshot?,
         ): PkCalibrationReviewActionService {
             return PkCalibrationReviewActionService(
                 storageRepository = repository,
                 currentContextProvider = PkCalibrationCurrentEvaluationContextProvider {
                     currentInput()?.let { input ->
-                        PkCalibrationEvaluationContext.forTest(
+                        PkCalibrationEvaluationContext.create(
                             inputGeneration = inputGeneration,
                             input = input,
                             metadata = repository.getAllMetadata(),
                             identityPolicy = IdentityPolicy,
                             config = CalibrationConfig,
-                            attestationProvider = provider,
                         )
                     }
                 },
                 clock = FixedClock,
-                defaultDispatcher = kotlinx.coroutines.Dispatchers.Unconfined,
             )
         }
 
@@ -421,39 +347,7 @@ class PkCalibrationReviewActionServiceTest {
             metadata = metadata,
             identityPolicy = IdentityPolicy,
             config = CalibrationConfig,
-            attestationProvider = provider,
         )
-
-        fun readyEvidence(
-            metadata: List<com.mkx.hrttracker.model.pk.E2CalibrationMetadata>,
-            input: PkCalibrationInputSnapshot,
-        ) = (PkCalibrationEvidenceAdapter.build(
-            labs = input.labs,
-            medicationEvents = input.medicationEvents,
-            forwardTimeOriginEpochMillis = input.forwardTimeOriginEpochMillis,
-            resolvedCurrentWeightKg = input.resolvedCurrentWeightKg,
-            metadata = metadata,
-            identityPolicy = IdentityPolicy,
-            config = CalibrationConfig,
-            attestationProvider = provider,
-            forwardModelVersion = input.forwardModelVersion,
-            calibrationModelVersion = input.calibrationModelVersion,
-        ) as PkCalibrationEvidenceBuildResult.Ready).pool
-
-        fun withOneBitOutlierValueChange(): PkCalibrationInputSnapshot {
-            return replaceOutlierValue(Math.nextUp(labs.last().sourceValue))
-        }
-
-        fun withNonOutlierTargetValue(): PkCalibrationInputSnapshot {
-            val target = labs.last()
-            val timeH = (target.collectedAtEpochMillis - OriginMillis).toDouble() /
-                    HourMillis.toDouble()
-            val forward = requireNotNull(
-                PkE2ForwardModel.create(listOf(event.event), WeightKg)
-            )
-            val populationValue = requireNotNull(forward.breakdownAt(timeH)).totalDrugPgml
-            return replaceOutlierValue(populationValue)
-        }
 
         fun withAdditionalMedicationHistory(): PkCalibrationInputSnapshot {
             val additional = medicationEvent(uuid(8_001), PkRoute.ORAL, -24.0)
@@ -481,19 +375,8 @@ class PkCalibrationReviewActionServiceTest {
             return Fixture(
                 labs = labs.dropLast(1) + changed,
                 event = event,
-                provider = provider,
                 outlierResultId = outlierResultId,
             )
-        }
-
-        private fun replaceOutlierValue(value: Double): PkCalibrationInputSnapshot {
-            val target = labs.last()
-            val changed = lab(
-                resultId = target.resultId,
-                collectedAtEpochMillis = target.collectedAtEpochMillis,
-                value = value,
-            )
-            return input(labs.dropLast(1) + changed)
         }
 
         private fun input(
@@ -637,7 +520,7 @@ class PkCalibrationReviewActionServiceTest {
 
         val FixedClock: Clock = Clock.fixed(Instant.ofEpochMilli(9_000), ZoneOffset.UTC)
         val CalibrationConfig: PkCalibrationConfig = requireNotNull(
-            PkCalibrationConfig.researchOrTest(
+            PkCalibrationConfig.create(
                 drugMinInformativePgml = 1e-20,
                 rLog = 0.04,
             )

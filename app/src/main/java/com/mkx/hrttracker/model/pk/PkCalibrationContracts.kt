@@ -147,18 +147,20 @@ data class PkForwardBreakdown private constructor(
 
 enum class PkCalibrationGlobalState {
     READY,
-    SCOPE_NOT_CONFIRMED,
-    /** Attested, but zero authorized E2 labs exist — distinct from a scope or input problem. */
+    /** Zero authorized E2 labs exist — distinct from an input problem. */
     NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
     SHARED_NUMERIC_FAILURE,
 }
 
+/**
+ * Warn-only (2026-08-26): a route with at least one supporting lab always
+ * shows its fitted adjustment. LAB_ADJUSTED_PROVISIONAL carries one or more
+ * warning [PkCalibrationReason]s the user should read; LAB_CALIBRATED is a
+ * fit that raised none.
+ */
 enum class PkRouteCalibrationDisplayState {
     POPULATION_NO_SUPPORTING_LABS,
-    POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-    POPULATION_LOW_CONFIDENCE,
-    POPULATION_DISPLAY_CAP_EXCEEDED,
     POPULATION_NUMERIC_FAILURE,
     LAB_ADJUSTED_PROVISIONAL,
     LAB_CALIBRATED,
@@ -177,17 +179,13 @@ enum class PkCalibrationBandState {
 }
 
 enum class PkCalibrationReason {
-    SCOPE_NOT_CONFIRMED,
     NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
-    INVALID_NONPOSITIVE_E2,
     NO_SUPPORTING_LABS,
-    INSUFFICIENT_SUPPORTING_LABS,
     EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
     INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
     POSTERIOR_SD_TOO_WIDE,
     DISPLAY_SCALE_EXCEEDED,
-    DISPLAY_SCALE_AT_BOUNDARY,
     POSTERIOR_MODE_AMBIGUOUS,
     RESIDUAL_FIT_POOR,
     UNREVIEWED_OUTLIER,
@@ -232,10 +230,14 @@ data class PkRouteCalibrationResult private constructor(
     val drugSignalLogRange: Double?,
     val robustRmseLog: Double?,
     val minStudentTWeight: Double?,
-    val atDisplayCapBoundary: Boolean,
     val unreviewedOutlierLabIds: Set<UUID>,
 ) {
     companion object {
+        /**
+         * Finiteness and shape checks only. Population states carry no fit;
+         * adjusted states show exactly the fitted beta. Which warning reasons
+         * accompany a fit is the solver's call, not re-derived here.
+         */
         fun create(
             route: PkCalibrationRoute,
             fittedBeta: Double? = null,
@@ -249,9 +251,7 @@ data class PkRouteCalibrationResult private constructor(
             drugSignalLogRange: Double? = null,
             robustRmseLog: Double? = null,
             minStudentTWeight: Double? = null,
-            atDisplayCapBoundary: Boolean = false,
             unreviewedOutlierLabIds: Set<UUID> = emptySet(),
-            rLog: Double? = null,
         ): PkRouteCalibrationResult? {
             if (!isFiniteOrNull(fittedBeta)) return null
             if (!displayBeta.isFinite()) return null
@@ -260,14 +260,6 @@ data class PkRouteCalibrationResult private constructor(
             if (!isFiniteNonNegativeOrNull(laplaceVarianceBeta)) return null
             if (!isFiniteNonNegativeOrNull(drugSignalLogRange)) return null
             if (!isFiniteNonNegativeOrNull(robustRmseLog)) return null
-            val rmseGate = if (robustRmseLog != null) {
-                val noise = rLog?.takeIf { value -> value.isFinite() && value > 0.0 }
-                    ?: return null
-                PkCalibrationDefaults.robustRmseLogMaxForPromotion(noise)
-                    .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
-            } else {
-                null
-            }
             val maximumStudentTWeight =
                 (PkCalibrationDefaults.STUDENT_T_NU + 1.0) /
                         PkCalibrationDefaults.STUDENT_T_NU
@@ -279,198 +271,25 @@ data class PkRouteCalibrationResult private constructor(
             }
             if (supportingLabCount < 0) return null
 
-            val isPopulation = displayState.isPopulationState()
-            if (isPopulation && displayBeta.toBits() != 0.0.toBits()) return null
-            if (isPopulation) {
-                val hasFitDiagnostics = betaPosteriorSd != null ||
-                        betaUncertaintyReduction != null ||
-                        laplaceVarianceBeta != null ||
-                        drugSignalLogRange != null ||
-                        robustRmseLog != null ||
-                        minStudentTWeight != null ||
-                        atDisplayCapBoundary ||
-                        unreviewedOutlierLabIds.isNotEmpty()
-                val numericFailureReasons = setOf(PkCalibrationReason.NUMERIC_FAILURE)
-                if (PkCalibrationReason.NUMERIC_FAILURE in reasons) {
-                    if (displayState !=
-                        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
-                    ) {
-                        return null
-                    }
-                    if (reasons != numericFailureReasons ||
-                        fittedBeta != null ||
-                        hasFitDiagnostics
-                    ) {
-                        return null
-                    }
-                } else if (PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS in reasons) {
-                    // v10.0 §A10.3: an ambiguous joint posterior mode is global and
-                    // reaches every route row regardless of its supporting count.
-                    if (displayState !=
-                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE ||
-                        reasons != setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS) ||
-                        fittedBeta != null ||
-                        hasFitDiagnostics
-                    ) {
-                        return null
-                    }
-                } else if (supportingLabCount == 0) {
-                    if (displayState !=
-                        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ||
-                        reasons != setOf(PkCalibrationReason.NO_SUPPORTING_LABS) ||
-                        fittedBeta != null ||
-                        hasFitDiagnostics
-                    ) {
-                        return null
-                    }
-                } else if (
-                    supportingLabCount <
-                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION
+            if (displayState.isPopulationState()) {
+                if (displayBeta.toBits() != 0.0.toBits()) return null
+                if (fittedBeta != null || betaPosteriorSd != null ||
+                    laplaceVarianceBeta != null
                 ) {
-                    if (displayState !=
-                        PkRouteCalibrationDisplayState
-                            .POPULATION_INSUFFICIENT_SUPPORTING_LABS ||
-                        reasons != setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS) ||
-                        fittedBeta != null ||
-                        hasFitDiagnostics
-                    ) {
-                        return null
-                    }
-                } else if (fittedBeta == null) {
                     return null
-                } else {
-                    val fittedScale = exp(fittedBeta)
-                    if (!fittedScale.isFinite() || fittedScale <= 0.0) return null
-                    if (betaPosteriorSd != null && betaPosteriorSd <= 0.0) return null
-                    if (laplaceVarianceBeta != null && laplaceVarianceBeta <= 0.0) return null
-
-                    val scaleCap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE[route]
-                        ?: return null
-                    val isOutsideCap =
-                        fittedScale !in scaleCap.minInclusive..scaleCap.maxInclusive
-                    val isAtCapBoundary = fittedScale == scaleCap.minInclusive ||
-                            fittedScale == scaleCap.maxInclusive
-                    val lacksExtremeCount = (
-                            fittedScale < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN ||
-                                    fittedScale >
-                                    PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
-                            ) &&
-                            supportingLabCount <
-                            PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
-                    val hasPoorFit = robustRmseLog != null && rmseGate != null &&
-                            robustRmseLog > rmseGate
-                    val hasUnreviewedOutlier = unreviewedOutlierLabIds.isNotEmpty()
-                    val hasInsufficientContrast = drugSignalLogRange != null &&
-                            drugSignalLogRange <
-                            PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-                    val hasWidePosterior = betaPosteriorSd != null &&
-                            betaPosteriorSd >
-                            PkCalibrationDefaults
-                                .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
-
-                    val applicableReasons = linkedSetOf<PkCalibrationReason>()
-                    if (isOutsideCap) {
-                        applicableReasons += PkCalibrationReason.DISPLAY_SCALE_EXCEEDED
-                    }
-                    if (isAtCapBoundary) {
-                        applicableReasons += PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY
-                    }
-                    if (lacksExtremeCount) {
-                        applicableReasons +=
-                            PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS
-                    }
-                    if (hasPoorFit) {
-                        applicableReasons += PkCalibrationReason.RESIDUAL_FIT_POOR
-                    }
-                    if (hasUnreviewedOutlier) {
-                        applicableReasons += PkCalibrationReason.UNREVIEWED_OUTLIER
-                    }
-                    if (hasInsufficientContrast) {
-                        applicableReasons +=
-                            PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST
-                    }
-                    if (hasWidePosterior) {
-                        applicableReasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
-                    }
-                    if (reasons != applicableReasons) return null
-                    if (atDisplayCapBoundary != isAtCapBoundary) return null
-
-                    val expectedDisplayState = when {
-                        isOutsideCap ->
-                            PkRouteCalibrationDisplayState
-                                .POPULATION_DISPLAY_CAP_EXCEEDED
-                        lacksExtremeCount ->
-                            PkRouteCalibrationDisplayState
-                                .POPULATION_INSUFFICIENT_SUPPORTING_LABS
-                        hasPoorFit || hasUnreviewedOutlier ->
-                            PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
-                        else -> null
-                    }
-                    if (displayState != expectedDisplayState) return null
                 }
             } else {
-                val displayScale = exp(displayBeta)
-                if (!displayScale.isFinite() || displayScale <= 0.0) return null
                 val certifiedBeta = fittedBeta ?: return null
                 if (certifiedBeta.toBits() != displayBeta.normalizePositiveZero().toBits()) {
                     return null
                 }
-                val posteriorSd = betaPosteriorSd ?: return null
-                if (posteriorSd <= 0.0) return null
-                val varianceBeta = laplaceVarianceBeta ?: return null
-                if (varianceBeta <= 0.0) return null
-
-                val scaleCap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE[route]
-                    ?: return null
-                if (displayScale !in scaleCap.minInclusive..scaleCap.maxInclusive) return null
-                val isAtCapBoundary = displayScale == scaleCap.minInclusive ||
-                        displayScale == scaleCap.maxInclusive
-                if (atDisplayCapBoundary != isAtCapBoundary) return null
-
-                val requiredLabCount = if (
-                    displayScale < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN ||
-                    displayScale > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
-                ) {
-                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
-                } else {
-                    PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION
-                }
-                if (supportingLabCount < requiredLabCount) return null
-
-                val rmseLog = robustRmseLog ?: return null
-                if (rmseLog > (rmseGate ?: return null)) return null
-                if (unreviewedOutlierLabIds.isNotEmpty()) return null
-                if (PkCalibrationReason.UNREVIEWED_OUTLIER in reasons) return null
-
-                val hasInsufficientContrast = drugSignalLogRange != null &&
-                        drugSignalLogRange <
-                        PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-                val hasWidePosterior = posteriorSd >
-                        PkCalibrationDefaults
-                            .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
-                val applicableReasons = linkedSetOf<PkCalibrationReason>()
-                if (isAtCapBoundary) {
-                    applicableReasons += PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY
-                }
-                if (hasInsufficientContrast) {
-                    applicableReasons +=
-                        PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST
-                }
-                if (hasWidePosterior) {
-                    applicableReasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
-                }
-                if (reasons != applicableReasons) return null
-
-                val hasFullCalibrationGateFailure =
-                    hasInsufficientContrast || hasWidePosterior
-                if ((displayState ==
-                        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL) !=
-                    hasFullCalibrationGateFailure
-                ) {
-                    return null
-                }
-                if (displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED &&
-                    drugSignalLogRange == null
+                val displayScale = exp(displayBeta)
+                if (!displayScale.isFinite() || displayScale <= 0.0) return null
+                if ((betaPosteriorSd ?: return null) <= 0.0) return null
+                if ((laplaceVarianceBeta ?: return null) <= 0.0) return null
+                if (supportingLabCount == 0) return null
+                if ((displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED) !=
+                    reasons.isEmpty()
                 ) {
                     return null
                 }
@@ -489,7 +308,6 @@ data class PkRouteCalibrationResult private constructor(
                 drugSignalLogRange = drugSignalLogRange,
                 robustRmseLog = robustRmseLog,
                 minStudentTWeight = minStudentTWeight,
-                atDisplayCapBoundary = atDisplayCapBoundary,
                 unreviewedOutlierLabIds = immutableSet(unreviewedOutlierLabIds),
             )
         }
@@ -600,7 +418,7 @@ data class PkCalibrationResult private constructor(
     val promotedRoutes: List<PkCalibrationRoute>,
     val displayParams: PkPersonalParams,
     val promotedBetaCovariance: PkCalibrationPromotedCovariance?,
-    /** Labs the engine classified invalid-nonpositive; only these block all routes. */
+    /** Labs with a non-positive value in a drug window; ignored by the fit, flagged to the user. */
     val invalidNonpositiveLabIds: Set<UUID>,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
@@ -618,13 +436,8 @@ data class PkCalibrationResult private constructor(
             calibrationModelVersion: String,
         ): PkCalibrationResult? {
             if (forwardModelVersion.isBlank() || calibrationModelVersion.isBlank()) return null
-            // Bidirectional: the nonpositive failure always names its labs, and
-            // only that failure may name any.
-            val invalidNonpositiveActive =
-                globalState == PkCalibrationGlobalState.SHARED_INPUT_INVALID &&
-                    PkCalibrationReason.INVALID_NONPOSITIVE_E2 in globalReasons
-            if (invalidNonpositiveLabIds.isNotEmpty() != invalidNonpositiveActive) return null
             if (globalState != PkCalibrationGlobalState.READY) {
+                if (invalidNonpositiveLabIds.isNotEmpty()) return null
                 if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
                 if (displayParams != PkPersonalParams.population()) return null
                 if (promotedBetaCovariance != null) return null

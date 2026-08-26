@@ -1,15 +1,11 @@
 package com.mkx.hrttracker.data.repository
 
-import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputValidator
 import com.mkx.hrttracker.model.pk.PkCalibrationValidatedScopeInput
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -19,10 +15,8 @@ import javax.inject.Singleton
 enum class PkCalibrationReviewActionRejection {
     CURRENT_INPUT_UNAVAILABLE,
     INPUT_GENERATION_CHANGED,
-    CALIBRATION_NOT_READY,
     SCOPE_NOT_CURRENT,
     LAB_NOT_AUTHORIZED_E2,
-    NOT_CURRENT_UNREVIEWED_OUTLIER,
     NOT_CURRENTLY_EXCLUDED,
 }
 
@@ -35,66 +29,18 @@ sealed interface PkCalibrationReviewActionResult {
 }
 
 /**
- * Persists the three v9 review transitions against the current generation-bound evaluation
- * context. The context provider rejects a stale Home generation or runtime policy before this
- * service runs, so input, metadata, identity policy, config, and scope remain one snapshot.
- *
- * The repository owns the Room transaction and the final built-in-E2 check. A
- * Keep records the acceptance context (model version, value bits, collection
- * time) produced by the same current computation that named the row as an
- * unreviewed outlier. There is intentionally no compare-and-swap: a later
- * semantic edit makes that stored record stale and the evidence adapter
- * consequently treats the acceptance as AUTO.
+ * Persists the two review transitions (exclude, re-include) against the
+ * current generation-bound evaluation context. The context provider rejects a
+ * stale Home generation before this service runs, so input, metadata,
+ * identity policy, config, and scope remain one snapshot. The repository owns
+ * the Room transaction and the final built-in-E2 check.
  */
 @Singleton
 class PkCalibrationReviewActionService @Inject constructor(
     private val storageRepository: PkCalibrationStorageRepository,
     private val currentContextProvider: PkCalibrationCurrentEvaluationContextProvider,
     private val clock: Clock,
-    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) {
-    suspend fun keepForAdjustment(resultId: UUID): PkCalibrationReviewActionResult {
-        val current = currentContext() ?: return rejected(
-            PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE
-        )
-        // The full multi-start solve is CPU work; callers launch from the UI
-        // scope, so it must never run on Main.
-        val evaluation = withContext(defaultDispatcher) {
-            PkCalibrationEngine.evaluate(
-                input = current.input,
-                metadata = current.metadata,
-                identityPolicy = current.identityPolicy,
-                config = current.config,
-                attestationProvider = current.attestationProvider,
-            )
-        }
-        val evidence = evaluation.readyEvidence ?: return rejected(
-            PkCalibrationReviewActionRejection.CALIBRATION_NOT_READY
-        )
-        if (evidence.canonicalInput.authorizedLabs.none { lab -> lab.resultId == resultId }) {
-            return rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
-        }
-        val isCurrentOutlier = evaluation.result.routeResults.any { routeResult ->
-            resultId in routeResult.unreviewedOutlierLabIds
-        }
-        if (!isCurrentOutlier) {
-            return rejected(
-                PkCalibrationReviewActionRejection.NOT_CURRENT_UNREVIEWED_OUTLIER
-            )
-        }
-        val record = evidence.canonicalInput.acceptanceRecordFor(resultId)
-            ?: return rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
-        val metadata = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = resultId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = record,
-                updatedAt = Instant.now(clock),
-            )
-        )
-        return persist(metadata, current.inputGeneration)
-    }
-
     suspend fun exclude(resultId: UUID): PkCalibrationReviewActionResult {
         val current = currentContext() ?: return rejected(
             PkCalibrationReviewActionRejection.CURRENT_INPUT_UNAVAILABLE
@@ -162,8 +108,6 @@ class PkCalibrationReviewActionService @Inject constructor(
                 forwardTimeOriginEpochMillis = input.forwardTimeOriginEpochMillis,
                 resolvedCurrentWeightKg = input.resolvedCurrentWeightKg,
                 identityPolicy = context.identityPolicy,
-                config = context.config,
-                attestationProvider = context.attestationProvider,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )

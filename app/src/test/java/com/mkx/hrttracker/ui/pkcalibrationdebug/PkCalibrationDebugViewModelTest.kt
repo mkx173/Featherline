@@ -70,19 +70,6 @@ class PkCalibrationDebugViewModelTest {
 
         PkCalibrationRoute.entries.forEach { route ->
             PkRouteCalibrationDisplayState.entries.forEach { displayState ->
-                // Floor = 1: the insufficient-labs state is unrepresentable
-                // for routes whose cap cannot hold an extreme scale — the
-                // harness rejects the combination instead of crashing.
-                if (displayState ==
-                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS &&
-                    !route.supportsExtremeScaleFallback()
-                ) {
-                    assertEquals(
-                        PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH,
-                        viewModel.selectRouteState(route, displayState),
-                    )
-                    return@forEach
-                }
                 assertEquals(
                     PkCalibrationDebugDispatchResult.ACCEPTED,
                     viewModel.selectRouteState(route, displayState),
@@ -150,16 +137,13 @@ class PkCalibrationDebugViewModelTest {
         viewModel.setCentralUnavailable(false)
         viewModel.setNonPositiveInput(true)
         assertEquals(
-            PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+            PkCalibrationGlobalState.READY,
             viewModel.uiState.value.rawResult?.globalState,
         )
-        assertTrue(viewModel.uiState.value.rawResult?.routeResults.orEmpty().isEmpty())
-
-        viewModel.setNonPositiveInput(false)
-        viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.PATCH)
-        val patch = requireNotNull(viewModel.uiState.value.rawResult)
-            .routeResults.single { it.route == PkCalibrationRoute.PATCH }
-        assertTrue(patch.atDisplayCapBoundary)
+        assertEquals(
+            setOf(PkCalibrationDebugFixtures.nonPositiveLabId()),
+            viewModel.uiState.value.rawResult?.invalidNonpositiveLabIds,
+        )
     }
 
     @Test
@@ -169,23 +153,6 @@ class PkCalibrationDebugViewModelTest {
         viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
         val resultId = PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION)
 
-        assertEquals(
-            listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
-            viewModel.uiState.value.applicableActionCommands.map { it.action },
-        )
-
-        viewModel.performReviewAction(
-            PkCalibrationDebugActionCommand(PkCalibrationDebugReviewAction.KEEP, resultId)
-        )
-        assertEquals(
-            E2CalibrationDisposition.ACCEPTED,
-            viewModel.uiState.value.reviewDispositionByResultId[resultId],
-        )
-        assertFalse(
-            resultId in requireNotNull(viewModel.uiState.value.rawResult)
-                .routeResults.single { it.route == PkCalibrationRoute.INJECTION }
-                .unreviewedOutlierLabIds,
-        )
         assertEquals(
             listOf(PkCalibrationDebugReviewAction.EXCLUDE),
             viewModel.uiState.value.applicableActionCommands.map { it.action },
@@ -244,7 +211,7 @@ class PkCalibrationDebugViewModelTest {
         val outlierState = viewModel.uiState.value
         assertEquals(route, outlierState.scenario?.outlierRoute)
         assertEquals(
-            listOf(PkCalibrationDebugReviewAction.KEEP, PkCalibrationDebugReviewAction.EXCLUDE),
+            listOf(PkCalibrationDebugReviewAction.EXCLUDE),
             outlierState.applicableActionCommands.map { command -> command.action },
         )
         assertEquals(
@@ -436,7 +403,6 @@ class PkCalibrationDebugViewModelTest {
             viewModel.setCentralUnavailable(true),
             viewModel.setOutlierRoute(PkCalibrationRoute.INJECTION),
             viewModel.setNonPositiveInput(true),
-            viewModel.setDisplayCapBoundaryRoute(PkCalibrationRoute.INJECTION),
             viewModel.performReviewAction(
                 PkCalibrationDebugActionCommand(
                     PkCalibrationDebugReviewAction.EXCLUDE,

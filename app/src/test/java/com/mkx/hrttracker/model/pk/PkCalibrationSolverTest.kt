@@ -343,44 +343,13 @@ class PkCalibrationSolverTest {
     }
 
     // ------------------------------------------------------------------
-    // Decision 7: acceptance-aware RMSE gate + review-fit affordance
+    // Warn-only (2026-08-26): poor fit and outliers annotate, never hide
     // ------------------------------------------------------------------
 
     @Test
-    fun acceptedConflictingLab_noLongerHoldsTheRouteAtPopulation() {
-        // Issue-1 repro: one good lab + one kept conflicting lab previously
-        // failed the RMSE gate forever ("review fit" with the Keep action
-        // apparently ignored). Acceptance excludes the vouched lab from the
-        // gate, so the route promotes; the consistency signal survives via
-        // minStudentTWeight for the confidence tier.
-        val result = solve(
-            lab(1, observed = 42.0, oral = 40.0),
-            lab(
-                2,
-                observed = 300.0,
-                oral = 44.0,
-                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
-            ),
-        )
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
-        assertTrue(
-            oral.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
-                oral.displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED
-        )
-        assertTrue(oral.unreviewedOutlierLabIds.isEmpty())
-        // The kept outlier stays visible to the consistency tier.
-        assertTrue(
-            requireNotNull(oral.minStudentTWeight) < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN
-        )
-    }
-
-    @Test
-    fun poorFitWithNothingFlagged_flagsTheWorstUnacceptedLab() {
-        // Labs ~1.6x apart fail the RMSE gate while neither crosses the |z|>4
-        // outlier threshold — previously a "review fit" dead end with no
-        // affordance. The worst-fitting unaccepted lab is now actionable.
+    fun poorFit_showsTheFittedBetaWithAResidualWarning() {
+        // Labs ~2.7x apart: the RMSE gate used to hold the route at
+        // population; now the fit is shown and the warning is the user's cue.
         val result = solve(
             lab(1, observed = 40.0, oral = 50.0),
             lab(2, observed = 110.0, oral = 50.0),
@@ -388,265 +357,149 @@ class PkCalibrationSolverTest {
 
         assertEquals(PkCalibrationGlobalState.READY, result.globalState)
         val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
-        assertEquals(
-            PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-            oral.displayState,
-        )
-        assertEquals(setOf(uuid(2)), oral.unreviewedOutlierLabIds)
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, oral.displayState)
+        val beta = requireNotNull(oral.fittedBeta)
+        assertEquals(beta.toBits(), oral.displayBeta.toBits())
         assertTrue(PkCalibrationReason.RESIDUAL_FIT_POOR in oral.reasons)
-        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in oral.reasons)
+        assertEquals(listOf(PkCalibrationRoute.ORAL), result.promotedRoutes)
     }
 
     @Test
-    fun everySupportingLabAccepted_isNotANumericFailure() {
-        // The unvouched-evidence pool can be empty; that passes the gate
-        // trivially instead of tripping the weightSum guard.
+    fun unreviewedOutlier_warnsOnEveryRouteItSupportsWithoutBlocking() {
         val result = solve(
-            lab(
-                1,
-                observed = 40.0,
-                oral = 50.0,
-                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
-            ),
-            lab(
-                2,
-                observed = 110.0,
-                oral = 50.0,
-                disposition = PkCalibrationEffectiveDisposition.ACCEPTED,
-            ),
-        )
-
-        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
-        assertFalse(
-            oral.displayState == PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
-        )
-        assertTrue(oral.unreviewedOutlierLabIds.isEmpty())
-    }
-
-    // ------------------------------------------------------------------
-    // §A10.4 outlier review: one weight per lab, blocks supported routes
-    // ------------------------------------------------------------------
-
-    @Test
-    fun unreviewedOutlier_blocksEveryRouteItSupports_acceptedDoesNot() {
-        val cleanLabs = listOf(
             lab(1, observed = 10.0, injection = 5.0, oral = 5.0),
             lab(2, observed = 25.0, injection = 12.5, oral = 12.5),
             lab(3, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(9, observed = 10.0 * exp(2.0), injection = 5.0, oral = 5.0),
         )
-        val outlier = { disposition: PkCalibrationEffectiveDisposition ->
-            lab(
-                9,
-                observed = 10.0 * exp(2.0),
-                injection = 5.0,
-                oral = 5.0,
-                disposition = disposition,
-            )
-        }
 
-        val blocked = solve(
-            *(cleanLabs + outlier(PkCalibrationEffectiveDisposition.AUTO)).toTypedArray()
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+            result.promotedRoutes,
         )
-        for (route in listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL)) {
-            val row = blocked.routeResults[route.ordinal]
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                row.displayState,
-            )
+        for (route in result.promotedRoutes) {
+            val row = result.routeResults[route.ordinal]
+            assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, row.displayState)
             assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in row.reasons)
             assertTrue(uuid(9) in row.unreviewedOutlierLabIds)
-        }
-        assertTrue(blocked.promotedRoutes.isEmpty())
-
-        val accepted = solve(
-            *(cleanLabs + outlier(PkCalibrationEffectiveDisposition.ACCEPTED)).toTypedArray()
-        )
-        for (route in listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL)) {
-            val row = accepted.routeResults[route.ordinal]
-            assertTrue(row.unreviewedOutlierLabIds.isEmpty())
-            assertFalse(PkCalibrationReason.UNREVIEWED_OUTLIER in row.reasons)
-            assertEquals(
-                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                row.displayState,
-            )
+            assertNotNull(row.fittedBeta)
         }
     }
 
     // ------------------------------------------------------------------
-    // Gate classification at a fixed diagnostics point (§A10.4 precedence)
+    // Warn-only classification at a fixed diagnostics point
     // ------------------------------------------------------------------
 
+
     @Test
-    fun exactCoreEndpointsAreOrdinary_butOneBitOutsideNeedsThirdSupportingLab() {
+    fun extremeScaleWithFewLabs_isShownWithAWarning() {
         for (scale in listOf(0.5, 2.0)) {
-            val exact = requireNotNull(
-                PkCalibrationSolver.classifyRoute(
-                    route = PkCalibrationRoute.GEL,
-                    diagnostics = diagnostics(fittedBeta = betaForExactScale(scale)),
-                    rLog = RLog,
-                )
-            )
+            val exact = classify(diagnostics(fittedBeta = betaForExactScale(scale)))
             assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
-            assertFalse(
-                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS in
-                        exact.reasons
-            )
         }
 
         for (beta in listOf(betaProducingScaleBelow(0.5), betaProducingScaleAbove(2.0))) {
-            val outsideCore = requireNotNull(
-                PkCalibrationSolver.classifyRoute(
-                    route = PkCalibrationRoute.GEL,
-                    diagnostics = diagnostics(fittedBeta = beta),
-                    rLog = RLog,
-                )
-            )
-            assertEquals(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-                outsideCore.displayState,
-            )
+            val twoLabs = classify(diagnostics(fittedBeta = beta), route = PkCalibrationRoute.GEL)
+            assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, twoLabs.displayState)
             assertTrue(
-                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS in
-                        outsideCore.reasons
+                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS in twoLabs.reasons
             )
-            assertEquals(0L, outsideCore.displayBeta.toBits())
-            assertEquals(beta.toBits(), requireNotNull(outsideCore.fittedBeta).toBits())
+            assertEquals(beta.toBits(), twoLabs.displayBeta.toBits())
+
+            val threeLabs = classify(
+                diagnostics(supportingLabCount = 3, fittedBeta = beta),
+                route = PkCalibrationRoute.GEL,
+            )
+            assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, threeLabs.displayState)
         }
     }
 
     @Test
-    fun everyRouteCap_isInclusiveAndOutsideValuesFallBackWithoutClamping() {
+    fun displayCap_isInclusiveAndOutsideValuesAreShownWithAWarning() {
         for (route in PkCalibrationRoute.entries) {
             val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE.getValue(route)
             for (scale in listOf(cap.minInclusive, cap.maxInclusive)) {
-                val atBoundary = requireNotNull(
-                    PkCalibrationSolver.classifyRoute(
-                        route = route,
-                        diagnostics = diagnostics(
-                            supportingLabCount = 3,
-                            fittedBeta = betaForExactScale(scale),
-                        ),
-                        rLog = RLog,
-                    )
+                val atBoundary = classify(
+                    diagnostics(supportingLabCount = 3, fittedBeta = betaForExactScale(scale)),
+                    route = route,
                 )
-                assertEquals(
-                    PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-                    atBoundary.displayState,
-                )
-                assertTrue(atBoundary.atDisplayCapBoundary)
-                assertTrue(PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY in atBoundary.reasons)
+                assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, atBoundary.displayState)
             }
 
             for (beta in listOf(
                 betaProducingScaleBelow(cap.minInclusive),
                 betaProducingScaleAbove(cap.maxInclusive),
             )) {
-                val exceeded = requireNotNull(
-                    PkCalibrationSolver.classifyRoute(
-                        route = route,
-                        diagnostics = diagnostics(
-                            supportingLabCount = 3,
-                            fittedBeta = beta,
-                        ),
-                        rLog = RLog,
-                    )
+                val exceeded = classify(
+                    diagnostics(supportingLabCount = 3, fittedBeta = beta),
+                    route = route,
                 )
-                assertEquals(
-                    PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                    exceeded.displayState,
-                )
+                assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, exceeded.displayState)
                 assertTrue(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED in exceeded.reasons)
-                assertFalse(exceeded.atDisplayCapBoundary)
-                assertEquals(0L, exceeded.displayBeta.toBits())
-                assertEquals(beta.toBits(), requireNotNull(exceeded.fittedBeta).toBits())
+                // No clamping: the fitted value is what the user sees.
+                assertEquals(beta.toBits(), exceeded.displayBeta.toBits())
             }
         }
     }
 
     @Test
     fun fullCalibrationGates_areInclusiveAtExactContrastAndPosteriorSd() {
-        val exact = requireNotNull(
-            PkCalibrationSolver.classifyRoute(
-                route = PkCalibrationRoute.INJECTION,
-                diagnostics = diagnostics(
-                    drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
-                    posteriorSd = PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION,
-                ),
-                rLog = RLog,
+        val exact = classify(
+            diagnostics(
+                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
+                posteriorSd = PkCalibrationDefaults
+                    .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION,
             )
         )
         assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
 
-        val lowContrast = requireNotNull(
-            PkCalibrationSolver.classifyRoute(
-                route = PkCalibrationRoute.INJECTION,
-                diagnostics = diagnostics(
-                    drugSignalLogRange = Math.nextDown(
-                        PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-                    ),
-                ),
-                rLog = RLog,
+        val lowContrast = classify(
+            diagnostics(
+                drugSignalLogRange = Math.nextDown(PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN),
             )
         )
-        assertEquals(
-            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-            lowContrast.displayState,
-        )
-        assertTrue(
-            PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST in lowContrast.reasons
-        )
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, lowContrast.displayState)
+        assertTrue(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST in lowContrast.reasons)
 
-        val widePosterior = requireNotNull(
-            PkCalibrationSolver.classifyRoute(
-                route = PkCalibrationRoute.INJECTION,
-                diagnostics = diagnostics(
-                    posteriorSd = Math.nextUp(
-                        PkCalibrationDefaults
-                            .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
-                    ),
+        val widePosterior = classify(
+            diagnostics(
+                posteriorSd = Math.nextUp(
+                    PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
                 ),
-                rLog = RLog,
             )
         )
-        assertEquals(
-            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-            widePosterior.displayState,
-        )
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, widePosterior.displayState)
         assertTrue(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE in widePosterior.reasons)
     }
 
     @Test
-    fun routeReasonEvaluation_isCompleteWhileStateUsesNormativePrecedence() {
-        val result = requireNotNull(
-            PkCalibrationSolver.classifyRoute(
-                route = PkCalibrationRoute.INJECTION,
-                diagnostics = diagnostics(
-                    fittedBeta = betaProducingScaleAbove(2.0),
-                    drugSignalLogRange = 0.0,
-                    posteriorSd = 0.21,
-                    robustRmseLog = Math.nextUp(
-                        PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)
-                    ),
-                    unreviewedOutlierLabIds = setOf(uuid(77)),
-                ),
-                rLog = RLog,
-            )
+    fun routeReasonEvaluation_isCompleteAndNeverHidesTheFit() {
+        val beta = betaProducingScaleAbove(2.0)
+        val result = classify(
+            diagnostics(
+                fittedBeta = beta,
+                drugSignalLogRange = 0.0,
+                posteriorSd = 0.21,
+                robustRmseLog = Math.nextUp(PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)),
+                unreviewedOutlierLabIds = setOf(uuid(77)),
+            ),
+            ambiguous = true,
         )
 
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, result.displayState)
+        assertEquals(beta.toBits(), result.displayBeta.toBits())
         assertEquals(
-            PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-            result.displayState,
+            setOf(
+                PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
+                PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
+                PkCalibrationReason.RESIDUAL_FIT_POOR,
+                PkCalibrationReason.UNREVIEWED_OUTLIER,
+                PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
+                PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
+                PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
+            ),
+            result.reasons,
         )
-        assertTrue(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED in result.reasons)
-        assertTrue(
-            PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS in result.reasons
-        )
-        assertTrue(PkCalibrationReason.RESIDUAL_FIT_POOR in result.reasons)
-        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in result.reasons)
-        assertTrue(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST in result.reasons)
-        assertTrue(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE in result.reasons)
     }
 
     // ------------------------------------------------------------------
@@ -714,7 +567,6 @@ class PkCalibrationSolverTest {
 
         assertTrue(evidencePool.canonicalInput.config === config)
         assertTrue(evidencePool.config === config)
-        assertNull(canonicalInput(PkCalibrationConfig.productionDefault()))
         val solveMethods = PkCalibrationSolver::class.java.methods.filter { method ->
             method.name == "solve"
         }
@@ -747,12 +599,33 @@ class PkCalibrationSolverTest {
     }
 
     private fun assertGlobalAmbiguity(result: PkCalibrationResult) {
-        assertGlobalPopulationFallback(
-            result,
-            PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-            PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
-        )
+        // Warn-only: the best mode is used and every fitted route carries the
+        // ambiguity warning; unsupported routes stay at population.
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isNotEmpty())
+        for (row in result.routeResults) {
+            if (row.route in result.promotedRoutes) {
+                assertNotNull(row.fittedBeta)
+                assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, row.displayState)
+                assertTrue(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS in row.reasons)
+            } else {
+                assertEquals(PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS, row.displayState)
+            }
+        }
     }
+
+    private fun classify(
+        diagnostics: PkJointRouteDiagnostics,
+        route: PkCalibrationRoute = PkCalibrationRoute.INJECTION,
+        ambiguous: Boolean = false,
+    ): PkRouteCalibrationResult = requireNotNull(
+        PkCalibrationSolver.classifyRoute(
+            route = route,
+            diagnostics = diagnostics,
+            rLog = RLog,
+            ambiguous = ambiguous,
+        )
+    )
 
     private fun assertGlobalNumericFailure(result: PkCalibrationResult) {
         assertGlobalPopulationFallback(
@@ -854,6 +727,7 @@ class PkCalibrationSolverTest {
                 canonicalInput = requireNotNull(canonicalInput(config)),
                 included = included,
                 unassigned = emptyList(),
+                invalidNonpositive = emptyList(),
                 excluded = emptyList(),
             )
         )
@@ -957,18 +831,16 @@ class PkCalibrationSolverTest {
             forwardTimeOriginEpochMillis = 0L,
             resolvedCurrentWeightKg = 70.0,
             metadata = emptyList(),
-            attestation = PkCalibrationAttestation(0L),
             scopeInputSnapshot = scopeInput,
             forwardModelVersion = "pk-forward:test/v1",
             calibrationModelVersion = "pk-calibration:test/v10",
             config = config,
-            acceptanceRecordByResultId = emptyMap(),
         )
     }
 
     private fun testConfig(): PkCalibrationConfig {
         return requireNotNull(
-            PkCalibrationConfig.researchOrTest(
+            PkCalibrationConfig.create(
                 drugMinInformativePgml = 1e-12,
                 rLog = RLog,
             )
@@ -980,11 +852,12 @@ class PkCalibrationSolverTest {
         included: List<PkCalibrationLabEvidence>,
     ): PkCalibrationEvidencePool {
         val constructor = PkCalibrationEvidencePool::class.java.declaredConstructors
-            .single { candidate -> candidate.parameterCount == 4 }
+            .single { candidate -> candidate.parameterCount == 5 }
         constructor.isAccessible = true
         return constructor.newInstance(
             requireNotNull(canonicalInput(testConfig())),
             included,
+            emptyList<PkCalibrationLabEvidence>(),
             emptyList<PkCalibrationLabEvidence>(),
             emptyList<PkCalibrationLabEvidence>(),
         ) as PkCalibrationEvidencePool

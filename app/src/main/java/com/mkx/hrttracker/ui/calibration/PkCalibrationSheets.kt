@@ -36,10 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
@@ -53,7 +51,7 @@ import kotlinx.coroutines.CoroutineScope
 
 /*
  * The four Phase-2 calibration sheets (routes detail, coaching, disclaimer,
- * how-it-works) plus the §U1 attestation sheet. All ride HazeModalBottomSheet
+ * how-it-works). All ride HazeModalBottomSheet
  * with hideBottomSheet-driven dismissal, matching every other sheet in the app.
  */
 
@@ -94,7 +92,7 @@ private fun PkCalibrationSheetTitle(text: String) {
     )
 }
 
-/** Icon-box + title + body row shared by the coaching/edu/attestation sheets. */
+/** Icon-box + title + body row shared by the coaching/edu sheets. */
 @Composable
 private fun PkCalibrationSheetItem(
     @DrawableRes iconRes: Int,
@@ -274,12 +272,6 @@ private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
                         row.supportingLabCount,
                     )
                 )
-                if (row.displayState ==
-                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS
-                ) {
-                    append(" — ")
-                    append(stringResource(R.string.calibration_pk_supporting_labs_requirement))
-                }
             },
         )
         row.confidence?.let { confidence ->
@@ -289,12 +281,6 @@ private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
                     R.string.calibration_pk_route_confidence_line,
                     stringResource(confidence.labelRes),
                 ),
-            )
-        }
-        if (row.atDisplayCapBoundary) {
-            PkCalibrationRouteDetailLine(
-                iconRes = R.drawable.ic_data_info_alert,
-                text = stringResource(R.string.calibration_pk_route_boundary_notice),
             )
         }
         PkCalibrationRouteDetailLine(
@@ -476,90 +462,4 @@ private fun PkCalibrationEduHeader(@StringRes textRes: Int) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 18.dp),
     )
-}
-
-// ---------------------------------------------------------------------------
-// Attestation sheet (§U1) — the action resolving SCOPE_NOT_CONFIRMED
-// ---------------------------------------------------------------------------
-
-@Composable
-fun PkCalibrationAttestationSheet(
-    attested: Boolean,
-    onConfirm: () -> Unit,
-    onWithdraw: () -> Unit,
-    onDecline: () -> Unit,
-    onDismissRequest: () -> Unit,
-) {
-    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
-        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_attest_action))
-        val body = stringResource(R.string.calibration_pk_attest_body)
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .cjkTextOffset(body),
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_history,
-            titleRes = R.string.calibration_pk_attest_premise_regimen_title,
-            bodyRes = R.string.calibration_pk_attest_premise_regimen_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_help_clinic,
-            titleRes = R.string.calibration_pk_attest_premise_suppression_title,
-            bodyRes = R.string.calibration_pk_attest_premise_suppression_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_experiment,
-            titleRes = R.string.calibration_pk_attest_premise_labs_title,
-            bodyRes = R.string.calibration_pk_attest_premise_labs_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_monitor_weight,
-            titleRes = R.string.calibration_pk_attest_premise_records_title,
-            bodyRes = R.string.calibration_pk_attest_premise_records_body,
-        )
-        PkCalibrationSheetNote(R.string.calibration_pk_attest_withdraw_note)
-        PkCalibrationSheetNote(R.string.calibration_pk_attest_exclusion_hint)
-        Spacer(modifier = Modifier.height(20.dp))
-        if (attested) {
-            HrtOutlinedButton(
-                text = stringResource(R.string.calibration_pk_attest_withdraw),
-                onClick = {
-                    onWithdraw()
-                    dismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            HrtButton(
-                text = stringResource(R.string.calibration_pk_done),
-                onClick = dismiss,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            HrtButton(
-                text = stringResource(R.string.calibration_pk_attest_confirm),
-                onClick = {
-                    onConfirm()
-                    dismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // §U1 + Phase-3.1 decision: declining is its own explicit action —
-            // it persists, stops the first-entry auto-present for good, and
-            // the surface banner carries the re-open affordance.
-            HrtOutlinedButton(
-                text = stringResource(R.string.calibration_pk_attest_decline),
-                onClick = {
-                    onDecline()
-                    dismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
 }

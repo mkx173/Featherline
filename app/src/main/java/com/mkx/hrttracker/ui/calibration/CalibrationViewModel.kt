@@ -3,8 +3,6 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationAttestationRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
 import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionResult
@@ -37,7 +35,6 @@ class CalibrationViewModel @Inject constructor(
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
     private val pkReviewActionService: PkCalibrationReviewActionService,
     private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
-    private val pkAttestationRepository: PkCalibrationAttestationRepository,
 ) : ViewModel() {
     private val isDeletingAllEntries = MutableStateFlow(false)
     private val deleteAllEntriesResult =
@@ -68,67 +65,42 @@ class CalibrationViewModel @Inject constructor(
     )
 
     /**
-     * The Phase-2 status-surface projection. Null while the D2 gate is off or
-     * the live evaluation is loading/unavailable — the section is then
-     * structurally absent, never a synthesized failure state.
+     * The status-surface projection. Null while the live evaluation is
+     * loading/unavailable — the section is then structurally absent, never a
+     * synthesized failure state.
      */
-    val pkCalibrationState: StateFlow<PkCalibrationScreenState?> =
-        if (!pkCalibrationSurfaceEnabled) {
-            MutableStateFlow(null)
-        } else {
-            combine(
-                pkCalibrationLiveRepository.liveState,
-                pkUiFixtureBridge.fixture,
-            ) { liveState, fixture ->
-                when {
-                    // Debug harness fixture drives the real surface (plan D3).
-                    fixture != null -> PkCalibrationScreenState(
-                        ui = pkCalibrationUiState(fixture.result, fixture.render),
-                        excludedResultIds = fixture.excludedResultIds,
-                    )
+    val pkCalibrationState: StateFlow<PkCalibrationScreenState?> = combine(
+        pkCalibrationLiveRepository.liveState,
+        pkUiFixtureBridge.fixture,
+    ) { liveState, fixture ->
+        when {
+            // Debug harness fixture drives the real surface (plan D3).
+            fixture != null -> PkCalibrationScreenState(
+                ui = pkCalibrationUiState(fixture.result, fixture.render),
+                excludedResultIds = fixture.excludedResultIds,
+            )
 
-                    else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
-                        PkCalibrationScreenState(
-                            ui = pkCalibrationUiState(
-                                available.evaluation.result,
-                                available.render,
-                            ),
-                            excludedResultIds = available.context.metadata
-                                .filter { item ->
-                                    item.disposition == E2CalibrationDisposition.EXCLUDED
-                                }
-                                .map { item -> item.resultId }
-                                .toSet(),
-                        )
-                    }
-                }
-            }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(5_000),
-                    initialValue = null,
+            else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+                PkCalibrationScreenState(
+                    ui = pkCalibrationUiState(
+                        available.evaluation.result,
+                        available.render,
+                    ),
+                    excludedResultIds = available.context.metadata
+                        .filter { item ->
+                            item.disposition == E2CalibrationDisposition.EXCLUDED
+                        }
+                        .map { item -> item.resultId }
+                        .toSet(),
                 )
+            }
         }
-
-    /**
-     * Durable §U1 attestation record (Phase 3.1). Null until the store's
-     * first read lands — the first-entry auto-present keys off a loaded
-     * UNSEEN only, never off the loading placeholder.
-     */
-    val pkAttestationState: StateFlow<PkCalibrationAttestationState?> =
-        pkAttestationRepository.state
-
-    fun confirmPkAttestation() {
-        viewModelScope.launch { pkAttestationRepository.confirm() }
     }
-
-    fun declinePkAttestation() {
-        viewModelScope.launch { pkAttestationRepository.decline() }
-    }
-
-    fun withdrawPkAttestation() {
-        viewModelScope.launch { pkAttestationRepository.withdraw() }
-    }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
 
     private val pkReviewRejectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -137,10 +109,6 @@ class CalibrationViewModel @Inject constructor(
 
     fun retryPkCalibration() {
         pkCalibrationLiveRepository.retry()
-    }
-
-    fun keepPkOutlier(resultId: UUID) = launchPkReviewAction {
-        pkReviewActionService.keepForAdjustment(resultId)
     }
 
     fun excludePkLab(resultId: UUID) = launchPkReviewAction {

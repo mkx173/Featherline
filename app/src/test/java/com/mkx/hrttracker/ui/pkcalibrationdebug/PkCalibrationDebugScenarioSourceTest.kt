@@ -50,19 +50,10 @@ class PkCalibrationDebugScenarioSourceTest {
     fun everyRouteAndEveryDisplayState_isReachableThroughValidatedContracts() {
         PkCalibrationRoute.entries.forEach { route ->
             PkRouteCalibrationDisplayState.entries.forEach { displayState ->
-                val forced = requireNotNull(PkCalibrationDebugScenario.create())
-                    .withRouteState(route, displayState)
-                // Floor = 1: the insufficient-labs state exists only as the
-                // extreme-scale fallback, which fits inside the display cap
-                // for GEL/SUBLINGUAL only.
-                if (displayState ==
-                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS &&
-                    !route.supportsExtremeScaleFallback()
-                ) {
-                    assertNull(forced)
-                    return@forEach
-                }
-                val scenario = requireNotNull(forced)
+                val scenario = requireNotNull(
+                    requireNotNull(PkCalibrationDebugScenario.create())
+                        .withRouteState(route, displayState)
+                )
                 val snapshot = source.loadFixture(scenario).availableSnapshot()
                 val result = snapshot.result
 
@@ -86,27 +77,6 @@ class PkCalibrationDebugScenarioSourceTest {
     }
 
     @Test
-    fun everyRoute_canReachAnExactDisplayCapBoundaryContract() {
-        PkCalibrationRoute.entries.forEach { route ->
-            val scenario = requireNotNull(PkCalibrationDebugScenario.create())
-                .withDisplayCapBoundaryRoute(route)
-            val snapshot = source.loadFixture(scenario).availableSnapshot()
-            val routeResult = snapshot.result.routeResults.single { it.route == route }
-
-            assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, routeResult.displayState)
-            assertTrue(routeResult.atDisplayCapBoundary)
-            assertTrue(PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY in routeResult.reasons)
-            assertTrue(route in snapshot.result.promotedRoutes)
-            snapshot.result.routeResults
-                .filterNot { it.route == route }
-                .forEach { other ->
-                    assertFalse(other.atDisplayCapBoundary)
-                    assertFalse(PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY in other.reasons)
-                }
-        }
-    }
-
-    @Test
     fun arbitraryMixedCombination_preservesCanonicalRouteOrderAndIsolation() {
         val mixed = requireNotNull(
             requireNotNull(PkCalibrationDebugScenario.create())
@@ -120,7 +90,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.GEL,
-                    PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
+                    PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.ORAL,
@@ -128,7 +98,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.SUBLINGUAL,
-                    PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
+                    PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
                 )
         )
 
@@ -163,11 +133,11 @@ class PkCalibrationDebugScenarioSourceTest {
             ),
             PkCalibrationDebugPreset.INJECTION_REVIEW_FIT to mapOf(
                 PkCalibrationRoute.INJECTION to
-                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
+                        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
             ),
             PkCalibrationDebugPreset.ORAL_OUT_OF_RANGE to mapOf(
                 PkCalibrationRoute.ORAL to
-                        PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED
+                        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
             ),
         )
 
@@ -196,7 +166,7 @@ class PkCalibrationDebugScenarioSourceTest {
     }
 
     @Test
-    fun reviewPreset_recomputesAcceptedAndExcludedStatesThroughTheEngine() {
+    fun reviewPreset_recomputesExcludedStateThroughTheEngine() {
         val base = PkCalibrationDebugScenario.preset(
             PkCalibrationDebugPreset.INJECTION_REVIEW_FIT
         )
@@ -214,8 +184,6 @@ class PkCalibrationDebugScenarioSourceTest {
                 when (disposition) {
                     PkCalibrationDebugFixtureDisposition.AUTO ->
                         E2CalibrationDisposition.AUTO
-                    PkCalibrationDebugFixtureDisposition.ACCEPTED ->
-                        E2CalibrationDisposition.ACCEPTED
                     PkCalibrationDebugFixtureDisposition.EXCLUDED ->
                         E2CalibrationDisposition.EXCLUDED
                 },
@@ -227,10 +195,9 @@ class PkCalibrationDebugScenarioSourceTest {
             assertEquals(
                 when (disposition) {
                     PkCalibrationDebugFixtureDisposition.AUTO ->
-                        PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
-                    PkCalibrationDebugFixtureDisposition.ACCEPTED,
-                    PkCalibrationDebugFixtureDisposition.EXCLUDED,
-                    -> PkRouteCalibrationDisplayState.LAB_CALIBRATED
+                        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+                    PkCalibrationDebugFixtureDisposition.EXCLUDED ->
+                        PkRouteCalibrationDisplayState.LAB_CALIBRATED
                 },
                 injection.displayState,
             )
@@ -250,17 +217,12 @@ class PkCalibrationDebugScenarioSourceTest {
                 .single { result -> result.route == PkCalibrationRoute.INJECTION }
                 .unreviewedOutlierLabIds
         )
-        listOf(
-            PkCalibrationDebugFixtureDisposition.ACCEPTED,
-            PkCalibrationDebugFixtureDisposition.EXCLUDED,
-        ).forEach { disposition ->
-            assertFalse(
-                resultId in snapshots.getValue(disposition)
-                    .result.routeResults
-                    .single { result -> result.route == PkCalibrationRoute.INJECTION }
-                    .unreviewedOutlierLabIds
-            )
-        }
+        assertFalse(
+            resultId in snapshots.getValue(PkCalibrationDebugFixtureDisposition.EXCLUDED)
+                .result.routeResults
+                .single { result -> result.route == PkCalibrationRoute.INJECTION }
+                .unreviewedOutlierLabIds
+        )
     }
 
     @Test
@@ -325,12 +287,14 @@ class PkCalibrationDebugScenarioSourceTest {
         val nonpositive = source.loadFixture(
             outlierScenario.withNonPositiveInput(true)
         ).availableSnapshot()
-        assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, nonpositive.result.globalState)
+        // A non-positive lab is ignored by the fit and flagged, never a
+        // global failure: the rest of the evaluation stays READY.
+        assertEquals(PkCalibrationGlobalState.READY, nonpositive.result.globalState)
         assertEquals(
-            setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
-            nonpositive.result.globalReasons,
+            setOf(PkCalibrationDebugFixtures.nonPositiveLabId()),
+            nonpositive.result.invalidNonpositiveLabIds,
         )
-        assertTrue(nonpositive.result.routeResults.isEmpty())
+        assertEquals(first.result.routeResults, nonpositive.result.routeResults)
     }
 
     @Test

@@ -1,10 +1,8 @@
 package com.mkx.hrttracker.model.pk
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
 import kotlin.math.ln
@@ -89,21 +87,14 @@ class PkCalibrationContractsTest {
     }
 
     @Test
-    fun config_keepsProductionOffAndRequiresExplicitResearchEvidenceValues() {
-        val production = PkCalibrationConfig.productionDefault()
+    fun config_requiresFinitePositiveEvidenceValues() {
+        assertNull(PkCalibrationConfig.create(0.0, 0.04))
+        assertNull(PkCalibrationConfig.create(1.0, Double.NaN))
+        assertNull(PkCalibrationConfig.create(1.0, 0.0))
 
-        assertFalse(production.personalizedOutputEnabled)
-        assertFalse(production.isResearchOrTest)
-        assertNull(production.drugMinInformativePgml)
-        assertNull(production.rLog)
-        assertNull(PkCalibrationConfig.researchOrTest(0.0, 0.04))
-        assertNull(PkCalibrationConfig.researchOrTest(1.0, Double.NaN))
-
-        val research = requireNotNull(PkCalibrationConfig.researchOrTest(5.0, 0.04))
-        assertTrue(research.personalizedOutputEnabled)
-        assertTrue(research.isResearchOrTest)
-        assertEquals(5.0, research.drugMinInformativePgml ?: 0.0, 0.0)
-        assertEquals(0.04, research.rLog ?: 0.0, 0.0)
+        val config = requireNotNull(PkCalibrationConfig.create(5.0, 0.04))
+        assertEquals(5.0, config.drugMinInformativePgml, 0.0)
+        assertEquals(0.04, config.rLog, 0.0)
     }
 
     @Test
@@ -115,330 +106,40 @@ class PkCalibrationContractsTest {
     }
 
     @Test
-    fun routeResult_factoryEnforcesPopulationBetaCountsAndActionableOutlierIds() {
+    fun routeResult_factoryKeepsPopulationRowsFitFreeAndPreservesOutlierIds() {
         val outlierId = UUID.randomUUID()
-        val result = requireNotNull(
-            routeResult(
+        val provisional = requireNotNull(
+            promotedRouteResult(
                 route = PkCalibrationRoute.ORAL,
-                displayState = PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
+                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                displayBeta = ln(1.2),
                 reasons = setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
-                fittedBeta = 0.0,
-                betaPosteriorSd = 0.1,
-                laplaceVarianceBeta = 0.01,
-                robustRmseLog = 0.1,
-                supportingLabCount = 2,
                 outlierIds = setOf(outlierId),
             )
         )
+        assertEquals(setOf(outlierId), provisional.unreviewedOutlierLabIds)
 
-        assertEquals(setOf(outlierId), result.unreviewedOutlierLabIds)
-        assertNull(
+        assertNotNull(routeResult(PkCalibrationRoute.ORAL))
+        assertNotNull(
             routeResult(
                 route = PkCalibrationRoute.ORAL,
-                displayBeta = 0.1,
+                displayState = PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+                reasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
+                supportingLabCount = 2,
             )
         )
+        // Population rows carry no fit and no beta.
+        assertNull(routeResult(PkCalibrationRoute.ORAL, displayBeta = 0.1))
+        assertNull(routeResult(PkCalibrationRoute.ORAL, fittedBeta = 0.0))
+        assertNull(routeResult(PkCalibrationRoute.ORAL, betaPosteriorSd = 0.1))
+        assertNull(routeResult(PkCalibrationRoute.ORAL, supportingLabCount = -1))
+        // Non-finite or out-of-range diagnostics fail closed.
+        assertNull(routeResult(PkCalibrationRoute.ORAL, robustRmseLog = Double.NaN))
         assertNull(
-            routeResult(
+            PkRouteCalibrationResult.create(
                 route = PkCalibrationRoute.ORAL,
-                supportingLabCount = -1,
-            )
-        )
-    }
-
-    @Test
-    fun routeResult_factoryAcceptsCanonicalPopulationCasesAndAppliesPrecedence() {
-        fun populationResult(
-            state: PkRouteCalibrationDisplayState,
-            reasons: Set<PkCalibrationReason>,
-            route: PkCalibrationRoute = PkCalibrationRoute.INJECTION,
-            fittedBeta: Double? = null,
-            betaPosteriorSd: Double? = fittedBeta?.let { 0.1 },
-            laplaceVarianceBeta: Double? = fittedBeta?.let { 0.01 },
-            drugSignalLogRange: Double? = fittedBeta?.let {
-                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-            },
-            robustRmseLog: Double? = fittedBeta?.let { 0.1 },
-            supportingLabCount: Int = 3,
-            atDisplayCapBoundary: Boolean = false,
-            outlierIds: Set<UUID> = emptySet(),
-        ): PkRouteCalibrationResult? {
-            return PkRouteCalibrationResult.create(
-                route = route,
-                fittedBeta = fittedBeta,
-                betaPosteriorSd = betaPosteriorSd,
-                laplaceVarianceBeta = laplaceVarianceBeta,
-                displayState = state,
-                reasons = reasons,
-                supportingLabCount = supportingLabCount,
-                drugSignalLogRange = drugSignalLogRange,
-                robustRmseLog = robustRmseLog,
-                atDisplayCapBoundary = atDisplayCapBoundary,
-                unreviewedOutlierLabIds = outlierIds,
-                rLog = TestRLog,
-            )
-        }
-
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-                supportingLabCount = 0,
-            )
-        )
-        // Floor = 1 (decision 6): any positive supporting count promotes, so
-        // the count-based insufficient shape is no longer representable —
-        // only the extreme-scale fallback below remains.
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
-                supportingLabCount = 1,
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS),
-                route = PkCalibrationRoute.GEL,
-                fittedBeta = ln(2.5),
-                supportingLabCount = 2,
-            )
-        )
-        // v10.0 §A10.3: ambiguity is a global joint-posterior property, so the
-        // ambiguous row is valid at any supporting count, including zero.
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
-                supportingLabCount = 0,
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
-                fittedBeta = ln(2.1),
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-                setOf(PkCalibrationReason.NUMERIC_FAILURE),
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
-                fittedBeta = 0.0,
-                robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog)
-                ),
-            )
-        )
-        val outlierId = UUID.randomUUID()
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
-                fittedBeta = 0.0,
-                outlierIds = setOf(outlierId),
-            )
-        )
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(
-                    PkCalibrationReason.RESIDUAL_FIT_POOR,
-                    PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY,
-                ),
-                fittedBeta = ln(2.0),
-                robustRmseLog = Math.nextUp(
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog)
-                ),
-                atDisplayCapBoundary = true,
-            )
-        )
-
-        assertNotNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                setOf(
-                    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
-                    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
-                    PkCalibrationReason.RESIDUAL_FIT_POOR,
-                    PkCalibrationReason.UNREVIEWED_OUTLIER,
-                    PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
-                    PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
-                ),
-                fittedBeta = ln(3.1),
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
-                drugSignalLogRange =
-                    PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
-                robustRmseLog =
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
-                supportingLabCount = 2,
-                outlierIds = setOf(outlierId),
-            )
-        )
-    }
-
-    @Test
-    fun routeResult_factoryRejectsPopulationFieldReasonContradictions() {
-        fun populationResult(
-            state: PkRouteCalibrationDisplayState,
-            reasons: Set<PkCalibrationReason>,
-            fittedBeta: Double? = null,
-            betaPosteriorSd: Double? = fittedBeta?.let { 0.1 },
-            laplaceVarianceBeta: Double? = fittedBeta?.let { 0.01 },
-            drugSignalLogRange: Double? = fittedBeta?.let {
-                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-            },
-            robustRmseLog: Double? = fittedBeta?.let { 0.1 },
-            supportingLabCount: Int = 3,
-            atDisplayCapBoundary: Boolean = false,
-            outlierIds: Set<UUID> = emptySet(),
-        ): PkRouteCalibrationResult? {
-            return PkRouteCalibrationResult.create(
-                route = PkCalibrationRoute.INJECTION,
-                fittedBeta = fittedBeta,
-                betaPosteriorSd = betaPosteriorSd,
-                laplaceVarianceBeta = laplaceVarianceBeta,
-                displayState = state,
-                reasons = reasons,
-                supportingLabCount = supportingLabCount,
-                drugSignalLogRange = drugSignalLogRange,
-                robustRmseLog = robustRmseLog,
-                atDisplayCapBoundary = atDisplayCapBoundary,
-                unreviewedOutlierLabIds = outlierIds,
-                rLog = TestRLog,
-            )
-        }
-
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-                setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-                supportingLabCount = 1,
-            )
-        )
-        // An ambiguous joint mode never certifies a fitted beta or diagnostics.
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
-                fittedBeta = 0.0,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
-                fittedBeta = 1_000.0,
-                robustRmseLog =
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
-                fittedBeta = -1_000.0,
-                robustRmseLog =
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
-            )
-        )
-
-        val outlierId = UUID.randomUUID()
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                emptySet(),
-                fittedBeta = 0.0,
-                outlierIds = setOf(outlierId),
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                emptySet(),
-                fittedBeta = 0.0,
-                robustRmseLog =
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
-                fittedBeta = ln(2.1),
-                drugSignalLogRange =
-                    PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                setOf(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED),
-                fittedBeta = ln(2.1),
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.UNREVIEWED_OUTLIER),
-                fittedBeta = 0.0,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
-                fittedBeta = 0.0,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED,
-                setOf(
-                    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
-                    PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY,
-                ),
-                fittedBeta = ln(2.1),
-                atDisplayCapBoundary = true,
-            )
-        )
-        assertNull(
-            populationResult(
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                setOf(PkCalibrationReason.RESIDUAL_FIT_POOR),
-                fittedBeta = ln(2.0),
-                robustRmseLog =
-                    PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
+                displayState = PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                minStudentTWeight = 2.0,
             )
         )
     }
@@ -458,7 +159,7 @@ class PkCalibrationContractsTest {
 
         assertNull(
             PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
                 routeResults = populationRoutes,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
@@ -555,7 +256,7 @@ class PkCalibrationContractsTest {
         )
         assertNull(
             PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
                 promotedBetaCovariance = injectionCovariance,
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
@@ -585,52 +286,25 @@ class PkCalibrationContractsTest {
     }
 
     @Test
-    fun calibrationResult_factoryBindsInvalidNonpositiveIdsToTheMatchingFailure() {
+    fun calibrationResult_invalidNonpositiveIdsRideOnlyOnReadyResults() {
         val labId = UUID.randomUUID()
+        // Warn-only: a non-positive lab is flagged on a READY result, not a
+        // global failure.
         assertNotNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
-                globalReasons = setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
-                invalidNonpositiveLabIds = setOf(labId),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        // The guard is bidirectional: the active failure must name its labs.
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
-                globalReasons = setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        // The matching state without the matching reason cannot carry ids.
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
-                globalReasons = setOf(PkCalibrationReason.SHARED_INPUT_INVALID),
-                invalidNonpositiveLabIds = setOf(labId),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        // Any other global state cannot carry ids, READY included.
-        assertNull(
-            PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
-                globalReasons = setOf(PkCalibrationReason.SCOPE_NOT_CONFIRMED),
-                invalidNonpositiveLabIds = setOf(labId),
-                forwardModelVersion = "forward-v1",
-                calibrationModelVersion = "calibration-v9",
-            )
-        )
-        assertNull(
             PkCalibrationResult.create(
                 globalState = PkCalibrationGlobalState.READY,
                 routeResults = PkCalibrationRoute.entries.map { route ->
                     requireNotNull(routeResult(route))
                 },
+                invalidNonpositiveLabIds = setOf(labId),
+                forwardModelVersion = "forward-v1",
+                calibrationModelVersion = "calibration-v9",
+            )
+        )
+        assertNull(
+            PkCalibrationResult.create(
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                globalReasons = setOf(PkCalibrationReason.SHARED_INPUT_INVALID),
                 invalidNonpositiveLabIds = setOf(labId),
                 forwardModelVersion = "forward-v1",
                 calibrationModelVersion = "calibration-v9",
@@ -712,177 +386,39 @@ class PkCalibrationContractsTest {
     }
 
     @Test
-    fun promotedRouteFactory_enforcesCertifiedFitCountsCapsAndFullCalibrationGates() {
+    fun promotedRouteFactory_checksShapeOnlyAndCouplesStateToReasons() {
         val beta = ln(1.5)
         assertNotNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta))
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                fittedBeta = null,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                fittedBeta = ln(1.4),
-            )
-        )
-        // Floor = 1 (decision 6): a single supporting lab certifies a
-        // promoted fit; zero labs still cannot.
+        // A fitted route must show exactly its fitted beta.
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, fittedBeta = null))
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, fittedBeta = ln(1.4)))
+        // One supporting lab certifies; zero cannot.
+        assertNotNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, supportingLabCount = 1))
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, supportingLabCount = 0))
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, betaPosteriorSd = null))
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, laplaceVarianceBeta = null))
+        assertNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, laplaceVarianceBeta = 0.0))
+
+        // Warn-only: former gates (extreme scale with few labs, beyond the
+        // display cap, poor RMSE, outliers) no longer block a fit at the
+        // factory; the solver decides which warning reasons accompany it.
+        assertNotNull(promotedRouteResult(PkCalibrationRoute.GEL, displayBeta = ln(2.5), supportingLabCount = 2))
+        assertNotNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = ln(2.1)))
         assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                supportingLabCount = 1,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                supportingLabCount = 0,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                betaPosteriorSd = null,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                laplaceVarianceBeta = null,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                laplaceVarianceBeta = 0.0,
-            )
-        )
-        assertNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
                 robustRmseLog = PkCalibrationDefaults.robustRmseLogMaxForPromotion(TestRLog) + 0.01,
             )
         )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                robustRmseLog = null,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                outlierIds = setOf(UUID.randomUUID()),
-            )
-        )
+        assertNotNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, robustRmseLog = null))
+        assertNotNull(promotedRouteResult(PkCalibrationRoute.INJECTION, displayBeta = beta, outlierIds = setOf(UUID.randomUUID())))
 
-        val extremeBeta = ln(2.5)
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.GEL,
-                displayBeta = extremeBeta,
-                supportingLabCount = 2,
-            )
-        )
-        assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.GEL,
-                displayBeta = extremeBeta,
-                supportingLabCount = 3,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = ln(2.1),
-                supportingLabCount = 3,
-            )
-        )
-
-        val boundaryBeta = ln(2.0)
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = boundaryBeta,
-            )
-        )
-        assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = boundaryBeta,
-                reasons = setOf(PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY),
-                atDisplayCapBoundary = true,
-            )
-        )
-
+        // State <-> reasons: LAB_CALIBRATED iff no reason fired.
         assertNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayBeta = beta,
-                drugSignalLogRange = null,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
-            )
-        )
-        assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                displayBeta = beta,
-                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
-                reasons = setOf(
-                    PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
-                    PkCalibrationReason.POSTERIOR_SD_TOO_WIDE,
-                ),
-            )
-        )
-        assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                displayBeta = beta,
-                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN - 0.01,
-                reasons = setOf(PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST),
-            )
-        )
-        assertNotNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                displayBeta = beta,
-                drugSignalLogRange = null,
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
                 reasons = setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE),
             )
         )
@@ -893,29 +429,15 @@ class PkCalibrationContractsTest {
                 displayBeta = beta,
             )
         )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                reasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
-            )
-        )
-        assertNull(
-            promotedRouteResult(
-                route = PkCalibrationRoute.INJECTION,
-                displayBeta = beta,
-                reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-            )
-        )
-        assertNull(
+        assertNotNull(
             promotedRouteResult(
                 route = PkCalibrationRoute.INJECTION,
                 displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
                 displayBeta = beta,
-                betaPosteriorSd =
-                    PkCalibrationDefaults
-                        .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION + 0.01,
-                reasons = emptySet(),
+                reasons = setOf(
+                    PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
+                    PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
+                ),
             )
         )
     }
@@ -1098,7 +620,6 @@ class PkCalibrationContractsTest {
             supportingLabCount = supportingLabCount,
             robustRmseLog = robustRmseLog,
             unreviewedOutlierLabIds = outlierIds,
-            rLog = TestRLog,
         )
     }
 
@@ -1114,7 +635,6 @@ class PkCalibrationContractsTest {
         drugSignalLogRange: Double? = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
         robustRmseLog: Double? = 0.10,
         reasons: Set<PkCalibrationReason> = emptySet(),
-        atDisplayCapBoundary: Boolean = false,
         outlierIds: Set<UUID> = emptySet(),
     ): PkRouteCalibrationResult? {
         return PkRouteCalibrationResult.create(
@@ -1128,9 +648,7 @@ class PkCalibrationContractsTest {
             supportingLabCount = supportingLabCount,
             drugSignalLogRange = drugSignalLogRange,
             robustRmseLog = robustRmseLog,
-            atDisplayCapBoundary = atDisplayCapBoundary,
             unreviewedOutlierLabIds = outlierIds,
-            rLog = TestRLog,
         )
     }
 

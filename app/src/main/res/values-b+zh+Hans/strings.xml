@@ -1036,8 +1036,6 @@
     <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
-    <string name="calibration_pk_global_scope_not_confirmed_title">尚未使用您的检测结果</string>
-    <string name="calibration_pk_global_scope_not_confirmed_body">只有在治疗方案稳定、激素抑制充分、且各次检测结果相互可比时，根据检测结果调整估算才有意义。应用无法核实这些条件——需要由您自行确认。</string>
     <string name="calibration_pk_global_no_usable_labs_title">添加一条 E2 检测结果</string>
     <string name="calibration_pk_global_no_usable_labs_body">目前还没有可用的 E2 血液检测结果，因此显示群体估算。添加一条 E2 检测结果即可启用调整。</string>
     <string name="calibration_pk_global_input_invalid_title">请检查一条 E2 检测结果</string>
@@ -1049,22 +1047,14 @@
     <string name="calibration_pk_route_label_population">群体估算</string>
     <string name="calibration_pk_route_label_adjusted">已按途径调整</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">暂无支持性结果</string>
-    <string name="calibration_pk_route_tag_insufficient_supporting_labs">还需更多支持性结果</string>
-    <string name="calibration_pk_route_tag_low_confidence">需要复查</string>
-    <string name="calibration_pk_route_tag_cap_exceeded">超出支持范围</string>
     <string name="calibration_pk_route_tag_numeric_failure">调整不可用</string>
     <string name="calibration_pk_route_tag_provisional">置信度有限</string>
     <string name="calibration_pk_route_reason_no_supporting_labs">目前还没有检测结果的信号主要来自该途径，因此该途径使用群体估算。</string>
-    <string name="calibration_pk_route_reason_insufficient_supporting_labs">该途径至少需要两条支持性检测结果才能进行调整。</string>
-    <string name="calibration_pk_route_reason_low_confidence">当前结果无法为该途径确定一个可靠的调整。</string>
-    <string name="calibration_pk_route_reason_cap_exceeded">该途径推算出的调整超出了其支持范围，因此回退到群体估算。</string>
+    <string name="calibration_pk_reason_display_scale_exceeded">该途径推算出的调整超出了常见范围。请检查检测与用药记录。</string>
     <string name="calibration_pk_route_reason_numeric_failure">该途径的一项计算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已对该途径进行调整，但调整仍不确定。</string>
     <string name="calibration_pk_route_reason_calibrated">已满足全部模型标准。应用并未核实您所确认的前提条件。</string>
     <string name="calibration_pk_route_next_no_supporting_labs">了解检测结果如何支持某一途径</string>
-    <string name="calibration_pk_route_next_insufficient_supporting_labs">在临床合适时，补充一条时机有意义的检测</string>
-    <string name="calibration_pk_route_next_low_confidence">处理离群结果或复查调整</string>
-    <string name="calibration_pk_route_next_cap_exceeded">检查检测与用药记录</string>
     <string name="calibration_pk_route_next_numeric_failure">请在数据或模型更新后重试</string>
     <string name="calibration_pk_route_next_provisional">补充在更多不同时间采集的检测</string>
     <string name="calibration_pk_route_next_calibrated">保持记录及时更新</string>
@@ -1073,10 +1063,9 @@
     <string name="calibration_pk_reason_insufficient_contrast">可用的结果处于相近的模型信号水平。</string>
     <string name="calibration_pk_reason_posterior_sd_too_wide">该途径的调整仍不确定。</string>
     <string name="calibration_pk_reason_residual_fit_poor">当前结果无法支持一个可靠的途径调整。</string>
-    <string name="calibration_pk_reason_posterior_mode_ambiguous">这些结果支持不止一种可能的调整，因此调整暂时不可用。</string>
-    <string name="calibration_pk_reason_unreviewed_outlier">有一条被标记的结果需要复查后，该途径才能进行调整。</string>
+    <string name="calibration_pk_reason_posterior_mode_ambiguous">结果支持不止一种可能的调整；当前显示拟合最好的一种。</string>
+    <string name="calibration_pk_reason_unreviewed_outlier">一条被标记的结果与该途径的调整不一致。请复查该结果；如果不可比，请将其排除。</string>
     <string name="calibration_pk_reason_extreme_scale_three_labs">较大的调整至少需要三条支持性检测结果。</string>
-    <string name="calibration_pk_route_boundary_notice">该途径处于模型支持范围的边界。</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">群体估算</string>
@@ -1085,7 +1074,6 @@
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="other">%1$d 条支持性检测结果</item>
     </plurals>
-    <string name="calibration_pk_supporting_labs_requirement">需要两条支持性检测结果才能调整某一途径。</string>
 
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">检测调整</string>
@@ -1093,9 +1081,6 @@
     <string name="calibration_pk_status_population_body">尚无途径拥有足够的支持性检测结果来进行调整。当前显示的是与所有人相同的模型曲线。</string>
     <string name="calibration_pk_status_adjusted_title">已按检测调整的治疗估算</string>
     <string name="calibration_pk_status_adjusted_body">已根据您的检测结果对%1$s进行调整；其余途径使用群体估算。这仍是估算值而非实测值——应用并未核实您所确认的前提条件。</string>
-    <string name="calibration_pk_status_attested_reminder">您已确认使用检测结果所需的条件。如果治疗方案或检测机构发生重大变化，请撤回并重新确认。</string>
-    <string name="calibration_pk_status_manage">管理</string>
-    <string name="calibration_pk_attest_action">使用我的检测结果调整估算</string>
     <string name="calibration_pk_retry">重试</string>
     <string name="calibration_pk_routes_card_title">途径调整</string>
     <string name="calibration_pk_routes_card_all_population">全部为群体估算</string>
@@ -1149,22 +1134,6 @@
     <string name="calibration_pk_edu_doesnt_learn_body">它只调整途径的整体水平，不改变曲线形状。</string>
     <string name="calibration_pk_edu_doesnt_advise_title">提供用药建议</string>
     <string name="calibration_pk_edu_doesnt_advise_body">任何调整请咨询您的医生。</string>
-    <string name="calibration_pk_attest_body">只有在治疗方案稳定、激素抑制充分、且各次检测结果相互可比时，调整才有意义。应用无法核实其中任何一项——由您自行确认。结果仍是基于治疗记录的估算值，不是经过验证的激素水平。</string>
-    <string name="calibration_pk_attest_premise_regimen_title">我的治疗方案保持稳定</string>
-    <string name="calibration_pk_attest_premise_regimen_body">近期没有更改药物、剂量或途径。</string>
-    <string name="calibration_pk_attest_premise_suppression_title">我的激素抑制充分</string>
-    <string name="calibration_pk_attest_premise_suppression_body">由我的医生管理。应用无法检查这一点。</string>
-    <string name="calibration_pk_attest_premise_labs_title">我的 E2 检测相互可比</string>
-    <string name="calibration_pk_attest_premise_labs_body">来自同一检测机构和方法，或我认为可比的机构和方法。</string>
-    <string name="calibration_pk_attest_premise_records_title">我在应用中的记录准确</string>
-    <string name="calibration_pk_attest_premise_records_body">用药记录和当前体重都是最新的。</string>
-    <string name="calibration_pk_attest_withdraw_note">如果治疗方案或检测机构发生重大变化，请撤回并重新确认。撤回后所有途径会立即回到群体估算。</string>
-    <string name="calibration_pk_attest_exclusion_hint">治疗开始前后、更换机构或检测方法后的结果往往不可比——可以考虑将其排除出调整。</string>
-    <string name="calibration_pk_attest_confirm">我确认以上内容</string>
-    <string name="calibration_pk_attest_decline">不使用我的检测结果</string>
-    <string name="calibration_pk_attest_declined_banner_title">未启用检测结果调整</string>
-    <string name="calibration_pk_attest_declined_banner_body">您未确认前提条件，因此显示群体估算。点按可重新查看。</string>
-    <string name="calibration_pk_attest_withdraw">撤回确认</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_invalid_title">这条 E2 结果无法用于调整</string>
@@ -1172,8 +1141,7 @@
     <string name="calibration_pk_lab_invalid_exclude">排除</string>
     <string name="calibration_pk_lab_invalid_correct">更正数值</string>
     <string name="calibration_pk_lab_outlier_title">请复查这条结果</string>
-    <string name="calibration_pk_lab_outlier_body">它与当前基于治疗的估算差异很大，正在阻碍%1$s的调整。请在保留或排除之前检查数值、单位、采样时间、途径和用药记录。</string>
-    <string name="calibration_pk_lab_outlier_keep">保留用于调整</string>
+    <string name="calibration_pk_lab_outlier_body">它与当前基于治疗的%1$s估算差异很大。请检查数值、单位、采样时间、途径和用药记录；如果不可比，请将其排除。</string>
     <string name="calibration_pk_lab_outlier_exclude">排除出调整</string>
     <string name="calibration_pk_lab_excluded_note">已排除出调整。</string>
     <string name="calibration_pk_lab_reinclude">重新纳入</string>

@@ -8,8 +8,6 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkCalibrationConfig
 import com.mkx.hrttracker.model.pk.PkCalibrationE2LabSource
 import com.mkx.hrttracker.model.pk.PkCalibrationIdentityPolicy
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkCompound
 import com.mkx.hrttracker.model.pk.PkRoute
 import io.mockk.coEvery
@@ -43,35 +41,6 @@ class PkCalibrationLiveRepositoryTest {
     private val storage: PkCalibrationStorageRepository = mockk()
 
     @Test
-    fun productionUnavailablePolicy_readsNoSourceData_andFailsClosed() = runTest {
-        val generations = MutableStateFlow(0L)
-        every { storage.observeHomeDataGeneration() } returns generations
-        val repository = repository(
-            generations,
-            MutableStateFlow(PkCalibrationRuntimePolicy.Unavailable()),
-            backgroundScope,
-            StandardTestDispatcher(testScheduler),
-        )
-        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            repository.liveState.collect()
-        }
-
-        runCurrent()
-
-        assertEquals(
-            PkCalibrationLiveState.Unavailable(
-                PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE
-            ),
-            repository.liveState.value,
-        )
-        coVerify(exactly = 0) { bloodTests.getPanels() }
-        coVerify(exactly = 0) { medicationLogs.getEntries() }
-        coVerify(exactly = 0) { userProfiles.getCurrentProfile() }
-        coVerify(exactly = 0) { storage.getAllMetadata() }
-        collector.cancel()
-    }
-
-    @Test
     fun explicitResearchPolicy_publishesActualEngineEvaluation_onInjectedDispatcher() = runTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(7L)
@@ -92,10 +61,9 @@ class PkCalibrationLiveRepositoryTest {
                 delegate.dispatch(context, block)
             }
         }
-        val runtimePolicy = MutableStateFlow<PkCalibrationRuntimePolicy>(fixture.policy)
         val repository = repository(
             generations,
-            runtimePolicy,
+            fixture.policy,
             backgroundScope,
             recordingDispatcher,
         )
@@ -125,7 +93,9 @@ class PkCalibrationLiveRepositoryTest {
             available.domain.rangeEndEpochMillis,
         )
         assertSame(available.context, repository.currentEvaluationContext())
-        runtimePolicy.value = PkCalibrationRuntimePolicy.Unavailable()
+        // The context is generation-bound: once Home data moves on, review
+        // actions must not act against the stale snapshot.
+        coEvery { storage.captureHomeDataGeneration() } returns 8L
         assertNull(repository.currentEvaluationContext())
         collector.cancel()
     }
@@ -145,7 +115,7 @@ class PkCalibrationLiveRepositoryTest {
         coEvery { storage.getAllMetadata() } returns emptyList()
         val repository = repository(
             generations,
-            MutableStateFlow<PkCalibrationRuntimePolicy>(fixture.policy),
+            fixture.policy,
             backgroundScope,
             StandardTestDispatcher(testScheduler),
         )
@@ -176,7 +146,7 @@ class PkCalibrationLiveRepositoryTest {
         stubEmptySourceReads()
         val repository = repository(
             generations,
-            MutableStateFlow(researchPolicy()),
+            researchPolicy(),
             backgroundScope,
             StandardTestDispatcher(testScheduler),
         )
@@ -215,7 +185,7 @@ class PkCalibrationLiveRepositoryTest {
         stubEmptySourceReads()
         val repository = repository(
             generations,
-            MutableStateFlow(researchPolicy()),
+            researchPolicy(),
             backgroundScope,
             StandardTestDispatcher(testScheduler),
         )
@@ -253,7 +223,7 @@ class PkCalibrationLiveRepositoryTest {
         coEvery { storage.getAllMetadata() } returns emptyList()
         val repository = repository(
             generations,
-            MutableStateFlow(researchPolicy()),
+            researchPolicy(),
             backgroundScope,
             StandardTestDispatcher(testScheduler),
         )
@@ -276,7 +246,7 @@ class PkCalibrationLiveRepositoryTest {
 
     private fun repository(
         generations: MutableStateFlow<Long>,
-        policy: MutableStateFlow<PkCalibrationRuntimePolicy>,
+        policy: PkCalibrationRuntimePolicy,
         appScope: kotlinx.coroutines.CoroutineScope,
         defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
     ): PkCalibrationLiveRepository {
@@ -286,9 +256,7 @@ class PkCalibrationLiveRepositoryTest {
             medicationLogRepository = medicationLogs,
             userProfileRepository = userProfiles,
             storageRepository = storage,
-            runtimePolicyProvider = object : PkCalibrationRuntimePolicyProvider {
-                override val policy = policy
-            },
+            runtimePolicy = policy,
             renderClock = PkCalibrationRenderClock { FixedNowMillis },
             defaultDispatcher = defaultDispatcher,
             appScope = appScope,
@@ -302,11 +270,10 @@ class PkCalibrationLiveRepositoryTest {
         coEvery { storage.getAllMetadata() } returns emptyList()
     }
 
-    private fun researchPolicy(): PkCalibrationRuntimePolicy.ResearchOrTest {
-        return requireNotNull(PkCalibrationRuntimePolicy.ResearchOrTest.create(
+    private fun researchPolicy(): PkCalibrationRuntimePolicy {
+        return requireNotNull(PkCalibrationRuntimePolicy.create(
             identityPolicy = mockk<PkCalibrationIdentityPolicy>(relaxed = true),
-            config = requireNotNull(PkCalibrationConfig.researchOrTest(1.0, 0.1)),
-            attestation = PkCalibrationAttestation(0L),
+            config = requireNotNull(PkCalibrationConfig.create(1.0, 0.1)),
             forwardModelVersion = "test:forward/v1",
             calibrationModelVersion = "test:calibration/v1",
         ))
@@ -341,12 +308,6 @@ class PkCalibrationLiveRepositoryTest {
             analyteId = ANALYTE_ID,
             unitId = UNIT_ID,
         ))
-        val scopeInput = requireNotNull(PkCalibrationScopeInputSnapshot.create(
-            labs = listOf(lab),
-            medicationEvents = emptyList(),
-            resolvedCurrentWeightKg = 70.0,
-            forwardModelVersion = FORWARD_VERSION,
-        ))
         val eventTypeIds = linkedMapOf(
             PkRoute.INJECTION to "event:injection-dose/v1",
             PkRoute.PATCH_APPLY to "event:patch-apply/v1",
@@ -379,10 +340,9 @@ class PkCalibrationLiveRepositoryTest {
             routeIdByRoute = routeIds,
             compoundIdByCompound = compoundIds,
         ))
-        val policy = requireNotNull(PkCalibrationRuntimePolicy.ResearchOrTest.create(
+        val policy = requireNotNull(PkCalibrationRuntimePolicy.create(
             identityPolicy = identityPolicy,
-            config = requireNotNull(PkCalibrationConfig.researchOrTest(1.0, 0.1)),
-            attestation = PkCalibrationAttestation(0L),
+            config = requireNotNull(PkCalibrationConfig.create(1.0, 0.1)),
             forwardModelVersion = FORWARD_VERSION,
             calibrationModelVersion = CALIBRATION_VERSION,
         ))
@@ -391,7 +351,7 @@ class PkCalibrationLiveRepositoryTest {
 
     private data class ValidResearchFixture(
         val panel: BloodTestPanel,
-        val policy: PkCalibrationRuntimePolicy.ResearchOrTest,
+        val policy: PkCalibrationRuntimePolicy,
     )
 
     private companion object {

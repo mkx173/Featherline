@@ -25,7 +25,6 @@ import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkPersonalParams
 import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
-import com.mkx.hrttracker.ui.calibration.pkCalibrationSurfaceEnabled
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
@@ -129,36 +128,30 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        // Phase-2 calibration overlay input (D2-gated). Only a validated live
-        // evaluation reaches the build; Loading/Unavailable keep the overlay
-        // structurally absent.
-        val pkCalibrationFlow: Flow<PkHomeCalibrationInput?> =
-            if (!pkCalibrationSurfaceEnabled) {
-                flowOf(null)
-            } else {
-                combine(
-                    pkCalibrationLiveRepository.liveState,
-                    pkUiFixtureBridge.fixture,
-                ) { liveState, fixture ->
-                    when {
-                        // Debug harness fixture drives the real surface (plan D3).
-                        fixture != null -> PkHomeCalibrationInput(
-                            ui = pkCalibrationUiState(fixture.result, fixture.render),
-                            render = fixture.render,
-                        )
+        // Calibration overlay input. Only a validated live evaluation reaches
+        // the build; Loading/Unavailable keep the overlay structurally absent.
+        val pkCalibrationFlow: Flow<PkHomeCalibrationInput?> = combine(
+            pkCalibrationLiveRepository.liveState,
+            pkUiFixtureBridge.fixture,
+        ) { liveState, fixture ->
+            when {
+                // Debug harness fixture drives the real surface (plan D3).
+                fixture != null -> PkHomeCalibrationInput(
+                    ui = pkCalibrationUiState(fixture.result, fixture.render),
+                    render = fixture.render,
+                )
 
-                        else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
-                            PkHomeCalibrationInput(
-                                ui = pkCalibrationUiState(
-                                    available.evaluation.result,
-                                    available.render,
-                                ),
-                                render = available.render,
-                            )
-                        }
-                    }
+                else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+                    PkHomeCalibrationInput(
+                        ui = pkCalibrationUiState(
+                            available.evaluation.result,
+                            available.render,
+                        ),
+                        render = available.render,
+                    )
                 }
             }
+        }
         val keyedInputsWithPkFlow = combine(
             keyedInputsFlow,
             pkCalibrationFlow,

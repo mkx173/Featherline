@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.model.pk
 
 import java.util.Collections
-import java.util.UUID
 
 /**
  * One explicit, immutable read of the semantic inputs consumed by calibration.
@@ -109,14 +108,12 @@ object PkCalibrationEngine {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        attestationProvider: PkCalibrationAttestationProvider,
     ): PkCalibrationResult {
         return evaluate(
             input = input,
             metadata = metadata,
             identityPolicy = identityPolicy,
             config = config,
-            attestationProvider = attestationProvider,
         ).result
     }
 
@@ -125,7 +122,6 @@ object PkCalibrationEngine {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        attestationProvider: PkCalibrationAttestationProvider,
     ): PkCalibrationEngineEvaluation {
         return when (
             val evidence = PkCalibrationEvidenceAdapter.build(
@@ -136,7 +132,6 @@ object PkCalibrationEngine {
                 metadata = metadata,
                 identityPolicy = identityPolicy,
                 config = config,
-                attestationProvider = attestationProvider,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )
@@ -158,14 +153,6 @@ object PkCalibrationEngine {
 
             is PkCalibrationEvidenceBuildResult.Failed -> {
                 val (state, reason) = when (evidence.failure) {
-                    PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2 ->
-                        PkCalibrationGlobalState.SHARED_INPUT_INVALID to
-                                PkCalibrationReason.INVALID_NONPOSITIVE_E2
-
-                    PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED ->
-                        PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED to
-                                PkCalibrationReason.SCOPE_NOT_CONFIRMED
-
                     PkCalibrationEvidenceFailure.NO_USABLE_LABS ->
                         PkCalibrationGlobalState.NO_USABLE_LABS to
                                 PkCalibrationReason.NO_USABLE_LABS
@@ -178,24 +165,7 @@ object PkCalibrationEngine {
                         PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE to
                                 PkCalibrationReason.NUMERIC_FAILURE
                 }
-                // Ids ride only their own failure kind; a mismatched Failed
-                // payload degrades to the plain failure instead of tripping
-                // the result factory's fail-closed null.
-                val invalidNonpositiveLabIds = if (
-                    evidence.failure == PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2
-                ) {
-                    evidence.invalidNonpositiveLabIds
-                } else {
-                    emptySet()
-                }
-                PkCalibrationEngineEvaluation.notReady(
-                    failureResult(
-                        input,
-                        state,
-                        reason,
-                        invalidNonpositiveLabIds = invalidNonpositiveLabIds,
-                    )
-                )
+                PkCalibrationEngineEvaluation.notReady(failureResult(input, state, reason))
             }
         }
     }
@@ -204,13 +174,11 @@ object PkCalibrationEngine {
         input: PkCalibrationInputSnapshot,
         state: PkCalibrationGlobalState,
         reason: PkCalibrationReason,
-        invalidNonpositiveLabIds: Set<UUID> = emptySet(),
     ): PkCalibrationResult {
         return requireNotNull(
             PkCalibrationResult.create(
                 globalState = state,
                 globalReasons = setOf(reason),
-                invalidNonpositiveLabIds = invalidNonpositiveLabIds,
                 forwardModelVersion = input.forwardModelVersion,
                 calibrationModelVersion = input.calibrationModelVersion,
             )

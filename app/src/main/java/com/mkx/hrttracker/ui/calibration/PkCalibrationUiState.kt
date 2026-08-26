@@ -1,7 +1,5 @@
 package com.mkx.hrttracker.ui.calibration
 
-import com.mkx.hrttracker.BuildConfig
-import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -17,29 +15,6 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.UUID
 
-/**
- * UI-level surface gate (Phase-2 plan D2). While false the whole calibration
- * status surface is structurally absent, independent of the three engine-side
- * fail-closed gates, so the release population UI stays byte-identical.
- */
-val pkCalibrationSurfaceEnabled: Boolean
-    get() = BuildConfig.DEBUG
-
-/**
- * First Calibration entry with a loaded UNSEEN attestation auto-presents the
- * §U1 sheet exactly once per entry (Phase-3.1 decision). A null (not yet
- * loaded) store state never presents, and DECLINED never re-pesters — the
- * banner carries the re-open affordance instead.
- */
-fun shouldAutoPresentPkAttestation(
-    attestationState: PkCalibrationAttestationState?,
-    surfacePresent: Boolean,
-    alreadyAutoPresented: Boolean,
-): Boolean {
-    return surfacePresent && !alreadyAutoPresented &&
-        attestationState == PkCalibrationAttestationState.Unseen
-}
-
 /** Hero presentation kind (UI handoff v9.0 §5.1). */
 enum class PkCalibrationHeroKind {
     POPULATION,
@@ -53,16 +28,13 @@ val PkRouteCalibrationDisplayState.isAdjusted: Boolean
 
 /**
  * Coarse per-route confidence for adjusted routes (user decisions,
- * 2026-08-12), anchored to existing gates only — no new thresholds.
+ * 2026-08-12), anchored to existing thresholds only.
  *
- * Consistency comes first: a kept outlier supporting the route means the
- * published fit disagrees with a data point the user vouched for — never
- * better than LOW, regardless of posterior sharpness (the posterior sd only
- * measures curvature at the winning mode, which an ignored outlier barely
- * moves). Otherwise: HIGH is a route that passed every full-calibration gate
- * (LAB_CALIBRATED, which implies multiple labs with real signal contrast);
- * MEDIUM is provisional whose posterior already meets the full-calibration sd
- * gate; LOW is provisional with a posterior wider than that gate.
+ * Consistency comes first: an outlier supporting the route means the fit
+ * disagrees with a data point — never better than LOW, regardless of
+ * posterior sharpness. Otherwise: HIGH is a route that raised no warning
+ * (LAB_CALIBRATED); MEDIUM is provisional whose posterior already meets the
+ * full-calibration sd threshold; LOW is provisional with a wider posterior.
  */
 enum class PkCalibrationRouteConfidence { LOW, MEDIUM, HIGH }
 
@@ -70,9 +42,6 @@ fun pkRouteCalibrationConfidence(
     routeResult: PkRouteCalibrationResult,
 ): PkCalibrationRouteConfidence? {
     if (!routeResult.displayState.isAdjusted) return null
-    // On a promoted row an unaccepted outlier is impossible (it would have
-    // blocked promotion), so a supporting weight under the outlier threshold
-    // is exactly "a kept outlier supports this route".
     val minWeight = routeResult.minStudentTWeight
     if (minWeight != null && minWeight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN) {
         return PkCalibrationRouteConfidence.LOW
@@ -100,10 +69,22 @@ data class PkCalibrationRouteRowUiState(
     val displayState: PkRouteCalibrationDisplayState,
     val reasons: Set<PkCalibrationReason>,
     val supportingLabCount: Int,
-    val atDisplayCapBoundary: Boolean,
     val unreviewedOutlierLabIds: Set<UUID>,
     /** Coarse tier for adjusted routes; null on population rows. */
     val confidence: PkCalibrationRouteConfidence?,
+) {
+    /** A route whose fit raised a warning the user should read. */
+    val hasWarning: Boolean
+        get() = displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL &&
+            reasons.any { reason -> reason in WarningReasons }
+}
+
+private val WarningReasons = setOf(
+    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
+    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
+    PkCalibrationReason.RESIDUAL_FIT_POOR,
+    PkCalibrationReason.UNREVIEWED_OUTLIER,
+    PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
 )
 
 /**
@@ -121,7 +102,7 @@ data class PkCalibrationUiState(
     val routeRows: List<PkCalibrationRouteRowUiState>,
     /** Routes driving the hero for the current render, canonical order. */
     val effectivePromotedRoutes: List<PkCalibrationRoute>,
-    /** Engine-classified invalid non-positive labs; only these block all routes. */
+    /** Non-positive labs in a drug window; ignored by the fit and flagged on their row. */
     val invalidNonpositiveLabIds: Set<UUID>,
     val renderState: PkCalibrationRenderState,
     val bandState: PkCalibrationBandState,
@@ -145,8 +126,8 @@ sealed interface PkCalibrationLabRowFlag {
 
     data class UnreviewedOutlier(
         override val resultId: UUID,
-        /** Every route this lab currently blocks from promotion (v10 §U3). */
-        val blockedRoutes: List<PkCalibrationRoute>,
+        /** Every route whose fit this lab disagrees with. */
+        val affectedRoutes: List<PkCalibrationRoute>,
     ) : PkCalibrationLabRowFlag
 
     data class Excluded(override val resultId: UUID) : PkCalibrationLabRowFlag
@@ -154,9 +135,9 @@ sealed interface PkCalibrationLabRowFlag {
 
 /**
  * Derives the per-panel review footer, keyed by panel uuid. Explicit exclusion
- * wins (an excluded row blocks nothing); the invalid non-positive footer comes
- * from the engine's per-lab classification, so a non-positive value drawn in a
- * no-drug window (engine-classified Unassigned) is never flagged as blocking.
+ * wins; the invalid non-positive footer comes from the engine's per-lab
+ * classification, so a non-positive value drawn in a no-drug window
+ * (engine-classified Unassigned) is never flagged.
  */
 fun pkCalibrationLabRowFlags(
     state: PkCalibrationScreenState,
@@ -184,7 +165,7 @@ fun pkCalibrationLabRowFlags(
             resultId in outlierRoutes ->
                 PkCalibrationLabRowFlag.UnreviewedOutlier(
                     resultId = resultId,
-                    blockedRoutes = outlierRoutes.getValue(resultId),
+                    affectedRoutes = outlierRoutes.getValue(resultId),
                 )
 
             else -> null
@@ -234,7 +215,6 @@ fun pkCalibrationUiState(
                 displayState = routeResult.displayState,
                 reasons = routeResult.reasons,
                 supportingLabCount = routeResult.supportingLabCount,
-                atDisplayCapBoundary = routeResult.atDisplayCapBoundary,
                 unreviewedOutlierLabIds = routeResult.unreviewedOutlierLabIds,
                 confidence = pkRouteCalibrationConfidence(routeResult),
             )

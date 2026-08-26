@@ -28,7 +28,6 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            attestationProvider = fixture.attestationProvider,
         )
 
         assertEquals(PkCalibrationGlobalState.READY, ready.globalState)
@@ -43,31 +42,16 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            attestationProvider = fixture.attestationProvider,
         )
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, unresolvedWeight.globalState)
         assertEquals(setOf(PkCalibrationReason.SHARED_INPUT_INVALID), unresolvedWeight.globalReasons)
         assertTrue(unresolvedWeight.routeResults.isEmpty())
         assertTrue(unresolvedWeight.promotedRoutes.isEmpty())
         assertTrue(unresolvedWeight.displayParams.routeLogScale.isEmpty())
-
-        val unavailableScope = PkCalibrationEngine.compute(
-            input = fixture.input(),
-            metadata = emptyList(),
-            identityPolicy = fixture.policy,
-            config = fixture.config,
-            attestationProvider = PkCalibrationAttestationProvider.Unavailable,
-        )
-        assertEquals(PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED, unavailableScope.globalState)
-        assertEquals(
-            setOf(PkCalibrationReason.SCOPE_NOT_CONFIRMED),
-            unavailableScope.globalReasons,
-        )
-        assertTrue(unavailableScope.routeResults.isEmpty())
     }
 
     @Test
-    fun nonpositivePrecedence_outweighsLaterDuplicateMetadataInputFailure() {
+    fun duplicateMetadataIsSharedInputInvalidEvenWithNonpositiveLab() {
         val zero = lab(
             resultId = uuid(1),
             sourceValue = 0.0,
@@ -88,21 +72,19 @@ class PkCalibrationScopeEvidenceTest {
 
         assertFailure(
             fixture.build(metadata = duplicateMetadata),
-            PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2,
+            PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
         )
         val result = PkCalibrationEngine.compute(
             input = fixture.input(),
             metadata = duplicateMetadata,
             identityPolicy = fixture.policy,
             config = fixture.config,
-            attestationProvider = fixture.attestationProvider,
         )
         assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, result.globalState)
-        assertEquals(
-            setOf(PkCalibrationReason.INVALID_NONPOSITIVE_E2),
-            result.globalReasons,
-        )
+        assertEquals(setOf(PkCalibrationReason.SHARED_INPUT_INVALID), result.globalReasons)
         assertTrue(result.routeResults.isEmpty())
+        // A non-READY result never names nonpositive labs.
+        assertTrue(result.invalidNonpositiveLabIds.isEmpty())
     }
 
     @Test
@@ -254,12 +236,6 @@ class PkCalibrationScopeEvidenceTest {
             convertedLab.resultId,
             canonicalInput.authorizedLabs.single().resultId,
         )
-        assertEquals(
-            convertedLab.sourceValueBits,
-            requireNotNull(
-                canonicalInput.acceptanceRecordFor(convertedLab.resultId)
-            ).sourceValueBits,
-        )
     }
 
     @Test
@@ -405,16 +381,9 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun productionScopeAndMissingOrInvalidWeight_failClosed() {
+    fun missingOrInvalidWeightAndIdentity_failClosed() {
         val fixture = fixture()
-        val unavailableProvider = PkCalibrationAttestationProvider.Unavailable
 
-        assertFailure(
-            fixture.build(
-                attestationProvider = unavailableProvider,
-            ),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
         assertFailure(
             fixture.build(weightKg = null),
             PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
@@ -422,17 +391,6 @@ class PkCalibrationScopeEvidenceTest {
         assertFailure(
             fixture.build(weightKg = 0.0),
             PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
-        )
-        assertFailure(
-            fixture.build(config = PkCalibrationConfig.productionDefault()),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-        val throwingProvider = PkCalibrationAttestationProvider {
-            error("attestation source unavailable")
-        }
-        assertFailure(
-            fixture.build(attestationProvider = throwingProvider),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
 
         val invalidEvent = medicationEvent(
@@ -442,25 +400,8 @@ class PkCalibrationScopeEvidenceTest {
             eventTypeId = "event:unknown/v1",
         )
         assertFailure(
-            fixture.build(
-                weightKg = null,
-                attestationProvider = unavailableProvider,
-            ),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-        assertFailure(
-            fixture.build(
-                forwardModelVersion = "invalid model identity",
-                attestationProvider = unavailableProvider,
-            ),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
-        )
-        assertFailure(
-            fixture.build(
-                events = listOf(invalidEvent),
-                attestationProvider = unavailableProvider,
-            ),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
+            fixture.build(events = listOf(invalidEvent)),
+            PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID,
         )
         assertFailure(
             fixture.build(forwardModelVersion = "invalid model identity"),
@@ -596,9 +537,6 @@ class PkCalibrationScopeEvidenceTest {
             )
         )
 
-        // ponytail: an excluded row has no acceptance record — it cannot be ACCEPTED as-is.
-        assertNull(first.canonicalInput.acceptanceRecordFor(original.resultId))
-        assertNull(second.canonicalInput.acceptanceRecordFor(original.resultId))
         assertNull(first.excluded.single().observedPgml)
         assertNull(second.excluded.single().observedPgml)
     }
@@ -639,14 +577,16 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun nonpositiveAuthorizedNonExcludedE2IsGlobalButExcludedDoesNotBlock() {
+    fun nonpositiveAuthorizedE2IsSetAsideNotFittedAndExcludedStaysExcluded() {
         val zeroLab = lab(sourceValue = 0.0, canonicalValuePgml = 0.0)
         val fixture = fixture(labs = listOf(zeroLab))
 
-        assertFailure(
-            fixture.build(),
-            PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2,
+        val pool = ready(fixture.build())
+        assertEquals(
+            PkCalibrationLabEvidenceState.INVALID_NONPOSITIVE,
+            pool.invalidNonpositive.single().state,
         )
+        assertTrue(pool.included.isEmpty())
 
         val excluded = requireNotNull(
             E2CalibrationMetadata.create(
@@ -656,27 +596,18 @@ class PkCalibrationScopeEvidenceTest {
                 updatedAt = Instant.EPOCH,
             )
         )
-        val ready = ready(fixture.build(metadata = listOf(excluded)))
-        assertEquals(1, ready.excluded.size)
-        assertTrue(ready.included.isEmpty())
+        val excludedPool = ready(fixture.build(metadata = listOf(excluded)))
+        assertEquals(1, excludedPool.excluded.size)
+        assertTrue(excludedPool.invalidNonpositive.isEmpty())
     }
 
     @Test
-    fun emptyLabsIsNoUsableLabsOnlyWhenAttested() {
-        // Phase-3 finding #5: "declined attestation" and "no labs yet" must be
-        // distinct states — the attestation gate keeps precedence.
+    fun emptyLabsIsNoUsableLabs() {
         val fixture = fixture()
 
         assertFailure(
             fixture.build(labs = emptyList()),
             PkCalibrationEvidenceFailure.NO_USABLE_LABS,
-        )
-        assertFailure(
-            fixture.build(
-                labs = emptyList(),
-                attestationProvider = PkCalibrationAttestationProvider.Unavailable,
-            ),
-            PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED,
         )
 
         val result = PkCalibrationEngine.compute(
@@ -684,7 +615,6 @@ class PkCalibrationScopeEvidenceTest {
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            attestationProvider = fixture.attestationProvider,
         )
         assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, result.globalState)
         assertEquals(setOf(PkCalibrationReason.NO_USABLE_LABS), result.globalReasons)
@@ -692,32 +622,32 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun invalidNonpositiveFailureCarriesOnlyDrugWindowLabIds() {
-        // Phase-3 finding #4: a nonpositive lab drawn before any dose is
-        // Unassigned and blocks nothing; only the drug-window lab may be
-        // surfaced as blocking on the failure result.
-        val blocking = lab(resultId = uuid(1), sourceValue = 0.0, canonicalValuePgml = 0.0)
+    fun invalidNonpositiveFlagsOnlyDrugWindowLabsOnAReadyResult() {
+        // A nonpositive lab drawn before any dose is Unassigned; one inside a
+        // drug window is set aside and named on the READY result.
+        val flagged = lab(resultId = uuid(1), sourceValue = 0.0, canonicalValuePgml = 0.0)
         val preDose = lab(
             resultId = uuid(2),
             collectedAtEpochMillis = OriginMillis - 8 * HourMillis,
             sourceValue = 0.0,
             canonicalValuePgml = 0.0,
         )
-        val fixture = fixture(labs = listOf(blocking, preDose))
+        val fixture = fixture(labs = listOf(flagged, preDose))
 
-        val failed = fixture.build() as PkCalibrationEvidenceBuildResult.Failed
-        assertEquals(PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2, failed.failure)
-        assertEquals(setOf(blocking.resultId), failed.invalidNonpositiveLabIds)
+        val pool = ready(fixture.build())
+        assertEquals(listOf(flagged.resultId), pool.invalidNonpositive.map { it.resultId })
+        assertEquals(listOf(preDose.resultId), pool.unassigned.map { it.resultId })
+        assertTrue(pool.included.isEmpty())
 
         val result = PkCalibrationEngine.compute(
             input = fixture.input(),
             metadata = emptyList(),
             identityPolicy = fixture.policy,
             config = fixture.config,
-            attestationProvider = fixture.attestationProvider,
         )
-        assertEquals(PkCalibrationGlobalState.SHARED_INPUT_INVALID, result.globalState)
-        assertEquals(setOf(blocking.resultId), result.invalidNonpositiveLabIds)
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertEquals(setOf(flagged.resultId), result.invalidNonpositiveLabIds)
+        assertTrue(result.promotedRoutes.isEmpty())
     }
 
     @Test
@@ -822,342 +752,40 @@ class PkCalibrationScopeEvidenceTest {
     }
 
     @Test
-    fun exclusionAndAcceptanceUseCurrentAcceptanceRecords() {
-        val labs = listOf(
-            lab(uuid(1), sourceValue = 100.0, canonicalValuePgml = 100.0),
-            lab(uuid(2), sourceValue = 120.0, canonicalValuePgml = 120.0),
-        )
-        val fixture = fixture(labs = labs)
-        val autoReady = ready(fixture.build())
-        val currentRecord = requireNotNull(
-            autoReady.canonicalInput.acceptanceRecordFor(uuid(1))
-        )
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                uuid(1),
-                E2CalibrationDisposition.ACCEPTED,
-                currentRecord,
-                Instant.EPOCH,
-            )
-        )
-        val acceptedReady = ready(fixture.build(metadata = listOf(accepted)))
-        val acceptedEvidence = acceptedReady.included
-            .single { evidence -> evidence.resultId == uuid(1) }
-        assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED, acceptedEvidence.effectiveDisposition)
-        assertEquals(
-            currentRecord,
-            acceptedReady.canonicalInput.acceptanceRecordFor(uuid(1)),
-        )
-
-        val staleRecord = requireNotNull(
+    fun legacyAcceptedDispositionIsPlainAuto() {
+        // Acceptance records are gone (warn-only): a persisted ACCEPTED row
+        // neither hides the outlier nor changes the evidence it contributes.
+        val target = lab(uuid(1), sourceValue = 100.0, canonicalValuePgml = 100.0)
+        val fixture = fixture(labs = listOf(target))
+        val record = requireNotNull(
             PkCalibrationAcceptanceRecord.create(
                 calibrationModelVersion = CalibrationModelVersion,
-                sourceValueBits = "4058c00000000000",
-                collectedAtEpochMillis = labs[0].collectedAtEpochMillis,
+                sourceValueBits = requireNotNull(target.sourceValueBits),
+                collectedAtEpochMillis = target.collectedAtEpochMillis,
                 unitId = UnitId,
             )
         )
-        val stale = requireNotNull(
+        val accepted = requireNotNull(
             E2CalibrationMetadata.create(
                 uuid(1),
                 E2CalibrationDisposition.ACCEPTED,
-                staleRecord,
-                Instant.ofEpochMilli(999),
-            )
-        )
-        val staleEvidence = ready(fixture.build(metadata = listOf(stale))).included
-            .single { evidence -> evidence.resultId == uuid(1) }
-        assertEquals(PkCalibrationEffectiveDisposition.AUTO, staleEvidence.effectiveDisposition)
-
-        val excluded = requireNotNull(
-            E2CalibrationMetadata.create(
-                uuid(1),
-                E2CalibrationDisposition.EXCLUDED,
-                null,
+                record,
                 Instant.EPOCH,
             )
         )
-        val excludedReady = ready(fixture.build(metadata = listOf(excluded)))
-        val changedExcludedLab = lab(
-            uuid(1),
-            sourceValue = Math.nextUp(100.0),
-            canonicalValuePgml = Math.nextUp(100.0),
-        )
-        val changedExcluded = ready(
-            fixture.build(
-                labs = listOf(changedExcludedLab, labs[1]),
-                metadata = listOf(excluded),
-            )
-        )
-        assertEquals(
-            excludedReady.canonicalInput.acceptanceRecordFor(uuid(2)),
-            changedExcluded.canonicalInput.acceptanceRecordFor(uuid(2)),
-        )
-    }
 
-    @Test
-    fun engineCompute_staleAcceptedRecordMakesTheOutlierActionableAgain() {
-        val event = medicationEvent(uuid(201), PkRoute.ORAL, timeH = 0.0)
-        val forward = requireNotNull(
-            PkE2ForwardModel.create(listOf(event.event), BodyWeightKg)
-        )
-        val outlierId = uuid(205)
-        val observations = listOf(
-            Triple(uuid(202), 4.0, 0.0),
-            Triple(uuid(203), 8.0, 0.0),
-            Triple(uuid(204), 12.0, 0.0),
-            Triple(outlierId, 16.0, 1.6),
-        )
-        val labs = observations.map { (resultId, timeH, qLogRatio) ->
-            val population = requireNotNull(forward.breakdownAt(timeH)).totalDrugPgml
-            val observed = population * exp(qLogRatio)
-            check(population > 0.0 && observed.isFinite())
-            lab(
-                resultId = resultId,
-                collectedAtEpochMillis = OriginMillis + (timeH * HourMillis).toLong(),
-                sourceValue = observed,
-                canonicalValuePgml = observed,
-            )
-        }
-        val fixture = fixture(labs = labs, events = listOf(event))
-        val currentRecord = requireNotNull(
-            ready(fixture.build()).canonicalInput.acceptanceRecordFor(outlierId)
-        )
-
-        fun compute(
-            metadata: List<E2CalibrationMetadata>,
-            calibrationModelVersion: String,
-        ): PkRouteCalibrationResult {
-            val result = PkCalibrationEngine.compute(
-                input = fixture.input(calibrationModelVersion = calibrationModelVersion),
-                metadata = metadata,
-                identityPolicy = fixture.policy,
-                config = fixture.config,
-                attestationProvider = fixture.attestationProvider,
-            )
-            assertEquals(PkCalibrationGlobalState.READY, result.globalState)
-            return result.routeResults.single { route ->
-                route.route == PkCalibrationRoute.ORAL
-            }
-        }
-
-        val autoResult = compute(emptyList(), CalibrationModelVersion)
-        assertTrue(outlierId in autoResult.unreviewedOutlierLabIds)
-
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = outlierId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = currentRecord,
-                updatedAt = Instant.EPOCH,
-            )
-        )
-        val acceptedResult = compute(listOf(accepted), CalibrationModelVersion)
-        val staleResult = compute(listOf(accepted), "pk-calibration:test/v10")
-
-        assertFalse(outlierId in acceptedResult.unreviewedOutlierLabIds)
-        assertTrue(outlierId in staleResult.unreviewedOutlierLabIds)
-        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in staleResult.reasons)
-    }
-
-    @Test
-    fun includedSourceOneBitChangeStalesAcceptanceRecord() {
-        val originalLab = lab(sourceValue = 100.0, canonicalValuePgml = 100.0)
-        val changedLab = lab(
-            resultId = originalLab.resultId,
-            sourceValue = Math.nextUp(100.0),
-            canonicalValuePgml = Math.nextUp(100.0),
-        )
-
-        val fixture = fixture(labs = listOf(originalLab))
-        val originalRecord = ready(fixture.build()).canonicalInput
-            .acceptanceRecordFor(originalLab.resultId)
-        val changedRecord = ready(fixture.build(labs = listOf(changedLab))).canonicalInput
-            .acceptanceRecordFor(originalLab.resultId)
-        assertNotEquals(originalRecord, changedRecord)
-    }
-
-    @Test
-    fun calibrationModelVersionInvalidatesAcceptedReview() {
-        val fixture = fixture()
-        val original = ready(fixture.build())
-        val resultId = fixture.labs.single().resultId
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = resultId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = requireNotNull(
-                    original.canonicalInput.acceptanceRecordFor(resultId)
-                ),
-                updatedAt = Instant.EPOCH,
-            )
-        )
-
-        val acceptedReady = ready(fixture.build(metadata = listOf(accepted)))
-        val changedVersionReady = ready(
-            fixture.build(
-                metadata = listOf(accepted),
-                calibrationModelVersion = "pk-calibration:test/v10",
-            )
-        )
-
-        assertEquals(
-            PkCalibrationEffectiveDisposition.ACCEPTED,
-            acceptedReady.included.single().effectiveDisposition,
-        )
+        val autoPool = ready(fixture.build())
+        val acceptedPool = ready(fixture.build(metadata = listOf(accepted)))
+        assertEquals(autoPool.included, acceptedPool.included)
         assertEquals(
             PkCalibrationEffectiveDisposition.AUTO,
-            changedVersionReady.included.single().effectiveDisposition,
+            acceptedPool.included.single().effectiveDisposition,
         )
-        assertNotEquals(
-            acceptedReady.canonicalInput.acceptanceRecordFor(resultId),
-            changedVersionReady.canonicalInput.acceptanceRecordFor(resultId),
-        )
-    }
-
-    @Test
-    fun unitEditWithSameSourceValueStalesAcceptedReview() {
-        // Phase-3 #8: the acceptance record binds unitId. The same source value
-        // re-entered under a different unit keeps identical sourceValueBits and
-        // collection time, so only the unit binding can return the kept
-        // outlier to review.
-        val policy = identityPolicy(
-            unitIdBySourceSnapshot = mapOf(
-                SourceUnitSnapshot to UnitId,
-                PmolSourceUnitSnapshot to PmolUnitId,
-            )
-        )
-        val originalLab = lab(sourceValue = 100.0, canonicalValuePgml = 100.0)
-        val fixture = fixture(labs = listOf(originalLab))
-        val original = ready(fixture.build(identityPolicy = policy))
-        val resultId = originalLab.resultId
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = resultId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = requireNotNull(
-                    original.canonicalInput.acceptanceRecordFor(resultId)
-                ),
-                updatedAt = Instant.EPOCH,
-            )
-        )
-        assertEquals(
-            PkCalibrationEffectiveDisposition.ACCEPTED,
-            ready(fixture.build(metadata = listOf(accepted), identityPolicy = policy))
-                .included.single().effectiveDisposition,
-        )
-
-        val pmolLab = lab(
-            resultId = resultId,
-            sourceValue = 100.0,
-            canonicalValuePgml = BloodTestCatalog.toCanonical(
-                analyteKey = BloodAnalyteKey.E2,
-                value = 100.0,
-                unit = BloodUnitKey.PMOL_L,
-            ),
-            sourceUnitSnapshot = PmolSourceUnitSnapshot,
-            unitId = PmolUnitId,
-        )
-        val changed = ready(
-            fixture.build(
-                labs = listOf(pmolLab),
-                metadata = listOf(accepted),
-                identityPolicy = policy,
-            )
-        )
-        assertEquals(
-            PkCalibrationEffectiveDisposition.AUTO,
-            changed.included.single().effectiveDisposition,
-        )
-        assertNotEquals(
-            original.canonicalInput.acceptanceRecordFor(resultId),
-            changed.canonicalInput.acceptanceRecordFor(resultId),
-        )
-    }
-
-    @Test
-    fun otherRouteValueChangeKeepsAcceptance() {
-        // v10.0 §A2: acceptance staleness is per-result. Editing a different lab
-        // no longer invalidates an acceptance the way the whole-snapshot review
-        // digest deliberately did.
-        val input = routeSeparatedInput()
-        val fixture = fixture(labs = input.labs, events = input.events)
-        val original = ready(fixture.build())
-        val acceptedResultId = input.labs[0].resultId
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = acceptedResultId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = requireNotNull(
-                    original.canonicalInput.acceptanceRecordFor(acceptedResultId)
-                ),
-                updatedAt = Instant.EPOCH,
-            )
-        )
-        val acceptedReady = ready(fixture.build(metadata = listOf(accepted)))
-        val otherRouteLab = input.labs[1]
-        val changedOtherRouteLab = lab(
-            resultId = otherRouteLab.resultId,
-            collectedAtEpochMillis = otherRouteLab.collectedAtEpochMillis,
-            sourceValue = Math.nextUp(otherRouteLab.sourceValue),
-            canonicalValuePgml = Math.nextUp(otherRouteLab.sourceValue),
-        )
-        val changedReady = ready(
-            fixture.build(
-                labs = listOf(input.labs[0], changedOtherRouteLab),
-                metadata = listOf(accepted),
-            )
-        )
-
-        val acceptedEvidence = acceptedReady.included
-            .single { evidence -> evidence.resultId == acceptedResultId }
-        val survivingEvidence = changedReady.included
-            .single { evidence -> evidence.resultId == acceptedResultId }
-        assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
-            acceptedEvidence.effectiveDisposition)
-        assertEquals(PkCalibrationEffectiveDisposition.ACCEPTED,
-            survivingEvidence.effectiveDisposition)
-        assertEquals(
-            acceptedReady.canonicalInput.acceptanceRecordFor(acceptedResultId),
-            changedReady.canonicalInput.acceptanceRecordFor(acceptedResultId),
-        )
-    }
-
-    private data class RouteSeparatedInput(
-        val labs: List<PkCalibrationE2LabSource>,
-        val events: List<PkCalibrationMedicationEventSource>,
-    )
-
-    private fun routeSeparatedInput(): RouteSeparatedInput {
-        val events = listOf(
-            medicationEvent(
-                uuid(81),
-                PkRoute.INJECTION,
-                timeH = 0.0,
-                compound = PkCompound.EV,
-            ),
-            medicationEvent(uuid(82), PkRoute.ORAL, timeH = 2_000.0),
-        )
-        val forward = requireNotNull(
-            PkE2ForwardModel.create(events.map { source -> source.event }, BodyWeightKg)
-        )
-        val labs = listOf(uuid(83) to 8.0, uuid(84) to 2_008.0).map { (resultId, timeH) ->
-            val observed = requireNotNull(forward.breakdownAt(timeH)).totalDrugPgml
-            check(observed.isFinite() && observed > 0.0)
-            lab(
-                resultId = resultId,
-                collectedAtEpochMillis = OriginMillis + (timeH * HourMillis).toLong(),
-                sourceValue = observed,
-                canonicalValuePgml = observed,
-            )
-        }
-        return RouteSeparatedInput(labs = labs, events = events)
     }
 
     private data class Fixture(
         val labs: List<PkCalibrationE2LabSource>,
         val events: List<PkCalibrationMedicationEventSource>,
-        val attestationProvider: PkCalibrationAttestationProvider,
         val policy: PkCalibrationIdentityPolicy,
         val config: PkCalibrationConfig,
     ) {
@@ -1188,7 +816,6 @@ class PkCalibrationScopeEvidenceTest {
             metadata: List<E2CalibrationMetadata> = emptyList(),
             identityPolicy: PkCalibrationIdentityPolicy = policy,
             config: PkCalibrationConfig = this.config,
-            attestationProvider: PkCalibrationAttestationProvider = this.attestationProvider,
             originMillis: Long = OriginMillis,
             forwardModelVersion: String = ForwardModelVersion,
             calibrationModelVersion: String = CalibrationModelVersion,
@@ -1201,7 +828,6 @@ class PkCalibrationScopeEvidenceTest {
                 metadata = metadata,
                 identityPolicy = identityPolicy,
                 config = config,
-                attestationProvider = attestationProvider,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )
@@ -1217,12 +843,9 @@ class PkCalibrationScopeEvidenceTest {
         return Fixture(
             labs = labs,
             events = events,
-            attestationProvider = PkCalibrationAttestationProvider {
-                PkCalibrationAttestation(1_234L)
-            },
             policy = identityPolicy(),
             config = requireNotNull(
-                PkCalibrationConfig.researchOrTest(
+                PkCalibrationConfig.create(
                     drugMinInformativePgml = 1e-12,
                     rLog = 0.04,
                 )

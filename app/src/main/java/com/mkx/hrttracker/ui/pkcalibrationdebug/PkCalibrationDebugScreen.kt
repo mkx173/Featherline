@@ -190,18 +190,6 @@ internal fun PkCalibrationDebugBody(
             },
         )
 
-        Text("Display-cap-boundary route")
-        DebugControlButton(
-            label = "Display-cap-boundary route: none",
-            onClick = { viewModel.setDisplayCapBoundaryRoute(null) },
-        )
-        PkCalibrationRoute.entries.forEach { route ->
-            DebugControlButton(
-                label = "Display-cap-boundary route: ${route.name}",
-                onClick = { viewModel.setDisplayCapBoundaryRoute(route) },
-            )
-        }
-
         if (uiState.applicableActionCommands.isNotEmpty()) {
             Text("Fixture review actions")
         }
@@ -231,7 +219,6 @@ private fun DebugControlButton(
 }
 
 private fun PkCalibrationDebugReviewAction.buttonLabel(): String = when (this) {
-    PkCalibrationDebugReviewAction.KEEP -> "Keep"
     PkCalibrationDebugReviewAction.EXCLUDE -> "Exclude"
     PkCalibrationDebugReviewAction.REINCLUDE -> "Re-include"
 }

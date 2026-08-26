@@ -4,22 +4,21 @@ import java.util.Collections
 import java.util.UUID
 
 enum class PkCalibrationEvidenceFailure {
-    SCOPE_NOT_CONFIRMED,
     NO_USABLE_LABS,
     SHARED_INPUT_INVALID,
     SHARED_NUMERIC_FAILURE,
-    INVALID_NONPOSITIVE_E2,
 }
 
 enum class PkCalibrationLabEvidenceState {
     EXCLUDED,
     UNASSIGNED_BELOW_INFORMATIVE_SIGNAL,
+    /** Non-positive value inside a drug window: log-undefined, so ignored by the fit and flagged. */
+    INVALID_NONPOSITIVE,
     INCLUDED,
 }
 
 enum class PkCalibrationEffectiveDisposition {
     AUTO,
-    ACCEPTED,
     EXCLUDED,
 }
 
@@ -110,18 +109,12 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
     val forwardTimeOriginEpochMillis: Long,
     val resolvedCurrentWeightKg: Double,
     val metadata: List<E2CalibrationMetadata>,
-    val attestation: PkCalibrationAttestation,
     val scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
     val forwardModelVersion: String,
     val calibrationModelVersion: String,
     /** Exact validated config used for evidence classification. */
     val config: PkCalibrationConfig,
-    val acceptanceRecordByResultId: Map<UUID, PkCalibrationAcceptanceRecord>,
 ) {
-    /** The acceptance record a Keep action must persist for [resultId] right now. */
-    fun acceptanceRecordFor(resultId: UUID): PkCalibrationAcceptanceRecord? =
-        acceptanceRecordByResultId[resultId]
-
     companion object {
         internal fun create(
             authorizedLabs: List<PkCalibrationE2LabSource>,
@@ -129,26 +122,21 @@ data class PkCalibrationCanonicalInputSnapshot private constructor(
             forwardTimeOriginEpochMillis: Long,
             resolvedCurrentWeightKg: Double,
             metadata: List<E2CalibrationMetadata>,
-            attestation: PkCalibrationAttestation,
             scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
             forwardModelVersion: String,
             calibrationModelVersion: String,
             config: PkCalibrationConfig,
-            acceptanceRecordByResultId: Map<UUID, PkCalibrationAcceptanceRecord>,
-        ): PkCalibrationCanonicalInputSnapshot? {
-            if (!config.isSolverEligible()) return null
+        ): PkCalibrationCanonicalInputSnapshot {
             return PkCalibrationCanonicalInputSnapshot(
                 authorizedLabs = immutableList(authorizedLabs),
                 medicationEvents = immutableList(medicationEvents),
                 forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
                 resolvedCurrentWeightKg = resolvedCurrentWeightKg,
                 metadata = immutableList(metadata),
-                attestation = attestation,
                 scopeInputSnapshot = scopeInputSnapshot,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
                 config = config,
-                acceptanceRecordByResultId = immutableMap(acceptanceRecordByResultId),
             )
         }
     }
@@ -159,6 +147,7 @@ data class PkCalibrationEvidencePool private constructor(
     val canonicalInput: PkCalibrationCanonicalInputSnapshot,
     val included: List<PkCalibrationLabEvidence>,
     val unassigned: List<PkCalibrationLabEvidence>,
+    val invalidNonpositive: List<PkCalibrationLabEvidence>,
     val excluded: List<PkCalibrationLabEvidence>,
 ) {
     val authorizedE2ResultCount: Int get() = canonicalInput.authorizedLabs.size
@@ -169,10 +158,10 @@ data class PkCalibrationEvidencePool private constructor(
             canonicalInput: PkCalibrationCanonicalInputSnapshot,
             included: List<PkCalibrationLabEvidence>,
             unassigned: List<PkCalibrationLabEvidence>,
+            invalidNonpositive: List<PkCalibrationLabEvidence>,
             excluded: List<PkCalibrationLabEvidence>,
         ): PkCalibrationEvidencePool? {
-            if (!canonicalInput.config.isSolverEligible()) return null
-            val allIds = (included + unassigned + excluded)
+            val allIds = (included + unassigned + invalidNonpositive + excluded)
                 .map(PkCalibrationLabEvidence::resultId)
             if (allIds.distinct().size != allIds.size) return null
             if (included.any { item ->
@@ -193,6 +182,7 @@ data class PkCalibrationEvidencePool private constructor(
                     included.sortedBy { item -> item.resultId.toString().lowercase() }
                 ),
                 unassigned = immutableList(unassigned),
+                invalidNonpositive = immutableList(invalidNonpositive),
                 excluded = immutableList(excluded),
             )
         }
@@ -203,15 +193,11 @@ sealed interface PkCalibrationEvidenceBuildResult {
     data class Ready(val pool: PkCalibrationEvidencePool) :
         PkCalibrationEvidenceBuildResult
 
-    data class Failed(
-        val failure: PkCalibrationEvidenceFailure,
-        /** Per-lab verdicts behind an [PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2] failure. */
-        val invalidNonpositiveLabIds: Set<UUID> = emptySet(),
-    ) : PkCalibrationEvidenceBuildResult
+    data class Failed(val failure: PkCalibrationEvidenceFailure) :
+        PkCalibrationEvidenceBuildResult
 }
 
 internal data class PkCalibrationValidatedScopeInput(
-    val attestation: PkCalibrationAttestation,
     val authorizedLabs: List<PkCalibrationE2LabSource>,
     val resolvedCurrentWeightKg: Double,
     val scopeInputSnapshot: PkCalibrationScopeInputSnapshot,
@@ -238,19 +224,10 @@ internal object PkCalibrationScopeInputValidator {
         forwardTimeOriginEpochMillis: Long,
         resolvedCurrentWeightKg: Double?,
         identityPolicy: PkCalibrationIdentityPolicy,
-        config: PkCalibrationConfig,
-        attestationProvider: PkCalibrationAttestationProvider,
         forwardModelVersion: String,
         calibrationModelVersion: String,
     ): PkCalibrationScopeInputValidationResult {
-        val attestation = runCatching { attestationProvider.currentAttestation() }.getOrNull()
-            ?: return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-        if (!config.isSolverEligible()) {
-            return failedScope(PkCalibrationEvidenceFailure.SCOPE_NOT_CONFIRMED)
-        }
-
-        // Attested but zero labs is its own state (Phase-3 finding #5): the UI
-        // must say "add an E2 result", never loop on the attestation CTA.
+        // Zero labs is its own state: the UI says "add an E2 result".
         if (labs.isEmpty()) {
             return failedScope(PkCalibrationEvidenceFailure.NO_USABLE_LABS)
         }
@@ -288,7 +265,6 @@ internal object PkCalibrationScopeInputValidator {
         ) ?: return failedScope(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         return PkCalibrationScopeInputValidationResult.Ready(
             PkCalibrationValidatedScopeInput(
-                attestation = attestation,
                 authorizedLabs = immutableList(authorizedLabs),
                 resolvedCurrentWeightKg = weightKg,
                 scopeInputSnapshot = scopeInputSnapshot,
@@ -314,7 +290,6 @@ object PkCalibrationEvidenceAdapter {
         metadata: List<E2CalibrationMetadata>,
         identityPolicy: PkCalibrationIdentityPolicy,
         config: PkCalibrationConfig,
-        attestationProvider: PkCalibrationAttestationProvider,
         forwardModelVersion: String,
         calibrationModelVersion: String,
     ): PkCalibrationEvidenceBuildResult {
@@ -325,8 +300,6 @@ object PkCalibrationEvidenceAdapter {
                 forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
                 resolvedCurrentWeightKg = resolvedCurrentWeightKg,
                 identityPolicy = identityPolicy,
-                config = config,
-                attestationProvider = attestationProvider,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
             )
@@ -337,7 +310,6 @@ object PkCalibrationEvidenceAdapter {
 
             is PkCalibrationScopeInputValidationResult.Ready -> validation.value
         }
-        val attestation = validatedScope.attestation
         val authorizedLabs = validatedScope.authorizedLabs
         val weightKg = validatedScope.resolvedCurrentWeightKg
         val scopeInputSnapshot = validatedScope.scopeInputSnapshot
@@ -354,10 +326,7 @@ object PkCalibrationEvidenceAdapter {
         val metadataGroups = sortedAuthorizedMetadata.groupBy(E2CalibrationMetadata::resultId)
         var hasSharedInputFailure = metadataGroups.values.any { items -> items.size != 1 }
         var hasSharedNumericFailure = false
-        val invalidNonpositiveLabIds = linkedSetOf<UUID>()
 
-        // A duplicate row is itself invalid input, but an unambiguous disposition
-        // still lets the higher-precedence non-positive predicate be evaluated.
         val excludedIdsForPrecedence = metadataGroups.asSequence()
             .filter { (_, items) ->
                 items.all { item -> item.disposition == E2CalibrationDisposition.EXCLUDED }
@@ -371,7 +340,7 @@ object PkCalibrationEvidenceAdapter {
             events = scopeInputSnapshot.medicationEvents.map { source -> source.event },
             bodyWeightKg = weightKg,
         ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-        val dMin = requireNotNull(config.drugMinInformativePgml)
+        val dMin = config.drugMinInformativePgml
 
         for (lab in authorizedLabs) {
             if (lab.resultId in excludedIdsForPrecedence) continue
@@ -410,29 +379,13 @@ object PkCalibrationEvidenceAdapter {
                         drugMinInformativePgml = dMin,
                     )
                     classificationByResultId[lab.resultId] = classification
-                    when (classification) {
-                        PkCalibrationObservationClassification.InvalidNonpositive -> {
-                            invalidNonpositiveLabIds += lab.resultId
-                        }
-
-                        PkCalibrationObservationClassification.NumericFailure -> {
-                            hasSharedNumericFailure = true
-                        }
-
-                        is PkCalibrationObservationClassification.Included,
-                        is PkCalibrationObservationClassification.Unassigned,
-                        -> Unit
+                    if (classification == PkCalibrationObservationClassification.NumericFailure) {
+                        hasSharedNumericFailure = true
                     }
                 }
             }
         }
 
-        if (invalidNonpositiveLabIds.isNotEmpty()) {
-            return PkCalibrationEvidenceBuildResult.Failed(
-                failure = PkCalibrationEvidenceFailure.INVALID_NONPOSITIVE_E2,
-                invalidNonpositiveLabIds = immutableSet(invalidNonpositiveLabIds),
-            )
-        }
         if (hasSharedInputFailure) {
             return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         }
@@ -448,29 +401,15 @@ object PkCalibrationEvidenceAdapter {
             .map(E2CalibrationMetadata::resultId)
             .toSet()
 
-        val acceptanceRecords = linkedMapOf<UUID, PkCalibrationAcceptanceRecord>()
-        for (lab in authorizedLabs) {
-            // An explicitly excluded row skips value binding entirely; it can never
-            // be ACCEPTED, so it needs no current acceptance record.
-            if (lab.resultId in excludedIds) continue
-            val sourceValueBits = lab.sourceValueBits
-                ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-            acceptanceRecords[lab.resultId] = PkCalibrationAcceptanceRecord.create(
-                calibrationModelVersion = calibrationModelVersion,
-                sourceValueBits = sourceValueBits,
-                collectedAtEpochMillis = lab.collectedAtEpochMillis,
-                unitId = lab.unitId,
-            ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
-        }
-
         val canonicalMedicationEvents = scopeInputSnapshot.medicationEvents
 
         val included = mutableListOf<PkCalibrationLabEvidence>()
         val unassigned = mutableListOf<PkCalibrationLabEvidence>()
+        val invalidNonpositive = mutableListOf<PkCalibrationLabEvidence>()
         val excluded = mutableListOf<PkCalibrationLabEvidence>()
         for (lab in authorizedLabs) {
-            val storedMetadata = metadataById[lab.resultId]
-            if (storedMetadata?.disposition == E2CalibrationDisposition.EXCLUDED) {
+            // A persisted ACCEPTED disposition (legacy Keep action) is plain AUTO now.
+            if (excludedIds.contains(lab.resultId)) {
                 excluded += lab.evidence(
                     state = PkCalibrationLabEvidenceState.EXCLUDED,
                     observedPgml = null,
@@ -478,19 +417,19 @@ object PkCalibrationEvidenceAdapter {
                 )
                 continue
             }
-            val acceptedEffective = storedMetadata?.disposition ==
-                    E2CalibrationDisposition.ACCEPTED &&
-                    storedMetadata.acceptedRecord == acceptanceRecords[lab.resultId]
-            val effectiveDisposition = if (acceptedEffective) {
-                PkCalibrationEffectiveDisposition.ACCEPTED
-            } else {
-                PkCalibrationEffectiveDisposition.AUTO
-            }
+            val effectiveDisposition = PkCalibrationEffectiveDisposition.AUTO
             val classification = classificationByResultId.getValue(lab.resultId)
             when (classification) {
-                PkCalibrationObservationClassification.InvalidNonpositive,
-                PkCalibrationObservationClassification.NumericFailure,
-                -> error("Global evidence failures were handled before partition assembly.")
+                PkCalibrationObservationClassification.NumericFailure ->
+                    error("Global evidence failures were handled before partition assembly.")
+
+                PkCalibrationObservationClassification.InvalidNonpositive -> {
+                    invalidNonpositive += lab.evidence(
+                        state = PkCalibrationLabEvidenceState.INVALID_NONPOSITIVE,
+                        observedPgml = verifiedCanonicalValueByResultId.getValue(lab.resultId),
+                        effectiveDisposition = effectiveDisposition,
+                    )
+                }
 
                 is PkCalibrationObservationClassification.Unassigned -> {
                     unassigned += lab.evidence(
@@ -520,17 +459,16 @@ object PkCalibrationEvidenceAdapter {
             forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
             resolvedCurrentWeightKg = weightKg,
             metadata = sortedAuthorizedMetadata,
-            attestation = attestation,
             scopeInputSnapshot = scopeInputSnapshot,
             forwardModelVersion = forwardModelVersion,
             calibrationModelVersion = calibrationModelVersion,
             config = config,
-            acceptanceRecordByResultId = acceptanceRecords,
-        ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
+        )
         val pool = PkCalibrationEvidencePool.create(
             canonicalInput = canonicalInput,
             included = included,
             unassigned = unassigned.sortedBy { item -> item.resultId.toString() },
+            invalidNonpositive = invalidNonpositive.sortedBy { item -> item.resultId.toString() },
             excluded = excluded.sortedBy { item -> item.resultId.toString() },
         ) ?: return failed(PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID)
         return PkCalibrationEvidenceBuildResult.Ready(pool)
@@ -551,10 +489,9 @@ internal sealed interface PkCalibrationObservationClassification {
 }
 
 /**
- * v10.0 §A10.1: no dominance partition and no positivity guard. Every
- * informative positive lab joins the one shared evidence set; the model mean
- * over all routes is positive for every finite beta, so there is nothing to
- * protect by dropping data.
+ * v10.0 §A10.1: no dominance partition. Every informative positive lab joins
+ * the one shared evidence set. A non-positive value inside a drug window has
+ * no log-residual, so it is set aside and flagged rather than fitted.
  */
 internal fun classifyCalibrationObservation(
     observedPgml: Double,
@@ -636,10 +573,6 @@ private fun failed(
 
 private fun <T> immutableList(source: List<T>): List<T> {
     return Collections.unmodifiableList(ArrayList(source))
-}
-
-private fun <T> immutableSet(source: Set<T>): Set<T> {
-    return Collections.unmodifiableSet(LinkedHashSet(source))
 }
 
 private fun <K, V> immutableMap(source: Map<K, V>): Map<K, V> {

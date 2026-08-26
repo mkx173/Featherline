@@ -1036,8 +1036,6 @@
     <string name="anchor_shortcut_disabled_message">呢個日期已經刪除</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
-    <string name="calibration_pk_global_scope_not_confirmed_title">仲未使用你嘅檢測結果</string>
-    <string name="calibration_pk_global_scope_not_confirmed_body">只有喺治療方案穩定、荷爾蒙抑制充分、而且各次檢測結果互相可比嘅情況下，根據檢測結果調整估算先至有意義。應用程式冇辦法核實呢啲條件——要由你自己確認。</string>
     <string name="calibration_pk_global_no_usable_labs_title">新增一筆 E2 檢測結果</string>
     <string name="calibration_pk_global_no_usable_labs_body">而家仲未有可以用嘅 E2 血液檢測結果，所以顯示緊群體估算。新增一筆 E2 檢測結果就可以啟用調整。</string>
     <string name="calibration_pk_global_input_invalid_title">請檢查一筆 E2 檢測結果</string>
@@ -1049,22 +1047,14 @@
     <string name="calibration_pk_route_label_population">群體估算</string>
     <string name="calibration_pk_route_label_adjusted">已按途徑調整</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">暫無支持性結果</string>
-    <string name="calibration_pk_route_tag_insufficient_supporting_labs">仲需要更多支持性結果</string>
-    <string name="calibration_pk_route_tag_low_confidence">需要覆查</string>
-    <string name="calibration_pk_route_tag_cap_exceeded">超出支持範圍</string>
     <string name="calibration_pk_route_tag_numeric_failure">調整不可用</string>
     <string name="calibration_pk_route_tag_provisional">可信度有限</string>
     <string name="calibration_pk_route_reason_no_supporting_labs">而家仲未有檢測結果嘅訊號主要嚟自呢個途徑，所以呢個途徑用緊群體估算。</string>
-    <string name="calibration_pk_route_reason_insufficient_supporting_labs">呢個途徑至少需要兩筆支持性檢測結果先可以調整。</string>
-    <string name="calibration_pk_route_reason_low_confidence">而家嘅結果未能夠為呢個途徑確定一個可靠嘅調整。</string>
-    <string name="calibration_pk_route_reason_cap_exceeded">呢個途徑推算出嚟嘅調整超出咗佢嘅支持範圍，所以回退到群體估算。</string>
+    <string name="calibration_pk_reason_display_scale_exceeded">呢個途徑推算出嚟嘅調整超出咗常見範圍。請檢查檢測同用藥記錄。</string>
     <string name="calibration_pk_route_reason_numeric_failure">呢個途徑有一項計算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已經對呢個途徑做咗調整，但係調整仲係唔確定。</string>
     <string name="calibration_pk_route_reason_calibrated">已經滿足全部模型標準。應用程式並冇核實你所確認嘅前提條件。</string>
     <string name="calibration_pk_route_next_no_supporting_labs">了解檢測結果點樣支持某一個途徑</string>
-    <string name="calibration_pk_route_next_insufficient_supporting_labs">喺臨床合適嘅時候，補充一筆時機有意義嘅檢測</string>
-    <string name="calibration_pk_route_next_low_confidence">處理離群結果或者覆查調整</string>
-    <string name="calibration_pk_route_next_cap_exceeded">檢查檢測同用藥記錄</string>
     <string name="calibration_pk_route_next_numeric_failure">請等數據或模型更新之後再試</string>
     <string name="calibration_pk_route_next_provisional">補充喺更多唔同時間採集嘅檢測</string>
     <string name="calibration_pk_route_next_calibrated">保持記錄及時更新</string>
@@ -1073,10 +1063,9 @@
     <string name="calibration_pk_reason_insufficient_contrast">可用嘅結果處於相近嘅模型訊號水平。</string>
     <string name="calibration_pk_reason_posterior_sd_too_wide">呢個途徑嘅調整仲係唔確定。</string>
     <string name="calibration_pk_reason_residual_fit_poor">而家嘅結果未能夠支持一個可靠嘅途徑調整。</string>
-    <string name="calibration_pk_reason_posterior_mode_ambiguous">呢啲結果支持唔止一種可能嘅調整，所以調整暫時用唔到。</string>
-    <string name="calibration_pk_reason_unreviewed_outlier">有一筆被標記嘅結果需要覆查之後，呢個途徑先可以調整。</string>
+    <string name="calibration_pk_reason_posterior_mode_ambiguous">結果支持唔止一種可能嘅調整；而家顯示擬合最好嘅一種。</string>
+    <string name="calibration_pk_reason_unreviewed_outlier">一筆被標記嘅結果同呢個途徑嘅調整唔一致。請覆查呢個結果；如果唔可比，請將佢排除。</string>
     <string name="calibration_pk_reason_extreme_scale_three_labs">較大嘅調整至少需要三筆支持性檢測結果。</string>
-    <string name="calibration_pk_route_boundary_notice">呢個途徑處於模型支持範圍嘅邊界。</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">群體估算</string>
@@ -1085,7 +1074,6 @@
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="other">%1$d 筆支持性檢測結果</item>
     </plurals>
-    <string name="calibration_pk_supporting_labs_requirement">需要兩筆支持性檢測結果先可以調整某一個途徑。</string>
 
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">檢測調整</string>
@@ -1093,9 +1081,6 @@
     <string name="calibration_pk_status_population_body">仲未有途徑有足夠嘅支持性檢測結果嚟做調整。而家顯示嘅係同所有人一樣嘅模型曲線。</string>
     <string name="calibration_pk_status_adjusted_title">已按檢測調整嘅治療估算</string>
     <string name="calibration_pk_status_adjusted_body">已經根據你嘅檢測結果對%1$s做咗調整；其餘途徑用緊群體估算。呢個仍然係估算值而唔係實測值——應用程式並冇核實你所確認嘅前提條件。</string>
-    <string name="calibration_pk_status_attested_reminder">你已經確認咗使用檢測結果所需嘅條件。如果治療方案或者檢測機構有重大改變，請撤回並重新確認。</string>
-    <string name="calibration_pk_status_manage">管理</string>
-    <string name="calibration_pk_attest_action">用我嘅檢測結果調整估算</string>
     <string name="calibration_pk_retry">再試一次</string>
     <string name="calibration_pk_routes_card_title">途徑調整</string>
     <string name="calibration_pk_routes_card_all_population">全部都係群體估算</string>
@@ -1149,22 +1134,6 @@
     <string name="calibration_pk_edu_doesnt_learn_body">佢只會調整途徑嘅整體水平，唔會改變曲線形狀。</string>
     <string name="calibration_pk_edu_doesnt_advise_title">提供用藥建議</string>
     <string name="calibration_pk_edu_doesnt_advise_body">任何調整請諮詢你嘅醫生。</string>
-    <string name="calibration_pk_attest_body">只有喺治療方案穩定、荷爾蒙抑制充分、而且各次檢測結果互相可比嘅情況下，調整先至有意義。應用程式冇辦法核實其中任何一項——要由你自己確認。結果仍然係根據治療記錄嘅估算值，唔係經過驗證嘅荷爾蒙水平。</string>
-    <string name="calibration_pk_attest_premise_regimen_title">我嘅治療方案保持穩定</string>
-    <string name="calibration_pk_attest_premise_regimen_body">最近冇更改藥物、劑量或者途徑。</string>
-    <string name="calibration_pk_attest_premise_suppression_title">我嘅荷爾蒙抑制充分</string>
-    <string name="calibration_pk_attest_premise_suppression_body">由我嘅醫生管理。應用程式冇辦法檢查呢一點。</string>
-    <string name="calibration_pk_attest_premise_labs_title">我嘅 E2 檢測互相可比</string>
-    <string name="calibration_pk_attest_premise_labs_body">嚟自同一間檢測機構同方法，或者我認為可比嘅機構同方法。</string>
-    <string name="calibration_pk_attest_premise_records_title">我喺應用程式入面嘅記錄準確</string>
-    <string name="calibration_pk_attest_premise_records_body">用藥記錄同而家嘅體重都係最新嘅。</string>
-    <string name="calibration_pk_attest_withdraw_note">如果治療方案或者檢測機構有重大改變，請撤回並重新確認。撤回之後所有途徑會即刻返去群體估算。</string>
-    <string name="calibration_pk_attest_exclusion_hint">治療開始前後、轉機構或者轉檢測方法之後嘅結果通常唔可比——可以考慮將佢哋排除出調整。</string>
-    <string name="calibration_pk_attest_confirm">我確認以上內容</string>
-    <string name="calibration_pk_attest_decline">唔使用我嘅檢測結果</string>
-    <string name="calibration_pk_attest_declined_banner_title">未啟用檢測結果調整</string>
-    <string name="calibration_pk_attest_declined_banner_body">你未確認前提條件，所以顯示緊群體估算。㩒一下可以重新檢視。</string>
-    <string name="calibration_pk_attest_withdraw">撤回確認</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_invalid_title">呢筆 E2 結果用唔到嚟做調整</string>
@@ -1172,8 +1141,7 @@
     <string name="calibration_pk_lab_invalid_exclude">排除</string>
     <string name="calibration_pk_lab_invalid_correct">更正數值</string>
     <string name="calibration_pk_lab_outlier_title">請覆查呢筆結果</string>
-    <string name="calibration_pk_lab_outlier_body">佢同而家基於治療嘅估算差異好大，正阻礙緊%1$s嘅調整。請喺保留或者排除之前檢查數值、單位、採樣時間、途徑同用藥記錄。</string>
-    <string name="calibration_pk_lab_outlier_keep">保留用於調整</string>
+    <string name="calibration_pk_lab_outlier_body">佢同而家基於治療嘅%1$s估算差異好大。請檢查數值、單位、採樣時間、途徑同用藥記錄；如果唔可比，請將佢排除。</string>
     <string name="calibration_pk_lab_outlier_exclude">排除出調整</string>
     <string name="calibration_pk_lab_excluded_note">已經排除出調整。</string>
     <string name="calibration_pk_lab_reinclude">重新納入</string>

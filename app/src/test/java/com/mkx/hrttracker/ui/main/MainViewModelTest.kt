@@ -84,7 +84,7 @@ class MainViewModelTest {
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
         every { liveState } returns MutableStateFlow(
             PkCalibrationLiveState.Unavailable(
-                PkCalibrationLiveUnavailableReason.RUNTIME_POLICY_UNAVAILABLE
+                PkCalibrationLiveUnavailableReason.SOURCE_READ_FAILED
             )
         )
     }

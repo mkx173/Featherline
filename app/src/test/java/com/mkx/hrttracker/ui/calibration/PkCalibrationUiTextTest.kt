@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
@@ -43,6 +44,17 @@ class PkCalibrationUiTextTest {
         // to null; the accessor must still be total over the enum.
         for (reason in PkCalibrationReason.entries) {
             reason.detailRes?.let { res -> assertNotEquals("detail for $reason", 0, res) }
+        }
+        // Warn-only classification: a provisional row's warnings are its whole
+        // story, so every warning reason must carry its own detail line.
+        for (reason in listOf(
+            PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
+            PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
+            PkCalibrationReason.RESIDUAL_FIT_POOR,
+            PkCalibrationReason.UNREVIEWED_OUTLIER,
+            PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
+        )) {
+            assertNotNull("detail for $reason", reason.detailRes)
         }
     }
 }

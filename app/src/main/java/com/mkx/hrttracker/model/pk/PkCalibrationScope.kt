@@ -13,31 +13,10 @@ import java.util.Collections
 import java.util.UUID
 
 // v2 (Phase-3 decision, 2026-08-09): the per-lab payload dropped
-// providerId/assayMethodId — lab comparability is user-attested (§A2), not
+// providerId/assayMethodId — lab comparability is the user's own call, not
 // tracked as structured identity.
 const val PK_CALIBRATION_SCOPE_INPUT_DIGEST_SCHEMA =
     "hrttracker.calibration-scope-input/v2"
-
-/**
- * v10.0 §A2: the user, not an external clinical authority, attests the scope
- * premises (stable regimen, adequate suppression, comparable lab/assay). A
- * missing attestation leaves every route at population, exactly like the
- * former missing scope decision.
- */
-data class PkCalibrationAttestation(val attestedAtEpochMillis: Long) {
-    init {
-        require(attestedAtEpochMillis.isJcsSafeInteger())
-    }
-}
-
-fun interface PkCalibrationAttestationProvider {
-    fun currentAttestation(): PkCalibrationAttestation?
-
-    companion object {
-        /** Production default until the Phase-2 attestation flow ships. */
-        val Unavailable = PkCalibrationAttestationProvider { null }
-    }
-}
 
 internal sealed interface PkCalibrationCanonicalE2ValueVerification {
     data class Verified(val canonicalValuePgml: Double) :
@@ -52,8 +31,8 @@ internal sealed interface PkCalibrationCanonicalE2ValueVerification {
  *
  * Unit and analyte identities are explicit; display labels are never
  * converted into digest identities. Provider/assay identity is deliberately
- * absent: lab comparability is a §A2 attestation premise the user confirms,
- * not structured state the app tracks (Phase-3 decision, 2026-08-09).
+ * absent: lab comparability is the user's own judgment, not structured state
+ * the app tracks (Phase-3 decision, 2026-08-09).
  */
 @ConsistentCopyVisibility
 data class PkCalibrationE2LabSource private constructor(

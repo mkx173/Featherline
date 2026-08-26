@@ -79,8 +79,8 @@ class PkCalibrationRendererTest {
         val readyRender = render(readyPopulation, domain(hours = 24, intervalHours = 6))
         val failedResult = requireNotNull(
             PkCalibrationResult.create(
-                globalState = PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED,
-                globalReasons = setOf(PkCalibrationReason.SCOPE_NOT_CONFIRMED),
+                globalState = PkCalibrationGlobalState.SHARED_INPUT_INVALID,
+                globalReasons = setOf(PkCalibrationReason.SHARED_INPUT_INVALID),
                 forwardModelVersion = ForwardModelVersion,
                 calibrationModelVersion = CalibrationModelVersion,
             )
@@ -164,22 +164,25 @@ class PkCalibrationRendererTest {
             render(rLogChanged, renderDomain).bandKnots,
         )
         assertEquals(Config, requireReady(base).config)
-        assertEquals(0.05, requireNotNull(requireReady(rLogChanged).config.rLog), 0.0)
+        assertEquals(0.05, requireReady(rLogChanged).config.rLog, 0.0)
         assertEquals(OriginMillis, requireReady(base).forwardTimeOriginEpochMillis)
         assertEquals(changedOrigin, requireReady(originChanged).forwardTimeOriginEpochMillis)
-        assertTrue(requireReady(base).acceptanceRecordByResultId.isNotEmpty())
     }
 
     @Test
-    fun centralCurve_usesDisplayParamsNeverDiagnosticFittedBeta_andMatchesForwardModel() {
+    fun centralCurve_usesDisplayParamsForEveryFittedRoute_andMatchesForwardModel() {
+        // Warn-only: every route with a supporting lab is promoted, so the
+        // central curve scales each fitted route by its display beta.
         val events = listOf(
             event(PkRoute.INJECTION, 0.0, 2.0, PkCompound.EV),
             event(PkRoute.ORAL, 0.0, 2.0),
         )
         val evaluation = evaluation(
             events = events,
-            promotedQByRoute = mapOf(PkCalibrationRoute.ORAL to ln(1.2)),
-            diagnosticQByRoute = mapOf(PkCalibrationRoute.INJECTION to ln(4.0)),
+            promotedQByRoute = mapOf(
+                PkCalibrationRoute.INJECTION to ln(4.0),
+                PkCalibrationRoute.ORAL to ln(1.2),
+            ),
         )
         val actual = render(
             evaluation,
@@ -188,7 +191,10 @@ class PkCalibrationRendererTest {
         val result = evaluation.result
 
         assertEquals(PkCalibrationRenderState.PERSONALIZED, actual.renderState)
-        assertEquals(listOf(PkCalibrationRoute.ORAL), actual.effectivePromotedRoutes)
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+            actual.effectivePromotedRoutes,
+        )
         assertEquals(result.displayParams, actual.effectiveDisplayParams)
         assertCentralForwardParity(actual, evaluation)
 
@@ -198,19 +204,15 @@ class PkCalibrationRendererTest {
         val population = requireNotNull(
             forward.breakdownAt(hoursBetween(last.epochMillis, canonical.forwardTimeOriginEpochMillis))
         )
-        val oralScale = result.displayParams.scaleFor(PkCalibrationRoute.ORAL)
-        val expected = population.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION) +
-                population.byRouteDrugPgml.getValue(PkCalibrationRoute.ORAL) * oralScale
+        val expected = population.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION) *
+                result.displayParams.scaleFor(PkCalibrationRoute.INJECTION) +
+                population.byRouteDrugPgml.getValue(PkCalibrationRoute.ORAL) *
+                result.displayParams.scaleFor(PkCalibrationRoute.ORAL)
         assertNear(expected, last.concentrationPgMl)
-        val diagnosticBeta = requireNotNull(
-            result.routeResults.single { route ->
-                route.route == PkCalibrationRoute.INJECTION
-            }.fittedBeta
-        )
-        val leaked = population.byRouteDrugPgml.getValue(PkCalibrationRoute.INJECTION) *
-                exp(diagnosticBeta) +
-                population.byRouteDrugPgml.getValue(PkCalibrationRoute.ORAL) * oralScale
-        assertTrue(abs(actual.centralCurve.last().concentrationPgMl - leaked) > 1e-6)
+        // The extreme injection fit is shown, with its warning, not hidden.
+        val injection = result.routeResults[PkCalibrationRoute.INJECTION.ordinal]
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, injection.displayState)
+        assertTrue(PkCalibrationReason.DISPLAY_SCALE_EXCEEDED in injection.reasons)
     }
 
     @Test
@@ -455,7 +457,6 @@ class PkCalibrationRendererTest {
     private fun evaluation(
         events: List<PkCalibrationMedicationEventSource>,
         promotedQByRoute: Map<PkCalibrationRoute, Double> = emptyMap(),
-        diagnosticQByRoute: Map<PkCalibrationRoute, Double> = emptyMap(),
         weightKg: Double = WeightKg,
         originMillis: Long = OriginMillis,
         config: PkCalibrationConfig = Config,
@@ -471,7 +472,7 @@ class PkCalibrationRendererTest {
             calibrationModelVersion = calibrationModelVersion,
         )
         val included = PkCalibrationRoute.entries.flatMap { route ->
-            val q = promotedQByRoute[route] ?: diagnosticQByRoute[route]
+            val q = promotedQByRoute[route]
             if (q == null) emptyList() else includedEvidence(route, q)
         }
         val pool = requireNotNull(
@@ -479,6 +480,7 @@ class PkCalibrationRendererTest {
                 canonicalInput = canonicalInput,
                 included = included,
                 unassigned = emptyList(),
+                invalidNonpositive = emptyList(),
                 excluded = emptyList(),
             )
         )
@@ -536,14 +538,6 @@ class PkCalibrationRendererTest {
                 forwardModelVersion = forwardModelVersion,
             )
         )
-        val acceptanceRecord = requireNotNull(
-            PkCalibrationAcceptanceRecord.create(
-                calibrationModelVersion = calibrationModelVersion,
-                sourceValueBits = "4059000000000000",
-                collectedAtEpochMillis = originMillis,
-                unitId = "hrttracker:unit/pg-ml/v1",
-            )
-        )
         return requireNotNull(
             PkCalibrationCanonicalInputSnapshot.create(
                 authorizedLabs = listOf(lab),
@@ -551,12 +545,10 @@ class PkCalibrationRendererTest {
                 forwardTimeOriginEpochMillis = originMillis,
                 resolvedCurrentWeightKg = weightKg,
                 metadata = emptyList(),
-                attestation = PkCalibrationAttestation(0L),
                 scopeInputSnapshot = scopeInput,
                 forwardModelVersion = forwardModelVersion,
                 calibrationModelVersion = calibrationModelVersion,
                 config = config,
-                acceptanceRecordByResultId = mapOf(resultId to acceptanceRecord),
             )
         )
     }
@@ -718,7 +710,7 @@ class PkCalibrationRendererTest {
 
     private fun config(rLog: Double): PkCalibrationConfig {
         return requireNotNull(
-            PkCalibrationConfig.researchOrTest(
+            PkCalibrationConfig.create(
                 drugMinInformativePgml = 1e-12,
                 rLog = rLog,
             )
@@ -738,7 +730,7 @@ class PkCalibrationRendererTest {
         const val GridVersion = "pk-chart-grid:test/v1"
 
         val Config = requireNotNull(
-            PkCalibrationConfig.researchOrTest(
+            PkCalibrationConfig.create(
                 drugMinInformativePgml = 1e-12,
                 rLog = 0.04,
             )

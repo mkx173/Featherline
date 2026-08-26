@@ -34,7 +34,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
-import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -49,18 +48,14 @@ import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
 
 /**
- * The Phase-2 calibration status section shown at the top of the calibration
- * screen (plan D1). Only composed while [pkCalibrationSurfaceEnabled] holds and
- * a validated [PkCalibrationUiState] exists — never synthesized from raw fits.
+ * The calibration status section shown at the top of the calibration screen
+ * (plan D1). Only composed while a validated [PkCalibrationUiState] exists —
+ * never synthesized from raw fits.
  */
 @Composable
 fun PkCalibrationSection(
     uiState: PkCalibrationUiState,
-    attestationDeclined: Boolean,
     onRetry: () -> Unit,
-    onAttest: () -> Unit,
-    onManageAttestation: () -> Unit,
-    onReviewAttestation: () -> Unit,
     onOpenRoutes: () -> Unit,
     onOpenCoaching: () -> Unit,
     onOpenDisclaimer: () -> Unit,
@@ -73,17 +68,10 @@ fun PkCalibrationSection(
         modifier = modifier,
         topPadding = false,
     ) {
-        if (attestationDeclined) {
-            item {
-                PkCalibrationAttestationDeclinedBanner(onReview = onReviewAttestation)
-            }
-        }
         item {
             PkCalibrationStatusCard(
                 uiState = uiState,
                 onRetry = onRetry,
-                onAttest = onAttest,
-                onManageAttestation = onManageAttestation,
                 onInfo = onInfo,
             )
         }
@@ -139,30 +127,11 @@ private fun PkCalibrationRowChevron() {
  * the premises weren't confirmed; tapping re-opens the §U1 sheet. This is the
  * only re-entry nudge — the sheet never auto-presents after a decline.
  */
-@Composable
-private fun PkCalibrationAttestationDeclinedBanner(onReview: () -> Unit) {
-    PreferenceSegmentedListItem(
-        title = stringResource(R.string.calibration_pk_attest_declined_banner_title),
-        supportingText = stringResource(R.string.calibration_pk_attest_declined_banner_body),
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_privacy_tip),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = { PkCalibrationRowChevron() },
-        onClick = onReview,
-    )
-}
-
 /** Global status card (handoff §4/§5.1): one card, never five failures. */
 @Composable
 private fun PkCalibrationStatusCard(
     uiState: PkCalibrationUiState,
     onRetry: () -> Unit,
-    onAttest: () -> Unit,
-    onManageAttestation: () -> Unit,
     onInfo: () -> Unit,
 ) {
     val ready = uiState.globalState == PkCalibrationGlobalState.READY
@@ -173,7 +142,6 @@ private fun PkCalibrationStatusCard(
     when {
         !ready -> {
             iconRes = when (uiState.globalState) {
-                PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED -> R.drawable.ic_privacy_tip
                 PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_labs
                 PkCalibrationGlobalState.SHARED_INPUT_INVALID -> R.drawable.ic_error_outline
                 else -> R.drawable.ic_sync_alt
@@ -266,36 +234,8 @@ private fun PkCalibrationStatusCard(
                     compact = true,
                 )
 
-                PkCalibrationGlobalState.SCOPE_NOT_CONFIRMED -> HrtButton(
-                    text = stringResource(R.string.calibration_pk_attest_action),
-                    onClick = onAttest,
-                    modifier = Modifier.padding(top = 12.dp),
-                    compact = true,
-                )
-
-                PkCalibrationGlobalState.READY -> {
-                    val reminder =
-                        stringResource(R.string.calibration_pk_status_attested_reminder)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 8.dp),
-                    ) {
-                        Text(
-                            text = reminder,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .weight(1f)
-                                .cjkTextOffset(reminder),
-                        )
-                        TextButton(onClick = onManageAttestation) {
-                            Text(text = stringResource(R.string.calibration_pk_status_manage))
-                        }
-                    }
-                }
-
-                // The body copy is the call to action ("add an E2 result");
-                // Phase 3.1 decides any richer affordance.
+                // The body copy is the call to action ("add an E2 result").
+                PkCalibrationGlobalState.READY,
                 PkCalibrationGlobalState.NO_USABLE_LABS,
                 PkCalibrationGlobalState.SHARED_INPUT_INVALID,
                 -> Unit
@@ -312,7 +252,7 @@ private fun PkCalibrationRouteSummaryCard(
     onOpen: () -> Unit,
 ) {
     val adjustedCount = uiState.routeRows.count { row -> row.displayState.isAdjusted }
-    val reviewCount = uiState.routeRows.count { row -> row.displayState.needsReview }
+    val reviewCount = uiState.routeRows.count { row -> row.hasWarning }
     val summary = buildList {
         if (adjustedCount == 0) {
             add(stringResource(R.string.calibration_pk_routes_card_all_population))
@@ -372,9 +312,6 @@ private fun PkCalibrationRouteSummaryCard(
 }
 
 /** Caution states surfaced with a non-color cue (icon + word), handoff §7. */
-private val PkRouteCalibrationDisplayState.needsReview: Boolean
-    get() = this == PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE ||
-        this == PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED
 
 @Composable
 private fun PkCalibrationRouteChip(row: PkCalibrationRouteRowUiState) {
@@ -431,7 +368,7 @@ private fun PkCalibrationRouteChip(row: PkCalibrationRouteRowUiState) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (row.displayState.needsReview) {
+        if (row.hasWarning) {
             Icon(
                 painter = painterResource(R.drawable.ic_error_outline),
                 contentDescription = null,
@@ -452,7 +389,6 @@ fun PkCalibrationLabRowFooter(
     flag: PkCalibrationLabRowFlag,
     onCorrect: () -> Unit,
     onExclude: () -> Unit,
-    onKeep: () -> Unit,
     onReinclude: () -> Unit,
 ) {
     Column(modifier = Modifier
@@ -485,7 +421,7 @@ fun PkCalibrationLabRowFooter(
 
             is PkCalibrationLabRowFlag.UnreviewedOutlier -> {
                 val appLocale = rememberAppLocale()
-                val names = flag.blockedRoutes
+                val names = flag.affectedRoutes
                     .map { route -> stringResource(route.applicationType.labelRes) }
                 val joinedNames = remember(names, appLocale) {
                     ListFormatter.getInstance(appLocale).format(names)
@@ -501,11 +437,6 @@ fun PkCalibrationLabRowFooter(
                     HrtOutlinedButton(
                         text = stringResource(R.string.calibration_pk_lab_outlier_exclude),
                         onClick = onExclude,
-                        compact = true,
-                    )
-                    HrtButton(
-                        text = stringResource(R.string.calibration_pk_lab_outlier_keep),
-                        onClick = onKeep,
                         compact = true,
                     )
                 }

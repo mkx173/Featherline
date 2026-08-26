@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 enum class PkCalibrationDebugReviewAction {
-    KEEP,
     EXCLUDE,
     REINCLUDE,
 }
@@ -122,12 +121,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
     fun setNonPositiveInput(value: Boolean): PkCalibrationDebugDispatchResult =
         updateFixture { scenario -> scenario.withNonPositiveInput(value) }
 
-    fun setDisplayCapBoundaryRoute(
-        route: PkCalibrationRoute?,
-    ): PkCalibrationDebugDispatchResult = updateFixture { scenario ->
-        scenario.withDisplayCapBoundaryRoute(route)
-    }
-
     /** Fixture-only review path: mutates the in-memory fixture disposition, never storage. */
     fun performReviewAction(
         command: PkCalibrationDebugActionCommand,
@@ -141,8 +134,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
         val scenario = _uiState.value.scenario
             ?: return PkCalibrationDebugDispatchResult.REJECTED_NOT_APPLICABLE
         val disposition = when (command.action) {
-            PkCalibrationDebugReviewAction.KEEP ->
-                PkCalibrationDebugFixtureDisposition.ACCEPTED
             PkCalibrationDebugReviewAction.EXCLUDE ->
                 PkCalibrationDebugFixtureDisposition.EXCLUDED
             PkCalibrationDebugReviewAction.REINCLUDE ->
@@ -252,12 +243,11 @@ class PkCalibrationDebugViewModel @Inject constructor(
             .toSet()
         return dispositions.flatMap { (resultId, disposition) ->
             when (disposition) {
-                E2CalibrationDisposition.AUTO -> if (resultId in currentOutlierIds) {
+                // Persisted ACCEPTED (legacy Keep) behaves as AUTO.
+                E2CalibrationDisposition.AUTO,
+                E2CalibrationDisposition.ACCEPTED,
+                -> if (resultId in currentOutlierIds) {
                     listOf(
-                        PkCalibrationDebugActionCommand(
-                            PkCalibrationDebugReviewAction.KEEP,
-                            resultId,
-                        ),
                         PkCalibrationDebugActionCommand(
                             PkCalibrationDebugReviewAction.EXCLUDE,
                             resultId,
@@ -266,12 +256,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
                 } else {
                     emptyList()
                 }
-                E2CalibrationDisposition.ACCEPTED -> listOf(
-                    PkCalibrationDebugActionCommand(
-                        PkCalibrationDebugReviewAction.EXCLUDE,
-                        resultId,
-                    )
-                )
                 E2CalibrationDisposition.EXCLUDED -> listOf(
                     PkCalibrationDebugActionCommand(
                         PkCalibrationDebugReviewAction.REINCLUDE,

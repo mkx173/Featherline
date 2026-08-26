@@ -20,8 +20,6 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestation
-import com.mkx.hrttracker.model.pk.PkCalibrationAttestationProvider
 import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkCompound
@@ -56,7 +54,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
             centralUnavailable = false,
             outlierRoute = scenario.outlierRoute,
             nonPositiveInput = scenario.nonPositiveInput,
-            displayCapBoundaryRoute = scenario.displayCapBoundaryRoute,
             fixtureDisposition = scenario.fixtureDisposition,
         ) ?: return PkCalibrationDebugSourceResult.Unavailable(
             PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH
@@ -262,7 +259,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
         } ?: return null
         if (scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO &&
             (injection.displayState !=
-                    PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE ||
+                    PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
                     targetId !in injection.unreviewedOutlierLabIds)
         ) {
             return null
@@ -274,10 +271,9 @@ internal object PkCalibrationDebugSyntheticScenarios {
         }
         val expectedState = when (scenario.fixtureDisposition) {
             PkCalibrationDebugFixtureDisposition.AUTO ->
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
-            PkCalibrationDebugFixtureDisposition.ACCEPTED,
-            PkCalibrationDebugFixtureDisposition.EXCLUDED,
-            -> PkRouteCalibrationDisplayState.LAB_CALIBRATED
+                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+            PkCalibrationDebugFixtureDisposition.EXCLUDED ->
+                PkRouteCalibrationDisplayState.LAB_CALIBRATED
         }
         if (injection.displayState != expectedState || snapshot.result.routeResults
                 .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
@@ -380,23 +376,8 @@ internal object PkCalibrationDebugSyntheticScenarios {
         val metadata = when (disposition) {
             null,
             E2CalibrationDisposition.AUTO,
+            E2CalibrationDisposition.ACCEPTED,
             -> emptyList()
-
-            E2CalibrationDisposition.ACCEPTED -> {
-                val targetId = reviewTargetId ?: return null
-                val record = autoEvaluation.readyEvidence
-                    ?.canonicalInput
-                    ?.acceptanceRecordFor(targetId)
-                    ?: return null
-                listOf(
-                    E2CalibrationMetadata.create(
-                        resultId = targetId,
-                        disposition = disposition,
-                        acceptedRecord = record,
-                        updatedAt = Instant.ofEpochMilli(ReviewUpdatedAtMillis),
-                    ) ?: return null
-                )
-            }
 
             E2CalibrationDisposition.EXCLUDED -> {
                 val targetId = reviewTargetId ?: return null
@@ -440,13 +421,11 @@ internal object PkCalibrationDebugSyntheticScenarios {
         if (resultId == null || disposition == null) return true
         val evidence = readyEvidence ?: return false
         return when (disposition) {
-            E2CalibrationDisposition.AUTO -> evidence.included
+            E2CalibrationDisposition.AUTO,
+            E2CalibrationDisposition.ACCEPTED,
+            -> evidence.included
                 .singleOrNull { item -> item.resultId == resultId }
                 ?.effectiveDisposition == PkCalibrationEffectiveDisposition.AUTO
-
-            E2CalibrationDisposition.ACCEPTED -> evidence.included
-                .singleOrNull { item -> item.resultId == resultId }
-                ?.effectiveDisposition == PkCalibrationEffectiveDisposition.ACCEPTED
 
             E2CalibrationDisposition.EXCLUDED -> evidence.excluded
                 .singleOrNull { item -> item.resultId == resultId }
@@ -459,8 +438,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
         events: List<PkCalibrationMedicationEventSource>,
         domain: PkChartDomain,
     ): SyntheticFixture? {
-        val attestation = PkCalibrationAttestation(DecisionIssuedAtMillis)
-        val provider = PkCalibrationAttestationProvider { attestation }
         val input = PkCalibrationInputSnapshot.create(
             labs = labs,
             medicationEvents = events,
@@ -469,7 +446,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
             forwardModelVersion = DebugForwardModelVersion,
             calibrationModelVersion = DebugCalibrationModelVersion,
         ) ?: return null
-        return SyntheticFixture(input, provider, domain)
+        return SyntheticFixture(input, domain)
     }
 
     private fun createLab(
@@ -578,13 +555,11 @@ internal object PkCalibrationDebugSyntheticScenarios {
             E2CalibrationDisposition =
         when (this) {
             PkCalibrationDebugFixtureDisposition.AUTO -> E2CalibrationDisposition.AUTO
-            PkCalibrationDebugFixtureDisposition.ACCEPTED -> E2CalibrationDisposition.ACCEPTED
             PkCalibrationDebugFixtureDisposition.EXCLUDED -> E2CalibrationDisposition.EXCLUDED
         }
 
     private data class SyntheticFixture(
         val input: PkCalibrationInputSnapshot,
-        val attestationProvider: PkCalibrationAttestationProvider,
         val domain: PkChartDomain,
     ) {
         fun evaluate(metadata: List<E2CalibrationMetadata>): PkCalibrationEngineEvaluation {
@@ -593,7 +568,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
                 metadata = metadata,
                 identityPolicy = IdentityPolicy,
                 config = ResearchConfig,
-                attestationProvider = attestationProvider,
             )
         }
     }
@@ -619,7 +593,6 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private const val HourMillis = 3_600_000L
     private const val BodyWeightKg = 70.0
     private const val ReviewUpdatedAtMillis = 9_000L
-    private const val DecisionIssuedAtMillis = 1_234L
     private const val MixedOralDoseTimeH = 480.0
     private const val MixedOralLabTimeH = 480.75
     private const val DebugUuidMost = 0x44454255474c4142L
@@ -659,7 +632,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
         PkCompound.EU to "debug:compound/eu/v1",
     )
     private val ResearchConfig = requireNotNull(
-        PkCalibrationConfig.researchOrTest(
+        PkCalibrationConfig.create(
             drugMinInformativePgml = 1e-20,
             rLog = 0.04,
         )

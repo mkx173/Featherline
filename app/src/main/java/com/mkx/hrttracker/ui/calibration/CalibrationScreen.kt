@@ -74,7 +74,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.data.repository.PkCalibrationAttestationState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -126,7 +125,6 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
-    val pkAttestationState by viewModel.pkAttestationState.collectAsStateWithLifecycle()
 
     // Rejected review actions surface as a toast; resolve the string at emit
     // time so an in-place locale swap can't pin a stale translation.
@@ -161,12 +159,7 @@ fun CalibrationScreen(
     CalibrationScreenContent(
         uiState = uiState,
         pkCalibrationState = pkCalibrationState,
-        pkAttestationState = pkAttestationState,
-        onPkAttestConfirm = viewModel::confirmPkAttestation,
-        onPkAttestDecline = viewModel::declinePkAttestation,
-        onPkAttestWithdraw = viewModel::withdrawPkAttestation,
         onPkRetry = viewModel::retryPkCalibration,
-        onPkKeepOutlier = viewModel::keepPkOutlier,
         onPkExcludeLab = viewModel::excludePkLab,
         onPkReincludeLab = viewModel::reincludePkLab,
         panelDateTimeFormatters = panelDateTimeFormatters,
@@ -186,12 +179,7 @@ fun CalibrationScreen(
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
     pkCalibrationState: PkCalibrationScreenState?,
-    pkAttestationState: PkCalibrationAttestationState?,
-    onPkAttestConfirm: () -> Unit,
-    onPkAttestDecline: () -> Unit,
-    onPkAttestWithdraw: () -> Unit,
     onPkRetry: () -> Unit,
-    onPkKeepOutlier: (UUID) -> Unit,
     onPkExcludeLab: (UUID) -> Unit,
     onPkReincludeLab: (UUID) -> Unit,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
@@ -212,20 +200,6 @@ private fun CalibrationScreenContent(
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
-    // Phase-3.1: first entry with a loaded UNSEEN attestation auto-presents
-    // the §U1 sheet exactly once; DECLINED/ATTESTED never re-pester.
-    var pkAttestationAutoPresented by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(pkCalibrationState != null, pkAttestationState) {
-        if (shouldAutoPresentPkAttestation(
-                attestationState = pkAttestationState,
-                surfacePresent = pkCalibrationState != null,
-                alreadyAutoPresented = pkAttestationAutoPresented,
-            )
-        ) {
-            pkAttestationAutoPresented = true
-            pkSheet = PK_SHEET_ATTEST
-        }
-    }
     val pkLabFlags = remember(pkCalibrationState, uiState.panels) {
         pkCalibrationState?.let { state ->
             pkCalibrationLabRowFlags(state, uiState.panels)
@@ -345,12 +319,7 @@ private fun CalibrationScreenContent(
                         Column {
                             PkCalibrationSection(
                                 uiState = pkCalibrationState.ui,
-                                attestationDeclined = pkAttestationState ==
-                                    PkCalibrationAttestationState.Declined,
                                 onRetry = onPkRetry,
-                                onAttest = { pkSheet = PK_SHEET_ATTEST },
-                                onManageAttestation = { pkSheet = PK_SHEET_ATTEST },
-                                onReviewAttestation = { pkSheet = PK_SHEET_ATTEST },
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
                                 onOpenCoaching = { pkSheet = PK_SHEET_COACHING },
                                 onOpenDisclaimer = { pkSheet = PK_SHEET_DISCLAIMER },
@@ -421,7 +390,6 @@ private fun CalibrationScreenContent(
                                             flag = flag,
                                             onCorrect = { onPanelClick(panel.uuid) },
                                             onExclude = { onPkExcludeLab(flag.resultId) },
-                                            onKeep = { onPkKeepOutlier(flag.resultId) },
                                             onReinclude = { onPkReincludeLab(flag.resultId) },
                                         )
                                     }
@@ -454,16 +422,6 @@ private fun CalibrationScreenContent(
         PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_EDU -> PkCalibrationEduSheet(onDismissRequest = { pkSheet = null })
-        // Phase 3.1: the sheet variant follows the durable attestation store,
-        // never a (possibly fixture-forced) engine state — a not-attested user
-        // can never see the withdraw variant, including across process death.
-        PK_SHEET_ATTEST -> PkCalibrationAttestationSheet(
-            attested = pkAttestationState is PkCalibrationAttestationState.Attested,
-            onConfirm = onPkAttestConfirm,
-            onWithdraw = onPkAttestWithdraw,
-            onDecline = onPkAttestDecline,
-            onDismissRequest = { pkSheet = null },
-        )
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
@@ -650,7 +608,6 @@ private const val PK_SHEET_ROUTES = "routes"
 private const val PK_SHEET_COACHING = "coaching"
 private const val PK_SHEET_DISCLAIMER = "disclaimer"
 private const val PK_SHEET_EDU = "edu"
-private const val PK_SHEET_ATTEST = "attest"
 
 internal data class CalibrationPanelMonthGroup(
     val yearMonth: YearMonth,
@@ -1482,12 +1439,7 @@ private fun CalibrationScreenPreview() {
                 ),
             ),
             pkCalibrationState = null,
-            pkAttestationState = null,
-            onPkAttestConfirm = { },
-            onPkAttestDecline = { },
-            onPkAttestWithdraw = { },
             onPkRetry = { },
-            onPkKeepOutlier = { },
             onPkExcludeLab = { },
             onPkReincludeLab = { },
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),

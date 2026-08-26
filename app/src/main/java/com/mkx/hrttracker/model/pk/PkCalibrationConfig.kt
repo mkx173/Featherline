@@ -23,19 +23,16 @@ object PkCalibrationDefaults {
     const val ROUTE_LOG_SCALE_PRIOR_SD = 0.30
 
     /**
-     * v10.0 §A10.4: promotion floor, never data eligibility. A lab supports
-     * route r when its population share d_ir/D_i is at least this value; no
-     * lab is ever excluded from the joint fit by it.
+     * v10.0 §A10.4: a lab supports route r when its population share d_ir/D_i
+     * is at least this value; no lab is ever excluded from the joint fit by
+     * it. Only routes with a supporting lab show an adjustment.
      */
     const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
     /**
-     * User decision (2026-08-12): a single supporting lab promotes — the fit
-     * lands at LAB_ADJUSTED_PROVISIONAL (zero signal contrast + wide
-     * posterior) and the UI labels it low confidence instead of hiding the
-     * adjustment behind a two-lab floor. The three-lab extreme-scale guard
-     * below is unchanged: one wild lab implying a >2x scale still falls back.
+     * Warn-only thresholds (2026-08-26): every route with at least one
+     * supporting lab shows its fitted adjustment; these only add warning
+     * reasons and downgrade the route to LAB_ADJUSTED_PROVISIONAL.
      */
-    const val MIN_SUPPORTING_LABS_FOR_PROMOTION = 1
     const val MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE = 3
     const val EXTREME_SCALE_CORE_MIN = 0.5
     const val EXTREME_SCALE_CORE_MAX = 2.0
@@ -44,10 +41,7 @@ object PkCalibrationDefaults {
     const val ROBUST_RMSE_GATE_FACTOR = 2.0
     const val OUTLIER_WEIGHT_MIN = 0.25
 
-    /**
-     * v10.0 §A3: the RMSE promotion gate scales with the observation-noise model,
-     * like the Student-t outlier gate, instead of being an absolute constant.
-     */
+    /** v10.0 §A3: the RMSE warning threshold scales with the observation-noise model. */
     fun robustRmseLogMaxForPromotion(rLog: Double): Double =
         ROBUST_RMSE_GATE_FACTOR * sqrt(rLog)
 
@@ -106,36 +100,16 @@ object PkCalibrationDefaults {
 }
 
 /**
- * Runtime evidence boundary for route calibration.
- *
- * Production is deliberately represented only by [productionDefault], which
- * is disabled and carries no guessed informative-signal or observation-noise
- * constants. Research and tests must supply both open values explicitly.
+ * Open evidence constants for route calibration: the informative-signal floor
+ * and the log-observation-noise anchor. Both must be finite and positive.
  */
 @ConsistentCopyVisibility
 data class PkCalibrationConfig private constructor(
-    val personalizedOutputEnabled: Boolean,
-    val isResearchOrTest: Boolean,
-    val drugMinInformativePgml: Double?,
-    val rLog: Double?,
+    val drugMinInformativePgml: Double,
+    val rLog: Double,
 ) {
-    internal fun isSolverEligible(): Boolean {
-        return personalizedOutputEnabled && isResearchOrTest &&
-                drugMinInformativePgml?.let { value -> value.isFinite() && value > 0.0 } == true &&
-                rLog?.let { value -> value.isFinite() && value > 0.0 } == true
-    }
-
     companion object {
-        private val ProductionDefault = PkCalibrationConfig(
-            personalizedOutputEnabled = false,
-            isResearchOrTest = false,
-            drugMinInformativePgml = null,
-            rLog = null,
-        )
-
-        fun productionDefault(): PkCalibrationConfig = ProductionDefault
-
-        fun researchOrTest(
+        fun create(
             drugMinInformativePgml: Double,
             rLog: Double,
         ): PkCalibrationConfig? {
@@ -144,8 +118,6 @@ data class PkCalibrationConfig private constructor(
             }
             if (!rLog.isFinite() || rLog <= 0.0) return null
             return PkCalibrationConfig(
-                personalizedOutputEnabled = true,
-                isResearchOrTest = true,
                 drugMinInformativePgml = drugMinInformativePgml,
                 rLog = rLog,
             )

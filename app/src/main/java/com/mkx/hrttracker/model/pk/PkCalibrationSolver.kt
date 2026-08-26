@@ -229,8 +229,8 @@ internal class PkJointFit(
 )
 
 internal sealed interface PkJointFitOutcome {
-    data class Fitted(val fit: PkJointFit) : PkJointFitOutcome
-    data object PosteriorModeAmbiguous : PkJointFitOutcome
+    /** [ambiguous]: more than one distinct local minimum; [fit] is the best-valued one. */
+    data class Fitted(val fit: PkJointFit, val ambiguous: Boolean) : PkJointFitOutcome
     data object NumericFailure : PkJointFitOutcome
 }
 
@@ -248,13 +248,13 @@ internal sealed interface PkJointFitOutcome {
  * bound intersected with the [-20, 20] numeric guard; the guard itself
  * applies to the converged MAP, where it is a data-sanity check.
  *
- * Terminal outcomes: exactly one distinct positive-definite minimum is the
- * MAP; none is numeric failure; two or more separated by over
- * JOINT_MODE_DISTINCT_TOL is a global POSTERIOR_MODE_AMBIGUOUS; and two
- * converged points inside the (JOINT_MODE_NUMERIC_TOL, JOINT_MODE_DISTINCT_TOL]
- * band with materially different objective values are the dedup-failsafe
- * numeric failure. Failure granularity is deliberately global — the safe
- * direction is every route back at population.
+ * Terminal outcomes: the best-valued distinct positive-definite minimum is
+ * the MAP; none is numeric failure; two or more separated by over
+ * JOINT_MODE_DISTINCT_TOL still fit the best one but flag the result as
+ * ambiguous (a POSTERIOR_MODE_AMBIGUOUS warning on every fitted route); and
+ * two converged points inside the (JOINT_MODE_NUMERIC_TOL,
+ * JOINT_MODE_DISTINCT_TOL] band with materially different objective values
+ * are the dedup-failsafe numeric failure.
  */
 internal object PkJointMapSolver {
     private const val MAX_LINE_SEARCH_HALVINGS = 60
@@ -363,9 +363,8 @@ internal object PkJointMapSolver {
             }
         }
         if (minima.isEmpty()) return PkJointFitOutcome.NumericFailure
-        if (minima.size > 1) return PkJointFitOutcome.PosteriorModeAmbiguous
-
-        val beta = minima.single().first
+        // Sorted by objective value: the first cluster representative is the MAP.
+        val beta = minima.first().first
         if (beta.any { value ->
                 !value.isFinite() ||
                         abs(value) > PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
@@ -394,7 +393,8 @@ internal object PkJointMapSolver {
                 beta = beta,
                 activeRouteIndices = objective.activeRouteIndices,
                 covariance = covariance,
-            )
+            ),
+            ambiguous = minima.size > 1,
         )
     }
 
@@ -610,11 +610,7 @@ internal data class PkJointRouteDiagnostics(
 /** Maps a valid, globally-ready evidence pool to exactly five route results. */
 object PkCalibrationSolver {
     fun solve(evidence: PkCalibrationEvidencePool): PkCalibrationResult? {
-        val config = evidence.config
-        val rLog = config.rLog
-        if (!config.isSolverEligible() || rLog == null) {
-            return null
-        }
+        val rLog = evidence.config.rLog
         val supportingByRoute = supportingLabIdsByRoute(evidence.included)
 
         val routeResults: List<PkRouteCalibrationResult>
@@ -630,15 +626,6 @@ object PkCalibrationSolver {
                 PkJointFitOutcome.NumericFailure ->
                     return globalNumericFailure(evidence, supportingByRoute)
 
-                PkJointFitOutcome.PosteriorModeAmbiguous -> {
-                    routeResults = PkCalibrationRoute.entries.map { route ->
-                        ambiguousRow(
-                            route,
-                            supportingByRoute.getValue(route).size,
-                        )
-                    }
-                }
-
                 is PkJointFitOutcome.Fitted -> {
                     val diagnosticsByRoute = routeDiagnostics(
                         objective = objective,
@@ -650,6 +637,7 @@ object PkCalibrationSolver {
                             route = route,
                             diagnostics = diagnosticsByRoute.getValue(route),
                             rLog = rLog,
+                            ambiguous = outcome.ambiguous,
                         ) ?: return globalNumericFailure(evidence, supportingByRoute)
                     }
                     covariance = promotedCovariance(routeResults, outcome.fit)
@@ -680,10 +668,14 @@ object PkCalibrationSolver {
             promotedRoutes = promotedRoutes,
             displayParams = displayParams,
             promotedBetaCovariance = covariance,
+            invalidNonpositiveLabIds = evidence.invalidNonpositiveLabIds(),
             forwardModelVersion = evidence.canonicalInput.forwardModelVersion,
             calibrationModelVersion = evidence.canonicalInput.calibrationModelVersion,
         )
     }
+
+    private fun PkCalibrationEvidencePool.invalidNonpositiveLabIds(): Set<UUID> =
+        invalidNonpositive.mapTo(linkedSetOf(), PkCalibrationLabEvidence::resultId)
 
     /** Atomic result/evidence pair used to issue a render-capable engine evaluation. */
     internal fun solveBound(
@@ -739,7 +731,7 @@ object PkCalibrationSolver {
         val result = linkedMapOf<PkCalibrationRoute, PkJointRouteDiagnostics>()
         for ((routeIndex, route) in PkCalibrationRoute.entries.withIndex()) {
             val supportingIds = supportingByRoute.getValue(route)
-            if (supportingIds.size < PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION) {
+            if (supportingIds.isEmpty()) {
                 result[route] = PkJointRouteDiagnostics(
                     supportingLabCount = supportingIds.size,
                     fittedBeta = null,
@@ -765,18 +757,9 @@ object PkCalibrationSolver {
 
             // Share-weighted robust RMSE over every lab with a positive
             // population share on this route (§A10.4), canonical UUID order.
-            // ACCEPTED labs are excluded (Phase-3 decision 7): acceptance
-            // means the user vouches for the point, so the gate judges only
-            // unvouched evidence — otherwise a kept conflicting lab held the
-            // route at population forever, defeating the Keep action. The
-            // Student-t weights still bound the kept lab's influence on the
-            // fit itself.
             var weightedSquaredResidualSum = 0.0
             var weightSum = 0.0
             for (point in objective.points) {
-                if (point.effectiveDisposition == PkCalibrationEffectiveDisposition.ACCEPTED) {
-                    continue
-                }
                 val share = point.populationShare(routeIndex)
                 if (!share.isFinite() || share <= 0.0) continue
                 val residual = residualByResultId.getValue(point.resultId)
@@ -787,7 +770,6 @@ object PkCalibrationSolver {
                     return null
                 }
             }
-            // Every contributing lab vouched-for: nothing unvouched to judge.
             val rmse = if (weightSum <= 0.0) {
                 0.0
             } else {
@@ -805,35 +787,13 @@ object PkCalibrationSolver {
                 maximumLogTotal = max(maximumLogTotal, point.logTotalDrugPgml)
                 val weight = weightByResultId.getValue(point.resultId)
                 minimumWeight = min(minimumWeight, weight)
-                if (weight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN &&
-                    point.effectiveDisposition != PkCalibrationEffectiveDisposition.ACCEPTED
-                ) {
+                if (weight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN) {
                     unreviewed += point.resultId
                 }
             }
             val logRange = maximumLogTotal - minimumLogTotal
             if (!logRange.isFinite() || logRange < 0.0) return null
             if (!minimumWeight.isFinite()) return null
-
-            // Phase-3 decision 7: a poor fit with nothing flagged was a dead
-            // end — "review the fit" with no affordance (labs 1.35–1.8x apart
-            // fail the RMSE gate without any crossing the outlier weight
-            // threshold). Flag the worst-fitting unaccepted supporting lab so
-            // Keep/Exclude can always resolve the state.
-            if (unreviewed.isEmpty() &&
-                rmse > PkCalibrationDefaults.robustRmseLogMaxForPromotion(objective.rLog)
-            ) {
-                objective.points
-                    .filter { point ->
-                        point.resultId in supportingIds &&
-                            point.effectiveDisposition !=
-                            PkCalibrationEffectiveDisposition.ACCEPTED
-                    }
-                    .maxByOrNull { point ->
-                        abs(residualByResultId.getValue(point.resultId))
-                    }
-                    ?.let { worst -> unreviewed += worst.resultId }
-            }
 
             result[route] = PkJointRouteDiagnostics(
                 supportingLabCount = supportingIds.size,
@@ -850,18 +810,19 @@ object PkCalibrationSolver {
         return result
     }
 
+    /**
+     * Warn-only classification (2026-08-26): any route with a supporting lab
+     * shows its fitted beta. Every former promotion gate is now a reason on
+     * the row; the state is LAB_CALIBRATED only when no reason fired.
+     */
     internal fun classifyRoute(
         route: PkCalibrationRoute,
         diagnostics: PkJointRouteDiagnostics,
         rLog: Double,
+        ambiguous: Boolean,
     ): PkRouteCalibrationResult? {
         if (diagnostics.supportingLabCount == 0) {
             return populationCountRow(route, supportingLabCount = 0)
-        }
-        if (diagnostics.supportingLabCount <
-            PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_PROMOTION
-        ) {
-            return populationCountRow(route, diagnostics.supportingLabCount)
         }
         val fittedBeta = diagnostics.fittedBeta ?: return null
         val posteriorSd = diagnostics.betaPosteriorSd ?: return null
@@ -875,14 +836,13 @@ object PkCalibrationSolver {
         }
         val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE[route] ?: return null
         val outsideCap = scale < cap.minInclusive || scale > cap.maxInclusive
-        val atCapBoundary = scale == cap.minInclusive || scale == cap.maxInclusive
         val isExtreme = scale < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN ||
                 scale > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
         val lacksExtremeCount = isExtreme &&
                 diagnostics.supportingLabCount <
                 PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
         val poorFit = rmse > PkCalibrationDefaults.robustRmseLogMaxForPromotion(rLog)
-        val hasUnreviewedOutlier = diagnostics.unreviewedOutlierLabIds.isNotEmpty()
+        val hasOutlier = diagnostics.unreviewedOutlierLabIds.isNotEmpty()
         val insufficientContrast = logRange <
                 PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
         val posteriorTooWide = posteriorSd >
@@ -890,53 +850,35 @@ object PkCalibrationSolver {
 
         val reasons = linkedSetOf<PkCalibrationReason>()
         if (outsideCap) reasons += PkCalibrationReason.DISPLAY_SCALE_EXCEEDED
-        if (atCapBoundary) reasons += PkCalibrationReason.DISPLAY_SCALE_AT_BOUNDARY
         if (lacksExtremeCount) {
             reasons += PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS
         }
         if (poorFit) reasons += PkCalibrationReason.RESIDUAL_FIT_POOR
-        if (hasUnreviewedOutlier) reasons += PkCalibrationReason.UNREVIEWED_OUTLIER
+        if (hasOutlier) reasons += PkCalibrationReason.UNREVIEWED_OUTLIER
         if (insufficientContrast) {
             reasons += PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST
         }
         if (posteriorTooWide) reasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
+        if (ambiguous) reasons += PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS
 
-        val provisionalGatesPass = !outsideCap && !lacksExtremeCount && !poorFit &&
-                !hasUnreviewedOutlier
-        val displayState = when {
-            outsideCap -> PkRouteCalibrationDisplayState.POPULATION_DISPLAY_CAP_EXCEEDED
-            lacksExtremeCount ->
-                PkRouteCalibrationDisplayState.POPULATION_INSUFFICIENT_SUPPORTING_LABS
-
-            poorFit || hasUnreviewedOutlier ->
-                PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
-
-            provisionalGatesPass && !insufficientContrast && !posteriorTooWide ->
-                PkRouteCalibrationDisplayState.LAB_CALIBRATED
-
-            provisionalGatesPass ->
-                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-
-            else -> PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE
-        }
-        val promoted = displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED ||
-                displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
         return PkRouteCalibrationResult.create(
             route = route,
             fittedBeta = fittedBeta,
-            displayBeta = if (promoted) fittedBeta else 0.0,
+            displayBeta = fittedBeta,
             betaPosteriorSd = posteriorSd,
             betaUncertaintyReduction = diagnostics.betaUncertaintyReduction,
             laplaceVarianceBeta = variance,
-            displayState = displayState,
+            displayState = if (reasons.isEmpty()) {
+                PkRouteCalibrationDisplayState.LAB_CALIBRATED
+            } else {
+                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
+            },
             reasons = reasons,
             supportingLabCount = diagnostics.supportingLabCount,
             drugSignalLogRange = logRange,
             robustRmseLog = rmse,
             minStudentTWeight = diagnostics.minStudentTWeight,
-            atDisplayCapBoundary = atCapBoundary,
             unreviewedOutlierLabIds = diagnostics.unreviewedOutlierLabIds,
-            rLog = rLog,
         )
     }
 
@@ -964,36 +906,13 @@ object PkCalibrationSolver {
         route: PkCalibrationRoute,
         supportingLabCount: Int,
     ): PkRouteCalibrationResult {
-        return requireNotNull(
-            if (supportingLabCount == 0) {
-                PkRouteCalibrationResult.create(
-                    route = route,
-                    displayState = PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-                    reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-                    supportingLabCount = 0,
-                )
-            } else {
-                PkRouteCalibrationResult.create(
-                    route = route,
-                    displayState = PkRouteCalibrationDisplayState
-                        .POPULATION_INSUFFICIENT_SUPPORTING_LABS,
-                    reasons = setOf(PkCalibrationReason.INSUFFICIENT_SUPPORTING_LABS),
-                    supportingLabCount = supportingLabCount,
-                )
-            }
-        )
-    }
-
-    private fun ambiguousRow(
-        route: PkCalibrationRoute,
-        supportingLabCount: Int,
-    ): PkRouteCalibrationResult {
+        require(supportingLabCount == 0)
         return requireNotNull(
             PkRouteCalibrationResult.create(
                 route = route,
-                displayState = PkRouteCalibrationDisplayState.POPULATION_LOW_CONFIDENCE,
-                reasons = setOf(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS),
-                supportingLabCount = supportingLabCount,
+                displayState = PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                supportingLabCount = 0,
             )
         )
     }
