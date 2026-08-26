@@ -19,7 +19,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
@@ -424,24 +423,25 @@ class MainViewModel @Inject constructor(
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
-            pkCalibration = pkLive?.let { live ->
-                MainPkCalibrationUiState(
-                    ui = live.ui,
-                    band = live.render
-                        ?.takeIf { render ->
-                            render.bandState == PkCalibrationBandState.READY
-                        }
-                        ?.let { render ->
-                            buildMainE2CalibrationBand(
-                                bandKnots = render.bandKnots,
-                                now = now,
-                                zoneId = zoneId,
-                                pastDays = chartWindowOption.pastDays,
-                                windowHours = chartWindowOption.chartWindowHours,
-                                displayUnit = homeE2DisplayUnit,
-                            )
-                        },
-                )
+            // The band comes from the snapshot (same doses, same calibration
+            // as the cached curve) and is dropped with it on expiry; the live
+            // evaluation only supplies the hero/status.
+            pkCalibration = run {
+                val band = freshProjection?.let {
+                    buildMainE2CalibrationBand(
+                        bandKnots = inputs.pkBandKnots,
+                        now = now,
+                        zoneId = zoneId,
+                        pastDays = chartWindowOption.pastDays,
+                        windowHours = chartWindowOption.chartWindowHours,
+                        displayUnit = homeE2DisplayUnit,
+                    )
+                }
+                if (pkLive == null && band == null) {
+                    null
+                } else {
+                    MainPkCalibrationUiState(ui = pkLive?.ui, band = band)
+                }
             },
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,

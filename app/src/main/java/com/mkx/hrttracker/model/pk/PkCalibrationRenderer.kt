@@ -15,16 +15,27 @@ import kotlin.math.sqrt
 
 /** Pure central-curve and predictive-band rendering for one exact chart domain. */
 object PkCalibrationRenderer {
+    /**
+     * [doseEvents] defaults to the fitted history; Home passes logged plus
+     * planned doses so the band follows the same projected curve the chart
+     * draws. The fit (and its covariance) is unaffected either way.
+     */
     fun render(
         evaluation: PkCalibrationEvaluation,
         domain: PkChartDomain,
+        doseEvents: List<PkDoseEvent> = evaluation.evidence?.input?.doseEvents.orEmpty(),
     ): PkCalibrationRenderResult? {
         val evidence = evaluation.evidence ?: return null
         val result = evaluation.result
         val input = evidence.input
+        val forwardModel = if (doseEvents === input.doseEvents) {
+            evidence.forwardModel
+        } else {
+            PkE2ForwardModel.create(doseEvents, input.weightKg) ?: return NumericUnavailable
+        }
 
         val knots = TreeSet(domain.knotEpochMillis)
-        for (event in input.doseEvents) {
+        for (event in doseEvents) {
             val epochMillis = input.originEpochMillis +
                     (event.timeH * MILLIS_PER_HOUR).roundToLong()
             if (epochMillis in domain.rangeStartEpochMillis..domain.rangeEndEpochMillis) {
@@ -34,7 +45,7 @@ object PkCalibrationRenderer {
 
         val population = ArrayList<Pair<Long, PkForwardBreakdown>>(knots.size)
         for (epochMillis in knots) {
-            val breakdown = evidence.forwardModel.breakdownAt(
+            val breakdown = forwardModel.breakdownAt(
                 epochDifferenceHours(epochMillis, input.originEpochMillis)
             ) ?: return NumericUnavailable
             population += epochMillis to breakdown

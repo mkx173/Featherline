@@ -58,7 +58,8 @@ import java.time.ZoneId
  * validated, display-unit band geometry only — never raw fit parameters.
  */
 data class MainPkCalibrationUiState(
-    val ui: PkCalibrationUiState,
+    /** Null until the live evaluation lands; the band does not wait for it. */
+    val ui: PkCalibrationUiState?,
     val band: MainE2CalibrationBand?,
 )
 
@@ -341,7 +342,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
  */
 @Composable
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
-    val bandUnavailable = pk.ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE
+    val bandUnavailable = pk.ui?.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE
     val bandSummary = stringResource(R.string.calibration_pk_band_a11y_summary)
 
     Column(modifier = Modifier.fillMaxWidth()) {

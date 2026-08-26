@@ -8,8 +8,11 @@ class PkCalibrationEvaluation internal constructor(
     val isReady: Boolean get() = evidence != null
 
     /** Null for a non-READY evaluation; numeric render failure is a NUMERIC_UNAVAILABLE result. */
-    fun renderFor(domain: PkChartDomain): PkCalibrationRenderResult? {
-        return PkCalibrationRenderer.render(this, domain)
+    fun renderFor(
+        domain: PkChartDomain,
+        doseEvents: List<PkDoseEvent> = evidence?.input?.doseEvents.orEmpty(),
+    ): PkCalibrationRenderResult? {
+        return PkCalibrationRenderer.render(this, domain, doseEvents)
     }
 }
 

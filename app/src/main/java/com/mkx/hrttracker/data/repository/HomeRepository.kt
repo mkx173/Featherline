@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.model.pk.PkPersonalParams
+import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -153,6 +154,7 @@ class HomeRepository @Inject constructor(
                     estradiolPkEntries = simulationEntries.real,
                     estradiolPkPlannedEntries = simulationEntries.planned,
                     pkPersonalParams = usable.pkPersonalParams(),
+                    pkBandKnots = usable.pkBandKnots(),
                     stockWarnings = stockWarnings,
                     homeAnchor = usable.homeAnchor,
                     source = HomeInputSource.SNAPSHOT,
@@ -264,6 +266,7 @@ class HomeRepository @Inject constructor(
                         estradiolPkPlannedEntries = simulationEntries.planned,
                         pkPersonalParams = usableSnapshot?.pkPersonalParams()
                             ?: PkPersonalParams.population(),
+                        pkBandKnots = usableSnapshot?.pkBandKnots().orEmpty(),
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
@@ -592,6 +595,8 @@ data class HomeInputs(
     val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
     /** Calibration the cached projection used; local re-simulation must use the same. */
     val pkPersonalParams: PkPersonalParams = PkPersonalParams.population(),
+    /** Band over the cached projection; valid exactly as long as the projection is. */
+    val pkBandKnots: List<PkPredictiveBandKnot> = emptyList(),
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,

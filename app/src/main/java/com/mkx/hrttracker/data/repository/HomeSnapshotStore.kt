@@ -2,6 +2,7 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPersonalParams
+import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -169,11 +170,33 @@ data class HomeSnapshotRecord(
      * show the calibrated curve on first frame and after every mutation.
      */
     val pkRouteLogScale: Map<String, Double> = emptyMap(),
+    /** Predictive band over the Home projection window (logged + planned doses). */
+    val pkBandKnots: List<HomePkBandKnotRecord> = emptyList(),
     // First pinned tracked date (the Home hero anchor), cached so cold start can
     // render the hero on the first frame instead of waiting on Room. Null when no
     // date is pinned. Defaulted for forward-compat with pre-field snapshots.
     val homeAnchor: TrackedDate? = null,
 )
+
+data class HomePkBandKnotRecord(
+    val epochMillis: Long,
+    val p025Pgml: Double,
+    val p158655254Pgml: Double,
+    val p50Pgml: Double,
+    val p841344746Pgml: Double,
+    val p975Pgml: Double,
+)
+
+fun HomeSnapshotRecord.pkBandKnots(): List<PkPredictiveBandKnot> = pkBandKnots.map { knot ->
+    PkPredictiveBandKnot(
+        epochMillis = knot.epochMillis,
+        p025Pgml = knot.p025Pgml,
+        p158655254Pgml = knot.p158655254Pgml,
+        p50Pgml = knot.p50Pgml,
+        p841344746Pgml = knot.p841344746Pgml,
+        p975Pgml = knot.p975Pgml,
+    )
+}
 
 /** Personal params the snapshot's projections were simulated with. */
 fun HomeSnapshotRecord.pkPersonalParams(): PkPersonalParams {
@@ -304,6 +327,14 @@ internal object HomeSnapshotCodec {
                 writeString(route)
                 writeDouble(beta)
             }
+            stream.writeList(record.pkBandKnots) { knot ->
+                writeLong(knot.epochMillis)
+                writeDouble(knot.p025Pgml)
+                writeDouble(knot.p158655254Pgml)
+                writeDouble(knot.p50Pgml)
+                writeDouble(knot.p841344746Pgml)
+                writeDouble(knot.p975Pgml)
+            }
         }
         return output.toByteArray()
     }
@@ -332,6 +363,16 @@ internal object HomeSnapshotCodec {
                 pkEntries = stream.readPooledMedicationLogEntries(),
                 homeAnchor = stream.readTrackedDate(),
                 pkRouteLogScale = stream.readList { readString() to readDouble() }.toMap(),
+                pkBandKnots = stream.readList {
+                    HomePkBandKnotRecord(
+                        epochMillis = readLong(),
+                        p025Pgml = readDouble(),
+                        p158655254Pgml = readDouble(),
+                        p50Pgml = readDouble(),
+                        p841344746Pgml = readDouble(),
+                        p975Pgml = readDouble(),
+                    )
+                },
             )
         }
     }
@@ -1052,7 +1093,8 @@ private const val TAG = "HomeSnapshotStore"
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
 // v23 appends the calibration route log-scales the projections were simulated with.
-private const val SNAPSHOT_CODEC_VERSION = 23
+// v24 appends the calibration predictive band over the Home projection window.
+private const val SNAPSHOT_CODEC_VERSION = 24
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

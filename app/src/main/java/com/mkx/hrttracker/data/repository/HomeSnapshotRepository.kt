@@ -2,9 +2,13 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkChartDomain
+import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkPersonalParams
+import java.time.Instant
 import java.util.UUID
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
@@ -642,16 +646,17 @@ class HomeSnapshotRepository @Inject constructor(
         // Lab calibration is part of the snapshot so the calibrated curve is
         // what Home and the widget show first, not a population curve that a
         // later live evaluation swaps out.
-        val personalParams = withContext(defaultDispatcher) {
-            buildPkCalibrationInput(
-                labs = inputs.calibrationLabs,
-                entries = inputs.calibrationEntries,
-                weightKg = inputs.profile.weightKg,
-                metadata = inputs.calibrationMetadata,
-                fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
-            )?.let { input -> PkCalibrationEngine.evaluate(input).result.displayParams }
-                ?: PkPersonalParams.population()
+        val calibrationInput = buildPkCalibrationInput(
+            labs = inputs.calibrationLabs,
+            entries = inputs.calibrationEntries,
+            weightKg = inputs.profile.weightKg,
+            metadata = inputs.calibrationMetadata,
+            fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+        )
+        val calibration = calibrationInput?.let { input ->
+            withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(input) }
         }
+        val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
         val simulationEntries = buildEstradiolPkSimulationEntries(
             realEntries = inputs.pkEntries,
@@ -688,6 +693,37 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }
             homeAsync.await() to widgetAsync.await()
+        }
+        // The band follows the same projected curve as the chart: logged plus
+        // planned doses, over the projection window.
+        val bandKnots = if (calibration == null || calibrationInput == null) {
+            emptyList()
+        } else {
+            withContext(defaultDispatcher) {
+                val anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis)
+                val plannedEvents = simulationEntries.planned.mapNotNull { entry ->
+                    entry.buildEstradiolPkDoseEvent(anchor, isPlanned = true)
+                }
+                PkChartDomain.create(
+                    rangeStartEpochMillis = projection.windowStart.toEpochMilli(),
+                    rangeEndEpochMillis = projection.windowEnd.toEpochMilli(),
+                    samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
+                )?.let { domain ->
+                    calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
+                }?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
+                    ?.bandKnots
+                    ?.map { knot ->
+                        HomePkBandKnotRecord(
+                            epochMillis = knot.epochMillis,
+                            p025Pgml = knot.p025Pgml,
+                            p158655254Pgml = knot.p158655254Pgml,
+                            p50Pgml = knot.p50Pgml,
+                            p841344746Pgml = knot.p841344746Pgml,
+                            p975Pgml = knot.p975Pgml,
+                        )
+                    }
+                    .orEmpty()
+            }
         }
         // Expire at the soonest planned dose after generation time — the
         // moment a slot transitions from "future" to "should be logged by now"
@@ -765,6 +801,7 @@ class HomeSnapshotRepository @Inject constructor(
             homeAnchor = inputs.homeAnchor,
             pkRouteLogScale = personalParams.routeLogScale
                 .mapKeys { (route, _) -> route.stableId },
+            pkBandKnots = bandKnots,
         )
 
         withContext(Dispatchers.IO) {
@@ -1005,6 +1042,7 @@ internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 8
 // constant.
 private const val TAG = "HomeSnapshotRepository"
 private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
+private const val BAND_SAMPLING_INTERVAL_MILLIS = 6L * 60L * 60L * 1_000L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
 private const val HOME_SNAPSHOT_VALIDITY_DAYS = 10L
 private const val HOME_SNAPSHOT_PAST_BUFFER_DAYS = 1L

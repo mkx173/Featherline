@@ -100,9 +100,15 @@ class HomeSnapshotCodecTest {
         // them would make Home re-simulate at population and flash on expiry.
         val record = minimalRecord().copy(
             pkRouteLogScale = mapOf("injection" to 0.25, "oral" to -0.1, "unknown-route" to 1.0),
+            pkBandKnots = listOf(
+                HomePkBandKnotRecord(1_700_000_000_000L, 60.0, 80.0, 100.0, 125.0, 160.0),
+                HomePkBandKnotRecord(1_700_021_600_000L, 55.0, 75.0, 95.0, 120.0, 150.0),
+            ),
         )
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
         assertEquals(record.pkRouteLogScale, decoded.pkRouteLogScale)
+        assertEquals(record.pkBandKnots, decoded.pkBandKnots)
+        assertEquals(100.0, decoded.pkBandKnots().first().p50Pgml, 0.0)
         val params = decoded.pkPersonalParams()
         assertEquals(0.25, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.INJECTION), 0.0)
         assertEquals(-0.1, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.ORAL), 0.0)
