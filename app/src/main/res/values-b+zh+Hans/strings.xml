@@ -1036,6 +1036,8 @@
     <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+    <string name="calibration_pk_global_no_dose_history_title">请先记录用药</string>
+    <string name="calibration_pk_global_no_dose_history_body">化验调整会将您的 E2 检测结果与根据用药记录模拟出的曲线进行比较。请先记录雌二醇用药；在此之前显示群体估算。</string>
     <string name="calibration_pk_global_no_usable_labs_title">添加一条 E2 检测结果</string>
     <string name="calibration_pk_global_no_usable_labs_body">目前还没有可用的 E2 血液检测结果，因此显示群体估算。添加一条 E2 检测结果即可启用调整。</string>
     <string name="calibration_pk_global_numeric_failure_title">无法根据您的检测结果更新</string>

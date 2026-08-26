@@ -126,6 +126,8 @@ data class PkForwardBreakdown private constructor(
 
 enum class PkCalibrationGlobalState {
     READY,
+    /** No estradiol dose has been logged: there is no modeled curve to adjust. */
+    NO_DOSE_HISTORY,
     /** Zero E2 labs exist. */
     NO_USABLE_LABS,
     /** The forward model or the joint fit did not complete; population is shown. */

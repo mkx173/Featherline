@@ -16,6 +16,13 @@ class PkCalibrationEvaluation internal constructor(
 /** Presentation-free facade for one complete calibration computation. */
 object PkCalibrationEngine {
     fun evaluate(input: PkCalibrationInput): PkCalibrationEvaluation {
+        // Checked before labs: without doses, adding a lab would not help.
+        if (input.doseEvents.isEmpty()) {
+            return PkCalibrationEvaluation(
+                PkCalibrationResult(PkCalibrationGlobalState.NO_DOSE_HISTORY),
+                null,
+            )
+        }
         if (input.labs.isEmpty()) {
             return PkCalibrationEvaluation(
                 PkCalibrationResult(PkCalibrationGlobalState.NO_USABLE_LABS),

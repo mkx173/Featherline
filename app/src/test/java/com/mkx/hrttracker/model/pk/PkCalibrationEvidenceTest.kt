@@ -91,17 +91,32 @@ class PkCalibrationEvidenceTest {
     }
 
     @Test
-    fun engine_reportsNoLabsAndNumericFailureAsGlobalStates() {
-        val empty = PkCalibrationEngine.evaluate(
+    fun engine_reportsNoDoses_noLabs_andNumericFailureAsGlobalStates() {
+        // No doses wins over no labs: adding a lab would not help.
+        val nothing = PkCalibrationEngine.evaluate(
             PkCalibrationInput(emptyList(), emptyList(), OriginMillis, 70.0)
         )
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, nothing.result.globalState)
+        assertTrue(!nothing.isReady)
+        val labsOnly = PkCalibrationEngine.evaluate(
+            PkCalibrationInput(
+                labs = listOf(lab(uuid(1), hoursAfterOrigin = 1.0, value = 80.0)),
+                doseEvents = emptyList(),
+                originEpochMillis = OriginMillis,
+                weightKg = 70.0,
+            )
+        )
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, labsOnly.result.globalState)
+
+        val empty = PkCalibrationEngine.evaluate(
+            PkCalibrationInput(emptyList(), listOf(oralDose(uuid(100), timeH = 0.0)), OriginMillis, 70.0)
+        )
         assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, empty.result.globalState)
-        assertTrue(!empty.isReady)
 
         val badWeight = PkCalibrationEngine.evaluate(
             PkCalibrationInput(
                 labs = listOf(lab(uuid(1), hoursAfterOrigin = 1.0, value = 80.0)),
-                doseEvents = emptyList(),
+                doseEvents = listOf(oralDose(uuid(100), timeH = 0.0)),
                 originEpochMillis = OriginMillis,
                 weightKg = 0.0,
             )

@@ -127,7 +127,16 @@ internal object PkCalibrationDebugSyntheticScenarios {
             samplingIntervalMillis = 6 * HourMillis,
             protectedKnotEpochMillis = listOf(lab.collectedAtEpochMillis),
         ) ?: return null
-        val fixture = bindFixture(listOf(lab), emptyList(), domain)
+        // A dose logged after the lab: dose history exists, but the lab sits in
+        // a no-drug window, so every route stays at population.
+        val laterDose = createEvent(
+            id = debugUuid(13),
+            route = PkRoute.ORAL,
+            timeH = 48.0,
+            doseMg = 2.0,
+            compound = PkCompound.E2,
+        )
+        val fixture = bindFixture(listOf(lab), listOf(laterDose), domain)
         return evaluateFixture(
             fixture = fixture,
             scenario = scenario,

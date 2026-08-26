@@ -66,7 +66,7 @@ class PkCalibrationLiveRepositoryTest {
         val available = repository.liveState.value as PkCalibrationLiveState.Available
         assertEquals(fixture.panel.results.single().uuid, available.input.labs.single().resultId)
         assertEquals(
-            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.READY,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             available.evaluation.result.globalState,
         )
         assertTrue(dispatchCount > 0)
@@ -106,7 +106,7 @@ class PkCalibrationLiveRepositoryTest {
 
         val available = repository.liveState.value as PkCalibrationLiveState.Available
         assertEquals(
-            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.READY,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             available.evaluation.result.globalState,
         )
         assertEquals(
@@ -130,9 +130,9 @@ class PkCalibrationLiveRepositoryTest {
         runCurrent()
         // Empty sources are no longer fail-closed: with no doses and no labs
         // the origin falls back to the clock and the evaluation lands on
-        // NO_USABLE_LABS, keeping the calibration surface alive.
+        // NO_DOSE_HISTORY, keeping the calibration surface alive.
         assertEquals(
-            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_USABLE_LABS,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             (repository.liveState.value as PkCalibrationLiveState.Available)
                 .evaluation.result.globalState,
         )
@@ -179,7 +179,7 @@ class PkCalibrationLiveRepositoryTest {
 
         assertEquals(2, reads)
         assertEquals(
-            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_USABLE_LABS,
+            com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             (repository.liveState.value as PkCalibrationLiveState.Available)
                 .evaluation.result.globalState,
         )

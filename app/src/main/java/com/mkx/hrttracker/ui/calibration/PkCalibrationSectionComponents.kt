@@ -143,6 +143,7 @@ private fun PkCalibrationStatusCard(
     when {
         !ready -> {
             iconRes = when (uiState.globalState) {
+                PkCalibrationGlobalState.NO_DOSE_HISTORY -> R.drawable.ic_medication
                 PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_labs
                 else -> R.drawable.ic_sync_alt
             }
@@ -236,6 +237,7 @@ private fun PkCalibrationStatusCard(
 
                 // The body copy is the call to action ("add an E2 result").
                 PkCalibrationGlobalState.READY,
+                PkCalibrationGlobalState.NO_DOSE_HISTORY,
                 PkCalibrationGlobalState.NO_USABLE_LABS,
                 -> Unit
             }

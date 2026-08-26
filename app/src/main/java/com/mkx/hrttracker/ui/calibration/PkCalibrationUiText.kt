@@ -26,6 +26,8 @@ val PkCalibrationRouteConfidence.labelRes: Int
 val PkCalibrationGlobalState.statusTitleRes: Int?
     get() = when (this) {
         PkCalibrationGlobalState.READY -> null
+        PkCalibrationGlobalState.NO_DOSE_HISTORY ->
+            R.string.calibration_pk_global_no_dose_history_title
         PkCalibrationGlobalState.NO_USABLE_LABS ->
             R.string.calibration_pk_global_no_usable_labs_title
         PkCalibrationGlobalState.NUMERIC_FAILURE ->
@@ -36,6 +38,8 @@ val PkCalibrationGlobalState.statusTitleRes: Int?
 val PkCalibrationGlobalState.statusBodyRes: Int?
     get() = when (this) {
         PkCalibrationGlobalState.READY -> null
+        PkCalibrationGlobalState.NO_DOSE_HISTORY ->
+            R.string.calibration_pk_global_no_dose_history_body
         PkCalibrationGlobalState.NO_USABLE_LABS ->
             R.string.calibration_pk_global_no_usable_labs_body
         PkCalibrationGlobalState.NUMERIC_FAILURE ->
