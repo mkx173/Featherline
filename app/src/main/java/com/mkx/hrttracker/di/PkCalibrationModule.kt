@@ -4,7 +4,6 @@ import com.mkx.hrttracker.data.repository.PkCalibrationCurrentEvaluationContextP
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationRenderClock
 import com.mkx.hrttracker.data.repository.PkCalibrationRuntimePolicy
-import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
 import com.mkx.hrttracker.ui.pkcalibrationdebug.DefaultPkCalibrationDebugScenarioSource
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScenarioSource
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugGate
@@ -22,13 +21,6 @@ object PkCalibrationModule {
     @Singleton
     fun providePkCalibrationRuntimePolicy(): PkCalibrationRuntimePolicy =
         PkCalibrationRuntimePolicy.Default
-
-    @Provides
-    @Singleton
-    fun providePkCalibrationModelIdentityProvider(): PkCalibrationModelIdentityProvider =
-        PkCalibrationModelIdentityProvider.fixed(
-            PkCalibrationRuntimePolicy.CALIBRATION_MODEL_VERSION
-        )
 
     @Provides
     @Singleton

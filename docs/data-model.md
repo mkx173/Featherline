@@ -10,7 +10,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 10. It declares 14 entities
+  is the Room database at schema version 10. It declares 13 entities
   and exposes 8 DAOs. `exportSchema` is on; compiler-produced schema
   JSON for each released version is committed under `app/schemas` and
   is also packaged as an instrumentation-test asset for Room migration
@@ -287,22 +287,9 @@ Annotated `@Entity(tableName = "e2_calibration_metadata")` — optional,
 result-owned review state for one built-in E2 result. `resultUuid` is
 both the primary key and a foreign key to `blood_test_results.uuid`
 with `ON DELETE CASCADE`, so deleting a result cannot strand its
-disposition. The row stores the `disposition`, the optional three-part
-accepted-review digest (`schema`, `algorithm`, and lowercase hex), and
-`updatedAtEpochMillis`. Digest validity and the rule that only built-in
-E2 results may receive metadata are enforced at the repository boundary.
-
-### `PkCalibrationDisplayArtifactEntity`
-
-Also defined in [`PkCalibrationEntities.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/PkCalibrationEntities.kt).
-Annotated `@Entity(tableName = "pk_calibration_display_artifact")` — the
-single derived display artifact consumed by Home. Its integer primary key
-uses the logical singleton ID `1`; the row atomically stores the Home-data
-generation, display schema, calibration model version, fit-input digest,
-ordered promoted-route IDs, and nullable log-scale values for each route.
-It is a cache, not durable user-authored state: manual backups neither read
-nor serialize it, and restore deletes any existing row so current inputs
-must recompute it.
+disposition. The row stores the `disposition` (`AUTO` or `EXCLUDED`) and
+`updatedAtEpochMillis`. The rule that only built-in E2 results may
+receive metadata is enforced at the repository boundary.
 
 ### `TrackedDateEntity`
 
@@ -490,10 +477,8 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   enumerate all imported panels for a source, and delete empty
   imported panels left behind after a moved result.
 - [`PkCalibrationDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/PkCalibrationDao.kt)
-  — result-owned calibration review metadata plus the derived singleton
-  display artifact. Metadata reads can be observed as a Flow; display
-  artifact replacement and deletion operate on the whole row so route
-  promotion identity and every route scale remain atomic.
+  — result-owned calibration review metadata (explicit exclusions);
+  reads can be observed as a Flow.
 - [`JournalDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalDao.kt)
   — tracked dates and daily notes. It exposes Flow observers for all
   tracked dates, pinned tracked dates, notes and note counts, plus the
@@ -546,17 +531,12 @@ for medication logs, imported panels, and imported results.
 with its `pinnedOrder` and `dateIso` indices, and `notes` with its
 unique `dateIso` index. `MIGRATION_8_9` adds the nullable
 `heroBackgroundKey` column to `tracked_dates`. `MIGRATION_9_10` creates
-the empty `e2_calibration_metadata` and
-`pk_calibration_display_artifact` tables. The rev-8.6 calibration design
-never shipped durable `thetaS`, `routeExposureScale`, or legacy
-disposition state in this app, so there is no old calibration value to
-delete, convert, or precedence-map. Here, "population-safe migration"
-therefore means that both new tables start empty; it does not claim a
-conversion from a legacy calibration schema that never existed. The
-instrumentation test creates the compiler-exported v9 schema, applies
-`MIGRATION_9_10` through SQLCipher, validates it against the exported v10
-schema, and reopens the file through Room to exercise the runtime identity
-hash. These migrations are additive and do not rewrite existing tables.
+the empty `e2_calibration_metadata` table. No earlier calibration state
+ever shipped, so there is nothing to convert. The instrumentation test
+creates the compiler-exported v9 schema, applies `MIGRATION_9_10` through
+SQLCipher, validates it against the exported v10 schema, and reopens the
+file through Room to exercise the runtime identity hash.
+These migrations are additive and do not rewrite existing tables.
 The reset
 deliberately did not register a `MIGRATION_29_*` shim, and no
 `fallbackToDestructiveMigration` is wired in any build flavor: a

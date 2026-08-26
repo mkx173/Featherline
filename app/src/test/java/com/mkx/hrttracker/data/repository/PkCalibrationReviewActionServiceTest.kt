@@ -69,16 +69,6 @@ class PkCalibrationReviewActionServiceTest {
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(any(), any())
-        } coAnswers {
-            val expectedGeneration = firstArg<Long>()
-            secondArg<suspend (Long) -> Unit>().invoke(expectedGeneration + 1L)
-            HomeDataConditionalMutationResult.Published(
-                generation = expectedGeneration + 1L,
-                value = Unit,
-            )
-        }
         repository = PkCalibrationStorageRepository(holder, homeSnapshotRepository)
     }
 
@@ -99,53 +89,13 @@ class PkCalibrationReviewActionServiceTest {
 
         val excluded = service.exclude(targetId) as PkCalibrationReviewActionResult.Applied
         assertEquals(E2CalibrationDisposition.EXCLUDED, excluded.metadata.disposition)
-        assertEquals(null, excluded.metadata.acceptedRecord)
         assertEquals(excluded.metadata, repository.getAllMetadata().single())
 
         val reIncluded = service.reinclude(targetId)
             as PkCalibrationReviewActionResult.Applied
         assertEquals(E2CalibrationDisposition.AUTO, reIncluded.metadata.disposition)
-        coVerify(exactly = 2) {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
-                0L,
-                any(),
-            )
-        }
-        assertEquals(null, reIncluded.metadata.acceptedRecord)
+        coVerify(exactly = 2) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
         assertEquals(reIncluded.metadata, repository.getAllMetadata().single())
-    }
-
-    @Test
-    fun generationChangeAfterEvaluation_rejectsReviewWithoutWritingMetadata() = runTest {
-        val fixture = outlierFixture(idOffset = 700)
-        insertPersistedLabs(fixture)
-        val expectedGeneration = 7L
-        val service = fixture.service(
-            repository = repository,
-            inputGeneration = expectedGeneration,
-        ) { fixture.input }
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
-                expectedGeneration,
-                any(),
-            )
-        } returns HomeDataConditionalMutationResult.Stale(
-            expectedGeneration = expectedGeneration,
-            currentGeneration = expectedGeneration + 1L,
-        )
-
-        assertRejected(
-            service.exclude(fixture.outlierResultId),
-            PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED,
-        )
-
-        assertTrue(repository.getAllMetadata().isEmpty())
-        coVerify(exactly = 1) {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
-                expectedGeneration,
-                any(),
-            )
-        }
     }
 
     @Test
@@ -176,12 +126,7 @@ class PkCalibrationReviewActionServiceTest {
                 PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2,
             )
             assertTrue(repository.getAllMetadata().isEmpty())
-            coVerify(exactly = 0) {
-                homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
-                    any(),
-                    any(),
-                )
-            }
+            coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
 
             val nonE2Fixture = outlierFixture(idOffset = 200)
             insertPersistedLabs(nonE2Fixture, analyteOverride = "testosterone")
@@ -191,12 +136,7 @@ class PkCalibrationReviewActionServiceTest {
                 PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2,
             )
             assertTrue(repository.getAllMetadata().isEmpty())
-            coVerify(exactly = 0) {
-                homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(
-                    any(),
-                    any(),
-                )
-            }
+            coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
         }
 
     @Test
@@ -205,9 +145,7 @@ class PkCalibrationReviewActionServiceTest {
         val expected = IllegalArgumentException("programmer precondition")
         val throwingRepository: PkCalibrationStorageRepository = mockk()
         coEvery { throwingRepository.getAllMetadata() } returns emptyList()
-        coEvery {
-            throwingRepository.saveMetadataIfCurrent(any(), any())
-        } throws expected
+        coEvery { throwingRepository.saveMetadata(any()) } throws expected
         val service = fixture.service(throwingRepository) { fixture.input }
 
         val thrown = try {
@@ -218,9 +156,7 @@ class PkCalibrationReviewActionServiceTest {
         }
 
         assertTrue(thrown === expected)
-        coVerify(exactly = 1) {
-            throwingRepository.saveMetadataIfCurrent(any(), 0L)
-        }
+        coVerify(exactly = 1) { throwingRepository.saveMetadata(any()) }
     }
 
     @Test
@@ -229,7 +165,7 @@ class PkCalibrationReviewActionServiceTest {
         insertPersistedLabs(fixture)
 
         // v10.0 §A2: per-lab dispositions are no longer revoked by unrelated input
-        // changes; concurrent-edit staleness is the generation guard's job.
+        // changes; a concurrent edit simply re-runs the evaluation with the new metadata.
         val changedInputService = fixture.service(repository) {
             fixture.withChangedWeight()
         }
@@ -254,7 +190,6 @@ class PkCalibrationReviewActionServiceTest {
             as PkCalibrationReviewActionResult.Applied
 
         assertEquals(E2CalibrationDisposition.EXCLUDED, result.metadata.disposition)
-        assertEquals(null, result.metadata.acceptedRecord)
         assertEquals(result.metadata, repository.getAllMetadata().single())
     }
 

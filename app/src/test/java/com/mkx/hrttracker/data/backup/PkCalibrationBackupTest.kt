@@ -4,7 +4,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -17,9 +16,6 @@ class PkCalibrationBackupTest {
         )
         val legacyJson = BackupSnapshotJsonCodec.encode(snapshot)
             .replace(",\"calibrationDisposition\":null", "")
-            .replace(",\"acceptedModelVersion\":null", "")
-            .replace(",\"acceptedSourceValueBits\":null", "")
-            .replace(",\"acceptedCollectedAtEpochMillis\":null", "")
             .replace(",\"calibrationMetadataUpdatedAtEpochMillis\":null", "")
 
         assertFalse(legacyJson.contains("calibrationDisposition"))
@@ -32,14 +28,12 @@ class PkCalibrationBackupTest {
     }
 
     @Test
-    fun version7AcceptedAndExcludedMetadata_validateWithExactRecordContract() {
-        val accepted = result(
+    fun version7ExcludedMetadata_roundTripsAndLegacyAcceptedReadsAsAuto() {
+        // "ACCEPTED" was a pre-release disposition; restore maps it to AUTO
+        // rather than rejecting the whole backup.
+        val legacyAccepted = result(
             uuid = "00000000-0000-0000-0000-000000000911",
             disposition = "ACCEPTED",
-            acceptedModelVersion = "pk-calibration:test/v9",
-            acceptedSourceValueBits = "4059000000000000",
-            acceptedCollectedAtEpochMillis = 600L,
-            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
             updatedAt = 2_000L,
         )
         val excluded = result(
@@ -48,55 +42,37 @@ class PkCalibrationBackupTest {
             updatedAt = 3_000L,
         )
 
-        val validated = snapshot(results = listOf(accepted, excluded))
+        val validated = snapshot(results = listOf(legacyAccepted, excluded))
             .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
         val metadata = validated.e2CalibrationMetadata.associateBy { it.resultUuid }
 
-        assertEquals("ACCEPTED", metadata.getValue(accepted.uuid).disposition)
-        assertEquals(
-            "pk-calibration:test/v9",
-            metadata.getValue(accepted.uuid).acceptedModelVersion,
-        )
+        assertEquals("AUTO", metadata.getValue(legacyAccepted.uuid).disposition)
+        assertEquals(2_000L, metadata.getValue(legacyAccepted.uuid).updatedAtEpochMillis)
         assertEquals("EXCLUDED", metadata.getValue(excluded.uuid).disposition)
-        assertNull(metadata.getValue(excluded.uuid).acceptedSourceValueBits)
-        assertEquals("hrttracker:unit/pg-ml/v1", metadata.getValue(accepted.uuid).acceptedUnitId)
+        assertEquals(3_000L, metadata.getValue(excluded.uuid).updatedAtEpochMillis)
     }
 
     @Test
-    fun version8AcceptedRecordWithoutUnitId_downgradesToAuto() {
-        val accepted = result(
-            uuid = "00000000-0000-0000-0000-000000000913",
-            disposition = "ACCEPTED",
-            acceptedModelVersion = "pk-calibration:test/v9",
-            acceptedSourceValueBits = "4059000000000000",
-            acceptedCollectedAtEpochMillis = 600L,
-            updatedAt = 2_000L,
-        )
-
-        val validated = snapshot(version = 8, results = listOf(accepted))
-            .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
-        val metadata = validated.e2CalibrationMetadata.single()
-
-        assertEquals("AUTO", metadata.disposition)
-        assertNull(metadata.acceptedModelVersion)
-        assertNull(metadata.acceptedUnitId)
-    }
-
-    @Test
-    fun acceptedMetadataWithNonContractValueBits_isRejected() {
+    fun unknownDisposition_isRejected() {
         val invalid = result(
             uuid = "00000000-0000-0000-0000-000000000921",
-            disposition = "ACCEPTED",
-            acceptedModelVersion = "pk-calibration:test/v9",
-            acceptedSourceValueBits = "not-binary64-bits",
-            acceptedCollectedAtEpochMillis = 600L,
-            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
+            disposition = "KEPT",
             updatedAt = 4_000L,
         )
 
         try {
             snapshot(results = listOf(invalid)).toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
-            fail("Expected the non-contract acceptance value bits to be rejected.")
+            fail("Expected the unknown disposition to be rejected.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun snapshotVersionAboveCurrent_isRejected() {
+        try {
+            snapshot(version = 8, results = emptyList()).toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
+            fail("Expected snapshotVersion 8 to be rejected.")
         } catch (_: IllegalArgumentException) {
             // Expected.
         }
@@ -148,10 +124,6 @@ class PkCalibrationBackupTest {
     private fun result(
         uuid: String,
         disposition: String? = null,
-        acceptedModelVersion: String? = null,
-        acceptedSourceValueBits: String? = null,
-        acceptedCollectedAtEpochMillis: Long? = null,
-        acceptedUnitId: String? = null,
         updatedAt: Long? = null,
     ): BackupBloodTestResultSnapshot {
         return BackupBloodTestResultSnapshot(
@@ -164,10 +136,6 @@ class PkCalibrationBackupTest {
             unitSnapshot = BloodUnitKey.PG_ML.storageValue,
             canonicalValue = 100.0,
             calibrationDisposition = disposition,
-            acceptedModelVersion = acceptedModelVersion,
-            acceptedSourceValueBits = acceptedSourceValueBits,
-            acceptedCollectedAtEpochMillis = acceptedCollectedAtEpochMillis,
-            acceptedUnitId = acceptedUnitId,
             calibrationMetadataUpdatedAtEpochMillis = updatedAt,
         )
     }

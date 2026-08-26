@@ -29,23 +29,4 @@ interface PkCalibrationDao {
 
     @Query("DELETE FROM e2_calibration_metadata")
     suspend fun deleteAllMetadata()
-
-    @Query(
-        "SELECT * FROM pk_calibration_display_artifact " +
-            "WHERE singletonId = :singletonId LIMIT 1"
-    )
-    suspend fun getDisplayArtifact(
-        singletonId: Int = PK_CALIBRATION_DISPLAY_SINGLETON_ID,
-    ): PkCalibrationDisplayArtifactEntity?
-
-    @Upsert
-    suspend fun upsertDisplayArtifact(artifact: PkCalibrationDisplayArtifactEntity)
-
-    @Query(
-        "DELETE FROM pk_calibration_display_artifact " +
-            "WHERE singletonId = :singletonId"
-    )
-    suspend fun deleteDisplayArtifact(
-        singletonId: Int = PK_CALIBRATION_DISPLAY_SINGLETON_ID,
-    )
 }

@@ -64,8 +64,7 @@ class PkCalibrationScopeEvidenceTest {
                 E2CalibrationMetadata.create(
                     resultId = other.resultId,
                     disposition = E2CalibrationDisposition.AUTO,
-                    acceptedRecord = null,
-                    updatedAt = updatedAt,
+                        updatedAt = updatedAt,
                 )
             )
         }
@@ -517,7 +516,6 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = original.resultId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedRecord = null,
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -592,7 +590,6 @@ class PkCalibrationScopeEvidenceTest {
             E2CalibrationMetadata.create(
                 resultId = zeroLab.resultId,
                 disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedRecord = null,
                 updatedAt = Instant.EPOCH,
             )
         )
@@ -749,38 +746,6 @@ class PkCalibrationScopeEvidenceTest {
         )
         assertTrue(pool.unassigned.isEmpty())
         assertTrue(pool.excluded.isEmpty())
-    }
-
-    @Test
-    fun legacyAcceptedDispositionIsPlainAuto() {
-        // Acceptance records are gone (warn-only): a persisted ACCEPTED row
-        // neither hides the outlier nor changes the evidence it contributes.
-        val target = lab(uuid(1), sourceValue = 100.0, canonicalValuePgml = 100.0)
-        val fixture = fixture(labs = listOf(target))
-        val record = requireNotNull(
-            PkCalibrationAcceptanceRecord.create(
-                calibrationModelVersion = CalibrationModelVersion,
-                sourceValueBits = requireNotNull(target.sourceValueBits),
-                collectedAtEpochMillis = target.collectedAtEpochMillis,
-                unitId = UnitId,
-            )
-        )
-        val accepted = requireNotNull(
-            E2CalibrationMetadata.create(
-                uuid(1),
-                E2CalibrationDisposition.ACCEPTED,
-                record,
-                Instant.EPOCH,
-            )
-        )
-
-        val autoPool = ready(fixture.build())
-        val acceptedPool = ready(fixture.build(metadata = listOf(accepted)))
-        assertEquals(autoPool.included, acceptedPool.included)
-        assertEquals(
-            PkCalibrationEffectiveDisposition.AUTO,
-            acceptedPool.included.single().effectiveDisposition,
-        )
     }
 
     private data class Fixture(

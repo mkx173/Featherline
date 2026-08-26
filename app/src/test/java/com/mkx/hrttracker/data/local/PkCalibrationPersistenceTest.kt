@@ -5,39 +5,24 @@ import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
-import com.mkx.hrttracker.data.repository.HomeDataConditionalMutationResult
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
-import com.mkx.hrttracker.data.repository.toHomeCalibrationDisplay
-import com.mkx.hrttracker.data.repository.toModel
-import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_DISPLAY_SCHEMA
-import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 
@@ -57,139 +42,6 @@ class PkCalibrationPersistenceTest {
     @After
     fun tearDown() {
         database.close()
-    }
-
-    @Test
-    fun displayArtifact_mapsPromotedRoutesAndNonZeroBetasToValidatedPersonalParams() {
-        val artifact = checkNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = "route-v9-final",
-                resultInputDigest = digest("hrttracker.fit-input/test", 'a'),
-                promotedRoutes = listOf(PkCalibrationRoute.PATCH, PkCalibrationRoute.GEL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.GEL to 0.2),
-            )
-        )
-
-        val params = checkNotNull(artifact.toValidatedPersonalParams())
-
-        assertEquals(0.0, params.logScaleFor(PkCalibrationRoute.PATCH), 0.0)
-        assertEquals(0.2, params.logScaleFor(PkCalibrationRoute.GEL), 0.0)
-        assertEquals(mapOf(PkCalibrationRoute.GEL to 0.2), params.routeLogScale)
-    }
-
-    @Test
-    fun publishDisplayArtifactIfCurrent_doesNotReturnBeforeGenerationBoundPropagationCompletes() =
-        runTest {
-        val databaseHolder: DatabaseHolder = mockk()
-        every { databaseHolder.get() } returns database
-        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
-        val propagationStarted = CompletableDeferred<Unit>()
-        val allowPropagation = CompletableDeferred<Unit>()
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(11L, any())
-        } coAnswers {
-            propagationStarted.complete(Unit)
-            allowPropagation.await()
-            secondArg<suspend (Long) -> Unit>().invoke(12L)
-            HomeDataConditionalMutationResult.Published(12L, Unit)
-        }
-        val repository = PkCalibrationStorageRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotRepository = homeSnapshotRepository,
-        )
-        val artifact = checkNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = "route-v9-final",
-                resultInputDigest = digest("hrttracker.fit-input/test", 'b'),
-                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
-            )
-        )
-
-        val saveJob = launch {
-            assertTrue(
-                repository.publishDisplayArtifactIfCurrent(
-                    artifact = artifact,
-                    expectedInputGeneration = 11L,
-                )
-            )
-        }
-        propagationStarted.await()
-
-        assertFalse(saveJob.isCompleted)
-        allowPropagation.complete(Unit)
-        saveJob.join()
-
-        assertEquals(12L, database.pkCalibrationDao().getDisplayArtifact()?.homeSnapshotGeneration)
-    }
-
-    @Test
-    fun publishDisplayArtifactIfCurrent_staleGenerationDoesNotTouchDatabase() = runTest {
-        val databaseHolder: DatabaseHolder = mockk()
-        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
-        coEvery { homeSnapshotRepository.captureCurrentHomeDataGeneration() } returns 4L
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(4L, any())
-        } returns HomeDataConditionalMutationResult.Stale(
-            expectedGeneration = 4L,
-            currentGeneration = 5L,
-        )
-        val repository = PkCalibrationStorageRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotRepository = homeSnapshotRepository,
-        )
-
-        val capturedGeneration = repository.captureHomeDataGeneration()
-        val published = repository.publishDisplayArtifactIfCurrent(
-            artifact = artifact(),
-            expectedInputGeneration = capturedGeneration,
-        )
-
-        assertEquals(4L, capturedGeneration)
-        assertFalse(published)
-        verify(exactly = 0) { databaseHolder.get() }
-        coVerify(exactly = 1) {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(4L, any())
-        }
-    }
-
-    @Test
-    fun publishDisplayArtifactIfCurrent_artifactWriteFailurePropagates() = runTest {
-        val databaseHolder: DatabaseHolder = mockk()
-        val failingDatabase: HrtTrackerDatabase = mockk()
-        val calibrationDao: PkCalibrationDao = mockk()
-        every { databaseHolder.get() } returns failingDatabase
-        every { failingDatabase.pkCalibrationDao() } returns calibrationDao
-        coEvery { calibrationDao.upsertDisplayArtifact(any()) } throws
-            IOException("artifact write failed")
-        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(8L, any())
-        } coAnswers {
-            secondArg<suspend (Long) -> Unit>().invoke(9L)
-            HomeDataConditionalMutationResult.Published(9L, Unit)
-        }
-        val repository = PkCalibrationStorageRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotRepository = homeSnapshotRepository,
-        )
-
-        var failure: Throwable? = null
-        try {
-            repository.publishDisplayArtifactIfCurrent(
-                artifact = artifact(),
-                expectedInputGeneration = 8L,
-            )
-        } catch (throwable: IOException) {
-            failure = throwable
-        }
-
-        assertEquals("artifact write failed", failure?.message)
-        coVerify(exactly = 1) {
-            calibrationDao.upsertDisplayArtifact(
-                match { entity -> entity.homeSnapshotGeneration == 9L }
-            )
-        }
     }
 
     @Test
@@ -244,49 +96,36 @@ class PkCalibrationPersistenceTest {
     }
 
     @Test
-    fun panelSave_boundFieldEditClearsAcceptance_exclusionAndUntouchedSurvive() = runTest {
-        // Decision 7: value/unit/collection-time edits clear a kept-outlier
-        // acceptance outright (durable AUTO transition, no stale-record
-        // resurrection); explicit exclusions and untouched acceptances stay.
+    fun panelSave_exclusionSurvivesValueAndCollectionTimeEdits() = runTest {
+        // Explicit exclusions are the user's decision about a result, not a
+        // property of its value: value/unit/collection-time edits keep them.
         val dao = database.bloodTestDao()
-        val edited = panel("panel-acc-edit")
-        val editedResult = result("result-acc-edit", edited.uuid, 0, "e2", value = 300.0)
-        val untouched = panel("panel-acc-keep")
-        val untouchedResult = result("result-acc-keep", untouched.uuid, 0, "e2", value = 90.0)
-        val timeShift = panel("panel-acc-time")
-        val timeShiftResult = result("result-acc-time", timeShift.uuid, 0, "e2", value = 80.0)
-        val excludedPanel = panel("panel-excl-edit")
-        val excludedResult = result("result-excl-edit", excludedPanel.uuid, 0, "e2", value = 70.0)
-        dao.insertPanels(listOf(edited, untouched, timeShift, excludedPanel))
-        dao.insertResults(
-            listOf(editedResult, untouchedResult, timeShiftResult, excludedResult)
-        )
+        val edited = panel("panel-excl-edit")
+        val editedResult = result("result-excl-edit", edited.uuid, 0, "e2", value = 70.0)
+        val timeShift = panel("panel-excl-time")
+        val timeShiftResult = result("result-excl-time", timeShift.uuid, 0, "e2", value = 80.0)
+        dao.insertPanels(listOf(edited, timeShift))
+        dao.insertResults(listOf(editedResult, timeShiftResult))
         database.pkCalibrationDao().insertMetadata(
             listOf(
-                acceptedMetadata(editedResult.uuid),
-                acceptedMetadata(untouchedResult.uuid),
-                acceptedMetadata(timeShiftResult.uuid),
-                excludedMetadata(excludedResult.uuid),
+                excludedMetadata(editedResult.uuid),
+                excludedMetadata(timeShiftResult.uuid),
             )
         )
 
-        dao.upsertPanelWithResults(edited, listOf(editedResult.copy(value = 250.0)))
-        dao.upsertPanelWithResults(untouched, listOf(untouchedResult))
+        dao.upsertPanelWithResults(edited, listOf(editedResult.copy(value = 75.0)))
         dao.upsertPanelWithResults(
             timeShift.copy(collectedAtInstantEpochMillis = 5_000L),
             listOf(timeShiftResult),
         )
-        dao.upsertPanelWithResults(
-            excludedPanel,
-            listOf(excludedResult.copy(value = 75.0)),
-        )
 
-        assertNull(database.pkCalibrationDao().getMetadata(editedResult.uuid))
-        assertNotNull(database.pkCalibrationDao().getMetadata(untouchedResult.uuid))
-        assertNull(database.pkCalibrationDao().getMetadata(timeShiftResult.uuid))
         assertEquals(
             "EXCLUDED",
-            database.pkCalibrationDao().getMetadata(excludedResult.uuid)?.disposition,
+            database.pkCalibrationDao().getMetadata(editedResult.uuid)?.disposition,
+        )
+        assertEquals(
+            "EXCLUDED",
+            database.pkCalibrationDao().getMetadata(timeShiftResult.uuid)?.disposition,
         )
     }
 
@@ -341,50 +180,42 @@ class PkCalibrationPersistenceTest {
     }
 
     @Test
-    fun metadataRepository_savesAndRoundTripsAcceptedAndExcluded() = runTest {
-        val acceptedId = UUID.fromString("00000000-0000-0000-0000-000000000c01")
+    fun metadataRepository_savesAndRoundTripsAutoAndExcluded() = runTest {
+        val autoId = UUID.fromString("00000000-0000-0000-0000-000000000c01")
         val excludedId = UUID.fromString("00000000-0000-0000-0000-000000000c02")
-        val acceptedPanel = panel("panel-metadata-accepted")
+        val autoPanel = panel("panel-metadata-auto")
         val excludedPanel = panel("panel-metadata-excluded")
-        database.bloodTestDao().insertPanels(listOf(acceptedPanel, excludedPanel))
+        database.bloodTestDao().insertPanels(listOf(autoPanel, excludedPanel))
         database.bloodTestDao().insertResults(
             listOf(
-                result(acceptedId.toString(), acceptedPanel.uuid, 0, "e2"),
+                result(autoId.toString(), autoPanel.uuid, 0, "e2"),
                 result(excludedId.toString(), excludedPanel.uuid, 0, "e2"),
             )
         )
-        val accepted = checkNotNull(
-            E2CalibrationMetadata.create(
-                resultId = acceptedId,
-                disposition = E2CalibrationDisposition.ACCEPTED,
-                acceptedRecord = checkNotNull(
-                    PkCalibrationAcceptanceRecord.create(
-                        calibrationModelVersion = "pk-calibration:test/v9",
-                        sourceValueBits = "4059000000000000",
-                        collectedAtEpochMillis = 600L,
-                        unitId = "hrttracker:unit/pg-ml/v1",
-                    )
-                ),
-                updatedAt = Instant.ofEpochMilli(2_000L),
-            )
+        val auto = E2CalibrationMetadata(
+            resultId = autoId,
+            disposition = E2CalibrationDisposition.AUTO,
+            updatedAt = Instant.ofEpochMilli(2_000L),
         )
-        val excluded = checkNotNull(
-            E2CalibrationMetadata.create(
-                resultId = excludedId,
-                disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedRecord = null,
-                updatedAt = Instant.ofEpochMilli(3_000L),
-            )
+        val excluded = E2CalibrationMetadata(
+            resultId = excludedId,
+            disposition = E2CalibrationDisposition.EXCLUDED,
+            updatedAt = Instant.ofEpochMilli(3_000L),
         )
-        val repository = storageRepository()
+        val homeSnapshotRepository = homeSnapshotRepository()
+        val repository = storageRepository(homeSnapshotRepository)
 
-        assertTrue(repository.saveMetadataIfCurrent(accepted, expectedGeneration = 6L))
-        assertTrue(repository.saveMetadataIfCurrent(excluded, expectedGeneration = 7L))
+        repository.saveMetadata(auto)
+        repository.saveMetadata(excluded)
+        // Re-excluding overwrites in place (upsert), no duplicate rows.
+        val reExcluded = excluded.copy(updatedAt = Instant.ofEpochMilli(4_000L))
+        repository.saveMetadata(reExcluded)
 
         assertEquals(
-            mapOf(acceptedId to accepted, excludedId to excluded),
+            mapOf(autoId to auto, excludedId to reExcluded),
             repository.getAllMetadata().associateBy(E2CalibrationMetadata::resultId),
         )
+        coVerify(exactly = 3) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
@@ -411,121 +242,20 @@ class PkCalibrationPersistenceTest {
         val e2Result = result(resultId.toString(), panel.uuid, 0, "e2")
         database.bloodTestDao().insertPanel(panel)
         database.bloodTestDao().insertResults(listOf(e2Result))
-        val databaseHolder: DatabaseHolder = mockk()
-        every { databaseHolder.get() } returns database
-        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
-            database.withTransaction {
-                firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
-            }
-        }
         val homeSnapshotRepository: HomeSnapshotRepository = mockk()
-        coEvery {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(6L, any())
-        } coAnswers {
+        // The target flips to a non-E2 analyte while waiting on Home's mutation lock.
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             database.bloodTestDao().updateResults(
                 listOf(e2Result.copy(builtinAnalyteKey = "testosterone"))
             )
-            secondArg<suspend (Long) -> Unit>().invoke(7L)
-            HomeDataConditionalMutationResult.Published(7L, Unit)
+            firstArg<suspend () -> Unit>().invoke()
         }
-        val repository = PkCalibrationStorageRepository(
-            databaseHolder,
-            homeSnapshotRepository,
-        )
+        val repository = storageRepository(homeSnapshotRepository)
 
         assertMetadataSaveRejected(repository, excludedModel(resultId))
 
         assertEquals(emptyList<E2CalibrationMetadata>(), repository.getAllMetadata())
-        coVerify(exactly = 1) {
-            homeSnapshotRepository.runHomeDataMutationIfGenerationCurrent<Unit>(6L, any())
-        }
-    }
-
-    @Test
-    fun displayArtifact_roundTripsExactZeroPromotion_andDiscardsStaleOrMalformedRows() = runTest {
-        val databaseHolder: DatabaseHolder = mockk()
-        every { databaseHolder.get() } returns database
-        coEvery {
-            databaseHolder.withTransaction<PersistedPkCalibrationDisplay?>(any())
-        } coAnswers {
-            database.withTransaction {
-                firstArg<suspend (HrtTrackerDatabase) -> PersistedPkCalibrationDisplay?>()
-                    .invoke(database)
-            }
-        }
-        val repository = PkCalibrationStorageRepository(
-            databaseHolder,
-            homeSnapshotRepository(),
-        )
-        val digest = digest("hrttracker.fit-input/test", 'a')
-        val artifact = checkNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = "route-v9-final",
-                resultInputDigest = digest,
-                promotedRoutes = listOf(PkCalibrationRoute.PATCH, PkCalibrationRoute.GEL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.GEL to 0.2),
-            )
-        )
-
-        val capturedGeneration = repository.captureHomeDataGeneration()
-        assertTrue(
-            repository.publishDisplayArtifactIfCurrent(
-                artifact = artifact,
-                expectedInputGeneration = capturedGeneration,
-            )
-        )
-
-        assertEquals(
-            artifact,
-            repository.readDisplayArtifact("route-v9-final", digest),
-        )
-        val staleDigest = digest("hrttracker.fit-input/test", 'b')
-        assertNull(repository.readDisplayArtifact("route-v9-final", staleDigest))
-        assertNull(database.pkCalibrationDao().getDisplayArtifact())
-
-        database.pkCalibrationDao().upsertDisplayArtifact(
-            artifactEntity().copy(promotedRouteStableIds = "gel,patch")
-        )
-        assertNull(repository.readDisplayArtifact("route-v9-final", digest))
-        assertNull(database.pkCalibrationDao().getDisplayArtifact())
-    }
-
-    @Test
-    fun homeDisplayProjection_includesOnlyMatchingGenerationAndModel_andOmitsInvalidRows() {
-        val expected = artifactEntity().toModel()
-        assertEquals(
-            expected,
-            artifactEntity().toHomeCalibrationDisplay(
-                expectedHomeSnapshotGeneration = 7L,
-                expectedCalibrationModelVersion = "route-v9-final",
-            ),
-        )
-        assertNull(
-            artifactEntity(homeSnapshotGeneration = 6L).toHomeCalibrationDisplay(
-                expectedHomeSnapshotGeneration = 7L,
-                expectedCalibrationModelVersion = "route-v9-final",
-            )
-        )
-        assertNull(
-            artifactEntity(homeSnapshotGeneration = 8L).toHomeCalibrationDisplay(
-                expectedHomeSnapshotGeneration = 7L,
-                expectedCalibrationModelVersion = "route-v9-final",
-            )
-        )
-        assertNull(
-            artifactEntity(calibrationModelVersion = "route-v9-draft")
-                .toHomeCalibrationDisplay(
-                    expectedHomeSnapshotGeneration = 7L,
-                    expectedCalibrationModelVersion = "route-v9-final",
-                )
-        )
-        assertNull(
-            artifactEntity(promotedRouteStableIds = "gel,patch")
-                .toHomeCalibrationDisplay(
-                    expectedHomeSnapshotGeneration = 7L,
-                    expectedCalibrationModelVersion = "route-v9-final",
-                )
-        )
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     private fun panel(uuid: String) = BloodTestPanelEntity(
@@ -557,29 +287,15 @@ class PkCalibrationPersistenceTest {
         canonicalValue = value,
     )
 
-    private fun acceptedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(
-        resultUuid = resultUuid,
-        disposition = "ACCEPTED",
-        acceptedModelVersion = "pk-calibration:test/v9",
-        acceptedSourceValueBits = "4059000000000000",
-        acceptedCollectedAtEpochMillis = 600L,
-        acceptedUnitId = "hrttracker:unit/pg-ml/v1",
-        updatedAtEpochMillis = 1_000L,
-    )
-
     private fun excludedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(
         resultUuid = resultUuid,
         disposition = "EXCLUDED",
-        acceptedModelVersion = null,        acceptedSourceValueBits = null,        acceptedCollectedAtEpochMillis = null,
-        acceptedUnitId = null,
         updatedAtEpochMillis = 1_000L,
     )
 
-    private fun digest(schema: String, character: Char) = checkNotNull(
-        CanonicalDigest.create(schema, "SHA-256", character.toString().repeat(64))
-    )
-
-    private fun storageRepository(): PkCalibrationStorageRepository {
+    private fun storageRepository(
+        homeSnapshotRepository: HomeSnapshotRepository = homeSnapshotRepository(),
+    ): PkCalibrationStorageRepository {
         val databaseHolder: DatabaseHolder = mockk()
         every { databaseHolder.get() } returns database
         coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
@@ -587,57 +303,21 @@ class PkCalibrationPersistenceTest {
                 firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
             }
         }
-        return PkCalibrationStorageRepository(
-            databaseHolder,
-            homeSnapshotRepository(),
-        )
+        return PkCalibrationStorageRepository(databaseHolder, homeSnapshotRepository)
     }
 
-    private fun homeSnapshotRepository(
-        generation: Long = 7L,
-    ): HomeSnapshotRepository {
+    private fun homeSnapshotRepository(): HomeSnapshotRepository {
         val repository: HomeSnapshotRepository = mockk()
-        var currentGeneration = generation - 1L
         coEvery { repository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
-        }
-        coEvery { repository.captureCurrentHomeDataGeneration() } coAnswers {
-            currentGeneration
-        }
-        coEvery {
-            repository.runHomeDataMutationIfGenerationCurrent<Unit>(any(), any())
-        } coAnswers {
-            val expectedGeneration = firstArg<Long>()
-            if (expectedGeneration != currentGeneration) {
-                HomeDataConditionalMutationResult.Stale(
-                    expectedGeneration = expectedGeneration,
-                    currentGeneration = currentGeneration,
-                )
-            } else {
-                currentGeneration += 1L
-                secondArg<suspend (Long) -> Unit>().invoke(currentGeneration)
-                HomeDataConditionalMutationResult.Published(currentGeneration, Unit)
-            }
         }
         return repository
     }
 
-    private fun artifact(): PersistedPkCalibrationDisplay = checkNotNull(
-        PersistedPkCalibrationDisplay.create(
-            calibrationModelVersion = "route-v9-final",
-            resultInputDigest = digest("hrttracker.fit-input/test", 'c'),
-            promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-            displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.1),
-        )
-    )
-
-    private fun excludedModel(resultId: UUID): E2CalibrationMetadata = checkNotNull(
-        E2CalibrationMetadata.create(
-            resultId = resultId,
-            disposition = E2CalibrationDisposition.EXCLUDED,
-            acceptedRecord = null,
-            updatedAt = Instant.ofEpochMilli(4_000L),
-        )
+    private fun excludedModel(resultId: UUID) = E2CalibrationMetadata(
+        resultId = resultId,
+        disposition = E2CalibrationDisposition.EXCLUDED,
+        updatedAt = Instant.ofEpochMilli(4_000L),
     )
 
     private suspend fun assertMetadataSaveRejected(
@@ -645,30 +325,10 @@ class PkCalibrationPersistenceTest {
         metadata: E2CalibrationMetadata,
     ) {
         try {
-            repository.saveMetadataIfCurrent(metadata, expectedGeneration = 6L)
+            repository.saveMetadata(metadata)
             fail("Expected metadata save to reject a missing or non-E2 result.")
         } catch (_: IllegalArgumentException) {
             // Expected.
         }
     }
-
-    private fun artifactEntity(
-        homeSnapshotGeneration: Long = 7L,
-        calibrationModelVersion: String = "route-v9-final",
-        promotedRouteStableIds: String = "patch,gel",
-    ) = PkCalibrationDisplayArtifactEntity(
-        singletonId = PK_CALIBRATION_DISPLAY_SINGLETON_ID,
-        homeSnapshotGeneration = homeSnapshotGeneration,
-        schema = PK_CALIBRATION_DISPLAY_SCHEMA,
-        calibrationModelVersion = calibrationModelVersion,
-        resultInputDigestSchema = "hrttracker.fit-input/test",
-        resultInputDigestAlgorithm = "SHA-256",
-        resultInputDigestHexLower = "a".repeat(64),
-        promotedRouteStableIds = promotedRouteStableIds,
-        injectionLogScale = null,
-        patchLogScale = null,
-        gelLogScale = 0.2,
-        oralLogScale = null,
-        sublingualLogScale = null,
-    )
 }

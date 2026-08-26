@@ -407,7 +407,6 @@ object PkCalibrationEvidenceAdapter {
         val invalidNonpositive = mutableListOf<PkCalibrationLabEvidence>()
         val excluded = mutableListOf<PkCalibrationLabEvidence>()
         for (lab in authorizedLabs) {
-            // A persisted ACCEPTED disposition (legacy Keep action) is plain AUTO now.
             if (excludedIds.contains(lab.resultId)) {
                 excluded += lab.evidence(
                     state = PkCalibrationLabEvidenceState.EXCLUDED,

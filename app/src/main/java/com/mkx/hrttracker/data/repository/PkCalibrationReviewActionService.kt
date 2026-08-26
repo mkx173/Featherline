@@ -14,7 +14,6 @@ import javax.inject.Singleton
 
 enum class PkCalibrationReviewActionRejection {
     CURRENT_INPUT_UNAVAILABLE,
-    INPUT_GENERATION_CHANGED,
     SCOPE_NOT_CURRENT,
     LAB_NOT_AUTHORIZED_E2,
     NOT_CURRENTLY_EXCLUDED,
@@ -30,10 +29,10 @@ sealed interface PkCalibrationReviewActionResult {
 
 /**
  * Persists the two review transitions (exclude, re-include) against the
- * current generation-bound evaluation context. The context provider rejects a
- * stale Home generation before this service runs, so input, metadata,
- * identity policy, config, and scope remain one snapshot. The repository owns
- * the Room transaction and the final built-in-E2 check.
+ * current evaluation context. The repository owns the Room transaction and
+ * the final built-in-E2 check; a concurrent Home-data edit simply re-runs the
+ * evaluation with the new metadata (ponytail: no compare-and-swap, the write
+ * is a single idempotent row keyed by result id).
  */
 @Singleton
 class PkCalibrationReviewActionService @Inject constructor(
@@ -51,15 +50,9 @@ class PkCalibrationReviewActionService @Inject constructor(
         if (scope.authorizedLabs.none { lab -> lab.resultId == resultId }) {
             return rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
         }
-        val metadata = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = resultId,
-                disposition = E2CalibrationDisposition.EXCLUDED,
-                acceptedRecord = null,
-                updatedAt = Instant.now(clock),
-            )
+        return persist(
+            E2CalibrationMetadata(resultId, E2CalibrationDisposition.EXCLUDED, Instant.now(clock))
         )
-        return persist(metadata, current.inputGeneration)
     }
 
     suspend fun reinclude(resultId: UUID): PkCalibrationReviewActionResult {
@@ -76,15 +69,9 @@ class PkCalibrationReviewActionService @Inject constructor(
         if (stored?.disposition != E2CalibrationDisposition.EXCLUDED) {
             return rejected(PkCalibrationReviewActionRejection.NOT_CURRENTLY_EXCLUDED)
         }
-        val metadata = requireNotNull(
-            E2CalibrationMetadata.create(
-                resultId = resultId,
-                disposition = E2CalibrationDisposition.AUTO,
-                acceptedRecord = null,
-                updatedAt = Instant.now(clock),
-            )
+        return persist(
+            E2CalibrationMetadata(resultId, E2CalibrationDisposition.AUTO, Instant.now(clock))
         )
-        return persist(metadata, current.inputGeneration)
     }
 
     private suspend fun currentContext(): PkCalibrationEvaluationContext? {
@@ -119,14 +106,10 @@ class PkCalibrationReviewActionService @Inject constructor(
 
     private suspend fun persist(
         metadata: E2CalibrationMetadata,
-        expectedGeneration: Long,
     ): PkCalibrationReviewActionResult {
         return try {
-            if (storageRepository.saveMetadataIfCurrent(metadata, expectedGeneration)) {
-                PkCalibrationReviewActionResult.Applied(metadata)
-            } else {
-                rejected(PkCalibrationReviewActionRejection.INPUT_GENERATION_CHANGED)
-            }
+            storageRepository.saveMetadata(metadata)
+            PkCalibrationReviewActionResult.Applied(metadata)
         } catch (_: PkCalibrationMetadataTargetNotAuthorizedException) {
             rejected(PkCalibrationReviewActionRejection.LAB_NOT_AUTHORIZED_E2)
         }

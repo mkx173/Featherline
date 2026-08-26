@@ -42,7 +42,6 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -130,33 +129,8 @@ class BackupExportServiceTest {
 
     @Test
     fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
-        assertEquals(9, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
-
-    @Test
-    fun buildBackupSnapshotJson_doesNotReadOrSerializeDerivedCalibrationDisplayArtifact() =
-        runTest {
-            every { settingsRepository.onboardingCompleted } returns flowOf(false)
-            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-            coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
-            coEvery { medicineRepository.getAll() } returns emptyList()
-            coEvery { medicationGroupRepository.getGroups() } returns emptyList()
-            coEvery { medicationLogRepository.getEntries() } returns emptyList()
-            coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
-            coEvery { bloodTestRepository.getPanels() } returns emptyList()
-
-            val json = service.buildBackupSnapshotJson(
-                Instant.parse("2026-04-26T03:04:05Z")
-            )
-
-            coVerify(exactly = 0) {
-                pkCalibrationStorageRepository.readDisplayArtifact(any(), any())
-            }
-            assertFalse(json.contains("\"homeSnapshotGeneration\""))
-            assertFalse(json.contains("\"calibrationModelVersion\""))
-            assertFalse(json.contains("\"promotedRouteStableIds\""))
-            assertFalse(json.contains("\"injectionLogScale\""))
-        }
 
     @Test
     fun buildBackupSnapshotJson_exportsStockNudgeEnabledFalse() = runTest {
@@ -641,7 +615,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(9, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -817,14 +791,6 @@ class BackupExportServiceTest {
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000061")
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000062")
         val resultUuid = UUID.fromString("00000000-0000-0000-0000-000000000063")
-        val acceptanceRecord = checkNotNull(
-            PkCalibrationAcceptanceRecord.create(
-                calibrationModelVersion = "pk-calibration:test/v9",
-                sourceValueBits = "4059000000000000",
-                collectedAtEpochMillis = 600L,
-                unitId = "hrttracker:unit/pg-ml/v1",
-            )
-        )
         val importedMedicine = Medicine(
             uuid = medicineUuid,
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
@@ -892,13 +858,10 @@ class BackupExportServiceTest {
             )
         )
         coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns listOf(
-            checkNotNull(
-                E2CalibrationMetadata.create(
-                    resultId = resultUuid,
-                    disposition = E2CalibrationDisposition.ACCEPTED,
-                    acceptedRecord = acceptanceRecord,
-                    updatedAt = Instant.parse("2026-04-26T02:20:00Z"),
-                )
+            E2CalibrationMetadata(
+                resultId = resultUuid,
+                disposition = E2CalibrationDisposition.EXCLUDED,
+                updatedAt = Instant.parse("2026-04-26T02:20:00Z"),
             )
         )
 
@@ -915,10 +878,7 @@ class BackupExportServiceTest {
         val result = panel.results.single()
         assertEquals("oyama", result.importSourceApp)
         assertEquals("result-60", result.importExternalId)
-        assertEquals("ACCEPTED", result.calibrationDisposition)
-        assertEquals("pk-calibration:test/v9", result.acceptedModelVersion)
-        assertEquals("4059000000000000", result.acceptedSourceValueBits)
-        assertEquals(600L, result.acceptedCollectedAtEpochMillis)
+        assertEquals("EXCLUDED", result.calibrationDisposition)
         assertEquals(
             Instant.parse("2026-04-26T02:20:00Z").toEpochMilli(),
             result.calibrationMetadataUpdatedAtEpochMillis,

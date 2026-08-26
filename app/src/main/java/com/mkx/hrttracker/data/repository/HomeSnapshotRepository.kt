@@ -9,15 +9,10 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.PkPersonalParams
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
-import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
 import com.mkx.hrttracker.model.pk.projectionFutureDays
-import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
@@ -51,8 +46,6 @@ class HomeSnapshotRepository @Inject constructor(
     private val settingsRepository: SettingsRepository,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
-    private val calibrationModelIdentityProvider: PkCalibrationModelIdentityProvider =
-        PkCalibrationModelIdentityProvider.Unavailable,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val refreshMutex = Mutex()
@@ -119,13 +112,12 @@ class HomeSnapshotRepository @Inject constructor(
                 }
 
                 else -> {
-                    val validatedSnapshot = snapshot.withValidatedCalibrationDisplay()
                     diagnosticsLogger.info(
                         TAG,
-                        "home_snapshot_observed_loaded ${validatedSnapshot.diagnosticSummary()} " +
+                        "home_snapshot_observed_loaded ${snapshot.diagnosticSummary()} " +
                                 "durableGeneration=$generation"
                     )
-                    validatedSnapshot
+                    snapshot
                 }
             }
         }
@@ -152,30 +144,38 @@ class HomeSnapshotRepository @Inject constructor(
     // Room finishes opening. Lock acquisition stays cancellable so callers blocked
     // on a long-running peer can still be cancelled cleanly.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
-        return runHomeDataMutationWithGeneration { block() }
-    }
-
-    /** Shared unconditional path for source-data writes that already own freshness. */
-    private suspend fun <T> runHomeDataMutationWithGeneration(
-        block: suspend (generation: Long) -> T,
-    ): T {
-        val execution = refreshMutex.withLock {
+        var generation = 0L
+        var mutationResult: Result<T>? = null
+        refreshMutex.withLock {
             withContext(NonCancellable) {
-                runHomeDataMutationLocked(block)
+                diagnosticsLogger.info(TAG, "home_data_mutation_start")
+                generation = homeSnapshotGenerationStore.incrementGeneration()
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_data_mutation_generation_incremented generation=$generation"
+                )
+                val result = runCatching { block() }
+                mutationResult = result
+                result.onSuccess {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_data_mutation_committed generation=$generation"
+                    )
+                }
+                // The generation has already been bumped, so observers will reject any
+                // stale snapshot. Clear while still serialized with other mutations.
+                clearSnapshotBestEffort()
+                refreshHomeSnapshotBestEffortLocked(force = true)
             }
         }
         diagnosticsLogger.info(
             TAG,
-            "home_data_mutation_snapshot_refresh_completed generation=${execution.generation}"
+            "home_data_mutation_snapshot_refresh_completed generation=$generation"
         )
-        return execution.mutationResult.getOrThrow()
+        return checkNotNull(mutationResult).getOrThrow()
     }
 
-    /**
-     * Captures the durable generation while serialized with Home data mutations.
-     * A derived-data publisher must capture this before reading its inputs, then use
-     * [runHomeDataMutationIfGenerationCurrent] to reject a result computed from stale inputs.
-     */
+    /** Captures the durable generation while serialized with Home data mutations. */
     internal suspend fun captureCurrentHomeDataGeneration(): Long {
         return refreshMutex.withLock {
             homeSnapshotGenerationStore.readGeneration()
@@ -187,99 +187,18 @@ class HomeSnapshotRepository @Inject constructor(
         return homeSnapshotGenerationStore.observeGeneration()
     }
 
-    /**
-     * Runs the existing Home mutation sequence only when the caller's captured input
-     * generation is still current. A stale result exits before the generation increment,
-     * mutation block, snapshot clear, or rebuild.
-     */
-    internal suspend fun <T> runHomeDataMutationIfGenerationCurrent(
-        expectedCurrentGeneration: Long,
-        block: suspend (newGeneration: Long) -> T,
-    ): HomeDataConditionalMutationResult<T> {
-        require(expectedCurrentGeneration >= 0L)
-        var execution: HomeDataMutationExecution<T>? = null
-        val staleResult: HomeDataConditionalMutationResult.Stale? = refreshMutex.withLock {
-            val currentGeneration = homeSnapshotGenerationStore.readGeneration()
-            if (currentGeneration != expectedCurrentGeneration) {
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_data_conditional_mutation_skipped reason=stale " +
-                            "expectedGeneration=$expectedCurrentGeneration " +
-                            "currentGeneration=$currentGeneration"
-                )
-                HomeDataConditionalMutationResult.Stale(
-                    expectedGeneration = expectedCurrentGeneration,
-                    currentGeneration = currentGeneration,
-                )
-            } else {
-                execution = withContext(NonCancellable) {
-                    runHomeDataMutationLocked(block)
-                }
-                null
-            }
-        }
-        if (staleResult != null) return staleResult
-
-        val completedExecution = checkNotNull(execution)
-        diagnosticsLogger.info(
-            TAG,
-            "home_data_mutation_snapshot_refresh_completed " +
-                    "generation=${completedExecution.generation}"
-        )
-        return HomeDataConditionalMutationResult.Published(
-            generation = completedExecution.generation,
-            value = completedExecution.mutationResult.getOrThrow(),
-        )
-    }
-
-    /** Caller holds [refreshMutex] and runs this in [NonCancellable]. */
-    private suspend fun <T> runHomeDataMutationLocked(
-        block: suspend (generation: Long) -> T,
-    ): HomeDataMutationExecution<T> {
-        diagnosticsLogger.info(TAG, "home_data_mutation_start")
-        val generation = homeSnapshotGenerationStore.incrementGeneration()
-        diagnosticsLogger.info(
-            TAG,
-            "home_data_mutation_generation_incremented generation=$generation"
-        )
-        val mutationResult = runCatching { block(generation) }
-        mutationResult.onSuccess {
-            diagnosticsLogger.info(
-                TAG,
-                "home_data_mutation_committed generation=$generation"
-            )
-        }
-        // The generation has already been bumped, so observers will reject any stale
-        // snapshot. Clear and rebuild while still serialized with other mutations.
-        clearSnapshotBestEffort()
-        refreshHomeSnapshotBestEffortLocked(force = true)
-        return HomeDataMutationExecution(
-            generation = generation,
-            mutationResult = mutationResult,
-        )
-    }
-
-    /**
-     * Returns the exact validated snapshot callers may consume, or null when it is unusable.
-     *
-     * Calibration validation may strip both the display payload and its potentially
-     * personalized projection. Returning only a Boolean would let a caller validate that
-     * stripped copy and then accidentally keep consuming the untrusted original.
-     */
-    fun validatedSnapshotIfUsable(
+    fun isSnapshotUsable(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
         option: HomeE2ChartWindowOption,
-    ): HomeSnapshotRecord? {
-        val validatedSnapshot = snapshot.withValidatedCalibrationDisplay()
-        val failure = snapshotUsabilityFailure(
-            snapshot = validatedSnapshot,
+    ): Boolean {
+        return snapshotUsabilityFailure(
+            snapshot = snapshot,
             now = now,
             zoneId = zoneId,
             option = option,
-        )
-        return validatedSnapshot.takeIf { failure == null }
+        ) == null
     }
 
     suspend fun readUsableHomeSnapshot(
@@ -303,9 +222,8 @@ class HomeSnapshotRepository @Inject constructor(
         // option in hand) still validate against the user's persisted choice
         // rather than the eager SEVEN_DAYS default.
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
-        val validatedSnapshot = snapshot.withValidatedCalibrationDisplay()
         val usabilityFailure = snapshotUsabilityFailure(
-            snapshot = validatedSnapshot,
+            snapshot = snapshot,
             now = now,
             zoneId = zoneId,
             option = option,
@@ -314,16 +232,16 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_read_rejected reason=$usabilityFailure " +
-                        "${validatedSnapshot.diagnosticSummary()} now=$now"
+                        "${snapshot.diagnosticSummary()} now=$now"
             )
             return null
         }
         diagnosticsLogger.info(
             TAG,
-            "home_snapshot_read_usable ${validatedSnapshot.diagnosticSummary()} " +
+            "home_snapshot_read_usable ${snapshot.diagnosticSummary()} " +
                     "durableGeneration=$generation now=$now"
         )
-        return validatedSnapshot
+        return snapshot
     }
 
     fun scheduleEntriesForHome(
@@ -550,7 +468,6 @@ class HomeSnapshotRepository @Inject constructor(
     ): Long? {
         val gen = homeSnapshotGenerationStore.readGeneration()
         val existingSnapshot = homeSnapshotStore.readSnapshot()
-            ?.withValidatedCalibrationDisplay()
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_verify_existing force=$force " +
@@ -564,7 +481,7 @@ class HomeSnapshotRepository @Inject constructor(
             !force &&
             existingSnapshot != null &&
             existingSnapshot.generation >= gen &&
-            validatedSnapshotIfUsable(existingSnapshot, now, zoneId, option) != null &&
+            isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
             !pkExpired
         ) {
             diagnosticsLogger.info(
@@ -592,7 +509,6 @@ class HomeSnapshotRepository @Inject constructor(
         cacheWindow: HomePkProjectionWindow,
         snapshotWindow: HomeSnapshotWindow,
     ) {
-        val expectedCalibrationModelVersion = expectedCalibrationModelVersion()
         val inputs = withContext(Dispatchers.IO) {
             // awaitOpen, not get(): this runs inside WidgetDateReceiver's bounded goAsync
             // window, and the blocking get() is uncancellable — a stalled SQLCipher open
@@ -633,13 +549,6 @@ class HomeSnapshotRepository @Inject constructor(
                 scheduledEndIso = stockWindowEndIso,
             )
             val homeAnchor = database.journalDao().getFirstPinnedTrackedDate()?.toModel()
-            val calibrationDisplay = expectedCalibrationModelVersion?.let { expectedVersion ->
-                database.pkCalibrationDao().getDisplayArtifact()
-                    ?.toHomeCalibrationDisplay(
-                        expectedHomeSnapshotGeneration = refreshGeneration,
-                        expectedCalibrationModelVersion = expectedVersion,
-                    )
-            }
 
             val groupMedicinesByUuid = database.resolveMedicinesForGroups(
                 activeGroupEntities + archivedGroupEntities
@@ -684,7 +593,6 @@ class HomeSnapshotRepository @Inject constructor(
                 stockMedicines = stockMedicines,
                 stockFulfillmentEntries = stockFulfillmentEntries,
                 homeAnchor = homeAnchor,
-                calibrationDisplay = calibrationDisplay,
             )
         }
         diagnosticsLogger.info(
@@ -706,8 +614,6 @@ class HomeSnapshotRepository @Inject constructor(
             horizon = horizon,
             zoneId = zoneId,
         )
-        val personalParams = inputs.calibrationDisplay
-            ?.toValidatedPersonalParams()
         // Home chart includes planned future doses; the widget shows the current
         // body state from already-logged doses only, so its projection must
         // exclude `plannedEntries`. Otherwise a planned dose 30 min from now
@@ -721,13 +627,9 @@ class HomeSnapshotRepository @Inject constructor(
                     generatedAt = now,
                     zoneId = zoneId,
                     option = option,
-                    personalParams = personalParams ?: PkPersonalParams.population(),
                 )
             }
             val widgetAsync = async(defaultDispatcher) {
-                // Phase 1 intentionally freezes the widget at population PK: unlike Home,
-                // it does not receive calibrated personalParams. Personalized widget output
-                // requires an explicit Phase-2 contract decision and closed release gates.
                 PkMedicationSimulation.simulateMainEstradiolProjection(
                     entries = simulationEntries.real,
                     plannedEntries = emptyList(),
@@ -813,7 +715,6 @@ class HomeSnapshotRepository @Inject constructor(
             stockFulfillmentEntries = inputs.stockFulfillmentEntries,
             pkEntries = inputs.pkEntries,
             homeAnchor = inputs.homeAnchor,
-            calibrationDisplay = inputs.calibrationDisplay,
         )
 
         withContext(Dispatchers.IO) {
@@ -853,35 +754,7 @@ class HomeSnapshotRepository @Inject constructor(
         val stockMedicines: List<Medicine>,
         val stockFulfillmentEntries: List<MedicationLogEntry>,
         val homeAnchor: TrackedDate? = null,
-        val calibrationDisplay: PersistedPkCalibrationDisplay? = null,
     )
-
-    private data class HomeDataMutationExecution<T>(
-        val generation: Long,
-        val mutationResult: Result<T>,
-    )
-
-    private fun expectedCalibrationModelVersion(): String? {
-        return runCatching {
-            calibrationModelIdentityProvider.expectedCalibrationModelVersion()
-        }.getOrNull()?.takeIf(String::isStableAsciiIdentity)
-    }
-
-    private fun HomeSnapshotRecord.withValidatedCalibrationDisplay(): HomeSnapshotRecord {
-        val display = calibrationDisplay ?: return this
-        val expectedVersion = expectedCalibrationModelVersion()
-        return if (expectedVersion != null &&
-            display.calibrationModelVersion == expectedVersion &&
-            display.toValidatedPersonalParams() != null
-        ) {
-            this
-        } else {
-            // A Home projection stored beside a display artifact may be personalized. If the
-            // payload can no longer be trusted, the projection must travel with it; the widget
-            // projection is always population and remains safe.
-            copy(calibrationDisplay = null, pkProjection = null)
-        }
-    }
 
     // Full projection-cache window: past-days back from today's midnight, plus
     // option.futureDays + MainChartProjectionFutureBufferDays of forward span.
@@ -1059,18 +932,6 @@ class HomeSnapshotRepository @Inject constructor(
 
 }
 
-internal sealed interface HomeDataConditionalMutationResult<out T> {
-    data class Published<T>(
-        val generation: Long,
-        val value: T,
-    ) : HomeDataConditionalMutationResult<T>
-
-    data class Stale(
-        val expectedGeneration: Long,
-        val currentGeneration: Long,
-    ) : HomeDataConditionalMutationResult<Nothing>
-}
-
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
     return "schema=$schemaVersion " +
             "generation=$generation " +
@@ -1080,11 +941,10 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
             "archivedGroups=${archivedGroups.size} " +
             "scheduleEntries=${scheduleEntries.size} " +
             "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
-            "hasPkProjection=${pkProjection != null} " +
-            "hasCalibrationDisplay=${calibrationDisplay != null}"
+            "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 8
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

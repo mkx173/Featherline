@@ -233,10 +233,6 @@ data class BackupBloodTestResultSnapshot(
     val importSourceApp: String? = null,
     val importExternalId: String? = null,
     val calibrationDisposition: String? = null,
-    val acceptedModelVersion: String? = null,
-    val acceptedSourceValueBits: String? = null,
-    val acceptedCollectedAtEpochMillis: Long? = null,
-    val acceptedUnitId: String? = null,
     val calibrationMetadataUpdatedAtEpochMillis: Long? = null,
 )
 
@@ -289,23 +285,12 @@ data class BackupNoteSnapshot(
 // hero backgrounds are included in the backup compatibility gate alongside
 // local Room persistence.
 //
-// The 6→7 bump added durable E2 calibration review metadata. Although the new
-// result fields are nullable so v2–v6 backups remain readable, a pre-v7 app
-// would ignore them and silently lose explicit exclusions/acceptances.
+// The 6→7 bump added durable E2 calibration review metadata (an explicit
+// exclusion per result). Although the new result fields are nullable so
+// v2–v6 backups remain readable, a pre-v7 app would ignore them and silently
+// lose explicit exclusions.
 //
-// The 7→8 bump renamed the acceptance fields from the digest binding
-// (acceptedReviewDigest*) to the model §A2 staleness record
-// (acceptedModelVersion/SourceValueBits/CollectedAtEpochMillis). v7 backups
-// written before the rename decode with no record on ACCEPTED rows; restore
-// downgrades those to AUTO instead of aborting (mirrors MIGRATION_10_11).
-//
-// The 8→9 bump added acceptedUnitId to the acceptance record (Phase-3 #8):
-// the record now binds the accepted result's unit identity, so a unit edit
-// stales the acceptance. v8 ACCEPTED rows carry a record without the unit
-// binding; restore downgrades those to AUTO instead of aborting (mirrors
-// MIGRATION_11_12). From v9 on, a record without acceptedUnitId fails loud.
-//
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 9
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

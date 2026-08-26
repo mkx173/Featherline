@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "4ed92a741afd1ce54f69f7b6d1448131",
+    "identityHash": "5387f5235f715a3837ae33b20b2cf353",
     "entities": [
       {
         "tableName": "medicines",
@@ -1058,7 +1058,7 @@
       },
       {
         "tableName": "e2_calibration_metadata",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultUuid` TEXT NOT NULL, `disposition` TEXT NOT NULL, `acceptedReviewDigestSchema` TEXT, `acceptedReviewDigestAlgorithm` TEXT, `acceptedReviewDigestHexLower` TEXT, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`resultUuid`), FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultUuid` TEXT NOT NULL, `disposition` TEXT NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`resultUuid`), FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "resultUuid",
@@ -1071,21 +1071,6 @@
             "columnName": "disposition",
             "affinity": "TEXT",
             "notNull": true
-          },
-          {
-            "fieldPath": "acceptedReviewDigestSchema",
-            "columnName": "acceptedReviewDigestSchema",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "acceptedReviewDigestAlgorithm",
-            "columnName": "acceptedReviewDigestAlgorithm",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "acceptedReviewDigestHexLower",
-            "columnName": "acceptedReviewDigestHexLower",
-            "affinity": "TEXT"
           },
           {
             "fieldPath": "updatedAtEpochMillis",
@@ -1113,91 +1098,6 @@
             ]
           }
         ]
-      },
-      {
-        "tableName": "pk_calibration_display_artifact",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `homeSnapshotGeneration` INTEGER NOT NULL, `schema` TEXT NOT NULL, `calibrationModelVersion` TEXT NOT NULL, `resultInputDigestSchema` TEXT NOT NULL, `resultInputDigestAlgorithm` TEXT NOT NULL, `resultInputDigestHexLower` TEXT NOT NULL, `promotedRouteStableIds` TEXT NOT NULL, `injectionLogScale` REAL, `patchLogScale` REAL, `gelLogScale` REAL, `oralLogScale` REAL, `sublingualLogScale` REAL, PRIMARY KEY(`singletonId`))",
-        "fields": [
-          {
-            "fieldPath": "singletonId",
-            "columnName": "singletonId",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "homeSnapshotGeneration",
-            "columnName": "homeSnapshotGeneration",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "schema",
-            "columnName": "schema",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "calibrationModelVersion",
-            "columnName": "calibrationModelVersion",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "resultInputDigestSchema",
-            "columnName": "resultInputDigestSchema",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "resultInputDigestAlgorithm",
-            "columnName": "resultInputDigestAlgorithm",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "resultInputDigestHexLower",
-            "columnName": "resultInputDigestHexLower",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "promotedRouteStableIds",
-            "columnName": "promotedRouteStableIds",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "injectionLogScale",
-            "columnName": "injectionLogScale",
-            "affinity": "REAL"
-          },
-          {
-            "fieldPath": "patchLogScale",
-            "columnName": "patchLogScale",
-            "affinity": "REAL"
-          },
-          {
-            "fieldPath": "gelLogScale",
-            "columnName": "gelLogScale",
-            "affinity": "REAL"
-          },
-          {
-            "fieldPath": "oralLogScale",
-            "columnName": "oralLogScale",
-            "affinity": "REAL"
-          },
-          {
-            "fieldPath": "sublingualLogScale",
-            "columnName": "sublingualLogScale",
-            "affinity": "REAL"
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "singletonId"
-          ]
-        }
       },
       {
         "tableName": "tracked_dates",
@@ -1338,7 +1238,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4ed92a741afd1ce54f69f7b6d1448131')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5387f5235f715a3837ae33b20b2cf353')"
     ]
   }
 }

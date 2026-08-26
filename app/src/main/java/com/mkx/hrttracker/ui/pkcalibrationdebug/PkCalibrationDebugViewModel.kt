@@ -243,10 +243,7 @@ class PkCalibrationDebugViewModel @Inject constructor(
             .toSet()
         return dispositions.flatMap { (resultId, disposition) ->
             when (disposition) {
-                // Persisted ACCEPTED (legacy Keep) behaves as AUTO.
-                E2CalibrationDisposition.AUTO,
-                E2CalibrationDisposition.ACCEPTED,
-                -> if (resultId in currentOutlierIds) {
+                E2CalibrationDisposition.AUTO -> if (resultId in currentOutlierIds) {
                     listOf(
                         PkCalibrationDebugActionCommand(
                             PkCalibrationDebugReviewAction.EXCLUDE,

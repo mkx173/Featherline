@@ -156,41 +156,17 @@ class BackupRestoreServiceTest {
 
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        coVerify(exactly = 1) { pkCalibrationDao.deleteDisplayArtifact() }
     }
 
     @Test
-    fun restoreBackup_restoresReviewMetadataAfterResults_andClearsDerivedArtifact() = runTest {
+    fun restoreBackup_restoresExclusionMetadataAfterResults() = runTest {
         val resultUuid = "00000000-0000-0000-0000-0000000008a1"
         val snapshot = emptySnapshot().copy(
             bloodTestPanels = listOf(
-                BackupBloodTestPanelSnapshot(
-                    uuid = "00000000-0000-0000-0000-0000000008a0",
-                    collectedAtInstantEpochMillis = 1_000L,
-                    collectedAtTimeZoneId = "UTC",
-                    notes = null,
-                    timeSinceLastEstradiolDoseMillis = null,
-                    timeSinceLastTestosteroneDoseMillis = null,
-                    createdAtEpochMillis = 1_000L,
-                    updatedAtEpochMillis = 1_000L,
-                    results = listOf(
-                        BackupBloodTestResultSnapshot(
-                            uuid = resultUuid,
-                            createdAtEpochMillis = 1_000L,
-                            displayOrder = 0,
-                            builtinAnalyteKey = BloodAnalyteKey.E2.storageValue,
-                            customAnalyteUuid = null,
-                            value = 100.0,
-                            unitSnapshot = BloodUnitKey.PG_ML.storageValue,
-                            canonicalValue = 100.0,
-                            calibrationDisposition = "ACCEPTED",
-                            acceptedModelVersion = "pk-calibration:test/v9",
-                            acceptedSourceValueBits = "4059000000000000",
-                            acceptedCollectedAtEpochMillis = 600L,
-                            acceptedUnitId = "hrttracker:unit/pg-ml/v1",
-                            calibrationMetadataUpdatedAtEpochMillis = 2_000L,
-                        )
-                    ),
+                calibrationMetadataPanel(
+                    panelUuid = "00000000-0000-0000-0000-0000000008a0",
+                    resultUuid = resultUuid,
+                    calibrationDisposition = "EXCLUDED",
                 )
             ),
         )
@@ -204,34 +180,28 @@ class BackupRestoreServiceTest {
             password = "password",
         )
 
-        coVerify(exactly = 1) { pkCalibrationDao.deleteDisplayArtifact() }
         coVerifyOrder {
+            pkCalibrationDao.deleteAllMetadata()
             bloodTestDao.insertResults(any())
             pkCalibrationDao.insertMetadata(capture(metadataSlot))
         }
         val restored = metadataSlot.captured.single()
         assertEquals(resultUuid, restored.resultUuid)
-        assertEquals("ACCEPTED", restored.disposition)
-        assertEquals("4059000000000000", restored.acceptedSourceValueBits)
-        assertEquals("hrttracker:unit/pg-ml/v1", restored.acceptedUnitId)
+        assertEquals("EXCLUDED", restored.disposition)
+        assertEquals(2_000L, restored.updatedAtEpochMillis)
     }
 
-    // v7 backups written before the acceptance-record rename decode ACCEPTED
-    // rows with no record (the digest fields are unknown keys): the acceptance
-    // cannot be honored, so restore downgrades to AUTO instead of aborting.
+    // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
+    // action); restore reads it as AUTO instead of aborting the whole restore.
     @Test
-    fun restoreBackup_v7AcceptedRowWithoutRecord_downgradesToAutoInsteadOfAborting() = runTest {
+    fun restoreBackup_legacyAcceptedRow_readsAsAutoInsteadOfAborting() = runTest {
         val resultUuid = "00000000-0000-0000-0000-0000000008b1"
         val snapshot = emptySnapshot().copy(
-            snapshotVersion = 7,
             bloodTestPanels = listOf(
                 calibrationMetadataPanel(
                     panelUuid = "00000000-0000-0000-0000-0000000008b0",
                     resultUuid = resultUuid,
                     calibrationDisposition = "ACCEPTED",
-                    acceptedModelVersion = null,
-                    acceptedSourceValueBits = null,
-                    acceptedCollectedAtEpochMillis = null,
                 )
             ),
         )
@@ -249,81 +219,12 @@ class BackupRestoreServiceTest {
         val restored = metadataSlot.captured.single()
         assertEquals(resultUuid, restored.resultUuid)
         assertEquals("AUTO", restored.disposition)
-        assertNull(restored.acceptedModelVersion)
-        assertNull(restored.acceptedSourceValueBits)
-        assertNull(restored.acceptedCollectedAtEpochMillis)
-    }
-
-    @Test
-    fun restoreBackup_currentVersionAcceptedRowWithoutRecord_stillFailsLoud() = runTest {
-        val snapshot = emptySnapshot().copy(
-            bloodTestPanels = listOf(
-                calibrationMetadataPanel(
-                    panelUuid = "00000000-0000-0000-0000-0000000008c0",
-                    resultUuid = "00000000-0000-0000-0000-0000000008c1",
-                    calibrationDisposition = "ACCEPTED",
-                    acceptedModelVersion = null,
-                    acceptedSourceValueBits = null,
-                    acceptedCollectedAtEpochMillis = null,
-                )
-            ),
-        )
-
-        val error = restoreBackupBytesFails(snapshot)
-
-        assertTrue(
-            "Unexpected message: ${error.message}",
-            error.message.orEmpty().contains("invalid disposition/record pairing"),
-        )
-    }
-
-    // v8 acceptance records pre-date the unit binding: an ACCEPTED row whose
-    // record lacks acceptedUnitId cannot honor it, so restore drops the
-    // acceptance and downgrades to AUTO (mirrors MIGRATION_11_12).
-    @Test
-    fun restoreBackup_v8AcceptedRecordWithoutUnitId_downgradesToAutoInsteadOfAborting() = runTest {
-        val resultUuid = "00000000-0000-0000-0000-0000000008d1"
-        val snapshot = emptySnapshot().copy(
-            snapshotVersion = 8,
-            bloodTestPanels = listOf(
-                calibrationMetadataPanel(
-                    panelUuid = "00000000-0000-0000-0000-0000000008d0",
-                    resultUuid = resultUuid,
-                    calibrationDisposition = "ACCEPTED",
-                    acceptedModelVersion = "pk-calibration:test/v9",
-                    acceptedSourceValueBits = "4059000000000000",
-                    acceptedCollectedAtEpochMillis = 600L,
-                )
-            ),
-        )
-        val metadataSlot = slot<List<E2CalibrationMetadataEntity>>()
-
-        service.restoreBackupBytes(
-            encryptedBytes = backupCrypto.encryptSnapshotJson(
-                BackupSnapshotJsonCodec.encode(snapshot),
-                "password".toCharArray(),
-            ),
-            password = "password",
-        )
-
-        coVerify { pkCalibrationDao.insertMetadata(capture(metadataSlot)) }
-        val restored = metadataSlot.captured.single()
-        assertEquals(resultUuid, restored.resultUuid)
-        assertEquals("AUTO", restored.disposition)
-        assertNull(restored.acceptedModelVersion)
-        assertNull(restored.acceptedSourceValueBits)
-        assertNull(restored.acceptedCollectedAtEpochMillis)
-        assertNull(restored.acceptedUnitId)
     }
 
     private fun calibrationMetadataPanel(
         panelUuid: String,
         resultUuid: String,
         calibrationDisposition: String,
-        acceptedModelVersion: String?,
-        acceptedSourceValueBits: String?,
-        acceptedCollectedAtEpochMillis: Long?,
-        acceptedUnitId: String? = null,
     ): BackupBloodTestPanelSnapshot = BackupBloodTestPanelSnapshot(
         uuid = panelUuid,
         collectedAtInstantEpochMillis = 1_000L,
@@ -344,10 +245,6 @@ class BackupRestoreServiceTest {
                 unitSnapshot = BloodUnitKey.PG_ML.storageValue,
                 canonicalValue = 100.0,
                 calibrationDisposition = calibrationDisposition,
-                acceptedModelVersion = acceptedModelVersion,
-                acceptedSourceValueBits = acceptedSourceValueBits,
-                acceptedCollectedAtEpochMillis = acceptedCollectedAtEpochMillis,
-                acceptedUnitId = acceptedUnitId,
                 calibrationMetadataUpdatedAtEpochMillis = 2_000L,
             )
         ),

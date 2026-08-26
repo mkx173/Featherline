@@ -45,8 +45,6 @@ import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
-import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkCalibrationAcceptanceRecord
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -237,9 +235,7 @@ class BackupRestoreService @Inject constructor(
                 database.medicationLogDao().deleteAllEntries()
                 database.medicationGroupDao().deleteAllGroups()
                 database.medicineDao().deleteAll()
-                // Review metadata is durable user data restored below. The display
-                // artifact is derived and must be recomputed for the restored inputs.
-                database.pkCalibrationDao().deleteDisplayArtifact()
+                // Review metadata is durable user data restored below.
                 database.pkCalibrationDao().deleteAllMetadata()
                 database.bloodTestDao().deleteAllResults()
                 database.bloodTestDao().deleteAllPanels()
@@ -913,7 +909,6 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             result.toValidatedCalibrationMetadata(
                 resultUuid = resultUuid,
                 isBuiltinE2 = builtinAnalyteKey == BloodAnalyteKey.E2,
-                snapshotVersion = snapshotVersion,
             )?.let(calibrationMetadataEntities::add)
         }
     }
@@ -939,85 +934,33 @@ internal fun BackupSnapshot.toValidatedSnapshot(
 private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     resultUuid: String,
     isBuiltinE2: Boolean,
-    snapshotVersion: Int,
 ): E2CalibrationMetadataEntity? {
-    val hasAnyMetadata = calibrationDisposition != null ||
-        acceptedModelVersion != null ||
-        acceptedSourceValueBits != null ||
-        acceptedCollectedAtEpochMillis != null ||
-        acceptedUnitId != null ||
-        calibrationMetadataUpdatedAtEpochMillis != null
-    if (!hasAnyMetadata) return null
-
+    if (calibrationDisposition == null && calibrationMetadataUpdatedAtEpochMillis == null) {
+        return null
+    }
     require(isBuiltinE2) {
         "Calibration metadata may only reference built-in E2 result $resultUuid."
     }
-    val disposition = runCatching {
-        E2CalibrationDisposition.valueOf(checkNotNull(calibrationDisposition))
-    }.getOrElse {
-        throw IllegalArgumentException(
-            "Unsupported calibration disposition $calibrationDisposition for result $resultUuid."
+    // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
+    // action); it reads as AUTO instead of aborting the whole restore.
+    val disposition = when (calibrationDisposition) {
+        "ACCEPTED" -> E2CalibrationDisposition.AUTO
+        else -> runCatching {
+            E2CalibrationDisposition.valueOf(checkNotNull(calibrationDisposition))
+        }.getOrElse {
+            throw IllegalArgumentException(
+                "Unsupported calibration disposition $calibrationDisposition for result $resultUuid."
+            )
+        }
+    }
+    val updatedAtEpochMillis = calibrationMetadataUpdatedAtEpochMillis
+        ?: throw IllegalArgumentException(
+            "Calibration metadata for result $resultUuid is missing updatedAt."
         )
-    }
-    val hasCoreRecordFields = acceptedModelVersion != null ||
-        acceptedSourceValueBits != null || acceptedCollectedAtEpochMillis != null
-    val hasAnyRecordField = hasCoreRecordFields || acceptedUnitId != null
-    // v8 acceptance records pre-date the unit binding (Phase-3 #8): an ACCEPTED
-    // row whose record lacks acceptedUnitId cannot honor the binding, so the
-    // acceptance is dropped and the row downgrades to AUTO below (mirrors
-    // MIGRATION_11_12). From v9 on, a record without the unit id fails loud.
-    val droppedPreUnitAcceptance = snapshotVersion <= 8 &&
-        disposition == E2CalibrationDisposition.ACCEPTED &&
-        hasCoreRecordFields && acceptedUnitId == null
-    val record = if (hasAnyRecordField && !droppedPreUnitAcceptance) {
-        PkCalibrationAcceptanceRecord.create(
-            calibrationModelVersion = acceptedModelVersion
-                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
-            sourceValueBits = acceptedSourceValueBits
-                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
-            collectedAtEpochMillis = acceptedCollectedAtEpochMillis
-                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
-            unitId = acceptedUnitId
-                ?: throw IllegalArgumentException("Incomplete acceptance record for result $resultUuid."),
-        ) ?: throw IllegalArgumentException("Invalid acceptance record for result $resultUuid.")
-    } else {
-        null
-    }
-    // v7 backups written before the acceptance-record rename carried digest
-    // fields this codec no longer decodes, so their ACCEPTED rows arrive with
-    // no record. That acceptance cannot be honored under the attestation
-    // model: the outlier returns to review (AUTO) instead of aborting the
-    // whole restore. Mirrors MIGRATION_10_11. From v8 on, ACCEPTED without any
-    // record field is invalid data and still fails loud below.
-    val effectiveDisposition = if (
-        disposition == E2CalibrationDisposition.ACCEPTED && record == null &&
-        (snapshotVersion <= 7 || droppedPreUnitAcceptance)
-    ) {
-        E2CalibrationDisposition.AUTO
-    } else {
-        disposition
-    }
-    val metadata = E2CalibrationMetadata.create(
-        resultId = UUID.fromString(resultUuid),
-        disposition = effectiveDisposition,
-        acceptedRecord = record,
-        updatedAt = Instant.ofEpochMilli(
-            calibrationMetadataUpdatedAtEpochMillis
-                ?: throw IllegalArgumentException(
-                    "Calibration metadata for result $resultUuid is missing updatedAt."
-                )
-        ),
-    ) ?: throw IllegalArgumentException(
-        "Calibration metadata for result $resultUuid has an invalid disposition/record pairing."
-    )
     return E2CalibrationMetadataEntity(
         resultUuid = resultUuid,
-        disposition = metadata.disposition.name,
-        acceptedModelVersion = metadata.acceptedRecord?.calibrationModelVersion,
-        acceptedSourceValueBits = metadata.acceptedRecord?.sourceValueBits,
-        acceptedCollectedAtEpochMillis = metadata.acceptedRecord?.collectedAtEpochMillis,
-        acceptedUnitId = metadata.acceptedRecord?.unitId,
-        updatedAtEpochMillis = metadata.updatedAt.toEpochMilli(),
+        disposition = disposition.name,
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 

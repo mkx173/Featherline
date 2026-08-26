@@ -12,7 +12,6 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
-import com.mkx.hrttracker.data.local.PkCalibrationDao
 import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
@@ -22,15 +21,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.CanonicalDigest
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
-import com.mkx.hrttracker.model.pk.PkE2ForwardModel
-import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvents
-import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
@@ -372,41 +363,6 @@ class HomeSnapshotRepositoryTest {
         assertEquals(listOf("write", "clear"), events)
     }
 
-    @Test
-    fun conditionalMutation_staleGenerationHasNoSideEffects() = runTest {
-        generationState.value = 3L
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-        )
-        var blockCalled = false
-
-        val result = repository.runHomeDataMutationIfGenerationCurrent(
-            expectedCurrentGeneration = 2L,
-        ) {
-            blockCalled = true
-        }
-
-        assertEquals(
-            HomeDataConditionalMutationResult.Stale(
-                expectedGeneration = 2L,
-                currentGeneration = 3L,
-            ),
-            result,
-        )
-        assertFalse(blockCalled)
-        assertEquals(3L, generationState.value)
-        coVerify(exactly = 0) { homeSnapshotGenerationStore.incrementGeneration() }
-        coVerify(exactly = 0) { homeSnapshotStore.clearSnapshot() }
-        coVerify(exactly = 0) { homeSnapshotStore.writeSnapshot(any()) }
-        coVerify(exactly = 0) { databaseHolder.awaitOpen() }
-    }
-
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun captureCurrentGeneration_waitsForMutationThenReadsItsGeneration() = runTest {
@@ -441,131 +397,7 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun conditionalMutation_mutationWinsRaceAndPublicationBecomesStale() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-        )
-        val mutationStarted = CompletableDeferred<Unit>()
-        val allowMutation = CompletableDeferred<Unit>()
-        val mutation = launch {
-            repository.runHomeDataMutation {
-                mutationStarted.complete(Unit)
-                allowMutation.await()
-            }
-        }
-        mutationStarted.await()
-        var publishBlockCalled = false
-
-        val publication = async {
-            repository.runHomeDataMutationIfGenerationCurrent(0L) {
-                publishBlockCalled = true
-            }
-        }
-        runCurrent()
-        assertFalse(publication.isCompleted)
-
-        allowMutation.complete(Unit)
-        mutation.join()
-        val result = publication.await()
-
-        assertEquals(
-            HomeDataConditionalMutationResult.Stale(
-                expectedGeneration = 0L,
-                currentGeneration = 1L,
-            ),
-            result,
-        )
-        assertFalse(publishBlockCalled)
-        assertEquals(1L, generationState.value)
-        coVerify(exactly = 1) { homeSnapshotGenerationStore.incrementGeneration() }
-        coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun conditionalMutation_publishWinsThenMutationRunsAfterPublication() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-        )
-        val events = mutableListOf<String>()
-        val publicationStarted = CompletableDeferred<Unit>()
-        val allowPublication = CompletableDeferred<Unit>()
-        val publication = async {
-            repository.runHomeDataMutationIfGenerationCurrent(0L) { generation ->
-                events += "publish:$generation"
-                publicationStarted.complete(Unit)
-                allowPublication.await()
-            }
-        }
-        publicationStarted.await()
-
-        val mutation = async {
-            repository.runHomeDataMutation {
-                events += "mutation"
-            }
-        }
-        runCurrent()
-        assertFalse(mutation.isCompleted)
-
-        allowPublication.complete(Unit)
-        val publicationResult = publication.await()
-        mutation.await()
-
-        val published = publicationResult as HomeDataConditionalMutationResult.Published
-        assertEquals(1L, published.generation)
-        assertEquals(listOf("publish:1", "mutation"), events)
-        assertEquals(2L, generationState.value)
-        coVerify(exactly = 2) { homeSnapshotGenerationStore.incrementGeneration() }
-        coVerify(exactly = 2) { homeSnapshotStore.clearSnapshot() }
-    }
-
-    @Test
-    fun conditionalMutation_artifactWriteFailureStillClearsAndAttemptsForcedRebuild() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        coEvery { homeSnapshotStore.readSnapshot() } returns null
-        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-        )
-
-        var failure: Throwable? = null
-        try {
-            repository.runHomeDataMutationIfGenerationCurrent(0L) {
-                throw IOException("artifact write failed")
-            }
-        } catch (throwable: IOException) {
-            failure = throwable
-        }
-
-        assertEquals("artifact write failed", failure?.message)
-        assertEquals(1L, generationState.value)
-        coVerify(exactly = 1) { homeSnapshotGenerationStore.incrementGeneration() }
-        coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
-        coVerify(exactly = 1) { databaseHolder.awaitOpen() }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun conditionalPublication_rebuildsPersonalizedHomeAndPopulationOnlyWidget() = runTest {
+    fun runHomeDataMutation_awaitsRefreshAfterMutationCommit() = runTest {
         val appDispatcher = StandardTestDispatcher()
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
@@ -573,65 +405,12 @@ class HomeSnapshotRepositoryTest {
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val journalDao: JournalDao = mockk()
-        val calibrationDao: PkCalibrationDao = mockk()
         val mutationCommitted = CompletableDeferred<Unit>()
-        val display = calibrationDisplay()
-        var persistedDisplay = display.toEntity(homeSnapshotGeneration = 0L)
-        val medicineUuid = UUID.fromString("a1000000-0000-0000-0000-000000000001")
-        val logUuid = UUID.fromString("a1000000-0000-0000-0000-000000000002")
-        val medicine = medicineEntity(medicineUuid, displayName = "Oral estradiol")
-        val loggedAt = LocalDateTime.now().minusHours(4)
-        val pkEntry = medicationLogEntryEntity(
-            uuid = logUuid,
-            medicineUuid = medicineUuid,
-            scheduledFor = loggedAt,
-        )
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
         coEvery { homeSnapshotStore.writeSnapshot(any()) } coAnswers {
             assertTrue(mutationCommitted.isCompleted)
-            val snapshot = firstArg<HomeSnapshotRecord>()
-            assertEquals(snapshot.generation, persistedDisplay.homeSnapshotGeneration)
-            assertEquals(display, snapshot.calibrationDisplay)
-            val homeProjection = requireNotNull(snapshot.pkProjection)
-            val widgetProjection = requireNotNull(snapshot.widgetPkProjection)
-            assertEquals(homeProjection.timeH, widgetProjection.timeH)
-            assertTrue(
-                homeProjection.concentrations.zip(widgetProjection.concentrations)
-                    .any { (home, widget) -> home != widget }
-            )
-
-            val generatedAt = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(homeProjection.generatedAtEpochMillis),
-                ZoneId.systemDefault(),
-            )
-            val populationProjection = PkMedicationSimulation.simulateMainEstradiolProjection(
-                entries = snapshot.pkEntries,
-                bodyWeightKg = null,
-                generatedAt = generatedAt,
-                zoneId = ZoneId.systemDefault(),
-                option = HomeE2ChartWindowOption.SEVEN_DAYS,
-            )
-            // Freeze the Phase-1 widget contract: publishing calibration updates Home
-            // immediately, but the separately stored widget projection stays population-only.
-            assertEquals(populationProjection.timeH, widgetProjection.timeH)
-            assertEquals(populationProjection.concentrations, widgetProjection.concentrations)
-
-            val events = buildEstradiolPkDoseEvents(
-                anchor = java.time.Instant.ofEpochMilli(homeProjection.windowStartEpochMillis),
-                realEntries = snapshot.pkEntries,
-                plannedEntries = emptyList(),
-            )
-            val directForward = requireNotNull(PkE2ForwardModel.create(events, 70.0))
-            val params = requireNotNull(display.toValidatedPersonalParams())
-            homeProjection.timeH.forEachIndexed { index, timeH ->
-                assertEquals(
-                    requireNotNull(directForward.directDrugPgmlAt(timeH, params)),
-                    homeProjection.concentrations[index],
-                    0.0,
-                )
-            }
             Unit
         }
         coEvery { databaseHolder.awaitOpen() } returns database
@@ -640,19 +419,17 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
-        every { database.pkCalibrationDao() } returns calibrationDao
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
-        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns listOf(pkEntry)
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
-        coEvery { medicineDao.getByUuids(any()) } returns listOf(medicine)
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
         coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
         coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
         coEvery { userProfileDao.getProfile() } returns null
         coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
-        coEvery { calibrationDao.getDisplayArtifact() } coAnswers { persistedDisplay }
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
@@ -660,20 +437,12 @@ class HomeSnapshotRepositoryTest {
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(appDispatcher),
             defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
-            calibrationModelIdentityProvider =
-                PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
         )
 
-        val capturedGeneration = repository.captureCurrentHomeDataGeneration()
-        val result = repository.runHomeDataMutationIfGenerationCurrent(
-            capturedGeneration,
-        ) { generation ->
-            persistedDisplay = display.toEntity(homeSnapshotGeneration = generation)
+        repository.runHomeDataMutation {
             mutationCommitted.complete(Unit)
         }
 
-        val published = result as HomeDataConditionalMutationResult.Published
-        assertEquals(1L, published.generation)
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
     }
 
@@ -682,7 +451,7 @@ class HomeSnapshotRepositoryTest {
         val snapshot = homeSnapshotRecord(
             generation = 1L,
             now = LocalDateTime.of(2026, 5, 6, 10, 15),
-        ).copy(calibrationDisplay = calibrationDisplay())
+        )
         generationState.value = 2L
         every { homeSnapshotStore.observeSnapshot() } returns MutableStateFlow(snapshot)
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -693,40 +462,9 @@ class HomeSnapshotRepositoryTest {
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
-            calibrationModelIdentityProvider =
-                PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
         )
 
         assertNull(repository.observeHomeSnapshot().first())
-    }
-
-    @Test
-    fun observeHomeSnapshot_omitsDisplayWhenModelIdentityDoesNotMatch() = runTest {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        val populationSnapshot = homeSnapshotRecord(generation = 1L, now = now)
-        val snapshot = populationSnapshot.copy(
-            widgetPkProjection = populationSnapshot.pkProjection,
-            calibrationDisplay = calibrationDisplay(calibrationModelVersion = "route-v9-draft"),
-        )
-        generationState.value = 1L
-        every { homeSnapshotStore.observeSnapshot() } returns MutableStateFlow(snapshot)
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-            calibrationModelIdentityProvider =
-                PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
-        )
-
-        val observed = repository.observeHomeSnapshot().first()
-        assertNotNull(observed)
-        assertNull(requireNotNull(observed).calibrationDisplay)
-        assertNull(observed.pkProjection)
-        assertNotNull(observed.widgetPkProjection)
     }
 
     @Test
@@ -808,7 +546,7 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
-    fun validatedSnapshotIfUsable_acceptsTenDayOldSnapshotWhenProjectionCoversCurrentChart() = runTest {
+    fun isSnapshotUsable_acceptsTenDayOldSnapshotWhenProjectionCoversCurrentChart() = runTest {
         val anchorDate = LocalDate.of(2026, 5, 6)
         val now = anchorDate.plusDays(10).atTime(23, 59)
         val zoneId = ZoneId.systemDefault()
@@ -860,9 +598,8 @@ class HomeSnapshotRepositoryTest {
             antiandrogenHistoryEntries = emptyList(),
         )
 
-        assertEquals(
-            snapshot,
-            repository.validatedSnapshotIfUsable(
+        assertTrue(
+            repository.isSnapshotUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = zoneId,
@@ -870,53 +607,6 @@ class HomeSnapshotRepositoryTest {
             )
         )
     }
-
-    @Test
-    fun validatedSnapshotIfUsable_failsClosedForStaleCalibrationAndReturnsTrustedOriginal() =
-        runTest {
-            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-            val zoneId = ZoneId.systemDefault()
-            val dispatcher = StandardTestDispatcher(testScheduler)
-            val repository = HomeSnapshotRepository(
-                databaseHolder = databaseHolder,
-                homeSnapshotStore = homeSnapshotStore,
-                homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-                settingsRepository = settingsRepository,
-                appScope = backgroundScope,
-                defaultDispatcher = dispatcher,
-                calibrationModelIdentityProvider =
-                    PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
-            )
-            val staleSnapshot = homeSnapshotRecord(generation = 1L, now = now).copy(
-                calibrationDisplay = calibrationDisplay(
-                    calibrationModelVersion = "route-v9-stale",
-                ),
-            )
-
-            // The projection next to an untrusted calibration payload may be personalized;
-            // rejecting the whole usable-snapshot result keeps it outside every caller.
-            assertNotNull(staleSnapshot.pkProjection)
-            assertNotNull(staleSnapshot.calibrationDisplay)
-            assertNull(
-                repository.validatedSnapshotIfUsable(
-                    snapshot = staleSnapshot,
-                    now = now,
-                    zoneId = zoneId,
-                    option = HomeE2ChartWindowOption.SEVEN_DAYS,
-                )
-            )
-
-            val trustedSnapshot = homeSnapshotRecord(generation = 1L, now = now).copy(
-                calibrationDisplay = calibrationDisplay(),
-            )
-            val validated = repository.validatedSnapshotIfUsable(
-                snapshot = trustedSnapshot,
-                now = now,
-                zoneId = zoneId,
-                option = HomeE2ChartWindowOption.SEVEN_DAYS,
-            )
-            assertTrue(validated === trustedSnapshot)
-        }
 
     @Test
     fun refreshHomeSnapshotIfNeeded_capturesRowsForTenDaySnapshotValidity() = runTest {
@@ -1424,29 +1114,5 @@ class HomeSnapshotRepositoryTest {
                 .toEpochMilli(),
             scheduledForIso = scheduledFor.toString(),
         )
-    }
-
-    private fun calibrationDisplay(
-        calibrationModelVersion: String = CalibrationModelVersion,
-    ): PersistedPkCalibrationDisplay {
-        val digest = requireNotNull(
-            CanonicalDigest.create(
-                schema = "hrttracker.fit-input/test",
-                algorithm = "SHA-256",
-                hexLower = "a".repeat(64),
-            )
-        )
-        return requireNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = calibrationModelVersion,
-                resultInputDigest = digest,
-                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
-            )
-        )
-    }
-
-    private companion object {
-        const val CalibrationModelVersion = "route-v9-final"
     }
 }

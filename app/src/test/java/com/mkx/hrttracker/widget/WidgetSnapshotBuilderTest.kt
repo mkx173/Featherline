@@ -20,9 +20,6 @@ import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
-import com.mkx.hrttracker.model.pk.CanonicalDigest
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
@@ -49,43 +46,6 @@ class WidgetSnapshotBuilderTest {
     private val realContext: Context
         get() = RuntimeEnvironment.getApplication().applicationContext
     private val zoneId: ZoneId = ZoneId.systemDefault()
-
-    @Test
-    fun calibrationDisplay_doesNotChangePopulationOnlyWidgetSnapshot() {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        val base = homeSnapshotRecord(now = now)
-        val display = requireNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = "route-v9-final",
-                resultInputDigest = requireNotNull(
-                    CanonicalDigest.create(
-                        schema = "hrttracker.fit-input/test",
-                        algorithm = "SHA-256",
-                        hexLower = "a".repeat(64),
-                    )
-                ),
-                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
-            )
-        )
-
-        val population = buildWidgetSnapshotRecord(
-            context = context,
-            homeSnapshot = base,
-            settings = SettingsState(),
-            now = now,
-            zoneId = zoneId,
-        )
-        val withCalibration = buildWidgetSnapshotRecord(
-            context = context,
-            homeSnapshot = base.copy(calibrationDisplay = display),
-            settings = SettingsState(),
-            now = now,
-            zoneId = zoneId,
-        )
-
-        assertEquals(population, withCalibration)
-    }
 
     @Test
     fun writesMedicationNamesToWidgetRows() {

@@ -376,18 +376,16 @@ internal object PkCalibrationDebugSyntheticScenarios {
         val metadata = when (disposition) {
             null,
             E2CalibrationDisposition.AUTO,
-            E2CalibrationDisposition.ACCEPTED,
             -> emptyList()
 
             E2CalibrationDisposition.EXCLUDED -> {
                 val targetId = reviewTargetId ?: return null
                 listOf(
-                    E2CalibrationMetadata.create(
+                    E2CalibrationMetadata(
                         resultId = targetId,
                         disposition = disposition,
-                        acceptedRecord = null,
                         updatedAt = Instant.ofEpochMilli(ReviewUpdatedAtMillis),
-                    ) ?: return null
+                    )
                 )
             }
         }
@@ -421,9 +419,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
         if (resultId == null || disposition == null) return true
         val evidence = readyEvidence ?: return false
         return when (disposition) {
-            E2CalibrationDisposition.AUTO,
-            E2CalibrationDisposition.ACCEPTED,
-            -> evidence.included
+            E2CalibrationDisposition.AUTO -> evidence.included
                 .singleOrNull { item -> item.resultId == resultId }
                 ?.effectiveDisposition == PkCalibrationEffectiveDisposition.AUTO
 

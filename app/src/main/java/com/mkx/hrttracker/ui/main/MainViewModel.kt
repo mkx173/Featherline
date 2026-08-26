@@ -23,7 +23,6 @@ import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkPersonalParams
-import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
@@ -370,31 +369,18 @@ class MainViewModel @Inject constructor(
         //     already passed (the user didn't take them — don't keep them on
         //     the curve as if they did).
         val nowInstant = now.atZone(zoneId).toInstant()
-        val calibrationPersonalParams = inputs.calibrationDisplay
-            ?.toValidatedPersonalParams()
-        val activeCalibrationDisplay = inputs.calibrationDisplay
-            ?.takeIf { calibrationPersonalParams != null }
-        // With the Phase-2 surface active, the render result is the only
-        // sanctioned source for the chart's personalized parameters (§11): its
-        // effectiveDisplayParams honor range-local route fallbacks the
-        // fit-level persisted display cannot see (plan R1). The cached
-        // projection and persisted-display path stay authoritative when the
-        // surface is off.
+        // The live render result is the only source for the chart's
+        // personalized parameters (§11): its effectiveDisplayParams honor
+        // range-local route fallbacks. The cached (population) projection is
+        // used only while no live evaluation exists.
         val freshProjection = inputs.pkProjection?.takeIf { pkLive == null }?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
-        }?.takeIf {
-            // A projection stored beside a malformed display payload may be personalized. The
-            // repository normally strips the pair atomically; keep this consumer fail-closed too.
-            inputs.calibrationDisplay == null || activeCalibrationDisplay != null
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
         }
-        val simulationPersonalParams = if (pkLive != null) {
-            pkLive.render?.effectiveDisplayParams ?: PkPersonalParams.population()
-        } else {
-            calibrationPersonalParams ?: PkPersonalParams.population()
-        }
+        val simulationPersonalParams =
+            pkLive?.render?.effectiveDisplayParams ?: PkPersonalParams.population()
         val trendResult = freshProjection?.toMainEstradiolTrend(
             now = now,
             zoneId = zoneId,

@@ -18,11 +18,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
         E2CalibrationMetadataEntity::class,
-        PkCalibrationDisplayArtifactEntity::class,
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 12,
+    version = 10,
     exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -204,139 +203,21 @@ internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     }
 }
 
-// v9 -> v10: result-owned review metadata plus the one derived display artifact.
-// Both tables intentionally start empty. The rev-8.6 route-calibration design never
-// shipped durable thetaS/routeExposureScale or legacy disposition state in this app,
-// so there is no old calibration value to delete or map during this migration.
-// Existing installs therefore remain population-safe until a result is explicitly
-// reviewed and a display artifact is recomputed under the current contracts.
+// v9 -> v10: result-owned review metadata (an explicit exclusion of one E2
+// result from route calibration). The table starts empty; no earlier
+// calibration state ever shipped, so there is nothing to convert.
 internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        // v10 as originally shipped: digest-bound acceptance columns. The v10 A2
-        // refactor renamed them; that rename is MIGRATION_10_11, never this one.
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS `e2_calibration_metadata` (
                 `resultUuid` TEXT NOT NULL,
                 `disposition` TEXT NOT NULL,
-                `acceptedReviewDigestSchema` TEXT,
-                `acceptedReviewDigestAlgorithm` TEXT,
-                `acceptedReviewDigestHexLower` TEXT,
                 `updatedAtEpochMillis` INTEGER NOT NULL,
                 PRIMARY KEY(`resultUuid`),
                 FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`)
                     ON UPDATE NO ACTION ON DELETE CASCADE
             )
-            """.trimIndent()
-        )
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `pk_calibration_display_artifact` (
-                `singletonId` INTEGER NOT NULL,
-                `homeSnapshotGeneration` INTEGER NOT NULL,
-                `schema` TEXT NOT NULL,
-                `calibrationModelVersion` TEXT NOT NULL,
-                `resultInputDigestSchema` TEXT NOT NULL,
-                `resultInputDigestAlgorithm` TEXT NOT NULL,
-                `resultInputDigestHexLower` TEXT NOT NULL,
-                `promotedRouteStableIds` TEXT NOT NULL,
-                `injectionLogScale` REAL,
-                `patchLogScale` REAL,
-                `gelLogScale` REAL,
-                `oralLogScale` REAL,
-                `sublingualLogScale` REAL,
-                PRIMARY KEY(`singletonId`)
-            )
-            """.trimIndent()
-        )
-    }
-}
-
-// v10 → v11: repairs the v10 A2 refactor's in-place rewrite of
-// `e2_calibration_metadata`, which replaced the digest-bound acceptance columns
-// with the model §A2 staleness record while the version stayed at 10. Two v10
-// shapes therefore exist on branch-era installs; this rebuild accepts either.
-// Digest-bound acceptances cannot be honored under the attestation model, so
-// those rows fall back to AUTO (the outlier returns to review); exclusions and
-// record-carrying acceptances are preserved.
-internal val MIGRATION_10_11: Migration = object : Migration(10, 11) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        var hasDigestColumns = false
-        db.query("PRAGMA table_info(`e2_calibration_metadata`)").use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow("name")
-            while (cursor.moveToNext()) {
-                if (cursor.getString(nameIndex) == "acceptedReviewDigestSchema") {
-                    hasDigestColumns = true
-                }
-            }
-        }
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `e2_calibration_metadata_v11` (
-                `resultUuid` TEXT NOT NULL,
-                `disposition` TEXT NOT NULL,
-                `acceptedModelVersion` TEXT,
-                `acceptedSourceValueBits` TEXT,
-                `acceptedCollectedAtEpochMillis` INTEGER,
-                `updatedAtEpochMillis` INTEGER NOT NULL,
-                PRIMARY KEY(`resultUuid`),
-                FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`)
-                    ON UPDATE NO ACTION ON DELETE CASCADE
-            )
-            """.trimIndent()
-        )
-        if (hasDigestColumns) {
-            db.execSQL(
-                """
-                INSERT INTO `e2_calibration_metadata_v11`
-                    (`resultUuid`, `disposition`, `acceptedModelVersion`,
-                     `acceptedSourceValueBits`, `acceptedCollectedAtEpochMillis`,
-                     `updatedAtEpochMillis`)
-                SELECT `resultUuid`,
-                       CASE `disposition` WHEN 'ACCEPTED' THEN 'AUTO' ELSE `disposition` END,
-                       NULL, NULL, NULL,
-                       `updatedAtEpochMillis`
-                FROM `e2_calibration_metadata`
-                """.trimIndent()
-            )
-        } else {
-            db.execSQL(
-                """
-                INSERT INTO `e2_calibration_metadata_v11`
-                    (`resultUuid`, `disposition`, `acceptedModelVersion`,
-                     `acceptedSourceValueBits`, `acceptedCollectedAtEpochMillis`,
-                     `updatedAtEpochMillis`)
-                SELECT `resultUuid`, `disposition`, `acceptedModelVersion`,
-                       `acceptedSourceValueBits`, `acceptedCollectedAtEpochMillis`,
-                       `updatedAtEpochMillis`
-                FROM `e2_calibration_metadata`
-                """.trimIndent()
-            )
-        }
-        db.execSQL("DROP TABLE `e2_calibration_metadata`")
-        db.execSQL(
-            "ALTER TABLE `e2_calibration_metadata_v11` RENAME TO `e2_calibration_metadata`"
-        )
-    }
-}
-
-// v11 → v12: the acceptance record additionally binds the accepted result's
-// unit identity (Phase-3 #8): a unit edit re-scales the canonical value, so an
-// acceptance made under the old unit must return to review. Pre-v12 records
-// carry no unit binding and cannot honor it — ACCEPTED rows fall back to AUTO
-// (the outlier returns to review), mirroring MIGRATION_10_11's digest-row
-// handling; exclusions are untouched.
-internal val MIGRATION_11_12: Migration = object : Migration(11, 12) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `e2_calibration_metadata` ADD COLUMN `acceptedUnitId` TEXT")
-        db.execSQL(
-            """
-            UPDATE `e2_calibration_metadata`
-            SET `disposition` = 'AUTO',
-                `acceptedModelVersion` = NULL,
-                `acceptedSourceValueBits` = NULL,
-                `acceptedCollectedAtEpochMillis` = NULL
-            WHERE `disposition` = 'ACCEPTED'
             """.trimIndent()
         )
     }

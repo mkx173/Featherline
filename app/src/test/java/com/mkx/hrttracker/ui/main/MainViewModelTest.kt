@@ -34,13 +34,9 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
-import com.mkx.hrttracker.model.pk.CanonicalDigest
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.PkTrendResult
-import com.mkx.hrttracker.model.pk.toValidatedPersonalParams
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
@@ -76,7 +72,6 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
-import kotlin.math.ln
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
@@ -916,97 +911,6 @@ class MainViewModelTest {
     }
 
     @Test
-    fun expiredProjectionFallback_usesActiveCalibrationParams() = runTest {
-        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
-        val zoneId = ZoneId.systemDefault()
-        val entry = testMedicationLogEntry(
-            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.TabletFraction(1, 1),
-            equivalentE2Mg = 2.0,
-            sourceGroupUuid = null,
-            appliedAt = now.minusHours(4).atZone(zoneId).toInstant(),
-        )
-        val display = calibrationDisplay()
-        val expected = checkNotNull(
-            PkMedicationSimulation.simulateMainEstradiolTrend(
-                entries = listOf(entry),
-                bodyWeightKg = 60.0,
-                now = now,
-                zoneId = zoneId,
-                personalParams = checkNotNull(display.toValidatedPersonalParams()),
-            )
-        )
-        val population = checkNotNull(
-            PkMedicationSimulation.simulateMainEstradiolTrend(
-                entries = listOf(entry),
-                bodyWeightKg = 60.0,
-                now = now,
-                zoneId = zoneId,
-            )
-        )
-        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
-            homeInputs(
-                now = now,
-                trendResult = null,
-                estradiolPkEntries = listOf(entry),
-                calibrationDisplay = display,
-                source = HomeInputSource.ROOM,
-            )
-        )
-        val viewModel = MainViewModel(
-            homeRepository = homeRepository,
-            settingsRepository = settingsRepository,
-            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
-            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
-            appTimeSource = FakeAppTimeSource(now),
-            defaultDispatcher = dispatcher,
-        )
-
-        startUiStateCollection(viewModel)
-        advanceUntilIdle()
-
-        assertEquals(expected.currentConcentration, viewModel.uiState.value.e2Hero.currentValue, 0.0)
-        assertTrue(expected.currentConcentration != population.currentConcentration)
-    }
-
-    @Test
-    fun cachedProjection_emitsCalibrationDisplayTransitionImmediately() = runTest {
-        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
-        val display = calibrationDisplay()
-        val inputs = MutableStateFlow(homeInputs(now = now))
-        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns inputs
-        val viewModel = MainViewModel(
-            homeRepository = homeRepository,
-            settingsRepository = settingsRepository,
-            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
-            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
-            appTimeSource = FakeAppTimeSource(now),
-            defaultDispatcher = dispatcher,
-        )
-        startUiStateCollection(viewModel)
-        advanceUntilIdle()
-        assertNull(viewModel.uiState.value.pkCalibration)
-
-        inputs.value = homeInputs(
-            now = now,
-            trendResult = PkTrendResult(
-                currentConcentration = 222.0,
-                previousDayConcentration = 111.0,
-                dailyConcentrations = listOf(80.0, 100.0, 111.0, 222.0),
-                concentrationUnit = PkConcentrationUnit.PG_PER_ML,
-            ),
-            calibrationDisplay = display,
-        )
-        advanceUntilIdle()
-
-        assertEquals(222.0, viewModel.uiState.value.e2Hero.currentValue, 0.0)
-    }
-
-    @Test
     fun pastDuePlannedEntryIsFilteredFromTrendFallback() = runTest {
         // A planned virtual entry whose scheduledFor is in the past relative to
         // live `now` must NOT flow into the trend simulator — the user didn't
@@ -1820,7 +1724,6 @@ class MainViewModelTest {
         stockWarnings: List<MedicineStockProjection> = emptyList(),
         homeAnchor: TrackedDate? = null,
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
-        calibrationDisplay: PersistedPkCalibrationDisplay? = null,
     ): HomeInputs {
         return HomeInputs(
             activeGroups = activeGroups,
@@ -1837,25 +1740,6 @@ class MainViewModelTest {
             homeAnchor = homeAnchor,
             source = source,
             now = now,
-            calibrationDisplay = calibrationDisplay,
-        )
-    }
-
-    private fun calibrationDisplay(): PersistedPkCalibrationDisplay {
-        val digest = checkNotNull(
-            CanonicalDigest.create(
-                schema = "hrttracker.fit-input/test",
-                algorithm = "SHA-256",
-                hexLower = "a".repeat(64),
-            )
-        )
-        return checkNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = "route-v9-final",
-                resultInputDigest = digest,
-                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to ln(2.0)),
-            )
         )
     }
 

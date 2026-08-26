@@ -31,10 +31,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.CanonicalDigest
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
-import com.mkx.hrttracker.model.pk.PkCalibrationModelIdentityProvider
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -478,7 +474,6 @@ class HomeRepositoryTest {
             densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
             includesPostDoseOffsets = false,
         )
-        val calibrationDisplay = calibrationDisplay()
         val snapshot = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generatedAtEpochMillis = 10L,
@@ -490,7 +485,6 @@ class HomeRepositoryTest {
             antiandrogenHistoryEntries = listOf(
                 antiandrogenHistoryEntry.toMedicationLogEntryModel(medicinesByUuid)
             ),
-            calibrationDisplay = calibrationDisplay,
         )
 
         every { homeSnapshotStore.observeSnapshot() } returns flowOf(snapshot)
@@ -508,8 +502,6 @@ class HomeRepositoryTest {
             settingsRepository = settingsRepository,
             appScope = backgroundScope,
             defaultDispatcher = dispatcher,
-            calibrationModelIdentityProvider =
-                PkCalibrationModelIdentityProvider.fixed(CalibrationModelVersion),
         )
 
         val inputs = HomeRepository(
@@ -532,76 +524,8 @@ class HomeRepositoryTest {
         assertEquals(pkEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
         assertEquals(PkConcentrationUnit.PG_PER_ML, inputs.pkProjection?.concentrationUnit)
         assertEquals(BloodUnitKey.NG_DL, inputs.settings.homeE2DisplayUnit)
-        assertEquals(calibrationDisplay, inputs.calibrationDisplay)
 
         verify(exactly = 0) { databaseHolder.get() }
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun invalidCalibrationSnapshot_isRejectedWithoutProjectionLeak() = runTest {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        val zoneId = ZoneId.systemDefault()
-        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
-        val rawProjection = HomePkProjectionRecord(
-            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
-            windowStartEpochMillis = now.minusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
-            windowEndEpochMillis = now.plusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
-            pkProjectionExpiresAtEpochMillis =
-                now.plusDays(7).atZone(zoneId).toInstant().toEpochMilli(),
-            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
-            timeH = emptyList(),
-            concentrations = emptyList(),
-            doseMarkers = emptyList(),
-            latestEstradiolEntry = null,
-            chartWindowHours = 168,
-            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
-            includesPostDoseOffsets = false,
-        )
-        val rawSnapshot = HomeSnapshotRecord(
-            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
-            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
-            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
-            zoneId = zoneId.id,
-            pkProjection = rawProjection,
-            activeGroups = emptyList(),
-            scheduleEntries = emptyList(),
-            antiandrogenHistoryEntries = emptyList(),
-            calibrationDisplay = calibrationDisplay(),
-        )
-        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
-        every {
-            settingsRepository.homeE2ChartWindowOptionFlow
-        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(rawSnapshot)
-        every {
-            homeSnapshotRepository.validatedSnapshotIfUsable(
-                snapshot = rawSnapshot,
-                now = now,
-                zoneId = zoneId,
-                option = settings.homeE2ChartWindowOption,
-            )
-        } returns null
-
-        val repository = HomeRepository(
-            databaseHolder = databaseHolder,
-            settingsRepository = settingsRepository,
-            homeSnapshotRepository = homeSnapshotRepository,
-            medicineStockRepository = medicineStockRepository,
-            medicineRepository = medicineRepository,
-            medicationLogRepository = medicationLogRepository,
-            journalRepository = journalRepository,
-        )
-        val emittedInputs = mutableListOf<HomeInputs>()
-        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            repository.observeHomeSnapshotInputs(now, zoneId).collect(emittedInputs::add)
-        }
-
-        assertTrue(emittedInputs.isEmpty())
-        verify(exactly = 0) {
-            homeSnapshotRepository.decodeProjection(rawProjection, any(), any())
-        }
-        collectJob.cancel()
     }
 
     @Test
@@ -641,13 +565,13 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.validatedSnapshotIfUsable(
+            homeSnapshotRepository.isSnapshotUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = providedZone,
                 option = settings.homeE2ChartWindowOption,
             )
-        } returns snapshot
+        } returns true
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = snapshot,
@@ -684,7 +608,7 @@ class HomeRepositoryTest {
 
         assertEquals(HomeInputSource.SNAPSHOT, inputs.source)
         verify(exactly = 1) {
-            homeSnapshotRepository.validatedSnapshotIfUsable(
+            homeSnapshotRepository.isSnapshotUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = providedZone,
@@ -738,13 +662,13 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.validatedSnapshotIfUsable(
+            homeSnapshotRepository.isSnapshotUsable(
                 snapshot = snapshot,
                 now = now,
                 zoneId = zoneId,
                 option = settings.homeE2ChartWindowOption,
             )
-        } returns snapshot
+        } returns true
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = snapshot,
@@ -1338,8 +1262,8 @@ class HomeRepositoryTest {
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(snapshot)
         every {
-            homeSnapshotRepository.validatedSnapshotIfUsable(any(), any(), any(), any())
-        } answers { firstArg() }
+            homeSnapshotRepository.isSnapshotUsable(any(), any(), any(), any())
+        } returns true
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 any(),
@@ -1379,6 +1303,7 @@ class HomeRepositoryTest {
         val zoneId = ZoneId.systemDefault()
         val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
         val snapshotRecords = MutableSharedFlow<HomeSnapshotRecord?>(replay = 1)
+        val roomSnapshotRecords = MutableSharedFlow<HomeSnapshotRecord?>(replay = 1)
         val snapshot = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
@@ -1388,9 +1313,9 @@ class HomeRepositoryTest {
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),
             antiandrogenHistoryEntries = emptyList(),
-            calibrationDisplay = calibrationDisplay(),
         )
         snapshotRecords.tryEmit(null)
+        roomSnapshotRecords.tryEmit(null)
 
         every { databaseHolder.get() } returns database
         every { database.homeDao() } returns homeDao
@@ -1415,15 +1340,18 @@ class HomeRepositoryTest {
         every {
             settingsRepository.homeE2ChartWindowOptionFlow
         } returns MutableStateFlow(settings.homeE2ChartWindowOption)
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns snapshotRecords
+        every { homeSnapshotRepository.observeHomeSnapshot() } returnsMany listOf(
+            snapshotRecords,
+            roomSnapshotRecords,
+        )
         every {
-            homeSnapshotRepository.validatedSnapshotIfUsable(
+            homeSnapshotRepository.isSnapshotUsable(
                 snapshot = any(),
                 now = any(),
                 zoneId = any(),
                 option = any(),
             )
-        } answers { firstArg() }
+        } returns true
         every {
             homeSnapshotRepository.scheduleEntriesForHome(
                 snapshot = any(),
@@ -1433,9 +1361,8 @@ class HomeRepositoryTest {
         } returns emptyList()
         every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
 
-        val emittedInputs = mutableListOf<HomeInputs>()
+        val emittedSources = mutableListOf<HomeInputSource>()
         val firstRoomObserved = CompletableDeferred<Unit>()
-        val calibratedRoomObserved = CompletableDeferred<Unit>()
         val repository = HomeRepository(
             databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
@@ -1451,26 +1378,20 @@ class HomeRepositoryTest {
                 nowFlow = MutableStateFlow(now),
                 zoneId = zoneId,
             ).collect { inputs ->
-                emittedInputs += inputs
+                emittedSources += inputs.source
                 if (inputs.source == HomeInputSource.ROOM) {
                     firstRoomObserved.complete(Unit)
-                    if (inputs.calibrationDisplay != null) {
-                        calibratedRoomObserved.complete(Unit)
-                    }
                 }
             }
         }
         firstRoomObserved.await()
 
-        assertEquals(listOf(HomeInputSource.ROOM), emittedInputs.map(HomeInputs::source))
+        assertEquals(listOf(HomeInputSource.ROOM), emittedSources)
 
         snapshotRecords.emit(snapshot)
-        calibratedRoomObserved.await()
+        advanceUntilIdle()
 
-        assertEquals(false, emittedInputs.any { inputs ->
-            inputs.source == HomeInputSource.SNAPSHOT
-        })
-        assertEquals(snapshot.calibrationDisplay, emittedInputs.last().calibrationDisplay)
+        assertEquals(false, emittedSources.contains(HomeInputSource.SNAPSHOT))
         collectJob.cancel()
     }
 
@@ -1711,26 +1632,7 @@ class HomeRepositoryTest {
         }
     }
 
-    private fun calibrationDisplay(): PersistedPkCalibrationDisplay {
-        val digest = requireNotNull(
-            CanonicalDigest.create(
-                schema = "hrttracker.fit-input/test",
-                algorithm = "SHA-256",
-                hexLower = "a".repeat(64),
-            )
-        )
-        return requireNotNull(
-            PersistedPkCalibrationDisplay.create(
-                calibrationModelVersion = CalibrationModelVersion,
-                resultInputDigest = digest,
-                promotedRoutes = listOf(PkCalibrationRoute.ORAL),
-                displayRouteLogScaleByRoute = mapOf(PkCalibrationRoute.ORAL to 0.2),
-            )
-        )
-    }
-
     private companion object {
-        const val CalibrationModelVersion = "route-v9-final"
         const val ESTRADIOL_MEDICINE_UUID = "e2e2e2e2-0000-0000-0000-000000000000"
         const val SPIRONOLACTONE_MEDICINE_UUID = "5a5a5a5a-0000-0000-0000-000000000000"
     }

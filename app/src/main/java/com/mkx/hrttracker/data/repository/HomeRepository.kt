@@ -7,7 +7,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PersistedPkCalibrationDisplay
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
@@ -97,8 +96,8 @@ class HomeRepository @Inject constructor(
             Triple(snapshot, option, settingsState)
         }
             .mapNotNull { (snapshot, option, settingsState) ->
-                val usable = snapshot?.let {
-                    homeSnapshotRepository.validatedSnapshotIfUsable(
+                val usable = snapshot?.takeIf {
+                    homeSnapshotRepository.isSnapshotUsable(
                         snapshot = it,
                         now = now,
                         zoneId = zoneId,
@@ -156,7 +155,6 @@ class HomeRepository @Inject constructor(
                     homeAnchor = usable.homeAnchor,
                     source = HomeInputSource.SNAPSHOT,
                     now = now,
-                    calibrationDisplay = usable.calibrationDisplay,
                 )
             }
             .catch { throwable ->
@@ -222,16 +220,16 @@ class HomeRepository @Inject constructor(
                         horizon = pkHorizon,
                         zoneId = zoneId,
                     )
-                    val usableSnapshot = snapshot
-                        ?.let {
-                            homeSnapshotRepository.validatedSnapshotIfUsable(
+                    val pkProjectionRecord = snapshot
+                        ?.takeIf {
+                            homeSnapshotRepository.isSnapshotUsable(
                                 snapshot = it,
                                 now = now,
                                 zoneId = zoneId,
                                 option = option,
                             )
                         }
-                    val pkProjectionRecord = usableSnapshot?.pkProjection
+                        ?.pkProjection
                     val stockWarnings = medicineStockRepository.projectAll(
                         medicines = stockAndAnchorInputs.trackedMedicines,
                         activeGroups = inputs.activeGroups,
@@ -267,7 +265,6 @@ class HomeRepository @Inject constructor(
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
                         now = now,
-                        calibrationDisplay = usableSnapshot?.calibrationDisplay,
                     )
                 }
             }
@@ -594,8 +591,6 @@ data class HomeInputs(
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,
     val now: LocalDateTime,
-    /** Home-only atomic display artifact shaping the Home projection; never consumed by widget. */
-    val calibrationDisplay: PersistedPkCalibrationDisplay? = null,
 )
 
 enum class HomeInputSource {
