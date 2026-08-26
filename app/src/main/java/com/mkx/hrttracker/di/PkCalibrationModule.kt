@@ -1,7 +1,5 @@
 package com.mkx.hrttracker.di
 
-import com.mkx.hrttracker.data.repository.PkCalibrationCurrentEvaluationContextProvider
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationRuntimePolicy
 import dagger.Module
 import dagger.Provides
@@ -17,10 +15,4 @@ object PkCalibrationModule {
     @Singleton
     fun providePkCalibrationRuntimePolicy(): PkCalibrationRuntimePolicy =
         PkCalibrationRuntimePolicy.Default
-
-    @Provides
-    @Singleton
-    fun providePkCalibrationCurrentEvaluationContextProvider(
-        repository: PkCalibrationLiveRepository,
-    ): PkCalibrationCurrentEvaluationContextProvider = repository
 }

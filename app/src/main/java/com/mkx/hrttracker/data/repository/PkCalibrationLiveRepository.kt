@@ -189,10 +189,6 @@ sealed interface PkCalibrationLiveState {
     }
 }
 
-fun interface PkCalibrationCurrentEvaluationContextProvider {
-    suspend fun currentEvaluationContext(): PkCalibrationEvaluationContext?
-}
-
 @Singleton
 @OptIn(ExperimentalCoroutinesApi::class)
 class PkCalibrationLiveRepository @Inject constructor(
@@ -204,7 +200,7 @@ class PkCalibrationLiveRepository @Inject constructor(
     private val clock: Clock,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @AppScope appScope: CoroutineScope,
-) : PkCalibrationCurrentEvaluationContextProvider {
+) {
     private val retryVersion = MutableStateFlow(0L)
 
     val liveState: StateFlow<PkCalibrationLiveState> = combine(
@@ -242,13 +238,6 @@ class PkCalibrationLiveRepository @Inject constructor(
 
     fun retry() {
         retryVersion.value = retryVersion.value + 1L
-    }
-
-    override suspend fun currentEvaluationContext(): PkCalibrationEvaluationContext? {
-        val available = liveState.value as? PkCalibrationLiveState.Available ?: return null
-        return available.context.takeIf {
-            storageRepository.captureHomeDataGeneration() == available.inputGeneration
-        }
     }
 
     private suspend fun stableRead(policy: PkCalibrationRuntimePolicy): StableRead {

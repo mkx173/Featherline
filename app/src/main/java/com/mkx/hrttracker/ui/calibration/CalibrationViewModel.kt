@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
-import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionResult
-import com.mkx.hrttracker.data.repository.PkCalibrationReviewActionService
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,8 +23,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 
@@ -33,7 +36,8 @@ class CalibrationViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
     private val settingsRepository: SettingsRepository,
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
-    private val pkReviewActionService: PkCalibrationReviewActionService,
+    private val pkStorageRepository: PkCalibrationStorageRepository,
+    private val clock: Clock,
     private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
 ) : ViewModel() {
     private val isDeletingAllEntries = MutableStateFlow(false)
@@ -104,26 +108,31 @@ class CalibrationViewModel @Inject constructor(
 
     private val pkReviewRejectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** One event per rejected review action; the screen surfaces a toast. */
+    /** One event per failed review write; the screen surfaces a toast. */
     val pkReviewRejections: SharedFlow<Unit> = pkReviewRejectionEvents.asSharedFlow()
 
     fun retryPkCalibration() {
         pkCalibrationLiveRepository.retry()
     }
 
-    fun excludePkLab(resultId: UUID) = launchPkReviewAction {
-        pkReviewActionService.exclude(resultId)
-    }
+    fun excludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.EXCLUDED)
 
-    fun reincludePkLab(resultId: UUID) = launchPkReviewAction {
-        pkReviewActionService.reinclude(resultId)
-    }
+    fun reincludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.AUTO)
 
-    private fun launchPkReviewAction(
-        action: suspend () -> PkCalibrationReviewActionResult,
-    ) {
+    /**
+     * The user's review decision is persisted unconditionally; the storage
+     * layer only enforces that the target is a built-in E2 result. A failed
+     * write surfaces as a toast.
+     */
+    private fun savePkDisposition(resultId: UUID, disposition: E2CalibrationDisposition) {
         viewModelScope.launch {
-            if (action() is PkCalibrationReviewActionResult.Rejected) {
+            try {
+                pkStorageRepository.saveMetadata(
+                    E2CalibrationMetadata(resultId, disposition, Instant.now(clock))
+                )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
                 pkReviewRejectionEvents.tryEmit(Unit)
             }
         }

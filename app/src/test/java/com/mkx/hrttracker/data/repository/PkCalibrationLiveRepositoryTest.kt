@@ -94,11 +94,6 @@ class PkCalibrationLiveRepositoryTest {
             FixedNowMillis + 14L * 24L * 3_600_000L,
             available.domain.rangeEndEpochMillis,
         )
-        assertSame(available.context, repository.currentEvaluationContext())
-        // The context is generation-bound: once Home data moves on, review
-        // actions must not act against the stale snapshot.
-        coEvery { storage.captureHomeDataGeneration() } returns 8L
-        assertNull(repository.currentEvaluationContext())
         collector.cancel()
     }
 
