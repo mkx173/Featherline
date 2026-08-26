@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -18,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.edit
 import androidx.datastore.core.DataStore
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
@@ -100,13 +98,6 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         WidgetAppearance.Default
     }
     provideContent {
-        // Re-read on every composition so the baseline picks up the launcher's portrait
-        // cell height as soon as options are reported (Glance recomposes on options change).
-        val deviceBaselineHeightDp = appWidgetId?.let { widgetId ->
-            runCatching { AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId) }
-                .getOrNull()
-                ?.let { options -> portraitBaselineHeightDp(options) }
-        }
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
         // Remembered: collectAsState keys on flow identity, so an unremembered
@@ -116,7 +107,7 @@ private suspend fun GlanceAppWidget.provideHrtContent(
             appearanceRepository.effectiveFor(appWidgetId)
         }
         val appearance by appearanceFlow.collectAsState(initial = initialAppearance)
-        HrtWidgetThemed(context, snapshot, appearance, deviceBaselineHeightDp) { content(it) }
+        HrtWidgetThemed(context, snapshot, appearance) { content(it) }
     }
 }
 
@@ -128,7 +119,6 @@ internal fun HrtWidgetThemed(
     context: Context,
     snapshot: WidgetSnapshotRecord?,
     appearance: WidgetAppearance,
-    deviceBaselineHeightDp: Float? = null,
     // Adaptive-colour + app-language default to the snapshot's baked values, so the dose
     // call sites (which always carry a snapshot) stay untouched. The anchor paths render
     // with snapshot = null and pass these explicitly, read from settings the same way the
@@ -175,7 +165,6 @@ internal fun HrtWidgetThemed(
             LocalWidgetScale provides scale,
             LocalWidgetAlpha provides alpha,
             LocalWidgetForcedDark provides forcedDark,
-            LocalDeviceBaselineHeight provides deviceBaselineHeightDp,
         ) {
             content(snapshot)
         }
@@ -211,7 +200,6 @@ private fun HrtPreviewContent(
         CompositionLocalProvider(
             LocalWidgetColors provides widgetColorScheme(DefaultSeedColor),
             LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
-            LocalPreviewBaselineHeight provides WIDGET_BASELINE_REFERENCE_DP,
             LocalPreviewE2Text provides formatWidgetE2Text(
                 currentConcentration = WIDGET_PREVIEW_E2_PG_PER_ML,
                 concentrationUnit = PkConcentrationUnit.PG_PER_ML,
@@ -294,8 +282,8 @@ suspend fun updateAllHrtWidgets(context: Context) {
 // while foregrounded (the user is in the app, not watching the widget).
 //
 // Tradeoff (synchronous path): we compose a single RemoteViews for the current orientation's
-// size rather than Glance's automatic portrait/landscape variants. Acceptable here because
-// content scale is frozen to the captured per-device baseline.
+// size rather than Glance's automatic portrait/landscape variants. Content scale is the
+// user-selected appearance value and stays unchanged across launcher resizes.
 //
 // A null record renders the empty-setup state, so clearWidgetSnapshot can reuse the same
 // widget update path.
@@ -368,9 +356,8 @@ private suspend fun pushHrtWidget(
             emptyMap()
         }
     appWidgetIds.forEach { appWidgetId ->
-        // One options read; size and baseline resolve through the same helper the
-        // config-screen preview uses.
-        val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(
+        // Resolve through the same size helper the config-screen preview uses.
+        val size = resolveWidgetRenderSize(
             context,
             appWidgetManager.getAppWidgetOptions(appWidgetId),
             isMedium,
@@ -378,7 +365,7 @@ private suspend fun pushHrtWidget(
         val appearance = appearances[appWidgetId] ?: WidgetAppearance.Default
         val result = runCatching {
             GlanceRemoteViews().compose(context = context, size = size) {
-                HrtWidgetThemed(context, record, appearance, deviceBaselineHeightDp) { snapshot ->
+                HrtWidgetThemed(context, record, appearance) { snapshot ->
                     if (isMedium) MediumWidgetContent(snapshot) else LargeWidgetContent(snapshot)
                 }
             }
@@ -395,17 +382,15 @@ internal class WidgetConfigPreviewRender(
 )
 
 // Single reuse point for WidgetConfigActivity's live preview. Encapsulates the private
-// render helpers: preview size selection, the preview baseline, applying the live
-// control values onto the snapshot, and the synchronous GlanceRemoteViews compose.
+// render helpers: preview size selection, applying the live control values onto the
+// snapshot, and the synchronous GlanceRemoteViews compose.
 // Falls back to previewSnapshot when no snapshot was ever persisted (fresh install /
 // first placement); in that case the preview E2 trend text is provided the same way
 // HrtPreviewContent does, since the fabricated snapshot has no real projection.
 //
 // When [appWidgetId] resolves to live launcher options, the preview is composed at the
-// widget's ACTUAL current cell size and resolves scale through the same device baseline
-// path the real widget uses (no LocalPreviewBaselineHeight override) — true WYSIWYG.
-// Otherwise (invalid id / options read failed) it falls back to the fixed reference
-// preview size with the reference baseline, as before.
+// widget's ACTUAL current cell size with the same user-selected content scale as the live
+// widget — true WYSIWYG. Otherwise it falls back to the fixed reference preview size.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 internal suspend fun composeWidgetPreviewRemoteViews(
     context: Context,
@@ -425,17 +410,12 @@ internal suspend fun composeWidgetPreviewRemoteViews(
     }
     val record = snapshot ?: previewSnapshot(context)
     val options = widgetOptionsOrNull(context, appWidgetId)
-    // Live options → actual size + the widget's real device baseline, resolved through
-    // the same helper as the production push so the two paths cannot diverge. No
-    // options → fixed reference size + baseline.
-    val (size, deviceBaselineHeightDp) = resolveWidgetRenderSize(context, options, isMedium)
+    // Live options → actual size, resolved through the same helper as the production push
+    // so the two paths cannot diverge. No options → fixed reference size.
+    val size = resolveWidgetRenderSize(context, options, isMedium)
     val remoteViews = GlanceRemoteViews().compose(context = context, size = size) {
-        HrtWidgetThemed(context, record, appearance, deviceBaselineHeightDp) { themed ->
+        HrtWidgetThemed(context, record, appearance) { themed ->
             CompositionLocalProvider(
-                // Only pin the fixed reference baseline on the fallback path; with live
-                // options the real device baseline (above) drives scale for true WYSIWYG.
-                LocalPreviewBaselineHeight provides
-                    if (options != null) null else WIDGET_BASELINE_REFERENCE_DP,
                 LocalPreviewE2Text provides previewE2Text,
                 LocalHostFreePreview provides true,
             ) {
@@ -458,40 +438,18 @@ internal fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = 
 // final footprint on its first frame instead of blinking in once the first async
 // render lands.
 internal fun widgetPreviewSizeDp(context: Context, isMedium: Boolean, appWidgetId: Int): DpSize =
-    resolveWidgetRenderSize(context, widgetOptionsOrNull(context, appWidgetId), isMedium).sizeDp
+    resolveWidgetRenderSize(context, widgetOptionsOrNull(context, appWidgetId), isMedium)
 
-// The size a widget render composes at plus the device baseline that drives its content
-// scale. The production push and the config-screen preview BOTH resolve through
-// resolveWidgetRenderSize, so a change to the derivation cannot silently make the
-// preview diverge from the real widget.
-private data class WidgetRenderSize(
-    val sizeDp: DpSize,
-    val deviceBaselineHeightDp: Float?,
-)
-
-// Null options (a preview without live launcher options) fall back to the fixed
-// reference preview size with no device baseline.
+// Null options (a preview without live launcher options) or options without a reported size
+// (freshly added widget) fall back to the fixed preview size. Widths are nominal — content
+// fills the launcher-allocated cell width regardless.
 private fun resolveWidgetRenderSize(
     context: Context,
     options: Bundle?,
     isMedium: Boolean,
-): WidgetRenderSize = if (options != null) {
-    // Options not yet reported (e.g. freshly added widget): fall back to a sane size so the
-    // one-shot compose still produces a usable layout. The height matches the baseline
-    // reference, so if this fallback happens to be the first render to capture the device
-    // baseline, it resolves to scale 1.0 rather than a slightly-off value. Widths are
-    // nominal — content fills the launcher-allocated cell width regardless.
-    val fallbackHeight = WIDGET_BASELINE_REFERENCE_DP.dp
-    val fallback = if (isMedium) DpSize(280.dp, fallbackHeight) else DpSize(483.dp, fallbackHeight)
-    WidgetRenderSize(
-        sizeDp = currentWidgetSizeDp(context, options, fallback),
-        deviceBaselineHeightDp = portraitBaselineHeightDp(options),
-    )
-} else {
-    WidgetRenderSize(
-        sizeDp = if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE,
-        deviceBaselineHeightDp = null,
-    )
+): DpSize {
+    val preview = if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE
+    return options?.let { currentWidgetSizeDp(context, it, fallback = preview) } ?: preview
 }
 
 // The widget size for the current orientation, derived from the launcher's options.
@@ -524,13 +482,6 @@ internal fun anchorWidgetPreviewSizeDp(context: Context, appWidgetId: Int): DpSi
     widgetOptionsOrNull(context, appWidgetId)
         ?.let { currentWidgetSizeDp(context, it, fallback = ANCHOR_WIDGET_PREVIEW_SIZE) }
         ?: ANCHOR_WIDGET_PREVIEW_SIZE
-
-// The launcher's portrait target-cell height (OPTION_APPWIDGET_MAX_HEIGHT) in dp, used as
-// the device baseline. It is the same value regardless of the current orientation, so
-// feeding it into baseline capture removes the portrait/landscape ordering hazard that let
-// the short landscape pass lock the baseline first. Returns null until options report it.
-internal fun portraitBaselineHeightDp(options: Bundle): Float? =
-    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).takeIf { it > 0 }?.toFloat()
 
 // ── Group-aware row collapsing ────────────────────────────────────────────────
 
@@ -702,11 +653,10 @@ private fun cleanupAppearance(context: Context, appWidgetIds: IntArray) {
 }
 
 
-// ── Per-device baseline scaling ───────────────────────────────────────────────
+// ── Widget scale and preview sizing ───────────────────────────────────────────
 
-// Launcher cell sizes vary by device, so a 2-cell-tall widget renders at different
-// dp heights on different launchers. We capture the first-render target-cell height
-// per widget type and reuse it forever, so resize doesn't change the visual scale.
+// Live widget content uses WidgetAppearance.contentScale directly. Launcher allocation and
+// resize only change the available viewport; they never modify the user's visual scale.
 private const val MEDIUM_WIDGET_PREVIEW_WIDTH_DP = 306
 private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
@@ -718,38 +668,6 @@ private val MEDIUM_WIDGET_PREVIEW_SIZE =
     DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private val LARGE_WIDGET_PREVIEW_SIZE =
     DpSize(LARGE_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
-private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
-
-// Key suffix is bumped (_v3) when the capture logic changes, so installs carrying a
-// baseline persisted by the old buggy logic discard it and re-capture cleanly. _v2 keyed
-// off the per-composition LocalSize, which let the short landscape pass lock the baseline
-// before the portrait pass; _v3 captures the portrait cell height directly.
-private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp_v3"
-private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp_v3"
-internal const val WIDGET_BASELINE_KEY_ANCHOR = "anchor_height_dp_v3"
-
-// Matches the preview viewport height: scale == 1.0 corresponds to the fully
-// laid-out widget size seen in @GlancePreview / Live Preview. The anchor widget is
-// one cell tall, so it resolves against its own reference (its preview height).
-internal const val WIDGET_BASELINE_REFERENCE_DP = 276f
-
-// Reject obviously bogus first-render sizes (e.g. transient 0dp loading frames)
-// so we don't permanently lock the device baseline to nonsense.
-private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
-private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
-
-// Floor for the device-baseline component (baseline / reference) so an unexpectedly
-// small captured baseline can't collapse content to an illegible size. Sits below the
-// normal placed-widget ratio (~0.4–0.58) so it never oversizes a real cell, while still
-// catching pathologically tiny baselines. The user's own scale choice multiplies on top.
-private const val WIDGET_MIN_BASELINE_SCALE_RATIO = 0.35f
-internal val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
-
-// The launcher's portrait target-cell height (dp), resolved from AppWidgetManager options
-// and provided by HrtWidgetThemed. Unlike LocalSize it is the same value on every
-// SizeMode.Exact pass, so baseline capture no longer depends on which orientation pass
-// composes (and persists) first. Null until the launcher reports options.
-private val LocalDeviceBaselineHeight = compositionLocalOf<Float?> { null }
 
 // Pre-formatted E2 trend label shown in previews. Bypasses the real
 // PkProjection path (whose windowing is unfriendly to fabricated data) so the
@@ -763,85 +681,14 @@ private val LocalPreviewE2Text = compositionLocalOf<String?> { null }
 // unaffected (default false).
 private val LocalHostFreePreview = compositionLocalOf { false }
 
-@Composable
-internal fun widgetScale(
-    widgetKey: String,
-    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
-): Float {
-    val previewBaselineDp = LocalPreviewBaselineHeight.current
-    val baselineDp = previewBaselineDp ?: run {
-        val context = LocalContext.current
-        // Portrait target-cell height from the launcher options — identical across the
-        // portrait/landscape Exact passes. 0f until options report it; in that gap it is out
-        // of the sane range, so we don't capture (a fallback frame can't lock a wrong
-        // baseline) and render at the reference scale until a real height arrives.
-        val currentHeightDp = LocalDeviceBaselineHeight.current ?: 0f
-        val prefs = context.getSharedPreferences(WIDGET_BASELINE_PREFS, Context.MODE_PRIVATE)
-        val storedDp = prefs.getFloat(widgetKey, 0f)
-        if (shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp)) {
-            SideEffect {
-                val existingDp = prefs.getFloat(widgetKey, 0f)
-                val mergedDp = mergeWidgetBaselineHeightDp(existingDp, currentHeightDp)
-                if (mergedDp != existingDp) {
-                    prefs.edit { putFloat(widgetKey, mergedDp) }
-                }
-            }
-        }
-        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp, referenceDp)
-    }
-    return widgetBaselineScaleRatio(baselineDp, referenceDp) * LocalWidgetScale.current
-}
-
-// The device-baseline component of the widget scale, floored so an unexpectedly small
-// captured baseline can't collapse content to an illegible size. The user's own scale
-// choice (LocalWidgetScale) multiplies on top of this.
-internal fun widgetBaselineScaleRatio(
-    baselineDp: Float,
-    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
-): Float = (baselineDp / referenceDp).coerceAtLeast(WIDGET_MIN_BASELINE_SCALE_RATIO)
-
-// Capture now feeds the portrait cell height (OPTION_APPWIDGET_MAX_HEIGHT) on every Exact
-// pass, so the persists are already order-independent. Merging by max is kept as a cheap
-// guard: if options ever report a height on one pass but not another, the real (taller)
-// height still wins over a fallback.
-internal fun mergeWidgetBaselineHeightDp(existingDp: Float, currentHeightDp: Float): Float =
-    maxOf(existingDp, currentHeightDp)
-
-// The device baseline is the launcher's portrait target-cell height, captured on the
-// first update and reused forever. Once stored, later (resized) heights are ignored, so
-// a resize relayouts the widget frame without rescaling its content.
-internal fun resolveWidgetBaselineHeightDp(
-    storedDp: Float,
-    currentHeightDp: Float,
-    referenceDp: Float = WIDGET_BASELINE_REFERENCE_DP,
-): Float {
-    if (storedDp > 0f) {
-        return storedDp
-    }
-    if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
-        return referenceDp
-    }
-    return currentHeightDp
-}
-
-// Register a baseline persist while none is stored yet — i.e. on every size composition
-// of the first update. Their persists merge by max, so the tallest sane height wins. A
-// bogus frame is skipped so a later sane size still gets captured.
-internal fun shouldPersistWidgetBaselineHeight(
-    storedDp: Float,
-    currentHeightDp: Float,
-): Boolean =
-    storedDp <= 0f && currentHeightDp in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP
-
 // ── Medium widget (2×2) ───────────────────────────────────────────────────────
 
 @Composable
 private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    val scale = widgetScale(WIDGET_BASELINE_KEY_MEDIUM)
+    val scale = LocalWidgetScale.current
     WidgetShell(
-        scale = scale,
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {
@@ -1200,10 +1047,9 @@ internal fun largeHeaderFitsRoomyGap(
 private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    val scale = widgetScale(WIDGET_BASELINE_KEY_LARGE)
+    val scale = LocalWidgetScale.current
     val size = LocalSize.current
     WidgetShell(
-        scale = scale,
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {

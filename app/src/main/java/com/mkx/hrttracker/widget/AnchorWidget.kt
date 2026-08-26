@@ -70,10 +70,6 @@ internal val ANCHOR_WIDGET_PREVIEW_SIZE = DpSize(306.dp, 138.dp)
 // ponytail: fixed knob; revisit if slow devices fall back to the snapshot on cold render.
 internal const val ANCHOR_WIDGET_AWAIT_TIMEOUT_MS = 5_000L
 
-// The anchor is one cell tall, so scale == 1.0 resolves against its own preview viewport
-// height rather than the dose widgets' 276dp reference.
-private val ANCHOR_WIDGET_BASELINE_REFERENCE_DP = ANCHOR_WIDGET_PREVIEW_SIZE.height.value
-
 // Fixed sample data for the launcher widget-picker previews: "HRT", started Jan 1 2026,
 // 67 days in, default icon, no palette and no gradient. The API 31-34 static
 // previewLayout (layout/hrt_widget_anchor_preview.xml) and the anchor_widget_preview_*
@@ -176,18 +172,10 @@ class HrtAnchorWidget : GlanceAppWidget() {
             val anchor = anchorId?.let { id -> anchors.firstOrNull { it.id == id } }
             val backgroundFlag = currentState(BACKGROUND_FLAG_KEY)
                 ?.let { name -> PrideFlag.entries.firstOrNull { it.name == name } }
-            // Same derivation as the dose widgets' session path: the launcher's portrait
-            // cell height drives the device-baseline component of the content scale.
-            val deviceBaselineHeightDp = appWidgetId?.let { widgetId ->
-                runCatching {
-                    AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
-                }.getOrNull()?.let { options -> portraitBaselineHeightDp(options) }
-            }
             HrtWidgetThemed(
                 context,
                 snapshot = null,
                 appearance = appearance,
-                deviceBaselineHeightDp = deviceBaselineHeightDp,
                 adaptiveColorEnabled = widgetSettings.adaptiveColorEnabled,
                 appLanguageTag = widgetSettings.appLanguageTag,
             ) {
@@ -213,35 +201,29 @@ class HrtAnchorWidget : GlanceAppWidget() {
             // and keeping the launcher-cached preview stable across wallpaper changes.
             // Renders in the system locale (appLanguageTag = null): the launcher draws
             // its picker chrome in the system locale, so a system-locale preview is the
-            // consistent choice. The preview composes at the fixed reference size, so
-            // pin the baseline to it rather than letting a captured device baseline
-            // leak in.
-            CompositionLocalProvider(
-                LocalPreviewBaselineHeight provides ANCHOR_WIDGET_BASELINE_REFERENCE_DP,
+            // consistent choice. The preview composes at the fixed reference size.
+            HrtWidgetThemed(
+                context,
+                snapshot = null,
+                appearance = WidgetAppearance.Default,
+                adaptiveColorEnabled = false,
+                appLanguageTag = null,
             ) {
-                HrtWidgetThemed(
-                    context,
-                    snapshot = null,
-                    appearance = WidgetAppearance.Default,
-                    adaptiveColorEnabled = false,
-                    appLanguageTag = null,
+                // Same preview content scale as the dose widgets
+                // (provideHrtPreviewContent), pinned inside HrtWidgetThemed so it
+                // overrides the appearance-derived LocalWidgetScale (1.0).
+                CompositionLocalProvider(
+                    LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
                 ) {
-                    // Same preview content scale as the dose widgets
-                    // (provideHrtPreviewContent), pinned inside HrtWidgetThemed so it
-                    // overrides the appearance-derived LocalWidgetScale (1.0).
-                    CompositionLocalProvider(
-                        LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
-                    ) {
-                        AnchorWidgetContent(
-                            displayText = buildAnchorWidgetDisplayText(
-                                context = LocalContext.current,
-                                anchor = anchorPreviewAnchor(LocalContext.current),
-                                today = ANCHOR_PREVIEW_START_DATE
-                                    .plusDays(ANCHOR_PREVIEW_DAYS_PASSED),
-                            ),
-                            watermarkScale = WIDGET_PREVIEW_CONTENT_SCALE,
-                        )
-                    }
+                    AnchorWidgetContent(
+                        displayText = buildAnchorWidgetDisplayText(
+                            context = LocalContext.current,
+                            anchor = anchorPreviewAnchor(LocalContext.current),
+                            today = ANCHOR_PREVIEW_START_DATE
+                                .plusDays(ANCHOR_PREVIEW_DAYS_PASSED),
+                        ),
+                        watermarkScale = WIDGET_PREVIEW_CONTENT_SCALE,
+                    )
                 }
             }
         }
@@ -367,13 +349,12 @@ internal fun AnchorWidgetContent(
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    val scale = widgetScale(WIDGET_BASELINE_KEY_ANCHOR, ANCHOR_WIDGET_BASELINE_REFERENCE_DP)
+    val scale = LocalWidgetScale.current
 
     if (displayText is AnchorWidgetDisplayText.Empty) {
         // No selection yet, or the selected anchor was deleted: tap opens the config
         // Activity for this instance so the user can (re)choose.
         WidgetShell(
-            scale = scale,
             contentAlignment = Alignment.Center,
             onClick = actionStartActivity(anchorReconfigureIntent(context, appWidgetId)),
         ) {
@@ -513,7 +494,6 @@ internal fun AnchorWidgetContent(
     }
 
     WidgetShell(
-        scale = scale,
         onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
         backdrop = backdrop,
     ) {
@@ -599,8 +579,6 @@ internal suspend fun composeAnchorRemoteViews(
     // Live launcher options → the instance's actual cell size (WYSIWYG, matching the dose
     // widgets' preview); invalid id / no options → the fixed reference preview size.
     val size = anchorWidgetPreviewSizeDp(context, appWidgetId)
-    val deviceBaselineHeightDp =
-        widgetOptionsOrNull(context, appWidgetId)?.let(::portraitBaselineHeightDp)
     // Read the same settings the real widget does rather than assuming the applicationContext
     // resolves them: below API 33 the app context lags AppCompatDelegate.setApplicationLocales,
     // so relying on it would render the preview chrome in the system language even when the real
@@ -616,7 +594,6 @@ internal suspend fun composeAnchorRemoteViews(
                 context,
                 snapshot = null,
                 appearance = appearance,
-                deviceBaselineHeightDp = deviceBaselineHeightDp,
                 adaptiveColorEnabled = settings?.adaptiveColorEnabled ?: true,
                 appLanguageTag = settings?.appLanguageOption?.languageTag,
             ) {

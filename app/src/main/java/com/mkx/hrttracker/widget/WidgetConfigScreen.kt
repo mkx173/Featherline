@@ -843,7 +843,7 @@ private fun RowLeadingIcon(painter: Painter, size: Dp) {
 // focus, and hidden a11y descendants, so the widget's quick-log / navigation
 // PendingIntents can never fire from the preview (a touch overlay alone would still
 // leak d-pad and accessibility activations). Laid out at the composed widget size and
-// visually fit-scaled about its center so content renders at its real baseline. Until
+// visually fit-scaled about its center without changing the composed widget's scale. Until
 // the first render lands it reserves the placeholder footprint but draws nothing (the
 // window just shows wallpaper meanwhile), so the wallpaper window is already at its
 // final size on the first frame instead of blinking in with the first render.
