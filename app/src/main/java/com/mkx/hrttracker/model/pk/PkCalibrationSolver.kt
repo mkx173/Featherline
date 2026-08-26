@@ -5,7 +5,6 @@ import org.hipparchus.analysis.solvers.BisectionSolver
 import org.hipparchus.linear.Array2DRowRealMatrix
 import org.hipparchus.linear.ArrayRealVector
 import org.hipparchus.linear.CholeskyDecomposition
-import java.util.Collections
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -936,12 +935,5 @@ private fun PkRouteCalibrationDisplayState.isPopulationDisplayState(): Boolean {
             this != PkRouteCalibrationDisplayState.LAB_CALIBRATED
 }
 
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this
 
-private fun <T> immutableList(source: List<T>): List<T> {
-    return Collections.unmodifiableList(ArrayList(source))
-}
 
-private fun <T> immutableSet(source: Set<T>): Set<T> {
-    return Collections.unmodifiableSet(LinkedHashSet(source))
-}

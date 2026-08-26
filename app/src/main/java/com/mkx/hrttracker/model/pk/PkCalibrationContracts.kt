@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.model.pk
 
-import java.util.Collections
 import java.util.UUID
 import kotlin.math.exp
 
@@ -564,16 +563,6 @@ private fun isFiniteNonNegativeOrNull(value: Double?): Boolean {
     return value == null || (value.isFinite() && value >= 0.0)
 }
 
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this
 
-private fun <K, V> immutableMap(source: Map<K, V>): Map<K, V> {
-    return Collections.unmodifiableMap(LinkedHashMap(source))
-}
 
-private fun <T> immutableList(source: List<T>): List<T> {
-    return Collections.unmodifiableList(ArrayList(source))
-}
 
-private fun <T> immutableSet(source: Set<T>): Set<T> {
-    return Collections.unmodifiableSet(LinkedHashSet(source))
-}

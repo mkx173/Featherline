@@ -27,6 +27,7 @@ import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.isStableAsciiIdentity
+import java.time.Clock
 import java.time.Instant
 import java.util.Collections
 import javax.inject.Inject
@@ -200,7 +201,7 @@ class PkCalibrationLiveRepository @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val storageRepository: PkCalibrationStorageRepository,
     private val runtimePolicy: PkCalibrationRuntimePolicy,
-    private val renderClock: PkCalibrationRenderClock,
+    private val clock: Clock,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @AppScope appScope: CoroutineScope,
 ) : PkCalibrationCurrentEvaluationContextProvider {
@@ -319,7 +320,7 @@ class PkCalibrationLiveRepository @Inject constructor(
         val origin = (e2Rows.map { it.first.collectedAt.toEpochMilli() } +
                 relevantEntries.map { it.appliedAt.toEpochMilli() })
             .minOrNull()
-            ?: renderClock.nowEpochMillis()
+            ?: clock.millis()
 
         val labs = ArrayList<PkCalibrationE2LabSource>(e2Rows.size)
         for ((panel, result) in e2Rows) {
@@ -379,7 +380,7 @@ class PkCalibrationLiveRepository @Inject constructor(
         // day of start-of-day flooring slack) through the widest future span —
         // instead of anchoring at earliest-event + 30 days, which put every
         // knot outside the chart for any history older than a month.
-        val nowMillis = renderClock.nowEpochMillis()
+        val nowMillis = clock.millis()
         val domainStart = runCatching { Math.subtractExact(nowMillis, RENDER_PAST_MILLIS) }
             .getOrNull()
             ?: return StableRead.Unavailable(
@@ -432,12 +433,4 @@ class PkCalibrationLiveRepository @Inject constructor(
             HomeE2ChartWindowOption.entries.maxOf { option -> option.futureDays } * DAY_MILLIS
         private const val DEBUG_CHART_GRID_VERSION = "hrttracker.calibration-debug-grid/v1"
     }
-}
-
-/**
- * Clock the live render domain is anchored to. Injectable so repository tests
- * stay deterministic; production binds the system clock.
- */
-fun interface PkCalibrationRenderClock {
-    fun nowEpochMillis(): Long
 }

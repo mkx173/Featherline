@@ -126,4 +126,3 @@ private val CalibrationEstradiolCompounds = setOf(
     PkCompound.EU,
 )
 
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this

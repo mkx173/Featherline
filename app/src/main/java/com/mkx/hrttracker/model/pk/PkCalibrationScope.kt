@@ -9,7 +9,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.squareup.moshi.Moshi
 import org.erdtman.jcs.JsonCanonicalizer
 import java.security.MessageDigest
-import java.util.Collections
 import java.util.UUID
 
 // v2 (Phase-3 decision, 2026-08-09): the per-lab payload dropped
@@ -283,13 +282,9 @@ private fun Double?.isFiniteNonNegativeOrNull(): Boolean {
     return this == null || (isFinite() && this >= 0.0)
 }
 
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this
 
 private fun Long.isJcsSafeInteger(): Boolean = this in -JCS_SAFE_INTEGER_MAX..JCS_SAFE_INTEGER_MAX
 
-private fun <T> immutableList(source: List<T>): List<T> {
-    return Collections.unmodifiableList(ArrayList(source))
-}
 
 private val CanonicalPayloadJsonAdapter = Moshi.Builder()
     .build()

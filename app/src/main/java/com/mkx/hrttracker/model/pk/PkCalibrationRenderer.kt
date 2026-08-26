@@ -16,7 +16,6 @@ private const val PK_CALIBRATION_FORWARD_RENDER_SNAPSHOT_DIGEST_SCHEMA =
     "hrttracker.calibration-forward-render-snapshot/v1"
 private const val PK_CALIBRATION_RENDER_ARTIFACT_VERSION =
     "hrttracker.calibration-render/v1"
-private const val MILLIS_PER_HOUR = 3_600_000.0
 
 /** Pure central-curve and predictive-band rendering for one exact chart domain. */
 object PkCalibrationRenderer {
@@ -584,11 +583,6 @@ private fun PkCalibrationCanonicalInputSnapshot.hasConsistentForwardTimes(): Boo
     }
 }
 
-private fun epochDifferenceHours(epochMillis: Long, originEpochMillis: Long): Double? {
-    val difference = runCatching { Math.subtractExact(epochMillis, originEpochMillis) }
-        .getOrNull() ?: return null
-    return (difference / MILLIS_PER_HOUR).takeIf(Double::isFinite)
-}
 
 private fun numericUnavailable(domainDigest: CanonicalDigest): PkCalibrationRenderResult {
     return requireNotNull(
@@ -610,4 +604,3 @@ private fun Double.rawBinary64Bits(): String {
     return toBits().toULong().toString(16).padStart(16, '0')
 }
 
-private fun Double.normalizePositiveZero(): Double = if (this == 0.0) 0.0 else this

@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.model.pk
 
-import java.util.Collections
 import java.util.UUID
 
 enum class PkCalibrationEvidenceFailure {
@@ -569,13 +568,7 @@ private fun failed(
     return PkCalibrationEvidenceBuildResult.Failed(failure)
 }
 
-private fun <T> immutableList(source: List<T>): List<T> {
-    return Collections.unmodifiableList(ArrayList(source))
-}
 
-private fun <K, V> immutableMap(source: Map<K, V>): Map<K, V> {
-    return Collections.unmodifiableMap(LinkedHashMap(source))
-}
 
 private val CalibrationE2Compounds = setOf(
     PkCompound.E2,
@@ -586,16 +579,7 @@ private val CalibrationE2Compounds = setOf(
     PkCompound.EU,
 )
 
-private const val MILLIS_PER_HOUR = 3_600_000.0
 
-private fun epochDifferenceHours(
-    epochMillis: Long,
-    originEpochMillis: Long,
-): Double? {
-    val difference = runCatching { Math.subtractExact(epochMillis, originEpochMillis) }
-        .getOrNull() ?: return null
-    return (difference / MILLIS_PER_HOUR).takeIf(Double::isFinite)
-}
 
 private val CanonicalRouteIdByEventRoute = linkedMapOf(
     PkRoute.INJECTION to PkCalibrationRoute.INJECTION.stableId,

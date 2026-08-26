@@ -15,6 +15,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Instant
+import java.time.Clock
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
@@ -257,7 +259,7 @@ class PkCalibrationLiveRepositoryTest {
             userProfileRepository = userProfiles,
             storageRepository = storage,
             runtimePolicy = policy,
-            renderClock = PkCalibrationRenderClock { FixedNowMillis },
+            clock = Clock.fixed(Instant.ofEpochMilli(FixedNowMillis), ZoneOffset.UTC),
             defaultDispatcher = defaultDispatcher,
             appScope = appScope,
         )
