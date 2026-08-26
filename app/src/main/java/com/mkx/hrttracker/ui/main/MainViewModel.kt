@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
@@ -21,10 +19,8 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixture
@@ -64,7 +60,6 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
-    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
     private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     appTimeSource: AppTimeSource,
@@ -528,19 +523,6 @@ class MainViewModel @Inject constructor(
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
 
-    /** Route details for the hero's info sheet; the live evaluation (or the debug fixture). */
-    val pkCalibrationDetails: StateFlow<PkCalibrationUiState?> = combine(
-        pkCalibrationLiveRepository.liveState,
-        pkUiFixtureBridge.fixture,
-    ) { liveState, fixture ->
-        when {
-            fixture != null -> pkCalibrationUiState(fixture.result, fixture.render)
-            else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
-                pkCalibrationUiState(available.evaluation.result, available.render)
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     private fun buildMainPkCalibration(
         inputs: HomeInputs,
         fixture: PkCalibrationUiFixture?,
@@ -561,7 +543,7 @@ class MainViewModel @Inject constructor(
         if (fixture != null) {
             val ui = pkCalibrationUiState(fixture.result, fixture.render)
             return MainPkCalibrationUiState(
-                effectivePromotedRoutes = ui.effectivePromotedRoutes,
+                adjusted = ui.effectivePromotedRoutes.isNotEmpty(),
                 limitedConfidence = ui.limitedConfidence,
                 renderUnavailable = ui.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
                 bandUnavailable = ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
@@ -572,8 +554,7 @@ class MainViewModel @Inject constructor(
         }
         val record = inputs.pkCalibration ?: return null
         return MainPkCalibrationUiState(
-            effectivePromotedRoutes = record.effectivePromotedRoutes
-                .mapNotNull(PkCalibrationRoute::fromStableId),
+            adjusted = record.adjusted,
             limitedConfidence = record.limitedConfidence,
             renderUnavailable = record.renderUnavailable,
             bandUnavailable = record.bandUnavailable,

@@ -105,7 +105,7 @@ class HomeSnapshotCodecTest {
                 HomePkBandKnotRecord(1_700_021_600_000L, 55.0, 75.0, 95.0, 120.0, 150.0),
             ),
             pkCalibration = HomePkCalibrationRecord(
-                effectivePromotedRoutes = listOf("injection", "oral"),
+                adjusted = true,
                 limitedConfidence = true,
                 renderUnavailable = false,
                 bandUnavailable = false,

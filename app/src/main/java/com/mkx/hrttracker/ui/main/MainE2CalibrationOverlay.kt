@@ -18,9 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
@@ -34,14 +31,12 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.ui.calibration.PkCalibrationHeroKind
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.applicationType
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
-import com.mkx.hrttracker.ui.components.hrtPillTokens
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.util.labelRes
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
@@ -61,18 +56,14 @@ import java.time.ZoneId
  */
 /** Snapshot-sourced calibration presentation for Home; nothing here waits for the live evaluation. */
 data class MainPkCalibrationUiState(
-    val effectivePromotedRoutes: List<PkCalibrationRoute>,
+    val adjusted: Boolean,
     val limitedConfidence: Boolean,
     val renderUnavailable: Boolean,
     val bandUnavailable: Boolean,
     val band: MainE2CalibrationBand?,
 ) {
     val heroKind: PkCalibrationHeroKind
-        get() = if (effectivePromotedRoutes.isEmpty()) {
-            PkCalibrationHeroKind.POPULATION
-        } else {
-            PkCalibrationHeroKind.ADJUSTED
-        }
+        get() = if (adjusted) PkCalibrationHeroKind.ADJUSTED else PkCalibrationHeroKind.POPULATION
 }
 
 /** Band knots mapped to chart coordinates (xHours + display-unit values). */
@@ -247,56 +238,39 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 // Hero pill (§5.1)
 // ---------------------------------------------------------------------------
 
-/** One pill: "lab-adjusted" or "population", with a trailing info affordance opening the routes sheet. */
+/** One pill: "lab-adjusted" or "population estimate". */
 @Composable
-internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState, onInfo: () -> Unit) {
+internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState) {
     val colorScheme = MaterialTheme.colorScheme
     val adjusted = pk.heroKind == PkCalibrationHeroKind.ADJUSTED
-    val label = stringResource(
-        if (adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
-    )
-    val containerColor = if (adjusted) {
-        colorScheme.primaryContainer.copy(alpha = 0.7f)
-    } else {
-        colorScheme.surfaceContainer
-    }
     val contentColor = if (adjusted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-    val tokens = hrtPillTokens(HrtPillSize.Small)
-    // Modifier.clickable rather than Surface(onClick): the latter reserves a
-    // 48 dp touch target and pads the pill row out of line with its siblings.
     HrtPill(
-        containerColor = containerColor,
+        label = stringResource(
+            if (adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
+        ),
+        containerColor = if (adjusted) {
+            colorScheme.primaryContainer.copy(alpha = 0.7f)
+        } else {
+            colorScheme.surfaceContainer
+        },
         contentColor = contentColor,
         size = HrtPillSize.Small,
-        modifier = Modifier
-            .clip(CircleShape)
-            .clickable(onClick = onInfo),
-    ) {
-        Icon(
-            painter = painterResource(
-                when {
-                    !adjusted -> R.drawable.ic_labs
-                    pk.limitedConfidence -> R.drawable.ic_experiment
-                    else -> R.drawable.ic_check_circle_heavy
-                }
-            ),
-            contentDescription = null,
-            modifier = Modifier.size(tokens.iconSize),
-            tint = contentColor,
-        )
-        Text(
-            text = label,
-            style = tokens.textStyle,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
-        Icon(
-            painter = painterResource(R.drawable.ic_info),
-            contentDescription = stringResource(R.string.calibration_pk_routes_card_title),
-            modifier = Modifier.size(tokens.iconSize),
-            tint = contentColor,
-        )
-    }
+        fontWeight = FontWeight.SemiBold,
+        icon = {
+            Icon(
+                painter = painterResource(
+                    when {
+                        !adjusted -> R.drawable.ic_labs
+                        pk.limitedConfidence -> R.drawable.ic_experiment
+                        else -> R.drawable.ic_check_circle_heavy
+                    }
+                ),
+                contentDescription = null,
+                modifier = iconModifier,
+                tint = contentColor,
+            )
+        },
+    )
 }
 
 // ---------------------------------------------------------------------------

@@ -191,8 +191,8 @@ data class HomePkBandKnotRecord(
 
 /** What Home needs to draw the calibration hero and chart notes on first frame. */
 data class HomePkCalibrationRecord(
-    /** Routes shaping the visible curve, by [PkCalibrationRoute.stableId]. */
-    val effectivePromotedRoutes: List<String>,
+    /** Some route shapes the visible curve with a lab adjustment. */
+    val adjusted: Boolean,
     val limitedConfidence: Boolean,
     val renderUnavailable: Boolean,
     val bandUnavailable: Boolean,
@@ -348,7 +348,7 @@ internal object HomeSnapshotCodec {
             }
             stream.writeBoolean(record.pkCalibration != null)
             record.pkCalibration?.let { calibration ->
-                stream.writeList(calibration.effectivePromotedRoutes) { route -> writeString(route) }
+                stream.writeBoolean(calibration.adjusted)
                 stream.writeBoolean(calibration.limitedConfidence)
                 stream.writeBoolean(calibration.renderUnavailable)
                 stream.writeBoolean(calibration.bandUnavailable)
@@ -393,7 +393,7 @@ internal object HomeSnapshotCodec {
                 },
                 pkCalibration = if (stream.readBoolean()) {
                     HomePkCalibrationRecord(
-                        effectivePromotedRoutes = stream.readList { readString() },
+                        adjusted = stream.readBoolean(),
                         limitedConfidence = stream.readBoolean(),
                         renderUnavailable = stream.readBoolean(),
                         bandUnavailable = stream.readBoolean(),
@@ -1123,7 +1123,8 @@ private const val TAG = "HomeSnapshotStore"
 // v23 appends the calibration route log-scales the projections were simulated with.
 // v24 appends the calibration predictive band over the Home projection window.
 // v25 appends the calibration hero/status summary.
-private const val SNAPSHOT_CODEC_VERSION = 25
+// v26 shrinks that summary to an adjusted flag (route names left the hero).
+private const val SNAPSHOT_CODEC_VERSION = 26
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

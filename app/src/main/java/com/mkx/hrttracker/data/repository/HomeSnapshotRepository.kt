@@ -747,7 +747,7 @@ class HomeSnapshotRepository @Inject constructor(
                 }
                 .map { row -> row.route }
             HomePkCalibrationRecord(
-                effectivePromotedRoutes = effective.map { route -> route.stableId },
+                adjusted = effective.isNotEmpty(),
                 limitedConfidence = effective.any(provisional::contains),
                 renderUnavailable = evaluation.isReady &&
                         homeRender?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,

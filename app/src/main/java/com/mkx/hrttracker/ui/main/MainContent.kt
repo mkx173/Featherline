@@ -92,7 +92,6 @@ fun MainContent(
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
     onOpenTimeline: () -> Unit = { },
-    onPkCalibrationInfoClick: () -> Unit = { },
     claimE2ChartIntroAnimation: () -> Boolean = { false },
     contentPadding: PaddingValues? = null,
 ) {
@@ -175,7 +174,6 @@ fun MainContent(
                     onE2ChartWindowOptionSelected = onE2ChartWindowOptionSelected,
                     claimE2ChartIntroAnimation = claimE2ChartIntroAnimation,
                     onOpenTimeline = onOpenTimeline,
-                    onPkCalibrationInfoClick = onPkCalibrationInfoClick,
                 )
             }
 
@@ -260,7 +258,6 @@ private fun RenderHomeCard(
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit,
     claimE2ChartIntroAnimation: () -> Boolean,
     onOpenTimeline: () -> Unit,
-    onPkCalibrationInfoClick: () -> Unit,
 ) {
     when (type) {
         HomeCardType.LOW_STOCK -> MainLowStockSection(
@@ -277,7 +274,6 @@ private fun RenderHomeCard(
             trendReady = uiState.e2TrendReady,
             hideReferenceRanges = uiState.hideReferenceRanges,
             pkCalibration = uiState.pkCalibration,
-            onPkCalibrationInfoClick = onPkCalibrationInfoClick,
         )
 
         HomeCardType.E2_CHART -> MainE2ChartCard(

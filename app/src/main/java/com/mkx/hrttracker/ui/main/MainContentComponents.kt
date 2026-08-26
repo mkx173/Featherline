@@ -490,7 +490,6 @@ internal fun MainE2HeroCard(
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
     pkCalibration: MainPkCalibrationUiState? = null,
-    onPkCalibrationInfoClick: () -> Unit = { },
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -724,7 +723,7 @@ internal fun MainE2HeroCard(
                         )
 
                         if (!showSkeleton && pkCalibration != null) {
-                            MainPkCalibrationHeroPill(pkCalibration, onInfo = onPkCalibrationInfoClick)
+                            MainPkCalibrationHeroPill(pkCalibration)
                         }
                     }
                 }
