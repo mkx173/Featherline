@@ -141,7 +141,6 @@ internal fun RoundedBackgroundRow(
 
 @Composable
 internal fun WidgetShell(
-    scale: Float,
     contentAlignment: Alignment = Alignment.TopStart,
     // Whole-shell tap target. Defaults to opening the app (dose widgets); the anchor
     // widget passes its own (open Milestones / reconfigure this instance).
@@ -152,32 +151,30 @@ internal fun WidgetShell(
     content: @Composable () -> Unit,
 ) {
     val colors = LocalWidgetColors.current
-    CompositionLocalProvider(LocalWidgetScale provides scale) {
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .clickable(
+                onClick = onClick ?: actionStartActivity<MainActivity>(),
+                rippleOverride = WidgetRoundedShape.Shell.rippleRes,
+            ),
+        contentAlignment = contentAlignment,
+    ) {
+        RoundedMaskImage(
+            shape = WidgetRoundedShape.Shell,
+            color = colors.widgetBackground,
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .appWidgetBackground(),
+        )
+        backdrop?.invoke()
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .clickable(
-                    onClick = onClick ?: actionStartActivity<MainActivity>(),
-                    rippleOverride = WidgetRoundedShape.Shell.rippleRes,
-                ),
+                .padding(WidgetShellPadding),
             contentAlignment = contentAlignment,
         ) {
-            RoundedMaskImage(
-                shape = WidgetRoundedShape.Shell,
-                color = colors.widgetBackground,
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .appWidgetBackground(),
-            )
-            backdrop?.invoke()
-            Box(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .padding(WidgetShellPadding),
-                contentAlignment = contentAlignment,
-            ) {
-                content()
-            }
+            content()
         }
     }
 }

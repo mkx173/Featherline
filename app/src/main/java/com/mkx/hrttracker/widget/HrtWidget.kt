@@ -440,20 +440,16 @@ internal fun widgetOptionsOrNull(context: Context, appWidgetId: Int): Bundle? = 
 internal fun widgetPreviewSizeDp(context: Context, isMedium: Boolean, appWidgetId: Int): DpSize =
     resolveWidgetRenderSize(context, widgetOptionsOrNull(context, appWidgetId), isMedium)
 
-// Null options (a preview without live launcher options) fall back to a fixed preview size.
+// Null options (a preview without live launcher options) or options without a reported size
+// (freshly added widget) fall back to the fixed preview size. Widths are nominal — content
+// fills the launcher-allocated cell width regardless.
 private fun resolveWidgetRenderSize(
     context: Context,
     options: Bundle?,
     isMedium: Boolean,
-): DpSize = if (options != null) {
-    // Options not yet reported (e.g. freshly added widget): fall back to a sane size so the
-    // one-shot compose still produces a usable layout. Widths are nominal — content fills
-    // the launcher-allocated cell width regardless.
-    val fallbackHeight = WIDGET_PREVIEW_HEIGHT_DP.dp
-    val fallback = if (isMedium) DpSize(280.dp, fallbackHeight) else DpSize(483.dp, fallbackHeight)
-    currentWidgetSizeDp(context, options, fallback)
-} else {
-    if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE
+): DpSize {
+    val preview = if (isMedium) MEDIUM_WIDGET_PREVIEW_SIZE else LARGE_WIDGET_PREVIEW_SIZE
+    return options?.let { currentWidgetSizeDp(context, it, fallback = preview) } ?: preview
 }
 
 // The widget size for the current orientation, derived from the launcher's options.
@@ -693,7 +689,6 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val context = LocalContext.current
     val scale = LocalWidgetScale.current
     WidgetShell(
-        scale = scale,
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {
@@ -1055,7 +1050,6 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val scale = LocalWidgetScale.current
     val size = LocalSize.current
     WidgetShell(
-        scale = scale,
         contentAlignment = Alignment.Center,
     ) {
         if (isEmptySetup(snapshot)) {

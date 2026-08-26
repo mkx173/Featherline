@@ -355,7 +355,6 @@ internal fun AnchorWidgetContent(
         // No selection yet, or the selected anchor was deleted: tap opens the config
         // Activity for this instance so the user can (re)choose.
         WidgetShell(
-            scale = scale,
             contentAlignment = Alignment.Center,
             onClick = actionStartActivity(anchorReconfigureIntent(context, appWidgetId)),
         ) {
@@ -495,7 +494,6 @@ internal fun AnchorWidgetContent(
     }
 
     WidgetShell(
-        scale = scale,
         onClick = actionStartActivity(anchorOpenMilestonesIntent(context)),
         backdrop = backdrop,
     ) {
