@@ -60,11 +60,10 @@ class PkCalibrationDebugScreenTest {
     }
 
     private fun fixtureViewModel(): PkCalibrationDebugViewModel {
-        val gate = PkCalibrationDebugGate { true }
         return PkCalibrationDebugViewModel(
-            scenarioSource = DefaultPkCalibrationDebugScenarioSource(debugGate = gate),
+            scenarioSource = DefaultPkCalibrationDebugScenarioSource(),
             uiFixtureBridge = PkCalibrationUiFixtureBridge(),
-            debugGate = gate,
+            scenarioStore = PkCalibrationDebugScenarioStore(),
         )
     }
 }

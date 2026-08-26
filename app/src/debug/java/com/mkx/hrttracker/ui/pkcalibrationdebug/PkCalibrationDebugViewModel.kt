@@ -28,16 +28,13 @@ data class PkCalibrationDebugActionCommand(
 
 enum class PkCalibrationDebugDispatchResult {
     ACCEPTED,
-    REJECTED_DEBUG_DISABLED,
     REJECTED_NOT_APPLICABLE,
-    REJECTED_SOURCE_DISABLED,
     REJECTED_SOURCE_UNAVAILABLE,
     REJECTED_SOURCE_EXCEPTION,
     REJECTED_SOURCE_CONTRACT_MISMATCH,
 }
 
 data class PkCalibrationDebugUiState(
-    val debugEnabled: Boolean,
     val scenario: PkCalibrationDebugScenario? = null,
     val loadFailure: PkCalibrationDebugSourceUnavailableReason? = null,
     val rawResult: PkCalibrationResult? = null,
@@ -60,26 +57,22 @@ data class PkCalibrationDebugUiState(
 class PkCalibrationDebugViewModel @Inject constructor(
     private val scenarioSource: PkCalibrationDebugScenarioSource,
     private val uiFixtureBridge: PkCalibrationUiFixtureBridge,
-    private val debugGate: PkCalibrationDebugGate,
+    private val scenarioStore: PkCalibrationDebugScenarioStore,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
-        PkCalibrationDebugUiState(debugEnabled = debugGate.isEnabled())
-    )
+    private val _uiState = MutableStateFlow(PkCalibrationDebugUiState())
     val uiState: StateFlow<PkCalibrationDebugUiState> = _uiState.asStateFlow()
 
     init {
-        if (debugGate.isEnabled()) {
-            uiFixtureBridge.fixture.value?.scenario?.let { forced -> replaceFixture(forced) }
+        if (uiFixtureBridge.fixture.value != null) {
+            scenarioStore.scenario.value?.let { forced -> replaceFixture(forced) }
         }
     }
 
     fun resetForcedState(): PkCalibrationDebugDispatchResult {
-        if (!debugGate.isEnabled()) {
-            return PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
-        }
         uiFixtureBridge.publish(null)
-        _uiState.value = PkCalibrationDebugUiState(debugEnabled = true)
+        scenarioStore.scenario.value = null
+        _uiState.value = PkCalibrationDebugUiState()
         return PkCalibrationDebugDispatchResult.ACCEPTED
     }
 
@@ -96,12 +89,8 @@ class PkCalibrationDebugViewModel @Inject constructor(
         scenario.withRouteState(route, state)
     }
 
-    fun applyPreset(preset: PkCalibrationDebugPreset): PkCalibrationDebugDispatchResult {
-        if (!debugGate.isEnabled()) {
-            return PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
-        }
-        return replaceFixture(PkCalibrationDebugScenario.preset(preset))
-    }
+    fun applyPreset(preset: PkCalibrationDebugPreset): PkCalibrationDebugDispatchResult =
+        replaceFixture(PkCalibrationDebugScenario.preset(preset))
 
     fun setRouteRenderFallback(
         route: PkCalibrationRoute?,
@@ -125,9 +114,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
     fun performReviewAction(
         command: PkCalibrationDebugActionCommand,
     ): PkCalibrationDebugDispatchResult {
-        if (!debugGate.isEnabled()) {
-            return PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
-        }
         if (command !in _uiState.value.applicableActionCommands) {
             return PkCalibrationDebugDispatchResult.REJECTED_NOT_APPLICABLE
         }
@@ -145,9 +131,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
     private fun updateFixture(
         transform: (PkCalibrationDebugScenario) -> PkCalibrationDebugScenario?,
     ): PkCalibrationDebugDispatchResult {
-        if (!debugGate.isEnabled()) {
-            return PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
-        }
         val base = _uiState.value.scenario
             ?: PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
         // An unrepresentable combination keeps the last good forced state and
@@ -173,10 +156,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
             return PkCalibrationDebugDispatchResult.REJECTED_SOURCE_EXCEPTION
         }
         return when (result) {
-            PkCalibrationDebugSourceResult.DebugDisabled -> {
-                _uiState.value = _uiState.value.copy(debugEnabled = false)
-                PkCalibrationDebugDispatchResult.REJECTED_SOURCE_DISABLED
-            }
             is PkCalibrationDebugSourceResult.Unavailable -> {
                 _uiState.value = _uiState.value.copy(loadFailure = result.reason)
                 PkCalibrationDebugDispatchResult.REJECTED_SOURCE_UNAVAILABLE
@@ -206,6 +185,7 @@ class PkCalibrationDebugViewModel @Inject constructor(
             reviewDispositionByResultId = dispositions,
             applicableActionCommands = applicableCommands(snapshot.result, dispositions),
         )
+        scenarioStore.scenario.value = snapshot.scenario
         uiFixtureBridge.publish(
             PkCalibrationUiFixture(
                 result = snapshot.result,
@@ -215,7 +195,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
                         disposition == E2CalibrationDisposition.EXCLUDED
                     }
                     .keys,
-                scenario = snapshot.scenario,
             )
         )
     }

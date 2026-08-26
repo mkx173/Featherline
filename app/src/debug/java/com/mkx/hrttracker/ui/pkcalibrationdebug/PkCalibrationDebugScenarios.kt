@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
-import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA
@@ -20,15 +19,6 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.Collections
 import java.util.UUID
 import kotlin.math.ln
-
-/** Runtime gate checked by every debug source and command boundary. */
-fun interface PkCalibrationDebugGate {
-    fun isEnabled(): Boolean
-
-    companion object {
-        val Build = PkCalibrationDebugGate { BuildConfig.DEBUG }
-    }
-}
 
 enum class PkCalibrationDebugPreset {
     POPULATION_ONLY,
@@ -269,7 +259,6 @@ data class PkCalibrationDebugSnapshot(
 )
 
 sealed interface PkCalibrationDebugSourceResult {
-    data object DebugDisabled : PkCalibrationDebugSourceResult
     data class Unavailable(val reason: PkCalibrationDebugSourceUnavailableReason) :
         PkCalibrationDebugSourceResult
     data class Available(val snapshot: PkCalibrationDebugSnapshot) :
@@ -281,14 +270,12 @@ fun interface PkCalibrationDebugScenarioSource {
 }
 
 class DefaultPkCalibrationDebugScenarioSource(
-    private val debugGate: PkCalibrationDebugGate = PkCalibrationDebugGate.Build,
     /** Injectable so identical loads are bit-deterministic in tests. */
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) : PkCalibrationDebugScenarioSource {
     override fun loadFixture(
         scenario: PkCalibrationDebugScenario,
     ): PkCalibrationDebugSourceResult {
-        if (!debugGate.isEnabled()) return PkCalibrationDebugSourceResult.DebugDisabled
         PkCalibrationDebugSyntheticScenarios.buildRenderFaultIfSupported(scenario)
             ?.let { result -> return result }
         PkCalibrationDebugSyntheticScenarios.buildIfSupported(scenario)?.let { result ->

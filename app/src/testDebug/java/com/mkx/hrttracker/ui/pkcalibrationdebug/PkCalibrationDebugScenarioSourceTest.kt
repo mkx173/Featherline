@@ -16,9 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PkCalibrationDebugScenarioSourceTest {
-    private val enabled = PkCalibrationDebugGate { true }
     private val source = DefaultPkCalibrationDebugScenarioSource(
-        debugGate = enabled,
         nowMillis = { 1_800_000_000_000L },
     )
 
@@ -295,18 +293,6 @@ class PkCalibrationDebugScenarioSourceTest {
             nonpositive.result.invalidNonpositiveLabIds,
         )
         assertEquals(first.result.routeResults, nonpositive.result.routeResults)
-    }
-
-    @Test
-    fun sourceBoundaryRejectsRelease() {
-        val disabledSource = DefaultPkCalibrationDebugScenarioSource(
-            debugGate = PkCalibrationDebugGate { false },
-        )
-
-        assertSame(
-            PkCalibrationDebugSourceResult.DebugDisabled,
-            disabledSource.loadFixture(requireNotNull(PkCalibrationDebugScenario.create())),
-        )
     }
 
     private fun PkCalibrationDebugSourceResult.availableSnapshot(): PkCalibrationDebugSnapshot {

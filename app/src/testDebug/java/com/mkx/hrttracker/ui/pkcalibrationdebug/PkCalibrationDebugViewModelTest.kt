@@ -17,16 +17,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PkCalibrationDebugViewModelTest {
-    private val enabled = PkCalibrationDebugGate { true }
     private val fixtureSource = DefaultPkCalibrationDebugScenarioSource(
-        debugGate = enabled,
         nowMillis = { 1_800_000_000_000L },
     )
 
     @Test
     fun applyingAScenario_publishesTheValidatedFixtureThroughTheBridge() {
         val bridge = PkCalibrationUiFixtureBridge()
-        val viewModel = viewModel(bridge = bridge)
+        val store = PkCalibrationDebugScenarioStore()
+        val viewModel = viewModel(bridge = bridge, store = store)
         assertNull(bridge.fixture.value)
         assertFalse(viewModel.uiState.value.forcedStateActive)
 
@@ -42,7 +41,7 @@ class PkCalibrationDebugViewModelTest {
         assertSame(state.rawRender, fixture.render)
         assertEquals(
             PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED),
-            fixture.scenario,
+            store.scenario.value,
         )
         assertTrue(fixture.excludedResultIds.isEmpty())
         assertEquals(
@@ -257,7 +256,8 @@ class PkCalibrationDebugViewModelTest {
     @Test
     fun freshViewModel_restoresTheForcedScenarioPublishedByAPredecessor() {
         val bridge = PkCalibrationUiFixtureBridge()
-        val first = viewModel(bridge = bridge)
+        val store = PkCalibrationDebugScenarioStore()
+        val first = viewModel(bridge = bridge, store = store)
         first.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
         first.performReviewAction(
             PkCalibrationDebugActionCommand(
@@ -266,12 +266,13 @@ class PkCalibrationDebugViewModelTest {
             )
         )
         val published = requireNotNull(bridge.fixture.value)
+        val publishedScenario = requireNotNull(store.scenario.value)
 
         // Simulates navigating away (ViewModel cleared) and re-entering the harness.
-        val second = viewModel(bridge = bridge)
+        val second = viewModel(bridge = bridge, store = store)
 
         val restored = second.uiState.value
-        assertEquals(published.scenario, restored.scenario)
+        assertEquals(publishedScenario, restored.scenario)
         assertEquals(published.result, restored.rawResult)
         assertEquals(
             published.excludedResultIds,
@@ -337,19 +338,6 @@ class PkCalibrationDebugViewModelTest {
     }
 
     @Test
-    fun sourceDebugDisabled_disablesTheHarness() {
-        val source = SwitchableSource()
-        val viewModel = viewModel(source = source)
-        source.override = PkCalibrationDebugSourceResult.DebugDisabled
-
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_DISABLED,
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-        )
-        assertFalse(viewModel.uiState.value.debugEnabled)
-    }
-
-    @Test
     fun cancellation_isRethrownWithoutBeingMisclassifiedAsAnOrdinaryFailure() {
         val source = SwitchableSource()
         val viewModel = viewModel(source = source)
@@ -362,71 +350,14 @@ class PkCalibrationDebugViewModelTest {
         assertFalse(viewModel.uiState.value.forcedStateActive)
     }
 
-    @Test
-    fun releaseGate_rejectsEveryEventBeforeTouchingSourceOrBridge() {
-        val bridge = PkCalibrationUiFixtureBridge()
-        // A forced state left behind by a debug session must survive a disabled gate.
-        bridge.publish(
-            (fixtureSource.loadFixture(
-                PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
-            ) as PkCalibrationDebugSourceResult.Available).snapshot.let { snapshot ->
-                PkCalibrationUiFixture(
-                    result = snapshot.result,
-                    render = snapshot.render,
-                    excludedResultIds = emptySet(),
-                    scenario = snapshot.scenario,
-                )
-            }
-        )
-        val fixtureBefore = bridge.fixture.value
-        var sourceCalls = 0
-        val source = PkCalibrationDebugScenarioSource { scenario ->
-            sourceCalls += 1
-            fixtureSource.loadFixture(scenario)
-        }
-        val viewModel = PkCalibrationDebugViewModel(
-            scenarioSource = source,
-            debugGate = PkCalibrationDebugGate { false },
-            uiFixtureBridge = bridge,
-        )
-
-        val results = listOf(
-            viewModel.resetForcedState(),
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-            viewModel.selectGlobalState(PkCalibrationGlobalState.READY),
-            viewModel.selectRouteState(
-                PkCalibrationRoute.INJECTION,
-                PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-            ),
-            viewModel.setRouteRenderFallback(PkCalibrationRoute.INJECTION),
-            viewModel.setBandUnavailable(true),
-            viewModel.setCentralUnavailable(true),
-            viewModel.setOutlierRoute(PkCalibrationRoute.INJECTION),
-            viewModel.setNonPositiveInput(true),
-            viewModel.performReviewAction(
-                PkCalibrationDebugActionCommand(
-                    PkCalibrationDebugReviewAction.EXCLUDE,
-                    UUID(1L, 1L),
-                )
-            ),
-        )
-
-        assertTrue(results.all {
-            it == PkCalibrationDebugDispatchResult.REJECTED_DEBUG_DISABLED
-        })
-        assertEquals(0, sourceCalls)
-        assertFalse(viewModel.uiState.value.debugEnabled)
-        assertNull(viewModel.uiState.value.scenario)
-        assertSame(fixtureBefore, bridge.fixture.value)
-    }
-
     private fun viewModel(
         source: PkCalibrationDebugScenarioSource = fixtureSource,
         bridge: PkCalibrationUiFixtureBridge = PkCalibrationUiFixtureBridge(),
+        store: PkCalibrationDebugScenarioStore = PkCalibrationDebugScenarioStore(),
     ): PkCalibrationDebugViewModel = PkCalibrationDebugViewModel(
         scenarioSource = source,
-        debugGate = enabled,
         uiFixtureBridge = bridge,
+        scenarioStore = store,
     )
 
     private inner class SwitchableSource : PkCalibrationDebugScenarioSource {

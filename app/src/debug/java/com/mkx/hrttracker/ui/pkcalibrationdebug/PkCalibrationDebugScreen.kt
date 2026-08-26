@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
@@ -44,8 +43,6 @@ fun PkCalibrationDebugScreen(
     modifier: Modifier = Modifier,
     viewModel: PkCalibrationDebugViewModel = hiltViewModel(),
 ) {
-    if (!BuildConfig.DEBUG) return
-
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
     val topAppBarState = rememberTopAppBarState()

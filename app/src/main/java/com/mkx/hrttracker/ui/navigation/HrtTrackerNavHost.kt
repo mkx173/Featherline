@@ -100,7 +100,7 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
-import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScreen
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScreenEntry
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
@@ -1095,17 +1095,17 @@ fun HrtTrackerNavHost(
                         )
                     }
                 }
-                if (BuildConfig.DEBUG) {
-                    composable(
-                        route = Screen.SettingsPkCalibrationDebug.route,
-                        arguments = topLevelParentArgs(Screen.Settings.route),
-                    ) {
-                        RoutedTopChromeHazeProvider(navController, it) {
-                            PkCalibrationDebugScreen(
-                                onNavigateBack = { navController.popBackStackSafely() },
-                                modifier = modifier,
-                            )
-                        }
+                // The entry is a no-op outside debug builds (src/release, src/benchmark);
+                // the Settings row that navigates here is DEBUG-gated.
+                composable(
+                    route = Screen.SettingsPkCalibrationDebug.route,
+                    arguments = topLevelParentArgs(Screen.Settings.route),
+                ) {
+                    RoutedTopChromeHazeProvider(navController, it) {
+                        PkCalibrationDebugScreenEntry(
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            modifier = modifier,
+                        )
                     }
                 }
                 composable(
