@@ -1068,9 +1068,7 @@
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">群體估算</string>
-    <string name="calibration_pk_hero_adjusted">已按檢測調整 · %1$s</string>
-    <string name="calibration_pk_hero_limited_confidence">部分途徑可信度有限</string>
-    <string name="calibration_pk_hero_limited_confidence_short">信賴度有限</string>
+    <string name="calibration_pk_hero_adjusted">已按檢測調整</string>
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="other">%1$d 筆支持性檢測結果</item>
     </plurals>

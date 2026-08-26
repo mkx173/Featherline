@@ -1142,9 +1142,7 @@
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">Population estimate</string>
-    <string name="calibration_pk_hero_adjusted">Lab-adjusted · %1$s</string>
-    <string name="calibration_pk_hero_limited_confidence">Limited confidence for some routes</string>
-    <string name="calibration_pk_hero_limited_confidence_short">limited confidence</string>
+    <string name="calibration_pk_hero_adjusted">Lab-adjusted</string>
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="one">%1$d supporting lab</item>
         <item quantity="other">%1$d supporting labs</item>

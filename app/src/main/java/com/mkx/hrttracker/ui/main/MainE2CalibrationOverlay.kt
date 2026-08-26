@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.main
 
-import android.icu.text.ListFormatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +18,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
@@ -42,7 +44,6 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.hrtPillTokens
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.util.labelRes
-import com.mkx.hrttracker.util.rememberAppLocale
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
 import java.time.LocalDateTime
@@ -246,24 +247,14 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 // Hero pill (§5.1)
 // ---------------------------------------------------------------------------
 
-/** One pill: state + routes (+ limited confidence), with a trailing info affordance opening the routes sheet. */
+/** One pill: "lab-adjusted" or "population", with a trailing info affordance opening the routes sheet. */
 @Composable
 internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState, onInfo: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
     val adjusted = pk.heroKind == PkCalibrationHeroKind.ADJUSTED
-    val appLocale = rememberAppLocale()
-    val names = pk.effectivePromotedRoutes
-        .map { route -> stringResource(route.applicationType.labelRes) }
-    val joinedNames = remember(names, appLocale) {
-        ListFormatter.getInstance(appLocale).format(names)
-    }
-    val limitedSuffix = stringResource(R.string.calibration_pk_hero_limited_confidence_short)
-    val label = when {
-        !adjusted -> stringResource(R.string.calibration_pk_hero_population)
-        pk.limitedConfidence ->
-            stringResource(R.string.calibration_pk_hero_adjusted, joinedNames) + " · " + limitedSuffix
-        else -> stringResource(R.string.calibration_pk_hero_adjusted, joinedNames)
-    }
+    val label = stringResource(
+        if (adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
+    )
     val containerColor = if (adjusted) {
         colorScheme.primaryContainer.copy(alpha = 0.7f)
     } else {
@@ -271,11 +262,15 @@ internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState, onInfo: () 
     }
     val contentColor = if (adjusted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
     val tokens = hrtPillTokens(HrtPillSize.Small)
+    // Modifier.clickable rather than Surface(onClick): the latter reserves a
+    // 48 dp touch target and pads the pill row out of line with its siblings.
     HrtPill(
         containerColor = containerColor,
         contentColor = contentColor,
         size = HrtPillSize.Small,
-        onClick = onInfo,
+        modifier = Modifier
+            .clip(CircleShape)
+            .clickable(onClick = onInfo),
     ) {
         Icon(
             painter = painterResource(
