@@ -1103,7 +1103,6 @@
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">知道了</string>
-    <string name="calibration_pk_done">完成</string>
     <string name="calibration_pk_routes_sheet_intro">每一筆可用的檢測結果都會按照採樣時該途徑提供的模型訊號比例，參與各個途徑的調整。</string>
     <string name="calibration_pk_coaching_time_title">記錄實際採樣時間</string>
     <string name="calibration_pk_coaching_time_body">請填寫標本採集的時間，而不是您記錄的時間。</string>

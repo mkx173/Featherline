@@ -1180,7 +1180,6 @@
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">Got it</string>
-    <string name="calibration_pk_done">Done</string>
     <string name="calibration_pk_routes_sheet_intro">Every usable lab result contributes to the adjustment of each route, in proportion to how much of the modeled signal that route provided at the collection time.</string>
     <string name="calibration_pk_coaching_time_title">Record the actual collection time</string>
     <string name="calibration_pk_coaching_time_body">Enter when the specimen was taken, not when you logged it.</string>

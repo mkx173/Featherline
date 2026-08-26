@@ -75,17 +75,8 @@ data class PkCalibrationRouteRowUiState(
 ) {
     /** A route whose fit raised a warning the user should read. */
     val hasWarning: Boolean
-        get() = displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL &&
-            reasons.any { reason -> reason in WarningReasons }
+        get() = displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
 }
-
-private val WarningReasons = setOf(
-    PkCalibrationReason.DISPLAY_SCALE_EXCEEDED,
-    PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
-    PkCalibrationReason.RESIDUAL_FIT_POOR,
-    PkCalibrationReason.UNREVIEWED_OUTLIER,
-    PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
-)
 
 /**
  * The single validated view consumed by the Home hero, chart, and calibration
