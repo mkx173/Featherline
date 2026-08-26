@@ -39,7 +39,6 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.AppLanguageOption

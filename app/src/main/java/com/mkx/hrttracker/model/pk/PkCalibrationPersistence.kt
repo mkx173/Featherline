@@ -13,12 +13,4 @@ data class E2CalibrationMetadata(
     val resultId: UUID,
     val disposition: E2CalibrationDisposition,
     val updatedAt: Instant,
-) {
-    companion object {
-        fun create(
-            resultId: UUID,
-            disposition: E2CalibrationDisposition,
-            updatedAt: Instant,
-        ): E2CalibrationMetadata = E2CalibrationMetadata(resultId, disposition, updatedAt)
-    }
-}
+)

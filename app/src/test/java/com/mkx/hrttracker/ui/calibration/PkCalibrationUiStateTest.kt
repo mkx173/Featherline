@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
@@ -106,24 +107,6 @@ class PkCalibrationUiStateTest {
     }
 
     @Test
-    fun routeRenderFallback_narrowsHero_withoutRewritingRouteRows() {
-        val scenario = PkCalibrationDebugScenario
-            .preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
-            .withRouteRenderFallback(PkCalibrationRoute.INJECTION)
-        val uiState = ui(scenario)
-
-        assertEquals(listOf(PkCalibrationRoute.INJECTION), uiState.routeRenderFallbacks)
-        assertFalse(uiState.effectivePromotedRoutes.contains(PkCalibrationRoute.INJECTION))
-        // Oral remains effective, so the hero stays adjusted.
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
-        // §11: a range-local fallback never rewrites the fit-level status row.
-        assertEquals(
-            PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-            uiState.routeRows.first { it.route == PkCalibrationRoute.INJECTION }.displayState,
-        )
-    }
-
-    @Test
     fun bandFailure_keepsAdjustedHero_andRouteRows() {
         val base = PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
         val uiState = ui(base.withBandUnavailable(true))
@@ -188,7 +171,10 @@ class PkCalibrationUiStateTest {
         val snapshot = PkCalibrationDebugFixtures.build(scenario)
         val uiState = pkCalibrationUiState(snapshot.result, snapshot.render)
         val blockingId = PkCalibrationDebugFixtures.nonPositiveLabId()
-        assertEquals(setOf(blockingId), uiState.invalidNonpositiveLabIds)
+        assertEquals(
+            mapOf(blockingId to PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE),
+            uiState.ignoredLabs,
+        )
 
         val blockingPanel = panel(resultId = blockingId, canonicalValue = 0.0)
         val unassignedPanel = panel(resultId = UUID.randomUUID(), canonicalValue = 0.0)
@@ -199,7 +185,10 @@ class PkCalibrationUiStateTest {
 
         assertEquals(
             mapOf<UUID, PkCalibrationLabRowFlag>(
-                blockingPanel.uuid to PkCalibrationLabRowFlag.InvalidNonPositive(blockingId),
+                blockingPanel.uuid to PkCalibrationLabRowFlag.Ignored(
+                    blockingId,
+                    PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE,
+                ),
             ),
             flags,
         )
@@ -253,22 +242,16 @@ class PkCalibrationUiStateTest {
 
         // MEDIUM = provisional whose posterior already meets the
         // full-calibration sd gate (only signal contrast still missing).
-        val mediumRow = requireNotNull(
-            com.mkx.hrttracker.model.pk.PkRouteCalibrationResult.create(
-                route = PkCalibrationRoute.ORAL,
-                fittedBeta = kotlin.math.ln(1.25),
-                displayBeta = kotlin.math.ln(1.25),
-                betaPosteriorSd = 0.15,
-                laplaceVarianceBeta = 0.0225,
-                displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                reasons = setOf(
-                    com.mkx.hrttracker.model.pk.PkCalibrationReason
-                        .INSUFFICIENT_DRUG_SIGNAL_CONTRAST
-                ),
-                supportingLabCount = 3,
-                drugSignalLogRange = 0.5,
-                robustRmseLog = 0.1,
-            )
+        val mediumRow = com.mkx.hrttracker.model.pk.PkRouteCalibrationResult(
+            route = PkCalibrationRoute.ORAL,
+            displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+            reasons = setOf(
+                com.mkx.hrttracker.model.pk.PkCalibrationReason
+                    .INSUFFICIENT_DRUG_SIGNAL_CONTRAST
+            ),
+            fittedBeta = kotlin.math.ln(1.25),
+            betaPosteriorSd = 0.15,
+            supportingLabCount = 3,
         )
         assertEquals(
             PkCalibrationRouteConfidence.MEDIUM,
@@ -279,20 +262,13 @@ class PkCalibrationUiStateTest {
         // (min Student-t weight under the outlier threshold on a promoted
         // row) is never better than LOW — even at LAB_CALIBRATED, because the
         // posterior sd only measures curvature at the mode the outlier lost.
-        val keptOutlierRow = requireNotNull(
-            com.mkx.hrttracker.model.pk.PkRouteCalibrationResult.create(
-                route = PkCalibrationRoute.ORAL,
-                fittedBeta = kotlin.math.ln(1.25),
-                displayBeta = kotlin.math.ln(1.25),
-                betaPosteriorSd = 0.1,
-                laplaceVarianceBeta = 0.01,
-                displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-                supportingLabCount = 3,
-                drugSignalLogRange = com.mkx.hrttracker.model.pk.PkCalibrationDefaults
-                    .DRUG_SIGNAL_LOG_RANGE_MIN,
-                robustRmseLog = 0.1,
-                minStudentTWeight = 0.1,
-            )
+        val keptOutlierRow = com.mkx.hrttracker.model.pk.PkRouteCalibrationResult(
+            route = PkCalibrationRoute.ORAL,
+            displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+            fittedBeta = kotlin.math.ln(1.25),
+            betaPosteriorSd = 0.1,
+            supportingLabCount = 3,
+            minStudentTWeight = 0.1,
         )
         assertEquals(
             PkCalibrationRouteConfidence.LOW,

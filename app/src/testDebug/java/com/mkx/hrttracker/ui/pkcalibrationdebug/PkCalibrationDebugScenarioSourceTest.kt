@@ -35,7 +35,6 @@ class PkCalibrationDebugScenarioSourceTest {
                 )
                 assertNotNull(snapshot.render)
             } else {
-                assertTrue(snapshot.result.globalReasons.isNotEmpty())
                 assertTrue(snapshot.result.routeResults.isEmpty())
                 assertTrue(snapshot.result.promotedRoutes.isEmpty())
                 assertTrue(snapshot.result.displayParams.routeLogScale.isEmpty())
@@ -63,11 +62,11 @@ class PkCalibrationDebugScenarioSourceTest {
                 val routeResult = result.routeResults.single { it.route == route }
                 assertEquals(displayState, routeResult.displayState)
                 if (displayState.isPopulationForTest()) {
-                    assertEquals(0.0.toBits(), routeResult.displayBeta.toBits())
+                    assertNull(routeResult.fittedBeta)
                     assertFalse(route in result.promotedRoutes)
                 } else {
                     assertTrue(route in result.promotedRoutes)
-                    assertEquals(routeResult.displayBeta, result.displayParams.logScaleFor(route), 0.0)
+                    assertEquals(routeResult.fittedBeta, result.displayParams.logScaleFor(route))
                 }
                 assertNotNull(snapshot.render)
             }
@@ -88,7 +87,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.GEL,
-                    PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                    PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.ORAL,
@@ -96,7 +95,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 )
                 ?.withRouteState(
                     PkCalibrationRoute.SUBLINGUAL,
-                    PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                    PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
                 )
         )
 
@@ -152,7 +151,7 @@ class PkCalibrationDebugScenarioSourceTest {
             PkCalibrationRoute.entries.forEach { route ->
                 assertEquals(
                     expected[route]
-                        ?: PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                        ?: PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
                     snapshot.result.routeResults.single { it.route == route }.displayState,
                 )
             }
@@ -203,7 +202,7 @@ class PkCalibrationDebugScenarioSourceTest {
                 .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
                 .forEach { result ->
                     assertEquals(
-                        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+                        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
                         result.displayState,
                     )
                 }
@@ -224,21 +223,11 @@ class PkCalibrationDebugScenarioSourceTest {
     }
 
     @Test
-    fun routeFallback_bandUnavailable_andCentralUnavailable_areRenderLocal() {
+    fun bandUnavailable_andCentralUnavailable_areRenderLocal() {
         val calibrated = PkCalibrationDebugScenario.preset(
             PkCalibrationDebugPreset.INJECTION_CALIBRATED
         )
         val baseline = source.loadFixture(calibrated).availableSnapshot()
-
-        val routeFallback = source.loadFixture(
-            calibrated.withRouteRenderFallback(PkCalibrationRoute.INJECTION)
-        ).availableSnapshot()
-        assertEquals(baseline.result, routeFallback.result)
-        assertEquals(
-            listOf(PkCalibrationRoute.INJECTION),
-            routeFallback.render?.routeRenderFallbacks,
-        )
-        assertEquals(PkCalibrationRenderState.POPULATION, routeFallback.render?.renderState)
 
         val bandUnavailable = source.loadFixture(
             calibrated.withBandUnavailable(true)
@@ -289,8 +278,11 @@ class PkCalibrationDebugScenarioSourceTest {
         // global failure: the rest of the evaluation stays READY.
         assertEquals(PkCalibrationGlobalState.READY, nonpositive.result.globalState)
         assertEquals(
-            setOf(PkCalibrationDebugFixtures.nonPositiveLabId()),
-            nonpositive.result.invalidNonpositiveLabIds,
+            mapOf(
+                PkCalibrationDebugFixtures.nonPositiveLabId() to
+                    com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE
+            ),
+            nonpositive.result.ignoredLabs,
         )
         assertEquals(first.result.routeResults, nonpositive.result.routeResults)
     }
@@ -305,9 +297,6 @@ class PkCalibrationDebugScenarioSourceTest {
     ) {
         val render = requireNotNull(snapshot.render)
         assertTrue(label, render.centralCurve.isNotEmpty())
-        assertTrue(render.renderReasons.isEmpty())
-        assertTrue(render.routeRenderFallbacks.isEmpty())
-        assertTrue(render.bandReasons.isEmpty())
         assertEquals(snapshot.result.promotedRoutes, render.effectivePromotedRoutes)
         assertEquals(snapshot.result.displayParams, render.effectiveDisplayParams)
         if (snapshot.result.promotedRoutes.isEmpty()) {

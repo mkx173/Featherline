@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationDefaults
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
@@ -20,11 +21,6 @@ enum class PkCalibrationHeroKind {
     POPULATION,
     ADJUSTED,
 }
-
-/** Adjusted-group membership (handoff §5 table: the two `LAB_*` states). */
-val PkRouteCalibrationDisplayState.isAdjusted: Boolean
-    get() = this == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
-        this == PkRouteCalibrationDisplayState.LAB_CALIBRATED
 
 /**
  * Coarse per-route confidence for adjusted routes (user decisions,
@@ -85,7 +81,6 @@ data class PkCalibrationRouteRowUiState(
  */
 data class PkCalibrationUiState(
     val globalState: PkCalibrationGlobalState,
-    val globalReasons: Set<PkCalibrationReason>,
     val heroKind: PkCalibrationHeroKind,
     /** True when an effective promoted route is still provisional (§5.1). */
     val limitedConfidence: Boolean,
@@ -93,11 +88,10 @@ data class PkCalibrationUiState(
     val routeRows: List<PkCalibrationRouteRowUiState>,
     /** Routes driving the hero for the current render, canonical order. */
     val effectivePromotedRoutes: List<PkCalibrationRoute>,
-    /** Non-positive labs in a drug window; ignored by the fit and flagged on their row. */
-    val invalidNonpositiveLabIds: Set<UUID>,
+    /** Labs the fit set aside, flagged on their row with the reason. */
+    val ignoredLabs: Map<UUID, PkCalibrationLabIgnoreReason>,
     val renderState: PkCalibrationRenderState,
     val bandState: PkCalibrationBandState,
-    val routeRenderFallbacks: List<PkCalibrationRoute>,
 )
 
 /**
@@ -113,7 +107,10 @@ data class PkCalibrationScreenState(
 sealed interface PkCalibrationLabRowFlag {
     val resultId: UUID
 
-    data class InvalidNonPositive(override val resultId: UUID) : PkCalibrationLabRowFlag
+    data class Ignored(
+        override val resultId: UUID,
+        val reason: PkCalibrationLabIgnoreReason,
+    ) : PkCalibrationLabRowFlag
 
     data class UnreviewedOutlier(
         override val resultId: UUID,
@@ -124,12 +121,7 @@ sealed interface PkCalibrationLabRowFlag {
     data class Excluded(override val resultId: UUID) : PkCalibrationLabRowFlag
 }
 
-/**
- * Derives the per-panel review footer, keyed by panel uuid. Explicit exclusion
- * wins; the invalid non-positive footer comes from the engine's per-lab
- * classification, so a non-positive value drawn in a no-drug window
- * (engine-classified Unassigned) is never flagged.
- */
+/** Derives the per-panel review footer, keyed by panel uuid. Explicit exclusion wins. */
 fun pkCalibrationLabRowFlags(
     state: PkCalibrationScreenState,
     panels: List<BloodTestPanel>,
@@ -150,8 +142,8 @@ fun pkCalibrationLabRowFlags(
             resultId in state.excludedResultIds ->
                 PkCalibrationLabRowFlag.Excluded(resultId)
 
-            resultId in state.ui.invalidNonpositiveLabIds ->
-                PkCalibrationLabRowFlag.InvalidNonPositive(resultId)
+            resultId in state.ui.ignoredLabs ->
+                PkCalibrationLabRowFlag.Ignored(resultId, state.ui.ignoredLabs.getValue(resultId))
 
             resultId in outlierRoutes ->
                 PkCalibrationLabRowFlag.UnreviewedOutlier(
@@ -193,7 +185,6 @@ fun pkCalibrationUiState(
         .map { routeResult -> routeResult.route }
     return PkCalibrationUiState(
         globalState = result.globalState,
-        globalReasons = result.globalReasons,
         heroKind = if (effectivePromoted.isEmpty()) {
             PkCalibrationHeroKind.POPULATION
         } else {
@@ -211,9 +202,8 @@ fun pkCalibrationUiState(
             )
         },
         effectivePromotedRoutes = effectivePromoted,
-        invalidNonpositiveLabIds = result.invalidNonpositiveLabIds,
+        ignoredLabs = result.ignoredLabs,
         renderState = render?.renderState ?: PkCalibrationRenderState.POPULATION,
         bandState = render?.bandState ?: PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
-        routeRenderFallbacks = render?.routeRenderFallbacks.orEmpty(),
     )
 }

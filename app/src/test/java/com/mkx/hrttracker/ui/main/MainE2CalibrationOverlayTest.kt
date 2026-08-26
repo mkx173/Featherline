@@ -86,15 +86,13 @@ class MainE2CalibrationOverlayTest {
     }
 
     private fun knot(epochMillis: Long, valuePgml: Double): PkPredictiveBandKnot {
-        return checkNotNull(
-            PkPredictiveBandKnot.create(
-                epochMillis = epochMillis,
-                p025Pgml = valuePgml,
-                p158655254Pgml = valuePgml,
-                p50Pgml = valuePgml,
-                p841344746Pgml = valuePgml,
-                p975Pgml = valuePgml,
-            )
+        return PkPredictiveBandKnot(
+            epochMillis = epochMillis,
+            p025Pgml = valuePgml,
+            p158655254Pgml = valuePgml,
+            p50Pgml = valuePgml,
+            p841344746Pgml = valuePgml,
+            p975Pgml = valuePgml,
         )
     }
 }

@@ -23,7 +23,6 @@ internal data class PkJointLabPoint(
     val drugByRoutePgml: List<Double>,
     val totalDrugPgml: Double,
     val logTotalDrugPgml: Double,
-    val effectiveDisposition: PkCalibrationEffectiveDisposition,
 ) {
     /** Population share w_ir = d_ir / D_i; gates never read fitted shares. */
     fun populationShare(routeIndex: Int): Double =
@@ -185,20 +184,18 @@ internal class PkJointStudentTObjective private constructor(
                 }
             }
             val canonical = points.sortedBy { point -> point.resultId.toString().lowercase() }
-            return PkJointStudentTObjective(immutableList(canonical), rLog)
+            return PkJointStudentTObjective(canonical, rLog)
         }
 
         fun fromEvidence(
-            evidence: List<PkCalibrationLabEvidence>,
+            evidence: List<PkCalibrationIncludedLab>,
             rLog: Double,
         ): PkJointStudentTObjective? {
             val points = ArrayList<PkJointLabPoint>(evidence.size)
             for (item in evidence) {
-                if (item.state != PkCalibrationLabEvidenceState.INCLUDED) return null
                 val observed = item.observedPgml
-                    ?.takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
-                val breakdown = item.breakdown ?: return null
-                val total = breakdown.totalDrugPgml
+                    .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
+                val total = item.breakdown.totalDrugPgml
                     .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
                 val logObserved = ln(observed)
                 val logTotal = ln(total)
@@ -207,11 +204,10 @@ internal class PkJointStudentTObjective private constructor(
                     resultId = item.resultId,
                     logObservedPgml = logObserved,
                     drugByRoutePgml = PkCalibrationRoute.entries.map { route ->
-                        breakdown.byRouteDrugPgml.getValue(route)
+                        item.breakdown.byRouteDrugPgml.getValue(route)
                     },
                     totalDrugPgml = total,
                     logTotalDrugPgml = logTotal,
-                    effectiveDisposition = item.effectiveDisposition,
                 )
             }
             return create(points, rLog)
@@ -250,10 +246,7 @@ internal sealed interface PkJointFitOutcome {
  * Terminal outcomes: the best-valued distinct positive-definite minimum is
  * the MAP; none is numeric failure; two or more separated by over
  * JOINT_MODE_DISTINCT_TOL still fit the best one but flag the result as
- * ambiguous (a POSTERIOR_MODE_AMBIGUOUS warning on every fitted route); and
- * two converged points inside the (JOINT_MODE_NUMERIC_TOL,
- * JOINT_MODE_DISTINCT_TOL] band with materially different objective values
- * are the dedup-failsafe numeric failure.
+ * ambiguous (a POSTERIOR_MODE_AMBIGUOUS warning on every fitted route).
  */
 internal object PkJointMapSolver {
     private const val MAX_LINE_SEARCH_HALVINGS = 60
@@ -332,33 +325,12 @@ internal object PkJointMapSolver {
             val hessian = objective.hessian(point)
                 ?: return PkJointFitOutcome.NumericFailure
             if (choleskyOrNull(hessian) == null) continue
-            var nearestIndex = -1
-            var nearestDifference = Double.POSITIVE_INFINITY
-            for (index in minima.indices) {
-                val difference = supNormDifference(minima[index].first, point)
-                if (difference < nearestDifference) {
-                    nearestDifference = difference
-                    nearestIndex = index
+            if (minima.none { (existing, _) ->
+                    supNormDifference(existing, point) <=
+                        PkCalibrationDefaults.JOINT_MODE_DISTINCT_TOL
                 }
-            }
-            when {
-                nearestIndex < 0 ||
-                    nearestDifference > PkCalibrationDefaults.JOINT_MODE_DISTINCT_TOL ->
-                    minima += point to value
-
-                // Dedup failsafe (Option A): a point separated from its cluster
-                // by more than the numeric tolerance yet under the distinctness
-                // tolerance, with a materially worse objective value, is
-                // numerically inconsistent for a smooth objective — fail
-                // instead of silently merging a near-distinct mode. (Value
-                // ordering makes the representative the cluster's best, so the
-                // difference is never negative.)
-                nearestDifference > PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL &&
-                    value - minima[nearestIndex].second >
-                    PkCalibrationDefaults.JOINT_MODE_NUMERIC_TOL ->
-                    return PkJointFitOutcome.NumericFailure
-
-                else -> Unit
+            ) {
+                minima += point to value
             }
         }
         if (minima.isEmpty()) return PkJointFitOutcome.NumericFailure
@@ -551,11 +523,10 @@ internal object PkJointMapSolver {
 
     /**
      * A step-tolerance exit is only a convergence when the gradient is small
-     * enough that the point provably sits within the dedup failsafe's value
-     * tolerance of its basin minimum: |J - J*| <= g^2 / (2 * priorPrecision)
-     * ~= 5e-14 at g = [PkCalibrationDefaults.JOINT_STEP_EXIT_GRAD_TOL], so two
-     * step-exit points in one basin can never look like near-distinct modes.
-     * A stalled line search with a large gradient fails the start instead.
+     * enough that the point provably sits within JOINT_MODE_NUMERIC_TOL of its
+     * basin minimum (|J - J*| <= g^2 / (2 * priorPrecision) ~= 5e-14 at
+     * g = JOINT_STEP_EXIT_GRAD_TOL). A stalled line search with a large
+     * gradient fails the start instead.
      */
     private fun stepExitConverged(
         objective: PkJointStudentTObjective,
@@ -596,96 +567,60 @@ internal object PkJointMapSolver {
 /** Per-route gate diagnostics computed at the joint MAP (v10.0 §A10.4). */
 internal data class PkJointRouteDiagnostics(
     val supportingLabCount: Int,
-    val fittedBeta: Double?,
-    val laplaceVarianceBeta: Double?,
-    val betaPosteriorSd: Double?,
-    val betaUncertaintyReduction: Double?,
-    val drugSignalLogRange: Double?,
-    val robustRmseLog: Double?,
+    val fittedBeta: Double,
+    val betaPosteriorSd: Double,
+    val drugSignalLogRange: Double,
+    val robustRmseLog: Double,
     val minStudentTWeight: Double?,
     val unreviewedOutlierLabIds: Set<UUID>,
 )
 
-/** Maps a valid, globally-ready evidence pool to exactly five route results. */
+/** Maps one evidence pool to exactly five route results. */
 object PkCalibrationSolver {
     fun solve(evidence: PkCalibrationEvidencePool): PkCalibrationResult? {
-        val rLog = evidence.config.rLog
+        val rLog = evidence.input.config.rLog
         val supportingByRoute = supportingLabIdsByRoute(evidence.included)
+        val ignored = evidence.ignored
 
-        val routeResults: List<PkRouteCalibrationResult>
-        var covariance: PkCalibrationPromotedCovariance? = null
         if (evidence.included.isEmpty()) {
-            routeResults = PkCalibrationRoute.entries.map { route ->
-                populationCountRow(route, supportingLabCount = 0)
-            }
-        } else {
-            val objective = PkJointStudentTObjective.fromEvidence(evidence.included, rLog)
-                ?: return globalNumericFailure(evidence, supportingByRoute)
-            when (val outcome = PkJointMapSolver.fit(objective)) {
-                PkJointFitOutcome.NumericFailure ->
-                    return globalNumericFailure(evidence, supportingByRoute)
-
-                is PkJointFitOutcome.Fitted -> {
-                    val diagnosticsByRoute = routeDiagnostics(
-                        objective = objective,
-                        fit = outcome.fit,
-                        supportingByRoute = supportingByRoute,
-                    ) ?: return globalNumericFailure(evidence, supportingByRoute)
-                    routeResults = PkCalibrationRoute.entries.map { route ->
-                        classifyRoute(
-                            route = route,
-                            diagnostics = diagnosticsByRoute.getValue(route),
-                            rLog = rLog,
-                            ambiguous = outcome.ambiguous,
-                        ) ?: return globalNumericFailure(evidence, supportingByRoute)
-                    }
-                    covariance = promotedCovariance(routeResults, outcome.fit)
-                    val promotedCount = routeResults.count { routeResult ->
-                        !routeResult.displayState.isPopulationDisplayState()
-                    }
-                    if ((covariance == null) != (promotedCount == 0)) {
-                        return globalNumericFailure(evidence, supportingByRoute)
-                    }
-                }
-            }
+            return PkCalibrationResult(
+                globalState = PkCalibrationGlobalState.READY,
+                routeResults = PkCalibrationRoute.entries.map(::populationRow),
+                ignoredLabs = ignored,
+            )
         }
-
-        val promotedRoutes = routeResults.asSequence()
-            .filter { routeResult -> !routeResult.displayState.isPopulationDisplayState() }
-            .map(PkRouteCalibrationResult::route)
-            .toList()
-        val nonZeroBetas = linkedMapOf<PkCalibrationRoute, Double>()
-        for (routeResult in routeResults) {
-            if (routeResult.route in promotedRoutes && routeResult.displayBeta != 0.0) {
-                nonZeroBetas[routeResult.route] = routeResult.displayBeta
-            }
+        val objective = PkJointStudentTObjective.fromEvidence(evidence.included, rLog)
+            ?: return globalNumericFailure(ignored)
+        val outcome = PkJointMapSolver.fit(objective) as? PkJointFitOutcome.Fitted
+            ?: return globalNumericFailure(ignored)
+        val diagnosticsByRoute = routeDiagnostics(
+            objective = objective,
+            fit = outcome.fit,
+            supportingByRoute = supportingByRoute,
+        ) ?: return globalNumericFailure(ignored)
+        val routeResults = PkCalibrationRoute.entries.map { route ->
+            val diagnostics = diagnosticsByRoute[route] ?: return@map populationRow(route)
+            classifyRoute(route, diagnostics, rLog, outcome.ambiguous)
+                ?: return globalNumericFailure(ignored)
         }
-        val displayParams = PkPersonalParams.create(nonZeroBetas) ?: return null
-        return PkCalibrationResult.create(
+        return PkCalibrationResult(
             globalState = PkCalibrationGlobalState.READY,
             routeResults = routeResults,
-            promotedRoutes = promotedRoutes,
-            displayParams = displayParams,
-            promotedBetaCovariance = covariance,
-            invalidNonpositiveLabIds = evidence.invalidNonpositiveLabIds(),
-            forwardModelVersion = evidence.canonicalInput.forwardModelVersion,
-            calibrationModelVersion = evidence.canonicalInput.calibrationModelVersion,
+            promotedBetaCovariance = promotedCovariance(routeResults, outcome.fit),
+            ignoredLabs = ignored,
         )
     }
 
-    private fun PkCalibrationEvidencePool.invalidNonpositiveLabIds(): Set<UUID> =
-        invalidNonpositive.mapTo(linkedSetOf(), PkCalibrationLabEvidence::resultId)
-
     /** S_r = { i in E : d_ir >= 0.2 * D_i }, population decomposition only. */
     private fun supportingLabIdsByRoute(
-        included: List<PkCalibrationLabEvidence>,
+        included: List<PkCalibrationIncludedLab>,
     ): Map<PkCalibrationRoute, Set<UUID>> {
         val result = linkedMapOf<PkCalibrationRoute, MutableSet<UUID>>()
         for (route in PkCalibrationRoute.entries) {
             result[route] = linkedSetOf()
         }
         for (item in included) {
-            val breakdown = item.breakdown ?: continue
+            val breakdown = item.breakdown
             val total = breakdown.totalDrugPgml
             for (route in PkCalibrationRoute.entries) {
                 val contribution = breakdown.byRouteDrugPgml.getValue(route)
@@ -715,32 +650,17 @@ object PkCalibrationSolver {
             weightByResultId[point.resultId] = weight
         }
 
+        // Every active route (some included lab has d_ir > 0) gets a row;
+        // inactive routes are absent and stay population.
         val result = linkedMapOf<PkCalibrationRoute, PkJointRouteDiagnostics>()
         for ((routeIndex, route) in PkCalibrationRoute.entries.withIndex()) {
-            val supportingIds = supportingByRoute.getValue(route)
-            if (supportingIds.isEmpty()) {
-                result[route] = PkJointRouteDiagnostics(
-                    supportingLabCount = supportingIds.size,
-                    fittedBeta = null,
-                    laplaceVarianceBeta = null,
-                    betaPosteriorSd = null,
-                    betaUncertaintyReduction = null,
-                    drugSignalLogRange = null,
-                    robustRmseLog = null,
-                    minStudentTWeight = null,
-                    unreviewedOutlierLabIds = emptySet(),
-                )
-                continue
-            }
             val activePosition = fit.activeRouteIndices.indexOf(routeIndex)
-            if (activePosition < 0) return null
+            if (activePosition < 0) continue
+            val supportingIds = supportingByRoute.getValue(route)
             val variance = fit.covariance[activePosition][activePosition]
             if (!variance.isFinite() || variance <= 0.0) return null
             val posteriorSd = sqrt(variance)
                 .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
-            val uncertaintyReduction = (
-                    1.0 - posteriorSd / PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD
-                    ).coerceIn(0.0, 1.0)
 
             // Share-weighted robust RMSE over every lab with a positive
             // population share on this route (§A10.4), canonical UUID order.
@@ -778,29 +698,27 @@ object PkCalibrationSolver {
                     unreviewed += point.resultId
                 }
             }
-            val logRange = maximumLogTotal - minimumLogTotal
+            // No supporting lab: no contrast and no outlier attribution.
+            val logRange = if (supportingIds.isEmpty()) 0.0 else maximumLogTotal - minimumLogTotal
             if (!logRange.isFinite() || logRange < 0.0) return null
-            if (!minimumWeight.isFinite()) return null
 
             result[route] = PkJointRouteDiagnostics(
                 supportingLabCount = supportingIds.size,
                 fittedBeta = fit.beta[routeIndex].normalizePositiveZero(),
-                laplaceVarianceBeta = variance,
                 betaPosteriorSd = posteriorSd,
-                betaUncertaintyReduction = uncertaintyReduction,
                 drugSignalLogRange = logRange,
                 robustRmseLog = rmse,
-                minStudentTWeight = minimumWeight,
-                unreviewedOutlierLabIds = immutableSet(unreviewed),
+                minStudentTWeight = minimumWeight.takeIf(Double::isFinite),
+                unreviewedOutlierLabIds = unreviewed,
             )
         }
         return result
     }
 
     /**
-     * Warn-only classification (2026-08-26): any route with a supporting lab
-     * shows its fitted beta. Every former promotion gate is now a reason on
-     * the row; the state is LAB_CALIBRATED only when no reason fired.
+     * Warn-only classification: every active route shows its fitted beta.
+     * Each former promotion gate is a reason on the row; the state is
+     * LAB_CALIBRATED only when no reason fired.
      */
     internal fun classifyRoute(
         route: PkCalibrationRoute,
@@ -808,62 +726,49 @@ object PkCalibrationSolver {
         rLog: Double,
         ambiguous: Boolean,
     ): PkRouteCalibrationResult? {
-        if (diagnostics.supportingLabCount == 0) {
-            return populationCountRow(route, supportingLabCount = 0)
-        }
-        val fittedBeta = diagnostics.fittedBeta ?: return null
-        val posteriorSd = diagnostics.betaPosteriorSd ?: return null
-        val variance = diagnostics.laplaceVarianceBeta ?: return null
-        val rmse = diagnostics.robustRmseLog ?: return null
-        val logRange = diagnostics.drugSignalLogRange ?: return null
-
+        val fittedBeta = diagnostics.fittedBeta
+        val posteriorSd = diagnostics.betaPosteriorSd
         val scale = exp(fittedBeta)
-        if (!scale.isFinite() || scale <= 0.0 || variance <= 0.0 || posteriorSd <= 0.0) {
-            return null
-        }
-        val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE[route] ?: return null
-        val outsideCap = scale < cap.minInclusive || scale > cap.maxInclusive
+        if (!scale.isFinite() || scale <= 0.0 || posteriorSd <= 0.0) return null
+        val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE.getValue(route)
         val isExtreme = scale < PkCalibrationDefaults.EXTREME_SCALE_CORE_MIN ||
                 scale > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
-        val lacksExtremeCount = isExtreme &&
-                diagnostics.supportingLabCount <
-                PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
-        val poorFit = rmse > PkCalibrationDefaults.robustRmseLogMaxForPromotion(rLog)
-        val hasOutlier = diagnostics.unreviewedOutlierLabIds.isNotEmpty()
-        val insufficientContrast = logRange <
-                PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN
-        val posteriorTooWide = posteriorSd >
-                PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
 
         val reasons = linkedSetOf<PkCalibrationReason>()
-        if (outsideCap) reasons += PkCalibrationReason.DISPLAY_SCALE_EXCEEDED
-        if (lacksExtremeCount) {
+        if (diagnostics.supportingLabCount == 0) {
+            reasons += PkCalibrationReason.NO_SUPPORTING_LABS
+        }
+        if (scale !in cap) reasons += PkCalibrationReason.DISPLAY_SCALE_EXCEEDED
+        if (isExtreme && diagnostics.supportingLabCount <
+            PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE
+        ) {
             reasons += PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS
         }
-        if (poorFit) reasons += PkCalibrationReason.RESIDUAL_FIT_POOR
-        if (hasOutlier) reasons += PkCalibrationReason.UNREVIEWED_OUTLIER
-        if (insufficientContrast) {
+        if (diagnostics.robustRmseLog > PkCalibrationDefaults.robustRmseLogMaxForPromotion(rLog)) {
+            reasons += PkCalibrationReason.RESIDUAL_FIT_POOR
+        }
+        if (diagnostics.unreviewedOutlierLabIds.isNotEmpty()) {
+            reasons += PkCalibrationReason.UNREVIEWED_OUTLIER
+        }
+        if (diagnostics.drugSignalLogRange < PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN) {
             reasons += PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST
         }
-        if (posteriorTooWide) reasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
+        if (posteriorSd > PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION) {
+            reasons += PkCalibrationReason.POSTERIOR_SD_TOO_WIDE
+        }
         if (ambiguous) reasons += PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS
 
-        return PkRouteCalibrationResult.create(
+        return PkRouteCalibrationResult(
             route = route,
-            fittedBeta = fittedBeta,
-            displayBeta = fittedBeta,
-            betaPosteriorSd = posteriorSd,
-            betaUncertaintyReduction = diagnostics.betaUncertaintyReduction,
-            laplaceVarianceBeta = variance,
             displayState = if (reasons.isEmpty()) {
                 PkRouteCalibrationDisplayState.LAB_CALIBRATED
             } else {
                 PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
             },
             reasons = reasons,
+            fittedBeta = fittedBeta,
+            betaPosteriorSd = posteriorSd,
             supportingLabCount = diagnostics.supportingLabCount,
-            drugSignalLogRange = logRange,
-            robustRmseLog = rmse,
             minStudentTWeight = diagnostics.minStudentTWeight,
             unreviewedOutlierLabIds = diagnostics.unreviewedOutlierLabIds,
         )
@@ -873,67 +778,42 @@ object PkCalibrationSolver {
         routeResults: List<PkRouteCalibrationResult>,
         fit: PkJointFit,
     ): PkCalibrationPromotedCovariance? {
-        val promoted = routeResults.filter { routeResult ->
-            !routeResult.displayState.isPopulationDisplayState()
-        }.map(PkRouteCalibrationResult::route)
+        val promoted = routeResults
+            .filter { routeResult -> routeResult.displayState.isAdjusted }
+            .map(PkRouteCalibrationResult::route)
         if (promoted.isEmpty()) return null
         val positions = promoted.map { route ->
             fit.activeRouteIndices.indexOf(PkCalibrationRoute.entries.indexOf(route))
-                .takeIf { position -> position >= 0 } ?: return null
         }
-        val values = List(promoted.size) { row ->
-            List(promoted.size) { column ->
-                fit.covariance[positions[row]][positions[column]]
-            }
-        }
-        return PkCalibrationPromotedCovariance.create(routes = promoted, values = values)
+        return PkCalibrationPromotedCovariance(
+            routes = promoted,
+            values = List(promoted.size) { row ->
+                List(promoted.size) { column ->
+                    fit.covariance[positions[row]][positions[column]]
+                }
+            },
+        )
     }
 
-    private fun populationCountRow(
-        route: PkCalibrationRoute,
-        supportingLabCount: Int,
-    ): PkRouteCalibrationResult {
-        require(supportingLabCount == 0)
-        return requireNotNull(
-            PkRouteCalibrationResult.create(
-                route = route,
-                displayState = PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
-                reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
-                supportingLabCount = 0,
-            )
+    private fun populationRow(route: PkCalibrationRoute): PkRouteCalibrationResult {
+        return PkRouteCalibrationResult(
+            route = route,
+            displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
         )
     }
 
     private fun globalNumericFailure(
-        evidence: PkCalibrationEvidencePool,
-        supportingByRoute: Map<PkCalibrationRoute, Set<UUID>>,
-    ): PkCalibrationResult? {
-        val routeResults = PkCalibrationRoute.entries.map { route ->
-            requireNotNull(
-                PkRouteCalibrationResult.create(
+        ignored: Map<UUID, PkCalibrationLabIgnoreReason>,
+    ): PkCalibrationResult {
+        return PkCalibrationResult(
+            globalState = PkCalibrationGlobalState.READY,
+            routeResults = PkCalibrationRoute.entries.map { route ->
+                PkRouteCalibrationResult(
                     route = route,
                     displayState = PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-                    reasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
-                    supportingLabCount = supportingByRoute.getValue(route).size,
                 )
-            )
-        }
-        return PkCalibrationResult.create(
-            globalState = PkCalibrationGlobalState.READY,
-            routeResults = routeResults,
-            promotedRoutes = emptyList(),
-            displayParams = PkPersonalParams.population(),
-            promotedBetaCovariance = null,
-            forwardModelVersion = evidence.canonicalInput.forwardModelVersion,
-            calibrationModelVersion = evidence.canonicalInput.calibrationModelVersion,
+            },
+            ignoredLabs = ignored,
         )
     }
 }
-
-private fun PkRouteCalibrationDisplayState.isPopulationDisplayState(): Boolean {
-    return this != PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL &&
-            this != PkRouteCalibrationDisplayState.LAB_CALIBRATED
-}
-
-
-

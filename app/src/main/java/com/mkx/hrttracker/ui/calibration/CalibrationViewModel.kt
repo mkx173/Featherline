@@ -90,12 +90,7 @@ class CalibrationViewModel @Inject constructor(
                         available.evaluation.result,
                         available.render,
                     ),
-                    excludedResultIds = available.context.metadata
-                        .filter { item ->
-                            item.disposition == E2CalibrationDisposition.EXCLUDED
-                        }
-                        .map { item -> item.resultId }
-                        .toSet(),
+                    excludedResultIds = available.input.excludedLabIds,
                 )
             }
         }

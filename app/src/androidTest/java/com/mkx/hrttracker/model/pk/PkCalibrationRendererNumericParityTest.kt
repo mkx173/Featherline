@@ -2,10 +2,10 @@ package com.mkx.hrttracker.model.pk
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.max
 
 @RunWith(AndroidJUnit4::class)
@@ -28,33 +28,25 @@ class PkCalibrationRendererNumericParityTest {
         )
         val law = requireNotNull(PkPredictiveBandMath.logQuantiles(0.0, 1.0))
 
-        law.gh16.zip(referenceLogQuantiles).forEach { (actual, expected) ->
+        law.zip(referenceLogQuantiles).forEach { (actual, expected) ->
             assertEquals(expected, actual, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
         }
-        law.gh32.zip(referenceLogQuantiles).forEach { (actual, expected) ->
-            assertEquals(expected, actual, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
-        }
-        val raw = law.validatedRawQuantiles(100.0)
-        assertNotNull(raw)
-        requireNotNull(raw).zip(referenceRawQuantilesAt100).forEach { (actual, expected) ->
-            val normativeValidationBound = PkCalibrationDefaults.BAND_VALIDATE_ABS_PGML +
-                    PkCalibrationDefaults.BAND_VALIDATE_REL * abs(expected)
-            assertEquals(expected, actual, normativeValidationBound)
+        val raw = law.map { offset -> 100.0 * exp(offset) }
+        raw.zip(referenceRawQuantilesAt100).forEach { (actual, expected) ->
+            assertEquals(expected, actual, 0.05 + 1e-3 * abs(expected))
         }
     }
 
     @Test
-    fun gh16AndGh32_matchFixedReferenceVectorsOnAndroidRuntime() {
-        assertRuleMatches(Gh16Nodes, Gh16Weights, PkCalibrationDefaults.BAND_GH_NODES)
-        assertRuleMatches(Gh32Nodes, Gh32Weights, PkCalibrationDefaults.BAND_GH_REFINEMENT_NODES)
+    fun gh32_matchesFixedReferenceVectorsOnAndroidRuntime() {
+        assertRuleMatches(Gh32Nodes, Gh32Weights)
     }
 
     private fun assertRuleMatches(
         expectedNodes: List<Double>,
         expectedWeights: List<Double>,
-        nodeCount: Int,
     ) {
-        val actual = requireNotNull(PkPredictiveBandMath.hermiteRuleForValidation(nodeCount))
+        val actual = PkPredictiveBandMath.hermiteRule
         assertEquals(expectedNodes.size, actual.nodes.size)
         assertEquals(expectedWeights.size, actual.weights.size)
         expectedNodes.zip(actual.nodes).forEach { (expected, value) ->
@@ -75,22 +67,6 @@ class PkCalibrationRendererNumericParityTest {
     }
 
     private companion object {
-        val Gh16Nodes = listOf(
-            -4.6887389393058188, -3.8694479048601229, -3.176999161979956,
-            -2.5462021578474814, -1.9517879909162539, -1.3802585391988809,
-            -0.8229514491446559, -0.27348104613815249, 0.27348104613815249,
-            0.8229514491446559, 1.3802585391988809, 1.9517879909162539,
-            2.5462021578474814, 3.176999161979956, 3.8694479048601229,
-            4.6887389393058188,
-        )
-        val Gh16Weights = listOf(
-            1.4978147231618314e-10, 1.3094732162868187e-7, 1.5300032162487242e-5,
-            5.2598492657390935e-4, 0.0072669376011847428, 0.047284752354014033,
-            0.15833837275094964, 0.28656852123801202, 0.28656852123801202,
-            0.15833837275094964, 0.047284752354014033, 0.0072669376011847428,
-            5.2598492657390935e-4, 1.5300032162487242e-5, 1.3094732162868187e-7,
-            1.4978147231618314e-10,
-        )
         val Gh32Nodes = listOf(
             -7.1258139098307272, -6.4094981492696608, -5.8122259495159136,
             -5.2755509865158805, -4.777164503502596, -4.3055479533511987,

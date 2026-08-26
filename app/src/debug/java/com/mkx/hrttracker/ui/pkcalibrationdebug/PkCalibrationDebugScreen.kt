@@ -143,18 +143,6 @@ internal fun PkCalibrationDebugBody(
             }
         }
 
-        Text("Route render fallback")
-        DebugControlButton(
-            label = "Route render fallback: none",
-            onClick = { viewModel.setRouteRenderFallback(null) },
-        )
-        PkCalibrationRoute.entries.forEach { route ->
-            DebugControlButton(
-                label = "Route render fallback: ${route.name}",
-                onClick = { viewModel.setRouteRenderFallback(route) },
-            )
-        }
-
         DebugControlButton(
             label = "Band unavailable: ${scenario?.bandUnavailable == true}",
             onClick = {

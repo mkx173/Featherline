@@ -237,7 +237,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.hilt.android)
-    implementation(libs.jcs)
     implementation(libs.hipparchus.core)
     implementation(libs.moshi)
     implementation(libs.sqlcipher.android)

@@ -20,12 +20,11 @@ enum class PkCalibrationRoute(val stableId: String) {
     companion object {
         private val byStableId = entries.associateBy(PkCalibrationRoute::stableId)
 
-        /** Unknown identifiers fail closed instead of being guessed or coerced. */
         fun fromStableId(stableId: String): PkCalibrationRoute? = byStableId[stableId]
     }
 }
 
-/** Canonical contribution mapping shared by forward evaluation and review digests. */
+/** Canonical contribution mapping shared by forward evaluation and calibration. */
 fun PkRoute.calibrationRoute(): PkCalibrationRoute? {
     return when (this) {
         PkRoute.INJECTION -> PkCalibrationRoute.INJECTION
@@ -82,12 +81,9 @@ data class PkPersonalParams private constructor(
                 if (!scale.isFinite() || scale <= 0.0) return null
                 canonical[route] = beta
             }
-            if (routeLogScale.keys.any { route -> route !in PkCalibrationRoute.entries }) {
-                return null
-            }
             if (canonical.isEmpty()) return Population
             return PkPersonalParams(
-                routeLogScale = immutableMap(canonical),
+                routeLogScale = canonical.toMap(),
                 thetaKGlobal = 0.0,
             )
         }
@@ -121,7 +117,7 @@ data class PkForwardBreakdown private constructor(
                 if (!total.isFinite() || total < 0.0) return null
             }
             return PkForwardBreakdown(
-                byRouteDrugPgml = immutableMap(canonical),
+                byRouteDrugPgml = canonical.toMap(),
                 totalDrugPgml = total.normalizePositiveZero(),
             )
         }
@@ -130,23 +126,27 @@ data class PkForwardBreakdown private constructor(
 
 enum class PkCalibrationGlobalState {
     READY,
-    /** Zero authorized E2 labs exist — distinct from an input problem. */
+    /** Zero E2 labs exist. */
     NO_USABLE_LABS,
-    SHARED_INPUT_INVALID,
-    SHARED_NUMERIC_FAILURE,
+    /** The forward model or the joint fit did not complete; population is shown. */
+    NUMERIC_FAILURE,
 }
 
 /**
- * Warn-only (2026-08-26): a route with at least one supporting lab always
- * shows its fitted adjustment. LAB_ADJUSTED_PROVISIONAL carries one or more
- * warning [PkCalibrationReason]s the user should read; LAB_CALIBRATED is a
- * fit that raised none.
+ * Warn-only: a route any included lab touches always shows its fitted
+ * adjustment. LAB_ADJUSTED_PROVISIONAL carries one or more warning
+ * [PkCalibrationReason]s the user should read; LAB_CALIBRATED is a fit that
+ * raised none.
  */
 enum class PkRouteCalibrationDisplayState {
-    POPULATION_NO_SUPPORTING_LABS,
+    /** No included lab has any modeled signal from this route. */
+    POPULATION_NO_LAB_SIGNAL,
     POPULATION_NUMERIC_FAILURE,
     LAB_ADJUSTED_PROVISIONAL,
-    LAB_CALIBRATED,
+    LAB_CALIBRATED;
+
+    val isAdjusted: Boolean
+        get() = this == LAB_ADJUSTED_PROVISIONAL || this == LAB_CALIBRATED
 }
 
 enum class PkCalibrationRenderState {
@@ -161,9 +161,9 @@ enum class PkCalibrationBandState {
     NUMERIC_UNAVAILABLE,
 }
 
+/** Warning reasons on an adjusted route row. The user reads them; nothing is withheld. */
 enum class PkCalibrationReason {
-    NO_USABLE_LABS,
-    SHARED_INPUT_INVALID,
+    /** No included lab draws ≥20% of its modeled signal from this route. */
     NO_SUPPORTING_LABS,
     EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS,
     INSUFFICIENT_DRUG_SIGNAL_CONTRAST,
@@ -172,191 +172,55 @@ enum class PkCalibrationReason {
     POSTERIOR_MODE_AMBIGUOUS,
     RESIDUAL_FIT_POOR,
     UNREVIEWED_OUTLIER,
-    BAND_NUMERIC_FAILURE,
+}
+
+/** Why one lab was set aside by the fit; always surfaced on its row. */
+enum class PkCalibrationLabIgnoreReason {
+    /** Non-positive value inside a drug window: log-undefined. */
+    NON_POSITIVE_VALUE,
+    /** Modeled drug-attributable E2 below the informative floor at collection time. */
+    BELOW_INFORMATIVE_SIGNAL,
+    /** The forward model could not be evaluated at the collection time. */
     NUMERIC_FAILURE,
 }
 
-/** Canonical SHA-256 digest value used at trust and cache boundaries. */
-@ConsistentCopyVisibility
-data class CanonicalDigest private constructor(
-    val schema: String,
-    val algorithm: String,
-    val hexLower: String,
-) {
-    companion object {
-        private val Sha256Hex = Regex("[0-9a-f]{64}")
-
-        fun create(
-            schema: String,
-            algorithm: String,
-            hexLower: String,
-        ): CanonicalDigest? {
-            if (schema.isBlank()) return null
-            if (algorithm != "SHA-256") return null
-            if (!Sha256Hex.matches(hexLower)) return null
-            return CanonicalDigest(schema, algorithm, hexLower)
-        }
-    }
-}
-
-@ConsistentCopyVisibility
-data class PkRouteCalibrationResult private constructor(
+data class PkRouteCalibrationResult(
     val route: PkCalibrationRoute,
-    val fittedBeta: Double?,
-    val displayBeta: Double,
-    val betaPosteriorSd: Double?,
-    val betaUncertaintyReduction: Double?,
-    val laplaceVarianceBeta: Double?,
     val displayState: PkRouteCalibrationDisplayState,
-    val reasons: Set<PkCalibrationReason>,
-    val supportingLabCount: Int,
-    val drugSignalLogRange: Double?,
-    val robustRmseLog: Double?,
-    val minStudentTWeight: Double?,
-    val unreviewedOutlierLabIds: Set<UUID>,
+    val reasons: Set<PkCalibrationReason> = emptySet(),
+    /** Log scale; present exactly when [displayState] is adjusted. */
+    val fittedBeta: Double? = null,
+    val betaPosteriorSd: Double? = null,
+    val supportingLabCount: Int = 0,
+    val minStudentTWeight: Double? = null,
+    val unreviewedOutlierLabIds: Set<UUID> = emptySet(),
 ) {
-    companion object {
-        /**
-         * Finiteness and shape checks only. Population states carry no fit;
-         * adjusted states show exactly the fitted beta. Which warning reasons
-         * accompany a fit is the solver's call, not re-derived here.
-         */
-        fun create(
-            route: PkCalibrationRoute,
-            fittedBeta: Double? = null,
-            displayBeta: Double = 0.0,
-            betaPosteriorSd: Double? = null,
-            betaUncertaintyReduction: Double? = null,
-            laplaceVarianceBeta: Double? = null,
-            displayState: PkRouteCalibrationDisplayState,
-            reasons: Set<PkCalibrationReason> = emptySet(),
-            supportingLabCount: Int = 0,
-            drugSignalLogRange: Double? = null,
-            robustRmseLog: Double? = null,
-            minStudentTWeight: Double? = null,
-            unreviewedOutlierLabIds: Set<UUID> = emptySet(),
-        ): PkRouteCalibrationResult? {
-            if (!isFiniteOrNull(fittedBeta)) return null
-            if (!displayBeta.isFinite()) return null
-            if (!isFiniteNonNegativeOrNull(betaPosteriorSd)) return null
-            if (!isFiniteNonNegativeOrNull(betaUncertaintyReduction)) return null
-            if (!isFiniteNonNegativeOrNull(laplaceVarianceBeta)) return null
-            if (!isFiniteNonNegativeOrNull(drugSignalLogRange)) return null
-            if (!isFiniteNonNegativeOrNull(robustRmseLog)) return null
-            val maximumStudentTWeight =
-                (PkCalibrationDefaults.STUDENT_T_NU + 1.0) /
-                        PkCalibrationDefaults.STUDENT_T_NU
-            if (minStudentTWeight != null &&
-                (!minStudentTWeight.isFinite() ||
-                        minStudentTWeight !in 0.0..maximumStudentTWeight)
-            ) {
-                return null
-            }
-            if (supportingLabCount < 0) return null
-
-            if (displayState.isPopulationState()) {
-                if (displayBeta.toBits() != 0.0.toBits()) return null
-                if (fittedBeta != null || betaPosteriorSd != null ||
-                    laplaceVarianceBeta != null
-                ) {
-                    return null
-                }
-            } else {
-                val certifiedBeta = fittedBeta ?: return null
-                if (certifiedBeta.toBits() != displayBeta.normalizePositiveZero().toBits()) {
-                    return null
-                }
-                val displayScale = exp(displayBeta)
-                if (!displayScale.isFinite() || displayScale <= 0.0) return null
-                if ((betaPosteriorSd ?: return null) <= 0.0) return null
-                if ((laplaceVarianceBeta ?: return null) <= 0.0) return null
-                if (supportingLabCount == 0) return null
-                if ((displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED) !=
-                    reasons.isEmpty()
-                ) {
-                    return null
-                }
-            }
-
-            return PkRouteCalibrationResult(
-                route = route,
-                fittedBeta = fittedBeta,
-                displayBeta = displayBeta.normalizePositiveZero(),
-                betaPosteriorSd = betaPosteriorSd,
-                betaUncertaintyReduction = betaUncertaintyReduction,
-                laplaceVarianceBeta = laplaceVarianceBeta,
-                displayState = displayState,
-                reasons = immutableSet(reasons),
-                supportingLabCount = supportingLabCount,
-                drugSignalLogRange = drugSignalLogRange,
-                robustRmseLog = robustRmseLog,
-                minStudentTWeight = minStudentTWeight,
-                unreviewedOutlierLabIds = immutableSet(unreviewedOutlierLabIds),
-            )
-        }
+    init {
+        require((fittedBeta != null) == displayState.isAdjusted)
+        require((displayState == PkRouteCalibrationDisplayState.LAB_CALIBRATED) ==
+                (displayState.isAdjusted && reasons.isEmpty()))
     }
 }
 
-@ConsistentCopyVisibility
-data class PkCurvePoint private constructor(
+data class PkCurvePoint(
     val epochMillis: Long,
     val concentrationPgMl: Double,
-) {
-    companion object {
-        fun create(epochMillis: Long, concentrationPgMl: Double): PkCurvePoint? {
-            if (!concentrationPgMl.isFinite() || concentrationPgMl < 0.0) return null
-            return PkCurvePoint(epochMillis, concentrationPgMl.normalizePositiveZero())
-        }
-    }
-}
+)
 
-@ConsistentCopyVisibility
-data class PkPredictiveBandKnot private constructor(
+data class PkPredictiveBandKnot(
     val epochMillis: Long,
     val p025Pgml: Double,
     val p158655254Pgml: Double,
     val p50Pgml: Double,
     val p841344746Pgml: Double,
     val p975Pgml: Double,
-) {
-    companion object {
-        fun create(
-            epochMillis: Long,
-            p025Pgml: Double,
-            p158655254Pgml: Double,
-            p50Pgml: Double,
-            p841344746Pgml: Double,
-            p975Pgml: Double,
-        ): PkPredictiveBandKnot? {
-            val quantiles = listOf(
-                p025Pgml,
-                p158655254Pgml,
-                p50Pgml,
-                p841344746Pgml,
-                p975Pgml,
-            )
-            if (quantiles.any { value -> !value.isFinite() || value < 0.0 }) return null
-            if (quantiles.zipWithNext().any { (left, right) -> left > right }) return null
-            return PkPredictiveBandKnot(
-                epochMillis = epochMillis,
-                p025Pgml = p025Pgml.normalizePositiveZero(),
-                p158655254Pgml = p158655254Pgml.normalizePositiveZero(),
-                p50Pgml = p50Pgml.normalizePositiveZero(),
-                p841344746Pgml = p841344746Pgml.normalizePositiveZero(),
-                p975Pgml = p975Pgml.normalizePositiveZero(),
-            )
-        }
-    }
-}
+)
 
 /**
  * v10.0 §A10.5: the symmetric Laplace covariance block over the promoted
- * routes, indexed in canonical route order. The diagonal is the per-route
- * marginal variance; off-diagonal terms carry the joint-fit coupling that the
- * v9 independent-route band law assumed away.
+ * routes, indexed in canonical route order.
  */
-@ConsistentCopyVisibility
-data class PkCalibrationPromotedCovariance private constructor(
+data class PkCalibrationPromotedCovariance(
     val routes: List<PkCalibrationRoute>,
     val values: List<List<Double>>,
 ) {
@@ -366,203 +230,35 @@ data class PkCalibrationPromotedCovariance private constructor(
         if (row < 0 || column < 0) return null
         return values[row][column]
     }
-
-    companion object {
-        fun create(
-            routes: List<PkCalibrationRoute>,
-            values: List<List<Double>>,
-        ): PkCalibrationPromotedCovariance? {
-            if (routes.isEmpty()) return null
-            if (routes.distinct().size != routes.size) return null
-            if (routes != PkCalibrationRoute.entries.filter(routes::contains)) return null
-            if (values.size != routes.size) return null
-            if (values.any { row -> row.size != routes.size }) return null
-            for (row in values.indices) {
-                for (column in values.indices) {
-                    val value = values[row][column]
-                    if (!value.isFinite()) return null
-                    if (value.toBits() != values[column][row].toBits()) return null
-                }
-                if (values[row][row] <= 0.0) return null
-            }
-            return PkCalibrationPromotedCovariance(
-                routes = immutableList(routes),
-                values = immutableList(values.map { row -> immutableList(row) }),
-            )
-        }
-    }
 }
 
-@ConsistentCopyVisibility
-data class PkCalibrationResult private constructor(
+data class PkCalibrationResult(
     val globalState: PkCalibrationGlobalState,
-    val globalReasons: Set<PkCalibrationReason>,
-    val routeResults: List<PkRouteCalibrationResult>,
-    val promotedRoutes: List<PkCalibrationRoute>,
-    val displayParams: PkPersonalParams,
-    val promotedBetaCovariance: PkCalibrationPromotedCovariance?,
-    /** Labs with a non-positive value in a drug window; ignored by the fit, flagged to the user. */
-    val invalidNonpositiveLabIds: Set<UUID>,
-    val forwardModelVersion: String,
-    val calibrationModelVersion: String,
+    /** Exactly five rows in canonical route order when READY, empty otherwise. */
+    val routeResults: List<PkRouteCalibrationResult> = emptyList(),
+    val promotedBetaCovariance: PkCalibrationPromotedCovariance? = null,
+    /** Labs the fit set aside, each with the reason shown on its row. */
+    val ignoredLabs: Map<UUID, PkCalibrationLabIgnoreReason> = emptyMap(),
 ) {
-    companion object {
-        fun create(
-            globalState: PkCalibrationGlobalState,
-            globalReasons: Set<PkCalibrationReason> = emptySet(),
-            routeResults: List<PkRouteCalibrationResult> = emptyList(),
-            promotedRoutes: List<PkCalibrationRoute> = emptyList(),
-            displayParams: PkPersonalParams = PkPersonalParams.population(),
-            promotedBetaCovariance: PkCalibrationPromotedCovariance? = null,
-            invalidNonpositiveLabIds: Set<UUID> = emptySet(),
-            forwardModelVersion: String,
-            calibrationModelVersion: String,
-        ): PkCalibrationResult? {
-            if (forwardModelVersion.isBlank() || calibrationModelVersion.isBlank()) return null
-            if (globalState != PkCalibrationGlobalState.READY) {
-                if (invalidNonpositiveLabIds.isNotEmpty()) return null
-                if (routeResults.isNotEmpty() || promotedRoutes.isNotEmpty()) return null
-                if (displayParams != PkPersonalParams.population()) return null
-                if (promotedBetaCovariance != null) return null
-            } else {
-                val expectedRoutes = PkCalibrationRoute.entries
-                if (routeResults.map(PkRouteCalibrationResult::route) != expectedRoutes) return null
+    val promotedRoutes: List<PkCalibrationRoute>
+        get() = routeResults.filter { it.displayState.isAdjusted }.map { it.route }
 
-                val expectedPromotedRoutes = routeResults
-                    .filter { routeResult -> !routeResult.displayState.isPopulationState() }
-                    .map(PkRouteCalibrationResult::route)
-                if (promotedRoutes != expectedPromotedRoutes) return null
-                if (!promotedRoutes.isCanonicalRouteSubset()) return null
-
-                val expectedNonZeroBetas = linkedMapOf<PkCalibrationRoute, Double>()
-                for (routeResult in routeResults) {
-                    if (routeResult.route in promotedRoutes && routeResult.displayBeta != 0.0) {
-                        expectedNonZeroBetas[routeResult.route] = routeResult.displayBeta
-                    }
-                }
-                if (displayParams.routeLogScale != expectedNonZeroBetas) return null
-
-                if (promotedRoutes.isEmpty()) {
-                    if (promotedBetaCovariance != null) return null
-                } else {
-                    val covariance = promotedBetaCovariance ?: return null
-                    if (covariance.routes != promotedRoutes) return null
-                    for (routeResult in routeResults) {
-                        if (routeResult.route !in promotedRoutes) continue
-                        val marginal = routeResult.laplaceVarianceBeta ?: return null
-                        val diagonal = covariance.covariance(
-                            routeResult.route,
-                            routeResult.route,
-                        ) ?: return null
-                        if (marginal.toBits() != diagonal.toBits()) return null
-                    }
-                }
-            }
-
-            return PkCalibrationResult(
-                globalState = globalState,
-                globalReasons = immutableSet(globalReasons),
-                routeResults = immutableList(routeResults),
-                promotedRoutes = immutableList(promotedRoutes),
-                displayParams = displayParams,
-                promotedBetaCovariance = promotedBetaCovariance,
-                invalidNonpositiveLabIds = immutableSet(invalidNonpositiveLabIds),
-                forwardModelVersion = forwardModelVersion,
-                calibrationModelVersion = calibrationModelVersion,
+    val displayParams: PkPersonalParams
+        get() = requireNotNull(
+            PkPersonalParams.create(
+                routeResults
+                    .filter { it.displayState.isAdjusted }
+                    .associate { it.route to requireNotNull(it.fittedBeta) }
             )
-        }
-    }
+        )
 }
 
-@ConsistentCopyVisibility
-data class PkCalibrationRenderResult private constructor(
-    val domainDigest: CanonicalDigest,
+data class PkCalibrationRenderResult(
     val renderState: PkCalibrationRenderState,
-    val renderReasons: Set<PkCalibrationReason>,
-    val effectivePromotedRoutes: List<PkCalibrationRoute>,
-    val effectiveDisplayParams: PkPersonalParams,
-    val routeRenderFallbacks: List<PkCalibrationRoute>,
+    /** Promoted routes with a positive contribution somewhere in this chart range. */
+    val effectivePromotedRoutes: List<PkCalibrationRoute> = emptyList(),
+    val effectiveDisplayParams: PkPersonalParams = PkPersonalParams.population(),
     val centralCurve: List<PkCurvePoint>,
     val bandState: PkCalibrationBandState,
-    val bandReasons: Set<PkCalibrationReason>,
-    val bandKnots: List<PkPredictiveBandKnot>,
-) {
-    companion object {
-        fun create(
-            domainDigest: CanonicalDigest,
-            renderState: PkCalibrationRenderState,
-            renderReasons: Set<PkCalibrationReason> = emptySet(),
-            effectivePromotedRoutes: List<PkCalibrationRoute> = emptyList(),
-            effectiveDisplayParams: PkPersonalParams = PkPersonalParams.population(),
-            routeRenderFallbacks: List<PkCalibrationRoute> = emptyList(),
-            centralCurve: List<PkCurvePoint>,
-            bandState: PkCalibrationBandState,
-            bandReasons: Set<PkCalibrationReason> = emptySet(),
-            bandKnots: List<PkPredictiveBandKnot> = emptyList(),
-        ): PkCalibrationRenderResult? {
-            if (domainDigest.schema != PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA) return null
-            if (!effectivePromotedRoutes.isCanonicalRouteSubset()) return null
-            if (!routeRenderFallbacks.isCanonicalRouteSubset()) return null
-            if (effectivePromotedRoutes.any(routeRenderFallbacks::contains)) return null
-            if (effectiveDisplayParams.routeLogScale.keys.any { route ->
-                    route !in effectivePromotedRoutes
-                }
-            ) {
-                return null
-            }
-            if (!centralCurve.hasStrictlyIncreasingTimes(PkCurvePoint::epochMillis)) return null
-            if (!bandKnots.hasStrictlyIncreasingTimes(PkPredictiveBandKnot::epochMillis)) return null
-            // Shape only: the renderer is the sole producer and owns the
-            // state/reason pairing (ponytail: the former state-machine
-            // re-validation mirrored the renderer line for line).
-            if ((renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE) !=
-                centralCurve.isEmpty()
-            ) {
-                return null
-            }
-            if ((renderState == PkCalibrationRenderState.PERSONALIZED) !=
-                effectivePromotedRoutes.isNotEmpty()
-            ) {
-                return null
-            }
-            if ((bandState == PkCalibrationBandState.READY) != bandKnots.isNotEmpty()) return null
-
-            return PkCalibrationRenderResult(
-                domainDigest = domainDigest,
-                renderState = renderState,
-                renderReasons = immutableSet(renderReasons),
-                effectivePromotedRoutes = immutableList(effectivePromotedRoutes),
-                effectiveDisplayParams = effectiveDisplayParams,
-                routeRenderFallbacks = immutableList(routeRenderFallbacks),
-                centralCurve = immutableList(centralCurve),
-                bandState = bandState,
-                bandReasons = immutableSet(bandReasons),
-                bandKnots = immutableList(bandKnots),
-            )
-        }
-    }
-}
-
-private fun PkRouteCalibrationDisplayState.isPopulationState(): Boolean {
-    return this != PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL &&
-            this != PkRouteCalibrationDisplayState.LAB_CALIBRATED
-}
-
-private fun List<PkCalibrationRoute>.isCanonicalRouteSubset(): Boolean {
-    if (distinct().size != size) return false
-    return this == PkCalibrationRoute.entries.filter(::contains)
-}
-
-private fun <T> List<T>.hasStrictlyIncreasingTimes(epochMillis: (T) -> Long): Boolean {
-    return zipWithNext().none { (left, right) -> epochMillis(left) >= epochMillis(right) }
-}
-
-private fun isFiniteOrNull(value: Double?): Boolean = value == null || value.isFinite()
-
-private fun isFiniteNonNegativeOrNull(value: Double?): Boolean {
-    return value == null || (value.isFinite() && value >= 0.0)
-}
-
-
-
-
+    val bandKnots: List<PkPredictiveBandKnot> = emptyList(),
+)

@@ -1112,18 +1112,16 @@
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_usable_labs_title">Add an E2 result</string>
     <string name="calibration_pk_global_no_usable_labs_body">No E2 blood-test results are available yet, so the population estimate is shown. Add an E2 result to enable adjustment.</string>
-    <string name="calibration_pk_global_input_invalid_title">Check an E2 result</string>
-    <string name="calibration_pk_global_input_invalid_body">A blood-test value cannot be used for adjustment, so the population estimate is shown. Correct or exclude the flagged result.</string>
     <string name="calibration_pk_global_numeric_failure_title">Couldn’t update from your labs</string>
     <string name="calibration_pk_global_numeric_failure_body">A calculation didn’t complete, so the population estimate was kept. Try again after a data or model update.</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_label_population">Population</string>
     <string name="calibration_pk_route_label_adjusted">Route-adjusted</string>
-    <string name="calibration_pk_route_tag_no_supporting_labs">no supporting labs</string>
+    <string name="calibration_pk_route_tag_no_supporting_labs">no lab signal</string>
     <string name="calibration_pk_route_tag_numeric_failure">adjustment unavailable</string>
     <string name="calibration_pk_route_tag_provisional">limited confidence</string>
-    <string name="calibration_pk_route_reason_no_supporting_labs">No lab result so far provides much of its signal from this route, so it uses the population estimate.</string>
+    <string name="calibration_pk_route_reason_no_supporting_labs">No usable lab result carries any signal from this route, so it uses the population estimate.</string>
     <string name="calibration_pk_reason_display_scale_exceeded">The adjustment implied for this route is outside its usual range. Check lab and treatment records.</string>
     <string name="calibration_pk_route_reason_numeric_failure">A calculation didn’t complete for this route.</string>
     <string name="calibration_pk_route_reason_provisional">Adjusted for this route, but the adjustment is still uncertain.</string>
@@ -1140,6 +1138,7 @@
     <string name="calibration_pk_reason_posterior_mode_ambiguous">The results support more than one possible adjustment; the best-fitting one is shown.</string>
     <string name="calibration_pk_reason_unreviewed_outlier">A flagged result disagrees with this route’s adjustment. Review it, or exclude it if it isn’t comparable.</string>
     <string name="calibration_pk_reason_extreme_scale_three_labs">A large adjustment needs at least three supporting labs.</string>
+    <string name="calibration_pk_reason_no_supporting_labs">No lab draws much of its signal from this route, so its adjustment mostly follows the population prior.</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">Population estimate</string>
@@ -1153,7 +1152,7 @@
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">Lab adjustment</string>
     <string name="calibration_pk_status_population_title">Using the population estimate</string>
-    <string name="calibration_pk_status_population_body">No route has enough supporting labs to adjust yet. This is the same model curve shown for everyone.</string>
+    <string name="calibration_pk_status_population_body">No usable lab result touches any route yet. This is the same model curve shown for everyone.</string>
     <string name="calibration_pk_status_adjusted_title">Lab-adjusted treatment estimate</string>
     <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement—and the app didn’t verify the premises you confirmed.</string>
     <string name="calibration_pk_retry">Try again</string>
@@ -1213,6 +1212,8 @@
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_invalid_title">This E2 result can’t be used for adjustment</string>
+    <string name="calibration_pk_lab_ignored_numeric_note">Not used for adjustment: the model couldn’t be evaluated at this collection time.</string>
+    <string name="calibration_pk_lab_ignored_signal_note">Not used for adjustment: the model expects almost no treatment-derived E2 at this collection time.</string>
     <string name="calibration_pk_lab_invalid_body">Enter a value greater than zero, or exclude it from adjustment. If the report says “below the quantification limit,” keep the original report.</string>
     <string name="calibration_pk_lab_invalid_exclude">Exclude</string>
     <string name="calibration_pk_lab_invalid_correct">Correct value</string>
@@ -1221,14 +1222,13 @@
     <string name="calibration_pk_lab_outlier_exclude">Exclude from adjustment</string>
     <string name="calibration_pk_lab_excluded_note">Excluded from adjustment.</string>
     <string name="calibration_pk_lab_reinclude">Include again</string>
-    <string name="calibration_pk_review_action_rejected">Couldn’t apply this change—your records changed. Try again.</string>
+    <string name="calibration_pk_review_action_rejected">Couldn’t save this change. Try again.</string>
     <string name="medical_disclaimer_lab_adjustment">Lab adjustment produces a treatment-derived model estimate, not a verified hormone level or dosing advice—it does not replace lab tests or your clinician’s guidance.</string>
 
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">Chart unavailable for this view</string>
     <string name="calibration_pk_chart_unavailable_body">A calculation didn’t complete, so a possibly misleading line isn’t drawn here. Your saved adjustments are unchanged.</string>
     <string name="calibration_pk_band_unavailable_note">The adjusted curve can be shown, but its shaded uncertainty range couldn’t be calculated for this view.</string>
-    <string name="calibration_pk_chart_fallback_note">%1$s is shown with the population estimate in this range—the saved adjustment is unchanged, but couldn’t be rendered here.</string>
     <string name="calibration_pk_band_legend">68% / 95% range</string>
     <string name="calibration_pk_band_a11y_summary">The center line combines lab-adjusted contributions for supported routes with population contributions for the other routes. The shaded areas show approximate ranges of lab values the model could produce, including uncertainty in route adjustments and ordinary result variability.</string>
 

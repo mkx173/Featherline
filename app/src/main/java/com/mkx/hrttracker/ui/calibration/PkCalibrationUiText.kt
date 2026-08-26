@@ -28,9 +28,7 @@ val PkCalibrationGlobalState.statusTitleRes: Int?
         PkCalibrationGlobalState.READY -> null
         PkCalibrationGlobalState.NO_USABLE_LABS ->
             R.string.calibration_pk_global_no_usable_labs_title
-        PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
-            R.string.calibration_pk_global_input_invalid_title
-        PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE ->
+        PkCalibrationGlobalState.NUMERIC_FAILURE ->
             R.string.calibration_pk_global_numeric_failure_title
     }
 
@@ -40,9 +38,7 @@ val PkCalibrationGlobalState.statusBodyRes: Int?
         PkCalibrationGlobalState.READY -> null
         PkCalibrationGlobalState.NO_USABLE_LABS ->
             R.string.calibration_pk_global_no_usable_labs_body
-        PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
-            R.string.calibration_pk_global_input_invalid_body
-        PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE ->
+        PkCalibrationGlobalState.NUMERIC_FAILURE ->
             R.string.calibration_pk_global_numeric_failure_body
     }
 
@@ -50,7 +46,7 @@ val PkCalibrationGlobalState.statusBodyRes: Int?
 @get:StringRes
 val PkRouteCalibrationDisplayState.labelRes: Int
     get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS,
+        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
         PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
         -> R.string.calibration_pk_route_label_population
 
@@ -63,7 +59,7 @@ val PkRouteCalibrationDisplayState.labelRes: Int
 @get:StringRes
 val PkRouteCalibrationDisplayState.tagRes: Int?
     get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
+        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL ->
             R.string.calibration_pk_route_tag_no_supporting_labs
         PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
             R.string.calibration_pk_route_tag_numeric_failure
@@ -76,7 +72,7 @@ val PkRouteCalibrationDisplayState.tagRes: Int?
 @get:StringRes
 val PkRouteCalibrationDisplayState.reasonRes: Int
     get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
+        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL ->
             R.string.calibration_pk_route_reason_no_supporting_labs
         PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
             R.string.calibration_pk_route_reason_numeric_failure
@@ -90,7 +86,7 @@ val PkRouteCalibrationDisplayState.reasonRes: Int
 @get:StringRes
 val PkRouteCalibrationDisplayState.nextStepRes: Int
     get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
+        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL ->
             R.string.calibration_pk_route_next_no_supporting_labs
         PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
             R.string.calibration_pk_route_next_numeric_failure
@@ -100,14 +96,12 @@ val PkRouteCalibrationDisplayState.nextStepRes: Int
             R.string.calibration_pk_route_next_calibrated
     }
 
-/**
- * Optional per-reason detail line (handoff §5.4). Every warning reason has a
- * line — under warn-only classification they are the whole story of a
- * provisional row. Null where the state-level copy already says everything.
- */
+/** Per-reason detail line: under warn-only classification these are the whole story of a provisional row. */
 @get:StringRes
-val PkCalibrationReason.detailRes: Int?
+val PkCalibrationReason.detailRes: Int
     get() = when (this) {
+        PkCalibrationReason.NO_SUPPORTING_LABS ->
+            R.string.calibration_pk_reason_no_supporting_labs
         PkCalibrationReason.DISPLAY_SCALE_EXCEEDED ->
             R.string.calibration_pk_reason_display_scale_exceeded
         PkCalibrationReason.INSUFFICIENT_DRUG_SIGNAL_CONTRAST ->
@@ -122,11 +116,4 @@ val PkCalibrationReason.detailRes: Int?
             R.string.calibration_pk_reason_unreviewed_outlier
         PkCalibrationReason.EXTREME_SCALE_REQUIRES_THREE_SUPPORTING_LABS ->
             R.string.calibration_pk_reason_extreme_scale_three_labs
-
-        PkCalibrationReason.NO_USABLE_LABS,
-        PkCalibrationReason.SHARED_INPUT_INVALID,
-        PkCalibrationReason.NO_SUPPORTING_LABS,
-        PkCalibrationReason.BAND_NUMERIC_FAILURE,
-        PkCalibrationReason.NUMERIC_FAILURE,
-        -> null
     }

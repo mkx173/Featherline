@@ -22,15 +22,6 @@ The generated report inventories Gradle dependencies. These entries add explicit
 implementation notes for critical dependencies and cover copied, adapted, or
 design-derived material that Gradle cannot detect.
 
-### Java JSON Canonicalization
-
-Calibration trust and review digests use the RFC 8785 Java implementation published
-as `io.github.erdtman:java-json-canonicalization:1.1`.
-
-- License: Apache License, Version 2.0
-- Source: [java-json-canonicalization](https://github.com/erdtman/java-json-canonicalization)
-- Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
-
 ### Hipparchus Core
 
 The deterministic calibration solver uses the root-refinement API, and the

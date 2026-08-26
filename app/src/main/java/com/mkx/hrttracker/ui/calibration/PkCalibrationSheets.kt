@@ -283,6 +283,15 @@ private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
                 ),
             )
         }
+        // Warn-only: every reason the fit raised is shown; the adjustment is
+        // applied regardless and the user decides what to make of it.
+        row.reasons.forEach { reason ->
+            PkCalibrationRouteDetailLine(
+                iconRes = R.drawable.ic_error_outline,
+                text = stringResource(reason.detailRes),
+                tint = MaterialTheme.colorScheme.tertiary,
+            )
+        }
         PkCalibrationRouteDetailLine(
             iconRes = R.drawable.ic_check_circle,
             text = stringResource(row.displayState.nextStepRes),

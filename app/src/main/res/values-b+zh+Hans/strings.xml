@@ -1038,18 +1038,16 @@
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_usable_labs_title">添加一条 E2 检测结果</string>
     <string name="calibration_pk_global_no_usable_labs_body">目前还没有可用的 E2 血液检测结果，因此显示群体估算。添加一条 E2 检测结果即可启用调整。</string>
-    <string name="calibration_pk_global_input_invalid_title">请检查一条 E2 检测结果</string>
-    <string name="calibration_pk_global_input_invalid_body">有一条血液检测数值无法用于调整，因此当前显示群体估算。请更正或排除被标记的结果。</string>
     <string name="calibration_pk_global_numeric_failure_title">无法根据您的检测结果更新</string>
     <string name="calibration_pk_global_numeric_failure_body">有一项计算未能完成，因此保留了群体估算。请在数据或模型更新后重试。</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_label_population">群体估算</string>
     <string name="calibration_pk_route_label_adjusted">已按途径调整</string>
-    <string name="calibration_pk_route_tag_no_supporting_labs">暂无支持性结果</string>
+    <string name="calibration_pk_route_tag_no_supporting_labs">暂无检测信号</string>
     <string name="calibration_pk_route_tag_numeric_failure">调整不可用</string>
     <string name="calibration_pk_route_tag_provisional">置信度有限</string>
-    <string name="calibration_pk_route_reason_no_supporting_labs">目前还没有检测结果的信号主要来自该途径，因此该途径使用群体估算。</string>
+    <string name="calibration_pk_route_reason_no_supporting_labs">目前没有可用的检测结果带有来自该途径的信号，因此该途径使用群体估算。</string>
     <string name="calibration_pk_reason_display_scale_exceeded">该途径推算出的调整超出了常见范围。请检查检测与用药记录。</string>
     <string name="calibration_pk_route_reason_numeric_failure">该途径的一项计算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已对该途径进行调整，但调整仍不确定。</string>
@@ -1066,6 +1064,7 @@
     <string name="calibration_pk_reason_posterior_mode_ambiguous">结果支持不止一种可能的调整；当前显示拟合最好的一种。</string>
     <string name="calibration_pk_reason_unreviewed_outlier">一条被标记的结果与该途径的调整不一致。请复查该结果；如果不可比，请将其排除。</string>
     <string name="calibration_pk_reason_extreme_scale_three_labs">较大的调整至少需要三条支持性检测结果。</string>
+    <string name="calibration_pk_reason_no_supporting_labs">没有检测结果的信号主要来自该途径，因此其调整大多沿用群体先验。</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">群体估算</string>
@@ -1078,7 +1077,7 @@
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">检测调整</string>
     <string name="calibration_pk_status_population_title">正在使用群体估算</string>
-    <string name="calibration_pk_status_population_body">尚无途径拥有足够的支持性检测结果来进行调整。当前显示的是与所有人相同的模型曲线。</string>
+    <string name="calibration_pk_status_population_body">尚无可用的检测结果涉及任何途径。当前显示的是与所有人相同的模型曲线。</string>
     <string name="calibration_pk_status_adjusted_title">已按检测调整的治疗估算</string>
     <string name="calibration_pk_status_adjusted_body">已根据您的检测结果对%1$s进行调整；其余途径使用群体估算。这仍是估算值而非实测值——应用并未核实您所确认的前提条件。</string>
     <string name="calibration_pk_retry">重试</string>
@@ -1136,6 +1135,8 @@
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_invalid_title">这条 E2 结果无法用于调整</string>
+    <string name="calibration_pk_lab_ignored_numeric_note">未用于调整：模型无法在该采样时间进行计算。</string>
+    <string name="calibration_pk_lab_ignored_signal_note">未用于调整：模型预计该采样时间几乎没有来自治疗的 E2。</string>
     <string name="calibration_pk_lab_invalid_body">请输入大于零的数值，或将其排除出调整。如果报告注明“低于定量限”，请保留原始报告。</string>
     <string name="calibration_pk_lab_invalid_exclude">排除</string>
     <string name="calibration_pk_lab_invalid_correct">更正数值</string>
@@ -1144,14 +1145,13 @@
     <string name="calibration_pk_lab_outlier_exclude">排除出调整</string>
     <string name="calibration_pk_lab_excluded_note">已排除出调整。</string>
     <string name="calibration_pk_lab_reinclude">重新纳入</string>
-    <string name="calibration_pk_review_action_rejected">无法应用此更改——您的记录已发生变化，请重试。</string>
+    <string name="calibration_pk_review_action_rejected">无法保存此更改，请重试。</string>
     <string name="medical_disclaimer_lab_adjustment">检测调整产生的是基于治疗记录的模型估算值，不是经过验证的激素水平或用药建议——不能替代检测或医生的指导。</string>
 
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">此视图下图表不可用</string>
     <string name="calibration_pk_chart_unavailable_body">有一项计算未能完成，为避免误导，此处不绘制曲线。您已保存的调整不受影响。</string>
     <string name="calibration_pk_band_unavailable_note">可以显示调整后的曲线，但此视图的阴影不确定范围无法计算。</string>
-    <string name="calibration_pk_chart_fallback_note">在此范围内%1$s以群体估算显示——已保存的调整不受影响，只是无法在此渲染。</string>
     <string name="calibration_pk_band_legend">68% / 95% 范围</string>
     <string name="calibration_pk_band_a11y_summary">中心线由受支持途径的检测调整贡献与其余途径的群体估算贡献组合而成。阴影区域表示模型可能产生的检测值的大致范围，包含途径调整的不确定性和正常的结果波动。</string>
 

@@ -1,26 +1,18 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
-import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
-import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
-import com.mkx.hrttracker.model.bloodtest.BloodTestResult
-import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationConfig
-import com.mkx.hrttracker.model.pk.PkCalibrationE2LabSource
-import com.mkx.hrttracker.model.pk.PkCalibrationEffectiveDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
-import com.mkx.hrttracker.model.pk.PkCalibrationEngineEvaluation
+import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
-import com.mkx.hrttracker.model.pk.PkCalibrationIdentityPolicy
-import com.mkx.hrttracker.model.pk.PkCalibrationInputSnapshot
-import com.mkx.hrttracker.model.pk.PkCalibrationMedicationEventSource
+import com.mkx.hrttracker.model.pk.PkCalibrationInput
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkCalibrationScopeInputSnapshot
 import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.pk.PkCompound
 import com.mkx.hrttracker.model.pk.PkDoseEvent
@@ -41,15 +33,10 @@ internal object PkCalibrationDebugSyntheticScenarios {
     fun buildRenderFaultIfSupported(
         scenario: PkCalibrationDebugScenario,
     ): PkCalibrationDebugSourceResult? {
-        if (!scenario.centralUnavailable && !scenario.bandUnavailable &&
-            scenario.routeRenderFallback == null
-        ) {
-            return null
-        }
+        if (!scenario.centralUnavailable && !scenario.bandUnavailable) return null
         val baseScenario = PkCalibrationDebugScenario.create(
             globalState = scenario.globalState,
             routeStateByRoute = scenario.routeStateByRoute,
-            routeRenderFallback = null,
             bandUnavailable = false,
             centralUnavailable = false,
             outlierRoute = scenario.outlierRoute,
@@ -129,19 +116,18 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private fun buildPopulationOnly(
         scenario: PkCalibrationDebugScenario,
     ): PkCalibrationDebugSnapshot? {
-        val lab = createLab(
+        val lab = PkCalibrationLab(
             resultId = debugUuid(20),
             collectedAtEpochMillis = OriginMillis + 8 * HourMillis,
             valuePgml = 100.0,
-        ) ?: return null
+        )
         val domain = PkChartDomain.create(
             rangeStartEpochMillis = OriginMillis,
             rangeEndEpochMillis = OriginMillis + 24 * HourMillis,
             samplingIntervalMillis = 6 * HourMillis,
-            chartGridVersion = DebugChartGridVersion,
             protectedKnotEpochMillis = listOf(lab.collectedAtEpochMillis),
         ) ?: return null
-        val fixture = bindFixture(listOf(lab), emptyList(), domain) ?: return null
+        val fixture = bindFixture(listOf(lab), emptyList(), domain)
         return evaluateFixture(
             fixture = fixture,
             scenario = scenario,
@@ -173,14 +159,14 @@ internal object PkCalibrationDebugSyntheticScenarios {
             timeH = 0.0,
             doseMg = 2.0,
             compound = PkCompound.EB,
-        ) ?: return null
+        )
         val oral = createEvent(
             id = debugUuid(11),
             route = PkRoute.ORAL,
             timeH = MixedOralDoseTimeH,
             doseMg = 10.0,
             compound = PkCompound.E2,
-        ) ?: return null
+        )
         val fixture = syntheticFixture(
             events = listOf(injection, oral),
             labs = listOf(
@@ -224,7 +210,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
             timeH = 0.0,
             doseMg = 2.0,
             compound = PkCompound.E2,
-        ) ?: return null
+        )
         val fixture = syntheticFixture(
             events = listOf(oral),
             labs = listOf(
@@ -279,7 +265,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
                 .filterNot { result -> result.route == PkCalibrationRoute.INJECTION }
                 .any { result ->
                     result.displayState !=
-                            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
+                            PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL
                 }
         ) {
             return null
@@ -299,7 +285,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
             timeH = 0.0,
             doseMg = 2.0,
             compound = PkCompound.EB,
-        ) ?: return null
+        )
         return syntheticFixture(
             events = listOf(event),
             labs = timesH.indices.map { index ->
@@ -318,12 +304,11 @@ internal object PkCalibrationDebugSyntheticScenarios {
     }
 
     private fun syntheticFixture(
-        events: List<PkCalibrationMedicationEventSource>,
+        events: List<PkDoseEvent>,
         labs: List<SyntheticLabSpec>,
     ): SyntheticFixture? {
         if (events.isEmpty() || labs.isEmpty()) return null
-        val forward = PkE2ForwardModel.create(events.map { source -> source.event }, BodyWeightKg)
-            ?: return null
+        val forward = PkE2ForwardModel.create(events, BodyWeightKg) ?: return null
         val sources = labs.map { spec ->
             val breakdown = forward.breakdownAt(spec.timeH) ?: return null
             val dominant = breakdown.byRouteDrugPgml[spec.route]
@@ -333,26 +318,21 @@ internal object PkCalibrationDebugSyntheticScenarios {
             val otherRoutes = breakdown.totalDrugPgml - dominant
             val observed = otherRoutes + dominant * exp(spec.qLogRatio)
             if (!observed.isFinite() || observed <= 0.0) return null
-            createLab(
+            PkCalibrationLab(
                 resultId = spec.resultId,
                 collectedAtEpochMillis = epochMillisAt(spec.timeH) ?: return null,
                 valuePgml = observed,
-            ) ?: return null
+            )
         }
         val maximumTimeH = maxOf(
             labs.maxOf(SyntheticLabSpec::timeH),
-            events.maxOf { source -> source.event.timeH },
+            events.maxOf(PkDoseEvent::timeH),
         )
         val domain = PkChartDomain.create(
-            rangeStartEpochMillis = sources.minOf(
-                PkCalibrationE2LabSource::collectedAtEpochMillis
-            ),
+            rangeStartEpochMillis = sources.minOf(PkCalibrationLab::collectedAtEpochMillis),
             rangeEndEpochMillis = epochMillisAt(maximumTimeH + 24.0) ?: return null,
             samplingIntervalMillis = 24 * HourMillis,
-            chartGridVersion = DebugChartGridVersion,
-            protectedKnotEpochMillis = sources.map(
-                PkCalibrationE2LabSource::collectedAtEpochMillis
-            ),
+            protectedKnotEpochMillis = sources.map(PkCalibrationLab::collectedAtEpochMillis),
         ) ?: return null
         return bindFixture(sources, events, domain)
     }
@@ -412,71 +392,23 @@ internal object PkCalibrationDebugSyntheticScenarios {
         )
     }
 
-    private fun PkCalibrationEngineEvaluation.matchesReview(
+    private fun PkCalibrationEvaluation.matchesReview(
         resultId: UUID?,
         disposition: E2CalibrationDisposition?,
     ): Boolean {
         if (resultId == null || disposition == null) return true
-        val evidence = readyEvidence ?: return false
+        val evidence = evidence ?: return false
         return when (disposition) {
-            E2CalibrationDisposition.AUTO -> evidence.included
-                .singleOrNull { item -> item.resultId == resultId }
-                ?.effectiveDisposition == PkCalibrationEffectiveDisposition.AUTO
-
-            E2CalibrationDisposition.EXCLUDED -> evidence.excluded
-                .singleOrNull { item -> item.resultId == resultId }
-                ?.effectiveDisposition == PkCalibrationEffectiveDisposition.EXCLUDED
+            E2CalibrationDisposition.AUTO -> evidence.included.any { it.resultId == resultId }
+            E2CalibrationDisposition.EXCLUDED -> resultId in evidence.input.excludedLabIds
         }
     }
 
     private fun bindFixture(
-        labs: List<PkCalibrationE2LabSource>,
-        events: List<PkCalibrationMedicationEventSource>,
+        labs: List<PkCalibrationLab>,
+        events: List<PkDoseEvent>,
         domain: PkChartDomain,
-    ): SyntheticFixture? {
-        val input = PkCalibrationInputSnapshot.create(
-            labs = labs,
-            medicationEvents = events,
-            forwardTimeOriginEpochMillis = OriginMillis,
-            resolvedCurrentWeightKg = BodyWeightKg,
-            forwardModelVersion = DebugForwardModelVersion,
-            calibrationModelVersion = DebugCalibrationModelVersion,
-        ) ?: return null
-        return SyntheticFixture(input, domain)
-    }
-
-    private fun createLab(
-        resultId: UUID,
-        collectedAtEpochMillis: Long,
-        valuePgml: Double,
-    ): PkCalibrationE2LabSource? {
-        val result = BloodTestResult(
-            uuid = resultId,
-            createdAt = Instant.EPOCH,
-            displayOrder = 0,
-            analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
-            value = valuePgml,
-            unitSnapshot = SourceUnitSnapshot,
-            canonicalValue = valuePgml,
-        )
-        val panel = BloodTestPanel(
-            uuid = UUID(DebugUuidMost, resultId.leastSignificantBits + 1_000),
-            collectedAt = Instant.ofEpochMilli(collectedAtEpochMillis),
-            collectedAtTimeZoneId = "UTC",
-            notes = null,
-            timeSinceLastEstradiolDoseMillis = null,
-            timeSinceLastTestosteroneDoseMillis = null,
-            results = listOf(result),
-            createdAt = Instant.EPOCH,
-            updatedAt = Instant.EPOCH,
-        )
-        return PkCalibrationE2LabSource.create(
-            panel = panel,
-            result = result,
-            analyteId = DebugAnalyteId,
-            unitId = DebugUnitId,
-        )
-    }
+    ): SyntheticFixture = SyntheticFixture(labs, events, domain)
 
     private fun createEvent(
         id: UUID,
@@ -484,25 +416,15 @@ internal object PkCalibrationDebugSyntheticScenarios {
         timeH: Double,
         doseMg: Double,
         compound: PkCompound,
-    ): PkCalibrationMedicationEventSource? {
-        val event = PkDoseEvent(
-            id = id,
-            sourceGroupUuid = null,
-            hormone = PkHormone.ESTRADIOL,
-            route = route,
-            timeH = timeH,
-            doseMg = doseMg,
-            compound = compound,
-        )
-        return PkCalibrationMedicationEventSource.create(
-            event = event,
-            epochMillis = epochMillisAt(timeH) ?: return null,
-            eventTypeId = EventTypeIds.getValue(route),
-            hormoneId = DebugHormoneId,
-            routeId = RouteIds.getValue(route),
-            compoundId = CompoundIds.getValue(compound),
-        )
-    }
+    ): PkDoseEvent = PkDoseEvent(
+        id = id,
+        sourceGroupUuid = null,
+        hormone = PkHormone.ESTRADIOL,
+        route = route,
+        timeH = timeH,
+        doseMg = doseMg,
+        compound = compound,
+    )
 
     private fun epochMillisAt(timeH: Double): Long? {
         if (!timeH.isFinite()) return null
@@ -529,8 +451,7 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private fun PkCalibrationRenderResult.isHealthyFor(
         result: PkCalibrationResult,
     ): Boolean {
-        if (centralCurve.isEmpty() || renderReasons.isNotEmpty() ||
-            routeRenderFallbacks.isNotEmpty() || bandReasons.isNotEmpty() ||
+        if (centralCurve.isEmpty() ||
             effectivePromotedRoutes != result.promotedRoutes ||
             effectiveDisplayParams != result.displayParams
         ) {
@@ -555,15 +476,20 @@ internal object PkCalibrationDebugSyntheticScenarios {
         }
 
     private data class SyntheticFixture(
-        val input: PkCalibrationInputSnapshot,
+        val labs: List<PkCalibrationLab>,
+        val events: List<PkDoseEvent>,
         val domain: PkChartDomain,
     ) {
-        fun evaluate(metadata: List<E2CalibrationMetadata>): PkCalibrationEngineEvaluation {
+        fun evaluate(metadata: List<E2CalibrationMetadata>): PkCalibrationEvaluation {
             return PkCalibrationEngine.evaluate(
-                input = input,
-                metadata = metadata,
-                identityPolicy = IdentityPolicy,
-                config = ResearchConfig,
+                PkCalibrationInput(
+                    labs = labs,
+                    doseEvents = events,
+                    originEpochMillis = OriginMillis,
+                    weightKg = BodyWeightKg,
+                    metadata = metadata,
+                    config = ResearchConfig,
+                )
             )
         }
     }
@@ -592,55 +518,8 @@ internal object PkCalibrationDebugSyntheticScenarios {
     private const val MixedOralDoseTimeH = 480.0
     private const val MixedOralLabTimeH = 480.75
     private const val DebugUuidMost = 0x44454255474c4142L
-    private const val DebugAnalyteId = "debug:analyte/e2/v1"
-    private const val DebugHormoneId = "debug:hormone/estradiol/v1"
-    private const val DebugUnitId = "debug:unit/pg-ml/v1"
-    private const val SourceUnitSnapshot = "pg_ml"
-    private const val DebugPolicyVersion = "debug:scope-policy/v1"
-    private const val DebugIssuerId = "debug:issuer/synthetic/v1"
-    private const val DebugProvenanceRef = "urn:debug:scope-provenance:v1"
-    private const val DebugForwardModelVersion = "debug:pk-forward/v1"
-    private const val DebugCalibrationModelVersion = "debug:route-calibration/v10"
-    private const val DebugChartGridVersion = "debug:pk-chart-grid/v1"
-
-    private val EventTypeIds = linkedMapOf(
-        PkRoute.INJECTION to "debug:event/injection-dose/v1",
-        PkRoute.PATCH_APPLY to "debug:event/patch-apply/v1",
-        PkRoute.PATCH_REMOVE to "debug:event/patch-remove/v1",
-        PkRoute.GEL to "debug:event/gel-dose/v1",
-        PkRoute.ORAL to "debug:event/oral-dose/v1",
-        PkRoute.SUBLINGUAL to "debug:event/sublingual-dose/v1",
-    )
-    private val RouteIds = linkedMapOf(
-        PkRoute.INJECTION to "injection",
-        PkRoute.PATCH_APPLY to "patch",
-        PkRoute.PATCH_REMOVE to "patch",
-        PkRoute.GEL to "gel",
-        PkRoute.ORAL to "oral",
-        PkRoute.SUBLINGUAL to "sublingual",
-    )
-    private val CompoundIds = linkedMapOf(
-        PkCompound.E2 to "debug:compound/e2/v1",
-        PkCompound.EB to "debug:compound/eb/v1",
-        PkCompound.EV to "debug:compound/ev/v1",
-        PkCompound.EC to "debug:compound/ec/v1",
-        PkCompound.EN to "debug:compound/en/v1",
-        PkCompound.EU to "debug:compound/eu/v1",
-    )
-    private val ResearchConfig = requireNotNull(
-        PkCalibrationConfig.create(
-            drugMinInformativePgml = 1e-20,
-            rLog = 0.04,
-        )
-    )
-    private val IdentityPolicy = requireNotNull(
-        PkCalibrationIdentityPolicy.researchOrTest(
-            builtinE2AnalyteId = DebugAnalyteId,
-            targetHormoneId = DebugHormoneId,
-            unitIdBySourceSnapshot = mapOf(SourceUnitSnapshot to DebugUnitId),
-            eventTypeIdByRoute = EventTypeIds,
-            routeIdByRoute = RouteIds,
-            compoundIdByCompound = CompoundIds,
-        )
+    private val ResearchConfig = PkCalibrationConfig(
+        drugMinInformativePgml = 1e-20,
+        rLog = 0.04,
     )
 }

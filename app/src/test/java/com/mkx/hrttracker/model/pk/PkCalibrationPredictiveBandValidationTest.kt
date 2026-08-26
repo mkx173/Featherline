@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.model.pk
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -23,10 +22,7 @@ class PkCalibrationPredictiveBandValidationTest {
         )
         val actual = requireNotNull(PkPredictiveBandMath.logQuantiles(0.0, 1.0))
 
-        actual.gh16.zip(reference).forEach { (value, expected) ->
-            assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
-        }
-        actual.gh32.zip(reference).forEach { (value, expected) ->
+        actual.zip(reference).forEach { (value, expected) ->
             assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
         }
     }
@@ -34,15 +30,8 @@ class PkCalibrationPredictiveBandValidationTest {
     @Test
     fun nonzeroGaussianStudentTMixture_matchesIndependentFixedRootOracles() {
         // Independent SciPy 1.18 brentq roots over NumPy hermgauss nodes/weights for
-        // N(0, 0.09) + sqrt(0.04) * t4. These pin both production quadrature rules at a
-        // nontrivial mixture where the inverse CDF cannot delegate to TDistribution.
-        val expectedGh16 = listOf(
-            -0.8020340467183965,
-            -0.3900929896342467,
-            0.0,
-            0.39009298963424704,
-            0.802034046718398,
-        )
+        // N(0, 0.09) + sqrt(0.04) * t4, at a nontrivial mixture where the inverse
+        // CDF cannot delegate to TDistribution.
         val expectedGh32 = listOf(
             -0.8020633197413394,
             -0.3900545981908743,
@@ -52,20 +41,16 @@ class PkCalibrationPredictiveBandValidationTest {
         )
         val actual = requireNotNull(PkPredictiveBandMath.logQuantiles(0.09, 0.04))
 
-        actual.gh16.zip(expectedGh16).forEach { (value, expected) ->
-            assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
-        }
-        actual.gh32.zip(expectedGh32).forEach { (value, expected) ->
+        actual.zip(expectedGh32).forEach { (value, expected) ->
             assertEquals(expected, value, PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL)
         }
     }
 
     @Test
-    fun physicistsHermite16And32_matchFixedIndependentReferenceVectors() {
+    fun physicistsHermite32_matchesFixedIndependentReferenceVectors() {
         // Fixed numpy.polynomial.hermite.hermgauss reference vectors, normalized by sqrt(pi).
         // NumPy documents hermgauss as Gauss-Hermite quadrature for weight exp(-x^2).
-        assertRuleMatches(Gh16Nodes, Gh16Weights, PkCalibrationDefaults.BAND_GH_NODES)
-        assertRuleMatches(Gh32Nodes, Gh32Weights, PkCalibrationDefaults.BAND_GH_REFINEMENT_NODES)
+        assertRuleMatches(Gh32Nodes, Gh32Weights)
     }
 
     @Test
@@ -116,17 +101,15 @@ class PkCalibrationPredictiveBandValidationTest {
                     PkCalibrationRoute.INJECTION to 50.0,
                     PkCalibrationRoute.GEL to 80.0,
                 ),
-                covariance = requireNotNull(
-                    PkCalibrationPromotedCovariance.create(
-                        routes = listOf(
-                            PkCalibrationRoute.INJECTION,
-                            PkCalibrationRoute.GEL,
-                        ),
-                        values = listOf(
-                            listOf(0.04, -0.01),
-                            listOf(-0.01, 0.09),
-                        ),
-                    )
+                covariance = PkCalibrationPromotedCovariance(
+                    routes = listOf(
+                        PkCalibrationRoute.INJECTION,
+                        PkCalibrationRoute.GEL,
+                    ),
+                    values = listOf(
+                        listOf(0.04, -0.01),
+                        listOf(-0.01, 0.09),
+                    ),
                 ),
                 promotedRoutes = listOf(
                     PkCalibrationRoute.INJECTION,
@@ -139,18 +122,6 @@ class PkCalibrationPredictiveBandValidationTest {
             multiRouteOracle + 2.0 * (50.0 / 200.0) * (80.0 / 200.0) * -0.01,
             negativeCoupling,
             1e-15,
-        )
-    }
-
-    @Test
-    fun gh16Gh32Convergence_acceptsBoundaryAndRejectsOneBitAboveIt() {
-        val exactAbsoluteBoundary = PkCalibrationDefaults.BAND_VALIDATE_ABS_PGML
-        assertTrue(bandQuadratureConverges(exactAbsoluteBoundary, 0.0))
-        assertFalse(
-            bandQuadratureConverges(
-                Math.nextUp(exactAbsoluteBoundary),
-                0.0,
-            )
         )
     }
 
@@ -185,8 +156,7 @@ class PkCalibrationPredictiveBandValidationTest {
         )
         val production = requireNotNull(
             PkPredictiveBandMath.logQuantiles(effectiveVariance, rLog)
-        ).validatedRawQuantiles(total)
-        requireNotNull(production)
+        ).map { offset -> total * exp(offset) }
 
         val oracle = independentTwoRouteRawQuantiles(
             fixedRemainder = fixedRemainder,
@@ -197,9 +167,7 @@ class PkCalibrationPredictiveBandValidationTest {
             rLog = rLog,
         )
         production.zip(oracle).forEach { (actual, expected) ->
-            val normativeValidationBound = PkCalibrationDefaults.BAND_VALIDATE_ABS_PGML +
-                    PkCalibrationDefaults.BAND_VALIDATE_REL * abs(expected)
-            assertEquals(expected, actual, normativeValidationBound)
+            assertEquals(expected, actual, 0.05 + 1e-3 * abs(expected))
         }
     }
 
@@ -207,24 +175,21 @@ class PkCalibrationPredictiveBandValidationTest {
         varianceByRoute: Map<PkCalibrationRoute, Double>,
     ): PkCalibrationPromotedCovariance {
         val routes = PkCalibrationRoute.entries.filter(varianceByRoute::containsKey)
-        return requireNotNull(
-            PkCalibrationPromotedCovariance.create(
-                routes = routes,
-                values = routes.map { row ->
-                    routes.map { column ->
-                        if (row == column) varianceByRoute.getValue(row) else 0.0
-                    }
-                },
-            )
+        return PkCalibrationPromotedCovariance(
+            routes = routes,
+            values = routes.map { row ->
+                routes.map { column ->
+                    if (row == column) varianceByRoute.getValue(row) else 0.0
+                }
+            },
         )
     }
 
     private fun assertRuleMatches(
         expectedNodes: List<Double>,
         expectedWeights: List<Double>,
-        nodeCount: Int,
     ) {
-        val actual = requireNotNull(PkPredictiveBandMath.hermiteRuleForValidation(nodeCount))
+        val actual = PkPredictiveBandMath.hermiteRule
         assertEquals(expectedNodes.size, actual.nodes.size)
         assertEquals(expectedWeights.size, actual.weights.size)
         expectedNodes.zip(actual.nodes).forEach { (expected, value) ->
@@ -286,42 +251,6 @@ class PkCalibrationPredictiveBandValidationTest {
     private companion object {
         val Probabilities = listOf(0.025, 0.158655254, 0.5, 0.841344746, 0.975)
 
-        val Gh16Nodes = listOf(
-            -4.6887389393058188,
-            -3.8694479048601229,
-            -3.176999161979956,
-            -2.5462021578474814,
-            -1.9517879909162539,
-            -1.3802585391988809,
-            -0.8229514491446559,
-            -0.27348104613815249,
-            0.27348104613815249,
-            0.8229514491446559,
-            1.3802585391988809,
-            1.9517879909162539,
-            2.5462021578474814,
-            3.176999161979956,
-            3.8694479048601229,
-            4.6887389393058188,
-        )
-        val Gh16Weights = listOf(
-            1.4978147231618314e-10,
-            1.3094732162868187e-7,
-            1.5300032162487242e-5,
-            5.2598492657390935e-4,
-            0.0072669376011847428,
-            0.047284752354014033,
-            0.15833837275094964,
-            0.28656852123801202,
-            0.28656852123801202,
-            0.15833837275094964,
-            0.047284752354014033,
-            0.0072669376011847428,
-            5.2598492657390935e-4,
-            1.5300032162487242e-5,
-            1.3094732162868187e-7,
-            1.4978147231618314e-10,
-        )
         val Gh32Nodes = listOf(
             -7.1258139098307272,
             -6.4094981492696608,

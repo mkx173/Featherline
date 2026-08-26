@@ -336,14 +336,12 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
 }
 
 /**
- * Legend + informational note under the chart: the accessible band summary,
- * the band-only-failure warning (central line kept, §7), and the range-local
- * route fallback explanation (§6).
+ * Legend + informational note under the chart: the accessible band summary
+ * and the band-only-failure warning (central line kept, §7).
  */
 @Composable
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
     val bandUnavailable = pk.ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE
-    val fallbackRoutes = pk.ui.routeRenderFallbacks
     val bandSummary = stringResource(R.string.calibration_pk_band_a11y_summary)
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -383,17 +381,6 @@ internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
         if (bandUnavailable) {
             MainPkCalibrationNoteLine(
                 text = stringResource(R.string.calibration_pk_band_unavailable_note),
-            )
-        }
-        if (fallbackRoutes.isNotEmpty()) {
-            val appLocale = rememberAppLocale()
-            val names = fallbackRoutes
-                .map { route -> stringResource(route.applicationType.labelRes) }
-            val joinedNames = remember(names, appLocale) {
-                ListFormatter.getInstance(appLocale).format(names)
-            }
-            MainPkCalibrationNoteLine(
-                text = stringResource(R.string.calibration_pk_chart_fallback_note, joinedNames),
             )
         }
     }

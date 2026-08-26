@@ -1,145 +1,35 @@
 package com.mkx.hrttracker.model.pk
 
-import java.util.Collections
-
-/**
- * One explicit, immutable read of the semantic inputs consumed by calibration.
- *
- * Construction validates identities needed to represent every global result. The
- * evidence adapter remains responsible for semantic validation and deterministic
- * global-failure precedence (including unresolved or invalid Current Weight).
- */
-@ConsistentCopyVisibility
-data class PkCalibrationInputSnapshot private constructor(
-    val labs: List<PkCalibrationE2LabSource>,
-    val medicationEvents: List<PkCalibrationMedicationEventSource>,
-    val forwardTimeOriginEpochMillis: Long,
-    val resolvedCurrentWeightKg: Double?,
-    val forwardModelVersion: String,
-    val calibrationModelVersion: String,
-) {
-    companion object {
-        fun create(
-            labs: List<PkCalibrationE2LabSource>,
-            medicationEvents: List<PkCalibrationMedicationEventSource>,
-            forwardTimeOriginEpochMillis: Long,
-            resolvedCurrentWeightKg: Double?,
-            forwardModelVersion: String,
-            calibrationModelVersion: String,
-        ): PkCalibrationInputSnapshot? {
-            if (!forwardModelVersion.isStableAsciiIdentity() ||
-                !calibrationModelVersion.isStableAsciiIdentity()
-            ) {
-                return null
-            }
-            return PkCalibrationInputSnapshot(
-                labs = Collections.unmodifiableList(ArrayList(labs)),
-                medicationEvents = Collections.unmodifiableList(ArrayList(medicationEvents)),
-                forwardTimeOriginEpochMillis = forwardTimeOriginEpochMillis,
-                resolvedCurrentWeightKg = resolvedCurrentWeightKg,
-                forwardModelVersion = forwardModelVersion,
-                calibrationModelVersion = calibrationModelVersion,
-            )
-        }
-    }
-}
-
-/**
- * One immutable engine-issued evaluation. A READY instance atomically owns the solver result
- * and the exact canonical evidence/config/scope/review snapshot that produced it.
- */
-class PkCalibrationEngineEvaluation internal constructor(
+/** One immutable evaluation; a READY result owns the evidence that produced it. */
+class PkCalibrationEvaluation internal constructor(
     val result: PkCalibrationResult,
-    internal val readyEvidence: PkCalibrationEvidencePool?,
+    internal val evidence: PkCalibrationEvidencePool?,
 ) {
-    init {
-        require((result.globalState == PkCalibrationGlobalState.READY) == (readyEvidence != null))
-    }
+    val isReady: Boolean get() = evidence != null
 
-    val isReady: Boolean get() = readyEvidence != null
-
-    /**
-     * A non-READY evaluation returns null, leaving the chart consumer on its existing
-     * population projection. For a READY evaluation, numeric render failure is represented
-     * by a non-null NUMERIC_UNAVAILABLE result instead.
-     */
+    /** Null for a non-READY evaluation; numeric render failure is a NUMERIC_UNAVAILABLE result. */
     fun renderFor(domain: PkChartDomain): PkCalibrationRenderResult? {
         return PkCalibrationRenderer.render(this, domain)
     }
-
-    internal companion object {
-        fun notReady(result: PkCalibrationResult): PkCalibrationEngineEvaluation =
-            PkCalibrationEngineEvaluation(result, null)
-    }
 }
 
-/** Presentation-free facade for one complete, atomic calibration computation. */
+/** Presentation-free facade for one complete calibration computation. */
 object PkCalibrationEngine {
-    fun evaluate(
-        input: PkCalibrationInputSnapshot,
-        metadata: List<E2CalibrationMetadata>,
-        identityPolicy: PkCalibrationIdentityPolicy,
-        config: PkCalibrationConfig,
-    ): PkCalibrationEngineEvaluation {
-        return when (
-            val evidence = PkCalibrationEvidenceAdapter.build(
-                labs = input.labs,
-                medicationEvents = input.medicationEvents,
-                forwardTimeOriginEpochMillis = input.forwardTimeOriginEpochMillis,
-                resolvedCurrentWeightKg = input.resolvedCurrentWeightKg,
-                metadata = metadata,
-                identityPolicy = identityPolicy,
-                config = config,
-                forwardModelVersion = input.forwardModelVersion,
-                calibrationModelVersion = input.calibrationModelVersion,
+    fun evaluate(input: PkCalibrationInput): PkCalibrationEvaluation {
+        if (input.labs.isEmpty()) {
+            return PkCalibrationEvaluation(
+                PkCalibrationResult(PkCalibrationGlobalState.NO_USABLE_LABS),
+                null,
             )
-        ) {
-            is PkCalibrationEvidenceBuildResult.Ready -> {
-                val solved = PkCalibrationSolver.solve(evidence.pool)
-                if (solved != null) {
-                    PkCalibrationEngineEvaluation(solved, evidence.pool)
-                } else {
-                    PkCalibrationEngineEvaluation.notReady(
-                        failureResult(
-                            input,
-                            PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE,
-                            PkCalibrationReason.NUMERIC_FAILURE,
-                        )
-                    )
-                }
-            }
-
-            is PkCalibrationEvidenceBuildResult.Failed -> {
-                val (state, reason) = when (evidence.failure) {
-                    PkCalibrationEvidenceFailure.NO_USABLE_LABS ->
-                        PkCalibrationGlobalState.NO_USABLE_LABS to
-                                PkCalibrationReason.NO_USABLE_LABS
-
-                    PkCalibrationEvidenceFailure.SHARED_INPUT_INVALID ->
-                        PkCalibrationGlobalState.SHARED_INPUT_INVALID to
-                                PkCalibrationReason.SHARED_INPUT_INVALID
-
-                    PkCalibrationEvidenceFailure.SHARED_NUMERIC_FAILURE ->
-                        PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE to
-                                PkCalibrationReason.NUMERIC_FAILURE
-                }
-                PkCalibrationEngineEvaluation.notReady(failureResult(input, state, reason))
-            }
         }
-    }
-
-    private fun failureResult(
-        input: PkCalibrationInputSnapshot,
-        state: PkCalibrationGlobalState,
-        reason: PkCalibrationReason,
-    ): PkCalibrationResult {
-        return requireNotNull(
-            PkCalibrationResult.create(
-                globalState = state,
-                globalReasons = setOf(reason),
-                forwardModelVersion = input.forwardModelVersion,
-                calibrationModelVersion = input.calibrationModelVersion,
+        val evidence = PkCalibrationEvidenceAdapter.build(input)
+        val solved = evidence?.let(PkCalibrationSolver::solve)
+        if (evidence == null || solved == null) {
+            return PkCalibrationEvaluation(
+                PkCalibrationResult(PkCalibrationGlobalState.NUMERIC_FAILURE),
+                null,
             )
-        )
+        }
+        return PkCalibrationEvaluation(solved, evidence)
     }
 }

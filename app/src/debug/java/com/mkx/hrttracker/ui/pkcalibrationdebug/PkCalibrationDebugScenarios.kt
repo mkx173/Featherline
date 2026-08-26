@@ -1,10 +1,9 @@
 package com.mkx.hrttracker.ui.pkcalibrationdebug
 
-import com.mkx.hrttracker.model.pk.CanonicalDigest
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
-import com.mkx.hrttracker.model.pk.PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationPromotedCovariance
@@ -12,7 +11,6 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkCurvePoint
-import com.mkx.hrttracker.model.pk.PkPersonalParams
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
@@ -52,7 +50,6 @@ enum class PkCalibrationDebugSourceUnavailableReason {
 data class PkCalibrationDebugScenario private constructor(
     val globalState: PkCalibrationGlobalState,
     val routeStateByRoute: Map<PkCalibrationRoute, PkRouteCalibrationDisplayState>,
-    val routeRenderFallback: PkCalibrationRoute?,
     val bandUnavailable: Boolean,
     val centralUnavailable: Boolean,
     val outlierRoute: PkCalibrationRoute?,
@@ -63,7 +60,6 @@ data class PkCalibrationDebugScenario private constructor(
         requireNotNull(create(
             globalState = value,
             routeStateByRoute = routeStateByRoute,
-            routeRenderFallback = routeRenderFallback,
             bandUnavailable = bandUnavailable,
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute,
@@ -78,7 +74,6 @@ data class PkCalibrationDebugScenario private constructor(
     ): PkCalibrationDebugScenario? = create(
         globalState = PkCalibrationGlobalState.READY,
         routeStateByRoute = routeStateByRoute + (route to value),
-        routeRenderFallback = routeRenderFallback,
         bandUnavailable = bandUnavailable,
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute.takeUnless { it == route },
@@ -86,30 +81,8 @@ data class PkCalibrationDebugScenario private constructor(
         fixtureDisposition = PkCalibrationDebugFixtureDisposition.AUTO,
     )
 
-    fun withRouteRenderFallback(route: PkCalibrationRoute?): PkCalibrationDebugScenario {
-        val states = if (route != null && routeStateByRoute.getValue(route).isPopulationState()) {
-            routeStateByRoute + (route to PkRouteCalibrationDisplayState.LAB_CALIBRATED)
-        } else {
-            routeStateByRoute
-        }
-        return requireNotNull(create(
-            globalState = PkCalibrationGlobalState.READY,
-            routeStateByRoute = states,
-            routeRenderFallback = route,
-            bandUnavailable = bandUnavailable,
-            centralUnavailable = centralUnavailable,
-            outlierRoute = outlierRoute.takeUnless { it == route },
-            nonPositiveInput = false,
-            fixtureDisposition = if (outlierRoute == route) {
-                PkCalibrationDebugFixtureDisposition.AUTO
-            } else {
-                fixtureDisposition
-            },
-        ))
-    }
-
     fun withBandUnavailable(value: Boolean): PkCalibrationDebugScenario {
-        val states = if (value && routeStateByRoute.values.all { it.isPopulationState() }) {
+        val states = if (value && routeStateByRoute.values.all { it.isAdjusted.not() }) {
             routeStateByRoute +
                     (PkCalibrationRoute.INJECTION to
                             PkRouteCalibrationDisplayState.LAB_CALIBRATED)
@@ -119,7 +92,6 @@ data class PkCalibrationDebugScenario private constructor(
         return requireNotNull(create(
             globalState = PkCalibrationGlobalState.READY,
             routeStateByRoute = states,
-            routeRenderFallback = routeRenderFallback,
             bandUnavailable = value,
             centralUnavailable = centralUnavailable,
             outlierRoute = outlierRoute,
@@ -131,7 +103,6 @@ data class PkCalibrationDebugScenario private constructor(
     fun withCentralUnavailable(value: Boolean): PkCalibrationDebugScenario = requireNotNull(create(
         globalState = PkCalibrationGlobalState.READY,
         routeStateByRoute = routeStateByRoute,
-        routeRenderFallback = routeRenderFallback,
         bandUnavailable = bandUnavailable,
         centralUnavailable = value,
         outlierRoute = outlierRoute,
@@ -143,7 +114,6 @@ data class PkCalibrationDebugScenario private constructor(
         requireNotNull(create(
             globalState = PkCalibrationGlobalState.READY,
             routeStateByRoute = routeStateByRoute,
-            routeRenderFallback = routeRenderFallback.takeUnless { it == route },
             bandUnavailable = bandUnavailable,
             centralUnavailable = centralUnavailable,
             outlierRoute = route,
@@ -154,7 +124,6 @@ data class PkCalibrationDebugScenario private constructor(
     fun withNonPositiveInput(value: Boolean): PkCalibrationDebugScenario = requireNotNull(create(
         globalState = PkCalibrationGlobalState.READY,
         routeStateByRoute = routeStateByRoute,
-        routeRenderFallback = routeRenderFallback,
         bandUnavailable = bandUnavailable,
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute,
@@ -167,7 +136,6 @@ data class PkCalibrationDebugScenario private constructor(
     ): PkCalibrationDebugScenario = requireNotNull(create(
         globalState = globalState,
         routeStateByRoute = routeStateByRoute,
-        routeRenderFallback = routeRenderFallback,
         bandUnavailable = bandUnavailable,
         centralUnavailable = centralUnavailable,
         outlierRoute = outlierRoute,
@@ -180,7 +148,6 @@ data class PkCalibrationDebugScenario private constructor(
             globalState: PkCalibrationGlobalState = PkCalibrationGlobalState.READY,
             routeStateByRoute: Map<PkCalibrationRoute, PkRouteCalibrationDisplayState> =
                 populationRouteStates(),
-            routeRenderFallback: PkCalibrationRoute? = null,
             bandUnavailable: Boolean = false,
             centralUnavailable: Boolean = false,
             outlierRoute: PkCalibrationRoute? = null,
@@ -201,7 +168,6 @@ data class PkCalibrationDebugScenario private constructor(
             return PkCalibrationDebugScenario(
                 globalState = globalState,
                 routeStateByRoute = Collections.unmodifiableMap(canonicalStates),
-                routeRenderFallback = routeRenderFallback,
                 bandUnavailable = bandUnavailable,
                 centralUnavailable = centralUnavailable,
                 outlierRoute = outlierRoute,
@@ -245,7 +211,7 @@ data class PkCalibrationDebugScenario private constructor(
             PkCalibrationRoute,
             PkRouteCalibrationDisplayState,
         > = PkCalibrationRoute.entries.associateWith {
-            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
+            PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL
         }
     }
 }
@@ -293,14 +259,7 @@ class DefaultPkCalibrationDebugScenarioSource(
  * objects and are explicitly classified as contract vs fault fixtures in every snapshot.
  */
 internal object PkCalibrationDebugFixtures {
-    private const val DebugForwardModelVersion = "debug:pk-forward/v1"
-    private const val DebugCalibrationModelVersion = "debug:route-calibration/v10"
     private const val DAY_MILLIS = 24L * 60L * 60L * 1_000L
-    private val DomainDigest = requireNotNull(CanonicalDigest.create(
-        PK_CALIBRATION_RENDER_DOMAIN_DIGEST_SCHEMA,
-        "SHA-256",
-        "d".repeat(64),
-    ))
 
     fun build(
         scenario: PkCalibrationDebugScenario,
@@ -313,8 +272,7 @@ internal object PkCalibrationDebugFixtures {
             null
         }
         val isFaultFixture = scenario.centralUnavailable || scenario.bandUnavailable ||
-                scenario.routeRenderFallback != null ||
-                result.globalState == PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE ||
+                result.globalState == PkCalibrationGlobalState.NUMERIC_FAILURE ||
                 result.routeResults.any { routeResult ->
                     routeResult.displayState ==
                             PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
@@ -347,10 +305,7 @@ internal object PkCalibrationDebugFixtures {
         reviewDispositionByResultId: Map<UUID, E2CalibrationDisposition>,
         nowMillis: Long = System.currentTimeMillis(),
     ): PkCalibrationDebugSnapshot {
-        require(
-            scenario.centralUnavailable || scenario.bandUnavailable ||
-                    scenario.routeRenderFallback != null
-        )
+        require(scenario.centralUnavailable || scenario.bandUnavailable)
         return PkCalibrationDebugSnapshot(
             result = result,
             render = if (result.globalState == PkCalibrationGlobalState.READY) {
@@ -381,28 +336,15 @@ internal object PkCalibrationDebugFixtures {
     fun nonPositiveLabId(): UUID = UUID(DebugLabIdMsb, 6L)
 
     private fun buildResult(scenario: PkCalibrationDebugScenario): PkCalibrationResult {
-        val globalState = scenario.globalState
-        if (globalState != PkCalibrationGlobalState.READY) {
-            val reason = when (globalState) {
-                PkCalibrationGlobalState.NO_USABLE_LABS -> PkCalibrationReason.NO_USABLE_LABS
-                PkCalibrationGlobalState.SHARED_INPUT_INVALID ->
-                    PkCalibrationReason.SHARED_INPUT_INVALID
-                else -> PkCalibrationReason.NUMERIC_FAILURE
-            }
-            return requireNotNull(PkCalibrationResult.create(
-                globalState = globalState,
-                globalReasons = setOf(reason),
-                forwardModelVersion = DebugForwardModelVersion,
-                calibrationModelVersion = DebugCalibrationModelVersion,
-            ))
+        if (scenario.globalState != PkCalibrationGlobalState.READY) {
+            return PkCalibrationResult(globalState = scenario.globalState)
         }
-
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val state = when {
                 scenario.outlierRoute != route -> scenario.routeStateByRoute.getValue(route)
                 scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO ->
                     PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-                else -> PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS
+                else -> PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL
             }
             routeResult(
                 route = route,
@@ -411,46 +353,33 @@ internal object PkCalibrationDebugFixtures {
                         scenario.fixtureDisposition == PkCalibrationDebugFixtureDisposition.AUTO,
             )
         }
-        val promotedRoutes = routeResults
-            .filterNot { result -> result.displayState.isPopulationState() }
-            .map(PkRouteCalibrationResult::route)
-        val displayBetas = linkedMapOf<PkCalibrationRoute, Double>()
-        routeResults.forEach { routeResult ->
-            if (routeResult.route in promotedRoutes && routeResult.displayBeta != 0.0) {
-                displayBetas[routeResult.route] = routeResult.displayBeta
-            }
-        }
-        val promotedBetaCovariance = if (promotedRoutes.isEmpty()) {
-            null
-        } else {
-            val variances = promotedRoutes.map { route ->
-                requireNotNull(
-                    routeResults.first { item -> item.route == route }.laplaceVarianceBeta
-                )
-            }
-            requireNotNull(PkCalibrationPromotedCovariance.create(
-                routes = promotedRoutes,
-                values = List(promotedRoutes.size) { row ->
-                    List(promotedRoutes.size) { column ->
-                        if (row == column) variances[row] else 0.0
-                    }
-                },
-            ))
-        }
-        return requireNotNull(PkCalibrationResult.create(
+        val promoted = routeResults.filter { it.displayState.isAdjusted }
+        return PkCalibrationResult(
             globalState = PkCalibrationGlobalState.READY,
             routeResults = routeResults,
-            promotedRoutes = promotedRoutes,
-            displayParams = requireNotNull(PkPersonalParams.create(displayBetas)),
-            promotedBetaCovariance = promotedBetaCovariance,
-            invalidNonpositiveLabIds = if (scenario.nonPositiveInput) {
-                setOf(nonPositiveLabId())
+            promotedBetaCovariance = if (promoted.isEmpty()) {
+                null
             } else {
-                emptySet()
+                PkCalibrationPromotedCovariance(
+                    routes = promoted.map(PkRouteCalibrationResult::route),
+                    values = List(promoted.size) { row ->
+                        List(promoted.size) { column ->
+                            if (row == column) {
+                                val sd = requireNotNull(promoted[row].betaPosteriorSd)
+                                sd * sd
+                            } else {
+                                0.0
+                            }
+                        }
+                    },
+                )
             },
-            forwardModelVersion = DebugForwardModelVersion,
-            calibrationModelVersion = DebugCalibrationModelVersion,
-        ))
+            ignoredLabs = if (scenario.nonPositiveInput) {
+                mapOf(nonPositiveLabId() to PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE)
+            } else {
+                emptyMap()
+            },
+        )
     }
 
     private fun routeResult(
@@ -458,40 +387,24 @@ internal object PkCalibrationDebugFixtures {
         state: PkRouteCalibrationDisplayState,
         unreviewedOutlier: Boolean,
     ): PkRouteCalibrationResult {
-        val promoted = !state.isPopulationState()
+        val promoted = state.isAdjusted
         val fittedBeta = if (promoted) ln(1.25) else null
         val provisional = state == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-        val reasons = when (state) {
-            PkRouteCalibrationDisplayState.POPULATION_NO_SUPPORTING_LABS ->
-                setOf(PkCalibrationReason.NO_SUPPORTING_LABS)
-            PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
-                setOf(PkCalibrationReason.NUMERIC_FAILURE)
-            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL -> if (unreviewedOutlier) {
-                setOf(PkCalibrationReason.UNREVIEWED_OUTLIER)
-            } else {
-                setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE)
-            }
-            PkRouteCalibrationDisplayState.LAB_CALIBRATED -> emptySet()
+        val reasons = when {
+            !provisional -> emptySet()
+            unreviewedOutlier -> setOf(PkCalibrationReason.UNREVIEWED_OUTLIER)
+            else -> setOf(PkCalibrationReason.POSTERIOR_SD_TOO_WIDE)
         }
-        return requireNotNull(PkRouteCalibrationResult.create(
+        return PkRouteCalibrationResult(
             route = route,
-            fittedBeta = fittedBeta,
-            displayBeta = fittedBeta ?: 0.0,
-            betaPosteriorSd = fittedBeta?.let { if (provisional) 0.3 else 0.1 },
-            betaUncertaintyReduction = fittedBeta?.let { 0.5 },
-            laplaceVarianceBeta = fittedBeta?.let { if (provisional) 0.09 else 0.01 },
             displayState = state,
             reasons = reasons,
+            fittedBeta = fittedBeta,
+            betaPosteriorSd = fittedBeta?.let { if (provisional) 0.3 else 0.1 },
             supportingLabCount = if (promoted) 3 else 0,
-            drugSignalLogRange = fittedBeta?.let { 1.0 },
-            robustRmseLog = fittedBeta?.let { 0.1 },
             minStudentTWeight = fittedBeta?.let { if (unreviewedOutlier) 0.1 else 0.8 },
-            unreviewedOutlierLabIds = if (unreviewedOutlier) {
-                setOf(outlierId(route))
-            } else {
-                emptySet()
-            },
-        ))
+            unreviewedOutlierLabIds = if (unreviewedOutlier) setOf(outlierId(route)) else emptySet(),
+        )
     }
 
     private fun buildRender(
@@ -500,78 +413,46 @@ internal object PkCalibrationDebugFixtures {
         nowMillis: Long,
     ): PkCalibrationRenderResult {
         if (scenario.centralUnavailable) {
-            return requireNotNull(PkCalibrationRenderResult.create(
-                domainDigest = DomainDigest,
+            return PkCalibrationRenderResult(
                 renderState = PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                renderReasons = setOf(PkCalibrationReason.NUMERIC_FAILURE),
                 centralCurve = emptyList(),
                 bandState = PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
-            ))
+            )
         }
-
-        val routeRenderFallbacks = result.promotedRoutes
-            .filter { route -> route == scenario.routeRenderFallback }
-        val effectiveRoutes = result.promotedRoutes.filterNot(routeRenderFallbacks::contains)
-        val effectiveBetas = linkedMapOf<PkCalibrationRoute, Double>()
-        effectiveRoutes.forEach { route ->
-            result.displayParams.routeLogScale[route]?.let { beta ->
-                effectiveBetas[route] = beta
-            }
-        }
-        val effectiveParams = requireNotNull(PkPersonalParams.create(effectiveBetas))
-        // Phase-3 #9: forced curves span now ± 24 h so QA actually sees the
-        // band inside the chart window instead of at a fixed 2023 epoch.
+        // Forced curves span now ± 24 h so QA sees the band inside the chart window.
         val centralCurve = listOf(
-            requireNotNull(PkCurvePoint.create(nowMillis - DAY_MILLIS, 90.0)),
-            requireNotNull(PkCurvePoint.create(nowMillis, 120.0)),
-            requireNotNull(PkCurvePoint.create(nowMillis + DAY_MILLIS, 105.0)),
+            PkCurvePoint(nowMillis - DAY_MILLIS, 90.0),
+            PkCurvePoint(nowMillis, 120.0),
+            PkCurvePoint(nowMillis + DAY_MILLIS, 105.0),
         )
-        if (effectiveRoutes.isEmpty()) {
-            return requireNotNull(PkCalibrationRenderResult.create(
-                domainDigest = DomainDigest,
+        val promoted = result.promotedRoutes
+        if (promoted.isEmpty()) {
+            return PkCalibrationRenderResult(
                 renderState = PkCalibrationRenderState.POPULATION,
-                routeRenderFallbacks = routeRenderFallbacks,
                 centralCurve = centralCurve,
                 bandState = PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
-            ))
+            )
         }
-        val bandState = if (scenario.bandUnavailable) {
-            PkCalibrationBandState.NUMERIC_UNAVAILABLE
-        } else {
-            PkCalibrationBandState.READY
-        }
-        return requireNotNull(PkCalibrationRenderResult.create(
-            domainDigest = DomainDigest,
+        return PkCalibrationRenderResult(
             renderState = PkCalibrationRenderState.PERSONALIZED,
-            effectivePromotedRoutes = effectiveRoutes,
-            effectiveDisplayParams = effectiveParams,
-            routeRenderFallbacks = routeRenderFallbacks,
+            effectivePromotedRoutes = promoted,
+            effectiveDisplayParams = result.displayParams,
             centralCurve = centralCurve,
-            bandState = bandState,
-            bandReasons = if (scenario.bandUnavailable) {
-                setOf(PkCalibrationReason.BAND_NUMERIC_FAILURE)
+            bandState = if (scenario.bandUnavailable) {
+                PkCalibrationBandState.NUMERIC_UNAVAILABLE
             } else {
-                emptySet()
+                PkCalibrationBandState.READY
             },
             bandKnots = if (scenario.bandUnavailable) emptyList() else centralCurve.map { point ->
-                requireNotNull(PkPredictiveBandKnot.create(
+                PkPredictiveBandKnot(
                     epochMillis = point.epochMillis,
                     p025Pgml = point.concentrationPgMl * 0.7,
                     p158655254Pgml = point.concentrationPgMl * 0.85,
                     p50Pgml = point.concentrationPgMl,
                     p841344746Pgml = point.concentrationPgMl * 1.15,
                     p975Pgml = point.concentrationPgMl * 1.3,
-                ))
+                )
             },
-        ))
-    }
-}
-
-internal fun PkRouteCalibrationDisplayState.isPopulationState(): Boolean {
-    return when (this) {
-        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-        PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-        -> false
-        else -> true
+        )
     }
 }

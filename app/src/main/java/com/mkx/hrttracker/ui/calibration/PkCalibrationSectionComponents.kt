@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -143,7 +144,6 @@ private fun PkCalibrationStatusCard(
         !ready -> {
             iconRes = when (uiState.globalState) {
                 PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_labs
-                PkCalibrationGlobalState.SHARED_INPUT_INVALID -> R.drawable.ic_error_outline
                 else -> R.drawable.ic_sync_alt
             }
             title = stringResource(requireNotNull(uiState.globalState.statusTitleRes))
@@ -227,7 +227,7 @@ private fun PkCalibrationStatusCard(
                     .cjkTextOffset(body),
             )
             when (uiState.globalState) {
-                PkCalibrationGlobalState.SHARED_NUMERIC_FAILURE -> HrtFilledTonalButton(
+                PkCalibrationGlobalState.NUMERIC_FAILURE -> HrtFilledTonalButton(
                     text = stringResource(R.string.calibration_pk_retry),
                     onClick = onRetry,
                     modifier = Modifier.padding(top = 12.dp),
@@ -237,7 +237,6 @@ private fun PkCalibrationStatusCard(
                 // The body copy is the call to action ("add an E2 result").
                 PkCalibrationGlobalState.READY,
                 PkCalibrationGlobalState.NO_USABLE_LABS,
-                PkCalibrationGlobalState.SHARED_INPUT_INVALID,
                 -> Unit
             }
         }
@@ -397,26 +396,38 @@ fun PkCalibrationLabRowFooter(
     ) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         when (flag) {
-            is PkCalibrationLabRowFlag.InvalidNonPositive -> {
-                PkCalibrationLabFooterText(
-                    title = stringResource(R.string.calibration_pk_lab_invalid_title),
-                    body = stringResource(R.string.calibration_pk_lab_invalid_body),
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 10.dp),
-                ) {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.calibration_pk_lab_invalid_exclude),
-                        onClick = onExclude,
-                        compact = true,
+            is PkCalibrationLabRowFlag.Ignored -> when (flag.reason) {
+                PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE -> {
+                    PkCalibrationLabFooterText(
+                        title = stringResource(R.string.calibration_pk_lab_invalid_title),
+                        body = stringResource(R.string.calibration_pk_lab_invalid_body),
                     )
-                    HrtButton(
-                        text = stringResource(R.string.calibration_pk_lab_invalid_correct),
-                        onClick = onCorrect,
-                        compact = true,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 10.dp),
+                    ) {
+                        HrtOutlinedButton(
+                            text = stringResource(R.string.calibration_pk_lab_invalid_exclude),
+                            onClick = onExclude,
+                            compact = true,
+                        )
+                        HrtButton(
+                            text = stringResource(R.string.calibration_pk_lab_invalid_correct),
+                            onClick = onCorrect,
+                            compact = true,
+                        )
+                    }
                 }
+
+                PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL ->
+                    PkCalibrationLabFooterNote(
+                        stringResource(R.string.calibration_pk_lab_ignored_signal_note)
+                    )
+
+                PkCalibrationLabIgnoreReason.NUMERIC_FAILURE ->
+                    PkCalibrationLabFooterNote(
+                        stringResource(R.string.calibration_pk_lab_ignored_numeric_note)
+                    )
             }
 
             is PkCalibrationLabRowFlag.UnreviewedOutlier -> {
@@ -463,6 +474,18 @@ fun PkCalibrationLabRowFooter(
             }
         }
     }
+}
+
+@Composable
+private fun PkCalibrationLabFooterNote(note: String) {
+    Text(
+        text = note,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .cjkTextOffset(note),
+    )
 }
 
 @Composable

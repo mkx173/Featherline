@@ -1,19 +1,29 @@
 package com.mkx.hrttracker.model.pk
 
-import java.util.Collections
 import kotlin.math.sqrt
 
-@ConsistentCopyVisibility
-data class ScaleCap private constructor(
-    val minInclusive: Double,
-    val maxInclusive: Double,
+/**
+ * Open evidence constants for route calibration: the informative-signal floor
+ * (a lab whose modeled drug-attributable E2 is below it has no usable
+ * log-residual) and the log-observation-noise anchor.
+ */
+data class PkCalibrationConfig(
+    val drugMinInformativePgml: Double,
+    val rLog: Double,
 ) {
+    init {
+        require(drugMinInformativePgml.isFinite() && drugMinInformativePgml > 0.0)
+        require(rLog.isFinite() && rLog > 0.0)
+    }
+
     companion object {
-        fun create(minInclusive: Double, maxInclusive: Double): ScaleCap? {
-            if (!minInclusive.isFinite() || !maxInclusive.isFinite()) return null
-            if (minInclusive <= 0.0 || maxInclusive < minInclusive) return null
-            return ScaleCap(minInclusive, maxInclusive)
-        }
+        /**
+         * App policy (user decision, 2026-08-09): R_LOG = 0.0225 is the §A3
+         * anchor (~15% log-SD from published assay CV plus the collection-timing
+         * budget); D_min = 5 pg/mL of population drug-attributable E2 for a lab
+         * to count as informative.
+         */
+        val Default = PkCalibrationConfig(drugMinInformativePgml = 5.0, rLog = 0.0225)
     }
 }
 
@@ -24,15 +34,12 @@ object PkCalibrationDefaults {
 
     /**
      * v10.0 §A10.4: a lab supports route r when its population share d_ir/D_i
-     * is at least this value; no lab is ever excluded from the joint fit by
-     * it. Only routes with a supporting lab show an adjustment.
+     * is at least this value. Support only feeds warnings; every route a lab
+     * touches is fitted and shown.
      */
     const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
-    /**
-     * Warn-only thresholds (2026-08-26): every route with at least one
-     * supporting lab shows its fitted adjustment; these only add warning
-     * reasons and downgrade the route to LAB_ADJUSTED_PROVISIONAL.
-     */
+
+    /** Warn-only thresholds: each adds a warning reason to the route row. */
     const val MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE = 3
     const val EXTREME_SCALE_CORE_MIN = 0.5
     const val EXTREME_SCALE_CORE_MAX = 2.0
@@ -56,69 +63,23 @@ object PkCalibrationDefaults {
     const val JOINT_STEP_TOL = 1e-12
     const val JOINT_MAX_ITER = 100
     const val JOINT_MODE_DISTINCT_TOL = 1e-6
-
-    /**
-     * Below this separation two converged points are the same numeric mode;
-     * between it and [JOINT_MODE_DISTINCT_TOL] a differing objective value is
-     * a dedup-failsafe numeric failure (Option A, 2026-08-09).
-     */
     const val JOINT_MODE_NUMERIC_TOL = 1e-9
-
-    /**
-     * Gradient acceptance bound for a step-tolerance Newton exit (the primary
-     * exit requires [JOINT_GRAD_TOL]). At gradient g the objective sits at
-     * most g^2 * ROUTE_LOG_SCALE_PRIOR_SD^2 / 2 above its basin minimum
-     * (~5e-14 here), far below [JOINT_MODE_NUMERIC_TOL], so an accepted
-     * step-exit point can never trip the dedup failsafe against a properly
-     * converged point in the same basin.
-     */
     const val JOINT_STEP_EXIT_GRAD_TOL = 1e-6
 
-    const val BAND_GH_NODES = 16
-    const val BAND_GH_REFINEMENT_NODES = 32
+    const val BAND_GH_NODES = 32
     const val BAND_ROOT_X_ABS_TOL = 1e-8
     const val BAND_ROOT_CDF_TOL = 1e-8
     const val BAND_ROOT_MAX_EVAL = 200
     const val BAND_ROOT_INITIAL_HALF_WIDTH_LOG = 1.0
-    const val BAND_ROOT_BRACKET_EXPANSION = 2.0
     const val BAND_ROOT_MAX_HALF_WIDTH_LOG = 64.0
-    const val BAND_VALIDATE_REL = 1e-3
-    const val BAND_VALIDATE_ABS_PGML = 0.05
 
-    val DISPLAY_SCALE_CAP_BY_ROUTE: Map<PkCalibrationRoute, ScaleCap> =
-        Collections.unmodifiableMap(
-            linkedMapOf(
-                PkCalibrationRoute.INJECTION to requireNotNull(ScaleCap.create(0.5, 2.0)),
-                PkCalibrationRoute.PATCH to requireNotNull(ScaleCap.create(0.5, 2.0)),
-                PkCalibrationRoute.GEL to requireNotNull(ScaleCap.create(0.25, 3.0)),
-                PkCalibrationRoute.ORAL to requireNotNull(ScaleCap.create(0.5, 2.0)),
-                PkCalibrationRoute.SUBLINGUAL to requireNotNull(ScaleCap.create(0.25, 3.0)),
-            )
+    /** Usual multiplicative range per route; outside it the row warns. */
+    val DISPLAY_SCALE_CAP_BY_ROUTE: Map<PkCalibrationRoute, ClosedFloatingPointRange<Double>> =
+        mapOf(
+            PkCalibrationRoute.INJECTION to 0.5..2.0,
+            PkCalibrationRoute.PATCH to 0.5..2.0,
+            PkCalibrationRoute.GEL to 0.25..3.0,
+            PkCalibrationRoute.ORAL to 0.5..2.0,
+            PkCalibrationRoute.SUBLINGUAL to 0.25..3.0,
         )
-}
-
-/**
- * Open evidence constants for route calibration: the informative-signal floor
- * and the log-observation-noise anchor. Both must be finite and positive.
- */
-@ConsistentCopyVisibility
-data class PkCalibrationConfig private constructor(
-    val drugMinInformativePgml: Double,
-    val rLog: Double,
-) {
-    companion object {
-        fun create(
-            drugMinInformativePgml: Double,
-            rLog: Double,
-        ): PkCalibrationConfig? {
-            if (!drugMinInformativePgml.isFinite() || drugMinInformativePgml <= 0.0) {
-                return null
-            }
-            if (!rLog.isFinite() || rLog <= 0.0) return null
-            return PkCalibrationConfig(
-                drugMinInformativePgml = drugMinInformativePgml,
-                rLog = rLog,
-            )
-        }
-    }
 }

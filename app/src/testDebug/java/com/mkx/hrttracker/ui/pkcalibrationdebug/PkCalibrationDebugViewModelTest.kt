@@ -108,16 +108,6 @@ class PkCalibrationDebugViewModelTest {
             viewModel.uiState.value.rawResult?.promotedRoutes,
         )
 
-        viewModel.setRouteRenderFallback(PkCalibrationRoute.INJECTION)
-        assertEquals(
-            listOf(PkCalibrationRoute.INJECTION),
-            viewModel.uiState.value.rawRender?.routeRenderFallbacks,
-        )
-        assertEquals(
-            listOf(PkCalibrationRoute.ORAL),
-            viewModel.uiState.value.rawRender?.effectivePromotedRoutes,
-        )
-
         viewModel.setBandUnavailable(true)
         assertEquals(
             PkCalibrationBandState.NUMERIC_UNAVAILABLE,
@@ -140,8 +130,11 @@ class PkCalibrationDebugViewModelTest {
             viewModel.uiState.value.rawResult?.globalState,
         )
         assertEquals(
-            setOf(PkCalibrationDebugFixtures.nonPositiveLabId()),
-            viewModel.uiState.value.rawResult?.invalidNonpositiveLabIds,
+            mapOf(
+                PkCalibrationDebugFixtures.nonPositiveLabId() to
+                    com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE
+            ),
+            viewModel.uiState.value.rawResult?.ignoredLabs,
         )
     }
 

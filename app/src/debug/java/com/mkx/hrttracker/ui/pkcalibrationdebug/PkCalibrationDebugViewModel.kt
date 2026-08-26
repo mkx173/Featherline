@@ -92,12 +92,6 @@ class PkCalibrationDebugViewModel @Inject constructor(
     fun applyPreset(preset: PkCalibrationDebugPreset): PkCalibrationDebugDispatchResult =
         replaceFixture(PkCalibrationDebugScenario.preset(preset))
 
-    fun setRouteRenderFallback(
-        route: PkCalibrationRoute?,
-    ): PkCalibrationDebugDispatchResult = updateFixture { scenario ->
-        scenario.withRouteRenderFallback(route)
-    }
-
     fun setBandUnavailable(value: Boolean): PkCalibrationDebugDispatchResult =
         updateFixture { scenario -> scenario.withBandUnavailable(value) }
 
