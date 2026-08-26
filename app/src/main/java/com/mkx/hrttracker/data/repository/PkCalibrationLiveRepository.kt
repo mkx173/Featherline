@@ -80,7 +80,10 @@ class PkCalibrationLiveRepository @Inject constructor(
         }
         .stateIn(
             scope = appScope,
-            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
+            // Eager: evaluated at app start and kept warm across generations,
+            // so the calibration page has its section on the first frame
+            // instead of waiting for a fresh evaluation on every entry.
+            started = SharingStarted.Eagerly,
             initialValue = PkCalibrationLiveState.Loading,
         )
 

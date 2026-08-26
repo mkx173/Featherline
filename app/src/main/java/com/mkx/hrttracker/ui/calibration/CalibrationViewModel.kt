@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixture
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
@@ -76,30 +77,37 @@ class CalibrationViewModel @Inject constructor(
     val pkCalibrationState: StateFlow<PkCalibrationScreenState?> = combine(
         pkCalibrationLiveRepository.liveState,
         pkUiFixtureBridge.fixture,
-    ) { liveState, fixture ->
-        when {
-            // Debug harness fixture drives the real surface (plan D3).
-            fixture != null -> PkCalibrationScreenState(
-                ui = pkCalibrationUiState(fixture.result, fixture.render),
-                excludedResultIds = fixture.excludedResultIds,
-            )
-
-            else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
-                PkCalibrationScreenState(
-                    ui = pkCalibrationUiState(
-                        available.evaluation.result,
-                        available.render,
-                    ),
-                    excludedResultIds = available.input.excludedLabIds,
-                )
-            }
-        }
-    }
+        ::pkScreenState,
+    )
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
+            // Seeded from the current values so the section is in the first
+            // frame; a section inserted above the viewport one frame later
+            // shifts the keyed LazyColumn down by its own height.
+            initialValue = pkScreenState(
+                pkCalibrationLiveRepository.liveState.value,
+                pkUiFixtureBridge.fixture.value,
+            ),
         )
+
+    private fun pkScreenState(
+        liveState: PkCalibrationLiveState,
+        fixture: PkCalibrationUiFixture?,
+    ): PkCalibrationScreenState? = when {
+        // Debug harness fixture drives the real surface (plan D3).
+        fixture != null -> PkCalibrationScreenState(
+            ui = pkCalibrationUiState(fixture.result, fixture.render),
+            excludedResultIds = fixture.excludedResultIds,
+        )
+
+        else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+            PkCalibrationScreenState(
+                ui = pkCalibrationUiState(available.evaluation.result, available.render),
+                excludedResultIds = available.input.excludedLabIds,
+            )
+        }
+    }
 
     private val pkReviewRejectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 

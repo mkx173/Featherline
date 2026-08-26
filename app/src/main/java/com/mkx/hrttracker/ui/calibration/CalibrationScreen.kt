@@ -325,7 +325,11 @@ private fun CalibrationScreenContent(
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
                 if (pkCalibrationState != null) {
-                    item(key = "pk-calibration-section") {
+                    // Unkeyed on purpose (together with the info item below): a
+                    // keyed first item anchors the viewport to itself, so a
+                    // section inserted above it later scrolls the list down by
+                    // the section's height.
+                    item {
                         Column {
                             PkCalibrationSection(
                                 uiState = pkCalibrationState.ui,
@@ -340,7 +344,7 @@ private fun CalibrationScreenContent(
                     }
                 }
 
-                item(key = "calibration-info") {
+                item {
                     val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
                     Column(
                         verticalArrangement = Arrangement.spacedBy(
