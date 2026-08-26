@@ -33,7 +33,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -73,7 +75,24 @@ class CalibrationViewModelTest {
         Dispatchers.setMain(dispatcher)
         settingsStateFlow = MutableStateFlow(SettingsState())
         every { settingsRepository.settingsState } returns settingsStateFlow
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         every { repository.getCachedPanels() } returns null
+    }
+
+    @Test
+    fun pkIntroSeen_surfacesTheStoredFlag_andMarkingPersistsIt() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        coEvery { settingsRepository.setPkCalibrationIntroSeen(true) } returns Unit
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val collector = backgroundScope.launch { viewModel.pkIntroSeen.collect() }
+        advanceUntilIdle()
+        assertEquals(false, viewModel.pkIntroSeen.value)
+
+        viewModel.markPkIntroSeen()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setPkCalibrationIntroSeen(true) }
+        collector.cancel()
     }
 
     @After

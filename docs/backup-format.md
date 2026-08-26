@@ -129,7 +129,8 @@ flattened into the parent's JSON.
   `cjkTextOffsetEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
-  onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
+  onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
+  intro sheet), language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
   last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
@@ -392,6 +393,7 @@ incompatible files are rejected at the cheapest detection point.
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
+`pkCalibrationIntroSeen`,
 `homeE2ChartWindow`, `homeCardOrder` / `homeCardHidden`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and

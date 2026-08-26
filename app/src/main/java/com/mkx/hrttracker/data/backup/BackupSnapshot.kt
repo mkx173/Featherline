@@ -39,6 +39,7 @@ data class BackupSettingsSnapshot(
     val appLockGracePeriodOption: String,
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
+    val pkCalibrationIntroSeen: Boolean = false,
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
     val homeE2ChartWindow: String = "SEVEN_DAYS",

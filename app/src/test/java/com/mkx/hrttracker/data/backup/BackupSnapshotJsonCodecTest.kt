@@ -370,6 +370,7 @@ class BackupSnapshotJsonCodecTest {
                 appLockGracePeriodOption = "ONE_MINUTE",
                 hideScreenContentEnabled = false,
                 onboardingCompleted = true,
+                pkCalibrationIntroSeen = true,
                 appLanguageOption = "ENGLISH",
                 calibrationDefaultUnits = emptyMap(),
             ),
@@ -401,6 +402,7 @@ class BackupSnapshotJsonCodecTest {
                 "appLockGracePeriodOption": "ONE_MINUTE",
                 "hideScreenContentEnabled": false,
                 "onboardingCompleted": true,
+                "pkCalibrationIntroSeen": true,
                 "appLanguageOption": "ENGLISH",
                 "calibrationDefaultUnits": {}
               },

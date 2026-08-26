@@ -170,6 +170,7 @@ class BackupExportService @Inject constructor(
     ): BackupSnapshot {
         val settings = settingsRepository.getCurrentSettings()
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
+        val pkCalibrationIntroSeen = settingsRepository.pkCalibrationIntroSeen.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
         val homeCardLayout = settingsRepository.homeCardLayoutFlow.first()
@@ -214,6 +215,7 @@ class BackupExportService @Inject constructor(
                 appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
                 hideScreenContentEnabled = settings.hideScreenContentEnabled,
                 onboardingCompleted = onboardingCompleted,
+                pkCalibrationIntroSeen = pkCalibrationIntroSeen,
                 appLanguageOption = settings.appLanguageOption.name,
                 homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
                 homeE2ChartWindow = settings.homeE2ChartWindowOption.name,

@@ -125,6 +125,7 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
+    val pkIntroSeen by viewModel.pkIntroSeen.collectAsStateWithLifecycle()
 
     // Rejected review actions surface as a toast; resolve the string at emit
     // time so an in-place locale swap can't pin a stale translation.
@@ -159,6 +160,8 @@ fun CalibrationScreen(
     CalibrationScreenContent(
         uiState = uiState,
         pkCalibrationState = pkCalibrationState,
+        pkIntroSeen = pkIntroSeen,
+        onPkIntroSeen = viewModel::markPkIntroSeen,
         onPkRetry = viewModel::retryPkCalibration,
         onPkExcludeLab = viewModel::excludePkLab,
         onPkReincludeLab = viewModel::reincludePkLab,
@@ -179,6 +182,8 @@ fun CalibrationScreen(
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
     pkCalibrationState: PkCalibrationScreenState?,
+    pkIntroSeen: Boolean?,
+    onPkIntroSeen: () -> Unit,
     onPkRetry: () -> Unit,
     onPkExcludeLab: (UUID) -> Unit,
     onPkReincludeLab: (UUID) -> Unit,
@@ -200,6 +205,11 @@ private fun CalibrationScreenContent(
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    // First open: show the intro once. The flag is persisted (and backed up)
+    // when the sheet is dismissed, so a mid-sheet exit shows it again.
+    LaunchedEffect(pkIntroSeen) {
+        if (pkIntroSeen == false && pkSheet == null) pkSheet = PK_SHEET_EDU
+    }
     val pkLabFlags = remember(pkCalibrationState, uiState.panels) {
         pkCalibrationState?.let { state ->
             pkCalibrationLabRowFlags(state, uiState.panels)
@@ -421,7 +431,12 @@ private fun CalibrationScreenContent(
 
         PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
-        PK_SHEET_EDU -> PkCalibrationEduSheet(onDismissRequest = { pkSheet = null })
+        PK_SHEET_EDU -> PkCalibrationEduSheet(
+            onDismissRequest = {
+                pkSheet = null
+                if (pkIntroSeen == false) onPkIntroSeen()
+            }
+        )
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
@@ -1439,6 +1454,8 @@ private fun CalibrationScreenPreview() {
                 ),
             ),
             pkCalibrationState = null,
+            pkIntroSeen = true,
+            onPkIntroSeen = { },
             onPkRetry = { },
             onPkExcludeLab = { },
             onPkReincludeLab = { },

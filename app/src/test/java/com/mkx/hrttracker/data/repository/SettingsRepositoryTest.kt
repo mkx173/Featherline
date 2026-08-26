@@ -68,6 +68,13 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun pkCalibrationIntroSeen_defaultsFalse_andPersistsOnceSet() = testScope.runTest {
+        assertEquals(false, settingsRepository.pkCalibrationIntroSeen.first())
+        settingsRepository.setPkCalibrationIntroSeen(true)
+        assertEquals(true, settingsRepository.pkCalibrationIntroSeen.first())
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits updated value after setHomeE2DisplayUnit`() =
         runTest(testDispatcher) {
             val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()

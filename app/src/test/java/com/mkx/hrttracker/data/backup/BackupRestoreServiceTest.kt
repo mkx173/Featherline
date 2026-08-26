@@ -1549,6 +1549,7 @@ class BackupRestoreServiceTest {
         val exportJournalRepository: JournalRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
+        every { exportSettingsRepository.pkCalibrationIntroSeen } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         every { exportSettingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())

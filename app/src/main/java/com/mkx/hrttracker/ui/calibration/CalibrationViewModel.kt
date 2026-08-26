@@ -106,6 +106,15 @@ class CalibrationViewModel @Inject constructor(
     /** One event per failed review write; the screen surfaces a toast. */
     val pkReviewRejections: SharedFlow<Unit> = pkReviewRejectionEvents.asSharedFlow()
 
+    /** Null until the stored flag is read; false exactly once per install/restore. */
+    val pkIntroSeen: StateFlow<Boolean?> = settingsRepository.pkCalibrationIntroSeen
+        .map<Boolean, Boolean?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun markPkIntroSeen() {
+        viewModelScope.launch { settingsRepository.setPkCalibrationIntroSeen(true) }
+    }
+
     fun retryPkCalibration() {
         pkCalibrationLiveRepository.retry()
     }
