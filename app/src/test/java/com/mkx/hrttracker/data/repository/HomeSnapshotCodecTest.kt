@@ -95,6 +95,22 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_roundTripsCalibrationRouteLogScale_andDecodesToPersonalParams() {
+        // The projections were simulated with these betas; a snapshot that lost
+        // them would make Home re-simulate at population and flash on expiry.
+        val record = minimalRecord().copy(
+            pkRouteLogScale = mapOf("injection" to 0.25, "oral" to -0.1, "unknown-route" to 1.0),
+        )
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+        assertEquals(record.pkRouteLogScale, decoded.pkRouteLogScale)
+        val params = decoded.pkPersonalParams()
+        assertEquals(0.25, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.INJECTION), 0.0)
+        assertEquals(-0.1, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.ORAL), 0.0)
+        assertEquals(2, params.routeLogScale.size)
+        assertEquals(emptyMap<String, Double>(), HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord())).pkRouteLogScale)
+    }
+
+    @Test
     fun encodeDecode_preservesHomeSnapshotPayload() {
         val medicine = testMedicine(
             uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),

@@ -2,6 +2,8 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
+import com.mkx.hrttracker.data.local.PkCalibrationDao
+import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
@@ -232,6 +234,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns listOf(
             groupWithTwoSlotsReferencing(medicineUuid)
         )
@@ -296,6 +304,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -419,6 +433,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -638,6 +658,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery {
@@ -709,6 +735,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -771,6 +803,12 @@ class HomeSnapshotRepositoryTest {
             every { database.medicationLogDao() } returns medicationLogDao
             every { database.userProfileDao() } returns userProfileDao
             every { database.journalDao() } returns journalDao
+            every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+                coEvery { getPanels() } returns emptyList()
+            }
+            every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+                coEvery { getAllMetadata() } returns emptyList()
+            }
             coEvery { homeDao.getActiveGroups() } returns emptyList()
             coEvery { homeDao.getArchivedGroups() } returns emptyList()
             coEvery {
@@ -854,6 +892,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -927,6 +971,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()

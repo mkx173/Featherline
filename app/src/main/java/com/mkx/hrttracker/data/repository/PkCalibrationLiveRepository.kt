@@ -2,20 +2,13 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
-import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
-import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
-import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationInput
-import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkChartDomain
-import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import java.time.Clock
-import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -64,10 +57,13 @@ class PkCalibrationLiveRepository @Inject constructor(
 ) {
     private val retryVersion = MutableStateFlow(0L)
 
-    // Re-evaluates on every Home-data generation bump, so a write that lands
-    // mid-read simply triggers the next evaluation.
+    // Keyed on the Home snapshot's generation, not the durable generation:
+    // runHomeDataMutation bumps the generation BEFORE the write commits, so a
+    // generation-triggered read would see pre-write data and never re-run.
+    // The snapshot is written after the mutation, so its generation is the
+    // post-write signal.
     val liveState: StateFlow<PkCalibrationLiveState> = combine(
-        storageRepository.observeHomeDataGeneration(),
+        storageRepository.observeHomeSnapshotGeneration(),
         retryVersion,
     ) { _, _ -> }
         .transformLatest {
@@ -95,43 +91,16 @@ class PkCalibrationLiveRepository @Inject constructor(
     private suspend fun evaluate(): PkCalibrationLiveState {
         val panels = bloodTestRepository.getPanels()
         val entries = medicationLogRepository.getEntries()
-            .filter { it.category == MedicationCategory.ESTRADIOL }
         val profile = userProfileRepository.getCurrentProfile()
         val metadata = storageRepository.getAllMetadata()
-
-        val labs = panels.flatMap { panel ->
-            panel.results
-                .filter { (it.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2 }
-                .map { result ->
-                    PkCalibrationLab(
-                        resultId = result.uuid,
-                        collectedAtEpochMillis = panel.collectedAt.toEpochMilli(),
-                        valuePgml = result.canonicalValue,
-                    )
-                }
-        }
-        // An empty history is anchored by any origin; fall back to the clock so
-        // a user with no data still lands on NO_USABLE_LABS and its CTA.
-        val origin = (labs.map { it.collectedAtEpochMillis } +
-                entries.map { it.appliedAt.toEpochMilli() })
-            .minOrNull() ?: clock.millis()
-        val anchor = Instant.ofEpochMilli(origin)
-        val doseEvents = entries.map { entry ->
-            entry.buildEstradiolPkDoseEvent(anchor)
-                ?: return PkCalibrationLiveState.Unavailable(
-                    PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
-                )
-        }
-        // Same resolution as the Home projection: an unset Current Weight
-        // falls back to the app-wide default.
-        val input = PkCalibrationInput(
-            labs = labs,
-            doseEvents = doseEvents,
-            originEpochMillis = origin,
-            weightKg = profile.weightKg
-                ?.takeIf { it.isFinite() && it > 0.0 }
-                ?: PkMedicationSimulation.DefaultBodyWeightKg,
+        val input = buildPkCalibrationInput(
+            labs = panels.toPkCalibrationLabs(),
+            entries = entries,
+            weightKg = profile.weightKg,
             metadata = metadata,
+            fallbackOriginEpochMillis = clock.millis(),
+        ) ?: return PkCalibrationLiveState.Unavailable(
+            PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
         )
         // The render domain tracks the chart's visible window around the
         // current clock: the widest selectable past span (plus a day of

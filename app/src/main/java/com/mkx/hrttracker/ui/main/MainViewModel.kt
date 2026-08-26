@@ -22,7 +22,6 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.PkPersonalParams
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
@@ -369,18 +368,17 @@ class MainViewModel @Inject constructor(
         //     already passed (the user didn't take them — don't keep them on
         //     the curve as if they did).
         val nowInstant = now.atZone(zoneId).toInstant()
-        // The live render result is the only source for the chart's
-        // personalized parameters (§11): its effectiveDisplayParams honor
-        // range-local route fallbacks. The cached (population) projection is
-        // used only while no live evaluation exists.
-        val freshProjection = inputs.pkProjection?.takeIf { pkLive == null }?.takeIf {
+        // The cached projection was simulated with the snapshot's calibration,
+        // so it is the calibrated curve from the first frame; a local
+        // re-simulation (expired projection) uses the same params. The live
+        // evaluation only contributes the band and the hero/status.
+        val freshProjection = inputs.pkProjection?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
         }
-        val simulationPersonalParams =
-            pkLive?.render?.effectiveDisplayParams ?: PkPersonalParams.population()
+        val simulationPersonalParams = inputs.pkPersonalParams
         val trendResult = freshProjection?.toMainEstradiolTrend(
             now = now,
             zoneId = zoneId,

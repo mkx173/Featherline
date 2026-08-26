@@ -6,7 +6,9 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -81,9 +83,15 @@ class PkCalibrationStorageRepository @Inject constructor(
         return homeSnapshotRepository.captureCurrentHomeDataGeneration()
     }
 
-    /** Calibration invalidates from Home's existing coherence generation. */
-    fun observeHomeDataGeneration(): Flow<Long> {
-        return homeSnapshotRepository.observeCurrentHomeDataGeneration()
+    /**
+     * Generation of the last written Home snapshot: emitted after a Home-data
+     * mutation has committed and its snapshot rebuilt, so a calibration read
+     * keyed on it always sees the new data.
+     */
+    fun observeHomeSnapshotGeneration(): Flow<Long> {
+        return homeSnapshotRepository.observeHomeSnapshot()
+            .mapNotNull { snapshot -> snapshot?.generation }
+            .distinctUntilChanged()
     }
 }
 

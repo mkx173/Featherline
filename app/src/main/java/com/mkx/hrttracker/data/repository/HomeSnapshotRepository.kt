@@ -1,5 +1,11 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
+import com.mkx.hrttracker.model.pk.PkPersonalParams
+import java.util.UUID
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
@@ -549,13 +555,35 @@ class HomeSnapshotRepository @Inject constructor(
                 scheduledEndIso = stockWindowEndIso,
             )
             val homeAnchor = database.journalDao().getFirstPinnedTrackedDate()?.toModel()
+            // Calibration inputs: every E2 lab, every estradiol dose (not just
+            // the chart window), and the user's review metadata.
+            val calibrationLabs = database.bloodTestDao().getPanels().flatMap { panel ->
+                panel.results
+                    .filter { result ->
+                        result.builtinAnalyteKey == BloodAnalyteKey.E2.storageValue
+                    }
+                    .map { result ->
+                        PkCalibrationLab(
+                            resultId = UUID.fromString(result.uuid),
+                            collectedAtEpochMillis = panel.panel.collectedAtInstantEpochMillis,
+                            valuePgml = result.canonicalValue,
+                        )
+                    }
+            }
+            val calibrationEntryEntities = homeDao.getEstradiolPkEntries(
+                startEpochMillis = Long.MIN_VALUE,
+                endEpochMillis = Long.MAX_VALUE,
+            )
+            val calibrationMetadata = database.pkCalibrationDao().getAllMetadata()
+                .mapNotNull { entity -> entity.toModel() }
 
             val groupMedicinesByUuid = database.resolveMedicinesForGroups(
                 activeGroupEntities + archivedGroupEntities
             )
             val entryMedicinesByUuid = database.resolveMedicinesForEntries(
                 scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
-                        listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities
+                        listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities +
+                        calibrationEntryEntities
             )
             val activeGroups = activeGroupEntities.map { group ->
                 group.toMedicationGroupModel(groupMedicinesByUuid)
@@ -580,6 +608,11 @@ class HomeSnapshotRepository @Inject constructor(
                 entry.toMedicationLogEntryModel(entryMedicinesByUuid)
             }
             HomeSnapshotBuildInputs(
+                calibrationLabs = calibrationLabs,
+                calibrationEntries = calibrationEntryEntities.map { entry ->
+                    entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+                },
+                calibrationMetadata = calibrationMetadata,
                 activeGroups = activeGroups,
                 archivedGroups = archivedGroups,
                 scheduleEntries = scheduleEntries,
@@ -606,6 +639,19 @@ class HomeSnapshotRepository @Inject constructor(
                     "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
         )
 
+        // Lab calibration is part of the snapshot so the calibrated curve is
+        // what Home and the widget show first, not a population curve that a
+        // later live evaluation swaps out.
+        val personalParams = withContext(defaultDispatcher) {
+            buildPkCalibrationInput(
+                labs = inputs.calibrationLabs,
+                entries = inputs.calibrationEntries,
+                weightKg = inputs.profile.weightKg,
+                metadata = inputs.calibrationMetadata,
+                fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            )?.let { input -> PkCalibrationEngine.evaluate(input).result.displayParams }
+                ?: PkPersonalParams.population()
+        }
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
         val simulationEntries = buildEstradiolPkSimulationEntries(
             realEntries = inputs.pkEntries,
@@ -627,6 +673,7 @@ class HomeSnapshotRepository @Inject constructor(
                     generatedAt = now,
                     zoneId = zoneId,
                     option = option,
+                    personalParams = personalParams,
                 )
             }
             val widgetAsync = async(defaultDispatcher) {
@@ -637,6 +684,7 @@ class HomeSnapshotRepository @Inject constructor(
                     generatedAt = now,
                     zoneId = zoneId,
                     option = option,
+                    personalParams = personalParams,
                 )
             }
             homeAsync.await() to widgetAsync.await()
@@ -715,6 +763,8 @@ class HomeSnapshotRepository @Inject constructor(
             stockFulfillmentEntries = inputs.stockFulfillmentEntries,
             pkEntries = inputs.pkEntries,
             homeAnchor = inputs.homeAnchor,
+            pkRouteLogScale = personalParams.routeLogScale
+                .mapKeys { (route, _) -> route.stableId },
         )
 
         withContext(Dispatchers.IO) {
@@ -744,6 +794,9 @@ class HomeSnapshotRepository @Inject constructor(
     }
 
     private data class HomeSnapshotBuildInputs(
+        val calibrationLabs: List<PkCalibrationLab>,
+        val calibrationEntries: List<MedicationLogEntry>,
+        val calibrationMetadata: List<E2CalibrationMetadata>,
         val activeGroups: List<MedicationGroup>,
         val archivedGroups: List<MedicationGroup>,
         val scheduleEntries: List<MedicationLogEntry>,
@@ -944,7 +997,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
             "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 8
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

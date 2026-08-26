@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.model.pk.PkPersonalParams
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -160,11 +162,27 @@ data class HomeSnapshotRecord(
     // future planned dose). Encoded with medicine dedup since a daily doser
     // repeats the same one or two medicines across the whole window.
     val pkEntries: List<MedicationLogEntry> = emptyList(),
+    /**
+     * Route log-scales from the lab calibration evaluated at refresh time,
+     * keyed by [com.mkx.hrttracker.model.pk.PkCalibrationRoute.stableId].
+     * Both projections above are simulated with them, so Home and the widget
+     * show the calibrated curve on first frame and after every mutation.
+     */
+    val pkRouteLogScale: Map<String, Double> = emptyMap(),
     // First pinned tracked date (the Home hero anchor), cached so cold start can
     // render the hero on the first frame instead of waiting on Room. Null when no
     // date is pinned. Defaulted for forward-compat with pre-field snapshots.
     val homeAnchor: TrackedDate? = null,
 )
+
+/** Personal params the snapshot's projections were simulated with. */
+fun HomeSnapshotRecord.pkPersonalParams(): PkPersonalParams {
+    return PkPersonalParams.create(
+        pkRouteLogScale.entries.mapNotNull { (stableId, beta) ->
+            PkCalibrationRoute.fromStableId(stableId)?.let { route -> route to beta }
+        }.toMap()
+    ) ?: PkPersonalParams.population()
+}
 
 data class HomePkProjectionRecord(
     val generatedAtEpochMillis: Long,
@@ -282,6 +300,10 @@ internal object HomeSnapshotCodec {
             }
             stream.writePooledMedicationLogEntries(record.pkEntries)
             stream.writeTrackedDate(record.homeAnchor)
+            stream.writeList(record.pkRouteLogScale.entries.toList()) { (route, beta) ->
+                writeString(route)
+                writeDouble(beta)
+            }
         }
         return output.toByteArray()
     }
@@ -309,6 +331,7 @@ internal object HomeSnapshotCodec {
                 stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 pkEntries = stream.readPooledMedicationLogEntries(),
                 homeAnchor = stream.readTrackedDate(),
+                pkRouteLogScale = stream.readList { readString() to readDouble() }.toMap(),
             )
         }
     }
@@ -1028,7 +1051,8 @@ private const val TAG = "HomeSnapshotStore"
 // injection/gel preparation payloads.
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
-private const val SNAPSHOT_CODEC_VERSION = 22
+// v23 appends the calibration route log-scales the projections were simulated with.
+private const val SNAPSHOT_CODEC_VERSION = 23
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
