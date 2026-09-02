@@ -7,6 +7,7 @@ import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -31,7 +32,6 @@ class PkJointMapSolverAmbiguitySweepTest {
     @Test
     fun ambiguityVerdict_matchesBruteForceMinimaCount_onSingleRouteEvidence() {
         val random = Random(20260902)
-        var checked = 0
         var trulyAmbiguous = 0
         repeat(SWEEP_SIZE) { iteration ->
             val labs = if (iteration % 4 == 0) {
@@ -41,7 +41,7 @@ class PkJointMapSolverAmbiguitySweepTest {
             }
             val objective = requireNotNull(PkJointStudentTObjective.fromEvidence(labs, rLog))
             val minima = bruteForceMinima(objective)
-            if (minima.isEmpty()) return@repeat // grid resolution artefact; skip
+            assertTrue("iteration $iteration: no minimum inside the solver's scan range", minima.isNotEmpty())
             val outcome = PkJointMapSolver.fit(objective)
             val fitted = outcome as? PkJointFitOutcome.Fitted
             assertTrue("iteration $iteration: numeric failure on well-posed evidence", fitted != null)
@@ -56,10 +56,8 @@ class PkJointMapSolverAmbiguitySweepTest {
                 "iteration $iteration: MAP $beta is not one of the minima $minima",
                 minima.any { minimum -> abs(minimum - beta) < 1e-3 },
             )
-            checked += 1
             if (minima.size > 1) trulyAmbiguous += 1
         }
-        assertTrue("sweep exercised too few cases: $checked", checked >= SWEEP_SIZE * 9 / 10)
         assertTrue("sweep never hit a truly bimodal case", trulyAmbiguous > 0)
     }
 
@@ -114,10 +112,20 @@ class PkJointMapSolverAmbiguitySweepTest {
         }
     }
 
-    /** Local minima of the restricted objective from gradient sign changes (- to +). */
+    /**
+     * Local minima of the restricted objective from gradient sign changes
+     * (- to +), scanned over the solver's own range: beyond the stationary
+     * bound the prior's pull dominates the bounded Student-t score, so no
+     * minimum lies outside it.
+     */
     private fun bruteForceMinima(objective: PkJointStudentTObjective): List<Double> {
         val routeIndex = PkCalibrationRoute.INJECTION.ordinal
-        val halfWidth = PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
+        val priorVariance = PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD *
+                PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD
+        val stationaryBound = priorVariance * objective.points.size *
+                (PkCalibrationDefaults.STUDENT_T_NU + 1.0) /
+                (2.0 * sqrt(PkCalibrationDefaults.STUDENT_T_NU) * sqrt(objective.rLog))
+        val halfWidth = min(stationaryBound, PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA)
         val step = 1e-3
         val steps = (2 * halfWidth / step).toInt()
         fun gradientAt(value: Double): Double {
