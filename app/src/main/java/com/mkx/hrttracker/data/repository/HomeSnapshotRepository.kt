@@ -7,7 +7,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkChartDomain
-import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
+import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvents
 import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkPersonalParams
 import java.time.Instant
@@ -709,17 +709,19 @@ class HomeSnapshotRepository @Inject constructor(
             }
             homeAsync.await() to widgetAsync.await()
         }
-        // The band follows the same projected curve as the chart: logged plus
-        // planned doses, over the projection window.
+        // The band follows the same projected curve as the chart: the same
+        // logged (lookback-limited) plus planned doses, over the projection
+        // window. The fit itself used the full dose history.
         val homeRender = if (calibration == null || calibrationInput == null) {
             null
         } else {
             runCatching {
                 withContext(defaultDispatcher) {
-                    val anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis)
-                    val plannedEvents = simulationEntries.planned.mapNotNull { entry ->
-                        entry.buildEstradiolPkDoseEvent(anchor, isPlanned = true)
-                    }
+                    val bandEvents = buildEstradiolPkDoseEvents(
+                        anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis),
+                        realEntries = simulationEntries.real,
+                        plannedEntries = simulationEntries.planned,
+                    )
                     // Sample the band exactly where the curve is sampled (dense
                     // around doses), so its edges follow the peaks instead of
                     // cutting chords across them.
@@ -733,7 +735,7 @@ class HomeSnapshotRepository @Inject constructor(
                             .map { hours -> windowStartMillis + (hours * 3_600_000.0).roundToLong() }
                             .filter { millis -> millis in windowStartMillis..windowEndMillis },
                     )?.let { domain ->
-                        calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
+                        calibration.renderFor(domain, bandEvents)
                     }
                 }
             }.onFailure { throwable ->
