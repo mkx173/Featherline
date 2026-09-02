@@ -101,4 +101,41 @@ class PkCalibrationContractsTest {
         assertEquals(1.5, result.displayParams.scaleFor(PkCalibrationRoute.INJECTION), 1e-15)
         assertTrue(PkCalibrationResult(PkCalibrationGlobalState.NO_USABLE_LABS).promotedRoutes.isEmpty())
     }
+
+    @Test
+    fun displayParams_applyOnlySupportedAdjustedRoutes() {
+        // The hero and Home name only supported routes; a route adjusted from a
+        // negligible lab share must not be applied to the curve either, or the
+        // hero calls a personalized curve "population".
+        val result = PkCalibrationResult(
+            globalState = PkCalibrationGlobalState.READY,
+            routeResults = PkCalibrationRoute.entries.map { route ->
+                when (route) {
+                    PkCalibrationRoute.INJECTION -> PkRouteCalibrationResult(
+                        route = route,
+                        displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                        fittedBeta = ln(1.5),
+                        betaPosteriorSd = 0.1,
+                        supportingLabCount = 3,
+                    )
+                    PkCalibrationRoute.ORAL -> PkRouteCalibrationResult(
+                        route = route,
+                        displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                        reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                        fittedBeta = ln(1.2),
+                        betaPosteriorSd = 0.3,
+                        supportingLabCount = 0,
+                    )
+                    else -> PkRouteCalibrationResult(
+                        route = route,
+                        displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                    )
+                }
+            },
+        )
+        assertEquals(listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL), result.promotedRoutes)
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), result.supportedPromotedRoutes)
+        assertEquals(setOf(PkCalibrationRoute.INJECTION), result.displayParams.routeLogScale.keys)
+        assertEquals(1.0, result.displayParams.scaleFor(PkCalibrationRoute.ORAL), 0.0)
+    }
 }

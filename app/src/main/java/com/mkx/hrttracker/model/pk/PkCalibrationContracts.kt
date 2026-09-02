@@ -246,20 +246,23 @@ data class PkCalibrationResult(
         get() = routeResults.filter { it.displayState.isAdjusted }.map { it.route }
 
     /**
-     * Adjusted routes with at least one supporting lab: the only ones the hero
-     * and status body name. A route fitted from a negligible share still shows
-     * its adjustment on its row, but "adjusted toward your labs" would overstate it.
+     * Adjusted routes with at least one supporting lab: the only ones applied
+     * to the drawn curve and band, and the only ones the hero and status body
+     * name. A route fitted from a negligible share still shows its fitted
+     * adjustment on its row, with the no-supporting-labs warning, but is not
+     * applied: the hero would otherwise call a personalized curve "population".
      */
     val supportedPromotedRoutes: List<PkCalibrationRoute>
         get() = routeResults
             .filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
             .map { it.route }
 
+    /** Parameters applied to the curve: [supportedPromotedRoutes] only. */
     val displayParams: PkPersonalParams
         get() = requireNotNull(
             PkPersonalParams.create(
                 routeResults
-                    .filter { it.displayState.isAdjusted }
+                    .filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
                     .associate { it.route to requireNotNull(it.fittedBeta) }
             )
         )

@@ -54,10 +54,11 @@ object PkCalibrationRenderer {
             population += epochMillis to breakdown
         }
 
-        // A promoted route with zero contribution throughout this range is
-        // absent from render-level promotion (the hero names only routes that
-        // shape the visible curve).
-        val effectivePromotedRoutes = result.promotedRoutes.filter { route ->
+        // Only supported promoted routes are applied (see displayParams); one
+        // with zero contribution throughout this range is absent from
+        // render-level promotion (the hero names only routes that shape the
+        // visible curve).
+        val effectivePromotedRoutes = result.supportedPromotedRoutes.filter { route ->
             population.any { (_, breakdown) -> breakdown.byRouteDrugPgml.getValue(route) > 0.0 }
         }
         val effectiveParams = PkPersonalParams.create(

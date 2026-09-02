@@ -158,6 +158,55 @@ class PkCalibrationRendererTest {
     }
 
     @Test
+    fun unsupportedAdjustedRoute_isNotAppliedToTheCurve() {
+        // The hero and Home name only supported routes. If the renderer still
+        // applied a route adjusted from a negligible lab share, the hero would
+        // call a personalized curve and band "population".
+        val events = listOf(event(PkRoute.INJECTION, 0.0, 2.0, PkCompound.EV))
+        val input = PkCalibrationInput(
+            labs = emptyList(),
+            doseEvents = events,
+            originEpochMillis = OriginMillis,
+            weightKg = WeightKg,
+            config = Config,
+        )
+        val pool = PkCalibrationEvidencePool(input, forward(input), emptyList(), emptyMap())
+        val result = PkCalibrationResult(
+            globalState = PkCalibrationGlobalState.READY,
+            routeResults = PkCalibrationRoute.entries.map { route ->
+                if (route == PkCalibrationRoute.INJECTION) {
+                    PkRouteCalibrationResult(
+                        route = route,
+                        displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                        reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                        fittedBeta = ln(1.5),
+                        betaPosteriorSd = 0.3,
+                        supportingLabCount = 0,
+                    )
+                } else {
+                    PkRouteCalibrationResult(
+                        route = route,
+                        displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                    )
+                }
+            },
+            promotedBetaCovariance = PkCalibrationPromotedCovariance(
+                routes = listOf(PkCalibrationRoute.INJECTION),
+                values = listOf(listOf(0.09)),
+            ),
+        )
+        val evaluation = PkCalibrationEvaluation(result, pool)
+
+        val actual = render(evaluation, domain(startHours = 1, hours = 24, intervalHours = 6))
+
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), result.promotedRoutes)
+        assertEquals(PkCalibrationRenderState.POPULATION, actual.renderState)
+        assertTrue(actual.effectivePromotedRoutes.isEmpty())
+        assertEquals(PkCalibrationBandState.NOT_APPLICABLE_POPULATION, actual.bandState)
+        assertPopulationParity(actual, evaluation)
+    }
+
+    @Test
     fun sharedPopulationFailure_isValidatedNumericUnavailableWithoutChangingFit() {
         val evaluation = evaluation(
             events = listOf(event(PkRoute.INJECTION, 0.0, 2.0, PkCompound.EV)),
