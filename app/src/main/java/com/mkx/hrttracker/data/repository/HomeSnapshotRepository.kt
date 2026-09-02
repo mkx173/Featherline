@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkPersonalParams
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToLong
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
@@ -380,9 +381,17 @@ class HomeSnapshotRepository @Inject constructor(
         zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_async_enqueued force=$force now=$now")
+        // Reserve the request's place in line synchronously: the launched
+        // coroutine may reach the refresh mutex after a later request's.
+        val sequence = refreshRequestSequence.incrementAndGet()
         appScope.launch {
             try {
-                refreshHomeSnapshotIfNeeded(now = now, force = force, zoneId = zoneId)
+                refreshHomeSnapshotIfNeeded(
+                    now = now,
+                    force = force,
+                    zoneId = zoneId,
+                    sequence = sequence,
+                )
             } catch (throwable: Throwable) {
                 if (throwable is CancellationException) {
                     throw throwable
@@ -414,6 +423,21 @@ class HomeSnapshotRepository @Inject constructor(
         force: Boolean = false,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
+        // Reserved before the first suspension so the sequence is request order.
+        refreshHomeSnapshotIfNeeded(
+            now = now,
+            force = force,
+            zoneId = zoneId,
+            sequence = refreshRequestSequence.incrementAndGet(),
+        )
+    }
+
+    private suspend fun refreshHomeSnapshotIfNeeded(
+        now: LocalDateTime,
+        force: Boolean,
+        zoneId: ZoneId,
+        sequence: Long,
+    ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
         // Suspends on first call until the observer has captured the raw
         // DataStore value; subsequent calls return immediately.
@@ -433,26 +457,40 @@ class HomeSnapshotRepository @Inject constructor(
         // to run two full builds. A request whose context differs (the
         // midnight alarm arriving during a build started before midnight, a
         // zone change, an option change) runs its own build so the only
-        // corrective request is never consumed by a stale one; each started
-        // build takes the next refresh sequence, and the write guard drops a
-        // build that is no longer the latest started, so a slow older-context
+        // corrective request is never consumed by a stale one. Requests are
+        // sequenced in creation order; a request that reaches this point after
+        // a newer one has already started a build is superseded (it joins that
+        // build, or returns if it has finished), and the write guard drops a
+        // build once a newer request has started, so a slow older-context
         // build can never overwrite the newer snapshot.
         val minute = now.truncatedTo(ChronoUnit.MINUTES)
         val build = refreshMutex.withLock {
             val generation = homeSnapshotGenerationStore.readGeneration()
             val inFlight = inFlightRefresh
-            if (inFlight != null && inFlight.build.isActive &&
-                inFlight.generation == generation &&
-                inFlight.minute == minute &&
-                inFlight.zoneId == zoneId &&
-                inFlight.option == option
+            val superseded = sequence < latestStartedRefreshSequence
+            if (inFlight != null && inFlight.build.isActive && (
+                        superseded || (
+                                inFlight.generation == generation &&
+                                        inFlight.minute == minute &&
+                                        inFlight.zoneId == zoneId &&
+                                        inFlight.option == option
+                                )
+                        )
             ) {
                 diagnosticsLogger.info(
                     TAG,
                     "home_snapshot_refresh_joined_in_flight generation=$generation " +
-                            "force=$force now=$now"
+                            "force=$force now=$now superseded=$superseded"
                 )
                 return@withLock inFlight.build
+            }
+            if (superseded) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_snapshot_refresh_skipped reason=superseded sequence=$sequence " +
+                            "latestStartedSequence=$latestStartedRefreshSequence now=$now"
+                )
+                return@withLock null
             }
             val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
                 now = now,
@@ -460,8 +498,7 @@ class HomeSnapshotRepository @Inject constructor(
                 option = option,
                 force = force,
             ) ?: return@withLock null
-            val sequence = latestRefreshSequence + 1L
-            latestRefreshSequence = sequence
+            latestStartedRefreshSequence = sequence
             appScope.async {
                 buildAndWriteHomeSnapshot(
                     refreshGeneration = refreshGeneration,
@@ -488,9 +525,12 @@ class HomeSnapshotRepository @Inject constructor(
     /** The build owned by the last refresh to pass the skip-check; guarded by [refreshMutex]. */
     private var inFlightRefresh: InFlightRefresh? = null
 
-    /** Sequence of the last refresh build started; assigned under [refreshMutex], read at write time. */
+    /** Request-order sequence, reserved synchronously when a refresh is requested. */
+    private val refreshRequestSequence = AtomicLong(0L)
+
+    /** Highest sequence whose build has started; set under [refreshMutex], read at write time. */
     @Volatile
-    private var latestRefreshSequence: Long = 0L
+    private var latestStartedRefreshSequence: Long = 0L
 
     private class InFlightRefresh(
         val generation: Long,
@@ -569,7 +609,7 @@ class HomeSnapshotRepository @Inject constructor(
 
     private suspend fun buildAndWriteHomeSnapshot(
         refreshGeneration: Long,
-        /** Null for mutation-path builds, which are ordered by the generation alone. */
+        /** Request-order sequence; null for mutation-path builds, ordered by the generation alone. */
         refreshSequence: Long? = null,
         now: LocalDateTime,
         zoneId: ZoneId,
@@ -916,12 +956,12 @@ class HomeSnapshotRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             // Avoid restoring stale snapshot data from a refresh that raced with a write.
             snapshotMutationMutex.withLock {
-                if (refreshSequence != null && refreshSequence != latestRefreshSequence) {
+                if (refreshSequence != null && refreshSequence < latestStartedRefreshSequence) {
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_write_skipped reason=newer_refresh_started " +
                                 "refreshSequence=$refreshSequence " +
-                                "latestRefreshSequence=$latestRefreshSequence"
+                                "latestStartedSequence=$latestStartedRefreshSequence"
                     )
                 } else if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
                     diagnosticsLogger.info(

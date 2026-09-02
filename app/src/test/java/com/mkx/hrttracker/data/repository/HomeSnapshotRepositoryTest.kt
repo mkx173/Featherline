@@ -41,9 +41,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -381,6 +382,54 @@ class HomeSnapshotRepositoryTest {
         second.join()
 
         assertEquals(2, builds.count)
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun olderRequestReachingTheMutexLast_isSupersededByTheNewerBuild() = runTest {
+        // The sequence must follow request order, not the order coroutines
+        // reach the refresh mutex: a pre-midnight request whose coroutine is
+        // delayed past the midnight request must not take the higher sequence,
+        // suppress the midnight build and write yesterday's snapshot.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs()
+        // The option flow is the first suspension before the mutex. Call 0 is
+        // the repository's own option-change collector; call 1 (the first
+        // request) is held back so the second request reaches the mutex first.
+        var optionFlowReads = 0
+        every { settingsRepository.homeE2ChartWindowOptionFlow } answers {
+            val read = optionFlowReads++
+            flow {
+                if (read == 1) delay(50)
+                emit(HomeE2ChartWindowOption.SEVEN_DAYS)
+            }
+        }
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        // The delayed older request joins the newer build instead of building.
+        assertEquals(1, builds.count)
         val written = slot<HomeSnapshotRecord>()
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
         assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
