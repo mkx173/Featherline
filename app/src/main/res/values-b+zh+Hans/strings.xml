@@ -1053,15 +1053,15 @@
     <string name="calibration_pk_reason_scale_outside_usual_range">该途径推算出的调整超出其通常范围，或者是仅由少于三条支持性结果支撑的较大调整。请检查检测和治疗记录。</string>
     <string name="calibration_pk_route_reason_numeric_failure">该途径的一项计算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已对该途径进行调整，但调整仍不确定。</string>
-    <string name="calibration_pk_route_reason_calibrated">已满足全部模型标准。应用并未核实您所确认的前提条件。</string>
-    <string name="calibration_pk_route_next_no_supporting_labs">了解检测结果如何支持某一途径</string>
+    <string name="calibration_pk_route_reason_calibrated">已满足全部模型标准，此途径未触发任何警告。</string>
+    <string name="calibration_pk_route_next_no_supporting_labs">添加在此途径提供大部分信号时采集的检测结果</string>
     <string name="calibration_pk_route_next_numeric_failure">请在数据或模型更新后重试</string>
     <string name="calibration_pk_route_next_provisional">补充在更多不同时间采集的检测</string>
     <string name="calibration_pk_route_next_calibrated">保持记录及时更新</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
     <string name="calibration_pk_reason_uncertain">该途径的调整仍不确定：后验分布较宽，或可用结果处于相近的模型信号水平。</string>
-    <string name="calibration_pk_reason_residual_fit_poor">当前结果无法支持一个可靠的途径调整。</string>
+    <string name="calibration_pk_reason_residual_fit_poor">此途径对您检测结果的拟合较差，显示的调整可能不可靠。</string>
     <string name="calibration_pk_reason_posterior_mode_ambiguous">结果支持不止一种可能的调整；当前显示拟合最好的一种。</string>
     <string name="calibration_pk_reason_unreviewed_outlier">一条被标记的结果与该途径的调整不一致。请复查该结果；如果不可比，请将其排除。</string>
     <string name="calibration_pk_reason_no_supporting_labs">没有检测结果的信号主要来自该途径，因此其调整大多沿用群体先验。</string>
@@ -1078,7 +1078,7 @@
     <string name="calibration_pk_status_population_title">正在使用群体估算</string>
     <string name="calibration_pk_status_population_body">尚无可用的检测结果涉及任何途径。当前显示的是与所有人相同的模型曲线。</string>
     <string name="calibration_pk_status_adjusted_title">已按检测调整的治疗估算</string>
-    <string name="calibration_pk_status_adjusted_body">已根据您的检测结果对%1$s进行调整；其余途径使用群体估算。这仍是估算值而非实测值——应用并未核实您所确认的前提条件。</string>
+    <string name="calibration_pk_status_adjusted_body">已根据您的检测结果对%1$s进行调整；其余途径使用群体估算。这仍是估算值而非实测值。</string>
     <string name="calibration_pk_retry">重试</string>
     <string name="calibration_pk_routes_card_title">途径调整</string>
     <string name="calibration_pk_routes_card_all_population">全部为群体估算</string>

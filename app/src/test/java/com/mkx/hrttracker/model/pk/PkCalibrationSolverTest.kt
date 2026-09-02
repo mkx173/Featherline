@@ -486,7 +486,7 @@ class PkCalibrationSolverTest {
 
     @Test
     fun emptyEvidencePool_returnsFivePopulationRowsWithoutFitting() {
-        val result = requireNotNull(PkCalibrationSolver.solve(pool()))
+        val result = PkCalibrationSolver.solve(pool())
 
         assertEquals(PkCalibrationGlobalState.READY, result.globalState)
         assertEquals(
@@ -658,7 +658,7 @@ class PkCalibrationSolverTest {
     }
 
     private fun solve(vararg labs: PkCalibrationIncludedLab): PkCalibrationResult {
-        return requireNotNull(PkCalibrationSolver.solve(pool(included = labs.toList())))
+        return PkCalibrationSolver.solve(pool(included = labs.toList()))
     }
 
     private fun pool(

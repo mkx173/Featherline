@@ -33,13 +33,10 @@ object PkCalibrationEngine {
             )
         }
         val evidence = PkCalibrationEvidenceAdapter.build(input)
-        val solved = evidence?.let(PkCalibrationSolver::solve)
-        if (evidence == null || solved == null) {
-            return PkCalibrationEvaluation(
+            ?: return PkCalibrationEvaluation(
                 PkCalibrationResult(PkCalibrationGlobalState.NUMERIC_FAILURE),
                 null,
             )
-        }
-        return PkCalibrationEvaluation(solved, evidence)
+        return PkCalibrationEvaluation(PkCalibrationSolver.solve(evidence), evidence)
     }
 }

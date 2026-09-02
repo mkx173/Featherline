@@ -71,7 +71,7 @@ class PkCalibrationEvidenceTest {
         )
         assertEquals(setOf(excluded), input.excludedLabIds)
 
-        val result = requireNotNull(PkCalibrationSolver.solve(pool))
+        val result = PkCalibrationSolver.solve(pool)
         assertEquals(PkCalibrationGlobalState.READY, result.globalState)
         assertEquals(pool.ignored, result.ignoredLabs)
         assertEquals(listOf(PkCalibrationRoute.ORAL), result.promotedRoutes)

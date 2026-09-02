@@ -123,11 +123,6 @@ private fun PkCalibrationRowChevron() {
     )
 }
 
-/**
- * Persistent decline banner (Phase-3.1 decision): adjustment is off because
- * the premises weren't confirmed; tapping re-opens the §U1 sheet. This is the
- * only re-entry nudge — the sheet never auto-presents after a decline.
- */
 /** Global status card (handoff §4/§5.1): one card, never five failures. */
 @Composable
 private fun PkCalibrationStatusCard(
@@ -311,8 +306,6 @@ private fun PkCalibrationRouteSummaryCard(
         }
     }
 }
-
-/** Caution states surfaced with a non-color cue (icon + word), handoff §7. */
 
 @Composable
 private fun PkCalibrationRouteChip(row: PkCalibrationRouteRowUiState) {

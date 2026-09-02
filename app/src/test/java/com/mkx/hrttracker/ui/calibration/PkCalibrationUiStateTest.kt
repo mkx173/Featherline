@@ -219,9 +219,9 @@ class PkCalibrationUiStateTest {
     }
 
     @Test
-    fun routeConfidence_tiersAnchorToExistingGatesOnly() {
-        // HIGH = every full-calibration gate passed; LOW = provisional with a
-        // posterior wider than the sd gate (the fixture's provisional rows use
+    fun routeConfidence_tiersAnchorToExistingThresholdsOnly() {
+        // HIGH = no warning raised; LOW = provisional with a
+        // posterior wider than the sd threshold (the fixture's provisional rows use
         // sd 0.3 > 0.20); population rows carry no tier.
         val uiState = ui(
             PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
@@ -241,7 +241,7 @@ class PkCalibrationUiStateTest {
         )
 
         // MEDIUM = provisional whose posterior already meets the
-        // full-calibration sd gate (only signal contrast still missing).
+        // full-calibration sd threshold (only signal contrast still missing).
         val mediumRow = com.mkx.hrttracker.model.pk.PkRouteCalibrationResult(
             route = PkCalibrationRoute.ORAL,
             displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,

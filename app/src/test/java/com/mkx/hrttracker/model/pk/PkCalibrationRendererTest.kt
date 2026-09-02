@@ -337,7 +337,7 @@ class PkCalibrationRendererTest {
             ignored = emptyMap(),
         )
         val evaluation = PkCalibrationEvaluation(
-            requireNotNull(PkCalibrationSolver.solve(pool)),
+            PkCalibrationSolver.solve(pool),
             pool,
         )
         assertEquals(

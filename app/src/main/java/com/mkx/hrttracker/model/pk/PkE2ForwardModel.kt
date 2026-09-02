@@ -3,9 +3,8 @@ package com.mkx.hrttracker.model.pk
 /**
  * Drug-only E2 forward evaluator used by calibration.
  *
- * Unlike Home's presentation wrapper, construction requires an explicit,
- * valid Current Weight. Calibration must never substitute the chart's 70 kg
- * presentation fallback.
+ * Construction requires a valid body weight; the caller resolves an unset
+ * Current Weight to the app default (see buildPkCalibrationInput).
  */
 class PkE2ForwardModel private constructor(
     private val eventModels: List<PkForwardEventModel>,

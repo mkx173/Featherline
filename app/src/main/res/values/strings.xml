@@ -1127,15 +1127,15 @@
     <string name="calibration_pk_reason_scale_outside_usual_range">The adjustment implied for this route is outside its usual range, or is a large shift backed by fewer than three supporting labs. Check lab and treatment records.</string>
     <string name="calibration_pk_route_reason_numeric_failure">A calculation didn’t complete for this route.</string>
     <string name="calibration_pk_route_reason_provisional">Adjusted for this route, but the adjustment is still uncertain.</string>
-    <string name="calibration_pk_route_reason_calibrated">Full model criteria met. The app did not verify the premises you confirmed.</string>
-    <string name="calibration_pk_route_next_no_supporting_labs">Learn how labs support a route</string>
+    <string name="calibration_pk_route_reason_calibrated">Full model criteria met. No warning was raised for this route.</string>
+    <string name="calibration_pk_route_next_no_supporting_labs">Add a lab collected when this route provides most of the signal</string>
     <string name="calibration_pk_route_next_numeric_failure">Retry after a data or model update</string>
     <string name="calibration_pk_route_next_provisional">Add labs collected at more varied times</string>
     <string name="calibration_pk_route_next_calibrated">Keep your records current</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
     <string name="calibration_pk_reason_uncertain">The route adjustment is still uncertain: the posterior is wide, or the usable results sit at similar modeled signal levels.</string>
-    <string name="calibration_pk_reason_residual_fit_poor">The current results do not support one reliable route adjustment.</string>
+    <string name="calibration_pk_reason_residual_fit_poor">The fit to your results is poor for this route, so the adjustment shown may be unreliable.</string>
     <string name="calibration_pk_reason_posterior_mode_ambiguous">The results support more than one possible adjustment; the best-fitting one is shown.</string>
     <string name="calibration_pk_reason_unreviewed_outlier">A flagged result disagrees with this route’s adjustment. Review it, or exclude it if it isn’t comparable.</string>
     <string name="calibration_pk_reason_no_supporting_labs">No lab draws much of its signal from this route, so its adjustment mostly follows the population prior.</string>
@@ -1153,7 +1153,7 @@
     <string name="calibration_pk_status_population_title">Using the population estimate</string>
     <string name="calibration_pk_status_population_body">No usable lab result touches any route yet. This is the same model curve shown for everyone.</string>
     <string name="calibration_pk_status_adjusted_title">Lab-adjusted treatment estimate</string>
-    <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement—and the app didn’t verify the premises you confirmed.</string>
+    <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement.</string>
     <string name="calibration_pk_retry">Try again</string>
     <string name="calibration_pk_routes_card_title">Route adjustments</string>
     <string name="calibration_pk_routes_card_all_population">All population</string>

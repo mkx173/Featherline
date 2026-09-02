@@ -577,7 +577,7 @@ internal data class PkJointRouteDiagnostics(
 
 /** Maps one evidence pool to exactly five route results. */
 object PkCalibrationSolver {
-    fun solve(evidence: PkCalibrationEvidencePool): PkCalibrationResult? {
+    fun solve(evidence: PkCalibrationEvidencePool): PkCalibrationResult {
         val rLog = evidence.input.config.rLog
         val supportingByRoute = supportingLabIdsByRoute(evidence.included)
         val ignored = evidence.ignored

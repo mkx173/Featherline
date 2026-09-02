@@ -1053,15 +1053,15 @@
     <string name="calibration_pk_reason_scale_outside_usual_range">呢個途徑推算出嘅調整超出咗佢嘅通常範圍，或者係只有少過三筆支持性結果支撐嘅較大調整。請檢查檢測同治療記錄。</string>
     <string name="calibration_pk_route_reason_numeric_failure">呢個途徑有一項計算未能完成。</string>
     <string name="calibration_pk_route_reason_provisional">已經對呢個途徑做咗調整，但係調整仲係唔確定。</string>
-    <string name="calibration_pk_route_reason_calibrated">已經滿足全部模型標準。應用程式並冇核實你所確認嘅前提條件。</string>
-    <string name="calibration_pk_route_next_no_supporting_labs">了解檢測結果點樣支持某一個途徑</string>
+    <string name="calibration_pk_route_reason_calibrated">已經滿足全部模型標準，呢個途徑冇觸發任何警告。</string>
+    <string name="calibration_pk_route_next_no_supporting_labs">加入喺呢個途徑提供大部分訊號嗰陣採集嘅檢測結果</string>
     <string name="calibration_pk_route_next_numeric_failure">請等數據或模型更新之後再試</string>
     <string name="calibration_pk_route_next_provisional">補充喺更多唔同時間採集嘅檢測</string>
     <string name="calibration_pk_route_next_calibrated">保持記錄及時更新</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
     <string name="calibration_pk_reason_uncertain">呢個途徑嘅調整仲未確定：後驗分佈較闊，或者可用結果處於相近嘅模型訊號水平。</string>
-    <string name="calibration_pk_reason_residual_fit_poor">而家嘅結果未能夠支持一個可靠嘅途徑調整。</string>
+    <string name="calibration_pk_reason_residual_fit_poor">呢個途徑對你檢測結果嘅擬合比較差，顯示嘅調整可能唔可靠。</string>
     <string name="calibration_pk_reason_posterior_mode_ambiguous">結果支持唔止一種可能嘅調整；而家顯示擬合最好嘅一種。</string>
     <string name="calibration_pk_reason_unreviewed_outlier">一筆被標記嘅結果同呢個途徑嘅調整唔一致。請覆查呢個結果；如果唔可比，請將佢排除。</string>
     <string name="calibration_pk_reason_no_supporting_labs">冇檢測結果嘅訊號主要嚟自呢個途徑，所以佢嘅調整大多沿用群體先驗。</string>
@@ -1078,7 +1078,7 @@
     <string name="calibration_pk_status_population_title">而家用緊群體估算</string>
     <string name="calibration_pk_status_population_body">仲未有可用嘅檢測結果涉及任何途徑。而家顯示嘅係同所有人一樣嘅模型曲線。</string>
     <string name="calibration_pk_status_adjusted_title">已按檢測調整嘅治療估算</string>
-    <string name="calibration_pk_status_adjusted_body">已經根據你嘅檢測結果對%1$s做咗調整；其餘途徑用緊群體估算。呢個仍然係估算值而唔係實測值——應用程式並冇核實你所確認嘅前提條件。</string>
+    <string name="calibration_pk_status_adjusted_body">已經根據你嘅檢測結果對%1$s做咗調整；其餘途徑用緊群體估算。呢個仍然係估算值而唔係實測值。</string>
     <string name="calibration_pk_retry">再試一次</string>
     <string name="calibration_pk_routes_card_title">途徑調整</string>
     <string name="calibration_pk_routes_card_all_population">全部都係群體估算</string>
