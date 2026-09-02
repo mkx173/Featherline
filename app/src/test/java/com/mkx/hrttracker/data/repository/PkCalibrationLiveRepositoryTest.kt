@@ -39,7 +39,7 @@ class PkCalibrationLiveRepositoryTest {
     fun liveState_publishesActualEngineEvaluation_onInjectedDispatcher() = runTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(7L)
-        every { storage.observeHomeSnapshotGeneration() } returns generations
+        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { storage.captureHomeDataGeneration() } returns 7L
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
@@ -88,7 +88,7 @@ class PkCalibrationLiveRepositoryTest {
     fun unsetWeight_fallsBackToTheAppDefault_insteadOfFailingInvalid() = runTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(1L)
-        every { storage.observeHomeSnapshotGeneration() } returns generations
+        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { storage.captureHomeDataGeneration() } returns 1L
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
@@ -120,7 +120,7 @@ class PkCalibrationLiveRepositoryTest {
     @Test
     fun generationChange_andRetry_reReadWithoutCreatingAnotherVersion() = runTest {
         val generations = MutableStateFlow(4L)
-        every { storage.observeHomeSnapshotGeneration() } returns generations
+        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { storage.captureHomeDataGeneration() } returns 4L
         stubEmptySourceReads()
         val repository = repository(generations, backgroundScope, StandardTestDispatcher(testScheduler))
@@ -153,7 +153,7 @@ class PkCalibrationLiveRepositoryTest {
     @Test
     fun newerGeneration_cancelsAnOlderRead_andOnlyLatestStateSurvives() = runTest {
         val generations = MutableStateFlow(1L)
-        every { storage.observeHomeSnapshotGeneration() } returns generations
+        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { storage.captureHomeDataGeneration() } coAnswers { generations.value }
         val firstReadStarted = CompletableDeferred<Unit>()
         var reads = 0
@@ -191,7 +191,7 @@ class PkCalibrationLiveRepositoryTest {
         appScope: kotlinx.coroutines.CoroutineScope,
         defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
     ): PkCalibrationLiveRepository {
-        every { storage.observeHomeSnapshotGeneration() } returns generations
+        every { storage.observeHomeSnapshotWrites() } returns generations
         return PkCalibrationLiveRepository(
             bloodTestRepository = bloodTests,
             medicationLogRepository = medicationLogs,

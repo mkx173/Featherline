@@ -5,6 +5,12 @@ import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import java.time.ZoneId
+import java.time.LocalDateTime
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.flowOf
+import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.data.repository.HOME_SNAPSHOT_SCHEMA_VERSION
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
@@ -285,6 +291,47 @@ class PkCalibrationPersistenceTest {
         value = value,
         unitSnapshot = "pg_ml",
         canonicalValue = value,
+    )
+
+    @Test
+    fun observeHomeSnapshotWrites_emitsOncePerRebuild_notOncePerGeneration() = runTest {
+        // Date-change and projection-expiry rebuilds keep the generation, so a
+        // generation-keyed live evaluation never followed them and the
+        // calibration page kept a window days behind Home.
+        val zoneId = ZoneId.systemDefault()
+        val first = LocalDateTime.of(2026, 5, 7, 9, 0)
+        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(
+            null,
+            snapshotRecord(generation = 3L, generatedAt = first, zoneId = zoneId),
+            snapshotRecord(generation = 3L, generatedAt = first, zoneId = zoneId),
+            snapshotRecord(generation = 3L, generatedAt = first.plusDays(1), zoneId = zoneId),
+            snapshotRecord(generation = 4L, generatedAt = first.plusDays(2), zoneId = zoneId),
+        )
+
+        val writes = storageRepository(homeSnapshotRepository).observeHomeSnapshotWrites().toList()
+
+        assertEquals(
+            listOf(first, first.plusDays(1), first.plusDays(2))
+                .map { at -> at.atZone(zoneId).toInstant().toEpochMilli() },
+            writes,
+        )
+    }
+
+    private fun snapshotRecord(
+        generation: Long,
+        generatedAt: LocalDateTime,
+        zoneId: ZoneId,
+    ) = HomeSnapshotRecord(
+        schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+        generation = generation,
+        generatedAtEpochMillis = generatedAt.atZone(zoneId).toInstant().toEpochMilli(),
+        anchorDateEpochDay = generatedAt.toLocalDate().toEpochDay(),
+        zoneId = zoneId.id,
+        pkProjection = null,
+        activeGroups = emptyList(),
+        scheduleEntries = emptyList(),
+        antiandrogenHistoryEntries = emptyList(),
     )
 
     private fun excludedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(

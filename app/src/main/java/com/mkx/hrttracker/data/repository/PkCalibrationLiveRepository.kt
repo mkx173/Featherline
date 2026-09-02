@@ -57,13 +57,14 @@ class PkCalibrationLiveRepository @Inject constructor(
 ) {
     private val retryVersion = MutableStateFlow(0L)
 
-    // Keyed on the Home snapshot's generation, not the durable generation:
+    // Keyed on Home snapshot writes, not the durable generation:
     // runHomeDataMutation bumps the generation BEFORE the write commits, so a
     // generation-triggered read would see pre-write data and never re-run.
-    // The snapshot is written after the mutation, so its generation is the
-    // post-write signal.
+    // The snapshot is written after the mutation, so it is the post-write
+    // signal; it is also rewritten on date change and projection expiry, so
+    // the render domain below tracks the window Home draws.
     val liveState: StateFlow<PkCalibrationLiveState> = combine(
-        storageRepository.observeHomeSnapshotGeneration(),
+        storageRepository.observeHomeSnapshotWrites(),
         retryVersion,
     ) { _, _ -> }
         .transformLatest {

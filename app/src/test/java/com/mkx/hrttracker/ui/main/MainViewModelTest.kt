@@ -841,6 +841,58 @@ class MainViewModelTest {
     }
 
     @Test
+    fun projectionExpiringWhileOnHome_requestsOneSnapshotRebuild() = runTest {
+        // Only a data mutation or a date change rebuilt the snapshot, so when
+        // a planned slot passed while the user stayed on Home the band
+        // (snapshot-only) vanished and stayed gone. Expiry must request one
+        // non-forced rebuild, and only one per expiry.
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val expiresAt = firstMinute.plusSeconds(30).atZone(zoneId).toInstant()
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = firstMinute,
+                trendResult = PkTrendResult(
+                    currentConcentration = 100.0,
+                    previousDayConcentration = 90.0,
+                    dailyConcentrations = listOf(70.0, 80.0, 90.0, 100.0),
+                    concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+                ),
+                pkProjectionExpiresAt = expiresAt,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+        // Only the date-keyed refresh so far.
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+
+        val expiredMinute = firstMinute.plusMinutes(1)
+        appTimeSource.setCurrentMinute(expiredMinute)
+        advanceUntilIdle()
+        verify(exactly = 1) {
+            homeRepository.refreshHomeSnapshotAsync(
+                now = expiredMinute,
+                force = false,
+                zoneId = zoneId,
+            )
+        }
+
+        appTimeSource.setCurrentMinute(expiredMinute.plusMinutes(1))
+        advanceUntilIdle()
+        verify(exactly = 2) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+    }
+
+    @Test
     fun expiredProjectionFallsBackToRoomTrendAgainstLiveNow() = runTest {
         // Sanity: HomeInputs carries a non-null pkProjection (currentConcentration 100)
         // but pkProjectionExpiresAt is in the past relative to `now`. The

@@ -84,13 +84,15 @@ class PkCalibrationStorageRepository @Inject constructor(
     }
 
     /**
-     * Generation of the last written Home snapshot: emitted after a Home-data
-     * mutation has committed and its snapshot rebuilt, so a calibration read
-     * keyed on it always sees the new data.
+     * Generated-at of the last written Home snapshot. It changes on every
+     * rebuild: after a Home-data mutation has committed (so a calibration read
+     * keyed on it always sees the new data) and on the snapshot-only rebuilds
+     * (date change, projection expiry, chart window), so the live evaluation
+     * follows the same window Home draws.
      */
-    fun observeHomeSnapshotGeneration(): Flow<Long> {
+    fun observeHomeSnapshotWrites(): Flow<Long> {
         return homeSnapshotRepository.observeHomeSnapshot()
-            .mapNotNull { snapshot -> snapshot?.generation }
+            .mapNotNull { snapshot -> snapshot?.generatedAtEpochMillis }
             .distinctUntilChanged()
     }
 }
