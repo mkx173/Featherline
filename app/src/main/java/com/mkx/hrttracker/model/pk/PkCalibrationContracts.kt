@@ -253,19 +253,18 @@ data class PkCalibrationResult(
      * applied: the hero would otherwise call a personalized curve "population".
      */
     val supportedPromotedRoutes: List<PkCalibrationRoute>
-        get() = routeResults
-            .filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
-            .map { it.route }
+        get() = supportedAdjustedRows.map { it.route }
 
     /** Parameters applied to the curve: [supportedPromotedRoutes] only. */
     val displayParams: PkPersonalParams
         get() = requireNotNull(
             PkPersonalParams.create(
-                routeResults
-                    .filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
-                    .associate { it.route to requireNotNull(it.fittedBeta) }
+                supportedAdjustedRows.associate { it.route to requireNotNull(it.fittedBeta) }
             )
         )
+
+    private val supportedAdjustedRows: List<PkRouteCalibrationResult>
+        get() = routeResults.filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
 }
 
 data class PkCalibrationRenderResult(
