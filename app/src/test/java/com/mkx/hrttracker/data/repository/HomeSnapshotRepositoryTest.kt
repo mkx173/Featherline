@@ -24,6 +24,13 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
+import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderer
+import com.mkx.hrttracker.model.pk.PkCalibrationResult
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -64,6 +71,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.TimeZone
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -306,12 +314,12 @@ class HomeSnapshotRepositoryTest {
         first.join()
         second.join()
 
-        assertEquals(1, builds.count)
+        assertEquals(1, builds.get())
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
 
         // Once the shared build has completed, a new forced request builds again.
         repository.refreshHomeSnapshotIfNeeded(force = true)
-        assertEquals(2, builds.count)
+        assertEquals(2, builds.get())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -346,7 +354,7 @@ class HomeSnapshotRepositoryTest {
 
         // Two builds ran; only the latest-started one (midnight) is written, the
         // pre-midnight build's record is dropped even though it finished first.
-        assertEquals(2, builds.count)
+        assertEquals(2, builds.get())
         val written = slot<HomeSnapshotRecord>()
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
         assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
@@ -381,7 +389,7 @@ class HomeSnapshotRepositoryTest {
         first.join()
         second.join()
 
-        assertEquals(2, builds.count)
+        assertEquals(2, builds.get())
         val written = slot<HomeSnapshotRecord>()
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
         assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
@@ -429,29 +437,28 @@ class HomeSnapshotRepositoryTest {
         second.join()
 
         // The delayed older request joins the newer build instead of building.
-        assertEquals(1, builds.count)
+        assertEquals(1, builds.get())
         val written = slot<HomeSnapshotRecord>()
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
         assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
     }
 
-    private class BuildCounter(var count: Int = 0)
-
     /**
      * Empty Home inputs whose first DAO read suspends, so a second refresh
-     * request arrives while the first build is still loading.
+     * request arrives while the first build is still loading. Builds load on
+     * Dispatchers.IO, so the counter is read and bumped from real threads.
      */
     private fun stubSlowEmptyRefreshInputs(
         /** Per-build delay of the first DAO read, in scheduler ms; the last entry repeats. */
         buildDelaysMs: List<Long> = listOf(100L),
-    ): BuildCounter {
+    ): AtomicInteger {
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
         val medicineDao: MedicineDao = mockk()
         val medicationLogDao: MedicationLogDao = mockk()
         val userProfileDao: UserProfileDao = mockk()
         val journalDao: JournalDao = mockk()
-        val builds = BuildCounter()
+        val builds = AtomicInteger()
 
         coEvery { homeSnapshotStore.readSnapshot() } returns null
         coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
@@ -468,8 +475,7 @@ class HomeSnapshotRepositoryTest {
             coEvery { getAllMetadata() } returns emptyList()
         }
         coEvery { homeDao.getActiveGroups() } coAnswers {
-            val delayMs = buildDelaysMs[minOf(builds.count, buildDelaysMs.lastIndex)]
-            builds.count += 1
+            val delayMs = buildDelaysMs[minOf(builds.getAndIncrement(), buildDelaysMs.lastIndex)]
             delay(delayMs)
             emptyList()
         }
@@ -549,6 +555,98 @@ class HomeSnapshotRepositoryTest {
         assertNull(writtenSnapshot.captured.pkCalibration)
         assertTrue(writtenSnapshot.captured.pkRouteLogScale.isEmpty())
         assertTrue(writtenSnapshot.captured.pkProjection != null)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun runHomeDataMutation_namesSupportedRoutesWhenTheBandRenderThrows() = runTest {
+        // The curve is simulated with displayParams before the band render, so
+        // a throwing render (no band) must not flip the hero to "population"
+        // over a personalized curve.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        coEvery { databaseHolder.awaitOpen() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
+        coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val rows = PkCalibrationRoute.entries.map { route ->
+            if (route == PkCalibrationRoute.INJECTION) {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                    fittedBeta = 0.2,
+                    betaPosteriorSd = 0.1,
+                    supportingLabCount = 2,
+                )
+            } else {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                )
+            }
+        }
+        val evaluation = PkCalibrationEvaluation(
+            PkCalibrationResult(PkCalibrationGlobalState.READY, rows),
+            evidence = null,
+        )
+
+        mockkObject(PkCalibrationEngine, PkCalibrationRenderer)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } returns evaluation
+            every {
+                PkCalibrationRenderer.render(any(), any(), any())
+            } throws IllegalStateException("render")
+            repository.runHomeDataMutation { }
+        } finally {
+            unmockkObject(PkCalibrationEngine, PkCalibrationRenderer)
+        }
+
+        val record = checkNotNull(writtenSnapshot.captured.pkCalibration)
+        assertEquals(
+            setOf(PkCalibrationRoute.INJECTION.stableId),
+            writtenSnapshot.captured.pkRouteLogScale.keys,
+        )
+        assertTrue(record.adjusted)
+        assertFalse(record.renderUnavailable)
+        assertTrue(writtenSnapshot.captured.pkBandKnots.isEmpty())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

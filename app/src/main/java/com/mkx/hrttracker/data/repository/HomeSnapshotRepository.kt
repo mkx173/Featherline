@@ -493,12 +493,16 @@ class HomeSnapshotRepository @Inject constructor(
                 return@withLock null
             }
             val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
+                generation = generation,
                 now = now,
                 zoneId = zoneId,
                 option = option,
                 force = force,
             ) ?: return@withLock null
             latestStartedRefreshSequence = sequence
+            // The build deliberately outlives its requester: a receiver's
+            // timeout cancels only its await, and later requests join the
+            // still-running build instead of starting another.
             appScope.async {
                 buildAndWriteHomeSnapshot(
                     refreshGeneration = refreshGeneration,
@@ -550,6 +554,7 @@ class HomeSnapshotRepository @Inject constructor(
         val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
         val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
         val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
+            generation = homeSnapshotGenerationStore.readGeneration(),
             now = now,
             zoneId = zoneId,
             option = option,
@@ -567,12 +572,13 @@ class HomeSnapshotRepository @Inject constructor(
     }
 
     private suspend fun refreshGenerationAfterSkipCheckLocked(
+        generation: Long,
         now: LocalDateTime,
         zoneId: ZoneId,
         option: HomeE2ChartWindowOption,
         force: Boolean,
     ): Long? {
-        val gen = homeSnapshotGenerationStore.readGeneration()
+        val gen = generation
         val existingSnapshot = homeSnapshotStore.readSnapshot()
         diagnosticsLogger.info(
             TAG,
@@ -858,8 +864,12 @@ class HomeSnapshotRepository @Inject constructor(
             .orEmpty()
         // Hero/status summary, so Home never waits for the live evaluation.
         val calibrationRecord = calibration?.let { evaluation ->
-            val effective = homeRender?.effectivePromotedRoutes.orEmpty()
-                .filter(evaluation.result.supportedPromotedRoutes::contains)
+            // The render only narrows the supported routes to those shaping
+            // this range. When it failed (null) the curve still carries
+            // displayParams, so name the supported routes rather than call a
+            // personalized curve "population".
+            val effective = homeRender?.effectivePromotedRoutes
+                ?: evaluation.result.supportedPromotedRoutes
             val provisional = evaluation.result.routeResults
                 .filter { row ->
                     row.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
