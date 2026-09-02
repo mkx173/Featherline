@@ -100,9 +100,9 @@ data class PkCalibrationUiState(
      */
     val numericFailure: Boolean
         get() = globalState == PkCalibrationGlobalState.NUMERIC_FAILURE ||
-            routeRows.any { row ->
+            (routeRows.isNotEmpty() && routeRows.all { row ->
                 row.displayState == PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
-            }
+            })
 }
 
 /**

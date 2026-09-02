@@ -352,6 +352,27 @@ class PkCalibrationUiStateTest {
             ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL))
                 .numericFailure
         )
+
+        // Every row failed, not any row: an adjusted route next to a failed one
+        // is a personalized curve, and the status card must not put the
+        // numeric-failure copy and Retry over it.
+        val mixedRows = rows.mapIndexed { index, row ->
+            if (index == 0) {
+                row.copy(
+                    displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                    fittedBeta = 0.1,
+                    supportingLabCount = 2,
+                )
+            } else {
+                row
+            }
+        }
+        val mixed = pkCalibrationUiState(
+            PkCalibrationResult(PkCalibrationGlobalState.READY, mixedRows),
+            null,
+        )
+        assertFalse(mixed.numericFailure)
+        assertEquals(PkCalibrationHeroKind.ADJUSTED, mixed.heroKind)
     }
 
     @Test
