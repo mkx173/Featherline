@@ -146,6 +146,18 @@ private fun PkCalibrationStatusCard(
             body = stringResource(requireNotNull(uiState.globalState.statusBodyRes))
         }
 
+        // A joint-solve failure keeps READY (so the lab rows survive) but
+        // every route is a numeric failure: same card as the global state.
+        uiState.numericFailure -> {
+            iconRes = R.drawable.ic_sync_alt
+            title = stringResource(
+                requireNotNull(PkCalibrationGlobalState.NUMERIC_FAILURE.statusTitleRes)
+            )
+            body = stringResource(
+                requireNotNull(PkCalibrationGlobalState.NUMERIC_FAILURE.statusBodyRes)
+            )
+        }
+
         !adjusted -> {
             iconRes = R.drawable.ic_labs
             title = stringResource(R.string.calibration_pk_status_population_title)
@@ -222,19 +234,15 @@ private fun PkCalibrationStatusCard(
                     .padding(top = 12.dp)
                     .cjkTextOffset(body),
             )
-            when (uiState.globalState) {
-                PkCalibrationGlobalState.NUMERIC_FAILURE -> HrtFilledTonalButton(
+            // Other non-READY states carry their call to action in the body
+            // copy ("add an E2 result").
+            if (uiState.numericFailure) {
+                HrtFilledTonalButton(
                     text = stringResource(R.string.calibration_pk_retry),
                     onClick = onRetry,
                     modifier = Modifier.padding(top = 12.dp),
                     compact = true,
                 )
-
-                // The body copy is the call to action ("add an E2 result").
-                PkCalibrationGlobalState.READY,
-                PkCalibrationGlobalState.NO_DOSE_HISTORY,
-                PkCalibrationGlobalState.NO_USABLE_LABS,
-                -> Unit
             }
         }
     }

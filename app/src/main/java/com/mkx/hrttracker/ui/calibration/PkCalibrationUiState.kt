@@ -86,13 +86,24 @@ data class PkCalibrationUiState(
     val limitedConfidence: Boolean,
     /** Exactly five rows in canonical route order when READY, empty otherwise. */
     val routeRows: List<PkCalibrationRouteRowUiState>,
-    /** Routes driving the hero for the current render, canonical order. */
+    /** Supported routes driving the hero for the current render, canonical order. */
     val effectivePromotedRoutes: List<PkCalibrationRoute>,
     /** Labs the fit set aside, flagged on their row with the reason. */
     val ignoredLabs: Map<UUID, PkCalibrationLabIgnoreReason>,
     val renderState: PkCalibrationRenderState,
     val bandState: PkCalibrationBandState,
-)
+) {
+    /**
+     * The fit did not complete: either the forward model failed (global
+     * NUMERIC_FAILURE) or the joint solve failed with the lab rows kept
+     * (READY with every route at POPULATION_NUMERIC_FAILURE).
+     */
+    val numericFailure: Boolean
+        get() = globalState == PkCalibrationGlobalState.NUMERIC_FAILURE ||
+            routeRows.any { row ->
+                row.displayState == PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
+            }
+}
 
 /**
  * [PkCalibrationUiState] plus the per-lab review context the lab list needs
@@ -172,10 +183,11 @@ fun pkCalibrationUiState(
     render: PkCalibrationRenderResult?,
 ): PkCalibrationUiState {
     val ready = result.globalState == PkCalibrationGlobalState.READY
+    val supported = result.supportedPromotedRoutes
     val effectivePromoted = when {
         !ready -> emptyList()
-        render == null -> result.promotedRoutes
-        else -> render.effectivePromotedRoutes
+        render == null -> supported
+        else -> render.effectivePromotedRoutes.filter(supported::contains)
     }
     val provisionalRoutes = result.routeResults
         .filter { routeResult ->

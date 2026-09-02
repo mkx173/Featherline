@@ -245,6 +245,16 @@ data class PkCalibrationResult(
     val promotedRoutes: List<PkCalibrationRoute>
         get() = routeResults.filter { it.displayState.isAdjusted }.map { it.route }
 
+    /**
+     * Adjusted routes with at least one supporting lab: the only ones the hero
+     * and status body name. A route fitted from a negligible share still shows
+     * its adjustment on its row, but "adjusted toward your labs" would overstate it.
+     */
+    val supportedPromotedRoutes: List<PkCalibrationRoute>
+        get() = routeResults
+            .filter { it.displayState.isAdjusted && it.supportingLabCount > 0 }
+            .map { it.route }
+
     val displayParams: PkPersonalParams
         get() = requireNotNull(
             PkPersonalParams.create(

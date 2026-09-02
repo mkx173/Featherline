@@ -741,6 +741,7 @@ class HomeSnapshotRepository @Inject constructor(
         // Hero/status summary, so Home never waits for the live evaluation.
         val calibrationRecord = calibration?.let { evaluation ->
             val effective = homeRender?.effectivePromotedRoutes.orEmpty()
+                .filter(evaluation.result.supportedPromotedRoutes::contains)
             val provisional = evaluation.result.routeResults
                 .filter { row ->
                     row.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL

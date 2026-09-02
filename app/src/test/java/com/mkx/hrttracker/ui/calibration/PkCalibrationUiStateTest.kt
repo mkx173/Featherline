@@ -7,9 +7,13 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
+import com.mkx.hrttracker.model.pk.PkCalibrationReason
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugFixtures
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugPreset
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScenario
@@ -273,6 +277,80 @@ class PkCalibrationUiStateTest {
         assertEquals(
             PkCalibrationRouteConfidence.LOW,
             pkRouteCalibrationConfidence(keptOutlierRow),
+        )
+    }
+
+    @Test
+    fun adjustedRouteWithoutSupportingLabs_keepsItsRow_butDoesNotDriveTheHero() {
+        // Warn-only: a route touched by a negligible share is still fitted and
+        // shown on its row, but "adjusted toward your labs for Gel" would
+        // overstate it, so the hero and status body name supported routes only.
+        val rows = PkCalibrationRoute.entries.map { route ->
+            if (route == PkCalibrationRoute.GEL) {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                    reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                    fittedBeta = 0.01,
+                    betaPosteriorSd = 0.3,
+                    supportingLabCount = 0,
+                )
+            } else {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                )
+            }
+        }
+        val result = PkCalibrationResult(PkCalibrationGlobalState.READY, rows)
+        val render = PkCalibrationRenderResult(
+            renderState = PkCalibrationRenderState.PERSONALIZED,
+            effectivePromotedRoutes = listOf(PkCalibrationRoute.GEL),
+            centralCurve = emptyList(),
+            bandState = PkCalibrationBandState.READY,
+        )
+        for (uiState in listOf(
+            pkCalibrationUiState(result, render),
+            pkCalibrationUiState(result, null),
+        )) {
+            assertEquals(PkCalibrationHeroKind.POPULATION, uiState.heroKind)
+            assertFalse(uiState.limitedConfidence)
+            assertTrue(uiState.effectivePromotedRoutes.isEmpty())
+            assertTrue(
+                uiState.routeRows
+                    .single { row -> row.route == PkCalibrationRoute.GEL }
+                    .displayState.isAdjusted
+            )
+        }
+    }
+
+    @Test
+    fun solverLevelFailure_isNumericFailure_forTheStatusCard() {
+        // A joint-solve failure keeps READY so the lab rows survive; the
+        // status card must still show the numeric-failure copy and retry.
+        val rows = PkCalibrationRoute.entries.map { route ->
+            PkRouteCalibrationResult(
+                route = route,
+                displayState = PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+            )
+        }
+        val solverFailed = pkCalibrationUiState(
+            PkCalibrationResult(PkCalibrationGlobalState.READY, rows),
+            null,
+        )
+        assertEquals(PkCalibrationGlobalState.READY, solverFailed.globalState)
+        assertTrue(solverFailed.numericFailure)
+        assertEquals(PkCalibrationHeroKind.POPULATION, solverFailed.heroKind)
+
+        val forwardFailed = pkCalibrationUiState(
+            PkCalibrationResult(PkCalibrationGlobalState.NUMERIC_FAILURE),
+            null,
+        )
+        assertTrue(forwardFailed.numericFailure)
+
+        assertFalse(
+            ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL))
+                .numericFailure
         )
     }
 
