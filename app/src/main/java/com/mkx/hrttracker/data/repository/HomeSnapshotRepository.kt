@@ -31,6 +31,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -419,33 +420,50 @@ class HomeSnapshotRepository @Inject constructor(
         val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
         val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
 
-        // refreshMutex is held only across the skip-check so concurrent refresh
-        // requests briefly coalesce here. The simulation and write phases run
-        // outside the lock; correctness relies on the generation recheck inside
-        // snapshotMutationMutex below — any racing mutation bumps the durable
-        // generation and our writeSnapshot call is dropped. Trade-off: under
-        // unusual contention, two refresh requests may both run their
-        // simulations in parallel and the loser's work is wasted. We accept
-        // that to keep mutation latency low (writes don't stall behind a PK
-        // simulation + JSON encode + encrypted DataStore write).
-        val refreshGeneration = refreshMutex.withLock {
-            refreshGenerationAfterSkipCheckLocked(
+        // refreshMutex is held only across the skip-check. The simulation and
+        // write phases run outside the lock so mutations never stall behind a
+        // PK simulation + JSON encode + encrypted DataStore write; correctness
+        // relies on the generation recheck inside snapshotMutationMutex below —
+        // any racing mutation bumps the durable generation and the writeSnapshot
+        // call is dropped. A build in flight for the current generation is
+        // shared: a second request (forced or not) joins it instead of running
+        // its own. The boot / time-set / timezone broadcasts reach two receivers
+        // that each force a refresh, which used to run two full builds.
+        val build = refreshMutex.withLock {
+            val generation = homeSnapshotGenerationStore.readGeneration()
+            val inFlight = inFlightRefresh
+            if (inFlight != null && inFlight.generation == generation && inFlight.build.isActive) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_snapshot_refresh_joined_in_flight generation=$generation " +
+                            "force=$force now=$now"
+                )
+                return@withLock inFlight.build
+            }
+            val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
                 now = now,
                 zoneId = zoneId,
                 option = option,
                 force = force,
-            )
+            ) ?: return@withLock null
+            appScope.async {
+                buildAndWriteHomeSnapshot(
+                    refreshGeneration = refreshGeneration,
+                    now = now,
+                    zoneId = zoneId,
+                    option = option,
+                    cacheWindow = cacheWindow,
+                    snapshotWindow = snapshotWindow,
+                )
+            }.also { started -> inFlightRefresh = InFlightRefresh(refreshGeneration, started) }
         } ?: return
-
-        buildAndWriteHomeSnapshot(
-            refreshGeneration = refreshGeneration,
-            now = now,
-            zoneId = zoneId,
-            option = option,
-            cacheWindow = cacheWindow,
-            snapshotWindow = snapshotWindow,
-        )
+        build.await()
     }
+
+    /** The build owned by the last refresh to pass the skip-check; guarded by [refreshMutex]. */
+    private var inFlightRefresh: InFlightRefresh? = null
+
+    private class InFlightRefresh(val generation: Long, val build: Deferred<Unit>)
 
     private suspend fun refreshHomeSnapshotIfNeededLocked(
         now: LocalDateTime = LocalDateTime.now(),

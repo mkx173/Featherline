@@ -43,6 +43,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -279,6 +280,74 @@ class HomeSnapshotRepositoryTest {
                 .medications
                 .map { medication -> medication.medicine?.displayName },
         )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun concurrentForcedRefreshes_shareOneBuild() = runTest {
+        // Boot, time-set and timezone broadcasts reach two receivers that each
+        // force a refresh ~40 ms apart. Both used to pass the skip-check and run
+        // a full build (PK simulation, calibration solve, encrypted write).
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+        var builds = 0
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
+        coEvery { databaseHolder.awaitOpen() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
+        // The first build is still loading inputs when the second request arrives.
+        coEvery { homeDao.getActiveGroups() } coAnswers {
+            builds += 1
+            delay(100)
+            emptyList()
+        }
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        val first = launch(dispatcher) { repository.refreshHomeSnapshotIfNeeded(force = true) }
+        val second = launch(dispatcher) { repository.refreshHomeSnapshotIfNeeded(force = true) }
+        first.join()
+        second.join()
+
+        assertEquals(1, builds)
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
+
+        // Once the shared build has completed, a new forced request builds again.
+        repository.refreshHomeSnapshotIfNeeded(force = true)
+        assertEquals(2, builds)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
