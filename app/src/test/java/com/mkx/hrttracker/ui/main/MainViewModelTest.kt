@@ -841,11 +841,13 @@ class MainViewModelTest {
     }
 
     @Test
-    fun projectionExpiringWhileOnHome_requestsOneSnapshotRebuild() = runTest {
+    fun projectionExpiringWhileOnHome_requestsARebuildEachTickUntilRebuilt() = runTest {
         // Only a data mutation or a date change rebuilt the snapshot, so when
         // a planned slot passed while the user stayed on Home the band
-        // (snapshot-only) vanished and stayed gone. Expiry must request one
-        // non-forced rebuild, and only one per expiry.
+        // (snapshot-only) vanished and stayed gone. Expiry must request a
+        // non-forced rebuild, and keep asking on later ticks while the inputs
+        // stay expired (a failed rebuild is retried; the request is idempotent
+        // because the refresh skip-check only continues while expired).
         val firstMinute = LocalDateTime.of(2026, 4, 30, 12, 0)
         val zoneId = ZoneId.systemDefault()
         val expiresAt = firstMinute.plusSeconds(30).atZone(zoneId).toInstant()
@@ -889,7 +891,39 @@ class MainViewModelTest {
 
         appTimeSource.setCurrentMinute(expiredMinute.plusMinutes(1))
         advanceUntilIdle()
-        verify(exactly = 2) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+        verify(exactly = 3) { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) }
+    }
+
+    @Test
+    fun expiredProjectionAlreadyDecodedAsNull_stillRequestsARebuild() = runTest {
+        // The decoded projection is null once its expiry has passed upstream;
+        // the stored expiry alone must drive the rebuild request.
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(
+                now = firstMinute,
+                trendResult = null,
+                pkProjectionExpiresAt = firstMinute.minusMinutes(5).atZone(zoneId).toInstant(),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        // The date-keyed refresh plus the expiry-driven one.
+        verify(exactly = 2) {
+            homeRepository.refreshHomeSnapshotAsync(now = firstMinute, force = false, zoneId = zoneId)
+        }
     }
 
     @Test

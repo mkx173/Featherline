@@ -50,7 +50,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -68,7 +67,6 @@ class MainViewModel @Inject constructor(
 ) : ViewModel() {
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
-    private var lastExpiredProjectionRefreshExpiresAt: Instant? = null
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -359,13 +357,13 @@ class MainViewModel @Inject constructor(
         // A planned slot passing expires the cached projection, and nothing
         // else rebuilds the snapshot until the next mutation or date change:
         // the band (snapshot-only) would stay gone and the calibration page
-        // would keep its old window. Ask for one non-forced rebuild per
-        // expiry; the refresh skip-check continues on an expired projection.
+        // would keep its old window. Ask for a non-forced rebuild while the
+        // stored expiry is in the past. The request is idempotent: the refresh
+        // skip-check only continues on an expired projection and a build in
+        // flight is joined, so a failed rebuild is retried on the next tick
+        // and a successful one replaces these inputs.
         val expiresAt = inputs.pkProjectionExpiresAt
-        if (freshProjection == null && inputs.pkProjection != null && expiresAt != null &&
-            lastExpiredProjectionRefreshExpiresAt != expiresAt
-        ) {
-            lastExpiredProjectionRefreshExpiresAt = expiresAt
+        if (expiresAt != null && !expiresAt.isAfter(nowInstant)) {
             homeRepository.refreshHomeSnapshotAsync(now = now, force = false, zoneId = zoneId)
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
