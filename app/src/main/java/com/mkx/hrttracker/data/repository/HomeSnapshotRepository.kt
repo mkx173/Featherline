@@ -656,8 +656,20 @@ class HomeSnapshotRepository @Inject constructor(
             metadata = inputs.calibrationMetadata,
             fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
+        // A throwing solve must not drop the snapshot write: Home would fall
+        // back to population and the live surface would keep the pre-mutation
+        // fit. Treat it as no calibration and still write the snapshot.
         val calibration = calibrationInput?.let { input ->
-            withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(input) }
+            runCatching {
+                withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(input) }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                diagnosticsLogger.warning(
+                    TAG,
+                    "home_snapshot_calibration_failed generation=$refreshGeneration",
+                    throwable,
+                )
+            }.getOrNull()
         }
         val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
@@ -702,27 +714,36 @@ class HomeSnapshotRepository @Inject constructor(
         val homeRender = if (calibration == null || calibrationInput == null) {
             null
         } else {
-            withContext(defaultDispatcher) {
-                val anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis)
-                val plannedEvents = simulationEntries.planned.mapNotNull { entry ->
-                    entry.buildEstradiolPkDoseEvent(anchor, isPlanned = true)
+            runCatching {
+                withContext(defaultDispatcher) {
+                    val anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis)
+                    val plannedEvents = simulationEntries.planned.mapNotNull { entry ->
+                        entry.buildEstradiolPkDoseEvent(anchor, isPlanned = true)
+                    }
+                    // Sample the band exactly where the curve is sampled (dense
+                    // around doses), so its edges follow the peaks instead of
+                    // cutting chords across them.
+                    val windowStartMillis = projection.windowStart.toEpochMilli()
+                    val windowEndMillis = projection.windowEnd.toEpochMilli()
+                    PkChartDomain.create(
+                        rangeStartEpochMillis = windowStartMillis,
+                        rangeEndEpochMillis = windowEndMillis,
+                        samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
+                        protectedKnotEpochMillis = projection.timeH
+                            .map { hours -> windowStartMillis + (hours * 3_600_000.0).roundToLong() }
+                            .filter { millis -> millis in windowStartMillis..windowEndMillis },
+                    )?.let { domain ->
+                        calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
+                    }
                 }
-                // Sample the band exactly where the curve is sampled (dense
-                // around doses), so its edges follow the peaks instead of
-                // cutting chords across them.
-                val windowStartMillis = projection.windowStart.toEpochMilli()
-                val windowEndMillis = projection.windowEnd.toEpochMilli()
-                PkChartDomain.create(
-                    rangeStartEpochMillis = windowStartMillis,
-                    rangeEndEpochMillis = windowEndMillis,
-                    samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
-                    protectedKnotEpochMillis = projection.timeH
-                        .map { hours -> windowStartMillis + (hours * 3_600_000.0).roundToLong() }
-                        .filter { millis -> millis in windowStartMillis..windowEndMillis },
-                )?.let { domain ->
-                    calibration.renderFor(domain, calibrationInput.doseEvents + plannedEvents)
-                }
-            }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                diagnosticsLogger.warning(
+                    TAG,
+                    "home_snapshot_calibration_render_failed generation=$refreshGeneration",
+                    throwable,
+                )
+            }.getOrNull()
         }
         val bandKnots = homeRender
             ?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }

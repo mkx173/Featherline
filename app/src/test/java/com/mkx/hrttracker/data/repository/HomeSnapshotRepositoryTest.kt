@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -30,7 +31,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -276,6 +279,71 @@ class HomeSnapshotRepositoryTest {
                 .medications
                 .map { medication -> medication.medicine?.displayName },
         )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun runHomeDataMutation_writesSnapshotWithoutCalibrationWhenSolveThrows() = runTest {
+        // A throwing solve used to abort the whole refresh: no snapshot was
+        // written, Home fell back to population, and the live calibration
+        // surface (keyed on snapshot generation) kept the pre-mutation fit.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        coEvery { databaseHolder.awaitOpen() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
+        coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        mockkObject(PkCalibrationEngine)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } throws IllegalStateException("solver")
+            repository.runHomeDataMutation { }
+        } finally {
+            unmockkObject(PkCalibrationEngine)
+        }
+
+        assertTrue(writtenSnapshot.isCaptured)
+        assertNull(writtenSnapshot.captured.pkCalibration)
+        assertTrue(writtenSnapshot.captured.pkRouteLogScale.isEmpty())
+        assertTrue(writtenSnapshot.captured.pkProjection != null)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
