@@ -49,6 +49,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -425,20 +426,24 @@ class HomeSnapshotRepository @Inject constructor(
         // PK simulation + JSON encode + encrypted DataStore write; correctness
         // relies on the generation recheck inside snapshotMutationMutex below —
         // any racing mutation bumps the durable generation and the writeSnapshot
-        // call is dropped. A build in flight for the same generation, anchor
-        // date, zone and chart option is shared: a second request (forced or
-        // not) joins it instead of running its own. The boot / time-set /
-        // timezone broadcasts reach two receivers that each force a refresh,
-        // which used to run two full builds. A request whose context differs
-        // (the midnight alarm arriving during a build started before midnight,
-        // a zone change, an option change) runs its own build so the only
-        // corrective request is never consumed by a stale one.
+        // call is dropped. A build in flight for the same generation, minute,
+        // zone and chart option is shared: a second request (forced or not)
+        // joins it instead of running its own. The boot / time-set / timezone
+        // broadcasts reach two receivers that each force a refresh, which used
+        // to run two full builds. A request whose context differs (the
+        // midnight alarm arriving during a build started before midnight, a
+        // zone change, an option change) runs its own build so the only
+        // corrective request is never consumed by a stale one; each started
+        // build takes the next refresh sequence, and the write guard drops a
+        // build that is no longer the latest started, so a slow older-context
+        // build can never overwrite the newer snapshot.
+        val minute = now.truncatedTo(ChronoUnit.MINUTES)
         val build = refreshMutex.withLock {
             val generation = homeSnapshotGenerationStore.readGeneration()
             val inFlight = inFlightRefresh
             if (inFlight != null && inFlight.build.isActive &&
                 inFlight.generation == generation &&
-                inFlight.anchorDate == now.toLocalDate() &&
+                inFlight.minute == minute &&
                 inFlight.zoneId == zoneId &&
                 inFlight.option == option
             ) {
@@ -455,9 +460,12 @@ class HomeSnapshotRepository @Inject constructor(
                 option = option,
                 force = force,
             ) ?: return@withLock null
+            val sequence = latestRefreshSequence + 1L
+            latestRefreshSequence = sequence
             appScope.async {
                 buildAndWriteHomeSnapshot(
                     refreshGeneration = refreshGeneration,
+                    refreshSequence = sequence,
                     now = now,
                     zoneId = zoneId,
                     option = option,
@@ -467,7 +475,7 @@ class HomeSnapshotRepository @Inject constructor(
             }.also { started ->
                 inFlightRefresh = InFlightRefresh(
                     generation = refreshGeneration,
-                    anchorDate = now.toLocalDate(),
+                    minute = minute,
                     zoneId = zoneId,
                     option = option,
                     build = started,
@@ -480,9 +488,13 @@ class HomeSnapshotRepository @Inject constructor(
     /** The build owned by the last refresh to pass the skip-check; guarded by [refreshMutex]. */
     private var inFlightRefresh: InFlightRefresh? = null
 
+    /** Sequence of the last refresh build started; assigned under [refreshMutex], read at write time. */
+    @Volatile
+    private var latestRefreshSequence: Long = 0L
+
     private class InFlightRefresh(
         val generation: Long,
-        val anchorDate: LocalDate,
+        val minute: LocalDateTime,
         val zoneId: ZoneId,
         val option: HomeE2ChartWindowOption,
         val build: Deferred<Unit>,
@@ -557,6 +569,8 @@ class HomeSnapshotRepository @Inject constructor(
 
     private suspend fun buildAndWriteHomeSnapshot(
         refreshGeneration: Long,
+        /** Null for mutation-path builds, which are ordered by the generation alone. */
+        refreshSequence: Long? = null,
         now: LocalDateTime,
         zoneId: ZoneId,
         option: HomeE2ChartWindowOption,
@@ -902,7 +916,14 @@ class HomeSnapshotRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             // Avoid restoring stale snapshot data from a refresh that raced with a write.
             snapshotMutationMutex.withLock {
-                if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
+                if (refreshSequence != null && refreshSequence != latestRefreshSequence) {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_write_skipped reason=newer_refresh_started " +
+                                "refreshSequence=$refreshSequence " +
+                                "latestRefreshSequence=$latestRefreshSequence"
+                    )
+                } else if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"

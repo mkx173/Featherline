@@ -343,13 +343,47 @@ class HomeSnapshotRepositoryTest {
         first.join()
         second.join()
 
+        // Two builds ran; only the latest-started one (midnight) is written, the
+        // pre-midnight build's record is dropped even though it finished first.
         assertEquals(2, builds.count)
-        val anchorDays = mutableListOf<HomeSnapshotRecord>()
-        coVerify(exactly = 2) { homeSnapshotStore.writeSnapshot(capture(anchorDays)) }
-        assertEquals(
-            setOf(beforeMidnight.toLocalDate().toEpochDay(), midnight.toLocalDate().toEpochDay()),
-            anchorDays.map { record -> record.anchorDateEpochDay }.toSet(),
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun olderContextBuildFinishingLast_doesNotOverwriteTheNewerSnapshot() = runTest {
+        // Two different-context builds share a generation, so the generation
+        // guard alone lets whichever finishes last win. A slow pre-midnight
+        // build finishing after the midnight one would put yesterday back.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(200L, 50L))
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
         )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        assertEquals(2, builds.count)
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
     }
 
     private class BuildCounter(var count: Int = 0)
@@ -358,7 +392,10 @@ class HomeSnapshotRepositoryTest {
      * Empty Home inputs whose first DAO read suspends, so a second refresh
      * request arrives while the first build is still loading.
      */
-    private fun stubSlowEmptyRefreshInputs(): BuildCounter {
+    private fun stubSlowEmptyRefreshInputs(
+        /** Per-build delay of the first DAO read, in scheduler ms; the last entry repeats. */
+        buildDelaysMs: List<Long> = listOf(100L),
+    ): BuildCounter {
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
         val medicineDao: MedicineDao = mockk()
@@ -382,8 +419,9 @@ class HomeSnapshotRepositoryTest {
             coEvery { getAllMetadata() } returns emptyList()
         }
         coEvery { homeDao.getActiveGroups() } coAnswers {
+            val delayMs = buildDelaysMs[minOf(builds.count, buildDelaysMs.lastIndex)]
             builds.count += 1
-            delay(100)
+            delay(delayMs)
             emptyList()
         }
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
