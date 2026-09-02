@@ -1438,25 +1438,44 @@ internal fun calibrationElapsedDurationLabel(durationMillis: Long): String {
     }
 }
 
-@Preview(
-    name = "Calibration Page",
-    showBackground = true,
-    widthDp = 420,
-    heightDp = 920,
-)
+@Preview(name = "Calibration Page", showBackground = true, widthDp = 420, heightDp = 920)
 @Composable
 private fun CalibrationScreenPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState())
+}
+
+@Preview(name = "Calibration Page · Loading", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun CalibrationScreenLoadingPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState(isLoading = true))
+}
+
+@Preview(name = "Calibration Page · Empty", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun CalibrationScreenEmptyPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState(panels = emptyList()))
+}
+
+@Preview(name = "Calibration Panel Row", showBackground = true, widthDp = 420)
+@Composable
+private fun CalibrationPanelRowPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        CalibrationPanelRow(
+            panel = previewCalibrationPanels().first(),
+            settingsState = previewCalibrationSettingsState(),
+            dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
+            index = 0,
+            count = 1,
+            onClick = { },
+        )
+    }
+}
+
+@Composable
+private fun CalibrationScreenPreviewPage(uiState: CalibrationUiState) {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationScreenContent(
-            uiState = CalibrationUiState(
-                panels = previewCalibrationPanels(),
-                settingsState = SettingsState(
-                    calibrationDefaultUnits = mapOf(
-                        BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
-                        BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
-                    )
-                ),
-            ),
+            uiState = uiState,
             pkCalibrationState = null,
             pkIntroSeen = true,
             onPkIntroSeen = { },
@@ -1475,28 +1494,24 @@ private fun CalibrationScreenPreview() {
     }
 }
 
-@Preview(
-    name = "Calibration Panel Row",
-    showBackground = true,
-    widthDp = 420,
-)
-@Composable
-private fun CalibrationPanelRowPreview() {
-    HrtTrackerTheme(dynamicColor = false) {
-        CalibrationPanelRow(
-            panel = previewCalibrationPanels().first(),
-            settingsState = SettingsState(
-                calibrationDefaultUnits = mapOf(
-                    BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
-                    BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
-                )
-            ),
-            dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
-            index = 0,
-            count = 1,
-            onClick = { },
-        )
-    }
+private fun previewCalibrationUiState(
+    panels: List<BloodTestPanel> = previewCalibrationPanels(),
+    isLoading: Boolean = false,
+): CalibrationUiState {
+    return CalibrationUiState(
+        panels = panels,
+        settingsState = previewCalibrationSettingsState(),
+        isLoading = isLoading,
+    )
+}
+
+private fun previewCalibrationSettingsState(): SettingsState {
+    return SettingsState(
+        calibrationDefaultUnits = mapOf(
+            BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+            BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+        ),
+    )
 }
 
 private fun previewCalibrationPanelDateTimeFormatters(): CalibrationPanelDateTimeFormatters {

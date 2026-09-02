@@ -34,8 +34,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -45,6 +47,7 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationApplicationIconRes
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.labelRes
 import kotlinx.coroutines.CoroutineScope
@@ -471,4 +474,30 @@ private fun PkCalibrationEduHeader(@StringRes textRes: Int) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 18.dp),
     )
+}
+
+/** Population, numeric failure, calibrated, provisional MEDIUM, provisional LOW with every reason. */
+@Preview(name = "PK Route Detail Block · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationRouteDetailBlockPreview() {
+    val rows = listOf(
+        previewPkRouteRow(PkCalibrationRoute.ORAL),
+        previewPkNumericFailureRows.first(),
+        previewPkCalibratedRow,
+        previewPkProvisionalMediumRow,
+        previewPkProvisionalLowRow,
+    )
+    HrtTrackerTheme(dynamicColor = false) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+            rows.forEachIndexed { index, row ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                    )
+                }
+                PkCalibrationRouteDetailBlock(row)
+            }
+        }
+    }
 }

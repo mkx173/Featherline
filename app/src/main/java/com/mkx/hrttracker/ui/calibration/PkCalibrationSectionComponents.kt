@@ -31,10 +31,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -44,9 +46,11 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.medicationApplicationIconRes
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.util.UUID
 
 /**
  * The calibration status section shown at the top of the calibration screen
@@ -508,4 +512,132 @@ private fun PkCalibrationLabFooterText(title: String, body: String) {
             .padding(top = 4.dp)
             .cjkTextOffset(body),
     )
+}
+
+@Preview(name = "PK Section · Ready", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationSectionReadyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        PkCalibrationSection(
+            uiState = previewPkAdjustedUiState,
+            onRetry = { },
+            onOpenRoutes = { },
+            onOpenCoaching = { },
+            onOpenDisclaimer = { },
+            onInfo = { },
+        )
+    }
+}
+
+/** Non-READY hides the routes card and the coaching/disclaimer rows. */
+@Preview(name = "PK Section · Not ready", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationSectionNotReadyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        PkCalibrationSection(
+            uiState = previewPkUiState(globalState = PkCalibrationGlobalState.NO_USABLE_LABS),
+            onRetry = { },
+            onOpenRoutes = { },
+            onOpenCoaching = { },
+            onOpenDisclaimer = { },
+            onInfo = { },
+        )
+    }
+}
+
+/**
+ * The visually distinct layouts: plain (all non-READY and population states
+ * share it, only copy and icon change), retry action, adjusted, adjusted with
+ * limited confidence.
+ */
+@Preview(name = "PK Status Card · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationStatusCardPreview() {
+    val states = listOf(
+        previewPkUiState(globalState = PkCalibrationGlobalState.NO_USABLE_LABS),
+        previewPkUiState(globalState = PkCalibrationGlobalState.NUMERIC_FAILURE),
+        previewPkAdjustedUiState,
+        previewPkProvisionalUiState,
+    )
+    PkCalibrationPreviewColumn {
+        states.forEach { state ->
+            PkCalibrationStatusCard(uiState = state, onRetry = { }, onInfo = { })
+        }
+    }
+}
+
+@Preview(name = "PK Route Summary Card · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationRouteSummaryCardPreview() {
+    val states = listOf(
+        previewPkUiState(),
+        previewPkUiState(routeRows = previewPkNumericFailureRows),
+        previewPkAdjustedUiState,
+        previewPkProvisionalUiState,
+    )
+    PkCalibrationPreviewColumn {
+        states.forEach { state ->
+            PkCalibrationRouteSummaryCard(uiState = state, onOpen = { })
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Preview(name = "PK Route Chip · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationRouteChipPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(16.dp),
+        ) {
+            PkCalibrationRouteChip(previewPkRouteRow(PkCalibrationRoute.ORAL))
+            PkCalibrationRouteChip(previewPkNumericFailureRows.first())
+            PkCalibrationRouteChip(previewPkCalibratedRow)
+            PkCalibrationRouteChip(previewPkProvisionalMediumRow)
+            PkCalibrationRouteChip(previewPkProvisionalLowRow)
+        }
+    }
+}
+
+/** Every review footer a lab row can carry (§4.2 invalid, §10 outlier, exclusion). */
+@Preview(name = "PK Lab Row Footer · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationLabRowFooterPreview() {
+    val resultId = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a")
+    val flags = listOf(
+        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE),
+        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL),
+        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.NUMERIC_FAILURE),
+        PkCalibrationLabRowFlag.UnreviewedOutlier(
+            resultId = resultId,
+            affectedRoutes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.GEL),
+        ),
+        PkCalibrationLabRowFlag.Excluded(resultId),
+    )
+    PkCalibrationPreviewColumn {
+        flags.forEach { flag ->
+            EditorSegmentedListItem(contentPadding = PaddingValues(16.dp)) {
+                PkCalibrationLabRowFooter(
+                    flag = flag,
+                    onCorrect = { },
+                    onExclude = { },
+                    onReinclude = { },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PkCalibrationPreviewColumn(content: @Composable () -> Unit) {
+    HrtTrackerTheme(dynamicColor = false) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(16.dp),
+        ) {
+            content()
+        }
+    }
 }
