@@ -289,44 +289,7 @@ class HomeSnapshotRepositoryTest {
         // force a refresh ~40 ms apart. Both used to pass the skip-check and run
         // a full build (PK simulation, calibration solve, encrypted write).
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val database: HrtTrackerDatabase = mockk()
-        val homeDao: HomeDao = mockk()
-        val medicineDao: MedicineDao = mockk()
-        val medicationLogDao: MedicationLogDao = mockk()
-        val userProfileDao: UserProfileDao = mockk()
-        val journalDao: JournalDao = mockk()
-        var builds = 0
-
-        coEvery { homeSnapshotStore.readSnapshot() } returns null
-        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
-        coEvery { databaseHolder.awaitOpen() } returns database
-        every { database.homeDao() } returns homeDao
-        every { database.medicineDao() } returns medicineDao
-        every { database.medicationLogDao() } returns medicationLogDao
-        every { database.userProfileDao() } returns userProfileDao
-        every { database.journalDao() } returns journalDao
-        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
-            coEvery { getPanels() } returns emptyList()
-        }
-        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
-            coEvery { getAllMetadata() } returns emptyList()
-        }
-        // The first build is still loading inputs when the second request arrives.
-        coEvery { homeDao.getActiveGroups() } coAnswers {
-            builds += 1
-            delay(100)
-            emptyList()
-        }
-        coEvery { homeDao.getArchivedGroups() } returns emptyList()
-        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
-        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
-        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
-        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
-        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
-        coEvery { userProfileDao.getProfile() } returns null
-        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        val builds = stubSlowEmptyRefreshInputs()
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
@@ -342,12 +305,98 @@ class HomeSnapshotRepositoryTest {
         first.join()
         second.join()
 
-        assertEquals(1, builds)
+        assertEquals(1, builds.count)
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
 
         // Once the shared build has completed, a new forced request builds again.
         repository.refreshHomeSnapshotIfNeeded(force = true)
-        assertEquals(2, builds)
+        assertEquals(2, builds.count)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun concurrentRefreshes_withDifferentAnchorDates_doNotShareABuild() = runTest {
+        // The midnight alarm can arrive while a build started at 23:59:59 is
+        // still running. Joining it would write yesterday's anchor date and
+        // consume the only corrective request; the widget would then show
+        // yesterday until the next mutation, app open or alarm.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs()
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        assertEquals(2, builds.count)
+        val anchorDays = mutableListOf<HomeSnapshotRecord>()
+        coVerify(exactly = 2) { homeSnapshotStore.writeSnapshot(capture(anchorDays)) }
+        assertEquals(
+            setOf(beforeMidnight.toLocalDate().toEpochDay(), midnight.toLocalDate().toEpochDay()),
+            anchorDays.map { record -> record.anchorDateEpochDay }.toSet(),
+        )
+    }
+
+    private class BuildCounter(var count: Int = 0)
+
+    /**
+     * Empty Home inputs whose first DAO read suspends, so a second refresh
+     * request arrives while the first build is still loading.
+     */
+    private fun stubSlowEmptyRefreshInputs(): BuildCounter {
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+        val builds = BuildCounter()
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
+        coEvery { databaseHolder.awaitOpen() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
+        coEvery { homeDao.getActiveGroups() } coAnswers {
+            builds.count += 1
+            delay(100)
+            emptyList()
+        }
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        return builds
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

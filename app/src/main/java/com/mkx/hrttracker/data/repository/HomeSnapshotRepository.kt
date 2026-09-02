@@ -425,14 +425,23 @@ class HomeSnapshotRepository @Inject constructor(
         // PK simulation + JSON encode + encrypted DataStore write; correctness
         // relies on the generation recheck inside snapshotMutationMutex below —
         // any racing mutation bumps the durable generation and the writeSnapshot
-        // call is dropped. A build in flight for the current generation is
-        // shared: a second request (forced or not) joins it instead of running
-        // its own. The boot / time-set / timezone broadcasts reach two receivers
-        // that each force a refresh, which used to run two full builds.
+        // call is dropped. A build in flight for the same generation, anchor
+        // date, zone and chart option is shared: a second request (forced or
+        // not) joins it instead of running its own. The boot / time-set /
+        // timezone broadcasts reach two receivers that each force a refresh,
+        // which used to run two full builds. A request whose context differs
+        // (the midnight alarm arriving during a build started before midnight,
+        // a zone change, an option change) runs its own build so the only
+        // corrective request is never consumed by a stale one.
         val build = refreshMutex.withLock {
             val generation = homeSnapshotGenerationStore.readGeneration()
             val inFlight = inFlightRefresh
-            if (inFlight != null && inFlight.generation == generation && inFlight.build.isActive) {
+            if (inFlight != null && inFlight.build.isActive &&
+                inFlight.generation == generation &&
+                inFlight.anchorDate == now.toLocalDate() &&
+                inFlight.zoneId == zoneId &&
+                inFlight.option == option
+            ) {
                 diagnosticsLogger.info(
                     TAG,
                     "home_snapshot_refresh_joined_in_flight generation=$generation " +
@@ -455,7 +464,15 @@ class HomeSnapshotRepository @Inject constructor(
                     cacheWindow = cacheWindow,
                     snapshotWindow = snapshotWindow,
                 )
-            }.also { started -> inFlightRefresh = InFlightRefresh(refreshGeneration, started) }
+            }.also { started ->
+                inFlightRefresh = InFlightRefresh(
+                    generation = refreshGeneration,
+                    anchorDate = now.toLocalDate(),
+                    zoneId = zoneId,
+                    option = option,
+                    build = started,
+                )
+            }
         } ?: return
         build.await()
     }
@@ -463,7 +480,13 @@ class HomeSnapshotRepository @Inject constructor(
     /** The build owned by the last refresh to pass the skip-check; guarded by [refreshMutex]. */
     private var inFlightRefresh: InFlightRefresh? = null
 
-    private class InFlightRefresh(val generation: Long, val build: Deferred<Unit>)
+    private class InFlightRefresh(
+        val generation: Long,
+        val anchorDate: LocalDate,
+        val zoneId: ZoneId,
+        val option: HomeE2ChartWindowOption,
+        val build: Deferred<Unit>,
+    )
 
     private suspend fun refreshHomeSnapshotIfNeededLocked(
         now: LocalDateTime = LocalDateTime.now(),
