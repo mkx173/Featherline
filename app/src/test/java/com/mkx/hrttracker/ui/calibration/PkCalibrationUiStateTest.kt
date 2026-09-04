@@ -45,7 +45,7 @@ class PkCalibrationUiStateTest {
         val base = PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
         for (state in PkRouteCalibrationDisplayState.entries) {
             val uiState = ui(
-                requireNotNull(base.withRouteState(PkCalibrationRoute.GEL, state))
+                base.withRouteState(PkCalibrationRoute.GEL, state)
             )
             val adjusted = state == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ||
                 state == PkRouteCalibrationDisplayState.LAB_CALIBRATED

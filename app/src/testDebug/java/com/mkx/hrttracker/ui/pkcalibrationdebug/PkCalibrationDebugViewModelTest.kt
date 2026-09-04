@@ -3,36 +3,27 @@ package com.mkx.hrttracker.ui.pkcalibrationdebug
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
-import java.util.UUID
-import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PkCalibrationDebugViewModelTest {
-    private val fixtureSource = DefaultPkCalibrationDebugScenarioSource(
-        nowMillis = { 1_800_000_000_000L },
-    )
-
     @Test
-    fun applyingAScenario_publishesTheValidatedFixtureThroughTheBridge() {
+    fun applyingAScenario_publishesTheFixtureThroughTheBridge() {
         val bridge = PkCalibrationUiFixtureBridge()
         val store = PkCalibrationDebugScenarioStore()
         val viewModel = viewModel(bridge = bridge, store = store)
         assertNull(bridge.fixture.value)
         assertFalse(viewModel.uiState.value.forcedStateActive)
 
-        assertEquals(
-            PkCalibrationDebugDispatchResult.ACCEPTED,
-            viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_CALIBRATED),
-        )
+        viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
 
         val state = viewModel.uiState.value
         assertTrue(state.forcedStateActive)
@@ -44,10 +35,7 @@ class PkCalibrationDebugViewModelTest {
             store.scenario.value,
         )
         assertTrue(fixture.excludedResultIds.isEmpty())
-        assertEquals(
-            listOf(PkCalibrationRoute.INJECTION),
-            fixture.result.promotedRoutes,
-        )
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), fixture.result.promotedRoutes)
     }
 
     @Test
@@ -55,10 +43,7 @@ class PkCalibrationDebugViewModelTest {
         val viewModel = viewModel()
 
         PkCalibrationGlobalState.entries.forEach { globalState ->
-            assertEquals(
-                PkCalibrationDebugDispatchResult.ACCEPTED,
-                viewModel.selectGlobalState(globalState),
-            )
+            viewModel.selectGlobalState(globalState)
             val result = requireNotNull(viewModel.uiState.value.rawResult)
             assertEquals(globalState, result.globalState)
             assertEquals(
@@ -69,10 +54,7 @@ class PkCalibrationDebugViewModelTest {
 
         PkCalibrationRoute.entries.forEach { route ->
             PkRouteCalibrationDisplayState.entries.forEach { displayState ->
-                assertEquals(
-                    PkCalibrationDebugDispatchResult.ACCEPTED,
-                    viewModel.selectRouteState(route, displayState),
-                )
+                viewModel.selectRouteState(route, displayState)
                 val result = requireNotNull(viewModel.uiState.value.rawResult)
                 assertEquals(PkCalibrationGlobalState.READY, result.globalState)
                 assertEquals(
@@ -88,14 +70,11 @@ class PkCalibrationDebugViewModelTest {
     }
 
     @Test
-    fun presets_mixedStateAndFaultToggles_republishValidatedFixtureFields() {
+    fun presets_mixedStateAndFaultToggles_republishFixtureFields() {
         val viewModel = viewModel()
 
         PkCalibrationDebugPreset.entries.forEach { preset ->
-            assertEquals(
-                PkCalibrationDebugDispatchResult.ACCEPTED,
-                viewModel.applyPreset(preset),
-            )
+            viewModel.applyPreset(preset)
             assertEquals(
                 PkCalibrationDebugScenario.preset(preset),
                 viewModel.uiState.value.scenario,
@@ -132,7 +111,7 @@ class PkCalibrationDebugViewModelTest {
         assertEquals(
             mapOf(
                 PkCalibrationDebugFixtures.nonPositiveLabId() to
-                    com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE
+                    PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE
             ),
             viewModel.uiState.value.rawResult?.ignoredLabs,
         )
@@ -175,19 +154,16 @@ class PkCalibrationDebugViewModelTest {
     }
 
     @Test
-    fun inapplicableReviewCommand_isRejectedWithoutMutatingState() {
+    fun inapplicableReviewCommand_doesNotMutateState() {
         val viewModel = viewModel()
         viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_REVIEW_FIT)
         val before = viewModel.uiState.value
 
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_NOT_APPLICABLE,
-            viewModel.performReviewAction(
-                PkCalibrationDebugActionCommand(
-                    PkCalibrationDebugReviewAction.REINCLUDE,
-                    PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION),
-                )
-            ),
+        viewModel.performReviewAction(
+            PkCalibrationDebugActionCommand(
+                PkCalibrationDebugReviewAction.REINCLUDE,
+                PkCalibrationDebugFixtures.outlierId(PkCalibrationRoute.INJECTION),
+            )
         )
         assertSame(before, viewModel.uiState.value)
     }
@@ -232,10 +208,7 @@ class PkCalibrationDebugViewModelTest {
         viewModel.applyPreset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
         assertTrue(viewModel.uiState.value.forcedStateActive)
 
-        assertEquals(
-            PkCalibrationDebugDispatchResult.ACCEPTED,
-            viewModel.resetForcedState(),
-        )
+        viewModel.resetForcedState()
 
         assertNull(bridge.fixture.value)
         val state = viewModel.uiState.value
@@ -273,95 +246,13 @@ class PkCalibrationDebugViewModelTest {
                 .filterValues { it == E2CalibrationDisposition.EXCLUDED }
                 .keys,
         )
-        assertEquals(published, bridge.fixture.value)
-    }
-
-    @Test
-    fun sourceFailures_keepTheLastGoodForcedState_andSurfaceTheFailure() {
-        val bridge = PkCalibrationUiFixtureBridge()
-        val source = SwitchableSource()
-        val viewModel = viewModel(source = source, bridge = bridge)
-        viewModel.applyPreset(PkCalibrationDebugPreset.INJECTION_CALIBRATED)
-        val goodState = viewModel.uiState.value
-        val goodFixture = bridge.fixture.value
-
-        source.throwing = IllegalStateException("fixture failure")
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_EXCEPTION,
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-        )
-        assertEquals(
-            PkCalibrationDebugSourceUnavailableReason.SOURCE_EXCEPTION,
-            viewModel.uiState.value.loadFailure,
-        )
-        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
-        assertSame(goodFixture, bridge.fixture.value)
-
-        source.throwing = null
-        source.override = PkCalibrationDebugSourceResult.Unavailable(
-            PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH
-        )
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_UNAVAILABLE,
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-        )
-        assertEquals(
-            PkCalibrationDebugSourceUnavailableReason.SOURCE_CONTRACT_MISMATCH,
-            viewModel.uiState.value.loadFailure,
-        )
-        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
-
-        val scenarioLessSnapshot = (fixtureSource.loadFixture(
-            PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.POPULATION_ONLY)
-        ) as PkCalibrationDebugSourceResult.Available).snapshot.copy(scenario = null)
-        source.override = PkCalibrationDebugSourceResult.Available(scenarioLessSnapshot)
-        assertEquals(
-            PkCalibrationDebugDispatchResult.REJECTED_SOURCE_CONTRACT_MISMATCH,
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-        )
-        assertSame(goodState.rawResult, viewModel.uiState.value.rawResult)
-
-        // Recovery clears the surfaced failure.
-        source.override = null
-        assertEquals(
-            PkCalibrationDebugDispatchResult.ACCEPTED,
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY),
-        )
-        assertNull(viewModel.uiState.value.loadFailure)
-    }
-
-    @Test
-    fun cancellation_isRethrownWithoutBeingMisclassifiedAsAnOrdinaryFailure() {
-        val source = SwitchableSource()
-        val viewModel = viewModel(source = source)
-        source.throwing = CancellationException("cancel fixture")
-
-        assertThrows(CancellationException::class.java) {
-            viewModel.applyPreset(PkCalibrationDebugPreset.POPULATION_ONLY)
-        }
-        assertNull(viewModel.uiState.value.loadFailure)
-        assertFalse(viewModel.uiState.value.forcedStateActive)
     }
 
     private fun viewModel(
-        source: PkCalibrationDebugScenarioSource = fixtureSource,
         bridge: PkCalibrationUiFixtureBridge = PkCalibrationUiFixtureBridge(),
         store: PkCalibrationDebugScenarioStore = PkCalibrationDebugScenarioStore(),
     ): PkCalibrationDebugViewModel = PkCalibrationDebugViewModel(
-        scenarioSource = source,
         uiFixtureBridge = bridge,
         scenarioStore = store,
     )
-
-    private inner class SwitchableSource : PkCalibrationDebugScenarioSource {
-        var throwing: Exception? = null
-        var override: PkCalibrationDebugSourceResult? = null
-
-        override fun loadFixture(
-            scenario: PkCalibrationDebugScenario,
-        ): PkCalibrationDebugSourceResult {
-            throwing?.let { throw it }
-            return override ?: fixtureSource.loadFixture(scenario)
-        }
-    }
 }

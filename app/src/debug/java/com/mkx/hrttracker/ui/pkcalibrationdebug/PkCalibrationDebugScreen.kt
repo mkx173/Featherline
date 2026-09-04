@@ -109,13 +109,6 @@ internal fun PkCalibrationDebugBody(
         } else {
             Text("No forced state — pick a preset or control below to force one")
         }
-        uiState.loadFailure?.let { reason ->
-            Text(
-                text = "Fixture load failed: $reason",
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-
         Text("Presets")
         PkCalibrationDebugPreset.entries.forEach { preset ->
             DebugControlButton(

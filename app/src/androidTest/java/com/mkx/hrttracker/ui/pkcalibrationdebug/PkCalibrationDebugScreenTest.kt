@@ -61,7 +61,6 @@ class PkCalibrationDebugScreenTest {
 
     private fun fixtureViewModel(): PkCalibrationDebugViewModel {
         return PkCalibrationDebugViewModel(
-            scenarioSource = DefaultPkCalibrationDebugScenarioSource(),
             uiFixtureBridge = PkCalibrationUiFixtureBridge(),
             scenarioStore = PkCalibrationDebugScenarioStore(),
         )
