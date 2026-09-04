@@ -39,7 +39,9 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.util.labelRes
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
+import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerDrawingModel
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -127,6 +129,7 @@ internal class MainE2CalibrationBandDecoration(
     private val outerColor: Color,
     private val innerColor: Color,
     private val coordinateMapper: MainE2ChartCoordinateMapper? = null,
+    private val lineDrawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>? = null,
 ) : Decoration {
     private val segments: List<IntRange> = bandGapSegments(band.xHours)
 
@@ -135,9 +138,17 @@ internal class MainE2CalibrationBandDecoration(
         if (maxY <= 0.0 || context.layerBounds.height <= 0f) {
             return
         }
+        // Vico animates only layer drawing models, never decorations. During
+        // the intro the line layer's drawing model carries opacity == tween
+        // fraction (it lerps 0 -> 1 from a null "old" model), so reusing it
+        // makes the band rise and fade with the line. Absent model (the
+        // synchronous post-intro host, or a later data update) draws at rest.
+        val progress = lineDrawingModelKey
+            ?.let { key -> context.extraStore.getOrNull(key)?.opacity }
+            ?: 1f
         segments.forEach { segment ->
-            drawEnvelope(context, segment, band.p025, band.p975, outerColor)
-            drawEnvelope(context, segment, band.p158655254, band.p841344746, innerColor)
+            drawEnvelope(context, segment, band.p025, band.p975, outerColor, progress)
+            drawEnvelope(context, segment, band.p158655254, band.p841344746, innerColor, progress)
         }
     }
 
@@ -147,6 +158,7 @@ internal class MainE2CalibrationBandDecoration(
         lower: List<Float>,
         upper: List<Float>,
         color: Color,
+        progress: Float,
     ) {
         val path = Path()
         var pointCount = 0
@@ -155,7 +167,7 @@ internal class MainE2CalibrationBandDecoration(
                 x = band.xHours[index],
                 clampToLayerBounds = true,
             ) ?: continue
-            val y = context.canvasYFor(upper[index])
+            val y = context.canvasYFor(upper[index], progress)
             if (pointCount == 0) path.moveTo(x, y) else path.lineTo(x, y)
             pointCount++
         }
@@ -167,18 +179,22 @@ internal class MainE2CalibrationBandDecoration(
                 x = band.xHours[index],
                 clampToLayerBounds = true,
             ) ?: continue
-            path.lineTo(x, context.canvasYFor(lower[index]))
+            path.lineTo(x, context.canvasYFor(lower[index], progress))
         }
         path.close()
-        context.canvas.drawPath(path, Paint().apply { this.color = color })
+        context.canvas.drawPath(
+            path,
+            Paint().apply { this.color = color.copy(alpha = color.alpha * progress) },
+        )
     }
 
     // Same normalization as the chart's point overlay: y in [0, maxY] maps
     // linearly onto layerBounds. Values above the axis maximum clamp to the
-    // plot edge rather than escaping the layer.
-    private fun CartesianDrawingContext.canvasYFor(value: Float): Float {
+    // plot edge rather than escaping the layer. `progress` scales the height
+    // the same way Vico lerps the line's entries from the baseline.
+    private fun CartesianDrawingContext.canvasYFor(value: Float, progress: Float): Float {
         val normalized = (value.toDouble().coerceIn(0.0, maxY) / maxY).toFloat()
-        return layerBounds.bottom - normalized * layerBounds.height
+        return layerBounds.bottom - normalized * progress * layerBounds.height
     }
 }
 

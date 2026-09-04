@@ -1242,6 +1242,11 @@ internal fun MainE2ChartCard(
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val calibrationBandOuterColor = lineColor.copy(alpha = 0.10f)
                 val calibrationBandInnerColor = lineColor.copy(alpha = 0.20f)
+                // Shared with the line layer so the band decoration can read the
+                // in-flight intro drawing model and rise/fade with the line.
+                val lineDrawingModelKey = remember {
+                    ExtraStore.Key<LineCartesianLayerDrawingModel>()
+                }
                 val calibrationBandDecoration = remember(
                     pkCalibration?.band,
                     yAxisSpec.maxY,
@@ -1256,6 +1261,7 @@ internal fun MainE2ChartCard(
                             outerColor = calibrationBandOuterColor,
                             innerColor = calibrationBandInnerColor,
                             coordinateMapper = chartCoordinateMapper,
+                            lineDrawingModelKey = lineDrawingModelKey,
                         )
                     }
                 }
@@ -1455,6 +1461,7 @@ internal fun MainE2ChartCard(
                                                 ),
                                             ),
                                         rangeProvider = rangeProvider,
+                                        drawingModelKey = lineDrawingModelKey,
                                     ),
                                     decorations = listOfNotNull(
                                         calibrationBandDecoration,
@@ -2467,6 +2474,7 @@ private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlace
 private fun rememberEdgeAlignedLineCartesianLayer(
     lineProvider: LineCartesianLayer.LineProvider,
     rangeProvider: CartesianLayerRangeProvider,
+    drawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>,
     pointSpacing: Dp = MainE2ChartPointSpacing,
 ): LineCartesianLayer {
     // The drawing-model key and interpolator carry the in-flight animation state
@@ -2476,8 +2484,8 @@ private fun rememberEdgeAlignedLineCartesianLayer(
     // line brush updates would orphan the interpolated frames written under the
     // previous key — the next draw reads null from the new key and snaps to the
     // raw model. Pinning both across recompositions matches Vico's own
-    // rememberLineCartesianLayer + copy() wrapper pattern.
-    val drawingModelKey = remember { ExtraStore.Key<LineCartesianLayerDrawingModel>() }
+    // rememberLineCartesianLayer + copy() wrapper pattern. The key is
+    // caller-owned so decorations can read the same in-flight drawing model.
     val drawingModelInterpolator = remember {
         CartesianLayerDrawingModelInterpolator.default<
                 LineCartesianLayerDrawingModel.Entry,
