@@ -63,7 +63,8 @@ internal fun MedicationEditorSheetScaffold(
     sheetState: SheetState,
     confirmButtonText: String,
     onDismissRequest: () -> Unit,
-    onCloseClick: () -> Unit,
+    // Null hides the header Cancel button (read-only sheets have nothing to cancel).
+    onCloseClick: (() -> Unit)?,
     fillAvailableHeight: Boolean,
     isSaving: Boolean,
     confirmEnabled: Boolean = true,
@@ -128,11 +129,13 @@ internal fun MedicationEditorSheetScaffold(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
                 )
-                HrtFilledTonalButton(
-                    text = stringResource(R.string.cancel),
-                    onClick = onCloseClick,
-                    compact = true
-                )
+                if (onCloseClick != null) {
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.cancel),
+                        onClick = onCloseClick,
+                        compact = true
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
