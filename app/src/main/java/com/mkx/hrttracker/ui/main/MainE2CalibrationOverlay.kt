@@ -32,7 +32,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
-import com.mkx.hrttracker.ui.calibration.PkCalibrationHeroKind
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.applicationType
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -61,10 +60,7 @@ data class MainPkCalibrationUiState(
     val renderUnavailable: Boolean,
     val bandUnavailable: Boolean,
     val band: MainE2CalibrationBand?,
-) {
-    val heroKind: PkCalibrationHeroKind
-        get() = if (adjusted) PkCalibrationHeroKind.ADJUSTED else PkCalibrationHeroKind.POPULATION
-}
+)
 
 /** Band knots mapped to chart coordinates (xHours + display-unit values). */
 data class MainE2CalibrationBand(
@@ -242,7 +238,7 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 @Composable
 internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState) {
     val colorScheme = MaterialTheme.colorScheme
-    val adjusted = pk.heroKind == PkCalibrationHeroKind.ADJUSTED
+    val adjusted = pk.adjusted
     val contentColor = if (adjusted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
     HrtPill(
         label = stringResource(

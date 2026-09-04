@@ -52,8 +52,8 @@ class PkCalibrationUiStateTest {
 
             assertEquals(
                 "hero for $state",
-                if (adjusted) PkCalibrationHeroKind.ADJUSTED else PkCalibrationHeroKind.POPULATION,
-                uiState.heroKind,
+                adjusted,
+                uiState.adjusted,
             )
             assertEquals(
                 "limited confidence for $state",
@@ -79,7 +79,7 @@ class PkCalibrationUiStateTest {
         for (globalState in nonReady) {
             val uiState = ui(mixed.withGlobalState(globalState))
             assertEquals(globalState, uiState.globalState)
-            assertEquals(PkCalibrationHeroKind.POPULATION, uiState.heroKind)
+            assertFalse(uiState.adjusted)
             assertFalse(uiState.limitedConfidence)
             assertTrue(uiState.routeRows.isEmpty())
             assertTrue(uiState.effectivePromotedRoutes.isEmpty())
@@ -93,7 +93,7 @@ class PkCalibrationUiStateTest {
     @Test
     fun mixedPreset_adjustedHero_withLimitedConfidence() {
         val uiState = ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL))
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
+        assertTrue(uiState.adjusted)
         assertTrue(uiState.limitedConfidence)
         assertEquals(
             listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
@@ -106,7 +106,7 @@ class PkCalibrationUiStateTest {
     @Test
     fun calibratedOnlyPreset_adjustedHero_withoutLimitedConfidence() {
         val uiState = ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.INJECTION_CALIBRATED))
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
+        assertTrue(uiState.adjusted)
         assertFalse(uiState.limitedConfidence)
     }
 
@@ -117,7 +117,7 @@ class PkCalibrationUiStateTest {
 
         assertEquals(PkCalibrationBandState.NUMERIC_UNAVAILABLE, uiState.bandState)
         assertEquals(PkCalibrationRenderState.PERSONALIZED, uiState.renderState)
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
+        assertTrue(uiState.adjusted)
         assertEquals(ui(base).routeRows, uiState.routeRows)
     }
 
@@ -129,7 +129,7 @@ class PkCalibrationUiStateTest {
         assertEquals(PkCalibrationRenderState.NUMERIC_UNAVAILABLE, uiState.renderState)
         // Effective personalized parameters are cleared, so the hero cannot
         // claim adjustment; the fit-level rows stay untouched (§6, §13.3).
-        assertEquals(PkCalibrationHeroKind.POPULATION, uiState.heroKind)
+        assertFalse(uiState.adjusted)
         assertTrue(uiState.effectivePromotedRoutes.isEmpty())
         assertEquals(ui(base).routeRows, uiState.routeRows)
     }
@@ -141,7 +141,7 @@ class PkCalibrationUiStateTest {
         )
         val uiState = pkCalibrationUiState(snapshot.result, render = null)
 
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, uiState.heroKind)
+        assertTrue(uiState.adjusted)
         assertEquals(snapshot.result.promotedRoutes, uiState.effectivePromotedRoutes)
         assertEquals(PkCalibrationRenderState.POPULATION, uiState.renderState)
     }
@@ -313,7 +313,7 @@ class PkCalibrationUiStateTest {
             pkCalibrationUiState(result, render),
             pkCalibrationUiState(result, null),
         )) {
-            assertEquals(PkCalibrationHeroKind.POPULATION, uiState.heroKind)
+            assertFalse(uiState.adjusted)
             assertFalse(uiState.limitedConfidence)
             assertTrue(uiState.effectivePromotedRoutes.isEmpty())
             assertTrue(
@@ -340,7 +340,7 @@ class PkCalibrationUiStateTest {
         )
         assertEquals(PkCalibrationGlobalState.READY, solverFailed.globalState)
         assertTrue(solverFailed.numericFailure)
-        assertEquals(PkCalibrationHeroKind.POPULATION, solverFailed.heroKind)
+        assertFalse(solverFailed.adjusted)
 
         val forwardFailed = pkCalibrationUiState(
             PkCalibrationResult(PkCalibrationGlobalState.NUMERIC_FAILURE),
@@ -372,7 +372,7 @@ class PkCalibrationUiStateTest {
             null,
         )
         assertFalse(mixed.numericFailure)
-        assertEquals(PkCalibrationHeroKind.ADJUSTED, mixed.heroKind)
+        assertTrue(mixed.adjusted)
     }
 
     @Test

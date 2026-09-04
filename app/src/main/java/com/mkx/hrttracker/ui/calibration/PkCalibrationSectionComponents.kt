@@ -136,7 +136,7 @@ private fun PkCalibrationStatusCard(
     onInfo: () -> Unit,
 ) {
     val ready = uiState.globalState == PkCalibrationGlobalState.READY
-    val adjusted = ready && uiState.heroKind == PkCalibrationHeroKind.ADJUSTED
+    val adjusted = ready && uiState.adjusted
     val iconRes: Int
     val title: String
     val body: String

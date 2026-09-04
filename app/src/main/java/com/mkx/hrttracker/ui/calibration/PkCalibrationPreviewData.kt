@@ -88,7 +88,7 @@ internal fun previewPkUiState(
     val adjusted = effectivePromotedRoutes.isNotEmpty()
     return PkCalibrationUiState(
         globalState = globalState,
-        heroKind = if (adjusted) PkCalibrationHeroKind.ADJUSTED else PkCalibrationHeroKind.POPULATION,
+        adjusted = adjusted,
         limitedConfidence = limitedConfidence,
         routeRows = if (globalState == PkCalibrationGlobalState.READY) routeRows else emptyList(),
         effectivePromotedRoutes = effectivePromotedRoutes,

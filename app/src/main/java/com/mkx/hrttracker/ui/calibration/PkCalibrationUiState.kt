@@ -16,12 +16,6 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.UUID
 
-/** Hero presentation kind (UI handoff v9.0 §5.1). */
-enum class PkCalibrationHeroKind {
-    POPULATION,
-    ADJUSTED,
-}
-
 /**
  * Coarse per-route confidence for adjusted routes (user decisions,
  * 2026-08-12), anchored to existing thresholds only.
@@ -81,7 +75,8 @@ data class PkCalibrationRouteRowUiState(
  */
 data class PkCalibrationUiState(
     val globalState: PkCalibrationGlobalState,
-    val heroKind: PkCalibrationHeroKind,
+    /** Some supported route shapes the drawn curve with a lab adjustment. */
+    val adjusted: Boolean,
     /** True when an effective promoted route is still provisional (§5.1). */
     val limitedConfidence: Boolean,
     /** Exactly five rows in canonical route order when READY, empty otherwise. */
@@ -197,11 +192,7 @@ fun pkCalibrationUiState(
         .map { routeResult -> routeResult.route }
     return PkCalibrationUiState(
         globalState = result.globalState,
-        heroKind = if (effectivePromoted.isEmpty()) {
-            PkCalibrationHeroKind.POPULATION
-        } else {
-            PkCalibrationHeroKind.ADJUSTED
-        },
+        adjusted = effectivePromoted.isNotEmpty(),
         limitedConfidence = effectivePromoted.any(provisionalRoutes::contains),
         routeRows = result.routeResults.map { routeResult ->
             PkCalibrationRouteRowUiState(
