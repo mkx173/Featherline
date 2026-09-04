@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveState
+import com.mkx.hrttracker.data.repository.PkCalibrationLive
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -92,7 +92,7 @@ class CalibrationViewModel @Inject constructor(
         )
 
     private fun pkScreenState(
-        liveState: PkCalibrationLiveState,
+        liveState: PkCalibrationLive?,
         fixture: PkCalibrationUiFixture?,
     ): PkCalibrationScreenState? = when {
         // Debug harness fixture drives the real surface (plan D3).
@@ -101,7 +101,7 @@ class CalibrationViewModel @Inject constructor(
             excludedResultIds = fixture.excludedResultIds,
         )
 
-        else -> (liveState as? PkCalibrationLiveState.Available)?.let { available ->
+        else -> liveState?.let { available ->
             PkCalibrationScreenState(
                 ui = pkCalibrationUiState(available.evaluation.result, available.render),
                 excludedResultIds = available.input.excludedLabIds,

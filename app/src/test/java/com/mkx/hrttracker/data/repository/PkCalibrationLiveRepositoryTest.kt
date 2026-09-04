@@ -62,7 +62,7 @@ class PkCalibrationLiveRepositoryTest {
 
         runCurrent()
 
-        val available = repository.liveState.value as PkCalibrationLiveState.Available
+        val available = requireNotNull(repository.liveState.value)
         assertEquals(fixture.panel.results.single().uuid, available.input.labs.single().resultId)
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
@@ -102,7 +102,7 @@ class PkCalibrationLiveRepositoryTest {
 
         runCurrent()
 
-        val available = repository.liveState.value as PkCalibrationLiveState.Available
+        val available = requireNotNull(repository.liveState.value)
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             available.evaluation.result.globalState,
@@ -130,7 +130,7 @@ class PkCalibrationLiveRepositoryTest {
         // NO_DOSE_HISTORY, keeping the calibration surface alive.
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
-            (repository.liveState.value as PkCalibrationLiveState.Available)
+            requireNotNull(repository.liveState.value)
                 .evaluation.result.globalState,
         )
 
@@ -175,7 +175,7 @@ class PkCalibrationLiveRepositoryTest {
         assertEquals(2, reads)
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
-            (repository.liveState.value as PkCalibrationLiveState.Available)
+            requireNotNull(repository.liveState.value)
                 .evaluation.result.globalState,
         )
         collector.cancel()

@@ -23,26 +23,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.withContext
 
-enum class PkCalibrationLiveUnavailableReason {
-    SOURCE_READ_FAILED,
-    SOURCE_DATA_INVALID,
-    RENDER_DOMAIN_UNAVAILABLE,
-}
-
-sealed interface PkCalibrationLiveState {
-    data object Loading : PkCalibrationLiveState
-
-    data class Unavailable(val reason: PkCalibrationLiveUnavailableReason) :
-        PkCalibrationLiveState
-
-    data class Available(
-        val input: PkCalibrationInput,
-        val evaluation: PkCalibrationEvaluation,
-        val domain: PkChartDomain,
-        /** Null for a non-READY evaluation. */
-        val render: PkCalibrationRenderResult?,
-    ) : PkCalibrationLiveState
-}
+data class PkCalibrationLive(
+    val input: PkCalibrationInput,
+    val evaluation: PkCalibrationEvaluation,
+    val domain: PkChartDomain,
+    /** Null for a non-READY evaluation. */
+    val render: PkCalibrationRenderResult?,
+)
 
 @Singleton
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,20 +50,19 @@ class PkCalibrationLiveRepository @Inject constructor(
     // The snapshot is written after the mutation, so it is the post-write
     // signal; it is also rewritten on date change and projection expiry, so
     // the render domain below tracks the window Home draws.
-    val liveState: StateFlow<PkCalibrationLiveState> = combine(
+    /** Null while loading, after a failed read, or when the inputs cannot form an evaluation. */
+    val liveState: StateFlow<PkCalibrationLive?> = combine(
         storageRepository.observeHomeSnapshotWrites(),
         retryVersion,
     ) { _, _ -> }
         .transformLatest {
-            emit(PkCalibrationLiveState.Loading)
+            emit(null)
             try {
                 emit(evaluate())
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                emit(PkCalibrationLiveState.Unavailable(
-                    PkCalibrationLiveUnavailableReason.SOURCE_READ_FAILED
-                ))
+                emit(null)
             }
         }
         .stateIn(
@@ -85,14 +71,14 @@ class PkCalibrationLiveRepository @Inject constructor(
             // so the calibration page has its section on the first frame
             // instead of waiting for a fresh evaluation on every entry.
             started = SharingStarted.Eagerly,
-            initialValue = PkCalibrationLiveState.Loading,
+            initialValue = null,
         )
 
     fun retry() {
         retryVersion.value = retryVersion.value + 1L
     }
 
-    private suspend fun evaluate(): PkCalibrationLiveState {
+    private suspend fun evaluate(): PkCalibrationLive? {
         val panels = bloodTestRepository.getPanels()
         val entries = medicationLogRepository.getEntries()
         val profile = userProfileRepository.getCurrentProfile()
@@ -103,9 +89,7 @@ class PkCalibrationLiveRepository @Inject constructor(
             weightKg = profile.weightKg,
             metadata = metadata,
             fallbackOriginEpochMillis = clock.millis(),
-        ) ?: return PkCalibrationLiveState.Unavailable(
-            PkCalibrationLiveUnavailableReason.SOURCE_DATA_INVALID
-        )
+        ) ?: return null
         // The render domain tracks the chart's visible window around the
         // current clock: the widest selectable past span (plus a day of
         // start-of-day flooring slack) through the widest future span.
@@ -114,12 +98,10 @@ class PkCalibrationLiveRepository @Inject constructor(
             rangeStartEpochMillis = nowMillis - RENDER_PAST_MILLIS,
             rangeEndEpochMillis = nowMillis + RENDER_FUTURE_MILLIS,
             samplingIntervalMillis = SIX_HOURS_MILLIS,
-        ) ?: return PkCalibrationLiveState.Unavailable(
-            PkCalibrationLiveUnavailableReason.RENDER_DOMAIN_UNAVAILABLE
-        )
+        ) ?: return null
         return withContext(defaultDispatcher) {
             val evaluation = PkCalibrationEngine.evaluate(input)
-            PkCalibrationLiveState.Available(
+            PkCalibrationLive(
                 input = input,
                 evaluation = evaluation,
                 domain = domain,
