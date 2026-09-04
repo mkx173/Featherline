@@ -45,7 +45,6 @@ fun PkDoseEvent.calibrationRoute(): PkCalibrationRoute? = route.calibrationRoute
 @ConsistentCopyVisibility
 data class PkPersonalParams private constructor(
     val routeLogScale: Map<PkCalibrationRoute, Double>,
-    val thetaKGlobal: Double,
 ) {
     fun logScaleFor(route: PkCalibrationRoute): Double = routeLogScale[route] ?: 0.0
 
@@ -55,23 +54,14 @@ data class PkPersonalParams private constructor(
     }
 
     companion object {
-        private val Population = PkPersonalParams(
-            routeLogScale = emptyMap(),
-            thetaKGlobal = 0.0,
-        )
+        private val Population = PkPersonalParams(routeLogScale = emptyMap())
 
         fun population(): PkPersonalParams = Population
 
-        /**
-         * Builds canonical v9 parameters. Calibration currently permits only
-         * the normalized exact +0.0 future clearance hook.
-         */
+        /** Canonical route order; exact-zero and absent entries are omitted. Null on a non-finite beta. */
         fun create(
             routeLogScale: Map<PkCalibrationRoute, Double> = emptyMap(),
-            thetaKGlobal: Double = 0.0,
         ): PkPersonalParams? {
-            if (thetaKGlobal.toBits() != 0.0.toBits()) return null
-
             val canonical = linkedMapOf<PkCalibrationRoute, Double>()
             for (route in PkCalibrationRoute.entries) {
                 val beta = routeLogScale[route] ?: continue
@@ -82,10 +72,7 @@ data class PkPersonalParams private constructor(
                 canonical[route] = beta
             }
             if (canonical.isEmpty()) return Population
-            return PkPersonalParams(
-                routeLogScale = canonical.toMap(),
-                thetaKGlobal = 0.0,
-            )
+            return PkPersonalParams(routeLogScale = canonical.toMap())
         }
     }
 }

@@ -18,7 +18,6 @@ class PkCalibrationContractsTest {
         )
         assertNull(PkPersonalParams.create(mapOf(PkCalibrationRoute.ORAL to Double.NaN)))
         assertNull(PkPersonalParams.create(mapOf(PkCalibrationRoute.ORAL to 1e6)))
-        assertNull(PkPersonalParams.create(thetaKGlobal = 0.1))
         val params = requireNotNull(PkPersonalParams.create(mapOf(PkCalibrationRoute.ORAL to ln(2.0))))
         assertEquals(2.0, params.scaleFor(PkCalibrationRoute.ORAL), 1e-15)
         assertEquals(1.0, params.scaleFor(PkCalibrationRoute.GEL), 0.0)
