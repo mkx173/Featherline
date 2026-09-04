@@ -1120,14 +1120,10 @@
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_label_population">Population</string>
     <string name="calibration_pk_route_label_adjusted">Route-adjusted</string>
-    <string name="calibration_pk_route_tag_no_supporting_labs">no lab signal</string>
-    <string name="calibration_pk_route_tag_numeric_failure">adjustment unavailable</string>
-    <string name="calibration_pk_route_tag_provisional">limited confidence</string>
-    <string name="calibration_pk_route_reason_no_supporting_labs">No usable lab result carries any signal from this route, so it uses the population estimate.</string>
+    <string name="calibration_pk_route_tag_no_supporting_labs">No lab signal</string>
+    <string name="calibration_pk_route_tag_numeric_failure">Adjustment unavailable</string>
+    <string name="calibration_pk_route_tag_provisional">Limited confidence</string>
     <string name="calibration_pk_reason_scale_outside_usual_range">The adjustment implied for this route is outside its usual range, or is a large shift backed by fewer than three supporting labs. Check lab and treatment records.</string>
-    <string name="calibration_pk_route_reason_numeric_failure">A calculation didn’t complete for this route.</string>
-    <string name="calibration_pk_route_reason_provisional">Adjusted for this route, but the adjustment is still uncertain.</string>
-    <string name="calibration_pk_route_reason_calibrated">Full model criteria met. No warning was raised for this route.</string>
     <string name="calibration_pk_route_next_no_supporting_labs">Add a lab collected when this route provides most of the signal</string>
     <string name="calibration_pk_route_next_numeric_failure">Retry after a data or model update</string>
     <string name="calibration_pk_route_next_provisional">Add labs collected at more varied times</string>
@@ -1156,21 +1152,12 @@
     <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement.</string>
     <string name="calibration_pk_retry">Try again</string>
     <string name="calibration_pk_routes_card_title">Route adjustments</string>
-    <string name="calibration_pk_routes_card_all_population">All population</string>
-    <plurals name="calibration_pk_routes_card_adjusted_count">
-        <item quantity="one">%1$d adjusted</item>
-        <item quantity="other">%1$d adjusted</item>
-    </plurals>
-    <plurals name="calibration_pk_routes_card_review_count">
-        <item quantity="one">%1$d to review</item>
-        <item quantity="other">%1$d to review</item>
-    </plurals>
+    <string name="calibration_pk_routes_card_adjusted_of">%1$d of %2$d adjusted</string>
     <string name="calibration_pk_chip_adjusted">Adjusted</string>
-    <string name="calibration_pk_chip_adjusted_confidence">Adjusted · %1$s confidence</string>
     <string name="calibration_pk_confidence_low">low</string>
     <string name="calibration_pk_confidence_medium">medium</string>
     <string name="calibration_pk_confidence_high">high</string>
-    <string name="calibration_pk_route_confidence_line">Confidence: %1$s — sharpens as more labs support this route.</string>
+    <string name="calibration_pk_route_meta_confidence">%1$s · %2$s confidence</string>
     <string name="calibration_pk_coaching_row_title">Helping a route calibrate</string>
     <string name="calibration_pk_coaching_row_subtitle">Tips for sharper lab adjustment</string>
     <string name="calibration_pk_disclaimer_row_title">About these estimates</string>

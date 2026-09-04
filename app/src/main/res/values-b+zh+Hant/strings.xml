@@ -1049,11 +1049,7 @@
     <string name="calibration_pk_route_tag_no_supporting_labs">暫無檢測訊號</string>
     <string name="calibration_pk_route_tag_numeric_failure">調整不可用</string>
     <string name="calibration_pk_route_tag_provisional">可信度有限</string>
-    <string name="calibration_pk_route_reason_no_supporting_labs">目前沒有可用的檢測結果帶有來自該途徑的訊號，因此該途徑使用群體估算。</string>
     <string name="calibration_pk_reason_scale_outside_usual_range">該途徑推算出的調整超出其通常範圍，或者是僅由少於三筆支持性結果支撐的較大調整。請檢查檢測和治療記錄。</string>
-    <string name="calibration_pk_route_reason_numeric_failure">該途徑的一項計算未能完成。</string>
-    <string name="calibration_pk_route_reason_provisional">已對該途徑進行調整，但調整仍不確定。</string>
-    <string name="calibration_pk_route_reason_calibrated">已滿足全部模型標準，此途徑未觸發任何警告。</string>
     <string name="calibration_pk_route_next_no_supporting_labs">新增在此途徑提供大部分訊號時採集的檢測結果</string>
     <string name="calibration_pk_route_next_numeric_failure">請在資料或模型更新後重試</string>
     <string name="calibration_pk_route_next_provisional">補充在更多不同時間採集的檢測</string>
@@ -1081,19 +1077,12 @@
     <string name="calibration_pk_status_adjusted_body">已根據您的檢測結果對%1$s進行調整；其餘途徑使用群體估算。這仍是估算值而非實測值。</string>
     <string name="calibration_pk_retry">重試</string>
     <string name="calibration_pk_routes_card_title">途徑調整</string>
-    <string name="calibration_pk_routes_card_all_population">全部為群體估算</string>
-    <plurals name="calibration_pk_routes_card_adjusted_count">
-        <item quantity="other">%1$d 個已調整</item>
-    </plurals>
-    <plurals name="calibration_pk_routes_card_review_count">
-        <item quantity="other">%1$d 個待複查</item>
-    </plurals>
+    <string name="calibration_pk_routes_card_adjusted_of">%1$d/%2$d 個途徑已調整</string>
     <string name="calibration_pk_chip_adjusted">已調整</string>
-    <string name="calibration_pk_chip_adjusted_confidence">已調整 · 置信度%1$s</string>
     <string name="calibration_pk_confidence_low">低</string>
     <string name="calibration_pk_confidence_medium">中等</string>
     <string name="calibration_pk_confidence_high">高</string>
-    <string name="calibration_pk_route_confidence_line">置信度：%1$s——隨著更多檢測結果支持該途徑而提高。</string>
+    <string name="calibration_pk_route_meta_confidence">%1$s · 置信度%2$s</string>
     <string name="calibration_pk_coaching_row_title">幫助途徑完成校準</string>
     <string name="calibration_pk_coaching_row_subtitle">讓檢測調整更精準的建議</string>
     <string name="calibration_pk_disclaimer_row_title">關於這些估算</string>

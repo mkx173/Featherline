@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
@@ -38,17 +38,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtPill
-import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.medication.medicationApplicationIconRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.labelRes
 import kotlinx.coroutines.CoroutineScope
 
@@ -185,16 +183,9 @@ fun PkCalibrationRoutesSheet(
                 .padding(top = 8.dp)
                 .cjkTextOffset(intro),
         )
-        uiState.routeRows.forEachIndexed { index, row ->
-            if (index > 0) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(top = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                )
-            }
-            PkCalibrationRouteDetailBlock(row)
-        }
         Spacer(modifier = Modifier.height(20.dp))
+        PkCalibrationRouteCards(uiState.routeRows.adjustedFirst)
+        Spacer(modifier = Modifier.height(24.dp))
         HrtButton(
             text = stringResource(R.string.calibration_pk_got_it),
             onClick = dismiss,
@@ -203,124 +194,148 @@ fun PkCalibrationRoutesSheet(
     }
 }
 
+/** One segmented card per route, grouped by [HrtSection] without a header. */
 @Composable
-private fun PkCalibrationRouteDetailBlock(row: PkCalibrationRouteRowUiState) {
-    val routeScheme = rememberMedicationGroupColorScheme(
-        colorKey = row.route.medicationGroupColorKey,
-    )
-    val adjusted = row.displayState.isAdjusted
-    Column(modifier = Modifier.padding(top = 16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(routeScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(
-                        medicationApplicationIconRes(row.route.applicationType)
-                    ),
-                    contentDescription = null,
-                    tint = routeScheme.onPrimaryContainer,
-                    modifier = Modifier.size(19.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(11.dp))
-            Text(
-                text = stringResource(row.route.applicationType.labelRes),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
-            val stateLabel = buildString {
-                append(stringResource(row.displayState.labelRes))
-                row.displayState.tagRes?.let { tag ->
-                    append(" · ")
-                    append(stringResource(tag))
-                }
-            }
-            HrtPill(
-                label = stateLabel,
-                containerColor = if (adjusted) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainer
-                },
-                contentColor = if (adjusted) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                size = HrtPillSize.Small,
-                fontWeight = FontWeight.Medium,
-            )
+private fun PkCalibrationRouteCards(rows: List<PkCalibrationRouteRowUiState>) {
+    HrtSection(title = null) {
+        rows.forEach { row ->
+            item { PkCalibrationRouteCard(row) }
         }
-        val reason = stringResource(row.displayState.reasonRes)
-        Text(
-            text = reason,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(top = 10.dp)
-                .cjkTextOffset(reason),
-        )
-        PkCalibrationRouteDetailLine(
-            iconRes = R.drawable.ic_bloodtype,
-            text = buildString {
-                append(
-                    pluralStringResource(
+    }
+}
+
+/**
+ * Route card: tile, name, supporting line (labs + confidence, or the
+ * population tag), trailing state. Adjusted routes carry a note with every
+ * warning the fit raised (warn-only: the adjustment applies regardless) and
+ * the suggested next step.
+ */
+@Composable
+private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
+    val adjusted = row.displayState.isAdjusted
+    EditorSegmentedListItem(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                PkCalibrationRouteTile(
+                    route = row.route,
+                    size = 34.dp,
+                    iconSize = 20.dp,
+                    shape = MaterialTheme.shapes.medium,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    val name = stringResource(row.route.applicationType.labelRes)
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Normal,
+                        modifier = Modifier.cjkTextOffset(name),
+                    )
+                    val labs = pluralStringResource(
                         R.plurals.calibration_pk_supporting_lab_count,
                         row.supportingLabCount,
                         row.supportingLabCount,
                     )
-                )
-            },
-        )
-        row.confidence?.let { confidence ->
-            PkCalibrationRouteDetailLine(
-                iconRes = R.drawable.ic_experiment,
-                text = stringResource(
-                    R.string.calibration_pk_route_confidence_line,
-                    stringResource(confidence.labelRes),
-                ),
-            )
+                    val meta = when {
+                        !adjusted -> row.displayState.tagRes?.let { tag -> stringResource(tag) }
+                        row.confidence != null -> stringResource(
+                            R.string.calibration_pk_route_meta_confidence,
+                            labs,
+                            stringResource(row.confidence.labelRes),
+                        )
+
+                        else -> labs
+                    }
+                    meta?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.cjkTextOffset(it),
+                        )
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (adjusted) {
+                        Text(
+                            text = stringResource(R.string.calibration_pk_chip_adjusted),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        row.confidence?.let { confidence -> PkCalibrationConfidenceBars(confidence) }
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_group),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = stringResource(row.displayState.labelRes),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            if (adjusted) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    row.reasons.forEach { reason ->
+                        PkCalibrationRouteNoteLine(
+                            iconRes = R.drawable.ic_error_outline,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            text = stringResource(reason.detailRes),
+                        )
+                    }
+                    PkCalibrationRouteNoteLine(
+                        iconRes = R.drawable.ic_check_circle,
+                        tint = MaterialTheme.colorScheme.primary,
+                        text = stringResource(row.displayState.nextStepRes),
+                    )
+                }
+            }
         }
-        // Warn-only: every reason the fit raised is shown; the adjustment is
-        // applied regardless and the user decides what to make of it.
-        row.reasons.forEach { reason ->
-            PkCalibrationRouteDetailLine(
-                iconRes = R.drawable.ic_error_outline,
-                text = stringResource(reason.detailRes),
-                tint = MaterialTheme.colorScheme.tertiary,
-            )
-        }
-        PkCalibrationRouteDetailLine(
-            iconRes = R.drawable.ic_check_circle,
-            text = stringResource(row.displayState.nextStepRes),
-            tint = MaterialTheme.colorScheme.primary,
-        )
     }
 }
 
 @Composable
-private fun PkCalibrationRouteDetailLine(
+private fun PkCalibrationRouteNoteLine(
     @DrawableRes iconRes: Int,
+    tint: androidx.compose.ui.graphics.Color,
     text: String,
-    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
-    Row(modifier = Modifier.padding(top = 8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(18.dp),
         )
-        Spacer(modifier = Modifier.width(9.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.cjkTextOffset(text),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .weight(1f)
+                .cjkTextOffset(text),
         )
     }
 }
@@ -476,28 +491,20 @@ private fun PkCalibrationEduHeader(@StringRes textRes: Int) {
     )
 }
 
-/** Population, numeric failure, calibrated, provisional MEDIUM, provisional LOW with every reason. */
-@Preview(name = "PK Route Detail Block · states", showBackground = true, widthDp = 420)
+/** Calibrated, provisional MEDIUM, provisional LOW with every reason, then population and numeric failure. */
+@Preview(name = "PK Route Card · states", showBackground = true, widthDp = 420)
 @Composable
-private fun PkCalibrationRouteDetailBlockPreview() {
+private fun PkCalibrationRouteCardPreview() {
     val rows = listOf(
-        previewPkRouteRow(PkCalibrationRoute.ORAL),
-        previewPkNumericFailureRows.first(),
         previewPkCalibratedRow,
         previewPkProvisionalMediumRow,
         previewPkProvisionalLowRow,
+        previewPkRouteRow(PkCalibrationRoute.ORAL),
+        previewPkNumericFailureRows.last(),
     )
     HrtTrackerTheme(dynamicColor = false) {
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-            rows.forEachIndexed { index, row ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(top = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                    )
-                }
-                PkCalibrationRouteDetailBlock(row)
-            }
+            PkCalibrationRouteCards(rows)
         }
     }
 }

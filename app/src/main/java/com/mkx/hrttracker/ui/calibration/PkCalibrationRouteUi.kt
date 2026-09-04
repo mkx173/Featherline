@@ -28,3 +28,10 @@ val PkCalibrationRoute.applicationType: MedicationApplicationType
         PkCalibrationRoute.ORAL -> MedicationApplicationType.ORAL
         PkCalibrationRoute.SUBLINGUAL -> MedicationApplicationType.SUBLINGUAL
     }
+
+/**
+ * Presentation order for the status surfaces: adjusted routes first, canonical
+ * route order within each group (design decision, 2026-09-02).
+ */
+internal val List<PkCalibrationRouteRowUiState>.adjustedFirst: List<PkCalibrationRouteRowUiState>
+    get() = sortedByDescending { row -> row.displayState.isAdjusted }

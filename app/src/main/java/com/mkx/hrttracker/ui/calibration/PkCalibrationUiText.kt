@@ -72,20 +72,6 @@ val PkRouteCalibrationDisplayState.tagRes: Int?
         PkRouteCalibrationDisplayState.LAB_CALIBRATED -> null
     }
 
-/** Plain-language explanation of the state (details surface). */
-@get:StringRes
-val PkRouteCalibrationDisplayState.reasonRes: Int
-    get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL ->
-            R.string.calibration_pk_route_reason_no_supporting_labs
-        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
-            R.string.calibration_pk_route_reason_numeric_failure
-        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ->
-            R.string.calibration_pk_route_reason_provisional
-        PkRouteCalibrationDisplayState.LAB_CALIBRATED ->
-            R.string.calibration_pk_route_reason_calibrated
-    }
-
 /** Suggested next step for the state (handoff §5 table). */
 @get:StringRes
 val PkRouteCalibrationDisplayState.nextStepRes: Int

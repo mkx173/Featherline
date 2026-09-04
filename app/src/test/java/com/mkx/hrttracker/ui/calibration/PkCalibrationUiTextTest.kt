@@ -27,7 +27,6 @@ class PkCalibrationUiTextTest {
     fun routeStateCopy_isTotal_andOnlyCleanCalibratedLacksATag() {
         for (state in PkRouteCalibrationDisplayState.entries) {
             assertNotEquals("label for $state", 0, state.labelRes)
-            assertNotEquals("reason for $state", 0, state.reasonRes)
             assertNotEquals("next step for $state", 0, state.nextStepRes)
             assertEquals(
                 "tag for $state",
