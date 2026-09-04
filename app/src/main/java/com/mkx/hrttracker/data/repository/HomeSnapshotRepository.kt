@@ -191,18 +191,6 @@ class HomeSnapshotRepository @Inject constructor(
         return checkNotNull(mutationResult).getOrThrow()
     }
 
-    /** Captures the durable generation while serialized with Home data mutations. */
-    internal suspend fun captureCurrentHomeDataGeneration(): Long {
-        return refreshMutex.withLock {
-            homeSnapshotGenerationStore.readGeneration()
-        }
-    }
-
-    /** Read-only observation of the same durable generation used by Home mutations. */
-    internal fun observeCurrentHomeDataGeneration(): Flow<Long> {
-        return homeSnapshotGenerationStore.observeGeneration()
-    }
-
     fun isSnapshotUsable(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime,

@@ -5,15 +5,11 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PkCalibrationDao {
     @Query("SELECT * FROM e2_calibration_metadata ORDER BY resultUuid ASC")
     suspend fun getAllMetadata(): List<E2CalibrationMetadataEntity>
-
-    @Query("SELECT * FROM e2_calibration_metadata ORDER BY resultUuid ASC")
-    fun observeAllMetadata(): Flow<List<E2CalibrationMetadataEntity>>
 
     @Query("SELECT * FROM e2_calibration_metadata WHERE resultUuid = :resultUuid LIMIT 1")
     suspend fun getMetadata(resultUuid: String): E2CalibrationMetadataEntity?

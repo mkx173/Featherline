@@ -750,38 +750,6 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun captureCurrentGeneration_waitsForMutationThenReadsItsGeneration() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
-        val repository = HomeSnapshotRepository(
-            databaseHolder = databaseHolder,
-            homeSnapshotStore = homeSnapshotStore,
-            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            settingsRepository = settingsRepository,
-            appScope = CoroutineScope(dispatcher),
-            defaultDispatcher = dispatcher,
-        )
-        val mutationStarted = CompletableDeferred<Unit>()
-        val allowMutation = CompletableDeferred<Unit>()
-        val mutation = launch {
-            repository.runHomeDataMutation {
-                mutationStarted.complete(Unit)
-                allowMutation.await()
-            }
-        }
-        mutationStarted.await()
-
-        val capture = async { repository.captureCurrentHomeDataGeneration() }
-        runCurrent()
-        assertFalse(capture.isCompleted)
-
-        allowMutation.complete(Unit)
-        mutation.join()
-        assertEquals(1L, capture.await())
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
     fun runHomeDataMutation_awaitsRefreshAfterMutationCommit() = runTest {
         val appDispatcher = StandardTestDispatcher()
         val database: HrtTrackerDatabase = mockk()

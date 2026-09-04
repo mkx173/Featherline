@@ -7,7 +7,6 @@ import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import java.time.Instant
 import java.util.UUID
@@ -28,14 +27,6 @@ class PkCalibrationStorageRepository @Inject constructor(
     suspend fun getAllMetadata(): List<E2CalibrationMetadata> {
         return databaseHolder.get().pkCalibrationDao().getAllMetadata().map { entity ->
             checkNotNull(entity.toModel()) { "Stored E2 calibration metadata is invalid." }
-        }
-    }
-
-    fun observeAllMetadata(): Flow<List<E2CalibrationMetadata>> {
-        return databaseHolder.get().pkCalibrationDao().observeAllMetadata().map { entities ->
-            entities.map { entity ->
-                checkNotNull(entity.toModel()) { "Stored E2 calibration metadata is invalid." }
-            }
         }
     }
 
@@ -76,11 +67,6 @@ class PkCalibrationStorageRepository @Inject constructor(
         if (builtinAnalyteKey != BloodAnalyteKey.E2.storageValue) {
             throw PkCalibrationMetadataTargetNotAuthorizedException(resultId)
         }
-    }
-
-    /** Capture before reading every input of one evaluation; closes races with Home-data writes. */
-    suspend fun captureHomeDataGeneration(): Long {
-        return homeSnapshotRepository.captureCurrentHomeDataGeneration()
     }
 
     /**

@@ -40,7 +40,6 @@ class PkCalibrationLiveRepositoryTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(7L)
         every { storage.observeHomeSnapshotWrites() } returns generations
-        coEvery { storage.captureHomeDataGeneration() } returns 7L
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
         coEvery { userProfiles.getCurrentProfile() } returns UserProfile(weightKg = 70.0)
@@ -89,7 +88,6 @@ class PkCalibrationLiveRepositoryTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(1L)
         every { storage.observeHomeSnapshotWrites() } returns generations
-        coEvery { storage.captureHomeDataGeneration() } returns 1L
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
         // Current Weight never set: calibration resolves the same 70 kg
@@ -121,7 +119,6 @@ class PkCalibrationLiveRepositoryTest {
     fun generationChange_andRetry_reReadWithoutCreatingAnotherVersion() = runTest {
         val generations = MutableStateFlow(4L)
         every { storage.observeHomeSnapshotWrites() } returns generations
-        coEvery { storage.captureHomeDataGeneration() } returns 4L
         stubEmptySourceReads()
         val repository = repository(generations, backgroundScope, StandardTestDispatcher(testScheduler))
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -138,7 +135,6 @@ class PkCalibrationLiveRepositoryTest {
         )
 
         generations.value = 5L
-        coEvery { storage.captureHomeDataGeneration() } returns 5L
         runCurrent()
         repository.retry()
         runCurrent()
@@ -154,7 +150,6 @@ class PkCalibrationLiveRepositoryTest {
     fun newerGeneration_cancelsAnOlderRead_andOnlyLatestStateSurvives() = runTest {
         val generations = MutableStateFlow(1L)
         every { storage.observeHomeSnapshotWrites() } returns generations
-        coEvery { storage.captureHomeDataGeneration() } coAnswers { generations.value }
         val firstReadStarted = CompletableDeferred<Unit>()
         var reads = 0
         coEvery { bloodTests.getPanels() } coAnswers {
