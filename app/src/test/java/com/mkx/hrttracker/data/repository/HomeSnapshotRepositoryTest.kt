@@ -500,39 +500,9 @@ class HomeSnapshotRepositoryTest {
         // surface (keyed on snapshot generation) kept the pre-mutation fit.
         val dispatcher = StandardTestDispatcher(testScheduler)
         val writtenSnapshot = slot<HomeSnapshotRecord>()
-        val database: HrtTrackerDatabase = mockk()
-        val homeDao: HomeDao = mockk()
-        val medicineDao: MedicineDao = mockk()
-        val medicationLogDao: MedicationLogDao = mockk()
-        val userProfileDao: UserProfileDao = mockk()
-        val journalDao: JournalDao = mockk()
-
-        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
         coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        coEvery { databaseHolder.awaitOpen() } returns database
-        every { database.homeDao() } returns homeDao
-        every { database.medicineDao() } returns medicineDao
-        every { database.medicationLogDao() } returns medicationLogDao
-        every { database.userProfileDao() } returns userProfileDao
-        every { database.journalDao() } returns journalDao
-        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
-            coEvery { getPanels() } returns emptyList()
-        }
-        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
-            coEvery { getAllMetadata() } returns emptyList()
-        }
-        coEvery { homeDao.getActiveGroups() } returns emptyList()
-        coEvery { homeDao.getArchivedGroups() } returns emptyList()
-        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
-        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
-        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
-        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
-        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
-        coEvery { userProfileDao.getProfile() } returns null
-        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
@@ -565,39 +535,9 @@ class HomeSnapshotRepositoryTest {
         // over a personalized curve.
         val dispatcher = StandardTestDispatcher(testScheduler)
         val writtenSnapshot = slot<HomeSnapshotRecord>()
-        val database: HrtTrackerDatabase = mockk()
-        val homeDao: HomeDao = mockk()
-        val medicineDao: MedicineDao = mockk()
-        val medicationLogDao: MedicationLogDao = mockk()
-        val userProfileDao: UserProfileDao = mockk()
-        val journalDao: JournalDao = mockk()
-
-        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
         coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
         coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
-        coEvery { databaseHolder.awaitOpen() } returns database
-        every { database.homeDao() } returns homeDao
-        every { database.medicineDao() } returns medicineDao
-        every { database.medicationLogDao() } returns medicationLogDao
-        every { database.userProfileDao() } returns userProfileDao
-        every { database.journalDao() } returns journalDao
-        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
-            coEvery { getPanels() } returns emptyList()
-        }
-        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
-            coEvery { getAllMetadata() } returns emptyList()
-        }
-        coEvery { homeDao.getActiveGroups() } returns emptyList()
-        coEvery { homeDao.getArchivedGroups() } returns emptyList()
-        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
-        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
-        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
-        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
-        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
-        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
-        coEvery { userProfileDao.getProfile() } returns null
-        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
         val repository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,

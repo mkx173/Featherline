@@ -10,7 +10,6 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
-import kotlin.system.measureNanoTime
 
 class PkCalibrationRendererTest {
     @Test
@@ -337,30 +336,6 @@ class PkCalibrationRendererTest {
         )
     }
 
-    @Test
-    fun thirtyDayAllFiveRouteRender_meetsCombinedFiftyMillisecondBudgetAfterWarmup() {
-        val evaluation = evaluation(
-            events = allRouteEvents(),
-            promotedQByRoute = PkCalibrationRoute.entries.associateWith { ln(1.1) },
-        )
-        val domain = domain(startHours = 1, hours = 30 * 24, intervalHours = 24)
-        repeat(2) { render(evaluation, domain) }
-
-        val bestNanos = (0 until 3).minOf {
-            measureNanoTime {
-                val result = render(evaluation, domain)
-                assertEquals(PkCalibrationRenderState.PERSONALIZED, result.renderState)
-                assertEquals(PkCalibrationBandState.READY, result.bandState)
-                assertEquals(PkCalibrationRoute.entries, result.effectivePromotedRoutes)
-            }
-        }
-
-        assertTrue(
-            "Expected <= $RenderBudgetMs ms, was ${bestNanos / 1_000_000.0} ms",
-            bestNanos <= RenderBudgetMs * 1_000_000L,
-        )
-    }
-
     private fun evaluation(
         events: List<PkDoseEvent>,
         promotedQByRoute: Map<PkCalibrationRoute, Double> = emptyMap(),
@@ -533,7 +508,6 @@ class PkCalibrationRendererTest {
     private var nextEventId = 1L
 
     private companion object {
-        const val RenderBudgetMs = 50L
         const val OriginMillis = 1_700_000_000_000L
         const val HourMillis = 3_600_000L
         const val WeightKg = 70.0

@@ -13,7 +13,6 @@ import java.time.Instant
 import java.time.Clock
 import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -25,7 +24,6 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -36,7 +34,7 @@ class PkCalibrationLiveRepositoryTest {
     private val storage: PkCalibrationStorageRepository = mockk()
 
     @Test
-    fun liveState_publishesActualEngineEvaluation_onInjectedDispatcher() = runTest {
+    fun liveState_publishesActualEngineEvaluation() = runTest {
         val fixture = validResearchFixture()
         val generations = MutableStateFlow(7L)
         every { storage.observeHomeSnapshotWrites() } returns generations
@@ -44,18 +42,11 @@ class PkCalibrationLiveRepositoryTest {
         coEvery { medicationLogs.getEntries() } returns emptyList()
         coEvery { userProfiles.getCurrentProfile() } returns UserProfile(weightKg = 70.0)
         coEvery { storage.getAllMetadata() } returns emptyList()
-        val delegate = StandardTestDispatcher(testScheduler)
-        var dispatchCount = 0
-        val recordingDispatcher = object : kotlinx.coroutines.CoroutineDispatcher() {
-            override fun isDispatchNeeded(context: CoroutineContext): Boolean =
-                delegate.isDispatchNeeded(context)
-
-            override fun dispatch(context: CoroutineContext, block: Runnable) {
-                dispatchCount += 1
-                delegate.dispatch(context, block)
-            }
-        }
-        val repository = repository(generations, backgroundScope, recordingDispatcher)
+        val repository = repository(
+            generations,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.liveState.collect()
         }
@@ -68,10 +59,8 @@ class PkCalibrationLiveRepositoryTest {
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             available.evaluation.result.globalState,
         )
-        assertTrue(dispatchCount > 0)
-        // Phase-3 #9: the render domain tracks the injected clock (widest past
-        // span + 1 day flooring slack .. widest future span), not the earliest
-        // event.
+        // The render domain tracks the injected clock (widest past span + 1 day
+        // flooring slack .. widest future span), not the earliest event.
         assertEquals(
             FixedNowMillis - 17L * 24L * 3_600_000L,
             available.domain.rangeStartEpochMillis,

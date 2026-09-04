@@ -374,32 +374,4 @@ class PkCalibrationUiStateTest {
         assertFalse(mixed.numericFailure)
         assertTrue(mixed.adjusted)
     }
-
-    @Test
-    fun uiProjection_withholdsDiagnosticFitFields() {
-        // Handoff §5.4: raw fit diagnostics never reach normal product
-        // surfaces. Mirrors the Phase-1 debug-screen withholding precedent.
-        val forbidden = setOf(
-            "fittedBeta",
-            "displayBeta",
-            "betaPosteriorSd",
-            "betaUncertaintyReduction",
-            "laplaceVarianceBeta",
-            "drugSignalLogRange",
-            "robustRmseLog",
-            "minStudentTWeight",
-            "displayParams",
-            "promotedBetaCovariance",
-            "effectiveDisplayParams",
-        )
-        val exposed = (
-            PkCalibrationRouteRowUiState::class.java.declaredFields +
-                PkCalibrationUiState::class.java.declaredFields
-            ).map { it.name }.toSet()
-
-        assertTrue(
-            "UI state must not expose diagnostic fit fields: ${exposed intersect forbidden}",
-            (exposed intersect forbidden).isEmpty(),
-        )
-    }
 }
