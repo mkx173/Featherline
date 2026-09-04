@@ -722,11 +722,6 @@
         <item quantity="one">+%1$d record</item>
         <item quantity="other">+%1$d records</item>
     </plurals>
-    <plurals name="settings_calibration_total_count">
-        <item quantity="one">%1$d total</item>
-        <item quantity="other">%1$d total</item>
-    </plurals>
-    <string name="settings_calibration_under_development_message">Calibration is under development. You can still log blood test results.</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
@@ -1156,7 +1151,6 @@
     <string name="calibration_pk_route_meta_confidence">%1$s · %2$s confidence</string>
     <string name="calibration_pk_coaching_row_title">Helping a route calibrate</string>
     <string name="calibration_pk_coaching_row_subtitle">Tips for sharper lab adjustment</string>
-    <string name="calibration_pk_disclaimer_row_title">About these estimates</string>
     <string name="calibration_pk_disclaimer_row_subtitle">What lab adjustment is, and isn’t</string>
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
@@ -1171,16 +1165,12 @@
     <string name="calibration_pk_coaching_variety_title">Vary when you test</string>
     <string name="calibration_pk_coaching_variety_body">Labs collected at times when one route provides most of the signal make route-specific adjustment more precise.</string>
     <string name="calibration_pk_coaching_safety_note">Never change medication or lab timing without clinician guidance. Varied results can expose an inadequate curve shape; they don’t verify suppression or route physiology.</string>
-    <string name="calibration_pk_disclaimer_line_treatment_derived">This is a treatment-derived, model-estimated E2 level—not verified personal pharmacokinetics or dosing advice.</string>
-    <string name="calibration_pk_disclaimer_line_absorbs">A route adjustment can absorb bioavailability, weight error, assay bias, and adherence—it is not biological truth.</string>
-    <string name="calibration_pk_disclaimer_line_not_verified">The app did not verify hormone suppression or that your labs use a comparable method.</string>
-    <string name="calibration_pk_disclaimer_line_shifts">Switching labs, changing weight, or changing your routine can shift these estimates, including earlier dates.</string>
     <string name="calibration_pk_edu_title">How lab adjustment works</string>
     <string name="calibration_pk_edu_intro">The app can nudge each delivery route’s estradiol contribution toward your own blood tests. Here’s what that does, and what it doesn’t.</string>
     <string name="calibration_pk_edu_does_header">What it does</string>
     <string name="calibration_pk_edu_doesnt_header">What it doesn’t</string>
     <string name="calibration_pk_edu_does_routes_title">Adjusts each route on its own</string>
-    <string name="calibration_pk_edu_does_routes_body">Each route learns its own level correction—there is no single global multiplier. Every usable lab supports every route in proportion to the signal that route provided.</string>
+    <string name="calibration_pk_edu_does_routes_body">Each route learns its own level correction—there is no single global multiplier. Every usable lab supports every route in proportion to the signal that route provided. Switching labs, changing weight, or changing your routine can shift these estimates, including earlier dates.</string>
     <string name="calibration_pk_edu_does_band_title">Shows a range, not a single truth</string>
     <string name="calibration_pk_edu_does_band_body">The shaded band is where another observed result could land—wider when data is thin. It’s not a clinical confidence interval or a target.</string>
     <string name="calibration_pk_edu_doesnt_measure_title">Measure your real hormone levels</string>
@@ -1188,7 +1178,7 @@
     <string name="calibration_pk_edu_doesnt_verify_title">Verify suppression or assay comparability</string>
     <string name="calibration_pk_edu_doesnt_verify_body">The app doesn’t use FSH, LH, testosterone, or a clinician reading to confirm those conditions.</string>
     <string name="calibration_pk_edu_doesnt_learn_title">Learn your body’s timing or absorption</string>
-    <string name="calibration_pk_edu_doesnt_learn_body">It only adjusts a route’s overall level, not the shape of its curve.</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">It only adjusts a route’s overall level, not the shape of its curve—and that level correction can absorb bioavailability, weight error, assay bias, and adherence.</string>
     <string name="calibration_pk_edu_doesnt_advise_title">Give dosing advice</string>
     <string name="calibration_pk_edu_doesnt_advise_body">Talk to your clinician about any changes.</string>
 

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLive
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -46,16 +46,20 @@ class CalibrationViewModel @Inject constructor(
         MutableStateFlow<CalibrationDeleteAllEntriesResult?>(null)
     private val cachedPanels = bloodTestRepository.getCachedPanels()
 
+    // Loading also waits for the first live evaluation so the lab adjustment
+    // section is in the first rendered frame rather than popping in above
+    // the lab list.
     val uiState: StateFlow<CalibrationUiState> = combine(
         bloodTestRepository.observePanels(),
         settingsRepository.settingsState,
         isDeletingAllEntries,
         deleteAllEntriesResult,
-    ) { panels, settingsState, isDeletingAllEntries, deleteAllEntriesResult ->
+        pkCalibrationLiveRepository.liveState,
+    ) { panels, settingsState, isDeletingAllEntries, deleteAllEntriesResult, live ->
         CalibrationUiState(
             panels = panels,
             settingsState = settingsState,
-            isLoading = false,
+            isLoading = live == null,
             isDeletingAllEntries = isDeletingAllEntries,
             deleteAllEntriesResult = deleteAllEntriesResult,
         )
@@ -65,7 +69,7 @@ class CalibrationViewModel @Inject constructor(
         initialValue = CalibrationUiState(
             panels = cachedPanels.orEmpty(),
             settingsState = settingsRepository.settingsState.value,
-            isLoading = cachedPanels == null,
+            isLoading = cachedPanels == null || pkCalibrationLiveRepository.liveState.value == null,
         ),
     )
 
@@ -92,7 +96,7 @@ class CalibrationViewModel @Inject constructor(
         )
 
     private fun pkScreenState(
-        liveState: PkCalibrationLive?,
+        liveState: PkCalibrationLiveResult?,
         fixture: PkCalibrationUiFixture?,
     ): PkCalibrationScreenState? = when {
         // Debug harness fixture drives the real surface.
@@ -101,7 +105,7 @@ class CalibrationViewModel @Inject constructor(
             excludedResultIds = fixture.excludedResultIds,
         )
 
-        else -> liveState?.let { available ->
+        else -> liveState?.live?.let { available ->
             PkCalibrationScreenState(
                 ui = pkCalibrationUiState(available.evaluation.result, available.render),
                 excludedResultIds = available.input.excludedLabIds,

@@ -2,7 +2,7 @@ package com.mkx.hrttracker.ui.settings
 
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLive
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -59,7 +59,7 @@ class CalibrationViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
-        every { liveState } returns MutableStateFlow<PkCalibrationLive?>(null)
+        every { liveState } returns MutableStateFlow<PkCalibrationLiveResult?>(PkCalibrationLiveResult(null))
     }
     private val pkStorageRepository: PkCalibrationStorageRepository = mockk()
     private val dispatcher = StandardTestDispatcher()

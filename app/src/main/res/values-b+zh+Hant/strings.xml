@@ -693,10 +693,6 @@
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 項結果</item>
     </plurals>
-    <plurals name="settings_calibration_total_count">
-        <item quantity="other">%1$d 項記錄</item>
-    </plurals>
-    <string name="settings_calibration_under_development_message">校準功能正在開發中，您仍可以記錄血液檢查結果</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 目標範圍</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
     <string name="settings_backup_restore">備份與還原</string>
@@ -1081,7 +1077,6 @@
     <string name="calibration_pk_route_meta_confidence">%1$s · 置信度%2$s</string>
     <string name="calibration_pk_coaching_row_title">幫助途徑完成校準</string>
     <string name="calibration_pk_coaching_row_subtitle">讓檢測調整更精準的建議</string>
-    <string name="calibration_pk_disclaimer_row_title">關於這些估算</string>
     <string name="calibration_pk_disclaimer_row_subtitle">檢測調整是什麼，不是什麼</string>
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
@@ -1096,16 +1091,12 @@
     <string name="calibration_pk_coaching_variety_title">在不同時間檢測</string>
     <string name="calibration_pk_coaching_variety_body">在某一途徑提供大部分訊號的時間採樣，能讓該途徑的調整更精準。</string>
     <string name="calibration_pk_coaching_safety_note">切勿在沒有醫生指導的情況下更改用藥或檢測時間。多樣的結果可以暴露曲線形狀的不足，但不能驗證抑制情況或途徑生理特性。</string>
-    <string name="calibration_pk_disclaimer_line_treatment_derived">這是基於治療記錄的模型估算 E2 水平，不是經過驗證的個人藥代動力學，也不是用藥建議。</string>
-    <string name="calibration_pk_disclaimer_line_absorbs">途徑調整可能吸收生物利用度、體重誤差、檢測偏差和依從性等影響——它不是生物學真相。</string>
-    <string name="calibration_pk_disclaimer_line_not_verified">應用程式沒有核實激素抑制情況，也沒有核實您的檢測使用了可比的方法。</string>
-    <string name="calibration_pk_disclaimer_line_shifts">更換檢測機構、體重變化或改變治療方案都可能使這些估算發生變化，包括更早日期的估算。</string>
     <string name="calibration_pk_edu_title">檢測調整的運作原理</string>
     <string name="calibration_pk_edu_intro">應用程式可以讓每種給藥途徑的雌二醇貢獻向您自己的血液檢測靠攏。以下是它能做什麼、不能做什麼。</string>
     <string name="calibration_pk_edu_does_header">它能做什麼</string>
     <string name="calibration_pk_edu_doesnt_header">它不能做什麼</string>
     <string name="calibration_pk_edu_does_routes_title">獨立調整每個途徑</string>
-    <string name="calibration_pk_edu_does_routes_body">每個途徑學習自己的水平校正——沒有單一的全域乘數。每筆可用檢測按該途徑提供的訊號比例支持每個途徑。</string>
+    <string name="calibration_pk_edu_does_routes_body">每個途徑學習自己的水平校正——沒有單一的全域乘數。每筆可用檢測按該途徑提供的訊號比例支持每個途徑。更換檢測機構、體重變化或改變治療方案都可能使這些估算發生變化，包括更早日期的估算。</string>
     <string name="calibration_pk_edu_does_band_title">顯示範圍，而非單一真值</string>
     <string name="calibration_pk_edu_does_band_body">陰影區間表示另一筆觀測結果可能落在的範圍——數據越少越寬。它不是臨床信賴區間，也不是目標範圍。</string>
     <string name="calibration_pk_edu_doesnt_measure_title">測量您的真實激素水平</string>
@@ -1113,7 +1104,7 @@
     <string name="calibration_pk_edu_doesnt_verify_title">驗證抑制情況或檢測可比性</string>
     <string name="calibration_pk_edu_doesnt_verify_body">應用程式不會使用 FSH、LH、睪酮或醫生解讀來確認這些條件。</string>
     <string name="calibration_pk_edu_doesnt_learn_title">學習您身體的時間特性或吸收</string>
-    <string name="calibration_pk_edu_doesnt_learn_body">它只調整途徑的整體水平，不改變曲線形狀。</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">它只調整途徑的整體水平，不改變曲線形狀——而這個水平校正可能吸收生物利用度、體重誤差、檢測偏差和依從性等影響。</string>
     <string name="calibration_pk_edu_doesnt_advise_title">提供用藥建議</string>
     <string name="calibration_pk_edu_doesnt_advise_body">任何調整請諮詢您的醫生。</string>
 

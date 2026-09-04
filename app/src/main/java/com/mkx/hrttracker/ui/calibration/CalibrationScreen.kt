@@ -83,6 +83,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -336,7 +337,6 @@ private fun CalibrationScreenContent(
                                 onRetry = onPkRetry,
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
                                 onOpenCoaching = { pkSheet = PK_SHEET_COACHING },
-                                onOpenDisclaimer = { pkSheet = PK_SHEET_DISCLAIMER },
                                 onInfo = { pkSheet = PK_SHEET_EDU },
                             )
                             Spacer(modifier = Modifier.height(16.dp))
@@ -344,29 +344,21 @@ private fun CalibrationScreenContent(
                     }
                 }
 
-                item {
-                    val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(
-                            dimensionResource(R.dimen.list_segment_gap)
-                        )
-                    ) {
-                        if (hideReferenceRanges) {
-                            CalibrationInfoCard(
-                                panelCount = uiState.panels.size,
-                                index = 0,
-                                count = 1,
-                            )
-                        } else {
-                            CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                            CalibrationReferenceRangeDisclaimerCard()
-                            CalibrationInfoCard(panelCount = uiState.panels.size)
+                if (!uiState.settingsState.hideReferenceRanges) {
+                    item {
+                        Column {
+                            HrtSection(
+                                title = stringResource(R.string.settings_calibration_target_ranges_title),
+                                topPadding = pkCalibrationState != null,
+                            ) {
+                                item {
+                                    CalibrationTargetRangeCard(settingsState = uiState.settingsState)
+                                }
+                                item { CalibrationReferenceRangeDisclaimerCard() }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 if (uiState.panels.isEmpty() && !uiState.isLoading) {
@@ -434,7 +426,6 @@ private fun CalibrationScreenContent(
         }
 
         PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
-        PK_SHEET_DISCLAIMER -> PkCalibrationDisclaimerSheet(onDismissRequest = { pkSheet = null })
         PK_SHEET_EDU -> PkCalibrationEduSheet(
             onDismissRequest = {
                 pkSheet = null
@@ -491,45 +482,12 @@ private fun CalibrationScreenContent(
 }
 
 @Composable
-private fun CalibrationInfoCard(
-    panelCount: Int,
-    modifier: Modifier = Modifier,
-    index: Int = 2,
-    count: Int = 3,
-) {
-    SupportMessageListItem(
-//        text = stringResource(R.string.settings_calibration_info_message),
-//        painter = painterResource(R.drawable.ic_lab_panel),
-        text = stringResource(R.string.settings_calibration_under_development_message),
-        painter = painterResource(R.drawable.ic_construction),
-        index = index,
-        count = count,
-        modifier = modifier,
-        trailingContent = {
-            val totalCountLabel = pluralStringResource(
-                R.plurals.settings_calibration_total_count,
-                panelCount,
-                panelCount,
-            ).uppercase()
-            Text(
-                text = totalCountLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.cjkTextOffset(totalCountLabel)
-            )
-        },
-    )
-}
-
-@Composable
 private fun CalibrationReferenceRangeDisclaimerCard(
     modifier: Modifier = Modifier,
 ) {
     SupportMessageListItem(
         text = stringResource(R.string.medical_disclaimer_reference_ranges),
         painter = painterResource(R.drawable.ic_help_clinic),
-        index = 1,
-        count = 3,
         modifier = modifier,
     )
 }
@@ -540,17 +498,9 @@ private fun CalibrationTargetRangeCard(
     modifier: Modifier = Modifier,
 ) {
     SupportMessageListItem(
-        supportingText = calibrationHistoryTargetRangeSummary(settingsState),
-        text = stringResource(R.string.settings_calibration_target_ranges_title),
+        text = calibrationHistoryTargetRangeSummary(settingsState),
         painter = painterResource(R.drawable.ic_bloodtype),
-        index = 0,
-        count = 3,
         modifier = modifier,
-        textStyle = MaterialTheme.typography.titleMedium,
-        supportingTextStyle = MaterialTheme.typography.labelMedium.copy(
-            fontWeight = FontWeight.Normal
-        ),
-        titleColor = MaterialTheme.colorScheme.onSurface
     )
 }
 
@@ -625,7 +575,6 @@ private fun CalibrationMonthHeader(
 
 private const val PK_SHEET_ROUTES = "routes"
 private const val PK_SHEET_COACHING = "coaching"
-private const val PK_SHEET_DISCLAIMER = "disclaimer"
 private const val PK_SHEET_EDU = "edu"
 
 internal data class CalibrationPanelMonthGroup(

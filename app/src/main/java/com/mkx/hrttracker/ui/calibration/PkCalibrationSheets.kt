@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -51,8 +54,8 @@ import com.mkx.hrttracker.util.labelRes
 import kotlinx.coroutines.CoroutineScope
 
 /*
- * The four calibration sheets (routes detail, coaching, disclaimer,
- * how-it-works). All ride HazeModalBottomSheet
+ * The three calibration sheets (routes detail, coaching, how-it-works).
+ * All ride HazeModalBottomSheet
  * with hideBottomSheet-driven dismissal, matching every other sheet in the app.
  */
 
@@ -64,19 +67,23 @@ private fun PkCalibrationSheet(
 ) {
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope: CoroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val navigationBarBottomPadding = with(density) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
     HazeModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
                 .padding(
                     start = dimensionResource(R.dimen.padding_large),
                     end = dimensionResource(R.dimen.padding_large),
-                    bottom = dimensionResource(R.dimen.padding_large),
+                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
                 ),
         ) {
             content { hideBottomSheet(scope, sheetState, onDismissRequest) }
@@ -348,49 +355,6 @@ fun PkCalibrationCoachingSheet(onDismissRequest: () -> Unit) {
         )
         PkCalibrationSheetNote(R.string.calibration_pk_coaching_safety_note)
         Spacer(modifier = Modifier.height(20.dp))
-        HrtButton(
-            text = stringResource(R.string.calibration_pk_got_it),
-            onClick = dismiss,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Disclaimer sheet ("About these estimates")
-// ---------------------------------------------------------------------------
-
-@Composable
-fun PkCalibrationDisclaimerSheet(onDismissRequest: () -> Unit) {
-    val lines = listOf(
-        R.string.calibration_pk_disclaimer_line_treatment_derived,
-        R.string.calibration_pk_disclaimer_line_absorbs,
-        R.string.calibration_pk_disclaimer_line_not_verified,
-        R.string.calibration_pk_disclaimer_line_shifts,
-    )
-    PkCalibrationSheet(onDismissRequest = onDismissRequest) { dismiss ->
-        PkCalibrationSheetTitle(stringResource(R.string.calibration_pk_disclaimer_row_title))
-        Spacer(modifier = Modifier.height(4.dp))
-        lines.forEach { lineRes ->
-            val line = stringResource(lineRes)
-            Row(modifier = Modifier.padding(top = 12.dp)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_privacy_tip),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.cjkTextOffset(line),
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        MedicalDisclaimerText(kinds = listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT))
-        Spacer(modifier = Modifier.height(16.dp))
         HrtButton(
             text = stringResource(R.string.calibration_pk_got_it),
             onClick = dismiss,

@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,7 +64,6 @@ fun PkCalibrationSection(
     onRetry: () -> Unit,
     onOpenRoutes: () -> Unit,
     onOpenCoaching: () -> Unit,
-    onOpenDisclaimer: () -> Unit,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -76,11 +74,18 @@ fun PkCalibrationSection(
         topPadding = false,
     ) {
         item {
-            PkCalibrationStatusCard(
-                uiState = uiState,
-                onRetry = onRetry,
-                onInfo = onInfo,
-            )
+            PkCalibrationStatusRow(uiState = uiState)
+        }
+        // Other non-READY states carry their call to action in the body copy
+        // ("add an E2 result").
+        if (uiState.numericFailure) {
+            item {
+                PreferenceSegmentedListItem(
+                    title = stringResource(R.string.calibration_pk_retry),
+                    leadingContent = { PkCalibrationRowIcon(R.drawable.ic_restart_alt) },
+                    onClick = onRetry,
+                )
+            }
         }
         if (ready) {
             item {
@@ -90,32 +95,20 @@ fun PkCalibrationSection(
                 PreferenceSegmentedListItem(
                     title = stringResource(R.string.calibration_pk_coaching_row_title),
                     supportingText = stringResource(R.string.calibration_pk_coaching_row_subtitle),
-                    leadingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_help),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
+                    leadingContent = { PkCalibrationRowIcon(R.drawable.ic_help) },
                     trailingContent = { PkCalibrationRowChevron() },
                     onClick = onOpenCoaching,
                 )
             }
-            item {
-                PreferenceSegmentedListItem(
-                    title = stringResource(R.string.calibration_pk_disclaimer_row_title),
-                    supportingText = stringResource(R.string.calibration_pk_disclaimer_row_subtitle),
-                    leadingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_privacy_tip),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    trailingContent = { PkCalibrationRowChevron() },
-                    onClick = onOpenDisclaimer,
-                )
-            }
+        }
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.calibration_pk_edu_title),
+                supportingText = stringResource(R.string.calibration_pk_disclaimer_row_subtitle),
+                leadingContent = { PkCalibrationRowIcon(R.drawable.ic_info) },
+                trailingContent = { PkCalibrationRowChevron() },
+                onClick = onInfo,
+            )
         }
     }
 }
@@ -129,13 +122,21 @@ private fun PkCalibrationRowChevron() {
     )
 }
 
-/** Global status card (handoff §4/§5.1): one card, never five failures. */
 @Composable
-private fun PkCalibrationStatusCard(
-    uiState: PkCalibrationUiState,
-    onRetry: () -> Unit,
-    onInfo: () -> Unit,
+private fun PkCalibrationRowIcon(
+    @DrawableRes iconRes: Int,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
+    Icon(
+        painter = painterResource(iconRes),
+        contentDescription = null,
+        tint = tint,
+    )
+}
+
+/** Global status row (handoff §4/§5.1): one row, never five failures. */
+@Composable
+private fun PkCalibrationStatusRow(uiState: PkCalibrationUiState) {
     val ready = uiState.globalState == PkCalibrationGlobalState.READY
     val adjusted = ready && uiState.adjusted
     val iconRes: Int
@@ -153,7 +154,7 @@ private fun PkCalibrationStatusCard(
         }
 
         // A joint-solve failure keeps READY (so the lab rows survive) but
-        // every route is a numeric failure: same card as the global state.
+        // every route is a numeric failure: same row as the global state.
         uiState.numericFailure -> {
             iconRes = R.drawable.ic_sync_alt
             title = stringResource(
@@ -187,71 +188,20 @@ private fun PkCalibrationStatusCard(
         }
     }
 
-    EditorSegmentedListItem(contentPadding = PaddingValues(16.dp)) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(
-                            if (adjusted) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainer
-                            }
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(iconRes),
-                        contentDescription = null,
-                        tint = if (adjusted) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier
-                        .weight(1f)
-                        .cjkTextOffset(title),
-                )
-                IconButton(onClick = onInfo) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_info),
-                        contentDescription = stringResource(R.string.calibration_pk_edu_title),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(top = 12.dp)
-                    .cjkTextOffset(body),
+    PreferenceSegmentedListItem(
+        title = title,
+        supportingText = body,
+        leadingContent = {
+            PkCalibrationRowIcon(
+                iconRes = iconRes,
+                tint = if (adjusted) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
-            // Other non-READY states carry their call to action in the body
-            // copy ("add an E2 result").
-            if (uiState.numericFailure) {
-                HrtFilledTonalButton(
-                    text = stringResource(R.string.calibration_pk_retry),
-                    onClick = onRetry,
-                    modifier = Modifier.padding(top = 12.dp),
-                    compact = true,
-                )
-            }
-        }
-    }
+        },
+    )
 }
 
 /**
@@ -601,13 +551,12 @@ private fun PkCalibrationSectionReadyPreview() {
             onRetry = { },
             onOpenRoutes = { },
             onOpenCoaching = { },
-            onOpenDisclaimer = { },
             onInfo = { },
         )
     }
 }
 
-/** Non-READY hides the routes card and the coaching/disclaimer rows. */
+/** Non-READY hides the routes card and the coaching row. */
 @Preview(name = "PK Section · Not ready", showBackground = true, widthDp = 420)
 @Composable
 private fun PkCalibrationSectionNotReadyPreview() {
@@ -617,20 +566,19 @@ private fun PkCalibrationSectionNotReadyPreview() {
             onRetry = { },
             onOpenRoutes = { },
             onOpenCoaching = { },
-            onOpenDisclaimer = { },
             onInfo = { },
         )
     }
 }
 
 /**
- * The visually distinct layouts: plain (all non-READY and population states
- * share it, only copy and icon change), retry action, adjusted, adjusted with
- * limited confidence.
+ * The visually distinct states: plain (all non-READY and population states
+ * share it, only copy and icon change), numeric failure, adjusted, adjusted
+ * with limited confidence.
  */
-@Preview(name = "PK Status Card · states", showBackground = true, widthDp = 420)
+@Preview(name = "PK Status Row · states", showBackground = true, widthDp = 420)
 @Composable
-private fun PkCalibrationStatusCardPreview() {
+private fun PkCalibrationStatusRowPreview() {
     val states = listOf(
         previewPkUiState(globalState = PkCalibrationGlobalState.NO_USABLE_LABS),
         previewPkUiState(globalState = PkCalibrationGlobalState.NUMERIC_FAILURE),
@@ -639,7 +587,7 @@ private fun PkCalibrationStatusCardPreview() {
     )
     PkCalibrationPreviewColumn {
         states.forEach { state ->
-            PkCalibrationStatusCard(uiState = state, onRetry = { }, onInfo = { })
+            PkCalibrationStatusRow(uiState = state)
         }
     }
 }

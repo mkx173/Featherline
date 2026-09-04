@@ -31,6 +31,9 @@ data class PkCalibrationLive(
     val render: PkCalibrationRenderResult?,
 )
 
+/** One finished evaluation pass. [live] is null after a failed read or when the inputs cannot form an evaluation. */
+class PkCalibrationLiveResult(val live: PkCalibrationLive?)
+
 @Singleton
 @OptIn(ExperimentalCoroutinesApi::class)
 class PkCalibrationLiveRepository @Inject constructor(
@@ -50,19 +53,22 @@ class PkCalibrationLiveRepository @Inject constructor(
     // The snapshot is written after the mutation, so it is the post-write
     // signal; it is also rewritten on date change and projection expiry, so
     // the render domain below tracks the window Home draws.
-    /** Null while loading, after a failed read, or when the inputs cannot form an evaluation. */
-    val liveState: StateFlow<PkCalibrationLive?> = combine(
+    /**
+     * Null until the first evaluation finishes. A re-evaluation keeps the
+     * previous result until it completes, so the calibration section never
+     * blinks out on a snapshot write.
+     */
+    val liveState: StateFlow<PkCalibrationLiveResult?> = combine(
         storageRepository.observeHomeSnapshotWrites(),
         retryVersion,
     ) { _, _ -> }
         .transformLatest {
-            emit(null)
             try {
-                emit(evaluate())
+                emit(PkCalibrationLiveResult(evaluate()))
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                emit(null)
+                emit(PkCalibrationLiveResult(null))
             }
         }
         .stateIn(
