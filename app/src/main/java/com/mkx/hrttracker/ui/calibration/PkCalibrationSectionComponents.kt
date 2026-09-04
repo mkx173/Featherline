@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -466,16 +467,16 @@ fun PkCalibrationLabRowFooter(
                 )
             }
 
-            PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL -> PkCalibrationLabInlineNote(
+            PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL -> PkCalibrationNoteRow(
                 iconRes = R.drawable.ic_info,
                 text = stringResource(R.string.calibration_pk_lab_ignored_signal_note),
-                modifier = note,
+                modifier = note.padding(horizontal = 12.dp, vertical = 10.dp),
             )
 
-            PkCalibrationLabIgnoreReason.NUMERIC_FAILURE -> PkCalibrationLabInlineNote(
+            PkCalibrationLabIgnoreReason.NUMERIC_FAILURE -> PkCalibrationNoteRow(
                 iconRes = R.drawable.ic_info,
                 text = stringResource(R.string.calibration_pk_lab_ignored_numeric_note),
-                modifier = note,
+                modifier = note.padding(horizontal = 12.dp, vertical = 10.dp),
             )
         }
 
@@ -497,10 +498,10 @@ fun PkCalibrationLabRowFooter(
             }
         }
 
-        is PkCalibrationLabRowFlag.Excluded -> PkCalibrationLabInlineNote(
+        is PkCalibrationLabRowFlag.Excluded -> PkCalibrationNoteRow(
             iconRes = R.drawable.ic_block,
             text = stringResource(R.string.calibration_pk_lab_excluded_note),
-            modifier = note,
+            modifier = note.padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
         ) {
             TextButton(onClick = onReinclude) {
                 Text(text = stringResource(R.string.calibration_pk_lab_reinclude))
@@ -559,28 +560,24 @@ private fun PkCalibrationLabNote(
     }
 }
 
-/** Single-line note with an optional trailing [action]. */
+/** Icon + one line of note text, with an optional trailing [action]. */
 @Composable
-private fun PkCalibrationLabInlineNote(
+internal fun PkCalibrationNoteRow(
     @DrawableRes iconRes: Int,
     text: String,
     modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     action: (@Composable () -> Unit)? = null,
 ) {
-    val contentPadding = if (action != null) {
-        PaddingValues(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp)
-    } else {
-        PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-    }
     Row(
-        modifier = modifier.padding(contentPadding),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = tint,
             modifier = Modifier.size(18.dp),
         )
         Text(

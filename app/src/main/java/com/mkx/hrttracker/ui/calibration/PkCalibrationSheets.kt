@@ -299,46 +299,22 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     row.reasons.forEach { reason ->
-                        PkCalibrationRouteNoteLine(
+                        PkCalibrationNoteRow(
                             iconRes = R.drawable.ic_error_outline,
-                            tint = MaterialTheme.colorScheme.tertiary,
                             text = stringResource(reason.detailRes),
+                            tint = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                     row.displayState.nextStepRes?.let { nextStep ->
-                        PkCalibrationRouteNoteLine(
+                        PkCalibrationNoteRow(
                             iconRes = R.drawable.ic_check_circle,
-                            tint = MaterialTheme.colorScheme.primary,
                             text = stringResource(nextStep),
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PkCalibrationRouteNoteLine(
-    @DrawableRes iconRes: Int,
-    tint: androidx.compose.ui.graphics.Color,
-    text: String,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(18.dp),
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(text),
-        )
     }
 }
 
