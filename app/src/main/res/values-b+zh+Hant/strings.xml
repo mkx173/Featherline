@@ -1045,13 +1045,9 @@
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_label_population">群體估算</string>
-    <string name="calibration_pk_route_label_adjusted">已按途徑調整</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">暫無檢測訊號</string>
     <string name="calibration_pk_route_tag_numeric_failure">調整不可用</string>
-    <string name="calibration_pk_route_tag_provisional">可信度有限</string>
     <string name="calibration_pk_reason_scale_outside_usual_range">該途徑推算出的調整超出其通常範圍，或者是僅由少於三筆支持性結果支撐的較大調整。請檢查檢測和治療記錄。</string>
-    <string name="calibration_pk_route_next_no_supporting_labs">新增在此途徑提供大部分訊號時採集的檢測結果</string>
-    <string name="calibration_pk_route_next_numeric_failure">請在資料或模型更新後重試</string>
     <string name="calibration_pk_route_next_provisional">補充在更多不同時間採集的檢測</string>
     <string name="calibration_pk_route_next_calibrated">保持記錄及時更新</string>
 

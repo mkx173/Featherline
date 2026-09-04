@@ -1119,13 +1119,9 @@
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_label_population">Population</string>
-    <string name="calibration_pk_route_label_adjusted">Route-adjusted</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">No lab signal</string>
     <string name="calibration_pk_route_tag_numeric_failure">Adjustment unavailable</string>
-    <string name="calibration_pk_route_tag_provisional">Limited confidence</string>
     <string name="calibration_pk_reason_scale_outside_usual_range">The adjustment implied for this route is outside its usual range, or is a large shift backed by fewer than three supporting labs. Check lab and treatment records.</string>
-    <string name="calibration_pk_route_next_no_supporting_labs">Add a lab collected when this route provides most of the signal</string>
-    <string name="calibration_pk_route_next_numeric_failure">Retry after a data or model update</string>
     <string name="calibration_pk_route_next_provisional">Add labs collected at more varied times</string>
     <string name="calibration_pk_route_next_calibrated">Keep your records current</string>
 

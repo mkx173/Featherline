@@ -282,7 +282,7 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = stringResource(row.displayState.labelRes),
+                            text = stringResource(R.string.calibration_pk_route_label_population),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -305,11 +305,13 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
                             text = stringResource(reason.detailRes),
                         )
                     }
-                    PkCalibrationRouteNoteLine(
-                        iconRes = R.drawable.ic_check_circle,
-                        tint = MaterialTheme.colorScheme.primary,
-                        text = stringResource(row.displayState.nextStepRes),
-                    )
+                    row.displayState.nextStepRes?.let { nextStep ->
+                        PkCalibrationRouteNoteLine(
+                            iconRes = R.drawable.ic_check_circle,
+                            tint = MaterialTheme.colorScheme.primary,
+                            text = stringResource(nextStep),
+                        )
+                    }
                 }
             }
         }

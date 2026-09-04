@@ -24,15 +24,10 @@ class PkCalibrationUiTextTest {
     }
 
     @Test
-    fun routeStateCopy_isTotal_andOnlyCleanCalibratedLacksATag() {
+    fun routeStateCopy_tagsPopulationRows_andCoachesAdjustedRows() {
         for (state in PkRouteCalibrationDisplayState.entries) {
-            assertNotEquals("label for $state", 0, state.labelRes)
-            assertNotEquals("next step for $state", 0, state.nextStepRes)
-            assertEquals(
-                "tag for $state",
-                state == PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-                state.tagRes == null,
-            )
+            assertEquals("tag for $state", state.isAdjusted, state.tagRes == null)
+            assertEquals("next step for $state", state.isAdjusted, state.nextStepRes != null)
         }
     }
 

@@ -46,20 +46,7 @@ val PkCalibrationGlobalState.statusBodyRes: Int?
             R.string.calibration_pk_global_numeric_failure_body
     }
 
-/** "Population" / "Route-adjusted" group label (handoff §5 table). */
-@get:StringRes
-val PkRouteCalibrationDisplayState.labelRes: Int
-    get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
-        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-        -> R.string.calibration_pk_route_label_population
-
-        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-        PkRouteCalibrationDisplayState.LAB_CALIBRATED,
-        -> R.string.calibration_pk_route_label_adjusted
-    }
-
-/** Short qualifier appended after the label; null for a clean LAB_CALIBRATED. */
+/** Why a population row has no adjustment; adjusted rows show confidence instead. */
 @get:StringRes
 val PkRouteCalibrationDisplayState.tagRes: Int?
     get() = when (this) {
@@ -67,19 +54,18 @@ val PkRouteCalibrationDisplayState.tagRes: Int?
             R.string.calibration_pk_route_tag_no_supporting_labs
         PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
             R.string.calibration_pk_route_tag_numeric_failure
-        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ->
-            R.string.calibration_pk_route_tag_provisional
-        PkRouteCalibrationDisplayState.LAB_CALIBRATED -> null
+        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+        PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+        -> null
     }
 
-/** Suggested next step for the state (handoff §5 table). */
+/** Suggested next step for an adjusted row; population rows carry none. */
 @get:StringRes
-val PkRouteCalibrationDisplayState.nextStepRes: Int
+val PkRouteCalibrationDisplayState.nextStepRes: Int?
     get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL ->
-            R.string.calibration_pk_route_next_no_supporting_labs
-        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE ->
-            R.string.calibration_pk_route_next_numeric_failure
+        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
+        -> null
         PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ->
             R.string.calibration_pk_route_next_provisional
         PkRouteCalibrationDisplayState.LAB_CALIBRATED ->
