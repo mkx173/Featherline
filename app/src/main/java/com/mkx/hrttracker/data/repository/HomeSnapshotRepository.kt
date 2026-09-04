@@ -671,7 +671,7 @@ class HomeSnapshotRepository @Inject constructor(
                 endEpochMillis = Long.MAX_VALUE,
             )
             val calibrationMetadata = database.pkCalibrationDao().getAllMetadata()
-                .mapNotNull { entity -> entity.toModel() }
+                .map { entity -> entity.toModel() }
 
             val groupMedicinesByUuid = database.resolveMedicinesForGroups(
                 activeGroupEntities + archivedGroupEntities

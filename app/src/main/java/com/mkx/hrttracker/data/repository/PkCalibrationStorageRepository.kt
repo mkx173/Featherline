@@ -13,59 +13,33 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-internal class PkCalibrationMetadataTargetNotAuthorizedException(
-    resultId: UUID,
-) : IllegalArgumentException(
-    "Calibration metadata can only be stored for a built-in E2 result: $resultId"
-)
-
 @Singleton
 class PkCalibrationStorageRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
 ) {
     suspend fun getAllMetadata(): List<E2CalibrationMetadata> {
-        return databaseHolder.get().pkCalibrationDao().getAllMetadata().map { entity ->
-            checkNotNull(entity.toModel()) { "Stored E2 calibration metadata is invalid." }
-        }
+        return databaseHolder.get().pkCalibrationDao().getAllMetadata()
+            .map(E2CalibrationMetadataEntity::toModel)
     }
 
     /**
      * Writes review metadata through Home's mutation sequence so the Home
-     * generation bumps and the live evaluation re-runs. The built-in-E2
-     * target check is repeated inside the write transaction so a target
-     * that changes while waiting for Home's mutation lock cannot receive
+     * generation bumps and the live evaluation re-runs. The target is checked
+     * inside the write transaction: only a built-in E2 result may carry
      * calibration metadata.
      */
     suspend fun saveMetadata(metadata: E2CalibrationMetadata) {
-        requireBuiltInE2Target(metadata)
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 val dao = database.pkCalibrationDao()
-                requireBuiltInE2Target(
-                    resultId = metadata.resultId,
-                    builtinAnalyteKey = dao.getBuiltinAnalyteKey(metadata.resultId.toString()),
-                )
+                val analyteKey = dao.getBuiltinAnalyteKey(metadata.resultId.toString())
+                require(analyteKey == BloodAnalyteKey.E2.storageValue) {
+                    "Calibration metadata can only be stored for a built-in E2 result: " +
+                            metadata.resultId
+                }
                 dao.upsertMetadata(metadata.toEntity())
             }
-        }
-    }
-
-    private suspend fun requireBuiltInE2Target(metadata: E2CalibrationMetadata) {
-        requireBuiltInE2Target(
-            resultId = metadata.resultId,
-            builtinAnalyteKey = databaseHolder.get()
-                .pkCalibrationDao()
-                .getBuiltinAnalyteKey(metadata.resultId.toString()),
-        )
-    }
-
-    private fun requireBuiltInE2Target(
-        resultId: UUID,
-        builtinAnalyteKey: String?,
-    ) {
-        if (builtinAnalyteKey != BloodAnalyteKey.E2.storageValue) {
-            throw PkCalibrationMetadataTargetNotAuthorizedException(resultId)
         }
     }
 
@@ -91,12 +65,10 @@ internal fun E2CalibrationMetadata.toEntity(): E2CalibrationMetadataEntity {
     )
 }
 
-internal fun E2CalibrationMetadataEntity.toModel(): E2CalibrationMetadata? {
-    val parsedDisposition = runCatching { E2CalibrationDisposition.valueOf(disposition) }
-        .getOrNull() ?: return null
+internal fun E2CalibrationMetadataEntity.toModel(): E2CalibrationMetadata {
     return E2CalibrationMetadata(
-        resultId = runCatching { UUID.fromString(resultUuid) }.getOrNull() ?: return null,
-        disposition = parsedDisposition,
+        resultId = UUID.fromString(resultUuid),
+        disposition = E2CalibrationDisposition.valueOf(disposition),
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
     )
 }
