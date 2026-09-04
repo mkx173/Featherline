@@ -100,11 +100,11 @@ class PkCalibrationSolverTest {
             requireNotNull(reversed.gradient(beta)).map(Double::toBits),
         )
 
-        val forwardFit = PkJointMapSolver.fit(forward) as PkJointFitOutcome.Fitted
-        val reversedFit = PkJointMapSolver.fit(reversed) as PkJointFitOutcome.Fitted
+        val forwardFit = requireNotNull(PkJointMapSolver.fit(forward))
+        val reversedFit = requireNotNull(PkJointMapSolver.fit(reversed))
         assertEquals(
-            forwardFit.fit.beta.map(Double::toBits),
-            reversedFit.fit.beta.map(Double::toBits),
+            forwardFit.beta.map(Double::toBits),
+            reversedFit.beta.map(Double::toBits),
         )
     }
 

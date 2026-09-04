@@ -42,16 +42,15 @@ class PkJointMapSolverAmbiguitySweepTest {
             val objective = requireNotNull(PkJointStudentTObjective.fromEvidence(labs, rLog))
             val minima = bruteForceMinima(objective)
             assertTrue("iteration $iteration: no minimum inside the solver's scan range", minima.isNotEmpty())
-            val outcome = PkJointMapSolver.fit(objective)
-            val fitted = outcome as? PkJointFitOutcome.Fitted
+            val fitted = PkJointMapSolver.fit(objective)
             assertTrue("iteration $iteration: numeric failure on well-posed evidence", fitted != null)
             fitted!!
             assertEquals(
-                "iteration $iteration: minima=$minima beta=${fitted.fit.beta.toList()}",
+                "iteration $iteration: minima=$minima beta=${fitted.beta.toList()}",
                 minima.size > 1,
                 fitted.ambiguous,
             )
-            val beta = fitted.fit.beta[PkCalibrationRoute.INJECTION.ordinal]
+            val beta = fitted.beta[PkCalibrationRoute.INJECTION.ordinal]
             assertTrue(
                 "iteration $iteration: MAP $beta is not one of the minima $minima",
                 minima.any { minimum -> abs(minimum - beta) < 1e-3 },

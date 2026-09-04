@@ -168,49 +168,33 @@ internal class PkJointStudentTObjective private constructor(
     }
 
     companion object {
-        fun create(points: List<PkJointLabPoint>, rLog: Double): PkJointStudentTObjective? {
-            if (points.isEmpty() || !rLog.isFinite() || rLog <= 0.0) return null
-            if (points.map(PkJointLabPoint::resultId).distinct().size != points.size) {
-                return null
-            }
-            for (point in points) {
-                if (!point.logObservedPgml.isFinite() ||
-                    !point.logTotalDrugPgml.isFinite() ||
-                    !point.totalDrugPgml.isFinite() || point.totalDrugPgml <= 0.0 ||
-                    point.drugByRoutePgml.size != PkCalibrationRoute.entries.size ||
-                    point.drugByRoutePgml.any { value -> !value.isFinite() || value < 0.0 }
-                ) {
-                    return null
-                }
-            }
-            val canonical = points.sortedBy { point -> point.resultId.toString().lowercase() }
-            return PkJointStudentTObjective(canonical, rLog)
-        }
-
+        /**
+         * Null on empty or duplicate-id evidence. Values are trusted: the
+         * evidence adapter only includes labs with a positive observation and
+         * a positive, finite population decomposition.
+         */
         fun fromEvidence(
             evidence: List<PkCalibrationIncludedLab>,
             rLog: Double,
         ): PkJointStudentTObjective? {
-            val points = ArrayList<PkJointLabPoint>(evidence.size)
-            for (item in evidence) {
-                val observed = item.observedPgml
-                    .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
-                val total = item.breakdown.totalDrugPgml
-                    .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
-                val logObserved = ln(observed)
-                val logTotal = ln(total)
-                if (!logObserved.isFinite() || !logTotal.isFinite()) return null
-                points += PkJointLabPoint(
-                    resultId = item.resultId,
-                    logObservedPgml = logObserved,
-                    drugByRoutePgml = PkCalibrationRoute.entries.map { route ->
-                        item.breakdown.byRouteDrugPgml.getValue(route)
-                    },
-                    totalDrugPgml = total,
-                    logTotalDrugPgml = logTotal,
-                )
+            if (evidence.isEmpty()) return null
+            if (evidence.distinctBy(PkCalibrationIncludedLab::resultId).size != evidence.size) {
+                return null
             }
-            return create(points, rLog)
+            val points = evidence
+                .sortedBy { item -> item.resultId.toString() }
+                .map { item ->
+                    PkJointLabPoint(
+                        resultId = item.resultId,
+                        logObservedPgml = ln(item.observedPgml),
+                        drugByRoutePgml = PkCalibrationRoute.entries.map { route ->
+                            item.breakdown.byRouteDrugPgml.getValue(route)
+                        },
+                        totalDrugPgml = item.breakdown.totalDrugPgml,
+                        logTotalDrugPgml = ln(item.breakdown.totalDrugPgml),
+                    )
+                }
+            return PkJointStudentTObjective(points, rLog)
         }
     }
 }
@@ -221,13 +205,9 @@ internal class PkJointFit(
     val activeRouteIndices: List<Int>,
     /** Symmetric covariance over [activeRouteIndices], canonical order. */
     val covariance: Array<DoubleArray>,
+    /** More than one distinct local minimum; [beta] is the best-valued one. */
+    val ambiguous: Boolean,
 )
-
-internal sealed interface PkJointFitOutcome {
-    /** [ambiguous]: more than one distinct local minimum; [fit] is the best-valued one. */
-    data class Fitted(val fit: PkJointFit, val ambiguous: Boolean) : PkJointFitOutcome
-    data object NumericFailure : PkJointFitOutcome
-}
 
 /**
  * v10.0 §A10.3 deterministic multi-start damped Newton.
@@ -251,10 +231,9 @@ internal sealed interface PkJointFitOutcome {
 internal object PkJointMapSolver {
     private const val MAX_LINE_SEARCH_HALVINGS = 60
 
-    fun fit(objective: PkJointStudentTObjective): PkJointFitOutcome {
-        if (objective.activeRouteIndices.isEmpty()) {
-            return PkJointFitOutcome.NumericFailure
-        }
+    /** Null is a numeric failure. */
+    fun fit(objective: PkJointStudentTObjective): PkJointFit? {
+        if (objective.activeRouteIndices.isEmpty()) return null
         // Every 1-D conditional minimum seeds a start: a route whose
         // restricted objective is bimodal must surface both basins so the
         // joint search can flag POSTERIOR_MODE_AMBIGUOUS. A failed 1-D
@@ -269,7 +248,7 @@ internal object PkJointMapSolver {
         val conditionalsByPosition = ArrayList<List<Double>>(active.size)
         for (routeIndex in active) {
             val conditionals = conditionalStartBetas(objective, routeIndex)
-            if (conditionals.isNullOrEmpty()) return PkJointFitOutcome.NumericFailure
+            if (conditionals.isNullOrEmpty()) return null
             conditionalsByPosition += conditionals
         }
 
@@ -311,7 +290,7 @@ internal object PkJointMapSolver {
             val value = objective.objective(point) ?: continue
             converged += point to value
         }
-        if (converged.isEmpty()) return PkJointFitOutcome.NumericFailure
+        if (converged.isEmpty()) return null
 
         // Deterministic clustering: candidates ordered by objective value then
         // coordinates, so each cluster's representative is fixed as its
@@ -323,7 +302,7 @@ internal object PkJointMapSolver {
         val minima = ArrayList<Pair<DoubleArray, Double>>()
         for ((point, value) in candidates) {
             val hessian = objective.hessian(point)
-                ?: return PkJointFitOutcome.NumericFailure
+                ?: return null
             if (choleskyOrNull(hessian) == null) continue
             if (minima.none { (existing, _) ->
                     supNormDifference(existing, point) <=
@@ -333,7 +312,7 @@ internal object PkJointMapSolver {
                 minima += point to value
             }
         }
-        if (minima.isEmpty()) return PkJointFitOutcome.NumericFailure
+        if (minima.isEmpty()) return null
         // Sorted by objective value: the first cluster representative is the MAP.
         val beta = minima.first().first
         if (beta.any { value ->
@@ -341,30 +320,28 @@ internal object PkJointMapSolver {
                         abs(value) > PkCalibrationDefaults.GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA
             }
         ) {
-            return PkJointFitOutcome.NumericFailure
+            return null
         }
-        val hessian = objective.hessian(beta) ?: return PkJointFitOutcome.NumericFailure
+        val hessian = objective.hessian(beta) ?: return null
         val decomposition = choleskyOrNull(hessian)
-            ?: return PkJointFitOutcome.NumericFailure
+            ?: return null
         val inverse = runCatching { decomposition.solver.inverse }.getOrNull()
-            ?: return PkJointFitOutcome.NumericFailure
+            ?: return null
         val size = objective.activeRouteIndices.size
         val covariance = Array(size) { DoubleArray(size) }
         for (row in 0 until size) {
             for (column in row until size) {
                 val value = inverse.getEntry(row, column)
-                if (!value.isFinite()) return PkJointFitOutcome.NumericFailure
+                if (!value.isFinite()) return null
                 covariance[row][column] = value
                 covariance[column][row] = value
             }
-            if (covariance[row][row] <= 0.0) return PkJointFitOutcome.NumericFailure
+            if (covariance[row][row] <= 0.0) return null
         }
-        return PkJointFitOutcome.Fitted(
-            PkJointFit(
-                beta = beta,
-                activeRouteIndices = objective.activeRouteIndices,
-                covariance = covariance,
-            ),
+        return PkJointFit(
+            beta = beta,
+            activeRouteIndices = objective.activeRouteIndices,
+            covariance = covariance,
             ambiguous = minima.size > 1,
         )
     }
@@ -591,22 +568,21 @@ object PkCalibrationSolver {
         }
         val objective = PkJointStudentTObjective.fromEvidence(evidence.included, rLog)
             ?: return globalNumericFailure(ignored)
-        val outcome = PkJointMapSolver.fit(objective) as? PkJointFitOutcome.Fitted
-            ?: return globalNumericFailure(ignored)
+        val fit = PkJointMapSolver.fit(objective) ?: return globalNumericFailure(ignored)
         val diagnosticsByRoute = routeDiagnostics(
             objective = objective,
-            fit = outcome.fit,
+            fit = fit,
             supportingByRoute = supportingByRoute,
         ) ?: return globalNumericFailure(ignored)
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val diagnostics = diagnosticsByRoute[route] ?: return@map populationRow(route)
-            classifyRoute(route, diagnostics, rLog, outcome.ambiguous)
+            classifyRoute(route, diagnostics, rLog, fit.ambiguous)
                 ?: return globalNumericFailure(ignored)
         }
         return PkCalibrationResult(
             globalState = PkCalibrationGlobalState.READY,
             routeResults = routeResults,
-            promotedBetaCovariance = promotedCovariance(routeResults, outcome.fit),
+            promotedBetaCovariance = promotedCovariance(routeResults, fit),
             ignoredLabs = ignored,
         )
     }
