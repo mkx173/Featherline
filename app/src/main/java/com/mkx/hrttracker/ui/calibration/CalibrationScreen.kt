@@ -664,7 +664,7 @@ private fun CalibrationPanelRow(
     index: Int,
     count: Int,
     onClick: () -> Unit,
-    // Phase-2 calibration review footer (invalid / outlier / excluded row).
+    // Calibration review footer (invalid / outlier / excluded row).
     pkFooter: (@Composable () -> Unit)? = null,
 ) {
     val deviceZone = remember { ZoneId.systemDefault() }

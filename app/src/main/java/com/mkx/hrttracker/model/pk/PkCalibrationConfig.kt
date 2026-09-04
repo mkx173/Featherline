@@ -18,23 +18,22 @@ data class PkCalibrationConfig(
 
     companion object {
         /**
-         * App policy (user decision, 2026-08-09): R_LOG = 0.0225 is the §A3
-         * anchor (~15% log-SD from published assay CV plus the collection-timing
-         * budget); D_min = 5 pg/mL of population drug-attributable E2 for a lab
-         * to count as informative.
+         * R_LOG = 0.0225 is ~15% log-SD from published assay CV plus the
+         * collection-timing budget; D_min = 5 pg/mL of population
+         * drug-attributable E2 for a lab to count as informative.
          */
         val Default = PkCalibrationConfig(drugMinInformativePgml = 5.0, rLog = 0.0225)
     }
 }
 
-/** Constants frozen by the v9 candidate that do not depend on open field evidence. */
+/** Solver and warning constants that do not depend on open field evidence. */
 object PkCalibrationDefaults {
     const val STUDENT_T_NU = 4.0
     const val ROUTE_LOG_SCALE_PRIOR_SD = 0.30
 
     /**
-     * v10.0 §A10.4: a lab supports route r when its population share d_ir/D_i
-     * is at least this value. Support only feeds warnings; every route a lab
+     * A lab supports route r when its population share d_ir/D_i is at least
+     * this value. Support only feeds warnings; every route a lab
      * touches is fitted and shown.
      */
     const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
@@ -48,7 +47,7 @@ object PkCalibrationDefaults {
     const val ROBUST_RMSE_GATE_FACTOR = 2.0
     const val OUTLIER_WEIGHT_MIN = 0.25
 
-    /** v10.0 §A3: the RMSE warning threshold scales with the observation-noise model. */
+    /** The RMSE warning threshold scales with the observation-noise model. */
     fun robustRmseLogMaxForPromotion(rLog: Double): Double =
         ROBUST_RMSE_GATE_FACTOR * sqrt(rLog)
 
@@ -58,7 +57,7 @@ object PkCalibrationDefaults {
     const val STATIONARY_ROOT_BETA_ABS_TOL = 1e-12
     const val STATIONARY_ROOT_MAX_EVAL = 200
 
-    /** v10.0 §A10.3 joint multi-start damped Newton. */
+    /** Joint multi-start damped Newton. */
     const val JOINT_GRAD_TOL = 1e-10
     const val JOINT_STEP_TOL = 1e-12
     const val JOINT_MAX_ITER = 100

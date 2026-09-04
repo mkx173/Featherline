@@ -9,10 +9,10 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 /*
  * Copy tables for the route-isolated E2 calibration surface. Every `when` is
  * exhaustive with no `else` so a new enum value is a compile error, never a
- * silent blank (Phase-2 plan §2.2).
+ * silent blank.
  */
 
-/** Coarse confidence tier word (user decision, 2026-08-12). */
+/** Coarse confidence tier word. */
 @get:StringRes
 val PkCalibrationRouteConfidence.labelRes: Int
     get() = when (this) {
@@ -21,7 +21,7 @@ val PkCalibrationRouteConfidence.labelRes: Int
         PkCalibrationRouteConfidence.HIGH -> R.string.calibration_pk_confidence_high
     }
 
-/** Status-card title for a non-READY global state; READY composes §5 instead. */
+/** Status-card title for a non-READY global state; READY composes the route summary instead. */
 @get:StringRes
 val PkCalibrationGlobalState.statusTitleRes: Int?
     get() = when (this) {

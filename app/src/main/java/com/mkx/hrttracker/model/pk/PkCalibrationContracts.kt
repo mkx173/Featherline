@@ -206,7 +206,7 @@ data class PkPredictiveBandKnot(
 )
 
 /**
- * v10.0 §A10.5: the symmetric Laplace covariance block over the promoted
+ * The symmetric Laplace covariance block over the promoted
  * routes, indexed in canonical route order.
  */
 data class PkCalibrationPromotedCovariance(

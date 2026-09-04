@@ -51,7 +51,7 @@ import com.mkx.hrttracker.util.labelRes
 import kotlinx.coroutines.CoroutineScope
 
 /*
- * The four Phase-2 calibration sheets (routes detail, coaching, disclaimer,
+ * The four calibration sheets (routes detail, coaching, disclaimer,
  * how-it-works). All ride HazeModalBottomSheet
  * with hideBottomSheet-driven dismissal, matching every other sheet in the app.
  */
@@ -319,7 +319,7 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
 }
 
 // ---------------------------------------------------------------------------
-// Coaching sheet (§9)
+// Coaching sheet
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -400,7 +400,7 @@ fun PkCalibrationDisclaimerSheet(onDismissRequest: () -> Unit) {
 }
 
 // ---------------------------------------------------------------------------
-// How-it-works sheet (§8.7)
+// How-it-works sheet
 // ---------------------------------------------------------------------------
 
 @Composable

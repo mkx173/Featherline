@@ -1120,10 +1120,7 @@ private const val TAG = "HomeSnapshotStore"
 // injection/gel preparation payloads.
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
-// v23 appends the calibration route log-scales the projections were simulated with.
-// v24 appends the calibration predictive band over the Home projection window.
-// v25 appends the calibration hero/status summary.
-// v26 shrinks that summary to an adjusted flag (route names left the hero).
+// v23-v26 append the calibration route log-scales, predictive band and hero summary.
 private const val SNAPSHOT_CODEC_VERSION = 26
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1

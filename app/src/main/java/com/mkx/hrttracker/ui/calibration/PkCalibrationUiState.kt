@@ -17,8 +17,8 @@ import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import java.util.UUID
 
 /**
- * Coarse per-route confidence for adjusted routes (user decisions,
- * 2026-08-12), anchored to existing thresholds only.
+ * Coarse per-route confidence for adjusted routes, anchored to the solver's
+ * existing thresholds only.
  *
  * Consistency comes first: an outlier supporting the route means the fit
  * disagrees with a data point — never better than LOW, regardless of
@@ -50,9 +50,8 @@ fun pkRouteCalibrationConfidence(
 
 /**
  * Fit-level route row for the calibration status surface. Deliberately carries
- * no diagnostic fit fields — `fittedBeta`, `displayBeta`, posterior/variance,
- * RMSE, weights, and contrast never reach the view layer (handoff §5.4). The
- * exclusion is enforced by reflection in `PkCalibrationUiStateTest`.
+ * no diagnostic fit fields: beta, posterior variance, RMSE and weights never
+ * reach the view layer.
  */
 data class PkCalibrationRouteRowUiState(
     val route: PkCalibrationRoute,
@@ -71,13 +70,13 @@ data class PkCalibrationRouteRowUiState(
 /**
  * The single validated view consumed by the Home hero, chart, and calibration
  * status surfaces. Built only by [pkCalibrationUiState]; screens must never
- * infer state from raw fitted parameters (handoff §3).
+ * infer state from raw fitted parameters.
  */
 data class PkCalibrationUiState(
     val globalState: PkCalibrationGlobalState,
     /** Some supported route shapes the drawn curve with a lab adjustment. */
     val adjusted: Boolean,
-    /** True when an effective promoted route is still provisional (§5.1). */
+    /** True when an effective promoted route is still provisional. */
     val limitedConfidence: Boolean,
     /** Exactly five rows in canonical route order when READY, empty otherwise. */
     val routeRows: List<PkCalibrationRouteRowUiState>,
@@ -109,7 +108,7 @@ data class PkCalibrationScreenState(
     val excludedResultIds: Set<UUID>,
 )
 
-/** Review affordance shown as a footer on one lab panel row (§4.2, §10). */
+/** Review affordance shown as a footer on one lab panel row. */
 sealed interface PkCalibrationLabRowFlag {
     val resultId: UUID
 
@@ -167,10 +166,10 @@ fun pkCalibrationLabRowFlags(
 }
 
 /**
- * Contract → UI projection (Phase-2 plan §2.1). Status rows come from the fit
- * result only; the render result contributes render/band/fallback state and
- * narrows the hero's effective promotion — it never rewrites a route row
- * (handoff §11, §13.5). [render] is null for every non-READY evaluation and
+ * Contract → UI projection. Status rows come from the fit result only; the
+ * render result contributes render/band/fallback state and narrows the hero's
+ * effective promotion — it never rewrites a route row.
+ * [render] is null for every non-READY evaluation and
  * when no chart domain exists; the hero then uses fit-level promotion.
  */
 fun pkCalibrationUiState(

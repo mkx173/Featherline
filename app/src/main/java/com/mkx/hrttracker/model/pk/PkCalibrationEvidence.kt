@@ -27,7 +27,7 @@ data class PkCalibrationInput(
 }
 
 /**
- * v10.0 §A10.1: one included lab carries the full population decomposition;
+ * One included lab carries the full population decomposition;
  * every route it touches is informed in proportion to its modeled share.
  */
 data class PkCalibrationIncludedLab(

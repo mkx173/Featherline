@@ -44,16 +44,16 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /*
- * Home-surface calibration overlay (Phase-2 plan §2.4): the hero pill, the
- * 68/95% observation-predictive band decoration, and the render/band failure
- * presentations. Lives beside MainContentComponents.kt on purpose (plan R5).
+ * Home-surface calibration overlay: the hero pill, the 68/95%
+ * observation-predictive band decoration, and the render/band failure
+ * presentations.
  */
 
 /**
- * View-safe calibration state for Home. Carries display states and the
- * validated, display-unit band geometry only — never raw fit parameters.
+ * Snapshot-sourced calibration presentation for Home; nothing here waits for
+ * the live evaluation. Carries display flags and display-unit band geometry
+ * only, never raw fit parameters.
  */
-/** Snapshot-sourced calibration presentation for Home; nothing here waits for the live evaluation. */
 data class MainPkCalibrationUiState(
     val adjusted: Boolean,
     val limitedConfidence: Boolean,
@@ -73,10 +73,10 @@ data class MainE2CalibrationBand(
 
 /**
  * Converts validated band knots into the chart's coordinate space: hours since
- * the chart window start, values in the selected display unit (§7: line,
- * bands, card, labs, and axes share one unit). Returns null when no knot lands
+ * the chart window start, values in the selected display unit (line, bands,
+ * card, labs, and axes share one unit). Returns null when no knot lands
  * inside the visible window ([0, windowHours]): a READY band with no in-window
- * geometry must not surface a legend row (Phase-3 #9).
+ * geometry must not surface a legend row.
  */
 fun buildMainE2CalibrationBand(
     bandKnots: List<PkPredictiveBandKnot>,
@@ -119,7 +119,7 @@ fun buildMainE2CalibrationBand(
  * Draws the nested 95% and 68% predictive envelopes under the chart layers.
  * Knots are engine-supplied at the right x positions; spans without knots stay
  * unshaded, so the fill is segmented on x gaps instead of interpolating across
- * a PK discontinuity (§7).
+ * a PK discontinuity.
  */
 internal class MainE2CalibrationBandDecoration(
     private val band: MainE2CalibrationBand,
@@ -231,7 +231,7 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 }
 
 // ---------------------------------------------------------------------------
-// Hero pill (§5.1)
+// Hero pill
 // ---------------------------------------------------------------------------
 
 /** One pill: "lab-adjusted" or "population estimate". */
@@ -270,7 +270,7 @@ internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState) {
 }
 
 // ---------------------------------------------------------------------------
-// Chart failure presentations (§6, §7)
+// Chart failure presentations
 // ---------------------------------------------------------------------------
 
 /** Shown instead of the plot when the shared central render is unavailable. */
@@ -313,7 +313,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
 
 /**
  * Legend + informational note under the chart: the accessible band summary
- * and the band-only-failure warning (central line kept, §7).
+ * and the band-only-failure warning (central line kept).
  */
 @Composable
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {

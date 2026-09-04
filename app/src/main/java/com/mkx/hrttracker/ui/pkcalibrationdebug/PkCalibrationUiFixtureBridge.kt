@@ -11,9 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Debug harness fixture, published for the real Home and Calibration screens
- * (Phase-2 plan D3/2.5): QA exercises every state against the shipping
- * surfaces instead of a lookalike. Values are validated production contract
- * objects.
+ * so QA exercises every state against the shipping surfaces instead of a
+ * lookalike. Values are production contract objects.
  */
 data class PkCalibrationUiFixture(
     val result: PkCalibrationResult,

@@ -34,7 +34,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 
 ## Entities
 
-Fourteen `@Entity` classes across seven files. Each blurb names the table,
+Thirteen `@Entity` classes across seven files. Each blurb names the table,
 what one row represents, key non-PK columns, FK relationships, and any
 notable invariant.
 

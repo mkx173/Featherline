@@ -182,7 +182,7 @@ internal object PkPredictiveBandMath {
     }
 
     /**
-     * v10.0 §A10.5 delta aggregation V_eff = alpha' Sigma alpha over the
+     * Delta aggregation V_eff = alpha' Sigma alpha over the
      * promoted block, alpha_r = d log m / d beta_r. A tiny negative from
      * floating-point accumulation clamps to zero.
      */

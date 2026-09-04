@@ -30,7 +30,7 @@ internal data class PkJointLabPoint(
 }
 
 /**
- * v10.0 §A10.2 joint Student-t objective over all route log-scales, with
+ * Joint Student-t objective over all route log-scales, with
  * canonical UUID-ordered accumulation:
  *
  *   m_i(beta) = sum_r e^{beta_r} d_ir,   r_i = log y_i - log m_i,   z = r/sqrt(R)
@@ -50,7 +50,7 @@ internal class PkJointStudentTObjective private constructor(
 
     val routeCount = PkCalibrationRoute.entries.size
 
-    /** Active coordinates in canonical order (§A10.1). */
+    /** Active coordinates in canonical order. */
     val activeRouteIndices: List<Int> = (0 until routeCount).filter { routeIndex ->
         points.any { point -> point.drugByRoutePgml[routeIndex] > 0.0 }
     }
@@ -210,18 +210,17 @@ internal class PkJointFit(
 )
 
 /**
- * v10.0 §A10.3 deterministic multi-start damped Newton.
+ * Deterministic multi-start damped Newton.
  *
  * Starts are beta = 0 plus, per active route, the 1-D conditional MAP found by
- * the §A1 grid + bisection restricted to that coordinate (others held at 0),
- * plus every pairwise combination (b_i*, b_j*) of those conditional minima for
- * each active route pair (Option A, 2026-08-09): axis-aligned starts alone
- * often miss the basin of a mode where two routes are jointly displaced.
- * Ceiling: a mode requiring three or more routes to move jointly can still be
- * missed — the ambiguity gate is best-effort beyond pairwise coupling, an
- * accepted limitation. The 1-D search interval is the a-priori stationary
- * bound intersected with the [-20, 20] numeric guard; the guard itself
- * applies to the converged MAP, where it is a data-sanity check.
+ * grid + bisection restricted to that coordinate (others held at 0), plus
+ * every pairwise combination (b_i*, b_j*) of those conditional minima:
+ * axis-aligned starts alone often miss the basin of a mode where two routes
+ * are jointly displaced. A mode requiring three or more routes to move jointly
+ * can still be missed; the ambiguity check is best-effort beyond pairwise
+ * coupling. The 1-D search interval is the a-priori stationary bound
+ * intersected with the [-20, 20] numeric guard; the guard itself applies to
+ * the converged MAP, where it is a data-sanity check.
  *
  * Terminal outcomes: the best-valued distinct positive-definite minimum is
  * the MAP; none is numeric failure; two or more separated by over
@@ -541,7 +540,7 @@ internal object PkJointMapSolver {
     }
 }
 
-/** Per-route gate diagnostics computed at the joint MAP (v10.0 §A10.4). */
+/** Per-route warning diagnostics computed at the joint MAP. */
 internal data class PkJointRouteDiagnostics(
     val supportingLabCount: Int,
     val fittedBeta: Double,
@@ -639,7 +638,7 @@ object PkCalibrationSolver {
                 .takeIf { value -> value.isFinite() && value > 0.0 } ?: return null
 
             // Share-weighted robust RMSE over every lab with a positive
-            // population share on this route (§A10.4), canonical UUID order.
+            // population share on this route, canonical UUID order.
             var weightedSquaredResidualSum = 0.0
             var weightSum = 0.0
             for (point in objective.points) {
@@ -693,7 +692,7 @@ object PkCalibrationSolver {
 
     /**
      * Warn-only classification: every active route shows its fitted beta.
-     * Each former promotion gate is a reason on the row; the state is
+     * Each threshold that trips is a reason on the row; the state is
      * LAB_CALIBRATED only when no reason fired.
      */
     internal fun classifyRoute(

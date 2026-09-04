@@ -95,7 +95,7 @@ class CalibrationViewModel @Inject constructor(
         liveState: PkCalibrationLive?,
         fixture: PkCalibrationUiFixture?,
     ): PkCalibrationScreenState? = when {
-        // Debug harness fixture drives the real surface (plan D3).
+        // Debug harness fixture drives the real surface.
         fixture != null -> PkCalibrationScreenState(
             ui = pkCalibrationUiState(fixture.result, fixture.render),
             excludedResultIds = fixture.excludedResultIds,
