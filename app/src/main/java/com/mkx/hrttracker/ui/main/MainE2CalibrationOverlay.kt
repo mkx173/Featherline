@@ -74,6 +74,15 @@ data class MainE2CalibrationBand(
 )
 
 /**
+ * Upper band edge restricted to knots inside [0, windowHours]. The snapshot's
+ * forecast buffer extends past the visible range; a peak out there must not
+ * size the y-axis.
+ */
+fun MainE2CalibrationBand.visibleUpper(windowHours: Int): List<Float> {
+    return p975.filterIndexed { index, _ -> xHours[index] in 0.0..windowHours.toDouble() }
+}
+
+/**
  * Converts validated band knots into the chart's coordinate space: hours since
  * the chart window start, values in the selected display unit (line, bands,
  * card, labs, and axes share one unit). Returns null when no knot lands

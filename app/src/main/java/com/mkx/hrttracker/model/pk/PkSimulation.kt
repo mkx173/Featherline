@@ -1057,7 +1057,9 @@ object ThreeCompartmentModel {
         val term1 = exp(-k1 * tau) / (k1k2 * k1k3)
         val term2 = exp(-k2 * tau) / (-k1k2 * k2k3)
         val term3 = exp(-k3 * tau) / (k1k3 * k2k3)
-        return doseMg * bioavailability * k1 * k2 * (term1 + term2 + term3)
+        // The partial fractions cancel exactly at tau = 0 but round to ~-1e-17;
+        // an absorbed amount is never negative.
+        return (doseMg * bioavailability * k1 * k2 * (term1 + term2 + term3)).coerceAtLeast(0.0)
     }
 
     private fun analyticThreeCompartmentRepeatedRates(

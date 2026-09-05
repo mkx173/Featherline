@@ -214,6 +214,24 @@ class PkE2ForwardModelTest {
     }
 
     @Test
+    fun breakdownAt_doseInstant_isZeroNotNull() {
+        // Rendering samples every dose time. The three-compartment partial
+        // fractions cancel to ~-3e-17 mg at tau = 0 from rounding; a null
+        // here turns a successful fit into NUMERIC_UNAVAILABLE and hides the
+        // whole Home chart for a normal weekly valerate schedule.
+        val events = listOf(
+            event(route = PkRoute.INJECTION, compound = PkCompound.EV, doseMg = 4.0, timeH = 0.0),
+            event(route = PkRoute.INJECTION, compound = PkCompound.EV, doseMg = 4.0, timeH = 168.0),
+        )
+        val forward = requireNotNull(PkE2ForwardModel.create(events, BodyWeightKg))
+
+        for (timeH in listOf(0.0, 168.0)) {
+            assertTrue(requireNotNull(forward.directDrugPgmlAt(timeH)) >= 0.0)
+            assertNotNull(forward.breakdownAt(timeH))
+        }
+    }
+
+    @Test
     fun inactiveRouteScale_hasNoEffect() {
         val events = listOf(event(route = PkRoute.ORAL, doseMg = 2.0))
         val forward = requireNotNull(PkE2ForwardModel.create(events, BodyWeightKg))

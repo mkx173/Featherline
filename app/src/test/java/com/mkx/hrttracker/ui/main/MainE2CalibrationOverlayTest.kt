@@ -79,6 +79,21 @@ class MainE2CalibrationOverlayTest {
         )
     }
 
+    @Test
+    fun visibleUpper_dropsKnotsOutsideTheWindow_soForecastBufferDoesNotInflateTheAxis() {
+        // The snapshot carries ten extra forecast days past the visible range;
+        // a peak out there must not stretch the y-axis of the seven-day chart.
+        val band = MainE2CalibrationBand(
+            xHours = listOf(-1.0, 0.0, 100.0, 168.0, 200.0),
+            p025 = List(5) { 0f },
+            p158655254 = List(5) { 0f },
+            p841344746 = List(5) { 0f },
+            p975 = listOf(900f, 500f, 600f, 550f, 750f),
+        )
+
+        assertEquals(listOf(500f, 600f, 550f), band.visibleUpper(windowHours = 168))
+    }
+
     private fun MainE2CalibrationBand.p50Sanity(index: Int): Float {
         // The knot below fills every quantile with the same value, so any
         // quantile works as the conversion probe.

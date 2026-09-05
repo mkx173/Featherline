@@ -207,11 +207,13 @@ class PkCalibrationRendererTest {
 
     @Test
     fun sharedPopulationFailure_isValidatedNumericUnavailableWithoutChangingFit() {
+        // The dose overflows the shared population evaluation at every
+        // sample after the injection instant.
         val evaluation = evaluation(
-            events = listOf(event(PkRoute.INJECTION, 0.0, 2.0, PkCompound.EV)),
+            events = listOf(event(PkRoute.INJECTION, 0.0, Double.MAX_VALUE, PkCompound.EV)),
             promotedQByRoute = mapOf(PkCalibrationRoute.INJECTION to ln(1.1)),
         )
-        val actual = render(evaluation, domain(hours = 6, intervalHours = 1))
+        val actual = render(evaluation, domain(startHours = 1, hours = 6, intervalHours = 1))
 
         assertEquals(PkCalibrationRenderState.NUMERIC_UNAVAILABLE, actual.renderState)
         assertTrue(actual.centralCurve.isEmpty())
