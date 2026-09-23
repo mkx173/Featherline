@@ -84,7 +84,10 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -165,6 +168,7 @@ fun CalibrationScreen(
         onPkIntroSeen = viewModel::markPkIntroSeen,
         onPkRetry = viewModel::retryPkCalibration,
         onPkExcludeLab = viewModel::excludePkLab,
+        onPkAcceptLab = viewModel::acceptPkLab,
         onPkReincludeLab = viewModel::reincludePkLab,
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
@@ -187,6 +191,7 @@ private fun CalibrationScreenContent(
     onPkIntroSeen: () -> Unit,
     onPkRetry: () -> Unit,
     onPkExcludeLab: (UUID) -> Unit,
+    onPkAcceptLab: (UUID) -> Unit,
     onPkReincludeLab: (UUID) -> Unit,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: LocalDateFormatter,
@@ -215,6 +220,17 @@ private fun CalibrationScreenContent(
         pkCalibrationState?.let { state ->
             pkCalibrationLabRowFlags(state, uiState.panels)
         }.orEmpty()
+    }
+    // Review queue in list order; one entry per lab however many routes it touches.
+    val pkReviewPanels = remember(pkLabFlags, uiState.panels) {
+        uiState.panels.filter { panel -> pkLabFlags[panel.uuid]?.needsReview == true }
+    }
+    val pkReviewCounts = remember(pkLabFlags) {
+        pkLabFlags.values
+            .filterIsInstance<PkCalibrationLabRowFlag.UnreviewedOutlier>()
+            .flatMap { flag -> flag.affectedRoutes }
+            .groupingBy { route -> route }
+            .eachCount()
     }
     val deleteAllEntriesSuccessMessage =
         stringResource(R.string.settings_calibration_delete_all_entries_success)
@@ -320,6 +336,11 @@ private fun CalibrationScreenContent(
                 }
                 return@AppContentContainer
             }
+            val targetRange = if (uiState.settingsState.hideReferenceRanges) {
+                null
+            } else {
+                calibrationHistoryTargetRangeSummary(uiState.settingsState)
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -334,27 +355,24 @@ private fun CalibrationScreenContent(
                         Column {
                             PkCalibrationSection(
                                 uiState = pkCalibrationState.ui,
+                                reviewCount = pkReviewPanels.size,
                                 onRetry = onPkRetry,
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
-                                onOpenCoaching = { pkSheet = PK_SHEET_COACHING },
+                                onOpenReview = { pkSheet = PK_SHEET_REVIEW },
                                 onInfo = { pkSheet = PK_SHEET_EDU },
+                                targetRange = targetRange,
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
 
-                if (!uiState.settingsState.hideReferenceRanges) {
+                // Without the lab adjustment section the target range stands alone.
+                if (pkCalibrationState == null && targetRange != null) {
                     item {
                         Column {
-                            HrtSection(
-                                title = stringResource(R.string.settings_calibration_target_ranges_title),
-                                topPadding = pkCalibrationState != null,
-                            ) {
-                                item {
-                                    CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                                }
-                                item { CalibrationReferenceRangeDisclaimerCard() }
+                            HrtSection(title = null, topPadding = false) {
+                                item { CalibrationTargetRangeRow(summary = targetRange) }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                         }
@@ -390,16 +408,7 @@ private fun CalibrationScreenContent(
                                 index = index,
                                 count = monthGroup.panels.size,
                                 onClick = { onPanelClick(panel.uuid) },
-                                pkFooter = pkFlag?.let { flag ->
-                                    {
-                                        PkCalibrationLabRowFooter(
-                                            flag = flag,
-                                            onCorrect = { onPanelClick(panel.uuid) },
-                                            onExclude = { onPkExcludeLab(flag.resultId) },
-                                            onReinclude = { onPkReincludeLab(flag.resultId) },
-                                        )
-                                    }
-                                },
+                                pkChip = pkFlag?.let { flag -> { PkCalibrationLabChip(flag) } },
                             )
                             if (index < monthGroup.panels.size - 1) {
                                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
@@ -413,6 +422,16 @@ private fun CalibrationScreenContent(
                         }
                     }
                 }
+
+                // Same footer as the result editor.
+                if (targetRange != null) {
+                    item(key = "calibration-disclaimer") {
+                        MedicalDisclaimerText(
+                            kinds = MedicalDisclaimerSets.calibrationEditor,
+                            modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_medium)),
+                        )
+                    }
+                }
             }
         }
     }
@@ -421,11 +440,48 @@ private fun CalibrationScreenContent(
         PK_SHEET_ROUTES -> pkCalibrationState?.let { state ->
             PkCalibrationRoutesSheet(
                 uiState = state.ui,
+                reviewCounts = pkReviewCounts,
+                onOpenReview = { pkSheet = PK_SHEET_REVIEW },
                 onDismissRequest = { pkSheet = null },
             )
         }
 
-        PK_SHEET_COACHING -> PkCalibrationCoachingSheet(onDismissRequest = { pkSheet = null })
+        // Closes itself once the last lab is resolved.
+        PK_SHEET_REVIEW -> if (pkReviewPanels.isEmpty()) {
+            LaunchedEffect(Unit) { pkSheet = null }
+        } else {
+            PkCalibrationReviewSheet(
+                count = pkReviewPanels.size,
+                onDismissRequest = { pkSheet = null },
+            ) {
+                pkReviewPanels.forEachIndexed { index, panel ->
+                    val flag = pkLabFlags.getValue(panel.uuid)
+                    CalibrationPanelRow(
+                        panel = panel,
+                        settingsState = uiState.settingsState,
+                        dateTimeFormatters = panelDateTimeFormatters,
+                        index = index,
+                        count = pkReviewPanels.size,
+                        onClick = { onPanelClick(panel.uuid) },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        pkFooter = {
+                            PkCalibrationLabRowFooter(
+                                flag = flag,
+                                onCorrect = { onPanelClick(panel.uuid) },
+                                onExclude = { onPkExcludeLab(flag.resultId) },
+                                onReinclude = { onPkReincludeLab(flag.resultId) },
+                                onAccept = { onPkAcceptLab(flag.resultId) },
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        },
+                    )
+                    if (index < pkReviewPanels.size - 1) {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                    }
+                }
+            }
+        }
+
         PK_SHEET_EDU -> PkCalibrationEduSheet(
             onDismissRequest = {
                 pkSheet = null
@@ -481,26 +537,19 @@ private fun CalibrationScreenContent(
     }
 }
 
+/** Last row of the lab adjustment section; its disclaimer sits at the foot of the page. */
 @Composable
-private fun CalibrationReferenceRangeDisclaimerCard(
-    modifier: Modifier = Modifier,
-) {
-    SupportMessageListItem(
-        text = stringResource(R.string.medical_disclaimer_reference_ranges),
-        painter = painterResource(R.drawable.ic_help_clinic),
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun CalibrationTargetRangeCard(
-    settingsState: SettingsState,
-    modifier: Modifier = Modifier,
-) {
-    SupportMessageListItem(
-        text = calibrationHistoryTargetRangeSummary(settingsState),
-        painter = painterResource(R.drawable.ic_bloodtype),
-        modifier = modifier,
+internal fun CalibrationTargetRangeRow(summary: String) {
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.settings_calibration_target_ranges_title),
+        supportingText = summary,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_bloodtype),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
     )
 }
 
@@ -574,7 +623,7 @@ private fun CalibrationMonthHeader(
 }
 
 private const val PK_SHEET_ROUTES = "routes"
-private const val PK_SHEET_COACHING = "coaching"
+private const val PK_SHEET_REVIEW = "review"
 private const val PK_SHEET_EDU = "edu"
 
 internal data class CalibrationPanelMonthGroup(
@@ -606,14 +655,17 @@ internal fun groupCalibrationPanelsByMonth(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun CalibrationPanelRow(
+internal fun CalibrationPanelRow(
     panel: BloodTestPanel,
     settingsState: SettingsState,
     dateTimeFormatters: CalibrationPanelDateTimeFormatters,
     index: Int,
     count: Int,
     onClick: () -> Unit,
-    // Calibration review footer (invalid / outlier / excluded row).
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    // Lab-adjustment state chip beside the chevron (list rows).
+    pkChip: (@Composable () -> Unit)? = null,
+    // Review note under the row (review queue).
     pkFooter: (@Composable () -> Unit)? = null,
 ) {
     val deviceZone = remember { ZoneId.systemDefault() }
@@ -639,6 +691,7 @@ private fun CalibrationPanelRow(
         index = index,
         count = count,
         onClick = onClick,
+        containerColor = containerColor,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
         ConstraintLayout(
@@ -688,16 +741,22 @@ private fun CalibrationPanelRow(
                 isCrossZone = isPanelCrossZone,
             )
 
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.constrainAs(chevron) {
                     end.linkTo(parent.end)
                     top.linkTo(dateTimeColumn.top)
                     bottom.linkTo(dateTimeColumn.bottom)
-                }
-            )
+                },
+            ) {
+                pkChip?.invoke()
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             testosteroneResultSummary?.let { resultSummary ->
                 CalibrationPanelResultAdditionalSummaryRow(
@@ -1430,6 +1489,7 @@ private fun CalibrationScreenPreviewPage(uiState: CalibrationUiState) {
             onPkIntroSeen = { },
             onPkRetry = { },
             onPkExcludeLab = { },
+            onPkAcceptLab = { },
             onPkReincludeLab = { },
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),

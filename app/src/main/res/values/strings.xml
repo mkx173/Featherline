@@ -48,7 +48,6 @@
     <string name="main_e2_no_last_dose">No logged dose yet</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">Estimated concentrations and WPATH SOC-8 target ranges are references, not measured values or medical advice; your targets may differ.</string>
     <string name="medical_disclaimer_preset_doses">Preset doses are reference values, not medical advice. Safe dosing depends on lab results, other medications, medical history, and clinician supervision.</string>
-    <string name="medical_disclaimer_reference_ranges">Target ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
     <string name="medical_disclaimer_wpath_reference_ranges">Target ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">Plasma concentration values are model estimates based on your dosing schedule, not measured values.</string>
     <string name="main_antiandrogen_title">Antiandrogen</string>
@@ -722,7 +721,7 @@
         <item quantity="one">+%1$d record</item>
         <item quantity="other">+%1$d records</item>
     </plurals>
-    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 target range</string>
+    <string name="settings_calibration_target_ranges_title">Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
@@ -1113,19 +1112,10 @@
     <string name="calibration_pk_global_numeric_failure_body">A calculation didn’t complete, so the population estimate was kept. Try again after a data or model update.</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
-    <string name="calibration_pk_route_label_population">Population</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">No lab signal</string>
     <string name="calibration_pk_route_tag_numeric_failure">Adjustment unavailable</string>
-    <string name="calibration_pk_reason_scale_outside_usual_range">The adjustment implied for this route is outside its usual range, or is a large shift backed by fewer than three supporting labs. Check lab and treatment records.</string>
-    <string name="calibration_pk_route_next_provisional">Add labs collected at more varied times</string>
-    <string name="calibration_pk_route_next_calibrated">Keep your records current</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
-    <string name="calibration_pk_reason_uncertain">The route adjustment is still uncertain: the posterior is wide, or the usable results sit at similar modeled signal levels.</string>
-    <string name="calibration_pk_reason_residual_fit_poor">The fit to your results is poor for this route, so the adjustment shown may be unreliable.</string>
-    <string name="calibration_pk_reason_posterior_mode_ambiguous">The results support more than one possible adjustment; the best-fitting one is shown.</string>
-    <string name="calibration_pk_reason_unreviewed_outlier">A flagged result disagrees with this route’s adjustment. Review it, or exclude it if it isn’t comparable.</string>
-    <string name="calibration_pk_reason_no_supporting_labs">No lab draws much of its signal from this route, so its adjustment mostly follows the population prior.</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">Population estimate</string>
@@ -1138,24 +1128,18 @@
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">Lab adjustment</string>
     <string name="calibration_pk_status_population_title">Using the population estimate</string>
-    <string name="calibration_pk_status_population_body">No usable lab result touches any route yet. This is the same model curve shown for everyone.</string>
     <string name="calibration_pk_status_adjusted_title">Lab-adjusted treatment estimate</string>
-    <string name="calibration_pk_status_adjusted_body">Adjusted toward your labs for %1$s; the other routes use the population estimate. It’s still an estimate, not a measurement.</string>
     <string name="calibration_pk_retry">Try again</string>
     <string name="calibration_pk_routes_card_title">Route adjustments</string>
     <string name="calibration_pk_routes_card_adjusted_of">%1$d of %2$d adjusted</string>
-    <string name="calibration_pk_chip_adjusted">Adjusted</string>
     <string name="calibration_pk_confidence_low">low</string>
     <string name="calibration_pk_confidence_medium">medium</string>
     <string name="calibration_pk_confidence_high">high</string>
     <string name="calibration_pk_route_meta_confidence">%1$s · %2$s confidence</string>
     <string name="calibration_pk_coaching_row_title">Helping a route calibrate</string>
-    <string name="calibration_pk_coaching_row_subtitle">Tips for sharper lab adjustment</string>
-    <string name="calibration_pk_disclaimer_row_subtitle">What lab adjustment is, and isn’t</string>
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">Got it</string>
-    <string name="calibration_pk_routes_sheet_intro">Every usable lab result contributes to the adjustment of each route, in proportion to how much of the modeled signal that route provided at the collection time.</string>
     <string name="calibration_pk_coaching_time_title">Record the actual collection time</string>
     <string name="calibration_pk_coaching_time_body">Enter when the specimen was taken, not when you logged it.</string>
     <string name="calibration_pk_coaching_history_title">Keep your treatment history accurate</string>
@@ -1204,4 +1188,25 @@
     <string name="calibration_pk_band_legend">68% / 95% range</string>
     <string name="calibration_pk_band_a11y_summary">The center line combines lab-adjusted contributions for supported routes with population contributions for the other routes. The shaded areas show approximate ranges of lab values the model could produce, including uncertainty in route adjustments and ordinary result variability.</string>
 
+
+    <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
+    <string name="calibration_pk_lab_accept">Looks right</string>
+    <string name="calibration_pk_lab_accepted_body">You checked this result. It stays in the adjustment.</string>
+    <string name="calibration_pk_lab_show_review">Undo</string>
+    <string name="calibration_pk_status_info_hint">An estimate, not a measurement. Tap to see how it works.</string>
+    <plurals name="calibration_pk_review_count">
+        <item quantity="one">%d result to check</item>
+        <item quantity="other">%d results to check</item>
+    </plurals>
+    <string name="calibration_pk_reason_short_scale">Unusually large adjustment</string>
+    <string name="calibration_pk_reason_short_uncertain">Still uncertain</string>
+    <string name="calibration_pk_reason_short_fit">Poor fit to your results</string>
+    <string name="calibration_pk_reason_short_ambiguous">More than one fit possible</string>
+    <string name="calibration_pk_reason_short_outlier">A result disagrees</string>
+    <string name="calibration_pk_lab_chip_check">Check</string>
+    <string name="calibration_pk_lab_chip_excluded">Excluded</string>
+    <string name="calibration_pk_lab_chip_not_used">Not used</string>
+    <string name="calibration_pk_edu_next">Next</string>
+    <string name="calibration_pk_edu_back">Back</string>
+    <string name="calibration_pk_edu_finish">Finish</string>
 </resources>

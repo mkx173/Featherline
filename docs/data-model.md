@@ -287,9 +287,14 @@ Annotated `@Entity(tableName = "e2_calibration_metadata")` — optional,
 result-owned review state for one built-in E2 result. `resultUuid` is
 both the primary key and a foreign key to `blood_test_results.uuid`
 with `ON DELETE CASCADE`, so deleting a result cannot strand its
-disposition. The row stores the `disposition` (`AUTO` or `EXCLUDED`) and
+disposition. The row stores the `disposition` (`AUTO`, `REVIEWED`, or `EXCLUDED`) and
 `updatedAtEpochMillis`. The rule that only built-in E2 results may
-receive metadata is enforced at the repository boundary.
+receive metadata is enforced at the repository boundary. `REVIEWED` records the
+user’s acceptance of a result: it leaves the review queue, while the result
+remains included with unchanged calibration weights. Acceptance covers one
+measurement, so saving a changed value or collection time deletes a `REVIEWED`
+row (an `EXCLUDED` row survives edits). The review queue and the result editor
+can both reset it to `AUTO`.
 
 ### `TrackedDateEntity`
 

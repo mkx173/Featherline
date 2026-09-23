@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.calibration
 
+import com.mkx.hrttracker.data.repository.PkCalibrationLive
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -61,11 +62,7 @@ data class PkCalibrationRouteRowUiState(
     val unreviewedOutlierLabIds: Set<UUID>,
     /** Coarse tier for adjusted routes; null on population rows. */
     val confidence: PkCalibrationRouteConfidence?,
-) {
-    /** A route whose fit raised a warning the user should read. */
-    val hasWarning: Boolean
-        get() = displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-}
+)
 
 /**
  * The single validated view consumed by the Home hero, chart, and calibration
@@ -106,9 +103,19 @@ data class PkCalibrationUiState(
 data class PkCalibrationScreenState(
     val ui: PkCalibrationUiState,
     val excludedResultIds: Set<UUID>,
+    val acceptedResultIds: Set<UUID> = emptySet(),
 )
 
-/** Review affordance shown as a footer on one lab panel row. */
+/** Builds the screen state from one live evaluation; shared by the list and the result editor. */
+fun pkCalibrationScreenState(live: PkCalibrationLive): PkCalibrationScreenState {
+    return PkCalibrationScreenState(
+        ui = pkCalibrationUiState(live.evaluation.result, live.render),
+        excludedResultIds = live.input.excludedLabIds,
+        acceptedResultIds = live.input.acceptedLabIds,
+    )
+}
+
+/** Per-lab review state: a chip on the list row, the queue card, and the editor's section. */
 sealed interface PkCalibrationLabRowFlag {
     val resultId: UUID
 
@@ -123,46 +130,50 @@ sealed interface PkCalibrationLabRowFlag {
         val affectedRoutes: List<PkCalibrationRoute>,
     ) : PkCalibrationLabRowFlag
 
+    data class Accepted(override val resultId: UUID) : PkCalibrationLabRowFlag
+
     data class Excluded(override val resultId: UUID) : PkCalibrationLabRowFlag
 }
 
-/** Derives the per-panel review footer, keyed by panel uuid. Explicit exclusion wins. */
+/** Flags that ask the user to act; these, and only these, fill the review queue. */
+val PkCalibrationLabRowFlag.needsReview: Boolean
+    get() = this is PkCalibrationLabRowFlag.UnreviewedOutlier ||
+        (this is PkCalibrationLabRowFlag.Ignored &&
+            reason == PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE)
+
+/** Derives the per-panel review flag, keyed by panel uuid. */
 fun pkCalibrationLabRowFlags(
     state: PkCalibrationScreenState,
     panels: List<BloodTestPanel>,
 ): Map<UUID, PkCalibrationLabRowFlag> {
-    val outlierRoutes = linkedMapOf<UUID, MutableList<PkCalibrationRoute>>()
-    state.ui.routeRows.forEach { row ->
-        row.unreviewedOutlierLabIds.forEach { resultId ->
-            outlierRoutes.getOrPut(resultId) { mutableListOf() }.add(row.route)
-        }
-    }
     val flags = linkedMapOf<UUID, PkCalibrationLabRowFlag>()
     panels.forEach { panel ->
         val e2Result = panel.results.firstOrNull { result ->
             (result.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2
         } ?: return@forEach
-        val resultId = e2Result.uuid
-        val flag = when {
-            resultId in state.excludedResultIds ->
-                PkCalibrationLabRowFlag.Excluded(resultId)
-
-            resultId in state.ui.ignoredLabs ->
-                PkCalibrationLabRowFlag.Ignored(resultId, state.ui.ignoredLabs.getValue(resultId))
-
-            resultId in outlierRoutes ->
-                PkCalibrationLabRowFlag.UnreviewedOutlier(
-                    resultId = resultId,
-                    affectedRoutes = outlierRoutes.getValue(resultId),
-                )
-
-            else -> null
-        }
-        if (flag != null) {
-            flags[panel.uuid] = flag
-        }
+        pkCalibrationLabFlag(state, e2Result.uuid)?.let { flag -> flags[panel.uuid] = flag }
     }
     return flags
+}
+
+/** One E2 result's review flag. Explicit exclusion wins, then the fit's own ignore reason. */
+fun pkCalibrationLabFlag(state: PkCalibrationScreenState, resultId: UUID): PkCalibrationLabRowFlag? {
+    val affectedRoutes = state.ui.routeRows
+        .filter { row -> resultId in row.unreviewedOutlierLabIds }
+        .map { row -> row.route }
+    return when {
+        resultId in state.excludedResultIds -> PkCalibrationLabRowFlag.Excluded(resultId)
+
+        resultId in state.ui.ignoredLabs ->
+            PkCalibrationLabRowFlag.Ignored(resultId, state.ui.ignoredLabs.getValue(resultId))
+
+        resultId in state.acceptedResultIds -> PkCalibrationLabRowFlag.Accepted(resultId)
+
+        affectedRoutes.isNotEmpty() ->
+            PkCalibrationLabRowFlag.UnreviewedOutlier(resultId, affectedRoutes)
+
+        else -> null
+    }
 }
 
 /**

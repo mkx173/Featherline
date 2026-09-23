@@ -24,19 +24,18 @@ class PkCalibrationUiTextTest {
     }
 
     @Test
-    fun routeStateCopy_tagsPopulationRows_andCoachesAdjustedRows() {
+    fun routeStateCopy_tagsPopulationRowsOnly() {
         for (state in PkRouteCalibrationDisplayState.entries) {
             assertEquals("tag for $state", state.isAdjusted, state.tagRes == null)
-            assertEquals("next step for $state", state.isAdjusted, state.nextStepRes != null)
         }
     }
 
     @Test
-    fun reasonDetailCopy_coversEveryReason() {
+    fun reasonLabelCopy_coversEveryReason() {
         // Warn-only classification: a provisional row's warnings are its whole
-        // story, so every reason must carry its own non-zero detail line.
+        // story, so every reason must carry its own non-zero label.
         for (reason in PkCalibrationReason.entries) {
-            assertNotEquals("detail for $reason", 0, reason.detailRes)
+            assertNotEquals("label for $reason", 0, reason.labelRes)
         }
     }
 }

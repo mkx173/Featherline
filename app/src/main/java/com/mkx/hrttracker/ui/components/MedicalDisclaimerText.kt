@@ -17,7 +17,6 @@ import com.mkx.hrttracker.R
 enum class MedicalDisclaimerKind(@param:StringRes val textRes: Int) {
     HOME_ESTIMATES_AND_RANGES(R.string.medical_disclaimer_home_estimates_and_ranges),
     PRESET_DOSES(R.string.medical_disclaimer_preset_doses),
-    REFERENCE_RANGES(R.string.medical_disclaimer_reference_ranges),
     WPATH_REFERENCE_RANGES(R.string.medical_disclaimer_wpath_reference_ranges),
     PLASMA_CONCENTRATION_ESTIMATES(R.string.medical_disclaimer_plasma_concentration_estimates),
     LAB_ADJUSTMENT(R.string.medical_disclaimer_lab_adjustment),
@@ -26,7 +25,6 @@ enum class MedicalDisclaimerKind(@param:StringRes val textRes: Int) {
 object MedicalDisclaimerSets {
     val home = listOf(MedicalDisclaimerKind.HOME_ESTIMATES_AND_RANGES)
     val medicationEditor = listOf(MedicalDisclaimerKind.PRESET_DOSES)
-    val calibration = listOf(MedicalDisclaimerKind.REFERENCE_RANGES)
     val calibrationEditor = listOf(MedicalDisclaimerKind.WPATH_REFERENCE_RANGES)
 }
 

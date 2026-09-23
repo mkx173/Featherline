@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -15,6 +17,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.displayZoneOf
@@ -23,12 +27,14 @@ import com.mkx.hrttracker.util.zoneDisplayName
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNot
@@ -64,6 +70,8 @@ class CalibrationEditorViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
+    private val pkStorageRepository: PkCalibrationStorageRepository,
+    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
     private val draftSnapshotAdapter =
@@ -93,6 +101,7 @@ class CalibrationEditorViewModel @Inject constructor(
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
     init {
+        observePkReview()
         observeCalibrationDefaultUnits()
         persistDraftSnapshotAcrossProcessDeath()
         if (cachedCustomAnalytes == null) {
@@ -111,6 +120,54 @@ class CalibrationEditorViewModel @Inject constructor(
                 editingPanelUuid?.let(::loadPanelForEditing)
             }
         }
+    }
+
+    /** The saved E2 result's lab-adjustment state, from the same live evaluation as the list. */
+    private fun observePkReview() {
+        viewModelScope.launch {
+            combine(
+                uiState.map { state ->
+                    state.drafts.firstOrNull { it.analyteKey == BloodAnalyteKey.E2 }?.resultUuid
+                }.distinctUntilChanged(),
+                pkCalibrationLiveRepository.liveState,
+            ) { resultId, liveState ->
+                val live = liveState?.live
+                if (resultId == null || live == null) null
+                else pkCalibrationLabFlag(pkCalibrationScreenState(live), resultId)
+            }.collect { flag ->
+                _uiState.update { it.copy(pkReviewFlag = flag) }
+            }
+        }
+    }
+
+    fun acceptPkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.REVIEWED)
+
+    fun excludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.EXCLUDED)
+
+    fun reincludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.AUTO)
+
+    /** Saved immediately, independently of form edits; the live evaluation then refreshes the flag. */
+    private fun savePkDisposition(resultId: UUID, disposition: E2CalibrationDisposition) {
+        if (isCalibrationEditorBusy(uiState.value)) return
+        _uiState.update { it.copy(isUpdatingPkReview = true, pkReviewFailed = false) }
+        viewModelScope.launch {
+            try {
+                withContext(NonCancellable) {
+                    pkStorageRepository.saveMetadata(
+                        E2CalibrationMetadata(resultId, disposition, Instant.now())
+                    )
+                }
+                _uiState.update { it.copy(isUpdatingPkReview = false) }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isUpdatingPkReview = false, pkReviewFailed = true) }
+            }
+        }
+    }
+
+    fun consumePkReviewFailure() {
+        _uiState.update { it.copy(pkReviewFailed = false) }
     }
 
     private fun buildInitialEditorState(): CalibrationEditorUiState {
@@ -653,6 +710,10 @@ data class CalibrationEditorUiState(
     val invalidDraftKeys: Set<String> = emptySet(),
     val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationDrafts(),
     val hideReferenceRanges: Boolean = false,
+    /** Lab-adjustment review state of the saved E2 result; null when it needs no note. */
+    val pkReviewFlag: PkCalibrationLabRowFlag? = null,
+    val isUpdatingPkReview: Boolean = false,
+    val pkReviewFailed: Boolean = false,
 )
 
 enum class CalibrationSaveEntryResult {
@@ -702,6 +763,7 @@ internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boo
 
 internal fun isCalibrationEditorBusy(state: CalibrationEditorUiState): Boolean {
     return state.isLoading ||
+            state.isUpdatingPkReview ||
             state.isSaving ||
             state.isDeleting ||
             state.isSaved ||

@@ -37,6 +37,7 @@ data class PkCalibrationDebugUiState(
         get() = reviewDispositionByResultId.map { (resultId, disposition) ->
             PkCalibrationDebugActionCommand(
                 action = when (disposition) {
+                    E2CalibrationDisposition.REVIEWED,
                     E2CalibrationDisposition.AUTO -> PkCalibrationDebugReviewAction.EXCLUDE
                     E2CalibrationDisposition.EXCLUDED -> PkCalibrationDebugReviewAction.REINCLUDE
                 },

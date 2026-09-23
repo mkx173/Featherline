@@ -105,12 +105,7 @@ class CalibrationViewModel @Inject constructor(
             excludedResultIds = fixture.excludedResultIds,
         )
 
-        else -> liveState?.live?.let { available ->
-            PkCalibrationScreenState(
-                ui = pkCalibrationUiState(available.evaluation.result, available.render),
-                excludedResultIds = available.input.excludedLabIds,
-            )
-        }
+        else -> liveState?.live?.let(::pkCalibrationScreenState)
     }
 
     private val pkReviewRejectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -130,6 +125,8 @@ class CalibrationViewModel @Inject constructor(
     fun retryPkCalibration() {
         pkCalibrationLiveRepository.retry()
     }
+
+    fun acceptPkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.REVIEWED)
 
     fun excludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.EXCLUDED)
 

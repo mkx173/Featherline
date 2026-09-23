@@ -198,6 +198,63 @@ class PkCalibrationUiStateTest {
         )
     }
 
+    @Test
+    fun acceptedResult_replacesReviewTipWithFlag_andUndoRestoresTip() {
+        val resultId = UUID.randomUUID()
+        val panel = panel(resultId, 250.0)
+        val base = ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL))
+        val ui = base.copy(routeRows = base.routeRows.map {
+            if (it.route == PkCalibrationRoute.ORAL) it.copy(unreviewedOutlierLabIds = setOf(resultId)) else it
+        })
+        val state = PkCalibrationScreenState(ui, emptySet())
+        assertTrue(pkCalibrationLabRowFlags(state, listOf(panel))[panel.uuid] is PkCalibrationLabRowFlag.UnreviewedOutlier)
+        val accepted = state.copy(acceptedResultIds = setOf(resultId))
+        assertEquals(PkCalibrationLabRowFlag.Accepted(resultId), pkCalibrationLabRowFlags(accepted, listOf(panel))[panel.uuid])
+        // Acceptance changes the review presentation, never the route's diagnostics.
+        assertEquals(state.ui, accepted.ui)
+        assertTrue(pkCalibrationLabRowFlags(accepted.copy(acceptedResultIds = emptySet()), listOf(panel))[panel.uuid] is PkCalibrationLabRowFlag.UnreviewedOutlier)
+        assertEquals(PkCalibrationLabRowFlag.Excluded(resultId), pkCalibrationLabRowFlags(accepted.copy(excludedResultIds = setOf(resultId)), listOf(panel))[panel.uuid])
+        val invalid = accepted.copy(ui = ui.copy(ignoredLabs = mapOf(resultId to PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE)))
+        assertTrue(pkCalibrationLabRowFlags(invalid, listOf(panel))[panel.uuid] is PkCalibrationLabRowFlag.Ignored)
+    }
+
+    @Test
+    fun reviewQueue_holdsOneEntryPerLab_evenWhenItDisagreesWithSeveralRoutes() {
+        // One blood draw informs every route; the user decides once per lab,
+        // so a two-route outlier is one queue entry naming both routes.
+        val resultId = UUID.randomUUID()
+        val panel = panel(resultId, 250.0)
+        val base = ui(PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL))
+        val ui = base.copy(routeRows = base.routeRows.map { row ->
+            if (row.route == PkCalibrationRoute.INJECTION || row.route == PkCalibrationRoute.ORAL) {
+                row.copy(unreviewedOutlierLabIds = setOf(resultId))
+            } else {
+                row
+            }
+        })
+        val state = PkCalibrationScreenState(ui, emptySet())
+
+        val flags = pkCalibrationLabRowFlags(state, listOf(panel))
+        assertEquals(1, flags.values.count { it.needsReview })
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+            (flags.getValue(panel.uuid) as PkCalibrationLabRowFlag.UnreviewedOutlier).affectedRoutes,
+        )
+        assertEquals(flags.getValue(panel.uuid), pkCalibrationLabFlag(state, resultId))
+    }
+
+    @Test
+    fun reviewQueue_takesOnlyFlagsTheUserCanResolve() {
+        val id = UUID.randomUUID()
+        assertTrue(PkCalibrationLabRowFlag.UnreviewedOutlier(id, listOf(PkCalibrationRoute.ORAL)).needsReview)
+        assertTrue(PkCalibrationLabRowFlag.Ignored(id, PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE).needsReview)
+        // Resolved, or not the user's to fix: never in the queue.
+        assertFalse(PkCalibrationLabRowFlag.Accepted(id).needsReview)
+        assertFalse(PkCalibrationLabRowFlag.Excluded(id).needsReview)
+        assertFalse(PkCalibrationLabRowFlag.Ignored(id, PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL).needsReview)
+        assertFalse(PkCalibrationLabRowFlag.Ignored(id, PkCalibrationLabIgnoreReason.NUMERIC_FAILURE).needsReview)
+    }
+
     private fun panel(resultId: UUID, canonicalValue: Double): BloodTestPanel {
         return BloodTestPanel(
             uuid = UUID.randomUUID(),

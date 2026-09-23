@@ -75,6 +75,23 @@ class CalibrationViewModelTest {
     }
 
     @Test
+    fun acceptPkLab_persistsReviewPreferenceWithoutExcludingResult() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        coEvery { pkStorageRepository.saveMetadata(any()) } returns Unit
+        val now = Instant.parse("2026-09-23T06:00:00Z")
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository,
+            pkStorageRepository, Clock.fixed(now, ZoneId.of("UTC")), PkCalibrationUiFixtureBridge())
+        val resultId = UUID.randomUUID()
+        viewModel.acceptPkLab(resultId)
+        advanceUntilIdle()
+        coVerify(exactly = 1) {
+            pkStorageRepository.saveMetadata(com.mkx.hrttracker.model.pk.E2CalibrationMetadata(
+                resultId, com.mkx.hrttracker.model.pk.E2CalibrationDisposition.REVIEWED, now,
+            ))
+        }
+    }
+
+    @Test
     fun pkIntroSeen_surfacesTheStoredFlag_andMarkingPersistsIt() = runTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { settingsRepository.setPkCalibrationIntroSeen(true) } returns Unit

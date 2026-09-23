@@ -53,6 +53,21 @@ class PkCalibrationBackupTest {
     }
 
     @Test
+    fun reviewedMetadata_survivesJsonBackupRoundTrip() {
+        val reviewed = result(
+            uuid = "00000000-0000-0000-0000-000000000913",
+            disposition = "REVIEWED",
+            updatedAt = 4_000L,
+        )
+        val json = BackupSnapshotJsonCodec.encode(snapshot(results = listOf(reviewed)))
+        val restored = checkNotNull(BackupSnapshotJsonCodec.decode(json))
+            .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME).e2CalibrationMetadata.single()
+        assertEquals("REVIEWED", restored.disposition)
+        assertEquals(reviewed.uuid, restored.resultUuid)
+        assertEquals(4_000L, restored.updatedAtEpochMillis)
+    }
+
+    @Test
     fun unknownDisposition_isRejected() {
         val invalid = result(
             uuid = "00000000-0000-0000-0000-000000000921",

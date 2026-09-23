@@ -59,33 +59,20 @@ val PkRouteCalibrationDisplayState.tagRes: Int?
         -> null
     }
 
-/** Suggested next step for an adjusted row; population rows carry none. */
+/** Short per-reason label for the routes sheet. */
 @get:StringRes
-val PkRouteCalibrationDisplayState.nextStepRes: Int?
-    get() = when (this) {
-        PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
-        PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE,
-        -> null
-        PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL ->
-            R.string.calibration_pk_route_next_provisional
-        PkRouteCalibrationDisplayState.LAB_CALIBRATED ->
-            R.string.calibration_pk_route_next_calibrated
-    }
-
-/** Per-reason detail line: under warn-only classification these are the whole story of a provisional row. */
-@get:StringRes
-val PkCalibrationReason.detailRes: Int
+val PkCalibrationReason.labelRes: Int
     get() = when (this) {
         PkCalibrationReason.NO_SUPPORTING_LABS ->
-            R.string.calibration_pk_reason_no_supporting_labs
+            R.string.calibration_pk_route_tag_no_supporting_labs
         PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE ->
-            R.string.calibration_pk_reason_scale_outside_usual_range
+            R.string.calibration_pk_reason_short_scale
         PkCalibrationReason.UNCERTAIN ->
-            R.string.calibration_pk_reason_uncertain
+            R.string.calibration_pk_reason_short_uncertain
         PkCalibrationReason.RESIDUAL_FIT_POOR ->
-            R.string.calibration_pk_reason_residual_fit_poor
+            R.string.calibration_pk_reason_short_fit
         PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS ->
-            R.string.calibration_pk_reason_posterior_mode_ambiguous
+            R.string.calibration_pk_reason_short_ambiguous
         PkCalibrationReason.UNREVIEWED_OUTLIER ->
-            R.string.calibration_pk_reason_unreviewed_outlier
+            R.string.calibration_pk_reason_short_outlier
     }

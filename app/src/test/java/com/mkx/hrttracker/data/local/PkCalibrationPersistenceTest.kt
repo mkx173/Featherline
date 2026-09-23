@@ -136,6 +136,37 @@ class PkCalibrationPersistenceTest {
     }
 
     @Test
+    fun panelSave_acceptanceResetsWhenTheMeasurementChanges_butNotOnUnitOrNotesEdits() = runTest {
+        // "Looks right" vouches for one measurement. A new value or collection
+        // time is a different measurement and must be reviewed again; the same
+        // measurement shown in another unit, or a notes edit, is not.
+        val dao = database.bloodTestDao()
+        val valuePanel = panel("panel-rev-value")
+        val valueResult = result("result-rev-value", valuePanel.uuid, 0, "e2", value = 70.0)
+        val timePanel = panel("panel-rev-time")
+        val timeResult = result("result-rev-time", timePanel.uuid, 0, "e2", value = 80.0)
+        val samePanel = panel("panel-rev-same")
+        val sameResult = result("result-rev-same", samePanel.uuid, 0, "e2", value = 100.0)
+        dao.insertPanels(listOf(valuePanel, timePanel, samePanel))
+        dao.insertResults(listOf(valueResult, timeResult, sameResult))
+        database.pkCalibrationDao().insertMetadata(
+            listOf(valueResult, timeResult, sameResult).map { reviewedMetadata(it.uuid) }
+        )
+
+        dao.upsertPanelWithResults(valuePanel, listOf(valueResult.copy(value = 75.0, canonicalValue = 75.0)))
+        dao.upsertPanelWithResults(timePanel.copy(collectedAtInstantEpochMillis = 5_000L), listOf(timeResult))
+        dao.upsertPanelWithResults(
+            samePanel.copy(notes = "trough"),
+            listOf(sameResult.copy(value = 367.1, unitSnapshot = "pmol_l")),
+        )
+
+        val metadata = database.pkCalibrationDao()
+        assertNull(metadata.getMetadata(valueResult.uuid))
+        assertNull(metadata.getMetadata(timeResult.uuid))
+        assertEquals("REVIEWED", metadata.getMetadata(sameResult.uuid)?.disposition)
+    }
+
+    @Test
     fun panelSave_deletesOnlyRemovedResult_andCascadeDeletesItsMetadata() = runTest {
         val dao = database.bloodTestDao()
         val panel = panel("panel-b")
@@ -221,7 +252,10 @@ class PkCalibrationPersistenceTest {
             mapOf(autoId to auto, excludedId to reExcluded),
             repository.getAllMetadata().associateBy(E2CalibrationMetadata::resultId),
         )
-        coVerify(exactly = 3) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+        val reviewed = auto.copy(disposition = E2CalibrationDisposition.REVIEWED)
+        repository.saveMetadata(reviewed)
+        assertEquals(reviewed, storageRepository().getAllMetadata().single { it.resultId == autoId })
+        coVerify(exactly = 4) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
@@ -332,6 +366,12 @@ class PkCalibrationPersistenceTest {
         activeGroups = emptyList(),
         scheduleEntries = emptyList(),
         antiandrogenHistoryEntries = emptyList(),
+    )
+
+    private fun reviewedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(
+        resultUuid = resultUuid,
+        disposition = "REVIEWED",
+        updatedAtEpochMillis = 1_000L,
     )
 
     private fun excludedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(

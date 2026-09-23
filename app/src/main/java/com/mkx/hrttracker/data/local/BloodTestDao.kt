@@ -124,6 +124,12 @@ interface BloodTestDao {
     @Query("DELETE FROM e2_calibration_metadata WHERE resultUuid IN (:resultUuids)")
     suspend fun deleteCalibrationMetadataForResults(resultUuids: List<String>)
 
+    @Query(
+        "DELETE FROM e2_calibration_metadata " +
+            "WHERE resultUuid IN (:resultUuids) AND disposition = 'REVIEWED'"
+    )
+    suspend fun deleteReviewedCalibrationMetadataForResults(resultUuids: List<String>)
+
     // A direct swap violates both unique(panelUuid, displayOrder) and, for an
     // analyte swap, unique(panelUuid, builtinAnalyteKey/customAnalyteUuid).
     // Park the affected rows inside the surrounding transaction before their
@@ -192,11 +198,24 @@ interface BloodTestDao {
         }
         // Explicit exclusions survive edits; only an analyte-identity change
         // (the row is no longer the same E2 result) drops review metadata.
+        // An acceptance covers one measurement, so a new value or collection
+        // time asks for review again.
+        val oldCollectedAt = getPanel(panel.uuid)?.panel?.collectedAtInstantEpochMillis
+        val measurementChangedUuids = existing.mapNotNull { result ->
+            val replacement = incomingByUuid[result.uuid] ?: return@mapNotNull null
+            result.uuid.takeIf {
+                result.canonicalValue != replacement.canonicalValue ||
+                    oldCollectedAt != panel.collectedAtInstantEpochMillis
+            }
+        }
 
         upsertPanel(panel)
         if (removedUuids.isNotEmpty()) deleteResultsByUuid(removedUuids)
         if (identityChangedUuids.isNotEmpty()) {
             deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+        if (measurementChangedUuids.isNotEmpty()) {
+            deleteReviewedCalibrationMetadataForResults(measurementChangedUuids)
         }
 
         val survivingUuids = existing.mapTo(mutableSetOf(), BloodTestResultEntity::uuid)
@@ -235,6 +254,16 @@ interface BloodTestDao {
         }
         if (identityChangedUuids.isNotEmpty()) {
             deleteCalibrationMetadataForResults(identityChangedUuids)
+        }
+        val measurementChangedUuids = oldByUuid.values.mapNotNull { existing ->
+            val replacement = replacementsByUuid.getValue(existing.uuid)
+            existing.uuid.takeIf {
+                existing.canonicalValue != replacement.canonicalValue ||
+                    existing.panelUuid != replacement.panelUuid
+            }
+        }
+        if (measurementChangedUuids.isNotEmpty()) {
+            deleteReviewedCalibrationMetadataForResults(measurementChangedUuids)
         }
         if (currentRows.isNotEmpty()) {
             parkResultUniqueKeys(affectedPanels)

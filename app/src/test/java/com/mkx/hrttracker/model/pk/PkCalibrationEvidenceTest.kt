@@ -78,6 +78,26 @@ class PkCalibrationEvidenceTest {
     }
 
     @Test
+    fun acceptingResult_preservesEvidenceAndNumericalFit() {
+        val id = uuid(1)
+        val input = PkCalibrationInput(
+            labs = listOf(lab(id, hoursAfterOrigin = 4.0, value = 800.0)),
+            doseEvents = listOf(oralDose(uuid(100), timeH = 0.0)),
+            originEpochMillis = OriginMillis,
+            weightKg = 70.0,
+        )
+        val accepted = input.copy(metadata = listOf(
+            E2CalibrationMetadata(id, E2CalibrationDisposition.REVIEWED, Instant.EPOCH)
+        ))
+        val before = requireNotNull(PkCalibrationEvidenceAdapter.build(input))
+        val after = requireNotNull(PkCalibrationEvidenceAdapter.build(accepted))
+        assertEquals(before.included, after.included)
+        assertEquals(setOf(id), accepted.acceptedLabIds)
+        assertTrue(accepted.excludedLabIds.isEmpty())
+        assertEquals(PkCalibrationSolver.solve(before).routeResults, PkCalibrationSolver.solve(after).routeResults)
+    }
+
+    @Test
     fun build_sortsIncludedLabsByResultId_forDeterministicAccumulation() {
         val ids = listOf(uuid(9), uuid(2), uuid(5))
         val input = PkCalibrationInput(

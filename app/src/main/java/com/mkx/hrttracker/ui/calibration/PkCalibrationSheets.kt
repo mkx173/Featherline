@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +25,10 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
@@ -46,16 +54,22 @@ import com.mkx.hrttracker.util.labelRes
 import kotlinx.coroutines.CoroutineScope
 
 /*
- * The three calibration sheets (routes detail, coaching, how-it-works). All
+ * The calibration sheets (routes detail, review queue, how-it-works). All
  * ride MedicationEditorSheetScaffold, matching every other sheet in the app.
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PkCalibrationSheet(
+internal fun PkCalibrationSheet(
     title: String,
     onDismissRequest: () -> Unit,
     disclaimerKinds: List<MedicalDisclaimerKind> = emptyList(),
+    fillAvailableHeight: Boolean = false,
+    confirmButtonText: String = stringResource(R.string.calibration_pk_got_it),
+    // Null confirm action dismisses the sheet.
+    onConfirm: (() -> Unit)? = null,
+    secondaryButtonText: String? = null,
+    onSecondary: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -64,13 +78,15 @@ private fun PkCalibrationSheet(
     MedicationEditorSheetScaffold(
         title = title,
         sheetState = sheetState,
-        confirmButtonText = stringResource(R.string.calibration_pk_got_it),
+        confirmButtonText = confirmButtonText,
         onDismissRequest = onDismissRequest,
         onCloseClick = null,
-        fillAvailableHeight = false,
+        fillAvailableHeight = fillAvailableHeight,
         isSaving = false,
+        destructiveButtonText = secondaryButtonText,
+        onDestructiveAction = onSecondary,
         disclaimerKinds = disclaimerKinds,
-        onConfirm = dismiss,
+        onConfirm = onConfirm ?: dismiss,
         content = content,
     )
 }
@@ -149,56 +165,66 @@ private fun PkCalibrationSheetNote(@StringRes textRes: Int) {
 // Routes detail sheet
 // ---------------------------------------------------------------------------
 
+/**
+ * Adjusted routes first, each with a short warning line and a link to the
+ * results it is waiting on; population routes follow in their own group.
+ */
 @Composable
 fun PkCalibrationRoutesSheet(
     uiState: PkCalibrationUiState,
+    reviewCounts: Map<PkCalibrationRoute, Int>,
+    onOpenReview: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     PkCalibrationSheet(
         title = stringResource(R.string.calibration_pk_routes_card_title),
         onDismissRequest = onDismissRequest,
     ) {
-        val intro = stringResource(R.string.calibration_pk_routes_sheet_intro)
-        Text(
-            text = intro,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .cjkTextOffset(intro),
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        PkCalibrationRouteCards(uiState.routeRows.adjustedFirst)
-    }
-}
-
-/** One segmented card per route, grouped by [HrtSection] without a header. */
-@Composable
-private fun PkCalibrationRouteCards(rows: List<PkCalibrationRouteRowUiState>) {
-    HrtSection(title = null) {
-        rows.forEach { row ->
-            item { PkCalibrationRouteCard(row) }
+        val (adjusted, population) = uiState.routeRows.partition { row -> row.displayState.isAdjusted }
+        if (adjusted.isNotEmpty()) {
+            HrtSection(title = stringResource(R.string.calibration_pk_hero_adjusted), topPadding = false) {
+                adjusted.forEach { row ->
+                    item {
+                        PkCalibrationRouteCard(
+                            row = row,
+                            reviewCount = reviewCounts[row.route] ?: 0,
+                            onOpenReview = onOpenReview,
+                        )
+                    }
+                }
+            }
+        }
+        if (population.isNotEmpty()) {
+            HrtSection(
+                title = stringResource(R.string.calibration_pk_hero_population),
+                topPadding = adjusted.isNotEmpty(),
+            ) {
+                population.forEach { row ->
+                    item { PkCalibrationRouteCard(row = row, reviewCount = 0, onOpenReview = { }) }
+                }
+            }
         }
     }
 }
 
 /**
  * Route card: tile, name, supporting line (labs + confidence, or the
- * population tag), trailing state. Adjusted routes carry a note with every
- * warning the fit raised (warn-only: the adjustment applies regardless) and
- * the suggested next step.
+ * population tag). Adjusted routes add one short warning line (the
+ * adjustment applies regardless) and a link to results to check; an outlier
+ * is represented by that link, not by a warning.
  */
 @Composable
-private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
+private fun PkCalibrationRouteCard(
+    row: PkCalibrationRouteRowUiState,
+    reviewCount: Int,
+    onOpenReview: () -> Unit,
+) {
     val adjusted = row.displayState.isAdjusted
     EditorSegmentedListItem(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -217,22 +243,7 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
                         fontWeight = FontWeight.Normal,
                         modifier = Modifier.cjkTextOffset(name),
                     )
-                    val labs = pluralStringResource(
-                        R.plurals.calibration_pk_supporting_lab_count,
-                        row.supportingLabCount,
-                        row.supportingLabCount,
-                    )
-                    val meta = when {
-                        !adjusted -> row.displayState.tagRes?.let { tag -> stringResource(tag) }
-                        row.confidence != null -> stringResource(
-                            R.string.calibration_pk_route_meta_confidence,
-                            labs,
-                            stringResource(row.confidence.labelRes),
-                        )
-
-                        else -> labs
-                    }
-                    meta?.let {
+                    pkCalibrationRouteMeta(row)?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.bodyMedium,
@@ -241,55 +252,44 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
                         )
                     }
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (adjusted) {
-                        Text(
-                            text = stringResource(R.string.calibration_pk_chip_adjusted),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        row.confidence?.let { confidence -> PkCalibrationConfidenceBars(confidence) }
-                    } else {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_group),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = stringResource(R.string.calibration_pk_route_label_population),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                row.confidence?.let { confidence -> PkCalibrationConfidenceBars(confidence) }
             }
-            if (adjusted) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            // Aligns under the name (tile 34 + gap 12).
+            val indent = Modifier.padding(start = 46.dp)
+            val warnings = row.reasons
+                .filterNot { reason -> reason == PkCalibrationReason.UNREVIEWED_OUTLIER }
+                .map { reason -> stringResource(reason.labelRes) }
+            if (adjusted && warnings.isNotEmpty()) {
+                PkCalibrationNoteRow(
+                    iconRes = R.drawable.ic_error_outline,
+                    text = warnings.joinToString(" · "),
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = indent.padding(top = 8.dp),
+                )
+            }
+            if (adjusted && reviewCount > 0) {
+                val link = pluralStringResource(R.plurals.calibration_pk_review_count, reviewCount, reviewCount)
+                Row(
+                    modifier = indent
+                        .padding(top = 4.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable(onClick = onOpenReview)
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    row.reasons.forEach { reason ->
-                        PkCalibrationNoteRow(
-                            iconRes = R.drawable.ic_error_outline,
-                            text = stringResource(reason.detailRes),
-                            tint = MaterialTheme.colorScheme.tertiary,
-                        )
-                    }
-                    row.displayState.nextStepRes?.let { nextStep ->
-                        PkCalibrationNoteRow(
-                            iconRes = R.drawable.ic_check_circle,
-                            text = stringResource(nextStep),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+                    Text(
+                        text = link,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.cjkTextOffset(link),
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }
@@ -297,92 +297,122 @@ private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
 }
 
 // ---------------------------------------------------------------------------
-// Coaching sheet
+// Review queue sheet
 // ---------------------------------------------------------------------------
 
+/** One card per lab that needs review; the caller renders each lab row. */
 @Composable
-fun PkCalibrationCoachingSheet(onDismissRequest: () -> Unit) {
+fun PkCalibrationReviewSheet(
+    count: Int,
+    onDismissRequest: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     PkCalibrationSheet(
-        title = stringResource(R.string.calibration_pk_coaching_row_title),
+        title = pluralStringResource(R.plurals.calibration_pk_review_count, count, count),
         onDismissRequest = onDismissRequest,
-    ) {
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_schedule,
-            titleRes = R.string.calibration_pk_coaching_time_title,
-            bodyRes = R.string.calibration_pk_coaching_time_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_history,
-            titleRes = R.string.calibration_pk_coaching_history_title,
-            bodyRes = R.string.calibration_pk_coaching_history_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_experiment,
-            titleRes = R.string.calibration_pk_coaching_assay_title,
-            bodyRes = R.string.calibration_pk_coaching_assay_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_labs,
-            titleRes = R.string.calibration_pk_coaching_variety_title,
-            bodyRes = R.string.calibration_pk_coaching_variety_body,
-        )
-        PkCalibrationSheetNote(R.string.calibration_pk_coaching_safety_note)
-    }
+        confirmButtonText = stringResource(R.string.journal_done),
+        content = content,
+    )
 }
 
 // ---------------------------------------------------------------------------
 // How-it-works sheet
 // ---------------------------------------------------------------------------
 
+/**
+ * Two full-height pages: what lab adjustment is, then how to help a route
+ * calibrate. Next advances, Back returns, Finish (last page) dismisses.
+ */
 @Composable
 fun PkCalibrationEduSheet(onDismissRequest: () -> Unit) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+    val lastPage = page == 1
     PkCalibrationSheet(
-        title = stringResource(R.string.calibration_pk_edu_title),
+        title = stringResource(
+            if (lastPage) R.string.calibration_pk_coaching_row_title else R.string.calibration_pk_edu_title
+        ),
         onDismissRequest = onDismissRequest,
-        disclaimerKinds = listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT),
+        disclaimerKinds = if (lastPage) emptyList() else listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT),
+        fillAvailableHeight = true,
+        confirmButtonText = stringResource(
+            if (lastPage) R.string.calibration_pk_edu_finish else R.string.calibration_pk_edu_next
+        ),
+        onConfirm = if (lastPage) null else ({ page = 1 }),
+        secondaryButtonText = if (lastPage) stringResource(R.string.calibration_pk_edu_back) else null,
+        onSecondary = if (lastPage) ({ page = 0 }) else null,
     ) {
-        val intro = stringResource(R.string.calibration_pk_edu_intro)
-        Text(
-            text = intro,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .cjkTextOffset(intro),
-        )
-        PkCalibrationEduHeader(R.string.calibration_pk_edu_does_header)
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_tune,
-            titleRes = R.string.calibration_pk_edu_does_routes_title,
-            bodyRes = R.string.calibration_pk_edu_does_routes_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_labs,
-            titleRes = R.string.calibration_pk_edu_does_band_title,
-            bodyRes = R.string.calibration_pk_edu_does_band_body,
-        )
-        PkCalibrationEduHeader(R.string.calibration_pk_edu_doesnt_header)
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_block,
-            titleRes = R.string.calibration_pk_edu_doesnt_measure_title,
-            bodyRes = R.string.calibration_pk_edu_doesnt_measure_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_block,
-            titleRes = R.string.calibration_pk_edu_doesnt_verify_title,
-            bodyRes = R.string.calibration_pk_edu_doesnt_verify_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_block,
-            titleRes = R.string.calibration_pk_edu_doesnt_learn_title,
-            bodyRes = R.string.calibration_pk_edu_doesnt_learn_body,
-        )
-        PkCalibrationSheetItem(
-            iconRes = R.drawable.ic_block,
-            titleRes = R.string.calibration_pk_edu_doesnt_advise_title,
-            bodyRes = R.string.calibration_pk_edu_doesnt_advise_body,
-        )
+        if (lastPage) PkCalibrationCoachingPage() else PkCalibrationEduPage()
     }
+}
+
+@Composable
+private fun PkCalibrationEduPage() {
+    val intro = stringResource(R.string.calibration_pk_edu_intro)
+    Text(
+        text = intro,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .cjkTextOffset(intro),
+    )
+    PkCalibrationEduHeader(R.string.calibration_pk_edu_does_header)
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_tune,
+        titleRes = R.string.calibration_pk_edu_does_routes_title,
+        bodyRes = R.string.calibration_pk_edu_does_routes_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_labs,
+        titleRes = R.string.calibration_pk_edu_does_band_title,
+        bodyRes = R.string.calibration_pk_edu_does_band_body,
+    )
+    PkCalibrationEduHeader(R.string.calibration_pk_edu_doesnt_header)
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_block,
+        titleRes = R.string.calibration_pk_edu_doesnt_measure_title,
+        bodyRes = R.string.calibration_pk_edu_doesnt_measure_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_block,
+        titleRes = R.string.calibration_pk_edu_doesnt_verify_title,
+        bodyRes = R.string.calibration_pk_edu_doesnt_verify_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_block,
+        titleRes = R.string.calibration_pk_edu_doesnt_learn_title,
+        bodyRes = R.string.calibration_pk_edu_doesnt_learn_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_block,
+        titleRes = R.string.calibration_pk_edu_doesnt_advise_title,
+        bodyRes = R.string.calibration_pk_edu_doesnt_advise_body,
+    )
+}
+
+@Composable
+private fun PkCalibrationCoachingPage() {
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_schedule,
+        titleRes = R.string.calibration_pk_coaching_time_title,
+        bodyRes = R.string.calibration_pk_coaching_time_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_history,
+        titleRes = R.string.calibration_pk_coaching_history_title,
+        bodyRes = R.string.calibration_pk_coaching_history_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_experiment,
+        titleRes = R.string.calibration_pk_coaching_assay_title,
+        bodyRes = R.string.calibration_pk_coaching_assay_body,
+    )
+    PkCalibrationSheetItem(
+        iconRes = R.drawable.ic_labs,
+        titleRes = R.string.calibration_pk_coaching_variety_title,
+        bodyRes = R.string.calibration_pk_coaching_variety_body,
+    )
+    PkCalibrationSheetNote(R.string.calibration_pk_coaching_safety_note)
 }
 
 @Composable
@@ -408,7 +438,11 @@ private fun PkCalibrationRouteCardPreview() {
     )
     HrtTrackerTheme(dynamicColor = false) {
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-            PkCalibrationRouteCards(rows)
+            HrtSection(title = null) {
+                rows.forEachIndexed { index, row ->
+                    item { PkCalibrationRouteCard(row = row, reviewCount = index, onOpenReview = { }) }
+                }
+            }
         }
     }
 }

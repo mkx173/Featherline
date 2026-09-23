@@ -46,7 +46,6 @@
     <string name="main_e2_no_last_dose">还没有记录</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">血药浓度为模型估算值，WPATH SOC-8 目标范围仅作参考；二者并非实测值或医疗建议，您的目标范围可能不同</string>
     <string name="medical_disclaimer_preset_doses">预设剂量为参考值，不构成医疗建议，用药安全取决于检查结果、合并用药、既往病史以及医生的监督</string>
-    <string name="medical_disclaimer_reference_ranges">目标范围仅作通用指引，不构成医疗建议——您的目标范围可能因治疗方案而异</string>
     <string name="medical_disclaimer_wpath_reference_ranges">目标范围基于 WPATH 第八版照护标准（SOC-8），仅作通用指引，不构成医疗建议——您的目标范围可能因治疗方案而异</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血药浓度数值为基于服药记录的模型估算值，并非实测值</string>
     <string name="main_antiandrogen_title">抗雄激素</string>
@@ -693,7 +692,7 @@
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>
     </plurals>
-    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 目标范围</string>
+    <string name="settings_calibration_target_ranges_title">目标范围</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
@@ -1040,19 +1039,10 @@
     <string name="calibration_pk_global_numeric_failure_body">有一项计算未能完成，因此保留了群体估算。请在数据或模型更新后重试。</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
-    <string name="calibration_pk_route_label_population">群体估算</string>
     <string name="calibration_pk_route_tag_no_supporting_labs">暂无检测信号</string>
     <string name="calibration_pk_route_tag_numeric_failure">调整不可用</string>
-    <string name="calibration_pk_reason_scale_outside_usual_range">该途径推算出的调整超出其通常范围，或者是仅由少于三条支持性结果支撑的较大调整。请检查检测和治疗记录。</string>
-    <string name="calibration_pk_route_next_provisional">补充在更多不同时间采集的检测</string>
-    <string name="calibration_pk_route_next_calibrated">保持记录及时更新</string>
 
     <!-- Route-isolated E2 calibration (PK) — reason details (§5.4) -->
-    <string name="calibration_pk_reason_uncertain">该途径的调整仍不确定：后验分布较宽，或可用结果处于相近的模型信号水平。</string>
-    <string name="calibration_pk_reason_residual_fit_poor">此途径对您检测结果的拟合较差，显示的调整可能不可靠。</string>
-    <string name="calibration_pk_reason_posterior_mode_ambiguous">结果支持不止一种可能的调整；当前显示拟合最好的一种。</string>
-    <string name="calibration_pk_reason_unreviewed_outlier">一条被标记的结果与该途径的调整不一致。请复查该结果；如果不可比，请将其排除。</string>
-    <string name="calibration_pk_reason_no_supporting_labs">没有检测结果的信号主要来自该途径，因此其调整大多沿用群体先验。</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">群体估算</string>
@@ -1064,24 +1054,18 @@
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">检测调整</string>
     <string name="calibration_pk_status_population_title">正在使用群体估算</string>
-    <string name="calibration_pk_status_population_body">尚无可用的检测结果涉及任何途径。当前显示的是与所有人相同的模型曲线。</string>
     <string name="calibration_pk_status_adjusted_title">已按检测调整的治疗估算</string>
-    <string name="calibration_pk_status_adjusted_body">已根据您的检测结果对%1$s进行调整；其余途径使用群体估算。这仍是估算值而非实测值。</string>
     <string name="calibration_pk_retry">重试</string>
     <string name="calibration_pk_routes_card_title">途径调整</string>
     <string name="calibration_pk_routes_card_adjusted_of">%1$d/%2$d 个途径已调整</string>
-    <string name="calibration_pk_chip_adjusted">已调整</string>
     <string name="calibration_pk_confidence_low">低</string>
     <string name="calibration_pk_confidence_medium">中等</string>
     <string name="calibration_pk_confidence_high">高</string>
     <string name="calibration_pk_route_meta_confidence">%1$s · 置信度%2$s</string>
     <string name="calibration_pk_coaching_row_title">帮助途径完成校准</string>
-    <string name="calibration_pk_coaching_row_subtitle">让检测调整更精准的建议</string>
-    <string name="calibration_pk_disclaimer_row_subtitle">检测调整是什么，不是什么</string>
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">知道了</string>
-    <string name="calibration_pk_routes_sheet_intro">每一条可用的检测结果都会按照采样时该途径提供的模型信号比例，参与各个途径的调整。</string>
     <string name="calibration_pk_coaching_time_title">记录实际采样时间</string>
     <string name="calibration_pk_coaching_time_body">请填写标本采集的时间，而不是您记录的时间。</string>
     <string name="calibration_pk_coaching_history_title">保持用药记录准确</string>
@@ -1130,4 +1114,24 @@
     <string name="calibration_pk_band_legend">68% / 95% 范围</string>
     <string name="calibration_pk_band_a11y_summary">中心线由受支持途径的检测调整贡献与其余途径的群体估算贡献组合而成。阴影区域表示模型可能产生的检测值的大致范围，包含途径调整的不确定性和正常的结果波动。</string>
 
+
+    <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
+    <string name="calibration_pk_lab_accept">没问题</string>
+    <string name="calibration_pk_lab_accepted_body">你已核对此结果，它仍用于调整。</string>
+    <string name="calibration_pk_lab_show_review">撤销</string>
+    <string name="calibration_pk_status_info_hint">这是估算，不是测量结果。轻触了解工作原理。</string>
+    <plurals name="calibration_pk_review_count">
+        <item quantity="other">%d 项结果待核对</item>
+    </plurals>
+    <string name="calibration_pk_reason_short_scale">调整幅度异常大</string>
+    <string name="calibration_pk_reason_short_uncertain">仍不确定</string>
+    <string name="calibration_pk_reason_short_fit">与你的结果拟合较差</string>
+    <string name="calibration_pk_reason_short_ambiguous">可能有多种调整</string>
+    <string name="calibration_pk_reason_short_outlier">有结果不一致</string>
+    <string name="calibration_pk_lab_chip_check">待核对</string>
+    <string name="calibration_pk_lab_chip_excluded">已排除</string>
+    <string name="calibration_pk_lab_chip_not_used">未使用</string>
+    <string name="calibration_pk_edu_next">下一步</string>
+    <string name="calibration_pk_edu_back">返回</string>
+    <string name="calibration_pk_edu_finish">完成</string>
 </resources>

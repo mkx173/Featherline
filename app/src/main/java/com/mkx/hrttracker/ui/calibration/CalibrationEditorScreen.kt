@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,6 +72,7 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -126,6 +128,13 @@ fun CalibrationEditorScreen(
     var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
     val saveEntryFailureMessage =
         stringResource(R.string.settings_calibration_save_entry_failure)
+    val pkReviewFailureMessage = stringResource(R.string.calibration_pk_review_action_rejected)
+    LaunchedEffect(uiState.pkReviewFailed) {
+        if (uiState.pkReviewFailed) {
+            Toast.makeText(context, pkReviewFailureMessage, Toast.LENGTH_SHORT).show()
+            viewModel.consumePkReviewFailure()
+        }
+    }
     val deleteEntryFailureMessage =
         stringResource(R.string.settings_calibration_delete_entry_failure)
     val crossZoneSavedFormat = stringResource(R.string.cross_timezone_saved_toast)
@@ -143,7 +152,7 @@ fun CalibrationEditorScreen(
     // Locks top-level navigation chrome while a save/delete is being written
     // and until the exit pop fires. Loading deliberately does not lock.
     NavigationLockEffect(
-        active = uiState.isSaving || uiState.isDeleting ||
+        active = uiState.isUpdatingPkReview || uiState.isSaving || uiState.isDeleting ||
                 uiState.isSaved || uiState.isDeleted,
     )
 
@@ -256,6 +265,9 @@ fun CalibrationEditorScreen(
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onNotesCommit = viewModel::updateNotes,
+        onPkAcceptLab = viewModel::acceptPkLab,
+        onPkExcludeLab = viewModel::excludePkLab,
+        onPkReincludeLab = viewModel::reincludePkLab,
         onBuiltinAnalyteValueChange = viewModel::updateAnalyteValue,
         onCustomAnalyteValueChange = viewModel::updateCustomAnalyteValue,
         onBuiltinAnalyteUnitChange = viewModel::updateAnalyteUnit,
@@ -318,6 +330,9 @@ private fun CalibrationEditorScreenContent(
     onDeleteClick: () -> Unit,
     onSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onPkAcceptLab: (UUID) -> Unit = {},
+    onPkExcludeLab: (UUID) -> Unit = {},
+    onPkReincludeLab: (UUID) -> Unit = {},
 ) {
     val addAnalyteOptions = remember(uiState.drafts, uiState.customAnalytes) {
         calibrationAddAnalyteOptions(uiState)
@@ -544,6 +559,26 @@ private fun CalibrationEditorScreenContent(
                                 },
                                 onNotesCommit = { onNotesCommit(notesDraft) },
                             )
+                        }
+                    }
+
+                    // Same note and actions as the review queue; the value field
+                    // above is the correction path, so no Correct button here.
+                    uiState.pkReviewFlag?.let { flag ->
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                        HrtSection(title = stringResource(R.string.calibration_pk_section_title)) {
+                            item {
+                                EditorSegmentedListItem(contentPadding = PaddingValues(12.dp)) {
+                                    PkCalibrationLabRowFooter(
+                                        flag = flag,
+                                        onCorrect = null,
+                                        onExclude = { onPkExcludeLab(flag.resultId) },
+                                        onReinclude = { onPkReincludeLab(flag.resultId) },
+                                        onAccept = { onPkAcceptLab(flag.resultId) },
+                                        enabled = !isCalibrationEditorBusy(uiState),
+                                    )
+                                }
+                            }
                         }
                     }
 
