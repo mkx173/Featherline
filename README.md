@@ -13,7 +13,7 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
-Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
+Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English, Simplified Chinese, Traditional Chinese, and Cantonese.
 
 > ⚠️ **Not medical advice.** Featherline is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
 
@@ -42,7 +42,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
 - Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
 - No accounts, no telemetry, no network calls — everything stays on device
-- English and Simplified Chinese
+- English, Simplified Chinese, Traditional Chinese, and Cantonese
 - Material 3 with dynamic color
 
 ## Screenshots
