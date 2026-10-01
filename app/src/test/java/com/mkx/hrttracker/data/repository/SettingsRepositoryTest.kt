@@ -68,6 +68,26 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `medication day start persists minutes and defaults to midnight`() = runTest(testDispatcher) {
+        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
+        settingsRepository.setMedicationDayStartMinutes(270)
+        assertEquals(270, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
+        settingsRepository.setMedicationDayStartMinutes(0)
+        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
+    }
+
+    @Test
+    fun `invalid stored medication day start falls back to midnight`() = runTest(testDispatcher) {
+        dataStore.edit { it[androidx.datastore.preferences.core.intPreferencesKey("medication_day_start_minutes")] = 1440 }
+        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `medication day start rejects invalid minutes`() = runTest(testDispatcher) {
+        settingsRepository.setMedicationDayStartMinutes(-1)
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits updated value after setHomeE2DisplayUnit`() =
         runTest(testDispatcher) {
             val initial: AllowedAnalyteUnit = settingsRepository.homeE2DisplayUnitFlow.first()

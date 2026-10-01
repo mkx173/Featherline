@@ -44,9 +44,10 @@ fun buildPlanCalendarDayUiState(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val entriesByDate = entries.groupBy { entry ->
-        entry.planCalendarDate(zoneId)
+        entry.planCalendarDate(zoneId, dayStartMinutes)
     }
 
     val dayStates = linkedMapOf<LocalDate, PlanCalendarDayUiState>()
@@ -57,6 +58,8 @@ fun buildPlanCalendarDayUiState(
         val scheduledGroups = groups.scheduledGroupsForPlanDay(
             date = currentDate,
             entries = dayEntries,
+            dayStartMinutes = dayStartMinutes,
+            zoneId = zoneId,
         )
         val hasOffPlanRecord = dayEntries.any { entry ->
             isPlanOffPlanEntry(
@@ -64,6 +67,7 @@ fun buildPlanCalendarDayUiState(
                 scheduledGroups = scheduledGroups,
                 date = currentDate,
                 zoneId = zoneId,
+                dayStartMinutes = dayStartMinutes,
             )
         }
         val scheduledSlotsByGroup = scheduledGroups.associateWith { group ->
@@ -73,6 +77,7 @@ fun buildPlanCalendarDayUiState(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+                dayStartMinutes = dayStartMinutes,
             )
         }
         val expectedOccurrenceCount = scheduledSlotsByGroup.values.sumOf { slots -> slots.size }

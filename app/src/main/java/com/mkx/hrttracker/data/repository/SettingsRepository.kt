@@ -104,6 +104,7 @@ class SettingsRepository @Inject constructor(
     private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
+    private val medicationDayStartKey = intPreferencesKey("medication_day_start_minutes")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
@@ -353,6 +354,11 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setMedicationDayStartMinutes(minutes: Int) {
+        require(minutes in 0..1439)
+        activeDataStore().edit { preferences -> preferences[medicationDayStartKey] = minutes }
+    }
+
     suspend fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
         activeDataStore().edit { preferences ->
             if (option == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
@@ -454,7 +460,9 @@ class SettingsRepository @Inject constructor(
         stockNudgeEnabled: Boolean = true,
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
+        medicationDayStartMinutes: Int = 0,
     ) {
+        require(medicationDayStartMinutes in 0..1439)
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
         }
@@ -499,6 +507,7 @@ class SettingsRepository @Inject constructor(
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
             preferences[groupNameCounterKey] = groupNameCounter
+            preferences[medicationDayStartKey] = medicationDayStartMinutes
 
             if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
                 preferences.remove(firstDayOfWeekKey)
@@ -558,6 +567,7 @@ class SettingsRepository @Inject constructor(
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
+            medicationDayStartMinutes = preferences[medicationDayStartKey]?.takeIf { it in 0..1439 } ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
     }

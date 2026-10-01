@@ -12,6 +12,15 @@ class BackupSnapshotJsonCodecTest {
     // path must still extract `snapshotVersion` so the restore flow can raise
     // the intended unsupported-version error.
     @Test
+    fun roundTrip_preservesMedicationDayBoundaryAndOldBackupsDefaultToMidnight() {
+        val snapshot = baselineSnapshot().let { it.copy(settings = it.settings.copy(medicationDayStartMinutes = 270)) }
+        val json = BackupSnapshotJsonCodec.encode(snapshot)
+        assertEquals(270, BackupSnapshotJsonCodec.decode(json)!!.settings.medicationDayStartMinutes)
+        val legacyJson = json.replace("\"medicationDayStartMinutes\":270,", "")
+        assertEquals(0, BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayStartMinutes)
+    }
+
+    @Test
     fun peekSnapshotVersion_extractsVersionFromV1ShapeMissingMedicines() {
         val v1Json = """
             {

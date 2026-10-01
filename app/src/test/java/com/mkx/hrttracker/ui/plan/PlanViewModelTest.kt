@@ -70,6 +70,24 @@ class PlanViewModelTest {
     }
 
     @Test
+    fun medicationBoundaryAndSettingChangesUpdateImplicitDayWhileUnsubscribed() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 10, 2, 4, 59)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        val settings = MutableStateFlow(SettingsState(medicationDayStartMinutes = 300))
+        every { settingsRepository.settingsState } returns settings
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val viewModel = PlanViewModel(medicationGroupRepository, medicationLogRepository, settingsRepository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.daySchedule.date)
+        settings.value = settings.value.copy(medicationDayStartMinutes = 330)
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
+    }
+
+    @Test
     fun clockTickAcrossWeekBoundary_withoutSelectionMovesImplicitDisplayToToday() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 23, 59))
         every { medicationGroupRepository.observeGroups() } returns flowOf(

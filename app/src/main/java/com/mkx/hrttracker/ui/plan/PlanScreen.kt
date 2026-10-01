@@ -248,6 +248,7 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
+            dayStartMinutes = uiState.medicationDayStartMinutes,
         )
     } else {
         uiState.daySchedule

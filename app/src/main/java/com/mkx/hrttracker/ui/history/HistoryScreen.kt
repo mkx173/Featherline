@@ -130,12 +130,13 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.formatEntryWallTime
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.medicationDayTimeText
 import com.swmansion.kmpwheelpicker.WheelPicker
 import com.swmansion.kmpwheelpicker.WheelPickerState
 import com.swmansion.kmpwheelpicker.rememberWheelPickerState
@@ -495,6 +496,7 @@ private fun HistoryScreenContent(
         uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
+        uiState.medicationDayStartMinutes,
     ) {
         dayStateMonthRanges.fold(linkedMapOf<LocalDate, HistoryCalendarDayUiState>()) { dayStates, range ->
             dayStates.apply {
@@ -504,29 +506,32 @@ private fun HistoryScreenContent(
                         entries = uiState.entries,
                         startDate = range.startMonth.atDay(1),
                         endDate = range.endMonth.atEndOfMonth(),
+                        dayStartMinutes = uiState.medicationDayStartMinutes,
                     )
                 )
             }
         }
     }
-    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today) {
+    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayStartMinutes) {
         buildHistoryMonthSummary(
             entries = uiState.entries,
             displayedMonth = displayedMonth.yearMonth,
             dayStates = monthDayStates,
-            today = today
+            today = today,
+            dayStartMinutes = uiState.medicationDayStartMinutes,
         )
     }
     val visibleEntries =
-        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate) {
+        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.medicationDayStartMinutes) {
             buildHistoryVisibleEntries(
                 entries = uiState.entries,
                 displayedMonth = displayedMonth.yearMonth,
-                selectedDate = effectiveSelectedDate
+                selectedDate = effectiveSelectedDate,
+                dayStartMinutes = uiState.medicationDayStartMinutes,
             )
         }
-    val groupedEntries = remember(visibleEntries) {
-        groupHistoryEntriesByDate(visibleEntries)
+    val groupedEntries = remember(visibleEntries, uiState.medicationDayStartMinutes) {
+        groupHistoryEntriesByDate(visibleEntries, dayStartMinutes = uiState.medicationDayStartMinutes)
     }
     val visibleEntryIds = remember(visibleEntries) {
         visibleEntries.mapTo(linkedSetOf()) { entry -> entry.uuid }
@@ -1004,6 +1009,7 @@ private fun HistoryScreenContent(
                                     )
                                     HistoryEntryCardItem(
                                         entry = entry,
+                                        dayDate = date,
                                         timeFormatter = timeFormatter,
                                         groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                                         isFromArchivedGroup = entry.sourceGroupUuid != null &&
@@ -2196,6 +2202,7 @@ private fun historyIndicatorColor(
 internal fun HistoryEntryCardItem(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
+    dayDate: LocalDate = appliedAtAsLocalDateTime(entry).toLocalDate(),
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2209,6 +2216,7 @@ internal fun HistoryEntryCardItem(
     key(entry.uuid) {
         HistoryEntryCard(
             entry = entry,
+            dayDate = dayDate,
             timeFormatter = timeFormatter,
             groupColorKey = groupColorKey,
             isFromArchivedGroup = isFromArchivedGroup,
@@ -2228,6 +2236,7 @@ internal fun HistoryEntryCardItem(
 private fun HistoryEntryCard(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
+    dayDate: LocalDate = appliedAtAsLocalDateTime(entry).toLocalDate(),
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2296,7 +2305,7 @@ private fun HistoryEntryCard(
                     HistoryEntryCrossZoneIndicatorIcon()
                 }
                 Text(
-                    text = formatEntryWallTime(entry, timeFormatter, deviceZone),
+                    text = medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(entry, deviceZone), dayDate, timeFormatter),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
