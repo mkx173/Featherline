@@ -66,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -1853,6 +1854,7 @@ private fun HistoryCalendarDay(
 
     Box(
         modifier = modifier
+            .testTag("history_calendar_day_${day.date}")
             .aspectRatio(1f)
             .fillMaxWidth()
             .padding(2.dp)

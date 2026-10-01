@@ -56,20 +56,12 @@ private val Context.dataStore by preferencesDataStore(
 )
 
 @Singleton
-class SettingsRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class SettingsRepository internal constructor(
+    private val context: Context,
+    private val preferencesDataStore: DataStore<Preferences>,
 ) {
-    internal constructor(
-        context: Context,
-        dataStore: DataStore<Preferences>,
-    ) : this(context) {
-        storedPreferencesOverride = dataStore
-    }
-
-    // Null in production (activeDataStore() is used); set by the internal test constructor before
-    // storedPreferences is accessed.  Must be assigned before any flow property is first collected.
-    @Volatile
-    private var storedPreferencesOverride: DataStore<Preferences>? = null
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(context, context.dataStore)
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
@@ -108,8 +100,7 @@ class SettingsRepository @Inject constructor(
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
-    private fun activeDataStore(): DataStore<Preferences> =
-        storedPreferencesOverride ?: context.dataStore
+    private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
     // down the upstream combine. SupervisorJob protects sibling jobs but not the

@@ -159,4 +159,17 @@ in
         -n com.mkx.hrttracker.debug/com.mkx.hrttracker.MainActivity
     '';
   };
+
+  tasks."android:e2e" = {
+    description = "Start the project emulator and run end-to-end tests";
+    cwd = config.devenv.root;
+    after = [ "android:debug-run" ];
+    exec = ''
+      set -euo pipefail
+      export ANDROID_SERIAL="emulator-''${ANDROID_EMULATOR_PORT:-5554}"
+      exec ./gradlew connectedPlayDebugAndroidTest \
+        -Pandroid.testInstrumentationRunnerArguments.package=com.mkx.hrttracker.e2e \
+        --console=plain
+    '';
+  };
 }

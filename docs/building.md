@@ -36,6 +36,7 @@ Android development tasks are also available:
 devenv tasks run android:debug-build    # Produce the debug APK
 devenv tasks run android:debug-install  # Build, then install with adb
 devenv tasks run android:debug-run      # Build, start the emulator, install and launch
+devenv tasks run android:e2e            # Start the emulator and run E2E tests
 ```
 
 The APK is written to `app/build/outputs/apk/play/debug/`. Set `ANDROID_SERIAL`
@@ -45,6 +46,13 @@ RAM and SwiftShader rendering on first use and reuses it on later runs. These se
 are declared in `avdConfig` in `devenv.nix`. It uses port 5554 by default; set
 `ANDROID_EMULATOR_PORT` to another even port if needed.
 Emulator logs are saved to `.devenv/emulator.log`.
+
+`android:e2e` reuses `android:debug-run` and runs only the instrumented tests in
+`com.mkx.hrttracker.e2e`. Set `ANDROID_EMULATOR_PORT` to select a different project
+emulator. The suite resets the Debug app's database and configures its settings.
+It temporarily changes emulator time, timezone and time-format settings, then
+restores those device settings afterwards.
+See [testing.md](testing.md#end-to-end-tests) for coverage and reports.
 
 ## Quick start
 

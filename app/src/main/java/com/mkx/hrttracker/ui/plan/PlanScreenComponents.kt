@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -227,7 +228,7 @@ internal fun LazyListScope.selectedDaySectionItems(
                 key = selectedDayRowKey(row),
                 contentType = "selected-day-row"
             ) {
-                Column {
+                Column(modifier = Modifier.testTag("plan_day_row")) {
                     Spacer(
                         modifier = Modifier.height(
                             dimensionResource(
