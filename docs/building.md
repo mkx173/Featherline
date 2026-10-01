@@ -9,6 +9,26 @@ How to build Featherline from source. The app lives in the `:app` Gradle module 
 - Android SDK with `compileSdk = 37` and `targetSdk = 37` available (`minSdk = 26`). Read from [`app/build.gradle.kts`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L34-L61).
 - Exact library and plugin versions live in [`gradle/libs.versions.toml`](https://github.com/mkx173/Featherline/blob/main/gradle/libs.versions.toml). Use this as the source of truth — never hand-edit version strings in `build.gradle.kts`.
 
+## Development environment with devenv
+
+With Nix and devenv installed, run:
+
+```bash
+devenv shell
+./gradlew testPlayDebugUnitTest
+./gradlew assemblePlayDebug
+```
+
+`devenv.nix` supplies JDK 17, Android SDK 37, build tools 36.0.0 and Git.
+`devenv.lock` pins the Nix inputs. Android Studio, emulators and the NDK are
+not installed by this shell. The Gradle wrapper remains the source of truth
+for the Gradle version; its dependency cache stays in `.devenv/gradle`.
+Android SDK licenses are accepted by devenv when the environment is built.
+
+You can also run `devenv shell test-unit` or `devenv shell build-debug` without
+entering an interactive shell. To inspect dependencies and configuration,
+use `devenv search android` or connect an MCP client to `devenv mcp`.
+
 ## Quick start
 
 ```bash
