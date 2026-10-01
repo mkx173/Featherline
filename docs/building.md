@@ -19,8 +19,9 @@ devenv shell
 ./gradlew assemblePlayDebug
 ```
 
-`devenv.nix` supplies JDK 17, Android SDK 37, build tools 36.0.0 and Git.
-`devenv.lock` pins the Nix inputs. Android Studio, emulators and the NDK are
+`devenv.nix` supplies JDK 17, Android SDK 37, build tools 36.0.0, Git and
+the Android emulator with an API 36 system image for the host architecture.
+`devenv.lock` pins the Nix inputs. Android Studio and the NDK are
 not installed by this shell. The Gradle wrapper remains the source of truth
 for the Gradle version; its dependency cache stays in `.devenv/gradle`.
 Android SDK licenses are accepted by devenv when the environment is built.
@@ -28,6 +29,22 @@ Android SDK licenses are accepted by devenv when the environment is built.
 You can also run `devenv shell test-unit` or `devenv shell build-debug` without
 entering an interactive shell. To inspect dependencies and configuration,
 use `devenv search android` or connect an MCP client to `devenv mcp`.
+
+Android development tasks are also available:
+
+```bash
+devenv tasks run android:debug-build    # Produce the debug APK
+devenv tasks run android:debug-install  # Build, then install with adb
+devenv tasks run android:debug-run      # Build, start the emulator, install and launch
+```
+
+The APK is written to `app/build/outputs/apk/play/debug/`. Set `ANDROID_SERIAL`
+for `android:debug-install` when multiple devices are connected. `android:debug-run`
+creates a project-local API 36 emulator with 8 GiB of internal storage, 3 GiB of
+RAM and SwiftShader rendering on first use and reuses it on later runs. These settings
+are declared in `avdConfig` in `devenv.nix`. It uses port 5554 by default; set
+`ANDROID_EMULATOR_PORT` to another even port if needed.
+Emulator logs are saved to `.devenv/emulator.log`.
 
 ## Quick start
 
