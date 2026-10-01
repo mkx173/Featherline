@@ -307,6 +307,7 @@ class BackupRestoreService @Inject constructor(
             hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
             firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+            medicationDayStartMinutes = validatedSnapshot.settings.medicationDayStartMinutes,
             stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
             stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
             homeCardLayout = validatedSnapshot.settings.homeCardLayout,
@@ -936,6 +937,7 @@ private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): Li
 private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
+    require(medicationDayStartMinutes in 0..1439) { "Invalid medication day start time." }
     val darkModeOption = requireEnumName<DarkModeOption>(
         darkModeOption,
         "dark mode option",
@@ -1011,6 +1013,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetAppearance = widgetAppearance,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
+        medicationDayStartMinutes = medicationDayStartMinutes,
         stockNudgeEnabled = stockNudgeEnabled,
         stockNudgeUserEnabled = stockNudgeUserEnabled,
         homeCardLayout = homeCardLayout,
@@ -1654,6 +1657,7 @@ internal data class ValidatedBackupSettings(
     val widgetAppearance: WidgetAppearance?,
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
+    val medicationDayStartMinutes: Int,
     val stockNudgeEnabled: Boolean,
     val stockNudgeUserEnabled: Boolean,
     val homeCardLayout: HomeCardLayout,

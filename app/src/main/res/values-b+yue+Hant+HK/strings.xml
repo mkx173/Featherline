@@ -1035,4 +1035,7 @@
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">呢個日期已經刪除</string>
 
+    <string name="settings_medication_day_start">用藥日分界時間</string>
+    <string name="settings_medication_day_start_summary">%1$s · 按呢個時間劃分用藥記錄同每日完成統計。</string>
+    <string name="medication_next_day_time">翌日 %1$s</string>
 </resources>

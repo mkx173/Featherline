@@ -31,6 +31,7 @@ import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
+import com.mkx.hrttracker.util.medicationDay
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -675,11 +676,13 @@ internal fun buildMainTodaySection(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): MainTodaySectionUiState {
-    val today = now.toLocalDate()
+    val today = medicationDay(now, dayStartMinutes)
     val entriesByUuid = entries.associateBy { it.uuid }
     val todayRows = buildMainTodayRowsForDate(
         date = today,
+        dayStartMinutes = dayStartMinutes,
         groups = groups,
         entries = entries,
         entriesByUuid = entriesByUuid,
@@ -707,6 +710,7 @@ internal fun buildMainLastNightSection(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): MainLastNightSectionUiState {
     if (!mainIsOvernightTime(now.toLocalTime())) {
         return MainLastNightSectionUiState()
@@ -723,7 +727,10 @@ internal fun buildMainLastNightSection(
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
+    ).filter { row ->
+        mainIsLastNightTime(row.scheduledAt.toLocalTime()) &&
+            medicationDay(row.scheduledAt, dayStartMinutes) != medicationDay(now, dayStartMinutes)
+    }
     val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
 
@@ -743,6 +750,7 @@ internal fun buildMainComingUpSection(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): MainComingUpSectionUiState {
     if (!mainIsEveningComingUpWindow(now.toLocalTime())) {
         return MainComingUpSectionUiState()
@@ -758,7 +766,10 @@ internal fun buildMainComingUpSection(
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    ).filter { row -> mainIsOvernightTime(row.scheduledAt.toLocalTime()) }
+    ).filter { row ->
+        mainIsOvernightTime(row.scheduledAt.toLocalTime()) &&
+            medicationDay(row.scheduledAt, dayStartMinutes) != medicationDay(now, dayStartMinutes)
+    }
     val rows = (comingUpRows.scheduledRows + comingUpRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
 
@@ -862,9 +873,11 @@ private fun buildMainTodayRowsForDate(
     zoneId: ZoneId,
     includeUnloggedArchivedSlots: Boolean,
     unloggedArchivedSlotCutoff: LocalDateTime?,
+    dayStartMinutes: Int = 0,
 ): MainTodayRowsForDate {
     val daySchedule = buildPlanDaySchedule(
         date = date,
+        dayStartMinutes = dayStartMinutes,
         groups = groups,
         entries = entries,
         now = now,
@@ -924,9 +937,7 @@ private fun buildMainTodayRowsForDate(
         )
     }
     val manualRows = daySchedule.unplannedEntries.map { entry ->
-        val appliedAt = entry.appliedAt
-            .atZone(zoneId)
-            .toLocalDateTime()
+        val appliedAt = appliedAtAsLocalDateTime(entry, zoneId)
 
         MainTodayDoseRowUiState(
             groupUuid = null,
@@ -984,16 +995,20 @@ internal fun buildMainUpcomingSection(
     now: LocalDateTime,
     lookaheadDays: Long = MainUpcomingLookaheadDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    dayStartMinutes: Int = 0,
 ): MainUpcomingSectionUiState {
-    val tomorrow = now.toLocalDate().plusDays(1)
+    val tomorrow = medicationDay(now, dayStartMinutes).plusDays(1)
     val shouldExcludeTomorrowOvernightRows = mainIsEveningComingUpWindow(now.toLocalTime())
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
         entries = entries,
-        zoneId = zoneId
+        zoneId = zoneId,
+        dayStartMinutes = dayStartMinutes,
     ).filterNot { row ->
-        shouldExcludeTomorrowOvernightRows && mainIsOvernightTime(row.scheduledAt.toLocalTime())
+        shouldExcludeTomorrowOvernightRows &&
+            row.scheduledAt.toLocalDate() == now.toLocalDate().plusDays(1) &&
+            mainIsOvernightTime(row.scheduledAt.toLocalTime())
     }
 
     if (tomorrowRows.isNotEmpty()) {
@@ -1011,7 +1026,8 @@ internal fun buildMainUpcomingSection(
             date = date,
             groups = groups,
             entries = entries,
-            zoneId = zoneId
+            zoneId = zoneId,
+            dayStartMinutes = dayStartMinutes,
         )
         if (upcomingRows.isNotEmpty()) {
             return MainUpcomingSectionUiState(
@@ -1035,9 +1051,11 @@ internal fun buildMainPreviewRowsForDate(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    dayStartMinutes: Int = 0,
 ): List<MainUpcomingDoseRowUiState> {
     return buildPlanDaySchedule(
         date = date,
+        dayStartMinutes = dayStartMinutes,
         groups = groups,
         entries = entries,
         now = date.atStartOfDay(),

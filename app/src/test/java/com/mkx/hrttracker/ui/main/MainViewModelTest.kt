@@ -81,6 +81,7 @@ class MainViewModelTest {
         Dispatchers.setMain(dispatcher)
         every { homeRepository.refreshHomeSnapshotAsync(any(), any(), any()) } returns Unit
         every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         every { settingsRepository.homeLowStockSectionExpandedFlow } returns MutableStateFlow(true)
         every { settingsRepository.homeLowStockAcknowledgedWarningStatesFlow } returns MutableStateFlow(
             emptyMap()
@@ -94,6 +95,28 @@ class MainViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun medicationBoundaryUpdatesRetainedHomeDayWhileUnsubscribed() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 10, 2, 4, 59)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        val settings = SettingsState(medicationDayStartMinutes = 300)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = firstMinute).copy(settings = settings)
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository, settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource, defaultDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.todaySection.date)
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.todaySection.date)
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
     }
 
     @Test

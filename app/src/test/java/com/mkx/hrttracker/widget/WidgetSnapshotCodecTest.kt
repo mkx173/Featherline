@@ -100,6 +100,14 @@ class WidgetSnapshotCodecTest {
     )
 
     @Test
+    fun staleDateCheckUsesMedicationBoundary() {
+        val now = LocalDateTime.of(2026, 10, 2, 1, 0)
+        val record = baseRecord.copy(anchorDateEpochDay = now.toLocalDate().minusDays(1).toEpochDay())
+        assertFalse(record.isAnchoredBefore(now, 300))
+        assertTrue(record.isAnchoredBefore(now.withHour(5), 300))
+    }
+
+    @Test
     fun `codec round-trips a full record`() {
         val bytes = WidgetSnapshotCodec.encode(baseRecord)
         val decoded = WidgetSnapshotCodec.decode(bytes)

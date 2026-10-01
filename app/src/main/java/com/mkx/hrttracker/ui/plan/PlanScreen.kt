@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -248,6 +249,7 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
+            dayStartMinutes = uiState.medicationDayStartMinutes,
         )
     } else {
         uiState.daySchedule
@@ -806,6 +808,7 @@ private fun Day(
 
     Box(
         modifier = Modifier
+            .testTag("plan_calendar_day_$date")
             .fillMaxWidth()
             .padding(2.dp)
             .alpha(dayAlpha)

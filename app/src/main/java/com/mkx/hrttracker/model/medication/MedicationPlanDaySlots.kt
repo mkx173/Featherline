@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import com.mkx.hrttracker.util.atStoredZone
+import com.mkx.hrttracker.util.medicationDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -12,35 +13,42 @@ internal fun planCalendarDate(
     appliedAtEpochMillis: Long,
     appliedAtTimeZoneId: String,
     zoneId: ZoneId,
+    dayStartMinutes: Int = 0,
 ): LocalDate {
-    return scheduledForIso
-        ?.let(LocalDateTime::parse)
-        ?.toLocalDate()
-        ?: atStoredZone(
-            instant = Instant.ofEpochMilli(appliedAtEpochMillis),
-            storedTimeZoneId = appliedAtTimeZoneId,
-            deviceZone = zoneId,
-        ).toLocalDate()
+    val dateTime = scheduledForIso?.let(LocalDateTime::parse) ?: atStoredZone(
+        instant = Instant.ofEpochMilli(appliedAtEpochMillis),
+        storedTimeZoneId = appliedAtTimeZoneId,
+        deviceZone = zoneId,
+    )
+    return medicationDay(dateTime, dayStartMinutes)
 }
 
-internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
+internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId, dayStartMinutes: Int = 0): LocalDate {
     return planCalendarDate(
         scheduledForIso = scheduledFor?.toString(),
         appliedAtEpochMillis = appliedAt.toEpochMilli(),
         appliedAtTimeZoneId = appliedAtTimeZoneId,
         zoneId = zoneId,
+        dayStartMinutes = dayStartMinutes,
     )
 }
 
 internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(
     date: LocalDate,
     entries: List<MedicationLogEntry>,
+    dayStartMinutes: Int = 0,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MedicationGroup> {
     return filter { group ->
-        group.schedule.isScheduledOn(date) ||
+        val hasScheduledSlots = if (dayStartMinutes == 0) {
+            group.schedule.isScheduledOn(date)
+        } else {
+            group.scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).isNotEmpty()
+        }
+        hasScheduledSlots ||
                 entries.any { entry ->
                     entry.sourceGroupUuid == group.uuid &&
-                            entry.scheduledFor?.toLocalDate() == date &&
+                            entry.scheduledFor?.let { medicationDay(it, dayStartMinutes) } == date &&
                             group.hasMedicationSignatureFor(entry)
                 }
     }
@@ -51,10 +59,11 @@ internal fun isPlanOffPlanEntry(
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    dayStartMinutes: Int = 0,
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return true
     val scheduledFor = entry.scheduledFor ?: return true
-    if (scheduledFor.toLocalDate() != date) {
+    if (medicationDay(scheduledFor, dayStartMinutes) != date) {
         return true
     }
 
@@ -67,8 +76,9 @@ internal fun isPlanOffPlanEntry(
 internal fun MedicationGroup.scheduledTimesInPlanWindow(
     date: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    dayStartMinutes: Int = 0,
 ): List<LocalTime> {
-    return scheduledSlotsInPlanWindow(date, zoneId).map(MedicationGroupSlotKey::time)
+    return scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledTimesForPlanDay(
@@ -77,6 +87,7 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): List<LocalTime> {
     return scheduledSlotsForPlanDay(
         date = date,
@@ -84,16 +95,19 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+        dayStartMinutes = dayStartMinutes,
     ).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledSlotsInPlanWindow(
     date: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    dayStartMinutes: Int = 0,
 ): List<MedicationGroupSlotKey> {
-    return occurrencesBetweenInPlanWindow(date, date, zoneId).map { occurrence ->
-        occurrence.toMedicationGroupSlotKey()
-    }
+    val endDate = if (dayStartMinutes == 0) date else date.plusDays(1)
+    return occurrencesBetweenInPlanWindow(date, endDate, zoneId)
+        .filter { occurrence -> medicationDay(occurrence.scheduledFor, dayStartMinutes) == date }
+        .map { occurrence -> occurrence.toMedicationGroupSlotKey() }
 }
 
 internal fun MedicationGroup.scheduledSlotsForPlanDay(
@@ -102,8 +116,9 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): List<MedicationGroupSlotKey> {
-    val visibleSlots = scheduledSlotsInPlanWindow(date, zoneId).filter { slot ->
+    val visibleSlots = scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).filter { slot ->
         isArchivedUnloggedPlanSlotVisible(
             slotDateTime = slot.scheduledFor,
             includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
@@ -114,7 +129,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
         val scheduledFor = entry.scheduledFor ?: return@mapNotNull null
         if (
             entry.sourceGroupUuid == uuid &&
-            scheduledFor.toLocalDate() == date &&
+            medicationDay(scheduledFor, dayStartMinutes) == date &&
             hasMedicationSignatureFor(entry)
         ) {
             if (

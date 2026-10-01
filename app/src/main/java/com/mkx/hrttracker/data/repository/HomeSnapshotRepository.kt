@@ -840,7 +840,7 @@ class HomeSnapshotRepository @Inject constructor(
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),
-                    homeManualEndEpochMillis = today.plusDays(1)
+                    homeManualEndEpochMillis = today.plusDays(2)
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),
@@ -852,7 +852,7 @@ class HomeSnapshotRepository @Inject constructor(
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),
-                    bufferedManualEndEpochMillis = today.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS + 1)
+                    bufferedManualEndEpochMillis = today.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS + 2)
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),
@@ -932,7 +932,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
             "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 8
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

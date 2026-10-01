@@ -225,6 +225,7 @@ class BackupExportService @Inject constructor(
                 widgetAppearance = WidgetAppearanceCodec.encode(defaultAppearance),
                 groupNameCounter = settings.groupNameCounter,
                 firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
+                medicationDayStartMinutes = settings.medicationDayStartMinutes,
                 stockNudgeEnabled = stockNudgeEnabled,
                 stockNudgeUserEnabled = stockNudgeUserEnabled,
                 homeCardOrder = homeCardLayout.order.map { it.name },

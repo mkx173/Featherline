@@ -646,7 +646,7 @@ class HomeSnapshotRepositoryTest {
             manualStartEpochMillis.captured,
         )
         assertEquals(
-            anchorDate.plusDays(11).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            anchorDate.plusDays(12).atStartOfDay(zoneId).toInstant().toEpochMilli(),
             manualEndEpochMillis.captured,
         )
         assertEquals(
@@ -775,7 +775,7 @@ class HomeSnapshotRepositoryTest {
                 manualStartEpochMillis.captured,
             )
             assertEquals(
-                anchorDate.plusDays(11).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                anchorDate.plusDays(12).atStartOfDay(zoneId).toInstant().toEpochMilli(),
                 manualEndEpochMillis.captured,
             )
             assertEquals(zoneId.id, writtenSnapshot.captured.zoneId)

@@ -25,6 +25,7 @@ import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.tickWhileSubscribed
+import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -78,11 +79,11 @@ class MainViewModel @Inject constructor(
 
     private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
         currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
-            snapshot.minute.toLocalDate() to snapshot.zone
+            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, settingsRepository.settingsState.value.medicationDayStartMinutes), snapshot.zone)
         }
     private val gatedMinute: StateFlow<LocalDateTime> =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate()
+            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayStartMinutes)
         }
 
     init {
@@ -420,6 +421,7 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
+                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
             ),
             lastNightSection = buildMainLastNightSection(
                 groups = scheduleGroups,
@@ -428,6 +430,7 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
+                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
             ),
             comingUpSection = buildMainComingUpSection(
                 groups = scheduleGroups,
@@ -436,8 +439,10 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
+                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
             ),
             upcomingSection = buildMainUpcomingSection(
+                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
                 groups = inputs.activeGroups,
                 entries = homeEntries,
                 now = now,
