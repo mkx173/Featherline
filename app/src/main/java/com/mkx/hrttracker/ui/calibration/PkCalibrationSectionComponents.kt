@@ -172,8 +172,8 @@ private fun PkCalibrationStatusRow(
         !ready -> {
             iconRes = when (uiState.globalState) {
                 PkCalibrationGlobalState.NO_DOSE_HISTORY -> R.drawable.ic_medication
-                PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_labs
-                else -> R.drawable.ic_sync_alt
+                PkCalibrationGlobalState.NO_USABLE_LABS -> R.drawable.ic_add_chart
+                else -> R.drawable.ic_help
             }
             title = stringResource(requireNotNull(uiState.globalState.statusTitleRes))
             body = stringResource(requireNotNull(uiState.globalState.statusBodyRes))
@@ -182,7 +182,7 @@ private fun PkCalibrationStatusRow(
         // A joint-solve failure keeps READY (so the lab rows survive) but
         // every route is a numeric failure: same row as the global state.
         uiState.numericFailure -> {
-            iconRes = R.drawable.ic_sync_alt
+            iconRes = R.drawable.ic_help
             title = stringResource(
                 requireNotNull(PkCalibrationGlobalState.NUMERIC_FAILURE.statusTitleRes)
             )
@@ -192,17 +192,13 @@ private fun PkCalibrationStatusRow(
         }
 
         !adjusted -> {
-            iconRes = R.drawable.ic_labs
+            iconRes = R.drawable.ic_add_chart
             title = stringResource(R.string.calibration_pk_status_population_title)
             body = stringResource(R.string.calibration_pk_status_info_hint)
         }
 
         else -> {
-            iconRes = if (uiState.limitedConfidence) {
-                R.drawable.ic_experiment
-            } else {
-                R.drawable.ic_check_circle
-            }
+            iconRes = R.drawable.ic_experiment
             title = stringResource(R.string.calibration_pk_status_adjusted_title)
             body = stringResource(R.string.calibration_pk_status_info_hint)
         }
@@ -254,26 +250,27 @@ private fun PkCalibrationRouteSummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_tune),
+                    painter = painterResource(R.drawable.ic_route),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val title = stringResource(R.string.calibration_pk_routes_card_title)
+                val trailingText = stringResource(
+                    R.string.calibration_pk_routes_card_adjusted_of,
+                    rows.size,
+                    routeCount,
+                )
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
                         .weight(1f)
                         .cjkTextOffset(title),
                 )
                 Text(
-                    text = stringResource(
-                        R.string.calibration_pk_routes_card_adjusted_of,
-                        rows.size,
-                        routeCount,
-                    ),
+                    text = trailingText,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(trailingText),
                 )
                 PkCalibrationRowChevron()
             }
@@ -297,18 +294,11 @@ private fun PkCalibrationReviewEntry(
         title = pluralStringResource(R.plurals.calibration_pk_review_count, count, count),
         onClick = onClick,
         leading = {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.tertiaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_error_outline),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.size(18.dp),
+            // 32dp slot keeps the title in line with the route tiles above.
+            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                PkCalibrationRowIcon(
+                    R.drawable.ic_error_outline,
+                    tint = MaterialTheme.colorScheme.tertiary,
                 )
             }
         },
@@ -331,7 +321,13 @@ private fun PkCalibrationRouteSummaryCell(row: PkCalibrationRouteRowUiState) {
             )
         },
         trailing = row.confidence?.let { confidence ->
-            { PkCalibrationConfidenceBars(confidence) }
+            {
+                // Center in an icon-sized box so the bars line up with the
+                // review entry's chevron, whose glyph sits inset in its 24dp box.
+                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                    PkCalibrationConfidenceBars(confidence)
+                }
+            }
         },
     )
 }
