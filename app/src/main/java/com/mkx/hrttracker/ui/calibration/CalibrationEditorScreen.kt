@@ -452,7 +452,6 @@ private fun CalibrationEditorScreenContent(
                                 EditorSegmentedListItem(contentPadding = PaddingValues(4.dp)) {
                                     PkCalibrationLabRowFooter(
                                         flag = flag,
-                                        onCorrect = null,
                                         onExclude = { onPkExcludeLab(flag.resultId) },
                                         onReinclude = { onPkReincludeLab(flag.resultId) },
                                         onAccept = { onPkAcceptLab(flag.resultId) },

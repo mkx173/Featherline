@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.settings
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
-import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -46,7 +45,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import java.time.Clock
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
@@ -61,7 +59,6 @@ class CalibrationViewModelTest {
     private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
         every { liveState } returns MutableStateFlow<PkCalibrationLiveResult?>(PkCalibrationLiveResult(null))
     }
-    private val pkStorageRepository: PkCalibrationStorageRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
     private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
@@ -75,27 +72,10 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun acceptPkLab_persistsReviewPreferenceWithoutExcludingResult() = runTest {
-        every { repository.observePanels() } returns flowOf(emptyList())
-        coEvery { pkStorageRepository.saveMetadata(any()) } returns Unit
-        val now = Instant.parse("2026-09-23T06:00:00Z")
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository,
-            pkStorageRepository, Clock.fixed(now, ZoneId.of("UTC")), PkCalibrationUiFixtureBridge())
-        val resultId = UUID.randomUUID()
-        viewModel.acceptPkLab(resultId)
-        advanceUntilIdle()
-        coVerify(exactly = 1) {
-            pkStorageRepository.saveMetadata(com.mkx.hrttracker.model.pk.E2CalibrationMetadata(
-                resultId, com.mkx.hrttracker.model.pk.E2CalibrationDisposition.REVIEWED, now,
-            ))
-        }
-    }
-
-    @Test
     fun pkIntroSeen_surfacesTheStoredFlag_andMarkingPersistsIt() = runTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { settingsRepository.setPkCalibrationIntroSeen(true) } returns Unit
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
         val collector = backgroundScope.launch { viewModel.pkIntroSeen.collect() }
         advanceUntilIdle()
         assertEquals(false, viewModel.pkIntroSeen.value)
@@ -127,7 +107,7 @@ class CalibrationViewModelTest {
         val panel = testBloodTestPanel()
         every { repository.observePanels() } returns flowOf(listOf(panel))
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
         advanceUntilIdle()
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
@@ -142,7 +122,7 @@ class CalibrationViewModelTest {
         every { repository.getCachedPanels() } returns listOf(cachedPanel)
         every { repository.observePanels() } returns MutableSharedFlow<List<BloodTestPanel>>()
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
 
         assertEquals(listOf(cachedPanel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
@@ -159,7 +139,7 @@ class CalibrationViewModelTest {
         val flow = MutableStateFlow(listOf(initialPanel))
         every { repository.observePanels() } returns flow
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
         advanceUntilIdle()
         assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
 
@@ -175,7 +155,7 @@ class CalibrationViewModelTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { repository.deleteAllPanels() } returns Unit
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, pkStorageRepository, Clock.systemUTC(), PkCalibrationUiFixtureBridge())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
         advanceUntilIdle()
 
         viewModel.deleteAllCalibrationEntries()

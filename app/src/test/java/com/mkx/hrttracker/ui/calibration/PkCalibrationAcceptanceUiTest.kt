@@ -59,7 +59,6 @@ class PkCalibrationAcceptanceUiTest {
                             pkFooter = {
                                 PkCalibrationLabRowFooter(
                                     flag = flag,
-                                    onCorrect = null,
                                     onExclude = { },
                                     onReinclude = { },
                                     onAccept = { flag = PkCalibrationLabRowFlag.Accepted(resultId) },
@@ -84,7 +83,7 @@ class PkCalibrationAcceptanceUiTest {
         composeRule.onNodeWithContentDescription(check).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_dismiss)).performClick()
 
-        composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_outlier_title)).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_dismiss)).assertDoesNotExist()
         composeRule.onNodeWithContentDescription(check).assertDoesNotExist()
         assertEquals(0, editorOpens)
         composeRule.onNodeWithText(panel.results.first().value.let { "%.0f".format(Locale.US, it) }, substring = true)

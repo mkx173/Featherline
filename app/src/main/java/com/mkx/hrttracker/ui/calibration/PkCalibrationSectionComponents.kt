@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.takeOrElse
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
@@ -489,15 +491,64 @@ internal fun PkCalibrationConfidenceBars(
 }
 
 /**
- * Review note for one E2 result, shared by the review queue (under the lab
- * row) and the result editor so both offer the same actions. Value
- * correction rides the existing lab-edit path via [onCorrect]; null hides it
- * where the value field is already on screen.
+ * One-line review state under a queue row: why it needs a look, or what the
+ * user did in the editor. Null [flag] means an edit cleared the warning.
+ */
+@Composable
+internal fun PkCalibrationReviewSummary(
+    flag: PkCalibrationLabRowFlag?,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val (iconRes, text) = when (flag) {
+        null -> R.drawable.ic_check_circle to stringResource(R.string.calibration_pk_review_summary_updated)
+        is PkCalibrationLabRowFlag.Accepted ->
+            R.drawable.ic_check_circle to stringResource(R.string.calibration_pk_review_summary_accepted)
+        is PkCalibrationLabRowFlag.Excluded -> if (flag.dismissed) {
+            R.drawable.ic_check_circle to stringResource(R.string.calibration_pk_review_summary_dismissed)
+        } else {
+            R.drawable.ic_block to stringResource(R.string.calibration_pk_review_summary_excluded)
+        }
+        is PkCalibrationLabRowFlag.UnreviewedOutlier -> R.drawable.ic_error_outline to stringResource(
+            R.string.calibration_pk_review_summary_outlier,
+            rememberPkRouteNames(flag.affectedRoutes),
+        )
+        is PkCalibrationLabRowFlag.Ignored -> when (flag.reason) {
+            PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE ->
+                R.drawable.ic_error_outline to stringResource(R.string.calibration_pk_review_summary_non_positive)
+            PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL ->
+                R.drawable.ic_info to stringResource(R.string.calibration_pk_lab_ignored_signal_note)
+            PkCalibrationLabIgnoreReason.NUMERIC_FAILURE ->
+                R.drawable.ic_info to stringResource(R.string.calibration_pk_lab_ignored_numeric_note)
+        }
+    }
+    PkCalibrationNoteRow(
+        iconRes = iconRes,
+        text = text,
+        tint = if (flag?.needsReview == true) colors.tertiary else colors.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(colors.surfaceContainerHigh)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    )
+}
+
+/** Route labels joined for the app locale ("Injection and gel"). */
+@Composable
+private fun rememberPkRouteNames(routes: List<PkCalibrationRoute>): String {
+    val appLocale = rememberAppLocale()
+    val names = routes.map { route -> stringResource(route.applicationType.labelRes) }
+    return remember(names, appLocale) { ListFormatter.getInstance(appLocale).format(names) }
+}
+
+/**
+ * Review note for one E2 result in the result editor. The value field there
+ * is the correction path, so the note only offers dismiss / exclude / undo.
  */
 @Composable
 fun PkCalibrationLabRowFooter(
     flag: PkCalibrationLabRowFlag,
-    onCorrect: (() -> Unit)?,
     onExclude: () -> Unit,
     onReinclude: () -> Unit,
     onAccept: () -> Unit,
@@ -523,20 +574,11 @@ fun PkCalibrationLabRowFooter(
 
         is PkCalibrationLabRowFlag.Ignored -> when (flag.reason) {
             PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE -> PkCalibrationLabNote(
-                title = stringResource(R.string.calibration_pk_lab_invalid_title),
                 body = stringResource(R.string.calibration_pk_lab_invalid_body),
                 modifier = note,
             ) {
                 TextButton(onClick = onExclude, enabled = enabled) {
                     Text(text = stringResource(R.string.calibration_pk_lab_dismiss))
-                }
-                if (onCorrect != null) {
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.calibration_pk_lab_invalid_correct),
-                        onClick = onCorrect,
-                        enabled = enabled,
-                        compact = true,
-                    )
                 }
             }
 
@@ -554,15 +596,11 @@ fun PkCalibrationLabRowFooter(
         }
 
         is PkCalibrationLabRowFlag.UnreviewedOutlier -> {
-            val appLocale = rememberAppLocale()
-            val names = flag.affectedRoutes
-                .map { route -> stringResource(route.applicationType.labelRes) }
-            val joinedNames = remember(names, appLocale) {
-                ListFormatter.getInstance(appLocale).format(names)
-            }
             PkCalibrationLabNote(
-                title = stringResource(R.string.calibration_pk_lab_outlier_title),
-                body = stringResource(R.string.calibration_pk_lab_outlier_body, joinedNames),
+                body = stringResource(
+                    R.string.calibration_pk_lab_outlier_body,
+                    rememberPkRouteNames(flag.affectedRoutes),
+                ),
                 modifier = note,
             ) {
                 // Dismiss keeps the result at its reduced weight; Exclude drops it.
@@ -598,14 +636,18 @@ fun PkCalibrationLabRowFooter(
     }
 }
 
-/** Titled review note with end-aligned [actions]. */
+/** Review note with end-aligned [actions]. */
 @Composable
 private fun PkCalibrationLabNote(
-    title: String,
     body: String,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit,
 ) {
+    val bodyStyle = MaterialTheme.typography.bodyMedium
+    // Center the icon on the first text line; tracks the user's font scale.
+    val firstLineHeight = with(LocalDensity.current) {
+        bodyStyle.lineHeight.takeOrElse { bodyStyle.fontSize }.toDp()
+    }
     Column(
         modifier = modifier.padding(start = 12.dp, top = 12.dp, end = 4.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -614,7 +656,7 @@ private fun PkCalibrationLabNote(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(end = 8.dp),
         ) {
-            Box(modifier = Modifier.height(20.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.height(firstLineHeight), contentAlignment = Alignment.Center) {
                 Icon(
                     painter = painterResource(R.drawable.ic_error_outline),
                     contentDescription = null,
@@ -622,22 +664,13 @@ private fun PkCalibrationLabNote(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.cjkTextOffset(title),
-                )
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(body),
-                )
-            }
+            Text(
+                text = body,
+                style = bodyStyle,
+                modifier = Modifier
+                    .weight(1f)
+                    .cjkTextOffset(body),
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -773,7 +806,6 @@ private fun PkCalibrationLabRowFooterPreview() {
                     PkCalibrationLabChip(flag)
                     PkCalibrationLabRowFooter(
                         flag = flag,
-                        onCorrect = { },
                         onExclude = { },
                         onReinclude = { },
                         onAccept = { },

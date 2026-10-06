@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.calibration
 
 import android.widget.Toast
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +43,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -132,18 +132,6 @@ fun CalibrationScreen(
     val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
     val pkIntroSeen by viewModel.pkIntroSeen.collectAsStateWithLifecycle()
 
-    // Rejected review actions surface as a toast; resolve the string at emit
-    // time so an in-place locale swap can't pin a stale translation.
-    val pkRejectionContext = LocalContext.current
-    val pkRejectionMessage by rememberUpdatedState(
-        stringResource(R.string.calibration_pk_review_action_rejected)
-    )
-    LaunchedEffect(Unit) {
-        viewModel.pkReviewRejections.collect {
-            Toast.makeText(pkRejectionContext, pkRejectionMessage, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     // Hold the navigation lock while the delete-all runs. The confirm dialog
     // closes before the delete does, so without this a back press (this is a
     // pushed route) or chrome tap would cancel viewModelScope mid-write.
@@ -168,9 +156,6 @@ fun CalibrationScreen(
         pkIntroSeen = pkIntroSeen,
         onPkIntroSeen = viewModel::markPkIntroSeen,
         onPkRetry = viewModel::retryPkCalibration,
-        onPkExcludeLab = viewModel::excludePkLab,
-        onPkAcceptLab = viewModel::acceptPkLab,
-        onPkReincludeLab = viewModel::reincludePkLab,
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
@@ -191,9 +176,6 @@ private fun CalibrationScreenContent(
     pkIntroSeen: Boolean?,
     onPkIntroSeen: () -> Unit,
     onPkRetry: () -> Unit,
-    onPkExcludeLab: (UUID) -> Unit,
-    onPkAcceptLab: (UUID) -> Unit,
-    onPkReincludeLab: (UUID) -> Unit,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: LocalDateFormatter,
     onNavigateBack: () -> Unit,
@@ -212,6 +194,17 @@ private fun CalibrationScreenContent(
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    // Review queue snapshot, fixed while the user works through it: rows the
+    // user has decided (or fixed in the editor) stay and show what changed.
+    var pkReviewQueue by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    // Opening a row hides the sheet for the editor; it comes back on return.
+    var pkReopenReview by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (pkReopenReview) {
+            pkReopenReview = false
+            pkSheet = PK_SHEET_REVIEW
+        }
+    }
     // First open: show the intro once. The flag is persisted (and backed up)
     // when the sheet is dismissed, so a mid-sheet exit shows it again.
     LaunchedEffect(pkIntroSeen) {
@@ -352,7 +345,10 @@ private fun CalibrationScreenContent(
                                 reviewCount = pkReviewPanels.size,
                                 onRetry = onPkRetry,
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
-                                onOpenReview = { pkSheet = PK_SHEET_REVIEW },
+                                onOpenReview = {
+                                    pkReviewQueue = pkReviewPanels.map { panel -> panel.uuid.toString() }
+                                    pkSheet = PK_SHEET_REVIEW
+                                },
                                 onInfo = { pkSheet = PK_SHEET_EDU },
                                 targetRange = targetRange,
                             )
@@ -438,28 +434,30 @@ private fun CalibrationScreenContent(
             )
         }
 
-        // The queue is fixed when the sheet opens: decided rows stay put (their
-        // note flips to Undo / Include again) and only Done closes the sheet.
+        // Rows summarize the review; details and actions live in the editor.
         PK_SHEET_REVIEW -> {
-            // Close before navigating: a sheet left open lingers over the editor
-            // until this screen leaves composition, then reopens on return.
+            val closeReview = {
+                pkSheet = null
+                pkReviewQueue = emptyList()
+            }
+            // Hide before navigating: a sheet left open lingers over the editor.
             val openPanelFromReview = { panelId: UUID ->
                 pkSheet = null
+                pkReopenReview = true
                 onPanelClick(panelId)
             }
-            val reviewIds = remember { pkReviewPanels.map { panel -> panel.uuid }.toSet() }
-            val reviewRows = uiState.panels.mapNotNull { panel ->
-                if (panel.uuid !in reviewIds) return@mapNotNull null
-                pkLabFlags[panel.uuid]?.let { flag -> panel to flag }
+            val reviewRows = remember(pkReviewQueue, uiState.panels) {
+                val panelsById = uiState.panels.associateBy { panel -> panel.uuid.toString() }
+                pkReviewQueue.mapNotNull(panelsById::get)
             }
             if (reviewRows.isEmpty()) {
-                LaunchedEffect(Unit) { pkSheet = null }
+                LaunchedEffect(Unit) { closeReview() }
             } else {
                 PkCalibrationReviewSheet(
                     count = reviewRows.size,
-                    onDismissRequest = { pkSheet = null },
+                    onDismissRequest = closeReview,
                 ) {
-                    reviewRows.forEachIndexed { index, (panel, flag) ->
+                    reviewRows.forEachIndexed { index, panel ->
                         CalibrationPanelRow(
                             panel = panel,
                             settingsState = uiState.settingsState,
@@ -469,15 +467,9 @@ private fun CalibrationScreenContent(
                             onClick = { openPanelFromReview(panel.uuid) },
                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
                             pkFooter = {
-                                PkCalibrationLabRowFooter(
-                                    flag = flag,
-                                    onCorrect = { openPanelFromReview(panel.uuid) },
-                                    onExclude = { onPkExcludeLab(flag.resultId) },
-                                    onReinclude = { onPkReincludeLab(flag.resultId) },
-                                    onAccept = { onPkAcceptLab(flag.resultId) },
-                                    modifier = Modifier
-                                        .padding(top = 12.dp)
-                                        .animateContentSize(),
+                                PkCalibrationReviewSummary(
+                                    flag = pkLabFlags[panel.uuid],
+                                    modifier = Modifier.padding(top = 12.dp),
                                 )
                             },
                         )
@@ -1495,9 +1487,6 @@ private fun CalibrationScreenPreviewPage(uiState: CalibrationUiState) {
             pkIntroSeen = true,
             onPkIntroSeen = { },
             onPkRetry = { },
-            onPkExcludeLab = { },
-            onPkAcceptLab = { },
-            onPkReincludeLab = { },
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
