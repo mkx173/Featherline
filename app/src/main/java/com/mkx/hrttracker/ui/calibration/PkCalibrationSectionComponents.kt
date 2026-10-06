@@ -724,6 +724,7 @@ private fun PkCalibrationSectionReadyPreview() {
             onOpenRoutes = { },
             onOpenReview = { },
             onInfo = { },
+            targetRange = previewPkTargetRange,
         )
     }
 }
@@ -740,6 +741,7 @@ private fun PkCalibrationSectionNotReadyPreview() {
             onOpenRoutes = { },
             onOpenReview = { },
             onInfo = { },
+            targetRange = previewPkTargetRange,
         )
     }
 }
@@ -783,38 +785,66 @@ private fun PkCalibrationRouteSummaryCardPreview() {
     }
 }
 
-/** Every review note a result can carry, plus the list chips. */
-@Preview(name = "PK Lab Row Footer · states", showBackground = true, widthDp = 420)
+/** Every review note the result editor can show, one card per state. */
+@Preview(name = "PK Lab Note · editor states", showBackground = true, widthDp = 420)
 @Composable
 private fun PkCalibrationLabRowFooterPreview() {
-    val resultId = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a")
-    val flags = listOf(
-        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE),
-        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL),
-        PkCalibrationLabRowFlag.Ignored(resultId, PkCalibrationLabIgnoreReason.NUMERIC_FAILURE),
-        PkCalibrationLabRowFlag.UnreviewedOutlier(
-            resultId = resultId,
-            affectedRoutes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.GEL),
-        ),
-        PkCalibrationLabRowFlag.Accepted(resultId),
-        PkCalibrationLabRowFlag.Excluded(resultId),
-    )
     PkCalibrationPreviewColumn {
-        flags.forEach { flag ->
-            EditorSegmentedListItem(contentPadding = PaddingValues(16.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PkCalibrationLabChip(flag)
-                    PkCalibrationLabRowFooter(
-                        flag = flag,
-                        onExclude = { },
-                        onReinclude = { },
-                        onAccept = { },
-                    )
-                }
+        previewPkLabFlags.forEach { flag ->
+            // Same surface as the editor: the card is the note's background.
+            EditorSegmentedListItem(contentPadding = PaddingValues(4.dp)) {
+                PkCalibrationLabRowFooter(
+                    flag = flag,
+                    onExclude = { },
+                    onReinclude = { },
+                    onAccept = { },
+                    containerColor = Color.Transparent,
+                )
             }
         }
     }
 }
+
+/** Review sheet subcards: open reasons, then what the user did; null = fixed in the editor. */
+@Preview(name = "PK Review Summary · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationReviewSummaryPreview() {
+    PkCalibrationPreviewColumn {
+        (previewPkLabFlags + null).forEach { flag ->
+            EditorSegmentedListItem(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                PkCalibrationReviewSummary(flag = flag)
+            }
+        }
+    }
+}
+
+/** Trailing chips on calibration list rows, one per flag. */
+@Preview(name = "PK Lab Chip · states", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationLabChipPreview() {
+    PkCalibrationPreviewColumn {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            previewPkLabFlags.forEach { flag -> PkCalibrationLabChip(flag) }
+        }
+    }
+}
+
+private val previewPkLabResultId = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a")
+
+private val previewPkLabFlags = listOf(
+    PkCalibrationLabRowFlag.UnreviewedOutlier(
+        resultId = previewPkLabResultId,
+        affectedRoutes = listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.GEL),
+    ),
+    PkCalibrationLabRowFlag.Ignored(previewPkLabResultId, PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE),
+    PkCalibrationLabRowFlag.Ignored(previewPkLabResultId, PkCalibrationLabIgnoreReason.BELOW_INFORMATIVE_SIGNAL),
+    PkCalibrationLabRowFlag.Ignored(previewPkLabResultId, PkCalibrationLabIgnoreReason.NUMERIC_FAILURE),
+    PkCalibrationLabRowFlag.Accepted(previewPkLabResultId),
+    PkCalibrationLabRowFlag.Excluded(previewPkLabResultId),
+    PkCalibrationLabRowFlag.Excluded(previewPkLabResultId, dismissed = true),
+)
+
+private const val previewPkTargetRange = "Estradiol: 100–200 pg/mL\nTestosterone: <50 ng/dL"
 
 @Composable
 private fun PkCalibrationPreviewColumn(content: @Composable () -> Unit) {
