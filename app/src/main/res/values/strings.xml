@@ -676,6 +676,7 @@
     <string name="settings_calibration_unit_label">Unit</string>
     <string name="settings_calibration_notes_label">Notes</string>
     <string name="settings_calibration_results">Test results</string>
+    <string name="settings_calibration_collection_time">Collection time</string>
     <string name="settings_calibration_add_analyte">Add result</string>
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_error_invalid_number">Enter a valid value.</string>
@@ -1121,8 +1122,8 @@
     <string name="calibration_pk_hero_population">Population estimate</string>
     <string name="calibration_pk_hero_adjusted">Lab-adjusted</string>
     <plurals name="calibration_pk_supporting_lab_count">
-        <item quantity="one">%1$d supporting lab</item>
-        <item quantity="other">%1$d supporting labs</item>
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
     </plurals>
 
     <!-- Route-isolated E2 calibration (PK) — status section -->
@@ -1140,43 +1141,40 @@
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">Got it</string>
-    <string name="calibration_pk_coaching_time_title">Record the actual collection time</string>
-    <string name="calibration_pk_coaching_time_body">Enter when the specimen was taken, not when you logged it.</string>
-    <string name="calibration_pk_coaching_history_title">Keep your treatment history accurate</string>
-    <string name="calibration_pk_coaching_history_body">Dose, route, medication, and Current Weight all feed the modeled signal your labs are compared against.</string>
-    <string name="calibration_pk_coaching_assay_title">Use the same lab and assay method</string>
-    <string name="calibration_pk_coaching_assay_body">When you can, get E2 results from the same provider and method so they stay comparable with each other.</string>
+    <string name="calibration_pk_coaching_time_title">Log the actual draw time</string>
+    <string name="calibration_pk_coaching_time_body">When the blood was taken, not when you entered it.</string>
+    <string name="calibration_pk_coaching_history_title">Keep your doses accurate</string>
+    <string name="calibration_pk_coaching_history_body">Dose, route, medication, and weight all feed the estimate.</string>
+    <string name="calibration_pk_coaching_assay_title">Stick to one lab</string>
+    <string name="calibration_pk_coaching_assay_body">Results from the same lab and method compare best.</string>
     <string name="calibration_pk_coaching_variety_title">Vary when you test</string>
-    <string name="calibration_pk_coaching_variety_body">Labs collected at times when one route provides most of the signal make route-specific adjustment more precise.</string>
-    <string name="calibration_pk_coaching_safety_note">Never change medication or lab timing without clinician guidance. Varied results can expose an inadequate curve shape; they don’t verify suppression or route physiology.</string>
+    <string name="calibration_pk_coaching_variety_body">Results from when one route dominates sharpen that route.</string>
+    <string name="calibration_pk_coaching_safety_note">Don’t change doses or test timing without your clinician.</string>
     <string name="calibration_pk_edu_title">How lab adjustment works</string>
-    <string name="calibration_pk_edu_intro">The app can nudge each delivery route’s estradiol contribution toward your own blood tests. Here’s what that does, and what it doesn’t.</string>
+    <string name="calibration_pk_edu_intro">Your E2 results fine-tune how much each route adds to the estimate.</string>
     <string name="calibration_pk_edu_does_header">What it does</string>
     <string name="calibration_pk_edu_doesnt_header">What it doesn’t</string>
-    <string name="calibration_pk_edu_does_routes_title">Adjusts each route on its own</string>
-    <string name="calibration_pk_edu_does_routes_body">Each route learns its own level correction—there is no single global multiplier. Every usable lab supports every route in proportion to the signal that route provided. Switching labs, changing weight, or changing your routine can shift these estimates, including earlier dates.</string>
-    <string name="calibration_pk_edu_does_band_title">Shows a range, not a single truth</string>
-    <string name="calibration_pk_edu_does_band_body">The shaded band is where another observed result could land—wider when data is thin. It’s not a clinical confidence interval or a target.</string>
-    <string name="calibration_pk_edu_doesnt_measure_title">Measure your real hormone levels</string>
-    <string name="calibration_pk_edu_doesnt_measure_body">It’s a model estimate built from your treatment records, not a blood test.</string>
-    <string name="calibration_pk_edu_doesnt_verify_title">Verify suppression or assay comparability</string>
-    <string name="calibration_pk_edu_doesnt_verify_body">The app doesn’t use FSH, LH, testosterone, or a clinician reading to confirm those conditions.</string>
-    <string name="calibration_pk_edu_doesnt_learn_title">Learn your body’s timing or absorption</string>
-    <string name="calibration_pk_edu_doesnt_learn_body">It only adjusts a route’s overall level, not the shape of its curve—and that level correction can absorb bioavailability, weight error, assay bias, and adherence.</string>
-    <string name="calibration_pk_edu_doesnt_advise_title">Give dosing advice</string>
-    <string name="calibration_pk_edu_doesnt_advise_body">Talk to your clinician about any changes.</string>
+    <string name="calibration_pk_edu_does_routes_title">Tunes each route separately</string>
+    <string name="calibration_pk_edu_does_routes_body">Each result counts toward the routes active when you tested. Estimates can shift as results come in, including for past dates.</string>
+    <string name="calibration_pk_edu_does_band_title">Shows a likely range</string>
+    <string name="calibration_pk_edu_does_band_body">The shaded band is where a new result could land, and narrows with more results. It isn’t a target.</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">Confirm suppression or assay match</string>
+    <string name="calibration_pk_edu_doesnt_verify_body">It doesn’t read FSH, LH, or testosterone.</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">Learn your timing or absorption</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">It only moves a route’s overall level, not the shape of its curve.</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
-    <string name="calibration_pk_lab_invalid_title">This E2 result can’t be used for adjustment</string>
-    <string name="calibration_pk_lab_ignored_numeric_note">Not used for adjustment: the model couldn’t be evaluated at this collection time.</string>
-    <string name="calibration_pk_lab_ignored_signal_note">Not used for adjustment: the model expects almost no treatment-derived E2 at this collection time.</string>
-    <string name="calibration_pk_lab_invalid_body">Enter a value greater than zero, or exclude it from adjustment. If the report says “below the quantification limit,” keep the original report.</string>
-    <string name="calibration_pk_lab_invalid_exclude">Exclude</string>
+    <string name="calibration_pk_lab_invalid_title">Value must be above zero</string>
+    <string name="calibration_pk_lab_ignored_numeric_note">Not used: the model couldn’t be calculated at this time.</string>
+    <string name="calibration_pk_lab_ignored_signal_note">Not used: little E2 from treatment is expected at this time.</string>
+    <string name="calibration_pk_lab_invalid_body">Correct it, or dismiss if the report says it’s below the detection limit.</string>
+    <string name="calibration_pk_lab_dismiss">Dismiss</string>
     <string name="calibration_pk_lab_invalid_correct">Correct value</string>
-    <string name="calibration_pk_lab_outlier_title">Review this result</string>
-    <string name="calibration_pk_lab_outlier_body">It differs strongly from the current treatment-based estimate for %1$s. Check the value, unit, collection time, route, and treatment history; exclude it if it isn’t comparable.</string>
-    <string name="calibration_pk_lab_outlier_exclude">Exclude from adjustment</string>
+    <string name="calibration_pk_lab_outlier_title">Check this result</string>
+    <string name="calibration_pk_lab_outlier_body">Far from the estimate for %1$s, so it counts for less. Check the value, unit, and draw time.</string>
+    <string name="calibration_pk_lab_outlier_exclude">Exclude</string>
     <string name="calibration_pk_lab_excluded_note">Excluded from adjustment.</string>
+    <string name="calibration_pk_lab_dismissed_note">Not used: the value isn’t above zero.</string>
     <string name="calibration_pk_lab_reinclude">Include again</string>
     <string name="calibration_pk_review_action_rejected">Couldn’t save this change. Try again.</string>
     <string name="medical_disclaimer_lab_adjustment">Lab adjustment produces a treatment-derived model estimate, not a verified hormone level or dosing advice—it does not replace lab tests or your clinician’s guidance.</string>
@@ -1190,21 +1188,22 @@
 
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
-    <string name="calibration_pk_lab_accept">Looks right</string>
-    <string name="calibration_pk_lab_accepted_body">You checked this result. It stays in the adjustment.</string>
+    <string name="calibration_pk_lab_accepted_body">Dismissed. It still counts, at reduced weight.</string>
     <string name="calibration_pk_lab_show_review">Undo</string>
     <string name="calibration_pk_status_info_hint">An estimate, not a measurement. Tap to see how it works.</string>
     <plurals name="calibration_pk_review_count">
         <item quantity="one">%d result to check</item>
         <item quantity="other">%d results to check</item>
     </plurals>
-    <string name="calibration_pk_reason_short_scale">Unusually large adjustment</string>
-    <string name="calibration_pk_reason_short_uncertain">Still uncertain</string>
-    <string name="calibration_pk_reason_short_fit">Poor fit to your results</string>
-    <string name="calibration_pk_reason_short_ambiguous">More than one fit possible</string>
+    <string name="calibration_pk_reason_short_weak_signal">Weak signal</string>
+    <string name="calibration_pk_reason_short_scale">Large correction</string>
+    <string name="calibration_pk_reason_short_uncertain">Uncertain</string>
+    <string name="calibration_pk_reason_short_fit">Poor fit</string>
+    <string name="calibration_pk_reason_short_ambiguous">Ambiguous fit</string>
     <string name="calibration_pk_reason_short_outlier">A result disagrees</string>
     <string name="calibration_pk_lab_chip_check">Check</string>
     <string name="calibration_pk_lab_chip_excluded">Excluded</string>
+    <string name="calibration_pk_lab_chip_dismissed">Dismissed</string>
     <string name="calibration_pk_lab_chip_not_used">Not used</string>
     <string name="calibration_pk_edu_next">Next</string>
     <string name="calibration_pk_edu_back">Back</string>

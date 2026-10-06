@@ -63,8 +63,9 @@ val PkRouteCalibrationDisplayState.tagRes: Int?
 @get:StringRes
 val PkCalibrationReason.labelRes: Int
     get() = when (this) {
+        // Adjusted anyway, from results that only carry a small share of this route.
         PkCalibrationReason.NO_SUPPORTING_LABS ->
-            R.string.calibration_pk_route_tag_no_supporting_labs
+            R.string.calibration_pk_reason_short_weak_signal
         PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE ->
             R.string.calibration_pk_reason_short_scale
         PkCalibrationReason.UNCERTAIN ->

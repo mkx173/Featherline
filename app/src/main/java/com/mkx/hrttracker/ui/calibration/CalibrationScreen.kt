@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.calibration
 
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -225,13 +226,6 @@ private fun CalibrationScreenContent(
     val pkReviewPanels = remember(pkLabFlags, uiState.panels) {
         uiState.panels.filter { panel -> pkLabFlags[panel.uuid]?.needsReview == true }
     }
-    val pkReviewCounts = remember(pkLabFlags) {
-        pkLabFlags.values
-            .filterIsInstance<PkCalibrationLabRowFlag.UnreviewedOutlier>()
-            .flatMap { flag -> flag.affectedRoutes }
-            .groupingBy { route -> route }
-            .eachCount()
-    }
     val deleteAllEntriesSuccessMessage =
         stringResource(R.string.settings_calibration_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
@@ -440,43 +434,56 @@ private fun CalibrationScreenContent(
         PK_SHEET_ROUTES -> pkCalibrationState?.let { state ->
             PkCalibrationRoutesSheet(
                 uiState = state.ui,
-                reviewCounts = pkReviewCounts,
-                onOpenReview = { pkSheet = PK_SHEET_REVIEW },
                 onDismissRequest = { pkSheet = null },
             )
         }
 
-        // Closes itself once the last lab is resolved.
-        PK_SHEET_REVIEW -> if (pkReviewPanels.isEmpty()) {
-            LaunchedEffect(Unit) { pkSheet = null }
-        } else {
-            PkCalibrationReviewSheet(
-                count = pkReviewPanels.size,
-                onDismissRequest = { pkSheet = null },
-            ) {
-                pkReviewPanels.forEachIndexed { index, panel ->
-                    val flag = pkLabFlags.getValue(panel.uuid)
-                    CalibrationPanelRow(
-                        panel = panel,
-                        settingsState = uiState.settingsState,
-                        dateTimeFormatters = panelDateTimeFormatters,
-                        index = index,
-                        count = pkReviewPanels.size,
-                        onClick = { onPanelClick(panel.uuid) },
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        pkFooter = {
-                            PkCalibrationLabRowFooter(
-                                flag = flag,
-                                onCorrect = { onPanelClick(panel.uuid) },
-                                onExclude = { onPkExcludeLab(flag.resultId) },
-                                onReinclude = { onPkReincludeLab(flag.resultId) },
-                                onAccept = { onPkAcceptLab(flag.resultId) },
-                                modifier = Modifier.padding(top = 12.dp),
-                            )
-                        },
-                    )
-                    if (index < pkReviewPanels.size - 1) {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+        // The queue is fixed when the sheet opens: decided rows stay put (their
+        // note flips to Undo / Include again) and only Done closes the sheet.
+        PK_SHEET_REVIEW -> {
+            // Close before navigating: a sheet left open lingers over the editor
+            // until this screen leaves composition, then reopens on return.
+            val openPanelFromReview = { panelId: UUID ->
+                pkSheet = null
+                onPanelClick(panelId)
+            }
+            val reviewIds = remember { pkReviewPanels.map { panel -> panel.uuid }.toSet() }
+            val reviewRows = uiState.panels.mapNotNull { panel ->
+                if (panel.uuid !in reviewIds) return@mapNotNull null
+                pkLabFlags[panel.uuid]?.let { flag -> panel to flag }
+            }
+            if (reviewRows.isEmpty()) {
+                LaunchedEffect(Unit) { pkSheet = null }
+            } else {
+                PkCalibrationReviewSheet(
+                    count = reviewRows.size,
+                    onDismissRequest = { pkSheet = null },
+                ) {
+                    reviewRows.forEachIndexed { index, (panel, flag) ->
+                        CalibrationPanelRow(
+                            panel = panel,
+                            settingsState = uiState.settingsState,
+                            dateTimeFormatters = panelDateTimeFormatters,
+                            index = index,
+                            count = reviewRows.size,
+                            onClick = { openPanelFromReview(panel.uuid) },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            pkFooter = {
+                                PkCalibrationLabRowFooter(
+                                    flag = flag,
+                                    onCorrect = { openPanelFromReview(panel.uuid) },
+                                    onExclude = { onPkExcludeLab(flag.resultId) },
+                                    onReinclude = { onPkReincludeLab(flag.resultId) },
+                                    onAccept = { onPkAcceptLab(flag.resultId) },
+                                    modifier = Modifier
+                                        .padding(top = 12.dp)
+                                        .animateContentSize(),
+                                )
+                            },
+                        )
+                        if (index < reviewRows.size - 1) {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                        }
                     }
                 }
             }
@@ -1052,14 +1059,14 @@ private fun CalibrationPanelMetadataRow(
                 "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}"
 
             HrtPill(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 size = HrtPillSize.Small,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp),
             ) {
                 Text(
                     text = elapsedLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     maxLines = 1,
                     modifier = Modifier.cjkTextOffset(elapsedLabel),
                 )

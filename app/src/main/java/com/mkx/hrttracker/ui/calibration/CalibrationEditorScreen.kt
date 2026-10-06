@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -438,14 +439,46 @@ private fun CalibrationEditorScreenContent(
                             locale = itemLocale,
                         )
                     }
-                    CalibrationDateTimeCard(
-                        dateLabel = dateFormatter(uiState.collectedDate),
-                        timeLabel = uiState.collectedTime.format(timeFormatter),
-                        timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
-                        onDateClick = onDateClick,
-                        onTimeClick = onTimeClick,
-                        crossZoneLabel = crossZoneLabel,
-                    )
+                    // Same note and actions as the review queue; the value field
+                    // below is the correction path, so no Correct button here. Leads
+                    // the page so a flagged result is the first thing seen.
+                    uiState.pkReviewFlag?.let { flag ->
+                        HrtSection(
+                            title = stringResource(R.string.calibration_pk_section_title),
+                            topPadding = false,
+                        ) {
+                            item {
+                                // One result per editor, so the card itself is the note's surface.
+                                EditorSegmentedListItem(contentPadding = PaddingValues(4.dp)) {
+                                    PkCalibrationLabRowFooter(
+                                        flag = flag,
+                                        onCorrect = null,
+                                        onExclude = { onPkExcludeLab(flag.resultId) },
+                                        onReinclude = { onPkReincludeLab(flag.resultId) },
+                                        onAccept = { onPkAcceptLab(flag.resultId) },
+                                        enabled = !isCalibrationEditorBusy(uiState),
+                                        containerColor = Color.Transparent,
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    }
+                    HrtSection(
+                        title = stringResource(R.string.settings_calibration_collection_time),
+                        topPadding = uiState.pkReviewFlag != null,
+                    ) {
+                        item {
+                            CalibrationDateTimeCard(
+                                dateLabel = dateFormatter(uiState.collectedDate),
+                                timeLabel = uiState.collectedTime.format(timeFormatter),
+                                timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
+                                onDateClick = onDateClick,
+                                onTimeClick = onTimeClick,
+                                crossZoneLabel = crossZoneLabel,
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     val totalCount = uiState.drafts.size
@@ -559,26 +592,6 @@ private fun CalibrationEditorScreenContent(
                                 },
                                 onNotesCommit = { onNotesCommit(notesDraft) },
                             )
-                        }
-                    }
-
-                    // Same note and actions as the review queue; the value field
-                    // above is the correction path, so no Correct button here.
-                    uiState.pkReviewFlag?.let { flag ->
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                        HrtSection(title = stringResource(R.string.calibration_pk_section_title)) {
-                            item {
-                                EditorSegmentedListItem(contentPadding = PaddingValues(12.dp)) {
-                                    PkCalibrationLabRowFooter(
-                                        flag = flag,
-                                        onCorrect = null,
-                                        onExclude = { onPkExcludeLab(flag.resultId) },
-                                        onReinclude = { onPkReincludeLab(flag.resultId) },
-                                        onAccept = { onPkAcceptLab(flag.resultId) },
-                                        enabled = !isCalibrationEditorBusy(uiState),
-                                    )
-                                }
-                            }
                         }
                     }
 

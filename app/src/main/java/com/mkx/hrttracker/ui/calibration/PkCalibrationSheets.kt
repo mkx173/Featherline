@@ -2,8 +2,14 @@ package com.mkx.hrttracker.ui.calibration
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
+import androidx.compose.ui.res.dimensionResource
+import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.HrtPill
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.mkx.hrttracker.model.pk.PkCalibrationReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -61,7 +72,7 @@ import kotlinx.coroutines.CoroutineScope
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PkCalibrationSheet(
-    title: String,
+    title: String?,
     onDismissRequest: () -> Unit,
     disclaimerKinds: List<MedicalDisclaimerKind> = emptyList(),
     fillAvailableHeight: Boolean = false,
@@ -103,7 +114,7 @@ private fun PkCalibrationSheetItem(
             modifier = Modifier
                 .size(36.dp)
                 .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surfaceContainer),
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -134,46 +145,17 @@ private fun PkCalibrationSheetItem(
     }
 }
 
-@Composable
-private fun PkCalibrationSheetNote(@StringRes textRes: Int) {
-    val text = stringResource(textRes)
-    Row(
-        modifier = Modifier
-            .padding(top = 16.dp)
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(12.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_privacy_tip),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.cjkTextOffset(text),
-        )
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Routes detail sheet
 // ---------------------------------------------------------------------------
 
 /**
- * Adjusted routes first, each with a short warning line and a link to the
- * results it is waiting on; population routes follow in their own group.
+ * Adjusted routes first, each with a short warning line; population routes
+ * follow in their own group. Results to check live on the section's banner.
  */
 @Composable
 fun PkCalibrationRoutesSheet(
     uiState: PkCalibrationUiState,
-    reviewCounts: Map<PkCalibrationRoute, Int>,
-    onOpenReview: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     PkCalibrationSheet(
@@ -182,25 +164,18 @@ fun PkCalibrationRoutesSheet(
     ) {
         val (adjusted, population) = uiState.routeRows.partition { row -> row.displayState.isAdjusted }
         if (adjusted.isNotEmpty()) {
-            HrtSection(title = stringResource(R.string.calibration_pk_hero_adjusted), topPadding = false) {
+            HrtSection(title = stringResource(R.string.calibration_pk_hero_adjusted)) {
                 adjusted.forEach { row ->
-                    item {
-                        PkCalibrationRouteCard(
-                            row = row,
-                            reviewCount = reviewCounts[row.route] ?: 0,
-                            onOpenReview = onOpenReview,
-                        )
-                    }
+                    item { PkCalibrationRouteCard(row) }
                 }
             }
         }
         if (population.isNotEmpty()) {
             HrtSection(
                 title = stringResource(R.string.calibration_pk_hero_population),
-                topPadding = adjusted.isNotEmpty(),
             ) {
                 population.forEach { row ->
-                    item { PkCalibrationRouteCard(row = row, reviewCount = 0, onOpenReview = { }) }
+                    item { PkCalibrationRouteCard(row) }
                 }
             }
         }
@@ -208,17 +183,14 @@ fun PkCalibrationRoutesSheet(
 }
 
 /**
- * Route card: tile, name, supporting line (labs + confidence, or the
- * population tag). Adjusted routes add one short warning line (the
- * adjustment applies regardless) and a link to results to check; an outlier
- * is represented by that link, not by a warning.
+ * Route card: tile, name, supporting line (results + confidence). Adjusted
+ * routes add short warning pills (the adjustment applies regardless);
+ * outliers are left to the review banner. Population routes are a bare name
+ * unless the fit failed for them.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PkCalibrationRouteCard(
-    row: PkCalibrationRouteRowUiState,
-    reviewCount: Int,
-    onOpenReview: () -> Unit,
-) {
+private fun PkCalibrationRouteCard(row: PkCalibrationRouteRowUiState) {
     val adjusted = row.displayState.isAdjusted
     EditorSegmentedListItem(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -243,53 +215,42 @@ private fun PkCalibrationRouteCard(
                         fontWeight = FontWeight.Normal,
                         modifier = Modifier.cjkTextOffset(name),
                     )
-                    pkCalibrationRouteMeta(row)?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.cjkTextOffset(it),
-                        )
-                    }
+                    // "No lab signal" on every population row is noise under its own
+                    // header; only a failed fit is worth calling out.
+                    pkCalibrationRouteMeta(row)
+                        ?.takeIf { row.displayState != PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL }
+                        ?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.cjkTextOffset(it),
+                            )
+                        }
                 }
                 row.confidence?.let { confidence -> PkCalibrationConfidenceBars(confidence) }
             }
-            // Aligns under the name (tile 34 + gap 12).
-            val indent = Modifier.padding(start = 46.dp)
-            val warnings = row.reasons
-                .filterNot { reason -> reason == PkCalibrationReason.UNREVIEWED_OUTLIER }
-                .map { reason -> stringResource(reason.labelRes) }
-            if (adjusted && warnings.isNotEmpty()) {
-                PkCalibrationNoteRow(
-                    iconRes = R.drawable.ic_error_outline,
-                    text = warnings.joinToString(" · "),
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = indent.padding(top = 8.dp),
-                )
+            // Low confidence already says "uncertain"; outliers live on the review banner.
+            val warnings = row.reasons.filterNot { reason ->
+                reason == PkCalibrationReason.UNREVIEWED_OUTLIER ||
+                    (reason == PkCalibrationReason.UNCERTAIN &&
+                        row.confidence == PkCalibrationRouteConfidence.LOW)
             }
-            if (adjusted && reviewCount > 0) {
-                val link = pluralStringResource(R.plurals.calibration_pk_review_count, reviewCount, reviewCount)
-                Row(
-                    modifier = indent
-                        .padding(top = 4.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .clickable(onClick = onOpenReview)
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+            if (adjusted && warnings.isNotEmpty()) {
+                FlowRow(
+                    // Aligns under the name (tile 34 + gap 12).
+                    modifier = Modifier.padding(start = 46.dp, top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text(
-                        text = link,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.cjkTextOffset(link),
-                    )
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
+                    warnings.forEach { reason ->
+                        HrtPill(
+                            label = stringResource(reason.labelRes),
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            size = HrtPillSize.Small,
+                        )
+                    }
                 }
             }
         }
@@ -320,20 +281,18 @@ fun PkCalibrationReviewSheet(
 // ---------------------------------------------------------------------------
 
 /**
- * Two full-height pages: what lab adjustment is, then how to help a route
- * calibrate. Next advances, Back returns, Finish (last page) dismisses.
+ * Two pages: what lab adjustment is, then how to help a route calibrate.
+ * Next advances, Back returns, Finish (last page) dismisses. Pages slide in
+ * the direction of travel; the sheet wraps and animates between their heights.
  */
 @Composable
 fun PkCalibrationEduSheet(onDismissRequest: () -> Unit) {
     var page by rememberSaveable { mutableIntStateOf(0) }
     val lastPage = page == 1
     PkCalibrationSheet(
-        title = stringResource(
-            if (lastPage) R.string.calibration_pk_coaching_row_title else R.string.calibration_pk_edu_title
-        ),
+        // The title slides with its page below.
+        title = null,
         onDismissRequest = onDismissRequest,
-        disclaimerKinds = if (lastPage) emptyList() else listOf(MedicalDisclaimerKind.LAB_ADJUSTMENT),
-        fillAvailableHeight = true,
         confirmButtonText = stringResource(
             if (lastPage) R.string.calibration_pk_edu_finish else R.string.calibration_pk_edu_next
         ),
@@ -341,7 +300,36 @@ fun PkCalibrationEduSheet(onDismissRequest: () -> Unit) {
         secondaryButtonText = if (lastPage) stringResource(R.string.calibration_pk_edu_back) else null,
         onSecondary = if (lastPage) ({ page = 0 }) else null,
     ) {
-        if (lastPage) PkCalibrationCoachingPage() else PkCalibrationEduPage()
+        // Each page carries its own disclaimer so it slides with the page.
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                val forward = targetState > initialState
+                (slideInHorizontally { width -> if (forward) width else -width } + fadeIn()) togetherWith
+                    (slideOutHorizontally { width -> if (forward) -width else width } + fadeOut()) using
+                    SizeTransform()
+            },
+            label = "pkEduPage",
+        ) { shownPage ->
+            Column {
+                Text(
+                    text = stringResource(
+                        if (shownPage == 1) R.string.calibration_pk_coaching_row_title
+                        else R.string.calibration_pk_edu_title
+                    ),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                if (shownPage == 1) PkCalibrationCoachingPage() else PkCalibrationEduPage()
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                MedicalDisclaimerText(
+                    kinds = listOf(
+                        if (shownPage == 1) MedicalDisclaimerKind.LAB_ADJUSTMENT_COACHING
+                        else MedicalDisclaimerKind.LAB_ADJUSTMENT
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -367,12 +355,8 @@ private fun PkCalibrationEduPage() {
         titleRes = R.string.calibration_pk_edu_does_band_title,
         bodyRes = R.string.calibration_pk_edu_does_band_body,
     )
+    // "Not a measurement" and "not dosing advice" are the sheet's disclaimer.
     PkCalibrationEduHeader(R.string.calibration_pk_edu_doesnt_header)
-    PkCalibrationSheetItem(
-        iconRes = R.drawable.ic_block,
-        titleRes = R.string.calibration_pk_edu_doesnt_measure_title,
-        bodyRes = R.string.calibration_pk_edu_doesnt_measure_body,
-    )
     PkCalibrationSheetItem(
         iconRes = R.drawable.ic_block,
         titleRes = R.string.calibration_pk_edu_doesnt_verify_title,
@@ -382,11 +366,6 @@ private fun PkCalibrationEduPage() {
         iconRes = R.drawable.ic_block,
         titleRes = R.string.calibration_pk_edu_doesnt_learn_title,
         bodyRes = R.string.calibration_pk_edu_doesnt_learn_body,
-    )
-    PkCalibrationSheetItem(
-        iconRes = R.drawable.ic_block,
-        titleRes = R.string.calibration_pk_edu_doesnt_advise_title,
-        bodyRes = R.string.calibration_pk_edu_doesnt_advise_body,
     )
 }
 
@@ -412,7 +391,6 @@ private fun PkCalibrationCoachingPage() {
         titleRes = R.string.calibration_pk_coaching_variety_title,
         bodyRes = R.string.calibration_pk_coaching_variety_body,
     )
-    PkCalibrationSheetNote(R.string.calibration_pk_coaching_safety_note)
 }
 
 @Composable
@@ -439,8 +417,8 @@ private fun PkCalibrationRouteCardPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
             HrtSection(title = null) {
-                rows.forEachIndexed { index, row ->
-                    item { PkCalibrationRouteCard(row = row, reviewCount = index, onOpenReview = { }) }
+                rows.forEach { row ->
+                    item { PkCalibrationRouteCard(row) }
                 }
             }
         }

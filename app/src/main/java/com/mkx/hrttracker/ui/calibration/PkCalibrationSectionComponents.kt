@@ -2,9 +2,7 @@ package com.mkx.hrttracker.ui.calibration
 
 import android.icu.text.ListFormatter
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,7 +113,12 @@ fun PkCalibrationSection(
                         reviewCount,
                         reviewCount,
                     ),
-                    leadingContent = { PkCalibrationRowIcon(R.drawable.ic_error_outline) },
+                    leadingContent = {
+                        PkCalibrationRowIcon(
+                            R.drawable.ic_error_outline,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                    },
                     trailingContent = { PkCalibrationRowChevron() },
                     onClick = onOpenReview,
                 )
@@ -272,91 +275,84 @@ private fun PkCalibrationRouteSummaryCard(
                 )
                 PkCalibrationRowChevron()
             }
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(top = 12.dp),
-            ) {
-                rows.forEach { row -> PkCalibrationRouteSummaryCell(row = row) }
+            HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
+                rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
                 if (reviewCount > 0) {
-                    PkCalibrationReviewEntry(
-                        count = reviewCount,
-                        onClick = onOpenReview,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                    item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
                 }
             }
         }
     }
 }
 
-/** Tonal sub-card inside the route card that opens the review queue. */
+/** Route-card sub-card that opens the review queue; same shape as a route. */
 @Composable
 private fun PkCalibrationReviewEntry(
     count: Int,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.tertiaryContainer)
-            .clickable(onClick = onClick)
-            .padding(start = 12.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        PkCalibrationRowIcon(R.drawable.ic_error_outline, tint = contentColor)
-        val text = pluralStringResource(R.plurals.calibration_pk_review_count, count, count)
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleSmall,
-            color = contentColor,
-            modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(text),
-        )
-        PkCalibrationRowChevron(tint = contentColor)
-    }
-}
-
-/** Tonal sub-card for one adjusted route: tile, name, labs and confidence. */
-@Composable
-private fun PkCalibrationRouteSummaryCell(row: PkCalibrationRouteRowUiState) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        PkCalibrationRouteTile(
-            route = row.route,
-            size = 32.dp,
-            iconSize = 18.dp,
-            shape = MaterialTheme.shapes.small,
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            val name = stringResource(row.route.applicationType.labelRes)
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.cjkTextOffset(name),
-            )
-            pkCalibrationRouteMeta(row)?.let { meta ->
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(meta),
+    PkCalibrationSubCard(
+        title = pluralStringResource(R.plurals.calibration_pk_review_count, count, count),
+        onClick = onClick,
+        leading = {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_error_outline),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.size(18.dp),
                 )
             }
-        }
-        row.confidence?.let { confidence -> PkCalibrationConfidenceBars(confidence) }
-    }
+        },
+        trailing = { PkCalibrationRowChevron() },
+    )
+}
+
+/** Sub-card for one adjusted route: tile, name, labs and confidence. */
+@Composable
+private fun PkCalibrationRouteSummaryCell(row: PkCalibrationRouteRowUiState) {
+    PkCalibrationSubCard(
+        title = stringResource(row.route.applicationType.labelRes),
+        supportingText = pkCalibrationRouteMeta(row),
+        leading = {
+            PkCalibrationRouteTile(
+                route = row.route,
+                size = 32.dp,
+                iconSize = 18.dp,
+                shape = MaterialTheme.shapes.small,
+            )
+        },
+        trailing = row.confidence?.let { confidence ->
+            { PkCalibrationConfidenceBars(confidence) }
+        },
+    )
+}
+
+/** Tonal segmented row inside the route card: 32dp leading tile, title, optional supporting line. */
+@Composable
+private fun PkCalibrationSubCard(
+    title: String,
+    leading: @Composable () -> Unit,
+    supportingText: String? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    PreferenceSegmentedListItem(
+        title = title,
+        supportingText = supportingText,
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        leadingContent = leading,
+        trailingContent = trailing,
+        titleTextStyle = MaterialTheme.typography.bodyMedium,
+        supportingTextStyle = MaterialTheme.typography.bodySmall,
+    )
 }
 
 /** Supporting line for a route: labs and confidence when adjusted, the population tag otherwise. */
@@ -380,71 +376,53 @@ internal fun pkCalibrationRouteMeta(row: PkCalibrationRouteRowUiState): String? 
 }
 
 /**
- * Compact trailing chip on a lab list row. Accepted results carry none: they
- * look like any other included result.
+ * Compact trailing icon on a lab list row; the label rides on the content
+ * description. Dismissed outliers get a check so a kept result still reads
+ * as decided.
  */
 @Composable
 internal fun PkCalibrationLabChip(flag: PkCalibrationLabRowFlag) {
-    val (textRes, iconRes, container, content) = when {
-        flag is PkCalibrationLabRowFlag.UnreviewedOutlier -> PkChipStyle(
+    val (iconRes, descriptionRes, tint) = when {
+        flag is PkCalibrationLabRowFlag.UnreviewedOutlier -> Triple(
+            R.drawable.ic_info,
             R.string.calibration_pk_lab_chip_check,
-            R.drawable.ic_error_outline,
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.onTertiaryContainer,
+            MaterialTheme.colorScheme.tertiary,
         )
 
-        flag.needsReview -> PkChipStyle(
+        flag.needsReview -> Triple(
+            R.drawable.ic_info,
             R.string.calibration_pk_lab_chip_check,
-            R.drawable.ic_error_outline,
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
+            MaterialTheme.colorScheme.error,
         )
 
-        flag is PkCalibrationLabRowFlag.Excluded -> PkChipStyle(
-            R.string.calibration_pk_lab_chip_excluded,
-            R.drawable.ic_block,
-            MaterialTheme.colorScheme.surfaceContainerHighest,
+        flag is PkCalibrationLabRowFlag.Ignored ||
+            (flag is PkCalibrationLabRowFlag.Excluded && flag.dismissed) -> Triple(
+            R.drawable.ic_info,
+            R.string.calibration_pk_lab_chip_not_used,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        flag is PkCalibrationLabRowFlag.Ignored -> PkChipStyle(
-            R.string.calibration_pk_lab_chip_not_used,
-            R.drawable.ic_info,
-            MaterialTheme.colorScheme.surfaceContainerHighest,
+        flag is PkCalibrationLabRowFlag.Excluded -> Triple(
+            R.drawable.ic_block,
+            R.string.calibration_pk_lab_chip_excluded,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        flag is PkCalibrationLabRowFlag.Accepted -> Triple(
+            R.drawable.ic_check_circle,
+            R.string.calibration_pk_lab_chip_dismissed,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         else -> return
     }
-    Row(
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(container)
-            .padding(start = 6.dp, top = 3.dp, end = 8.dp, bottom = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = content,
-            modifier = Modifier.size(14.dp),
-        )
-        Text(
-            text = stringResource(textRes),
-            style = MaterialTheme.typography.labelMedium,
-            color = content,
-            maxLines = 1,
-        )
-    }
+    Icon(
+        painter = painterResource(iconRes),
+        contentDescription = stringResource(descriptionRes),
+        tint = tint,
+        modifier = Modifier.size(18.dp),
+    )
 }
-
-private data class PkChipStyle(
-    @StringRes val textRes: Int,
-    @DrawableRes val iconRes: Int,
-    val container: Color,
-    val content: Color,
-)
 
 /** Route colour tile: the route's medication-group container with its application icon. */
 @Composable
@@ -525,11 +503,13 @@ fun PkCalibrationLabRowFooter(
     onAccept: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    // Transparent where the caller's card is already the surface (result editor).
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
 ) {
     val note = modifier
         .fillMaxWidth()
         .clip(MaterialTheme.shapes.medium)
-        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .background(containerColor)
     when (flag) {
         is PkCalibrationLabRowFlag.Accepted -> PkCalibrationNoteRow(
             iconRes = R.drawable.ic_check_circle,
@@ -548,7 +528,7 @@ fun PkCalibrationLabRowFooter(
                 modifier = note,
             ) {
                 TextButton(onClick = onExclude, enabled = enabled) {
-                    Text(text = stringResource(R.string.calibration_pk_lab_invalid_exclude))
+                    Text(text = stringResource(R.string.calibration_pk_lab_dismiss))
                 }
                 if (onCorrect != null) {
                     HrtFilledTonalButton(
@@ -585,12 +565,13 @@ fun PkCalibrationLabRowFooter(
                 body = stringResource(R.string.calibration_pk_lab_outlier_body, joinedNames),
                 modifier = note,
             ) {
-                TextButton(onClick = onExclude, enabled = enabled) {
-                    Text(text = stringResource(R.string.calibration_pk_lab_outlier_exclude))
+                // Dismiss keeps the result at its reduced weight; Exclude drops it.
+                TextButton(onClick = onAccept, enabled = enabled) {
+                    Text(text = stringResource(R.string.calibration_pk_lab_dismiss))
                 }
                 HrtFilledTonalButton(
-                    text = stringResource(R.string.calibration_pk_lab_accept),
-                    onClick = onAccept,
+                    text = stringResource(R.string.calibration_pk_lab_outlier_exclude),
+                    onClick = onExclude,
                     enabled = enabled,
                     compact = true,
                 )
@@ -598,12 +579,20 @@ fun PkCalibrationLabRowFooter(
         }
 
         is PkCalibrationLabRowFlag.Excluded -> PkCalibrationNoteRow(
-            iconRes = R.drawable.ic_block,
-            text = stringResource(R.string.calibration_pk_lab_excluded_note),
+            iconRes = if (flag.dismissed) R.drawable.ic_info else R.drawable.ic_block,
+            text = stringResource(
+                if (flag.dismissed) R.string.calibration_pk_lab_dismissed_note
+                else R.string.calibration_pk_lab_excluded_note
+            ),
             modifier = note.padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
         ) {
             TextButton(onClick = onReinclude, enabled = enabled) {
-                Text(text = stringResource(R.string.calibration_pk_lab_reinclude))
+                Text(
+                    text = stringResource(
+                        if (flag.dismissed) R.string.calibration_pk_lab_show_review
+                        else R.string.calibration_pk_lab_reinclude
+                    )
+                )
             }
         }
     }

@@ -649,6 +649,7 @@
     <string name="settings_calibration_unit_label">單位</string>
     <string name="settings_calibration_notes_label">備註</string>
     <string name="settings_calibration_results">檢查結果</string>
+    <string name="settings_calibration_collection_time">採樣時間</string>
     <string name="settings_calibration_add_analyte">新增結果</string>
     <string name="settings_calibration_value_label">數值</string>
     <string name="settings_calibration_error_invalid_number">請輸入有效嘅數值</string>
@@ -1048,7 +1049,7 @@
     <string name="calibration_pk_hero_population">群體估算</string>
     <string name="calibration_pk_hero_adjusted">已按檢測調整</string>
     <plurals name="calibration_pk_supporting_lab_count">
-        <item quantity="other">%1$d 筆支持性檢測結果</item>
+        <item quantity="other">%1$d 筆結果</item>
     </plurals>
 
     <!-- Route-isolated E2 calibration (PK) — status section -->
@@ -1066,43 +1067,40 @@
 
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">知道喇</string>
-    <string name="calibration_pk_coaching_time_title">記錄實際採樣時間</string>
-    <string name="calibration_pk_coaching_time_body">請填寫標本採集嘅時間，而唔係你記錄嘅時間。</string>
+    <string name="calibration_pk_coaching_time_title">記錄實際抽血時間</string>
+    <string name="calibration_pk_coaching_time_body">填抽血嘅時間，唔係輸入嘅時間。</string>
     <string name="calibration_pk_coaching_history_title">保持用藥記錄準確</string>
-    <string name="calibration_pk_coaching_history_body">劑量、途徑、藥物同而家嘅體重都會影響同檢測結果對比嘅模型訊號。</string>
-    <string name="calibration_pk_coaching_assay_title">用同一間檢測機構同方法</string>
-    <string name="calibration_pk_coaching_assay_body">條件許可嘅話，盡量喺同一間機構用同一種方法檢測 E2，令結果互相可比。</string>
+    <string name="calibration_pk_coaching_history_body">劑量、途徑、藥物同體重都會影響估算。</string>
+    <string name="calibration_pk_coaching_assay_title">固定用同一間化驗所</string>
+    <string name="calibration_pk_coaching_assay_body">同一間機構、同一種方法嘅結果最可比。</string>
     <string name="calibration_pk_coaching_variety_title">喺唔同時間檢測</string>
-    <string name="calibration_pk_coaching_variety_body">喺某一個途徑提供大部分訊號嘅時間採樣，可以令嗰個途徑嘅調整更精準。</string>
-    <string name="calibration_pk_coaching_safety_note">千祈唔好喺冇醫生指導嘅情況下更改用藥或者檢測時間。多樣嘅結果可以暴露曲線形狀嘅不足，但係唔可以驗證抑制情況或者途徑生理特性。</string>
+    <string name="calibration_pk_coaching_variety_body">喺某個途徑佔主導嘅時候抽血，可以令嗰個途徑更精準。</string>
+    <string name="calibration_pk_coaching_safety_note">冇醫生指導，唔好更改用藥或者檢測時間。</string>
     <string name="calibration_pk_edu_title">檢測調整嘅運作原理</string>
-    <string name="calibration_pk_edu_intro">應用程式可以令每種給藥途徑嘅雌二醇貢獻向你自己嘅血液檢測靠攏。以下係佢做到啲乜、做唔到啲乜。</string>
+    <string name="calibration_pk_edu_intro">你嘅 E2 檢測結果會微調每種途徑對估算嘅貢獻。</string>
     <string name="calibration_pk_edu_does_header">佢做到啲乜</string>
     <string name="calibration_pk_edu_doesnt_header">佢做唔到啲乜</string>
-    <string name="calibration_pk_edu_does_routes_title">獨立調整每個途徑</string>
-    <string name="calibration_pk_edu_does_routes_body">每個途徑學自己嘅水平校正——冇單一嘅全域乘數。每筆可用檢測按該途徑提供嘅訊號比例支持每個途徑。轉檢測機構、體重變化或者改變治療方案都可能令呢啲估算改變，包括更早日期嘅估算。</string>
-    <string name="calibration_pk_edu_does_band_title">顯示範圍，唔係單一真值</string>
-    <string name="calibration_pk_edu_does_band_body">陰影區間表示另一筆觀測結果可能落喺嘅範圍——數據越少越闊。佢唔係臨床信賴區間，亦都唔係目標範圍。</string>
-    <string name="calibration_pk_edu_doesnt_measure_title">測量你嘅真實荷爾蒙水平</string>
-    <string name="calibration_pk_edu_doesnt_measure_body">佢係根據治療記錄構建嘅模型估算，唔係血液檢測。</string>
-    <string name="calibration_pk_edu_doesnt_verify_title">驗證抑制情況或者檢測可比性</string>
-    <string name="calibration_pk_edu_doesnt_verify_body">應用程式唔會用 FSH、LH、睪酮或者醫生解讀嚟確認呢啲條件。</string>
-    <string name="calibration_pk_edu_doesnt_learn_title">學習你身體嘅時間特性或者吸收</string>
-    <string name="calibration_pk_edu_doesnt_learn_body">佢只會調整途徑嘅整體水平，唔會改變曲線形狀——而呢個水平校正可能會吸收生物利用度、體重誤差、檢測偏差同依從性等影響。</string>
-    <string name="calibration_pk_edu_doesnt_advise_title">提供用藥建議</string>
-    <string name="calibration_pk_edu_doesnt_advise_body">任何調整請諮詢你嘅醫生。</string>
+    <string name="calibration_pk_edu_does_routes_title">分開調整每個途徑</string>
+    <string name="calibration_pk_edu_does_routes_body">每筆結果會計入檢測時起作用嘅途徑。結果多咗之後，估算可能會變，包括過去嘅日期。</string>
+    <string name="calibration_pk_edu_does_band_title">顯示可能範圍</string>
+    <string name="calibration_pk_edu_does_band_body">陰影區間係新結果可能落喺嘅範圍，結果越多越窄。佢唔係目標範圍。</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">確認抑制情況或者檢測可比性</string>
+    <string name="calibration_pk_edu_doesnt_verify_body">佢唔會讀取 FSH、LH 或者睪酮。</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">了解你嘅時間特性或者吸收</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">佢只會調整途徑嘅整體水平，唔會改變曲線形狀。</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
-    <string name="calibration_pk_lab_invalid_title">呢筆 E2 結果用唔到嚟做調整</string>
-    <string name="calibration_pk_lab_ignored_numeric_note">未用於調整：模型喺呢個採樣時間計算唔到。</string>
-    <string name="calibration_pk_lab_ignored_signal_note">未用於調整：模型預計呢個採樣時間幾乎冇嚟自治療嘅 E2。</string>
-    <string name="calibration_pk_lab_invalid_body">請輸入大過零嘅數值，或者將佢排除出調整。如果報告寫明「低於定量限」，請保留原始報告。</string>
-    <string name="calibration_pk_lab_invalid_exclude">排除</string>
+    <string name="calibration_pk_lab_invalid_title">數值要大過零</string>
+    <string name="calibration_pk_lab_ignored_numeric_note">未使用：模型喺呢個時間計算唔到。</string>
+    <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間預計幾乎冇嚟自治療嘅 E2。</string>
+    <string name="calibration_pk_lab_invalid_body">請更正；如果報告寫明低過檢測下限，可以忽略呢個提示。</string>
+    <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_invalid_correct">更正數值</string>
-    <string name="calibration_pk_lab_outlier_title">請覆查呢筆結果</string>
-    <string name="calibration_pk_lab_outlier_body">佢同而家基於治療嘅%1$s估算差異好大。請檢查數值、單位、採樣時間、途徑同用藥記錄；如果唔可比，請將佢排除。</string>
-    <string name="calibration_pk_lab_outlier_exclude">排除出調整</string>
+    <string name="calibration_pk_lab_outlier_title">請核對呢筆結果</string>
+    <string name="calibration_pk_lab_outlier_body">同%1$s估算差異好大，所以權重會較低。請檢查數值、單位同採樣時間。</string>
+    <string name="calibration_pk_lab_outlier_exclude">排除</string>
     <string name="calibration_pk_lab_excluded_note">已經排除出調整。</string>
+    <string name="calibration_pk_lab_dismissed_note">未使用：數值唔大過零。</string>
     <string name="calibration_pk_lab_reinclude">重新納入</string>
     <string name="calibration_pk_review_action_rejected">儲存唔到呢個變更，請再試一次。</string>
     <string name="medical_disclaimer_lab_adjustment">檢測調整產生嘅係根據治療記錄嘅模型估算值，唔係經過驗證嘅荷爾蒙水平或者用藥建議——唔可以取代檢測或者醫生嘅指導。</string>
@@ -1116,20 +1114,21 @@
 
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
-    <string name="calibration_pk_lab_accept">冇問題</string>
-    <string name="calibration_pk_lab_accepted_body">你已經核對咗呢個結果，佢仍然會用於調整。</string>
+    <string name="calibration_pk_lab_accepted_body">已忽略，仍然以較低權重計入。</string>
     <string name="calibration_pk_lab_show_review">還原</string>
     <string name="calibration_pk_status_info_hint">呢個係估算，唔係測量結果。撳一下睇下點運作。</string>
     <plurals name="calibration_pk_review_count">
         <item quantity="other">%d 項結果要核對</item>
     </plurals>
-    <string name="calibration_pk_reason_short_scale">調整幅度異常大</string>
-    <string name="calibration_pk_reason_short_uncertain">仲未確定</string>
-    <string name="calibration_pk_reason_short_fit">同你嘅結果擬合得唔好</string>
-    <string name="calibration_pk_reason_short_ambiguous">可能有多種調整</string>
+    <string name="calibration_pk_reason_short_weak_signal">訊號較弱</string>
+    <string name="calibration_pk_reason_short_scale">校正幅度大</string>
+    <string name="calibration_pk_reason_short_uncertain">未確定</string>
+    <string name="calibration_pk_reason_short_fit">擬合唔好</string>
+    <string name="calibration_pk_reason_short_ambiguous">擬合唔止一個</string>
     <string name="calibration_pk_reason_short_outlier">有結果唔一致</string>
     <string name="calibration_pk_lab_chip_check">要核對</string>
     <string name="calibration_pk_lab_chip_excluded">已排除</string>
+    <string name="calibration_pk_lab_chip_dismissed">已忽略</string>
     <string name="calibration_pk_lab_chip_not_used">冇使用</string>
     <string name="calibration_pk_edu_next">下一步</string>
     <string name="calibration_pk_edu_back">返回</string>

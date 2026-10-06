@@ -104,6 +104,8 @@ data class PkCalibrationScreenState(
     val ui: PkCalibrationUiState,
     val excludedResultIds: Set<UUID>,
     val acceptedResultIds: Set<UUID> = emptySet(),
+    /** Results the fit can never use (value ≤ 0); excluding one only dismisses its warning. */
+    val nonPositiveResultIds: Set<UUID> = emptySet(),
 )
 
 /** Builds the screen state from one live evaluation; shared by the list and the result editor. */
@@ -112,6 +114,9 @@ fun pkCalibrationScreenState(live: PkCalibrationLive): PkCalibrationScreenState 
         ui = pkCalibrationUiState(live.evaluation.result, live.render),
         excludedResultIds = live.input.excludedLabIds,
         acceptedResultIds = live.input.acceptedLabIds,
+        nonPositiveResultIds = live.input.labs
+            .filter { lab -> lab.valuePgml <= 0.0 }
+            .mapTo(HashSet()) { lab -> lab.resultId },
     )
 }
 
@@ -132,7 +137,11 @@ sealed interface PkCalibrationLabRowFlag {
 
     data class Accepted(override val resultId: UUID) : PkCalibrationLabRowFlag
 
-    data class Excluded(override val resultId: UUID) : PkCalibrationLabRowFlag
+    data class Excluded(
+        override val resultId: UUID,
+        /** A dismissed ≤ 0 warning: the fit never used it, so nothing was excluded. */
+        val dismissed: Boolean = false,
+    ) : PkCalibrationLabRowFlag
 }
 
 /** Flags that ask the user to act; these, and only these, fill the review queue. */
@@ -162,7 +171,10 @@ fun pkCalibrationLabFlag(state: PkCalibrationScreenState, resultId: UUID): PkCal
         .filter { row -> resultId in row.unreviewedOutlierLabIds }
         .map { row -> row.route }
     return when {
-        resultId in state.excludedResultIds -> PkCalibrationLabRowFlag.Excluded(resultId)
+        resultId in state.excludedResultIds -> PkCalibrationLabRowFlag.Excluded(
+            resultId = resultId,
+            dismissed = resultId in state.nonPositiveResultIds,
+        )
 
         resultId in state.ui.ignoredLabs ->
             PkCalibrationLabRowFlag.Ignored(resultId, state.ui.ignoredLabs.getValue(resultId))

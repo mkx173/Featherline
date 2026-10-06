@@ -59,7 +59,8 @@ internal val LocalSheetDismissFocusRequester = compositionLocalOf<FocusRequester
 @Composable
 internal fun MedicationEditorSheetScaffold(
     modifier: Modifier = Modifier,
-    title: String,
+    // Null drops the header so the content can draw (and animate) its own title.
+    title: String?,
     sheetState: SheetState,
     confirmButtonText: String,
     onDismissRequest: () -> Unit,
@@ -120,25 +121,24 @@ internal fun MedicationEditorSheetScaffold(
                     .focusable(),
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                if (onCloseClick != null) {
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = onCloseClick,
-                        compact = true
-                    )
+            if (title != null || onCloseClick != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    title?.let { Text(text = it, style = MaterialTheme.typography.titleLarge) }
+                    if (onCloseClick != null) {
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.cancel),
+                            onClick = onCloseClick,
+                            compact = true
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+            }
 
             CompositionLocalProvider(LocalSheetDismissFocusRequester provides dismissFocusAnchor) {
                 with(columnScope) { content() }

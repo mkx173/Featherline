@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -80,11 +81,11 @@ class PkCalibrationAcceptanceUiTest {
             }
         }
         val check = context.getString(R.string.calibration_pk_lab_chip_check)
-        composeRule.onNodeWithText(check).assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_accept)).performClick()
+        composeRule.onNodeWithContentDescription(check).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_dismiss)).performClick()
 
         composeRule.onNodeWithText(context.getString(R.string.calibration_pk_lab_outlier_title)).assertDoesNotExist()
-        composeRule.onNodeWithText(check).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(check).assertDoesNotExist()
         assertEquals(0, editorOpens)
         composeRule.onNodeWithText(panel.results.first().value.let { "%.0f".format(Locale.US, it) }, substring = true)
             .performClick()
