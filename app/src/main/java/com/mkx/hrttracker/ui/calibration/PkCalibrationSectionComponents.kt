@@ -386,13 +386,13 @@ internal fun pkCalibrationRouteMeta(row: PkCalibrationRouteRowUiState): String? 
 internal fun PkCalibrationLabChip(flag: PkCalibrationLabRowFlag) {
     val (iconRes, descriptionRes, tint) = when {
         flag is PkCalibrationLabRowFlag.UnreviewedOutlier -> Triple(
-            R.drawable.ic_info,
+            R.drawable.ic_error_outline,
             R.string.calibration_pk_lab_chip_check,
             MaterialTheme.colorScheme.tertiary,
         )
 
         flag.needsReview -> Triple(
-            R.drawable.ic_info,
+            R.drawable.ic_error_outline,
             R.string.calibration_pk_lab_chip_check,
             MaterialTheme.colorScheme.error,
         )
