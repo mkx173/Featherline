@@ -128,7 +128,7 @@ enum class PkCalibrationGlobalState {
  * raised none.
  */
 enum class PkRouteCalibrationDisplayState {
-    /** No included lab has any modeled signal from this route. */
+    /** No included lab draws >=20% of its modeled signal from this route. */
     POPULATION_NO_LAB_SIGNAL,
     POPULATION_NUMERIC_FAILURE,
     LAB_ADJUSTED_PROVISIONAL,
@@ -152,8 +152,6 @@ enum class PkCalibrationBandState {
 
 /** Warning reasons on an adjusted route row. The user reads them; nothing is withheld. */
 enum class PkCalibrationReason {
-    /** No included lab draws ≥20% of its modeled signal from this route. */
-    NO_SUPPORTING_LABS,
     /** Outside the route's usual range, or a large shift backed by fewer than three labs. */
     SCALE_OUTSIDE_USUAL_RANGE,
     /** Posterior still wide, or the supporting labs sit at similar modeled signal levels. */
@@ -235,9 +233,9 @@ data class PkCalibrationResult(
     /**
      * Adjusted routes with at least one supporting lab: the only ones applied
      * to the drawn curve and band, and the only ones the hero and status body
-     * name. A route fitted from a negligible share still shows its fitted
-     * adjustment on its row, with the no-supporting-labs warning, but is not
-     * applied: the hero would otherwise call a personalized curve "population".
+     * name. The solver no longer adjusts a route without a supporting lab, so
+     * this equals [promotedRoutes] for solver output; the guard stays for
+     * hand-built results.
      */
     val supportedPromotedRoutes: List<PkCalibrationRoute>
         get() = supportedAdjustedRows.map { it.route }

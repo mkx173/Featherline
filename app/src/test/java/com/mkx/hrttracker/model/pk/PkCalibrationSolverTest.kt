@@ -258,13 +258,12 @@ class PkCalibrationSolverTest {
         )
         val oralRow = excluded.routeResults[PkCalibrationRoute.ORAL.ordinal]
         assertEquals(0, oralRow.supportingLabCount)
-        // The labs still touch oral, so its fitted beta is shown with a
-        // weak-support warning instead of being withheld.
-        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, oralRow.displayState)
-        assertNotNull(oralRow.fittedBeta)
-        assertTrue(PkCalibrationReason.NO_SUPPORTING_LABS in oralRow.reasons)
-        assertTrue(PkCalibrationReason.UNCERTAIN in oralRow.reasons)
-        assertEquals(listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL), excluded.promotedRoutes)
+        // The labs still touch oral, but nothing supports it: a population
+        // row, not an adjusted row with "0 results" (a month-old route that
+        // has faded out of every lab must not read as calibrated).
+        assertEquals(PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL, oralRow.displayState)
+        assertNull(oralRow.fittedBeta)
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), excluded.promotedRoutes)
         assertEquals(
             2,
             excluded.routeResults[PkCalibrationRoute.INJECTION.ordinal].supportingLabCount,
@@ -499,7 +498,6 @@ class PkCalibrationSolverTest {
         assertEquals(beta.toBits(), requireNotNull(result.fittedBeta).toBits())
         assertEquals(
             setOf(
-                PkCalibrationReason.NO_SUPPORTING_LABS,
                 PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE,
                 PkCalibrationReason.RESIDUAL_FIT_POOR,
                 PkCalibrationReason.UNREVIEWED_OUTLIER,

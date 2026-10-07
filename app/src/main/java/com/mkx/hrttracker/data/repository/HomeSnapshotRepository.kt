@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -85,6 +86,16 @@ class HomeSnapshotRepository @Inject constructor(
 
     /** Rebuilds the snapshot when its projection expires; replaced on every write. */
     private var expiryRefreshJob: Job? = null
+
+    /**
+     * True while a refresh is pending or building, from a mutation's clear (or
+     * an async request) until its build has written or been skipped. Home
+     * holds the E2 skeleton instead of re-simulating locally, so the user
+     * never sees the population curve flash before the rebuilt one.
+     */
+    val rebuildInFlight: Flow<Boolean>
+        get() = activeRefreshes.map { count -> count > 0 }.distinctUntilChanged()
+    private val activeRefreshes = MutableStateFlow(0)
 
     init {
         // Observe option changes (not the initial value) and force a rebuild
@@ -178,12 +189,24 @@ class HomeSnapshotRepository @Inject constructor(
     // leaves the snapshot store empty and the next launch reads no profile until
     // Room finishes opening. Lock acquisition stays cancellable so callers blocked
     // on a long-running peer can still be cancelled cleanly.
+    //
+    // The rebuild itself runs in the app scope after the lock is released: the
+    // caller returns as soon as the DB commit lands instead of waiting through
+    // the PK simulation, calibration solve, band render and encrypted write,
+    // and other mutations are not queued behind that build. Observers see the
+    // cleared snapshot briefly and fall back to Room until the rebuild writes.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
         var generation = 0L
         var mutationResult: Result<T>? = null
         refreshMutex.withLock {
             withContext(NonCancellable) {
                 diagnosticsLogger.info(TAG, "home_data_mutation_start")
+                // Counted as in flight before the generation bump: the bump
+                // alone makes observers reject the stored snapshot, and Home
+                // must already know a rebuild is coming when that happens, or
+                // it draws the population fallback for a frame before the
+                // skeleton.
+                activeRefreshes.update { count -> count + 1 }
                 generation = homeSnapshotGenerationStore.incrementGeneration()
                 diagnosticsLogger.info(
                     TAG,
@@ -200,12 +223,12 @@ class HomeSnapshotRepository @Inject constructor(
                 // The generation has already been bumped, so observers will reject any
                 // stale snapshot. Clear while still serialized with other mutations.
                 clearSnapshotBestEffort()
-                refreshHomeSnapshotBestEffortLocked(force = true)
             }
         }
+        launchCountedRefresh(now = LocalDateTime.now(), force = true, zoneId = ZoneId.systemDefault())
         diagnosticsLogger.info(
             TAG,
-            "home_data_mutation_snapshot_refresh_completed generation=$generation"
+            "home_data_mutation_snapshot_refresh_enqueued generation=$generation"
         )
         return checkNotNull(mutationResult).getOrThrow()
     }
@@ -388,6 +411,12 @@ class HomeSnapshotRepository @Inject constructor(
         zoneId: ZoneId = ZoneId.systemDefault(),
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_async_enqueued force=$force now=$now")
+        activeRefreshes.update { count -> count + 1 }
+        launchCountedRefresh(now = now, force = force, zoneId = zoneId)
+    }
+
+    /** Runs a refresh in the app scope; the caller has already counted it in [activeRefreshes]. */
+    private fun launchCountedRefresh(now: LocalDateTime, force: Boolean, zoneId: ZoneId) {
         // Reserve the request's place in line synchronously: the launched
         // coroutine may reach the refresh mutex after a later request's.
         val sequence = refreshRequestSequence.incrementAndGet()
@@ -408,6 +437,8 @@ class HomeSnapshotRepository @Inject constructor(
                     "home_snapshot_refresh_failed force=$force now=$now",
                     throwable
                 )
+            } finally {
+                activeRefreshes.update { count -> count - 1 }
             }
         }
     }
@@ -562,33 +593,6 @@ class HomeSnapshotRepository @Inject constructor(
         val build: Deferred<Unit>,
     )
 
-    private suspend fun refreshHomeSnapshotIfNeededLocked(
-        now: LocalDateTime = LocalDateTime.now(),
-        force: Boolean = false,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ) {
-        diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
-        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
-        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
-        val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
-        val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
-            generation = homeSnapshotGenerationStore.readGeneration(),
-            now = now,
-            zoneId = zoneId,
-            option = option,
-            force = force,
-        ) ?: return
-
-        buildAndWriteHomeSnapshot(
-            refreshGeneration = refreshGeneration,
-            now = now,
-            zoneId = zoneId,
-            option = option,
-            cacheWindow = cacheWindow,
-            snapshotWindow = snapshotWindow,
-        )
-    }
-
     private suspend fun refreshGenerationAfterSkipCheckLocked(
         generation: Long,
         now: LocalDateTime,
@@ -639,8 +643,8 @@ class HomeSnapshotRepository @Inject constructor(
 
     private suspend fun buildAndWriteHomeSnapshot(
         refreshGeneration: Long,
-        /** Request-order sequence; null for mutation-path builds, ordered by the generation alone. */
-        refreshSequence: Long? = null,
+        /** Request-order sequence; a build is dropped once a newer request has started one. */
+        refreshSequence: Long,
         now: LocalDateTime,
         zoneId: ZoneId,
         option: HomeE2ChartWindowOption,
@@ -778,12 +782,19 @@ class HomeSnapshotRepository @Inject constructor(
         // Lab calibration is part of the snapshot so the calibrated curve is
         // what Home and the widget show first, not a population curve that a
         // later live evaluation swaps out.
+        val phaseStartNanos = System.nanoTime()
+        fun phaseMillis(): Long = (System.nanoTime() - phaseStartNanos) / 1_000_000L
         val calibrationInput = buildPkCalibrationInput(
             labs = inputs.calibrationLabs,
             entries = inputs.calibrationEntries,
             weightKg = inputs.profile.weightKg,
             metadata = inputs.calibrationMetadata,
             fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+        )
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase calibration_input_built ms=${phaseMillis()} " +
+                    "labs=${calibrationInput.labs.size} doseEvents=${calibrationInput.doseEvents.size}"
         )
         // A throwing solve must not drop the snapshot write: Home would fall
         // back to population and the live surface would keep the pre-mutation
@@ -807,6 +818,11 @@ class HomeSnapshotRepository @Inject constructor(
                 input = calibrationInput,
                 evaluation = calibration,
             )
+        )
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase calibration_solved ms=${phaseMillis()} " +
+                    "state=${calibration?.result?.globalState} promoted=${calibration?.result?.promotedRoutes}"
         )
         val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
@@ -846,6 +862,12 @@ class HomeSnapshotRepository @Inject constructor(
             }
             homeAsync.await() to widgetAsync.await()
         }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase projections_simulated ms=${phaseMillis()} " +
+                    "real=${simulationEntries.real.size} planned=${simulationEntries.planned.size} " +
+                    "samples=${projection.timeH.size}"
+        )
         // The band follows the same projected curve as the chart: the same
         // logged (lookback-limited) plus planned doses, over the projection
         // window. The fit itself used the full dose history.
@@ -884,6 +906,11 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }.getOrNull()
         }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase band_rendered ms=${phaseMillis()} " +
+                    "render=${homeRender?.renderState} band=${homeRender?.bandState}"
+        )
         val bandKnots = homeRender
             ?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
             ?.bandKnots
@@ -1005,7 +1032,7 @@ class HomeSnapshotRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             // Avoid restoring stale snapshot data from a refresh that raced with a write.
             snapshotMutationMutex.withLock {
-                if (refreshSequence != null && refreshSequence < latestStartedRefreshSequence) {
+                if (refreshSequence < latestStartedRefreshSequence) {
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_write_skipped reason=newer_refresh_started " +
@@ -1015,7 +1042,8 @@ class HomeSnapshotRepository @Inject constructor(
                 } else if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
                     diagnosticsLogger.info(
                         TAG,
-                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
+                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()} " +
+                                "bandKnots=${bandKnots.size} pkEntries=${inputs.pkEntries.size}"
                     )
                     homeSnapshotStore.writeSnapshot(snapshotRecord)
                     StartupTiming.mark("home_snapshot_rebuilt")
@@ -1241,26 +1269,6 @@ class HomeSnapshotRepository @Inject constructor(
             )
         }
     }
-
-    private suspend fun refreshHomeSnapshotBestEffortLocked(
-        now: LocalDateTime = LocalDateTime.now(),
-        force: Boolean = false,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ) {
-        runCatching {
-            refreshHomeSnapshotIfNeededLocked(now = now, force = force, zoneId = zoneId)
-        }.onFailure { throwable ->
-            if (throwable is CancellationException) {
-                throw throwable
-            }
-            diagnosticsLogger.warning(
-                TAG,
-                "home_snapshot_refresh_failed force=$force now=$now",
-                throwable
-            )
-        }
-    }
-
 }
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {

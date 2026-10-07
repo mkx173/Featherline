@@ -28,6 +28,17 @@ class PkCalibrationPredictiveBandValidationTest {
     }
 
     @Test
+    fun closedFormT4Cdf_matchesTheLibraryDistribution() {
+        val library = org.hipparchus.distribution.continuous.TDistribution(4.0)
+        var x = -40.0
+        while (x <= 40.0) {
+            assertEquals(library.cumulativeProbability(x), requireNotNull(PkPredictiveBandMath.studentTCdf(x)), 1e-12)
+            x += 0.37
+        }
+        assertEquals(0.5, requireNotNull(PkPredictiveBandMath.studentTCdf(0.0)), 0.0)
+    }
+
+    @Test
     fun nonzeroGaussianStudentTMixture_matchesIndependentFixedRootOracles() {
         // Independent SciPy 1.18 brentq roots over NumPy hermgauss nodes/weights for
         // N(0, 0.09) + sqrt(0.04) * t4, at a nontrivial mixture where the inverse

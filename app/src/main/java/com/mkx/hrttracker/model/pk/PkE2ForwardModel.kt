@@ -10,6 +10,13 @@ class PkE2ForwardModel private constructor(
     private val eventModels: List<PkForwardEventModel>,
     private val concentrationScale: Double,
 ) {
+    // Grouped once so a breakdown walks each route's own events (time order
+    // kept) instead of filtering every event five times per sample.
+    private val eventModelsByRoute: Map<PkCalibrationRoute, List<PkForwardEventModel>> =
+        PkCalibrationRoute.entries.associateWith { route ->
+            eventModels.filter { model -> model.event.calibrationRoute() == route }
+        }
+
     /**
      * Direct event-order evaluation. This is the population-parity reference;
      * dominance uses [breakdownAt] and its canonical ordered total instead.
@@ -56,8 +63,7 @@ class PkE2ForwardModel private constructor(
             var routeAmountMg = 0.0
             val beta = personalParams.routeLogScale[route]
             val scale = if (beta == null) 1.0 else personalParams.scaleFor(route)
-            for (model in eventModels) {
-                if (model.event.calibrationRoute() != route) continue
+            for (model in eventModelsByRoute.getValue(route)) {
                 val amountMg = model.amountAt(timeH)
                 if (!amountMg.isFinite() || amountMg < 0.0) return null
                 val scaledAmountMg = if (beta == null) amountMg else amountMg * scale

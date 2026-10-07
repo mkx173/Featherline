@@ -203,13 +203,24 @@ class HomeRepository @Inject constructor(
                 homeAnchor = homeAnchor,
             )
         }
+        val nowAndRebuildFlow = combine(
+            nowFlow,
+            homeSnapshotRepository.rebuildInFlight,
+        ) { now, rebuildInFlight -> now to rebuildInFlight }
+        // A rebuild clears the stored snapshot for a fraction of a second
+        // (about 200 ms on a release build). Through that gap the PK fields
+        // come from the last usable snapshot, so the curve, band and hero
+        // pill neither flash to the population fallback nor blink through a
+        // skeleton; the rebuilt snapshot then replaces them. One per
+        // collection, like the flow itself.
+        var lastPkSnapshot: HomeSnapshotRecord? = null
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
             stockAndAnchorInputsFlow,
-            nowFlow,
-        ) { inputs, snapshot, option, stockAndAnchorInputs, now ->
+            nowAndRebuildFlow,
+        ) { inputs, snapshot, option, stockAndAnchorInputs, (now, rebuildInFlight) ->
             suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
@@ -233,7 +244,10 @@ class HomeRepository @Inject constructor(
                             option = option,
                         )
                     }
-                    val pkProjectionRecord = usableSnapshot?.pkProjection
+                    if (usableSnapshot != null) lastPkSnapshot = usableSnapshot
+                    val pkSnapshot = usableSnapshot
+                        ?: lastPkSnapshot?.takeIf { rebuildInFlight }
+                    val pkProjectionRecord = pkSnapshot?.pkProjection
                     val stockWarnings = medicineStockRepository.projectAll(
                         medicines = stockAndAnchorInputs.trackedMedicines,
                         activeGroups = inputs.activeGroups,
@@ -265,10 +279,10 @@ class HomeRepository @Inject constructor(
                             ?: inputs.latestEstradiolEntry,
                         estradiolPkEntries = simulationEntries.real,
                         estradiolPkPlannedEntries = simulationEntries.planned,
-                        pkPersonalParams = usableSnapshot?.pkPersonalParams()
+                        pkPersonalParams = pkSnapshot?.pkPersonalParams()
                             ?: PkPersonalParams.population(),
-                        pkBandKnots = usableSnapshot?.pkBandKnots().orEmpty(),
-                        pkCalibration = usableSnapshot?.pkCalibration,
+                        pkBandKnots = pkSnapshot?.pkBandKnots().orEmpty(),
+                        pkCalibration = pkSnapshot?.pkCalibration,
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
