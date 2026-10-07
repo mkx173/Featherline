@@ -25,7 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -34,9 +34,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.applicationType
-import com.mkx.hrttracker.ui.components.HrtPill
-import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerDrawingModel
@@ -259,38 +258,14 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 // Hero pill
 // ---------------------------------------------------------------------------
 
-/** One pill: "lab-adjusted" or "population estimate". */
+/** One pill: "lab-adjusted" or "population estimate", styled like the range pill it sits beside. */
 @Composable
 internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState) {
-    val colorScheme = MaterialTheme.colorScheme
-    val adjusted = pk.adjusted
-    val contentColor = if (adjusted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-    HrtPill(
+    MainE2RangeStatusPill(
+        iconDrawableRes = if (pk.adjusted) R.drawable.ic_experiment else R.drawable.ic_group,
         label = stringResource(
-            if (adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
+            if (pk.adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
         ),
-        containerColor = if (adjusted) {
-            colorScheme.primaryContainer.copy(alpha = 0.7f)
-        } else {
-            colorScheme.surfaceContainer
-        },
-        contentColor = contentColor,
-        size = HrtPillSize.Small,
-        fontWeight = FontWeight.SemiBold,
-        icon = {
-            Icon(
-                painter = painterResource(
-                    when {
-                        !adjusted -> R.drawable.ic_labs
-                        pk.limitedConfidence -> R.drawable.ic_experiment
-                        else -> R.drawable.ic_check_circle_heavy
-                    }
-                ),
-                contentDescription = null,
-                modifier = iconModifier,
-                tint = contentColor,
-            )
-        },
     )
 }
 
@@ -311,7 +286,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_sync_alt),
+                painter = painterResource(R.drawable.ic_help),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(26.dp),
@@ -343,6 +318,10 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
 @Composable
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
     val bandUnavailable = pk.bandUnavailable
+    // An empty note would still take the parent column's spacing.
+    if (pk.band == null && !bandUnavailable) {
+        return
+    }
     val bandSummary = stringResource(R.string.calibration_pk_band_a11y_summary)
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -353,29 +332,31 @@ internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
                     .padding(top = 2.dp)
                     .semantics { contentDescription = bandSummary },
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 18.dp, height = 8.dp)
-                        .padding(end = 0.dp)
-                ) {
-                    Row {
+                Spacer(modifier = Modifier.weight(1f))
+                val pkBandLegendText = stringResource(R.string.calibration_pk_band_legend)
+                Box {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
                         Surface(
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
                             shape = MaterialTheme.shapes.extraSmall,
-                            modifier = Modifier.size(9.dp, 8.dp),
+                            modifier = Modifier.size(9.dp),
                         ) { }
                         Surface(
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                             shape = MaterialTheme.shapes.extraSmall,
-                            modifier = Modifier.size(9.dp, 8.dp),
+                            modifier = Modifier.size(9.dp),
                         ) { }
                     }
                 }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = stringResource(R.string.calibration_pk_band_legend),
+                    text = pkBandLegendText,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(pkBandLegendText)
+
                 )
             }
         }
@@ -403,5 +384,62 @@ private fun MainPkCalibrationNoteLine(text: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.cjkTextOffset(text),
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Previews
+// ---------------------------------------------------------------------------
+
+private val previewPkCalibration = MainPkCalibrationUiState(
+    adjusted = true,
+    limitedConfidence = false,
+    renderUnavailable = false,
+    bandUnavailable = false,
+    band = MainE2CalibrationBand(
+        xHours = listOf(0.0, 1.0),
+        p025 = listOf(0f, 0f),
+        p158655254 = listOf(0f, 0f),
+        p841344746 = listOf(0f, 0f),
+        p975 = listOf(0f, 0f),
+    ),
+)
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun MainPkCalibrationHeroPillPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(16.dp),
+            ) {
+                MainPkCalibrationHeroPill(previewPkCalibration)
+                MainPkCalibrationHeroPill(previewPkCalibration.copy(adjusted = false))
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun MainPkCalibrationChartNotePreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            Column(modifier = Modifier.padding(16.dp)) {
+                MainPkCalibrationChartNote(previewPkCalibration)
+                MainPkCalibrationChartNote(previewPkCalibration.copy(band = null, bandUnavailable = true))
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun MainPkCalibrationChartUnavailableCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Surface {
+            MainPkCalibrationChartUnavailableCard(modifier = Modifier.padding(16.dp))
+        }
     }
 }

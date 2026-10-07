@@ -113,6 +113,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -659,20 +660,31 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        if (!hideReferenceRanges) {
-                            SkeletonOverlay(
-                                active = showSkeleton,
-                                shape = CircleShape,
-                                modifier = Modifier.constrainAs(rangeStatusRef) {
-                                    start.linkTo(unitRef.end, margin = 8.dp)
-                                    top.linkTo(unitRef.top)
-                                    bottom.linkTo(unitRef.bottom)
-                                },
-                            ) {
-                                MainE2RangeStatusPill(
-                                    iconDrawableRes = rangeStatusIconDrawableRes,
-                                    label = rangeStatusLabel,
-                                )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.constrainAs(rangeStatusRef) {
+                                start.linkTo(unitRef.end, margin = 8.dp)
+                                end.linkTo(parent.end)
+                                top.linkTo(unitRef.top)
+                                bottom.linkTo(unitRef.bottom)
+                                width = Dimension.preferredWrapContent
+                                horizontalBias = 0f
+                            },
+                        ) {
+                            if (!hideReferenceRanges) {
+                                SkeletonOverlay(
+                                    active = showSkeleton,
+                                    shape = CircleShape,
+                                ) {
+                                    MainE2RangeStatusPill(
+                                        iconDrawableRes = rangeStatusIconDrawableRes,
+                                        label = rangeStatusLabel,
+                                    )
+                                }
+                            }
+                            if (!showSkeleton && pkCalibration != null) {
+                                MainPkCalibrationHeroPill(pkCalibration)
                             }
                         }
                     }
@@ -721,10 +733,6 @@ internal fun MainE2HeroCard(
                             },
                             text = lastDoseSummary,
                         )
-
-                        if (!showSkeleton && pkCalibration != null) {
-                            MainPkCalibrationHeroPill(pkCalibration)
-                        }
                     }
                 }
             }
@@ -744,7 +752,7 @@ internal fun MainE2HeroCard(
 }
 
 @Composable
-private fun MainE2RangeStatusPill(
+internal fun MainE2RangeStatusPill(
     iconDrawableRes: Int,
     label: String,
     modifier: Modifier = Modifier,

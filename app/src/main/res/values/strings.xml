@@ -1106,18 +1106,18 @@
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Log a dose first</string>
-    <string name="calibration_pk_global_no_dose_history_body">Calibration compares your E2 results with the curve from your logged doses. The default estimate is shown until you log an estradiol dose.</string>
+    <string name="calibration_pk_global_no_dose_history_body">Calibration compares your E2 results with the curve from your logged doses. The population estimate is shown until you log an estradiol dose.</string>
     <string name="calibration_pk_global_no_usable_labs_title">Add an E2 result</string>
-    <string name="calibration_pk_global_no_usable_labs_body">Add an E2 blood test result to start calibrating. The default estimate is shown until then.</string>
+    <string name="calibration_pk_global_no_usable_labs_body">Add an E2 blood test result to start calibrating. The population estimate is shown until then.</string>
     <string name="calibration_pk_global_numeric_failure_title">Unable to update the estimate</string>
-    <string name="calibration_pk_global_numeric_failure_body">The calculation didn’t finish, so the default estimate is shown for now.</string>
+    <string name="calibration_pk_global_numeric_failure_body">The calculation didn’t finish, so the population estimate is shown for now.</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_tag_no_supporting_labs">No usable results</string>
     <string name="calibration_pk_route_tag_numeric_failure">Unable to calibrate</string>
 
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
-    <string name="calibration_pk_hero_population">Default estimate</string>
+    <string name="calibration_pk_hero_population">Population estimate</string>
     <string name="calibration_pk_hero_adjusted">Calibrated</string>
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="one">%1$d result</item>
@@ -1126,7 +1126,7 @@
 
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">Estimate calibration</string>
-    <string name="calibration_pk_status_population_title">Using the default estimate</string>
+    <string name="calibration_pk_status_population_title">Using the population estimate</string>
     <string name="calibration_pk_status_adjusted_title">Calibrated to your results</string>
     <string name="calibration_pk_retry">Try again</string>
     <string name="calibration_pk_routes_card_title">Routes</string>
@@ -1180,7 +1180,7 @@
     <string name="calibration_pk_chart_unavailable_body">The calculation didn’t finish, so no curve is drawn to avoid showing wrong values. Your saved results aren’t affected.</string>
     <string name="calibration_pk_band_unavailable_note">Unable to calculate the shaded range for this view.</string>
     <string name="calibration_pk_band_legend">68% / 95% range</string>
-    <string name="calibration_pk_band_a11y_summary">The line combines calibrated estimates for some routes with default estimates for the others. The shaded areas show where lab results would likely fall.</string>
+    <string name="calibration_pk_band_a11y_summary">The line combines calibrated estimates for some routes with population estimates for the others. The shaded areas show where lab results would likely fall.</string>
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
     <string name="calibration_pk_lab_accepted_body">Kept. Still used at a lower weight.</string>
