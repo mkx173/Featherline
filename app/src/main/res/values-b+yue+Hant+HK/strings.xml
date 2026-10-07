@@ -1115,7 +1115,6 @@
     <plurals name="calibration_pk_review_count">
         <item quantity="other">%d 項結果待核對</item>
     </plurals>
-    <string name="calibration_pk_reason_short_weak_signal">訊號較弱</string>
     <string name="calibration_pk_reason_short_scale">校準幅度大</string>
     <string name="calibration_pk_reason_short_uncertain">不確定性高</string>
     <string name="calibration_pk_reason_short_fit">擬合較差</string>

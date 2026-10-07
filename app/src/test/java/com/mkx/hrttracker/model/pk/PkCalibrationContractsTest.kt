@@ -83,7 +83,7 @@ class PkCalibrationContractsTest {
                     PkCalibrationRoute.ORAL -> PkRouteCalibrationResult(
                         route = route,
                         displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                        reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                        reasons = setOf(PkCalibrationReason.UNCERTAIN),
                         fittedBeta = 0.0,
                         betaPosteriorSd = 0.3,
                     )
@@ -120,7 +120,7 @@ class PkCalibrationContractsTest {
                     PkCalibrationRoute.ORAL -> PkRouteCalibrationResult(
                         route = route,
                         displayState = PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
-                        reasons = setOf(PkCalibrationReason.NO_SUPPORTING_LABS),
+                        reasons = setOf(PkCalibrationReason.UNCERTAIN),
                         fittedBeta = ln(1.2),
                         betaPosteriorSd = 0.3,
                         supportingLabCount = 0,

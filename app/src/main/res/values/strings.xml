@@ -1190,7 +1190,6 @@
         <item quantity="one">%d result to check</item>
         <item quantity="other">%d results to check</item>
     </plurals>
-    <string name="calibration_pk_reason_short_weak_signal">Weak signal</string>
     <string name="calibration_pk_reason_short_scale">Large correction</string>
     <string name="calibration_pk_reason_short_uncertain">Uncertain</string>
     <string name="calibration_pk_reason_short_fit">Poor fit</string>

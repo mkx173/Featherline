@@ -42,7 +42,7 @@ When you log estradiol (E2) blood test results, Featherline fits one multiplier 
 - **E2 only.** Only estradiol results are used. Other analytes are never fed into the model.
 - **Level, not shape.** Each route's contribution is scaled up or down. Timing and shape are not personalized, so a curve that matches your trough can still be wrong about your peak.
 - **No endogenous estradiol term.** The model assumes every picogram it predicts comes from your logged doses. If your body still makes a meaningful amount of estradiol, or a result was entered in the wrong unit, the fitted scale absorbs that error.
-- **Warnings are not blocks.** A route with a warning (a large correction, a weak signal, a poor fit, too few results, or results that point two ways) is still applied to the curve and the widget. Read the warnings on the Calibration screen before trusting a calibrated route.
+- **Warnings are not blocks.** A route with a warning (a large correction, a poor fit, too few results, or results that point two ways) is still applied to the curve and the widget. Read the warnings on the Calibration screen before trusting a calibrated route.
 - **The shaded band is not a target.** On Home, the shaded 68% / 95% band shows where a new result would likely fall if the model and your dosing hold. It says nothing about where your levels should be.
 - **Past dates can change.** Every new result refits every route it touches, so the calibrated curve for earlier days can move.
 - **Results it sets aside.** Results whose modeled drug signal at collection time is below 5 pg/mL, or whose value is zero or below, are not used. Results that disagree strongly with the rest go into a review list, where you can keep them at a lower weight, exclude them, or undo that choice.

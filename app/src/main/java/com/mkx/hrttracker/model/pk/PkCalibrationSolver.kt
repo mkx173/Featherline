@@ -576,6 +576,10 @@ object PkCalibrationSolver {
         ) ?: return globalNumericFailure(ignored)
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val diagnostics = diagnosticsByRoute[route] ?: return@map populationRow(route)
+            // A route no lab draws >=20% of its signal from has nothing to be
+            // calibrated by: its fitted beta is the prior. Show it as
+            // population rather than as an adjusted row with "0 results".
+            if (diagnostics.supportingLabCount == 0) return@map populationRow(route)
             classifyRoute(route, diagnostics, rLog, fit.ambiguous)
                 ?: return globalNumericFailure(ignored)
         }
@@ -715,9 +719,6 @@ object PkCalibrationSolver {
                 scale > PkCalibrationDefaults.EXTREME_SCALE_CORE_MAX
 
         val reasons = linkedSetOf<PkCalibrationReason>()
-        if (diagnostics.supportingLabCount == 0) {
-            reasons += PkCalibrationReason.NO_SUPPORTING_LABS
-        }
         if (scale !in cap || (isExtreme && diagnostics.supportingLabCount <
                     PkCalibrationDefaults.MIN_SUPPORTING_LABS_FOR_EXTREME_SCALE)
         ) {
