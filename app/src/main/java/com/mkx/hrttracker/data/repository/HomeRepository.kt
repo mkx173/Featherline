@@ -207,6 +207,13 @@ class HomeRepository @Inject constructor(
             nowFlow,
             homeSnapshotRepository.rebuildInFlight,
         ) { now, rebuildInFlight -> now to rebuildInFlight }
+        // A rebuild clears the stored snapshot for a fraction of a second
+        // (about 200 ms on a release build). Through that gap the PK fields
+        // come from the last usable snapshot, so the curve, band and hero
+        // pill neither flash to the population fallback nor blink through a
+        // skeleton; the rebuilt snapshot then replaces them. One per
+        // collection, like the flow itself.
+        var lastPkSnapshot: HomeSnapshotRecord? = null
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
@@ -237,7 +244,10 @@ class HomeRepository @Inject constructor(
                             option = option,
                         )
                     }
-                    val pkProjectionRecord = usableSnapshot?.pkProjection
+                    if (usableSnapshot != null) lastPkSnapshot = usableSnapshot
+                    val pkSnapshot = usableSnapshot
+                        ?: lastPkSnapshot?.takeIf { rebuildInFlight }
+                    val pkProjectionRecord = pkSnapshot?.pkProjection
                     val stockWarnings = medicineStockRepository.projectAll(
                         medicines = stockAndAnchorInputs.trackedMedicines,
                         activeGroups = inputs.activeGroups,
@@ -269,11 +279,10 @@ class HomeRepository @Inject constructor(
                             ?: inputs.latestEstradiolEntry,
                         estradiolPkEntries = simulationEntries.real,
                         estradiolPkPlannedEntries = simulationEntries.planned,
-                        pkPersonalParams = usableSnapshot?.pkPersonalParams()
+                        pkPersonalParams = pkSnapshot?.pkPersonalParams()
                             ?: PkPersonalParams.population(),
-                        pkBandKnots = usableSnapshot?.pkBandKnots().orEmpty(),
-                        pkCalibration = usableSnapshot?.pkCalibration,
-                        pkRebuildInFlight = rebuildInFlight,
+                        pkBandKnots = pkSnapshot?.pkBandKnots().orEmpty(),
+                        pkCalibration = pkSnapshot?.pkCalibration,
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
@@ -606,12 +615,6 @@ data class HomeInputs(
     val pkBandKnots: List<PkPredictiveBandKnot> = emptyList(),
     /** Calibration hero/status summary from the snapshot; null when no calibration ran. */
     val pkCalibration: HomePkCalibrationRecord? = null,
-    /**
-     * A snapshot rebuild is pending or running. With no usable projection, Home
-     * keeps the E2 skeleton rather than drawing a population curve that the
-     * rebuilt, calibrated one replaces a moment later.
-     */
-    val pkRebuildInFlight: Boolean = false,
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,

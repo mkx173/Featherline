@@ -841,40 +841,6 @@ class MainViewModelTest {
     }
 
     @Test
-    fun rebuildInFlightWithoutProjection_holdsTheTrendSkeleton() = runTest {
-        // After a save the snapshot is cleared until the rebuild writes. The
-        // ROOM fallback would draw a population curve that the calibrated
-        // rebuild replaces a moment later; the skeleton stays up instead.
-        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
-        val inputs = MutableStateFlow(
-            homeInputs(
-                now = now,
-                trendResult = null,
-                source = HomeInputSource.ROOM,
-                pkRebuildInFlight = true,
-            )
-        )
-        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns inputs
-
-        val viewModel = MainViewModel(
-            homeRepository = homeRepository,
-            settingsRepository = settingsRepository,
-            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
-            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
-            appTimeSource = FakeAppTimeSource(now),
-            defaultDispatcher = dispatcher,
-        )
-        startUiStateCollection(viewModel)
-        advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.e2TrendReady)
-
-        // The rebuild finished (or failed): the local fallback is allowed again.
-        inputs.value = inputs.value.copy(pkRebuildInFlight = false)
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.e2TrendReady)
-    }
-
-    @Test
     fun expiredProjectionFallsBackToRoomTrendAgainstLiveNow() = runTest {
         // Sanity: HomeInputs carries a non-null pkProjection (currentConcentration 100)
         // but pkProjectionExpiresAt is in the past relative to `now`. The
@@ -1708,7 +1674,6 @@ class MainViewModelTest {
         stockWarnings: List<MedicineStockProjection> = emptyList(),
         homeAnchor: TrackedDate? = null,
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
-        pkRebuildInFlight: Boolean = false,
     ): HomeInputs {
         return HomeInputs(
             activeGroups = activeGroups,
@@ -1723,7 +1688,6 @@ class MainViewModelTest {
             estradiolPkPlannedEntries = estradiolPkPlannedEntries,
             stockWarnings = stockWarnings,
             homeAnchor = homeAnchor,
-            pkRebuildInFlight = pkRebuildInFlight,
             source = source,
             now = now,
         )

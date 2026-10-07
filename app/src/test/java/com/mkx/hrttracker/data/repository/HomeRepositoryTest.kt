@@ -44,6 +44,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.produceIn
+import com.mkx.hrttracker.model.pk.PkProjectionResult
+import java.time.Instant
+import org.junit.Assert.assertNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -696,6 +701,112 @@ class HomeRepositoryTest {
         ).observeHomeSnapshotInputs(now, zoneId).first()
 
         assertEquals(hero, inputs.homeAnchor)
+    }
+
+    @Test
+    fun observeHomeInputs_keepsLastSnapshotPkFieldsWhileARebuildIsInFlight() = runTest {
+        // A mutation clears the stored snapshot until the rebuild writes. The
+        // Room emission in that gap keeps the previous curve, band and hero
+        // summary instead of dropping to the population fallback; once no
+        // rebuild is pending the fallback applies again.
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val zoneId = ZoneId.systemDefault()
+        val settings = SettingsState(homeE2DisplayUnit = BloodUnitKey.PG_ML)
+        val projectionRecord = HomePkProjectionRecord(
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            windowStartEpochMillis = 0L,
+            windowEndEpochMillis = Long.MAX_VALUE,
+            pkProjectionExpiresAtEpochMillis = Long.MAX_VALUE,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+            latestEstradiolEntry = null,
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
+        )
+        val calibrationRecord = HomePkCalibrationRecord(
+            adjusted = true,
+            limitedConfidence = false,
+            renderUnavailable = false,
+            bandUnavailable = false,
+        )
+        val snapshot = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = projectionRecord,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            pkCalibration = calibrationRecord,
+        )
+        val decodedProjection = PkProjectionResult(
+            generatedAt = now.atZone(zoneId).toInstant(),
+            windowStart = Instant.EPOCH,
+            windowEnd = Instant.ofEpochMilli(Long.MAX_VALUE),
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+        )
+        val snapshotFlow = MutableStateFlow<HomeSnapshotRecord?>(snapshot)
+        val rebuildFlow = MutableStateFlow(false)
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities()
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns
+            MutableStateFlow(settings.homeE2ChartWindowOption)
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns snapshotFlow
+        every { homeSnapshotRepository.rebuildInFlight } returns rebuildFlow
+        every { homeSnapshotRepository.isSnapshotUsable(snapshot, any(), any(), any()) } returns true
+        every { homeSnapshotRepository.decodeProjection(projectionRecord, any(), any()) } returns decodedProjection
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+
+        val emissions = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicineStockRepository = medicineStockRepository,
+            medicineRepository = medicineRepository,
+            medicationLogRepository = medicationLogRepository,
+            journalRepository = journalRepository,
+        ).observeHomeInputs(
+            date = now.toLocalDate(),
+            nowFlow = MutableStateFlow(now),
+            zoneId = zoneId,
+        ).filter { inputs -> inputs.source == HomeInputSource.ROOM }
+            .produceIn(backgroundScope)
+
+        val before = emissions.receive()
+        assertEquals(decodedProjection, before.pkProjection)
+        assertEquals(calibrationRecord, before.pkCalibration)
+
+        // The mutation: counted as rebuilding, then the stored snapshot is gone.
+        rebuildFlow.value = true
+        emissions.receive()
+        snapshotFlow.value = null
+        val duringRebuild = emissions.receive()
+        assertEquals(decodedProjection, duringRebuild.pkProjection)
+        assertEquals(calibrationRecord, duringRebuild.pkCalibration)
+
+        // The rebuild ended without a snapshot (failed): fallback applies.
+        rebuildFlow.value = false
+        val afterRebuild = emissions.receive()
+        assertNull(afterRebuild.pkProjection)
+        assertNull(afterRebuild.pkCalibration)
+        emissions.cancel()
     }
 
     @Test
