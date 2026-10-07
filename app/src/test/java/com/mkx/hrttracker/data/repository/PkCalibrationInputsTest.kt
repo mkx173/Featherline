@@ -2,6 +2,7 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import java.time.Instant
@@ -17,11 +18,10 @@ class PkCalibrationInputsTest {
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-01-01T08:00:00Z"),
         )
-        // A legacy row with no medicine on a non-patch-removal route has no
-        // compound, so it cannot become a PK event.
-        val legacy = testMedicationLogEntry(
-            medicine = null,
-            category = MedicationCategory.ESTRADIOL,
+        // A custom estradiol medicine has no catalog compound, so it cannot
+        // become a PK event.
+        val custom = testMedicationLogEntry(
+            medicine = testCustomMedicine(category = MedicationCategory.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-01-02T08:00:00Z"),
@@ -29,7 +29,7 @@ class PkCalibrationInputsTest {
 
         val input = buildPkCalibrationInput(
             labs = emptyList(),
-            entries = listOf(convertible, legacy),
+            entries = listOf(convertible, custom),
             weightKg = 60.0,
             metadata = emptyList(),
             fallbackOriginEpochMillis = 0L,

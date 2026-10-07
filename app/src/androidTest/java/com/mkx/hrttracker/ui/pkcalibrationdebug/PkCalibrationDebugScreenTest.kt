@@ -29,9 +29,9 @@ class PkCalibrationDebugScreenTest {
 
         composeRule.onAllNodesWithTag(PkCalibrationDebugResetTag)
             .assertCountEquals(1)
+        // One command per fixture outlier lab; the preset has one outlier.
         composeRule.onAllNodesWithTag(PkCalibrationDebugReviewActionTag)
-            .assertCountEquals(2)
-        composeRule.onAllNodes(hasText("Keep", substring = true)).assertCountEquals(1)
+            .assertCountEquals(1)
         composeRule.onAllNodes(hasText("Exclude", substring = true)).assertCountEquals(1)
         composeRule.onAllNodes(hasText("Re-include", substring = true)).assertCountEquals(0)
     }
