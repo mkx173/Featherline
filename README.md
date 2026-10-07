@@ -13,9 +13,9 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 ![minSdk](https://img.shields.io/badge/minSdk-26-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
-Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
+Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English, Simplified Chinese, Traditional Chinese, and Cantonese (Hong Kong).
 
-> ⚠️ **Not medical advice.** Featherline is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
+> ⚠️ **Not medical advice.** Featherline is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses, optionally scaled per route to your own estradiol results — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
 
 ## Get the app
 
@@ -36,13 +36,14 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Group medications and apply schedules to grouped doses
 - Optional medicine stock tracking with low-stock warnings and schedule-aware "days remaining" estimates
 - Estradiol pharmacokinetic projection from your dose history
+- Lab adjustment: scale the estradiol projection per route to your own E2 results, with per-route confidence, a review list for results that disagree, and a likely-range band on the Home chart
 - Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L)
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
 - Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
 - Journal tab to track meaningful dates on a timeline with milestones, plus per-day notes; pin any date to your home screen as an anchor widget or shortcut showing its running day count
 - No accounts, no telemetry, no network calls — everything stays on device
-- English and Simplified Chinese
+- English, Simplified Chinese, Traditional Chinese, and Cantonese (Hong Kong)
 - Material 3 with dynamic color
 
 ## Screenshots
@@ -64,14 +65,13 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## How it works
 
-Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
+Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. When you log E2 results, an on-device fit scales each route's contribution to match them and draws a predictive band around the adjusted curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
 
 The full architecture, data model, and reminder pipeline are documented in [docs/architecture.md](docs/architecture.md).
 
 ## Roadmap
 
 - Replace the pharmacokinetic engine with a more general multi-medication model
-- Personal-PK calibration tuned from your own lab results
 - Optional encrypted cloud backup (off by default, end-to-end encrypted)
 - Additional languages — translation contributions welcomed on [Hosted Weblate](https://hosted.weblate.org/projects/featherline/) (see [docs/localization.md](docs/localization.md))
 

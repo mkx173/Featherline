@@ -12,7 +12,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
   is the Room database at schema version 10. It declares 13 entities
   and exposes 8 DAOs. `exportSchema` is on; compiler-produced schema
-  JSON for each released version is committed under `app/schemas` and
+  JSON for each schema version (v9 shipped in 1.3.x, v10 ships in 1.4.0) is committed under `app/schemas` and
   is also packaged as an instrumentation-test asset for Room migration
   validation.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
@@ -482,8 +482,9 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   enumerate all imported panels for a source, and delete empty
   imported panels left behind after a moved result.
 - [`PkCalibrationDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/PkCalibrationDao.kt)
-  — result-owned calibration review metadata (explicit exclusions);
-  reads can be observed as a Flow.
+  — result-owned calibration review metadata (`AUTO`, `REVIEWED`,
+  `EXCLUDED`); read on demand by the calibration repositories, with no
+  Flow observers.
 - [`JournalDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalDao.kt)
   — tracked dates and daily notes. It exposes Flow observers for all
   tracked dates, pinned tracked dates, notes and note counts, plus the
