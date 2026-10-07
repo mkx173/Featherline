@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.calibration
 import android.icu.text.ListFormatter
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -252,12 +253,20 @@ private fun PkCalibrationRouteSummaryCard(
     reviewCount: Int,
     onOpen: () -> Unit,
     onOpenReview: () -> Unit,
+    isRefreshing: Boolean = false,
 ) {
+    // While a rebuild is pending the rows, the count and the chevron give
+    // way to one progress line; the card is not clickable until the new
+    // rows land. The height change animates both ways.
     EditorSegmentedListItem(
-        onClick = onOpen,
+        onClick = if (isRefreshing) null else onOpen,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -268,29 +277,39 @@ private fun PkCalibrationRouteSummaryCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val title = stringResource(R.string.calibration_pk_routes_card_title)
-                val trailingText = stringResource(
-                    R.string.calibration_pk_routes_card_adjusted_of,
-                    rows.size,
-                    routeCount,
-                )
                 Text(
                     text = title,
                     modifier = Modifier
                         .weight(1f)
                         .cjkTextOffset(title),
                 )
-                Text(
-                    text = trailingText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(trailingText),
-                )
-                PkCalibrationRowChevron()
+                if (!isRefreshing) {
+                    val trailingText = stringResource(
+                        R.string.calibration_pk_routes_card_adjusted_of,
+                        rows.size,
+                        routeCount,
+                    )
+                    Text(
+                        text = trailingText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.cjkTextOffset(trailingText),
+                    )
+                    PkCalibrationRowChevron()
+                }
             }
-            HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
-                rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
-                if (reviewCount > 0) {
-                    item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
+            if (isRefreshing) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                )
+            } else {
+                HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
+                    rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
+                    if (reviewCount > 0) {
+                        item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
+                    }
                 }
             }
         }
