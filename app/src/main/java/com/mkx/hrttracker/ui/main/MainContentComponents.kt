@@ -668,15 +668,19 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        FlowRow(
+                        // A plain Row: a FlowRow here wrapped its second child under
+                        // the first even with the whole card width free, because
+                        // ConstraintLayout measures preferredWrapContent from the
+                        // flow's own wrap pass.
+                        Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.constrainAs(rangeStatusRef) {
                                 start.linkTo(unitRef.end, margin = 8.dp)
                                 end.linkTo(parent.end)
                                 top.linkTo(unitRef.top)
                                 bottom.linkTo(unitRef.bottom)
-                                width = Dimension.preferredWrapContent
+                                width = Dimension.wrapContent
                                 horizontalBias = 0f
                             },
                         ) {
@@ -704,9 +708,7 @@ internal fun MainE2HeroCard(
                                         }
                                     ),
                                     tint = heroSupportingColor,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterVertically)
-                                        .size(16.dp),
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         }
