@@ -70,7 +70,6 @@ class CalibrationViewModel @Inject constructor(
     val pkCalibrationState: StateFlow<PkCalibrationScreenState?> = combine(
         pkCalibrationLiveRepository.liveState,
         pkUiFixtureBridge.fixture,
-        pkCalibrationLiveRepository.isRefreshing,
         ::pkScreenState,
     )
         .stateIn(
@@ -82,14 +81,12 @@ class CalibrationViewModel @Inject constructor(
             initialValue = pkScreenState(
                 pkCalibrationLiveRepository.liveState.value,
                 pkUiFixtureBridge.fixture.value,
-                isRefreshing = false,
             ),
         )
 
     private fun pkScreenState(
         liveState: PkCalibrationLiveResult?,
         fixture: PkCalibrationUiFixture?,
-        isRefreshing: Boolean,
     ): PkCalibrationScreenState? = when {
         // Debug harness fixture drives the real surface.
         fixture != null -> PkCalibrationScreenState(
@@ -99,11 +96,8 @@ class CalibrationViewModel @Inject constructor(
 
         liveState == null -> null
 
-        // The previous result stays up while the rebuild runs, marked as
-        // refreshing, so the section never blinks out or jumps silently.
-        else -> (liveState.live?.let(::pkCalibrationScreenState)
-            ?: pkCalibrationUnavailableScreenState())
-            .copy(isRefreshing = isRefreshing)
+        else -> liveState.live?.let(::pkCalibrationScreenState)
+            ?: pkCalibrationUnavailableScreenState()
     }
 
     /** Null until the stored flag is read; false exactly once per install/restore. */

@@ -342,7 +342,6 @@ private fun CalibrationScreenContent(
                         Column {
                             PkCalibrationSection(
                                 uiState = pkCalibrationState.ui,
-                                isRefreshing = pkCalibrationState.isRefreshing,
                                 reviewCount = pkReviewPanels.size,
                                 onRetry = onPkRetry,
                                 onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },

@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,9 +71,6 @@ fun PkCalibrationSection(
     modifier: Modifier = Modifier,
     // Target range summary shown as the last row; null hides it.
     targetRange: String? = null,
-    // A snapshot rebuild is pending: the routes card is what can change, so
-    // its count shows a spinner while the previous rows stay up.
-    isRefreshing: Boolean = false,
 ) {
     val adjustedRows = if (uiState.globalState == PkCalibrationGlobalState.READY) {
         uiState.routeRows.filter { row -> row.displayState.isAdjusted }
@@ -107,7 +103,6 @@ fun PkCalibrationSection(
                     rows = adjustedRows,
                     routeCount = uiState.routeRows.size,
                     reviewCount = reviewCount,
-                    isRefreshing = isRefreshing,
                     onOpen = onOpenRoutes,
                     onOpenReview = onOpenReview,
                 )
@@ -245,7 +240,6 @@ private fun PkCalibrationRouteSummaryCard(
     reviewCount: Int,
     onOpen: () -> Unit,
     onOpenReview: () -> Unit,
-    isRefreshing: Boolean = false,
 ) {
     EditorSegmentedListItem(
         onClick = onOpen,
@@ -262,34 +256,23 @@ private fun PkCalibrationRouteSummaryCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val title = stringResource(R.string.calibration_pk_routes_card_title)
+                val trailingText = stringResource(
+                    R.string.calibration_pk_routes_card_adjusted_of,
+                    rows.size,
+                    routeCount,
+                )
                 Text(
                     text = title,
                     modifier = Modifier
                         .weight(1f)
                         .cjkTextOffset(title),
                 )
-                // While a rebuild is pending the count is the one thing that
-                // is provisional; a spinner takes its place and the rows stay
-                // readable with no layout change.
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    val trailingText = stringResource(
-                        R.string.calibration_pk_routes_card_adjusted_of,
-                        rows.size,
-                        routeCount,
-                    )
-                    Text(
-                        text = trailingText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.cjkTextOffset(trailingText),
-                    )
-                }
+                Text(
+                    text = trailingText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(trailingText),
+                )
                 PkCalibrationRowChevron()
             }
             HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
@@ -813,23 +796,6 @@ private fun PkCalibrationRouteSummaryCardPreview() {
                 onOpenReview = { },
             )
         }
-    }
-}
-
-/** The card while a snapshot rebuild is pending: a spinner stands in for the adjusted count. */
-@Preview(name = "PK Route Summary Card · updating", showBackground = true, widthDp = 420)
-@Composable
-private fun PkCalibrationRouteSummaryCardUpdatingPreview() {
-    val state = previewPkAdjustedUiState
-    PkCalibrationPreviewColumn {
-        PkCalibrationRouteSummaryCard(
-            rows = state.routeRows.filter { row -> row.displayState.isAdjusted },
-            routeCount = state.routeRows.size,
-            reviewCount = 0,
-            isRefreshing = true,
-            onOpen = { },
-            onOpenReview = { },
-        )
     }
 }
 

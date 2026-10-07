@@ -15,7 +15,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -80,10 +79,6 @@ class PkCalibrationLiveRepository @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = null,
         )
-
-    /** A snapshot rebuild (and so a new solve) is pending; the page shows it as refreshing. */
-    val isRefreshing: Flow<Boolean>
-        get() = homeSnapshotRepository.rebuildInFlight
 
     /** Re-solves: a forced snapshot rebuild publishes a new build to render. */
     fun retry() {
