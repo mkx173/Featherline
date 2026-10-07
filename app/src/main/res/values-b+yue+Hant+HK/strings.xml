@@ -33,6 +33,8 @@
         <item quantity="other">-%1$d小時</item>
     </plurals>
     <string name="main_e2_title">雌二醇 · 估算</string>
+    <string name="main_e2_title_calibrated">雌二醇 · 已校準</string>
+    <string name="main_e2_title_population">雌二醇 · 人群估算</string>
     <string name="main_e2_estimate_info">顯示雌二醇估算說明</string>
     <string name="main_e2_chart_title_seven_days">7 天趨勢</string>
     <string name="main_e2_chart_title_thirty_days">30 天趨勢</string>

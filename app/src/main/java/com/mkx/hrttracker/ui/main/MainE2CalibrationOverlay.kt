@@ -255,21 +255,6 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 }
 
 // ---------------------------------------------------------------------------
-// Hero pill
-// ---------------------------------------------------------------------------
-
-/** One pill: "lab-adjusted" or "population estimate", styled like the range pill it sits beside. */
-@Composable
-internal fun MainPkCalibrationHeroPill(pk: MainPkCalibrationUiState) {
-    MainE2RangeStatusPill(
-        iconDrawableRes = if (pk.adjusted) R.drawable.ic_experiment else R.drawable.ic_group,
-        label = stringResource(
-            if (pk.adjusted) R.string.calibration_pk_hero_adjusted else R.string.calibration_pk_hero_population
-        ),
-    )
-}
-
-// ---------------------------------------------------------------------------
 // Chart failure presentations
 // ---------------------------------------------------------------------------
 
@@ -404,22 +389,6 @@ private val previewPkCalibration = MainPkCalibrationUiState(
         p975 = listOf(0f, 0f),
     ),
 )
-
-@Preview(showBackground = true, widthDp = 360)
-@Composable
-private fun MainPkCalibrationHeroPillPreview() {
-    HrtTrackerTheme(dynamicColor = false) {
-        Surface {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(16.dp),
-            ) {
-                MainPkCalibrationHeroPill(previewPkCalibration)
-                MainPkCalibrationHeroPill(previewPkCalibration.copy(adjusted = false))
-            }
-        }
-    }
-}
 
 @Preview(showBackground = true, widthDp = 360)
 @Composable

@@ -35,6 +35,8 @@
         <item quantity="other">-%1$d hours</item>
     </plurals>
     <string name="main_e2_title">Estradiol · estimated</string>
+    <string name="main_e2_title_calibrated">Estradiol · calibrated</string>
+    <string name="main_e2_title_population">Estradiol · population estimate</string>
     <string name="main_e2_estimate_info">Show estradiol estimate information</string>
     <string name="main_e2_chart_title_seven_days">7-day trend</string>
     <string name="main_e2_chart_title_thirty_days">30-day trend</string>

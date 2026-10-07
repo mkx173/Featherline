@@ -514,7 +514,15 @@ internal fun MainE2HeroCard(
         now = now
     )
     val hasPreviousRecord = section.lastDoseAt != null
-    val titleText = stringResource(R.string.main_e2_title)
+    // The title names the estimate's basis; a pill beside the value wrapped
+    // under the range pill whenever the value or the label ran wide.
+    val titleText = stringResource(
+        when (pkCalibration?.adjusted) {
+            true -> R.string.main_e2_title_calibrated
+            false -> R.string.main_e2_title_population
+            null -> R.string.main_e2_title
+        }
+    )
     val estimateInfoTooltipText = stringResource(mainE2EstimateInfoToastRes())
     val estimateInfoTooltipState = rememberTooltipState(isPersistent = true)
     val estimateInfoTooltipScope = rememberCoroutineScope()
@@ -684,7 +692,22 @@ internal fun MainE2HeroCard(
                                 }
                             }
                             if (!showSkeleton && pkCalibration != null) {
-                                MainPkCalibrationHeroPill(pkCalibration)
+                                Icon(
+                                    painter = painterResource(
+                                        if (pkCalibration.adjusted) R.drawable.ic_experiment else R.drawable.ic_group
+                                    ),
+                                    contentDescription = stringResource(
+                                        if (pkCalibration.adjusted) {
+                                            R.string.calibration_pk_hero_adjusted
+                                        } else {
+                                            R.string.calibration_pk_hero_population
+                                        }
+                                    ),
+                                    tint = heroSupportingColor,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterVertically)
+                                        .size(16.dp),
+                                )
                             }
                         }
                     }
