@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Estimate calibration for the estradiol estimate. Featherline can now tune its E2 curve to your own E2 blood test results. Each result counts toward the routes (injection, patch, gel, oral, sublingual) that were active when the blood was drawn, and each route's level is adjusted separately while its absorption timing stays the same.
 - Each adjusted route shows how many results support it, a low, medium, or high confidence, and warnings such as a large correction or a weak signal.
 - Results that disagree strongly with the estimate, or that are zero or below, are collected in a "results to check" list where you can keep them, exclude them, or undo your choice.
-- The Home chart shows whether the curve is calibrated or the default estimate, and draws a shaded range where a new result would likely fall. This range is not a target.
+- The Home chart shows whether the curve is calibrated or the population estimate, and draws a shaded range where a new result would likely fall. This range is not a target.
 - A short "How estimate calibration works" guide opens the first time you visit, with tips for getting more useful results.
 - A new small home-screen widget shows a chosen Journal date and its running day count. You can also create a new tracked date while setting up the widget.
 - You can pin any Journal date to your home screen as a shortcut that shows its day count and opens straight to that date's milestones.
