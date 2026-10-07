@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.calibration
 import android.icu.text.ListFormatter
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,7 +73,7 @@ fun PkCalibrationSection(
     // Target range summary shown as the last row; null hides it.
     targetRange: String? = null,
     // A snapshot rebuild is pending: the routes card is what can change, so
-    // it carries the progress line while the previous rows stay up.
+    // its count shows a spinner while the previous rows stay up.
     isRefreshing: Boolean = false,
 ) {
     val adjustedRows = if (uiState.globalState == PkCalibrationGlobalState.READY) {
@@ -248,18 +247,11 @@ private fun PkCalibrationRouteSummaryCard(
     onOpenReview: () -> Unit,
     isRefreshing: Boolean = false,
 ) {
-    // While a rebuild is pending the rows, the count and the chevron give
-    // way to one progress line; the card is not clickable until the new
-    // rows land. The height change animates both ways.
     EditorSegmentedListItem(
-        onClick = if (isRefreshing) null else onOpen,
+        onClick = onOpen,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .animateContentSize(),
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -276,7 +268,16 @@ private fun PkCalibrationRouteSummaryCard(
                         .weight(1f)
                         .cjkTextOffset(title),
                 )
-                if (!isRefreshing) {
+                // While a rebuild is pending the count is the one thing that
+                // is provisional; a spinner takes its place and the rows stay
+                // readable with no layout change.
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
                     val trailingText = stringResource(
                         R.string.calibration_pk_routes_card_adjusted_of,
                         rows.size,
@@ -288,21 +289,13 @@ private fun PkCalibrationRouteSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.cjkTextOffset(trailingText),
                     )
-                    PkCalibrationRowChevron()
                 }
+                PkCalibrationRowChevron()
             }
-            if (isRefreshing) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                )
-            } else {
-                HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
-                    rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
-                    if (reviewCount > 0) {
-                        item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
-                    }
+            HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
+                rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
+                if (reviewCount > 0) {
+                    item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
                 }
             }
         }
@@ -823,7 +816,7 @@ private fun PkCalibrationRouteSummaryCardPreview() {
     }
 }
 
-/** The card while a snapshot rebuild is pending: title only, one progress line in place of the rows. */
+/** The card while a snapshot rebuild is pending: a spinner stands in for the adjusted count. */
 @Preview(name = "PK Route Summary Card · updating", showBackground = true, widthDp = 420)
 @Composable
 private fun PkCalibrationRouteSummaryCardUpdatingPreview() {
