@@ -375,8 +375,8 @@ internal fun pkCalibrationRouteMeta(row: PkCalibrationRouteRowUiState): String? 
 
 /**
  * Compact trailing icon on a lab list row; the label rides on the content
- * description. Dismissed outliers get a check so a kept result still reads
- * as decided.
+ * description. Kept outliers get a check so the result still reads as
+ * decided.
  */
 @Composable
 internal fun PkCalibrationLabChip(flag: PkCalibrationLabRowFlag) {
@@ -540,7 +540,7 @@ private fun rememberPkRouteNames(routes: List<PkCalibrationRoute>): String {
 
 /**
  * Review note for one E2 result in the result editor. The value field there
- * is the correction path, so the note only offers dismiss / exclude / undo.
+ * is the correction path, so the note only offers keep / dismiss / exclude / undo.
  */
 @Composable
 fun PkCalibrationLabRowFooter(
@@ -599,9 +599,9 @@ fun PkCalibrationLabRowFooter(
                 ),
                 modifier = note,
             ) {
-                // Dismiss keeps the result at its reduced weight; Exclude drops it.
+                // Keep leaves the result at its reduced weight; Exclude drops it.
                 TextButton(onClick = onAccept, enabled = enabled) {
-                    Text(text = stringResource(R.string.calibration_pk_lab_dismiss))
+                    Text(text = stringResource(R.string.calibration_pk_lab_keep))
                 }
                 HrtFilledTonalButton(
                     text = stringResource(R.string.calibration_pk_lab_outlier_exclude),

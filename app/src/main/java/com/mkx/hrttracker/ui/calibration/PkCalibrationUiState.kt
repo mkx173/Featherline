@@ -108,6 +108,25 @@ data class PkCalibrationScreenState(
     val nonPositiveResultIds: Set<UUID> = emptySet(),
 )
 
+/**
+ * The live evaluation itself failed (a read or input error), so there is no
+ * fit to project. Shown as the global numeric failure with Try again; no lab
+ * row is flagged.
+ */
+fun pkCalibrationUnavailableScreenState(): PkCalibrationScreenState = PkCalibrationScreenState(
+    ui = PkCalibrationUiState(
+        globalState = PkCalibrationGlobalState.NUMERIC_FAILURE,
+        adjusted = false,
+        limitedConfidence = false,
+        routeRows = emptyList(),
+        effectivePromotedRoutes = emptyList(),
+        ignoredLabs = emptyMap(),
+        renderState = PkCalibrationRenderState.POPULATION,
+        bandState = PkCalibrationBandState.NOT_APPLICABLE_POPULATION,
+    ),
+    excludedResultIds = emptySet(),
+)
+
 /** Builds the screen state from one live evaluation; shared by the list and the result editor. */
 fun pkCalibrationScreenState(live: PkCalibrationLive): PkCalibrationScreenState {
     return PkCalibrationScreenState(

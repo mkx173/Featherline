@@ -748,7 +748,7 @@ class HomeSnapshotRepository @Inject constructor(
         // A throwing solve must not drop the snapshot write: Home would fall
         // back to population and the live surface would keep the pre-mutation
         // fit. Treat it as no calibration and still write the snapshot.
-        val calibration = calibrationInput?.let { input ->
+        val calibration = calibrationInput.let { input ->
             runCatching {
                 withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(input) }
             }.onFailure { throwable ->

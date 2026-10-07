@@ -27,8 +27,9 @@ fun List<BloodTestPanel>.toPkCalibrationLabs(): List<PkCalibrationLab> = flatMap
 
 /**
  * The one calibration input recipe, shared by the Home snapshot refresh and
- * the live calibration surface so both always agree. Null when a dose entry
- * cannot become a PK event.
+ * the live calibration surface so both always agree. A dose entry that
+ * cannot become a PK event is skipped, the same way the Home projection
+ * skips it, instead of turning calibration off.
  */
 fun buildPkCalibrationInput(
     labs: List<PkCalibrationLab>,
@@ -37,14 +38,14 @@ fun buildPkCalibrationInput(
     metadata: List<E2CalibrationMetadata>,
     /** Used only when there are no labs and no doses to anchor the origin. */
     fallbackOriginEpochMillis: Long,
-): PkCalibrationInput? {
+): PkCalibrationInput {
     val estradiolEntries = entries.filter { it.category == MedicationCategory.ESTRADIOL }
     val origin = (labs.map { it.collectedAtEpochMillis } +
             estradiolEntries.map { it.appliedAt.toEpochMilli() })
         .minOrNull() ?: fallbackOriginEpochMillis
     val anchor = Instant.ofEpochMilli(origin)
-    val doseEvents = estradiolEntries.map { entry ->
-        entry.buildEstradiolPkDoseEvent(anchor) ?: return null
+    val doseEvents = estradiolEntries.mapNotNull { entry ->
+        entry.buildEstradiolPkDoseEvent(anchor)
     }
     return PkCalibrationInput(
         labs = labs,

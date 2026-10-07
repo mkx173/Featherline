@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteAllEntriesResult
 import com.mkx.hrttracker.ui.calibration.CalibrationPanelResultSummary
@@ -43,6 +44,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -84,6 +86,31 @@ class CalibrationViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setPkCalibrationIntroSeen(true) }
+        collector.cancel()
+    }
+
+    @Test
+    fun pkCalibrationState_showsNumericFailureWhenLiveEvaluationFails() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+
+        val state = checkNotNull(viewModel.pkCalibrationState.value)
+        assertEquals(PkCalibrationGlobalState.NUMERIC_FAILURE, state.ui.globalState)
+        assertTrue(state.ui.numericFailure)
+        collector.cancel()
+    }
+
+    @Test
+    fun pkCalibrationState_isNullWhileFirstEvaluationLoads() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        every { pkCalibrationLiveRepository.liveState } returns MutableStateFlow<PkCalibrationLiveResult?>(null)
+        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository, PkCalibrationUiFixtureBridge())
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+
+        assertNull(viewModel.pkCalibrationState.value)
         collector.cancel()
     }
 

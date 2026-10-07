@@ -62,9 +62,10 @@ class CalibrationViewModel @Inject constructor(
     )
 
     /**
-     * The status-surface projection. Null while the live evaluation is
-     * loading/unavailable — the section is then structurally absent, never a
-     * synthesized failure state.
+     * The status-surface projection. Null only while the first live
+     * evaluation is loading. A finished evaluation that produced nothing
+     * shows the numeric-failure row with Try again instead of hiding the
+     * section.
      */
     val pkCalibrationState: StateFlow<PkCalibrationScreenState?> = combine(
         pkCalibrationLiveRepository.liveState,
@@ -93,7 +94,10 @@ class CalibrationViewModel @Inject constructor(
             excludedResultIds = fixture.excludedResultIds,
         )
 
-        else -> liveState?.live?.let(::pkCalibrationScreenState)
+        liveState == null -> null
+
+        else -> liveState.live?.let(::pkCalibrationScreenState)
+            ?: pkCalibrationUnavailableScreenState()
     }
 
     /** Null until the stored flag is read; false exactly once per install/restore. */

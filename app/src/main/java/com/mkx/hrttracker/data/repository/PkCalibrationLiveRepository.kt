@@ -95,7 +95,7 @@ class PkCalibrationLiveRepository @Inject constructor(
             weightKg = profile.weightKg,
             metadata = metadata,
             fallbackOriginEpochMillis = clock.millis(),
-        ) ?: return null
+        )
         // The render domain tracks the chart's visible window around the
         // current clock: the widest selectable past span (plus a day of
         // start-of-day flooring slack) through the widest future span.

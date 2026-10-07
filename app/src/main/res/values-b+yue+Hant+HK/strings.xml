@@ -1092,6 +1092,7 @@
     <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間點預計幾乎冇嚟自用藥嘅 E2</string>
     <string name="calibration_pk_lab_invalid_body">請輸入大過零嘅數值，如果報告提示低過檢測下限，請忽略呢個提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
+    <string name="calibration_pk_lab_keep">保留</string>
     <string name="calibration_pk_lab_outlier_body">呢項結果同%1$s嘅估算相差好遠，請核對資料係咪正確</string>
     <string name="calibration_pk_lab_outlier_exclude">排除</string>
     <string name="calibration_pk_lab_excluded_note">已經喺估算校準入面排除</string>
@@ -1108,7 +1109,7 @@
     <string name="calibration_pk_band_a11y_summary">曲線結合咗已校準給藥途徑嘅校準估算同其他途徑嘅預設估算，陰影區域表示檢查結果可能落喺嘅範圍</string>
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
-    <string name="calibration_pk_lab_accepted_body">已忽略，仍然以較低權重使用</string>
+    <string name="calibration_pk_lab_accepted_body">已保留，仍然以較低權重使用</string>
     <string name="calibration_pk_lab_show_review">復原</string>
     <string name="calibration_pk_status_info_hint">仍然係估算值，唔係實測值，撳一下了解詳情</string>
     <plurals name="calibration_pk_review_count">
@@ -1122,13 +1123,13 @@
     <string name="calibration_pk_reason_short_outlier">有唔一致嘅結果</string>
     <string name="calibration_pk_review_summary_outlier">同%1$s嘅估算相差好遠</string>
     <string name="calibration_pk_review_summary_non_positive">數值要大過零</string>
-    <string name="calibration_pk_review_summary_accepted">已忽略，仍然計入估算</string>
+    <string name="calibration_pk_review_summary_accepted">已保留，仍然計入估算</string>
     <string name="calibration_pk_review_summary_dismissed">已忽略，唔會計入估算</string>
     <string name="calibration_pk_review_summary_excluded">已排除，唔會計入估算</string>
     <string name="calibration_pk_review_summary_updated">已更新，唔使再核對</string>
     <string name="calibration_pk_lab_chip_check">待核對</string>
     <string name="calibration_pk_lab_chip_excluded">已排除</string>
-    <string name="calibration_pk_lab_chip_dismissed">已忽略</string>
+    <string name="calibration_pk_lab_chip_dismissed">已保留</string>
     <string name="calibration_pk_lab_chip_not_used">未使用</string>
     <string name="calibration_pk_edu_next">下一步</string>
     <string name="calibration_pk_edu_back">返回</string>
