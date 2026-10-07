@@ -95,6 +95,36 @@ class HomeSnapshotCodecTest {
     }
 
     @Test
+    fun encodeDecode_roundTripsCalibrationRouteLogScale_andDecodesToPersonalParams() {
+        // The projections were simulated with these betas; a snapshot that lost
+        // them would make Home re-simulate at population and flash on expiry.
+        val record = minimalRecord().copy(
+            pkRouteLogScale = mapOf("injection" to 0.25, "oral" to -0.1, "unknown-route" to 1.0),
+            pkBandKnots = listOf(
+                HomePkBandKnotRecord(1_700_000_000_000L, 60.0, 80.0, 100.0, 125.0, 160.0),
+                HomePkBandKnotRecord(1_700_021_600_000L, 55.0, 75.0, 95.0, 120.0, 150.0),
+            ),
+            pkCalibration = HomePkCalibrationRecord(
+                adjusted = true,
+                limitedConfidence = true,
+                renderUnavailable = false,
+                bandUnavailable = false,
+            ),
+        )
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+        assertEquals(record.pkRouteLogScale, decoded.pkRouteLogScale)
+        assertEquals(record.pkBandKnots, decoded.pkBandKnots)
+        assertEquals(record.pkCalibration, decoded.pkCalibration)
+        assertNull(HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord())).pkCalibration)
+        assertEquals(100.0, decoded.pkBandKnots().first().p50Pgml, 0.0)
+        val params = decoded.pkPersonalParams()
+        assertEquals(0.25, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.INJECTION), 0.0)
+        assertEquals(-0.1, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.ORAL), 0.0)
+        assertEquals(2, params.routeLogScale.size)
+        assertEquals(emptyMap<String, Double>(), HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord())).pkRouteLogScale)
+    }
+
+    @Test
     fun encodeDecode_preservesHomeSnapshotPayload() {
         val medicine = testMedicine(
             uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),

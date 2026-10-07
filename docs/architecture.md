@@ -217,7 +217,12 @@ medicine, log, and blood-test repositories.
 - [`model/pk`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/pk) — pharmacokinetic constants
   (`PkCatalog`), the three-compartment simulation, planned-entry
   generation, and the `HomeE2ChartWindowOption` sampling contract for
-  the home chart. Detailed in [pk-differences.md](pk-differences.md).
+  the home chart. Also holds the route-scale estimate calibration
+  (`PkCalibrationEvidence`, `PkCalibrationSolver`, `PkCalibrationEngine`,
+  `PkCalibrationRenderer`, `PkE2ForwardModel`): a pure, on-device fit
+  of one scale per route to the user's E2 results, plus the predictive
+  band drawn on the Home chart. Detailed in
+  [pk-differences.md](pk-differences.md#route-scale-estimate-calibration).
 - [`model/personalization`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/model/personalization) — `UserProfile`, the
   user-tunable inputs feeding PK simulation (currently body weight and
   weight-unit preference).
@@ -245,7 +250,12 @@ Feature sub-packages, one screen tree each:
   timeline, add-date sheet, milestones screen, all-notes list, and
   hero-background picker.
 - [`ui/calibration`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/calibration) — blood-test panel list, panel
-  editor, per-unit settings.
+  editor, per-unit settings, and the estimate calibration section
+  (`PkCalibration*`: per-route cards, the results-to-check review sheet,
+  and the one-time "How estimate calibration works" sheet). It reads
+  `PkCalibrationLiveRepository`, which re-evaluates the fit after each
+  Home snapshot write; review choices are written through
+  `PkCalibrationStorageRepository`.
 - [`ui/settings`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/settings) — the settings tab.
 - [`ui/security`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/ui/security) — the app-lock screen and
   authentication prompt.
@@ -531,8 +541,10 @@ They are not release blockers.
   snapshot, causing PK re-simulation on every home mutation (see
   [Home snapshot and PK projection cache](#home-snapshot-and-pk-projection-cache)
   above).
-- Personal-PK calibration via EKF was drafted and tested, then dropped
-  from `main` awaiting the new engine's calibration shape.
+- Route-scale estimate calibration runs inside the Home snapshot build, which
+  holds the home-data mutation lock, and is evaluated again by
+  `PkCalibrationLiveRepository` after the snapshot write. With many E2
+  results the 1-D start grid in `PkJointMapSolver` is the costly part.
 - The catalog/regimen/history split shipped on
   `codex/medication-identity-refactor` but a few legacy artifacts in
   `model/medication/MedicationCatalog.kt` (the `MedicationDoseAssistPreset`

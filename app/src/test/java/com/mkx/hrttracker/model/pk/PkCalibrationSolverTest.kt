@@ -1,0 +1,770 @@
+package com.mkx.hrttracker.model.pk
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.Instant
+import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sqrt
+
+class PkCalibrationSolverTest {
+    // ------------------------------------------------------------------
+    // §A10.2 joint objective: derivatives pinned to finite differences
+    // ------------------------------------------------------------------
+
+    @Test
+    fun jointGradientAndHessian_matchFiniteDifferencesIncludingCrossPartials() {
+        val objective = jointObjective(
+            lab(1, observed = 13.0, injection = 8.0, oral = 2.0),
+            lab(2, observed = 8.0, injection = 3.0, oral = 7.0),
+            lab(3, observed = 12.5, injection = 5.0, oral = 5.0),
+        )
+        val activeIndices = objective.activeRouteIndices
+        assertEquals(
+            listOf(
+                PkCalibrationRoute.INJECTION.ordinal,
+                PkCalibrationRoute.ORAL.ordinal,
+            ),
+            activeIndices,
+        )
+        val beta = DoubleArray(objective.routeCount)
+        beta[PkCalibrationRoute.INJECTION.ordinal] = 0.15
+        beta[PkCalibrationRoute.ORAL.ordinal] = -0.2
+
+        val gradient = requireNotNull(objective.gradient(beta))
+        for (position in activeIndices.indices) {
+            val step = 1e-6
+            val plus = beta.copyOf().also { it[activeIndices[position]] += step }
+            val minus = beta.copyOf().also { it[activeIndices[position]] -= step }
+            val finiteDifference = (
+                    requireNotNull(objective.objective(plus)) -
+                            requireNotNull(objective.objective(minus))
+                    ) / (2.0 * step)
+            assertEquals(finiteDifference, gradient[position], 1e-5)
+        }
+
+        val hessian = requireNotNull(objective.hessian(beta))
+        for (row in activeIndices.indices) {
+            for (column in activeIndices.indices) {
+                val step = 1e-5
+                val plus = beta.copyOf().also { it[activeIndices[column]] += step }
+                val minus = beta.copyOf().also { it[activeIndices[column]] -= step }
+                val finiteDifference = (
+                        requireNotNull(objective.gradient(plus))[row] -
+                                requireNotNull(objective.gradient(minus))[row]
+                        ) / (2.0 * step)
+                assertEquals(finiteDifference, hessian[row][column], 1e-4)
+                assertEquals(
+                    hessian[row][column].toBits(),
+                    hessian[column][row].toBits(),
+                )
+            }
+        }
+        // The cross-partial is genuinely non-zero for overlapping evidence.
+        assertTrue(abs(hessian[0][1]) > 1e-6)
+
+        assertNull(objective.objective(DoubleArray(objective.routeCount) { Double.NaN }))
+        assertNull(objective.gradient(DoubleArray(objective.routeCount) {
+            Double.POSITIVE_INFINITY
+        }))
+        assertNull(objective.hessian(DoubleArray(objective.routeCount) {
+            Double.NEGATIVE_INFINITY
+        }))
+    }
+
+    @Test
+    fun jointObjective_isBitDeterministicAcrossInputOrder() {
+        val labs = listOf(
+            lab(40, observed = 12.0, injection = 6.5, oral = 3.5),
+            lab(3, observed = 9.0, injection = 2.0, oral = 8.0),
+            lab(22, observed = 15.0, injection = 9.0, oral = 1.0),
+            lab(7, observed = 10.5, injection = 5.0, oral = 5.0),
+        )
+        val forward = jointObjective(*labs.toTypedArray())
+        val reversed = jointObjective(*labs.reversed().toTypedArray())
+        val beta = DoubleArray(forward.routeCount)
+        beta[PkCalibrationRoute.INJECTION.ordinal] = 0.123
+        beta[PkCalibrationRoute.ORAL.ordinal] = -0.045
+
+        assertEquals(
+            requireNotNull(forward.objective(beta)).toBits(),
+            requireNotNull(reversed.objective(beta)).toBits(),
+        )
+        assertEquals(
+            requireNotNull(forward.gradient(beta)).map(Double::toBits),
+            requireNotNull(reversed.gradient(beta)).map(Double::toBits),
+        )
+
+        val forwardFit = requireNotNull(PkJointMapSolver.fit(forward))
+        val reversedFit = requireNotNull(PkJointMapSolver.fit(reversed))
+        assertEquals(
+            forwardFit.beta.map(Double::toBits),
+            reversedFit.beta.map(Double::toBits),
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // Recovery and identity properties
+    // ------------------------------------------------------------------
+
+    @Test
+    fun totalLikelihoodResidual_isExactAtTheSection9RecoveryVector() {
+        // w = 0.8, true injection scale 0.3, oral at population:
+        // y = 0.3 * 8 + 2 = 4.4 with no subtraction anywhere.
+        val objective = jointObjective(
+            lab(1, observed = 0.3 * 8.0 + 2.0, injection = 8.0, oral = 2.0),
+        )
+        val beta = DoubleArray(objective.routeCount)
+        beta[PkCalibrationRoute.INJECTION.ordinal] = ln(0.3)
+
+        val residual = requireNotNull(objective.residual(objective.points.single(), beta))
+        assertTrue(abs(residual) < 1e-12)
+    }
+
+    @Test
+    fun singleRouteHistory_recoversShrunkScaleAndFullyCalibrates() {
+        val result = solve(
+            lab(1, observed = exp(0.30) * 10.0, injection = 10.0),
+            lab(2, observed = exp(0.30) * 20.0, injection = 20.0),
+            lab(3, observed = exp(0.30) * 40.0, injection = 40.0),
+        )
+
+        val injection = result.routeResults[PkCalibrationRoute.INJECTION.ordinal]
+        assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, injection.displayState)
+        val beta = requireNotNull(injection.fittedBeta)
+        assertTrue(beta > 0.0)
+        assertTrue(beta < 0.30)
+        assertTrue(requireNotNull(injection.betaPosteriorSd) <= 0.20)
+        assertEquals(3, injection.supportingLabCount)
+
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), result.promotedRoutes)
+        val covariance = requireNotNull(result.promotedBetaCovariance)
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), covariance.routes)
+        val sd = requireNotNull(injection.betaPosteriorSd)
+        assertEquals(
+            sd * sd,
+            requireNotNull(
+                covariance.covariance(PkCalibrationRoute.INJECTION, PkCalibrationRoute.INJECTION)
+            ),
+            1e-15,
+        )
+        for (route in PkCalibrationRoute.entries.filterNot { route ->
+            route == PkCalibrationRoute.INJECTION
+        }) {
+            val row = result.routeResults[route.ordinal]
+            assertEquals(
+                PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                row.displayState,
+            )
+            assertEquals(0, row.supportingLabCount)
+            assertNull(row.fittedBeta)
+        }
+    }
+
+    @Test
+    fun fiftyFiftyOverlap_capsAtSymmetricProvisional_sdBoundedByPriorOverSqrtTwo() {
+        // Pure two-route overlap at truth 1: the data constrain only the sum
+        // direction, so each marginal SD is bounded below by sigma_s/sqrt(2)
+        // (v10.0 §A10.4) and full calibration is impossible by arithmetic.
+        val labs = (0 until 10).map { index ->
+            val total = if (index % 2 == 0) 10.0 else 25.0
+            lab(
+                100L + index,
+                observed = total,
+                injection = total / 2.0,
+                oral = total / 2.0,
+            )
+        }
+        val result = solve(*labs.toTypedArray())
+
+        val bound = PkCalibrationDefaults.ROUTE_LOG_SCALE_PRIOR_SD / sqrt(2.0)
+        for (route in listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL)) {
+            val row = result.routeResults[route.ordinal]
+            assertEquals(
+                PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+                row.displayState,
+            )
+            assertTrue(PkCalibrationReason.UNCERTAIN in row.reasons)
+            val posteriorSd = requireNotNull(row.betaPosteriorSd)
+            assertTrue(posteriorSd >= bound - 1e-9)
+            assertTrue(
+                posteriorSd >
+                        PkCalibrationDefaults
+                            .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
+            )
+            assertEquals(10, row.supportingLabCount)
+        }
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+            result.promotedRoutes,
+        )
+        assertNotNull(result.promotedBetaCovariance)
+    }
+
+    @Test
+    fun routeAbsentFromEveryLab_staysExactlyAtPopulation() {
+        val result = solve(
+            lab(1, observed = 11.0, injection = 10.0),
+            lab(2, observed = 22.0, injection = 20.0),
+        )
+
+        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertEquals(
+            PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+            oral.displayState,
+        )
+        assertNull(oral.fittedBeta)
+        assertEquals(listOf(PkCalibrationRoute.INJECTION), result.promotedRoutes)
+    }
+
+    // ------------------------------------------------------------------
+    // §A10.4 support floor: warn-only, never withholds an active route
+    // ------------------------------------------------------------------
+
+    @Test
+    fun supportFloor_isInclusiveAtExactShare_andBelowItOnlyWarns() {
+        val atFloor = requireNotNull(
+            PkForwardBreakdown.create(
+                breakdownMap(injection = 8.0, oral = 2.0)
+            )
+        )
+        assertEquals(10.0, atFloor.totalDrugPgml, 0.0)
+        val oneUlpBelow = requireNotNull(
+            PkForwardBreakdown.create(
+                breakdownMap(injection = 8.0, oral = Math.nextDown(2.0))
+            )
+        )
+        // 8.0 + nextDown(2.0) rounds back to exactly 10.0, so the oral share
+        // is exactly one ulp below the 0.2 floor.
+        assertEquals(10.0, oneUlpBelow.totalDrugPgml, 0.0)
+
+        val included = solve(
+            labFrom(1, observed = 10.0, breakdown = atFloor),
+            labFrom(2, observed = 20.0, breakdown = scale(atFloor, 2.0)),
+        )
+        assertTrue(
+            included.routeResults[PkCalibrationRoute.ORAL.ordinal].supportingLabCount == 2
+        )
+
+        val excluded = solve(
+            labFrom(1, observed = 10.0, breakdown = oneUlpBelow),
+            labFrom(2, observed = 20.0, breakdown = scale(oneUlpBelow, 2.0)),
+        )
+        val oralRow = excluded.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertEquals(0, oralRow.supportingLabCount)
+        // The labs still touch oral, so its fitted beta is shown with a
+        // weak-support warning instead of being withheld.
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, oralRow.displayState)
+        assertNotNull(oralRow.fittedBeta)
+        assertTrue(PkCalibrationReason.NO_SUPPORTING_LABS in oralRow.reasons)
+        assertTrue(PkCalibrationReason.UNCERTAIN in oralRow.reasons)
+        assertEquals(listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL), excluded.promotedRoutes)
+        assertEquals(
+            2,
+            excluded.routeResults[PkCalibrationRoute.INJECTION.ordinal].supportingLabCount,
+        )
+    }
+
+    @Test
+    fun belowFloorObservation_participatesWithoutNumericFailure() {
+        // y below the oral population contribution: the residual is negative
+        // at every beta, influence is bounded by the Student-t weight, and no
+        // guard removes the lab (v10.0 §A7.1 carried into §A10.1).
+        val result = solve(
+            lab(1, observed = 1.0, injection = 8.0, oral = 2.0),
+            lab(2, observed = 2.0, injection = 16.0, oral = 4.0),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        val injection = result.routeResults[PkCalibrationRoute.INJECTION.ordinal]
+        assertFalse(
+            injection.displayState ==
+                    PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
+        )
+        val beta = requireNotNull(injection.fittedBeta)
+        assertTrue(beta < 0.0)
+        assertTrue(beta.isFinite())
+    }
+
+    // ------------------------------------------------------------------
+    // §A10.3 multi-start search: ambiguity and failure are global
+    // ------------------------------------------------------------------
+
+    @Test
+    fun symmetricBimodalEvidence_flagsGlobalPosteriorModeAmbiguity() {
+        val labs = symmetricClusterLabs(baseId = 10, injection = 10.0)
+        assertGlobalAmbiguity(solve(*labs.toTypedArray()))
+    }
+
+    @Test
+    fun coupledTwoRouteConflict_flagsGlobalPosteriorModeAmbiguity() {
+        // Phase-3 finding #7 (Option A): the same symmetric-cluster conflict on
+        // two separate routes puts every joint mode at a point where both
+        // coordinates are displaced; the pairwise (b_i*, b_j*) starts must
+        // surface at least two of the four separable modes.
+        val labs = symmetricClusterLabs(baseId = 10, injection = 10.0) +
+            symmetricClusterLabs(baseId = 30, oral = 10.0)
+        assertGlobalAmbiguity(solve(*labs.toTypedArray()))
+    }
+
+    @Test
+    fun conditionalStartEnumerationFailure_failsClosedAsGlobalNumericFailure() {
+        // Phase-3 finding #6: a drug contribution large enough to overflow the
+        // 1-D grid scan at its positive edge (halfWidth = 0.5625 for one lab)
+        // must be a global numeric failure, never an unseeded search that
+        // reports a confident fit.
+        assertGlobalNumericFailure(solve(lab(1, observed = 10.0, injection = 1.5e308)))
+    }
+
+    // ------------------------------------------------------------------
+    // Warn-only (2026-08-26): poor fit and outliers annotate, never hide
+    // ------------------------------------------------------------------
+
+    @Test
+    fun poorFit_showsTheFittedBetaWithAResidualWarning() {
+        // Labs ~2.7x apart: the RMSE gate used to hold the route at
+        // population; now the fit is shown and the warning is the user's cue.
+        val result = solve(
+            lab(1, observed = 40.0, oral = 50.0),
+            lab(2, observed = 110.0, oral = 50.0),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        val oral = result.routeResults[PkCalibrationRoute.ORAL.ordinal]
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, oral.displayState)
+        assertNotNull(oral.fittedBeta)
+        assertTrue(PkCalibrationReason.RESIDUAL_FIT_POOR in oral.reasons)
+        assertEquals(listOf(PkCalibrationRoute.ORAL), result.promotedRoutes)
+    }
+
+    @Test
+    fun unreviewedOutlier_warnsOnEveryRouteItSupportsWithoutBlocking() {
+        val result = solve(
+            lab(1, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(2, observed = 25.0, injection = 12.5, oral = 12.5),
+            lab(3, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(9, observed = 10.0 * exp(2.0), injection = 5.0, oral = 5.0),
+        )
+
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL),
+            result.promotedRoutes,
+        )
+        for (route in result.promotedRoutes) {
+            val row = result.routeResults[route.ordinal]
+            assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, row.displayState)
+            assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in row.reasons)
+            assertTrue(uuid(9) in row.unreviewedOutlierLabIds)
+            assertNotNull(row.fittedBeta)
+        }
+    }
+
+    @Test
+    fun keptOutlier_staysInTheFit_withoutTheReviewWarning() {
+        // Keep leaves the lab in the fit at its robust weight: same promoted
+        // routes and the same minimum weight, but the review reason clears.
+        val labs = arrayOf(
+            lab(1, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(2, observed = 25.0, injection = 12.5, oral = 12.5),
+            lab(3, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(9, observed = 10.0 * exp(2.0), injection = 5.0, oral = 5.0),
+        )
+        val unreviewed = solve(*labs)
+        val kept = solve(
+            *labs,
+            metadata = listOf(
+                E2CalibrationMetadata(uuid(9), E2CalibrationDisposition.REVIEWED, Instant.EPOCH)
+            ),
+        )
+
+        assertEquals(unreviewed.promotedRoutes, kept.promotedRoutes)
+        for (route in kept.promotedRoutes) {
+            val before = unreviewed.routeResults[route.ordinal]
+            val row = kept.routeResults[route.ordinal]
+            assertFalse(PkCalibrationReason.UNREVIEWED_OUTLIER in row.reasons)
+            assertTrue(row.unreviewedOutlierLabIds.isEmpty())
+            assertEquals(before.fittedBeta, row.fittedBeta)
+            assertEquals(before.minStudentTWeight, row.minStudentTWeight)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Warn-only classification at a fixed diagnostics point
+    // ------------------------------------------------------------------
+
+
+    @Test
+    fun extremeScaleWithFewLabs_isShownWithAWarning() {
+        for (scale in listOf(0.5, 2.0)) {
+            val exact = classify(diagnostics(fittedBeta = betaForExactScale(scale)))
+            assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
+        }
+
+        for (beta in listOf(betaProducingScaleBelow(0.5), betaProducingScaleAbove(2.0))) {
+            val twoLabs = classify(diagnostics(fittedBeta = beta), route = PkCalibrationRoute.GEL)
+            assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, twoLabs.displayState)
+            assertTrue(
+                PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE in twoLabs.reasons
+            )
+            assertEquals(beta.toBits(), requireNotNull(twoLabs.fittedBeta).toBits())
+
+            val threeLabs = classify(
+                diagnostics(supportingLabCount = 3, fittedBeta = beta),
+                route = PkCalibrationRoute.GEL,
+            )
+            assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, threeLabs.displayState)
+        }
+    }
+
+    @Test
+    fun displayCap_isInclusiveAndOutsideValuesAreShownWithAWarning() {
+        for (route in PkCalibrationRoute.entries) {
+            val cap = PkCalibrationDefaults.DISPLAY_SCALE_CAP_BY_ROUTE.getValue(route)
+            for (scale in listOf(cap.start, cap.endInclusive)) {
+                val atBoundary = classify(
+                    diagnostics(supportingLabCount = 3, fittedBeta = betaForExactScale(scale)),
+                    route = route,
+                )
+                assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, atBoundary.displayState)
+            }
+
+            for (beta in listOf(
+                betaProducingScaleBelow(cap.start),
+                betaProducingScaleAbove(cap.endInclusive),
+            )) {
+                val exceeded = classify(
+                    diagnostics(supportingLabCount = 3, fittedBeta = beta),
+                    route = route,
+                )
+                assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, exceeded.displayState)
+                assertTrue(PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE in exceeded.reasons)
+                // No clamping: the fitted value is what the user sees.
+                assertEquals(beta.toBits(), requireNotNull(exceeded.fittedBeta).toBits())
+            }
+        }
+    }
+
+    @Test
+    fun fullCalibrationGates_areInclusiveAtExactContrastAndPosteriorSd() {
+        val exact = classify(
+            diagnostics(
+                drugSignalLogRange = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
+                posteriorSd = PkCalibrationDefaults
+                    .ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION,
+            )
+        )
+        assertEquals(PkRouteCalibrationDisplayState.LAB_CALIBRATED, exact.displayState)
+
+        val lowContrast = classify(
+            diagnostics(
+                drugSignalLogRange = Math.nextDown(PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN),
+            )
+        )
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, lowContrast.displayState)
+        assertTrue(PkCalibrationReason.UNCERTAIN in lowContrast.reasons)
+
+        val widePosterior = classify(
+            diagnostics(
+                posteriorSd = Math.nextUp(
+                    PkCalibrationDefaults.ROUTE_LOG_SCALE_POSTERIOR_SD_MAX_FOR_FULL_CALIBRATION
+                ),
+            )
+        )
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, widePosterior.displayState)
+        assertTrue(PkCalibrationReason.UNCERTAIN in widePosterior.reasons)
+    }
+
+    @Test
+    fun routeReasonEvaluation_isCompleteAndNeverHidesTheFit() {
+        val beta = betaProducingScaleAbove(2.0)
+        val result = classify(
+            diagnostics(
+                supportingLabCount = 0,
+                fittedBeta = beta,
+                drugSignalLogRange = 0.0,
+                posteriorSd = 0.21,
+                robustRmseLog = Math.nextUp(PkCalibrationDefaults.robustRmseLogMaxForPromotion(RLog)),
+                unreviewedOutlierLabIds = setOf(uuid(77)),
+            ),
+            ambiguous = true,
+        )
+
+        assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, result.displayState)
+        assertEquals(beta.toBits(), requireNotNull(result.fittedBeta).toBits())
+        assertEquals(
+            setOf(
+                PkCalibrationReason.NO_SUPPORTING_LABS,
+                PkCalibrationReason.SCALE_OUTSIDE_USUAL_RANGE,
+                PkCalibrationReason.RESIDUAL_FIT_POOR,
+                PkCalibrationReason.UNREVIEWED_OUTLIER,
+                PkCalibrationReason.UNCERTAIN,
+                PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS,
+            ),
+            result.reasons,
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // Top-level assembly
+    // ------------------------------------------------------------------
+
+    @Test
+    fun emptyEvidencePool_returnsFivePopulationRowsWithoutFitting() {
+        val result = PkCalibrationSolver.solve(pool())
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertEquals(
+            PkCalibrationRoute.entries,
+            result.routeResults.map(PkRouteCalibrationResult::route),
+        )
+        assertTrue(result.promotedRoutes.isEmpty())
+        assertNull(result.promotedBetaCovariance)
+        for (row in result.routeResults) {
+            assertEquals(
+                PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                row.displayState,
+            )
+        }
+    }
+
+    @Test
+    fun topLevelSolver_assemblesFiveRoutesWithCountsAndPromotedCovariance() {
+        val result = solve(
+            lab(1, observed = exp(0.30) * 10.0, injection = 10.0),
+            lab(2, observed = exp(0.30) * 20.0, injection = 20.0),
+            lab(3, observed = exp(0.30) * 40.0, injection = 40.0),
+            lab(4, observed = 10.0, patch = 10.0),
+        )
+
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertEquals(
+            PkCalibrationRoute.entries,
+            result.routeResults.map(PkRouteCalibrationResult::route),
+        )
+        // Floor = 1 (decision 6): the single-lab patch route promotes as a
+        // provisional adjustment (zero signal contrast) instead of hiding
+        // behind an insufficient-labs count.
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.PATCH),
+            result.promotedRoutes,
+        )
+        assertEquals(
+            PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL,
+            result.routeResults[PkCalibrationRoute.PATCH.ordinal].displayState,
+        )
+        assertEquals(1, result.routeResults[PkCalibrationRoute.PATCH.ordinal].supportingLabCount)
+        assertEquals(
+            PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+            result.routeResults[PkCalibrationRoute.GEL.ordinal].displayState,
+        )
+        assertTrue(PkCalibrationRoute.INJECTION in result.displayParams.routeLogScale.keys)
+        val covariance = requireNotNull(result.promotedBetaCovariance)
+        assertEquals(result.promotedRoutes, covariance.routes)
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * At q^2 = 3 * nu * R_LOG, three observations in each symmetric cluster
+     * make beta=0 a local maximum of the route's restricted objective with two
+     * finite side minima — the load-bearing bimodality construction shared by
+     * every ambiguity test.
+     */
+    private fun symmetricClusterLabs(
+        baseId: Long,
+        injection: Double = 0.0,
+        oral: Double = 0.0,
+    ): List<PkCalibrationIncludedLab> {
+        val q = sqrt(3.0 * PkCalibrationDefaults.STUDENT_T_NU * RLog)
+        return (0 until 3).map { index ->
+            lab(baseId + index, observed = 10.0 * exp(-q), injection = injection, oral = oral)
+        } + (0 until 3).map { index ->
+            lab(baseId + 10 + index, observed = 10.0 * exp(q), injection = injection, oral = oral)
+        }
+    }
+
+    private fun assertGlobalAmbiguity(result: PkCalibrationResult) {
+        // Warn-only: the best mode is used and every fitted route carries the
+        // ambiguity warning; unsupported routes stay at population.
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isNotEmpty())
+        for (row in result.routeResults) {
+            if (row.route in result.promotedRoutes) {
+                assertNotNull(row.fittedBeta)
+                assertEquals(PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL, row.displayState)
+                assertTrue(PkCalibrationReason.POSTERIOR_MODE_AMBIGUOUS in row.reasons)
+            } else {
+                assertEquals(PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL, row.displayState)
+            }
+        }
+    }
+
+    private fun classify(
+        diagnostics: PkJointRouteDiagnostics,
+        route: PkCalibrationRoute = PkCalibrationRoute.INJECTION,
+        ambiguous: Boolean = false,
+    ): PkRouteCalibrationResult = requireNotNull(
+        PkCalibrationSolver.classifyRoute(
+            route = route,
+            diagnostics = diagnostics,
+            rLog = RLog,
+            ambiguous = ambiguous,
+        )
+    )
+
+    private fun assertGlobalNumericFailure(result: PkCalibrationResult) {
+        assertEquals(PkCalibrationGlobalState.READY, result.globalState)
+        assertTrue(result.promotedRoutes.isEmpty())
+        assertNull(result.promotedBetaCovariance)
+        for (row in result.routeResults) {
+            assertEquals(PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE, row.displayState)
+            assertNull(row.fittedBeta)
+        }
+    }
+
+    private fun breakdownMap(
+        injection: Double = 0.0,
+        patch: Double = 0.0,
+        gel: Double = 0.0,
+        oral: Double = 0.0,
+        sublingual: Double = 0.0,
+    ): Map<PkCalibrationRoute, Double> = linkedMapOf(
+        PkCalibrationRoute.INJECTION to injection,
+        PkCalibrationRoute.PATCH to patch,
+        PkCalibrationRoute.GEL to gel,
+        PkCalibrationRoute.ORAL to oral,
+        PkCalibrationRoute.SUBLINGUAL to sublingual,
+    )
+
+    private fun scale(breakdown: PkForwardBreakdown, factor: Double): PkForwardBreakdown {
+        return requireNotNull(
+            PkForwardBreakdown.create(
+                breakdown.byRouteDrugPgml.mapValues { (_, value) -> value * factor }
+            )
+        )
+    }
+
+    private fun lab(
+        id: Long,
+        observed: Double,
+        injection: Double = 0.0,
+        patch: Double = 0.0,
+        gel: Double = 0.0,
+        oral: Double = 0.0,
+        sublingual: Double = 0.0,
+    ): PkCalibrationIncludedLab {
+        val breakdown = requireNotNull(
+            PkForwardBreakdown.create(
+                breakdownMap(injection, patch, gel, oral, sublingual)
+            )
+        )
+        return labFrom(id, observed, breakdown)
+    }
+
+    private fun labFrom(
+        id: Long,
+        observed: Double,
+        breakdown: PkForwardBreakdown,
+    ): PkCalibrationIncludedLab = PkCalibrationIncludedLab(
+        resultId = uuid(id),
+        observedPgml = observed,
+        breakdown = breakdown,
+    )
+
+    private fun jointObjective(
+        vararg labs: PkCalibrationIncludedLab,
+    ): PkJointStudentTObjective {
+        return requireNotNull(
+            PkJointStudentTObjective.fromEvidence(labs.toList(), RLog)
+        )
+    }
+
+    private fun solve(
+        vararg labs: PkCalibrationIncludedLab,
+        metadata: List<E2CalibrationMetadata> = emptyList(),
+    ): PkCalibrationResult {
+        return PkCalibrationSolver.solve(pool(included = labs.toList(), metadata = metadata))
+    }
+
+    private fun pool(
+        included: List<PkCalibrationIncludedLab> = emptyList(),
+        metadata: List<E2CalibrationMetadata> = emptyList(),
+    ): PkCalibrationEvidencePool {
+        val input = PkCalibrationInput(
+            labs = emptyList(),
+            doseEvents = emptyList(),
+            originEpochMillis = 0L,
+            weightKg = 70.0,
+            metadata = metadata,
+            config = PkCalibrationConfig(drugMinInformativePgml = 1e-12, rLog = RLog),
+        )
+        return PkCalibrationEvidencePool(
+            input = input,
+            forwardModel = requireNotNull(PkE2ForwardModel.create(emptyList(), 70.0)),
+            included = included,
+            ignored = emptyMap(),
+        )
+    }
+
+    private fun diagnostics(
+        supportingLabCount: Int = 2,
+        fittedBeta: Double = 0.0,
+        posteriorSd: Double = 0.10,
+        drugSignalLogRange: Double = PkCalibrationDefaults.DRUG_SIGNAL_LOG_RANGE_MIN,
+        robustRmseLog: Double = 0.10,
+        unreviewedOutlierLabIds: Set<UUID> = emptySet(),
+    ): PkJointRouteDiagnostics {
+        return PkJointRouteDiagnostics(
+            supportingLabCount = supportingLabCount,
+            fittedBeta = fittedBeta,
+            betaPosteriorSd = posteriorSd,
+            drugSignalLogRange = drugSignalLogRange,
+            robustRmseLog = robustRmseLog,
+            minStudentTWeight = (PkCalibrationDefaults.STUDENT_T_NU + 1.0) /
+                    PkCalibrationDefaults.STUDENT_T_NU,
+            unreviewedOutlierLabIds = unreviewedOutlierLabIds,
+        )
+    }
+
+    private fun betaForExactScale(scale: Double): Double {
+        var beta = ln(scale)
+        repeat(64) {
+            val actual = exp(beta)
+            if (actual == scale) return beta
+            beta = if (actual > scale) Math.nextDown(beta) else Math.nextUp(beta)
+        }
+        error("No nearby binary64 beta exponentiates to exact scale $scale")
+    }
+
+    private fun betaProducingScaleBelow(scale: Double): Double {
+        var beta = betaForExactScale(scale)
+        repeat(64) {
+            beta = Math.nextDown(beta)
+            if (exp(beta) < scale) return beta
+        }
+        error("No nearby binary64 beta exponentiates below scale $scale")
+    }
+
+    private fun betaProducingScaleAbove(scale: Double): Double {
+        var beta = betaForExactScale(scale)
+        repeat(64) {
+            beta = Math.nextUp(beta)
+            if (exp(beta) > scale) return beta
+        }
+        error("No nearby binary64 beta exponentiates above scale $scale")
+    }
+
+    private fun uuid(value: Long): UUID = UUID(0, value)
+
+    private companion object {
+        const val RLog = 0.04
+    }
+}

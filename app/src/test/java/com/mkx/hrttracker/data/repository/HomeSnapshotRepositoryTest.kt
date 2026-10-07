@@ -2,6 +2,8 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
+import com.mkx.hrttracker.data.local.PkCalibrationDao
+import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
@@ -21,6 +23,14 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
+import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderer
+import com.mkx.hrttracker.model.pk.PkCalibrationResult
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -28,19 +38,29 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -55,6 +75,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.TimeZone
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -230,6 +251,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns listOf(
             groupWithTwoSlotsReferencing(medicineUuid)
         )
@@ -270,6 +297,304 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun concurrentForcedRefreshes_shareOneBuild() = runTest {
+        // Boot, time-set and timezone broadcasts reach two receivers that each
+        // force a refresh ~40 ms apart. Both used to pass the skip-check and run
+        // a full build (PK simulation, calibration solve, encrypted write).
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs()
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        val first = launch(dispatcher) { repository.refreshHomeSnapshotIfNeeded(force = true) }
+        val second = launch(dispatcher) { repository.refreshHomeSnapshotIfNeeded(force = true) }
+        first.join()
+        second.join()
+
+        assertEquals(1, builds.get())
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
+
+        // Once the shared build has completed, a new forced request builds again.
+        repository.refreshHomeSnapshotIfNeeded(force = true)
+        assertEquals(2, builds.get())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun concurrentRefreshes_withDifferentAnchorDates_doNotShareABuild() = runTest {
+        // The midnight alarm can arrive while a build started at 23:59:59 is
+        // still running. Joining it would write yesterday's anchor date and
+        // consume the only corrective request; the widget would then show
+        // yesterday until the next mutation, app open or alarm.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs()
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        // Two builds ran; only the latest-started one (midnight) is written, the
+        // pre-midnight build's record is dropped even though it finished first.
+        assertEquals(2, builds.get())
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun olderContextBuildFinishingLast_doesNotOverwriteTheNewerSnapshot() = runTest {
+        // Two different-context builds share a generation, so the generation
+        // guard alone lets whichever finishes last win. A slow pre-midnight
+        // build finishing after the midnight one would put yesterday back.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(200L, 50L))
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        assertEquals(2, builds.get())
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun olderRequestReachingTheMutexLast_isSupersededByTheNewerBuild() = runTest {
+        // The sequence must follow request order, not the order coroutines
+        // reach the refresh mutex: a pre-midnight request whose coroutine is
+        // delayed past the midnight request must not take the higher sequence,
+        // suppress the midnight build and write yesterday's snapshot.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs()
+        // The option flow is the first suspension before the mutex. Call 0 is
+        // the repository's own option-change collector; call 1 (the first
+        // request) is held back so the second request reaches the mutex first.
+        var optionFlowReads = 0
+        every { settingsRepository.homeE2ChartWindowOptionFlow } answers {
+            val read = optionFlowReads++
+            flow {
+                if (read == 1) delay(50)
+                emit(HomeE2ChartWindowOption.SEVEN_DAYS)
+            }
+        }
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val beforeMidnight = LocalDateTime.of(2026, 5, 7, 23, 59, 59)
+        val midnight = LocalDateTime.of(2026, 5, 8, 0, 0)
+
+        val first = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = beforeMidnight, force = true)
+        }
+        val second = launch(dispatcher) {
+            repository.refreshHomeSnapshotIfNeeded(now = midnight, force = true)
+        }
+        first.join()
+        second.join()
+
+        // The delayed older request joins the newer build instead of building.
+        assertEquals(1, builds.get())
+        val written = slot<HomeSnapshotRecord>()
+        coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(capture(written)) }
+        assertEquals(midnight.toLocalDate().toEpochDay(), written.captured.anchorDateEpochDay)
+    }
+
+    /**
+     * Empty Home inputs whose first DAO read suspends, so a second refresh
+     * request arrives while the first build is still loading. Builds load on
+     * Dispatchers.IO, so the counter is read and bumped from real threads.
+     */
+    private fun stubSlowEmptyRefreshInputs(
+        /** Per-build delay of the first DAO read, in scheduler ms; the last entry repeats. */
+        buildDelaysMs: List<Long> = listOf(100L),
+    ): AtomicInteger {
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val medicineDao: MedicineDao = mockk()
+        val medicationLogDao: MedicationLogDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        val journalDao: JournalDao = mockk()
+        val builds = AtomicInteger()
+
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
+        coEvery { databaseHolder.awaitOpen() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.medicineDao() } returns medicineDao
+        every { database.medicationLogDao() } returns medicationLogDao
+        every { database.userProfileDao() } returns userProfileDao
+        every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
+        coEvery { homeDao.getActiveGroups() } coAnswers {
+            val delayMs = buildDelaysMs[minOf(builds.getAndIncrement(), buildDelaysMs.lastIndex)]
+            delay(delayMs)
+            emptyList()
+        }
+        coEvery { homeDao.getArchivedGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { medicineDao.getAllActiveTrackedEntities() } returns emptyList()
+        coEvery { medicineDao.getByUuids(any()) } returns emptyList()
+        coEvery { medicationLogDao.getScheduledEntriesInWindow(any(), any()) } returns emptyList()
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { journalDao.getFirstPinnedTrackedDate() } returns null
+        return builds
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun runHomeDataMutation_writesSnapshotWithoutCalibrationWhenSolveThrows() = runTest {
+        // A throwing solve used to abort the whole refresh: no snapshot was
+        // written, Home fell back to population, and the live calibration
+        // surface (keyed on snapshot generation) kept the pre-mutation fit.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
+        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        mockkObject(PkCalibrationEngine)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } throws IllegalStateException("solver")
+            repository.runHomeDataMutation { }
+        } finally {
+            unmockkObject(PkCalibrationEngine)
+        }
+
+        assertTrue(writtenSnapshot.isCaptured)
+        assertNull(writtenSnapshot.captured.pkCalibration)
+        assertTrue(writtenSnapshot.captured.pkRouteLogScale.isEmpty())
+        assertTrue(writtenSnapshot.captured.pkProjection != null)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun runHomeDataMutation_namesSupportedRoutesWhenTheBandRenderThrows() = runTest {
+        // The curve is simulated with displayParams before the band render, so
+        // a throwing render (no band) must not flip the hero to "population"
+        // over a personalized curve.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val writtenSnapshot = slot<HomeSnapshotRecord>()
+        stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
+        coEvery { homeSnapshotStore.clearSnapshot() } returns Unit
+        coEvery { homeSnapshotStore.writeSnapshot(capture(writtenSnapshot)) } returns Unit
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        val rows = PkCalibrationRoute.entries.map { route ->
+            if (route == PkCalibrationRoute.INJECTION) {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.LAB_CALIBRATED,
+                    fittedBeta = 0.2,
+                    betaPosteriorSd = 0.1,
+                    supportingLabCount = 2,
+                )
+            } else {
+                PkRouteCalibrationResult(
+                    route = route,
+                    displayState = PkRouteCalibrationDisplayState.POPULATION_NO_LAB_SIGNAL,
+                )
+            }
+        }
+        val evaluation = PkCalibrationEvaluation(
+            PkCalibrationResult(PkCalibrationGlobalState.READY, rows),
+            evidence = null,
+        )
+
+        mockkObject(PkCalibrationEngine, PkCalibrationRenderer)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } returns evaluation
+            every {
+                PkCalibrationRenderer.render(any(), any(), any())
+            } throws IllegalStateException("render")
+            repository.runHomeDataMutation { }
+        } finally {
+            unmockkObject(PkCalibrationEngine, PkCalibrationRenderer)
+        }
+
+        val record = checkNotNull(writtenSnapshot.captured.pkCalibration)
+        assertEquals(
+            setOf(PkCalibrationRoute.INJECTION.stableId),
+            writtenSnapshot.captured.pkRouteLogScale.keys,
+        )
+        assertTrue(record.adjusted)
+        assertFalse(record.renderUnavailable)
+        assertTrue(writtenSnapshot.captured.pkBandKnots.isEmpty())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun runHomeDataMutation_runsCleanupAndRefreshEvenWhenBlockThrows() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val events = mutableListOf<String>()
@@ -294,6 +619,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -385,6 +716,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -511,6 +848,72 @@ class HomeSnapshotRepositoryTest {
         assertTrue(failures.isEmpty())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun keptUsableSnapshot_stillRebuildsWhenItsPlannedSlotPasses() = runTest {
+        // After a process restart the startup refresh keeps a still-valid
+        // snapshot, so no write schedules the expiry timer. The kept snapshot
+        // must arm it itself, or the band stays gone once its planned slot
+        // passes until the next mutation or date change.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 7, 7, 0)
+        val plannedAt = now.plusHours(1).atZone(zoneId).toInstant().toEpochMilli()
+        coEvery { homeSnapshotStore.readSnapshot() } returns HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 0L,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = HomePkProjectionRecord(
+                generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+                windowStartEpochMillis = now.toLocalDate().minusDays(3)
+                    .atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                windowEndEpochMillis = now.toLocalDate().plusDays(14)
+                    .atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                pkProjectionExpiresAtEpochMillis = plannedAt,
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+                timeH = emptyList(),
+                concentrations = emptyList(),
+                doseMarkers = emptyList(),
+                latestEstradiolEntry = null,
+                chartWindowHours = 168,
+                densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+                includesPostDoseOffsets = false,
+            ),
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        repository.refreshHomeSnapshotIfNeeded(now = now, force = false, zoneId = zoneId)
+        runCurrent()
+        assertEquals(0, builds.get())
+
+        // Just before the slot: still armed, nothing built.
+        advanceTimeBy(60L * 60L * 1_000L - 1L)
+        runCurrent()
+        assertEquals(0, builds.get())
+
+        advanceTimeBy(2L)
+        runCurrent()
+        // The build's DAO reads run on Dispatchers.IO, outside virtual time.
+        withContext(Dispatchers.Default) {
+            withTimeout(5_000L) { while (builds.get() == 0) delay(10L) }
+        }
+        assertEquals(1, builds.get())
+    }
+
     @Test
     fun isSnapshotUsable_acceptsTenDayOldSnapshotWhenProjectionCoversCurrentChart() = runTest {
         val anchorDate = LocalDate.of(2026, 5, 6)
@@ -604,6 +1007,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery {
@@ -675,6 +1084,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -737,6 +1152,12 @@ class HomeSnapshotRepositoryTest {
             every { database.medicationLogDao() } returns medicationLogDao
             every { database.userProfileDao() } returns userProfileDao
             every { database.journalDao() } returns journalDao
+            every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+                coEvery { getPanels() } returns emptyList()
+            }
+            every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+                coEvery { getAllMetadata() } returns emptyList()
+            }
             coEvery { homeDao.getActiveGroups() } returns emptyList()
             coEvery { homeDao.getArchivedGroups() } returns emptyList()
             coEvery {
@@ -820,6 +1241,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
@@ -893,6 +1320,12 @@ class HomeSnapshotRepositoryTest {
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
+        every { database.bloodTestDao() } returns mockk<BloodTestDao> {
+            coEvery { getPanels() } returns emptyList()
+        }
+        every { database.pkCalibrationDao() } returns mockk<PkCalibrationDao> {
+            coEvery { getAllMetadata() } returns emptyList()
+        }
         coEvery { homeDao.getActiveGroups() } returns emptyList()
         coEvery { homeDao.getArchivedGroups() } returns emptyList()
         coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()

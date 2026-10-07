@@ -5,8 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
+import com.mkx.hrttracker.data.repository.PkCalibrationLive
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
@@ -17,6 +21,11 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationInput
+import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationAddAnalyteOption
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteEntryResult
@@ -24,6 +33,7 @@ import com.mkx.hrttracker.ui.calibration.CalibrationEditorUiState
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationResultDraftUiState
 import com.mkx.hrttracker.ui.calibration.CalibrationSaveEntryResult
+import com.mkx.hrttracker.ui.calibration.PkCalibrationLabRowFlag
 import com.mkx.hrttracker.ui.calibration.calibrationAddAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.calibrationAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.canSaveCalibrationEditorState
@@ -61,6 +71,11 @@ import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalibrationEditorViewModelTest {
+    private val pkStorageRepository: com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository = mockk(relaxed = true)
+    private val pkLiveState = MutableStateFlow<PkCalibrationLiveResult?>(null)
+    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
+        every { liveState } returns pkLiveState
+    }
     private val repository: BloodTestRepository = mockk(relaxed = true)
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
@@ -87,6 +102,76 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
+    fun reviewState_followsTheLiveEvaluation_andUndoResetsAcceptance() = runTest {
+        // The editor must show the same review state as the list, so it reads
+        // the shared live evaluation rather than a copy of the metadata.
+        val panel = testBloodTestPanel(uuid = UUID.randomUUID(), collectedAt = Instant.EPOCH)
+        val resultId = panel.results.first { (it.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2 }.uuid
+        every { repository.getCachedPanel(panel.uuid) } returns panel
+        pkLiveState.value = live(E2CalibrationMetadata(resultId, E2CalibrationDisposition.REVIEWED, Instant.EPOCH))
+        coEvery { pkStorageRepository.saveMetadata(any()) } answers {
+            pkLiveState.value = live(firstArg())
+        }
+        val editor = editorFor(panel)
+        advanceUntilIdle()
+        assertEquals(PkCalibrationLabRowFlag.Accepted(resultId), editor.uiState.value.pkReviewFlag)
+
+        editor.reincludePkLab(resultId)
+        advanceUntilIdle()
+
+        coVerify { pkStorageRepository.saveMetadata(match { it.resultId == resultId && it.disposition == E2CalibrationDisposition.AUTO }) }
+        assertNull(editor.uiState.value.pkReviewFlag)
+        assertFalse(editor.uiState.value.isUpdatingPkReview)
+        editor.viewModelScope.cancel()
+    }
+
+    @Test
+    fun excludedResult_isVisibleInEditor_andFailedWriteKeepsStateAndAllowsRetry() = runTest {
+        // Exclusion used to be visible only on the list; the editor must show it.
+        val panel = testBloodTestPanel(uuid = UUID.randomUUID(), collectedAt = Instant.EPOCH)
+        val resultId = panel.results.first { (it.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2 }.uuid
+        every { repository.getCachedPanel(panel.uuid) } returns panel
+        pkLiveState.value = live(E2CalibrationMetadata(resultId, E2CalibrationDisposition.EXCLUDED, Instant.EPOCH))
+        coEvery { pkStorageRepository.saveMetadata(any()) } throws IllegalStateException("write failed")
+        val editor = editorFor(panel)
+        advanceUntilIdle()
+        assertEquals(PkCalibrationLabRowFlag.Excluded(resultId), editor.uiState.value.pkReviewFlag)
+
+        editor.reincludePkLab(resultId)
+        advanceUntilIdle()
+        assertEquals(PkCalibrationLabRowFlag.Excluded(resultId), editor.uiState.value.pkReviewFlag)
+        assertTrue(editor.uiState.value.pkReviewFailed)
+        assertFalse(editor.uiState.value.isUpdatingPkReview)
+
+        editor.consumePkReviewFailure()
+        coEvery { pkStorageRepository.saveMetadata(any()) } answers { pkLiveState.value = live(firstArg()) }
+        editor.reincludePkLab(resultId)
+        advanceUntilIdle()
+        assertNull(editor.uiState.value.pkReviewFlag)
+        assertFalse(editor.uiState.value.pkReviewFailed)
+        editor.viewModelScope.cancel()
+    }
+
+    private fun editorFor(panel: BloodTestPanel) = CalibrationEditorViewModel(
+        repository, medicationLogRepository, settingsRepository,
+        SavedStateHandle(mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panel.uuid.toString())),
+        pkStorageRepository, pkCalibrationLiveRepository,
+    )
+
+    /** A real evaluation with no labs: only the stored dispositions shape the flag. */
+    private fun live(vararg metadata: E2CalibrationMetadata): PkCalibrationLiveResult {
+        val input = PkCalibrationInput(
+            labs = emptyList(),
+            doseEvents = emptyList(),
+            originEpochMillis = 0L,
+            weightKg = 60.0,
+            metadata = metadata.toList(),
+        )
+        val domain = checkNotNull(PkChartDomain.create(0L, 86_400_000L, 21_600_000L))
+        return PkCalibrationLiveResult(PkCalibrationLive(input, PkCalibrationEngine.evaluate(input), domain, null))
+    }
+
+    @Test
     fun cachedPanelForEditing_initializesWithoutLoadingState() = runTest {
         val panelUuid = UUID.fromString("2a45018d-864f-402f-9376-1cd167a46ab6")
         val panel = testBloodTestPanel(
@@ -104,7 +189,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
 
         val initialState = viewModel.uiState.value
@@ -140,7 +227,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
 
         assertEquals(listOf(customAnalyte), viewModel.uiState.value.customAnalytes)
@@ -169,7 +258,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
 
         val initialState = viewModel.uiState.value
@@ -194,7 +285,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -237,7 +330,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -300,7 +395,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -326,6 +423,8 @@ class CalibrationEditorViewModelTest {
             medicationLogRepository,
             settingsRepository,
             savedStateHandle,
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         firstSession.updateCollectedDate(LocalDate.of(2026, 4, 24))
@@ -344,6 +443,8 @@ class CalibrationEditorViewModelTest {
             medicationLogRepository,
             settingsRepository,
             savedStateHandle,
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -406,6 +507,8 @@ class CalibrationEditorViewModelTest {
             medicationLogRepository,
             settingsRepository,
             savedStateHandle,
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         firstSession.updateNotes("Edited note")
@@ -418,6 +521,8 @@ class CalibrationEditorViewModelTest {
             medicationLogRepository,
             settingsRepository,
             savedStateHandle,
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -458,6 +563,8 @@ class CalibrationEditorViewModelTest {
                 medicationLogRepository,
                 settingsRepository,
                 savedStateHandle,
+                pkStorageRepository = pkStorageRepository,
+                pkCalibrationLiveRepository = pkCalibrationLiveRepository,
             )
             advanceUntilIdle()
             firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -482,6 +589,8 @@ class CalibrationEditorViewModelTest {
                 medicationLogRepository,
                 settingsRepository,
                 savedStateHandle,
+                pkStorageRepository = pkStorageRepository,
+                pkCalibrationLiveRepository = pkCalibrationLiveRepository,
             )
             advanceUntilIdle()
             assertNull(restoredSession.uiState.value.panelUuid)
@@ -507,7 +616,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
@@ -569,7 +680,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -627,7 +740,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -669,7 +784,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -701,7 +818,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "95")
@@ -738,7 +857,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -782,7 +903,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -806,7 +929,9 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
-            )
+            ),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -831,7 +956,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 
@@ -873,7 +1000,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
 
         assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)
@@ -937,7 +1066,9 @@ class CalibrationEditorViewModelTest {
             repository,
             medicationLogRepository,
             settingsRepository,
-            SavedStateHandle()
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
         )
         advanceUntilIdle()
 

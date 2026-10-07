@@ -113,6 +113,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -123,6 +125,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
@@ -486,6 +490,7 @@ internal fun MainE2HeroCard(
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
+    pkCalibration: MainPkCalibrationUiState? = null,
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -655,20 +660,31 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        if (!hideReferenceRanges) {
-                            SkeletonOverlay(
-                                active = showSkeleton,
-                                shape = CircleShape,
-                                modifier = Modifier.constrainAs(rangeStatusRef) {
-                                    start.linkTo(unitRef.end, margin = 8.dp)
-                                    top.linkTo(unitRef.top)
-                                    bottom.linkTo(unitRef.bottom)
-                                },
-                            ) {
-                                MainE2RangeStatusPill(
-                                    iconDrawableRes = rangeStatusIconDrawableRes,
-                                    label = rangeStatusLabel,
-                                )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.constrainAs(rangeStatusRef) {
+                                start.linkTo(unitRef.end, margin = 8.dp)
+                                end.linkTo(parent.end)
+                                top.linkTo(unitRef.top)
+                                bottom.linkTo(unitRef.bottom)
+                                width = Dimension.preferredWrapContent
+                                horizontalBias = 0f
+                            },
+                        ) {
+                            if (!hideReferenceRanges) {
+                                SkeletonOverlay(
+                                    active = showSkeleton,
+                                    shape = CircleShape,
+                                ) {
+                                    MainE2RangeStatusPill(
+                                        iconDrawableRes = rangeStatusIconDrawableRes,
+                                        label = rangeStatusLabel,
+                                    )
+                                }
+                            }
+                            if (!showSkeleton && pkCalibration != null) {
+                                MainPkCalibrationHeroPill(pkCalibration)
                             }
                         }
                     }
@@ -736,7 +752,7 @@ internal fun MainE2HeroCard(
 }
 
 @Composable
-private fun MainE2RangeStatusPill(
+internal fun MainE2RangeStatusPill(
     iconDrawableRes: Int,
     label: String,
     modifier: Modifier = Modifier,
@@ -761,6 +777,7 @@ private fun MainE2RangeStatusPill(
 @Composable
 internal fun MainE2ChartCard(
     section: MainE2ChartUiState,
+    pkCalibration: MainPkCalibrationUiState? = null,
     now: LocalDateTime,
     appLocale: Locale,
     unit: String,
@@ -852,6 +869,36 @@ internal fun MainE2ChartCard(
                         )
                     }
                 }
+            }
+        }
+        return
+    }
+    // Shared central-render failure (§6): hide the plot rather than drawing a
+    // possibly misleading line. Fit-level states and the saved adjustments are
+    // untouched; only this render is unavailable.
+    if (pkCalibration?.renderUnavailable == true) {
+        Surface(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(bottom = 6.dp),
+            ) {
+                MainE2ChartCardHeader(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    targetRangeLow = targetRangeLow,
+                    targetRangeHigh = targetRangeHigh,
+                    displayUnit = displayUnit,
+                    unit = unit,
+                    hideReferenceRanges = hideReferenceRanges,
+                    chartWindowOption = section.chartWindowOption,
+                    onChartWindowOptionSelected = onChartWindowOptionSelected,
+                )
+                MainPkCalibrationChartUnavailableCard()
             }
         }
         return
@@ -1009,10 +1056,11 @@ internal fun MainE2ChartCard(
         }
     }
     val bottomAxisItemPlacer = remember { ExtraStoreAwareHorizontalAxisItemPlacer() }
-    val yAxisSpec = remember(section.points, section.doseMarkers) {
+    val yAxisSpec = remember(section.points, section.doseMarkers, pkCalibration?.band, chartWindowHours) {
         mainE2ChartYAxisSpec(
             points = section.points,
             doseMarkers = section.doseMarkers,
+            bandUpper = pkCalibration?.band?.visibleUpper(chartWindowHours).orEmpty(),
         )
     }
     val startAxisItemPlacer = remember(yAxisSpec.tickStep) {
@@ -1200,6 +1248,31 @@ internal fun MainE2ChartCard(
                 val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
+                val calibrationBandOuterColor = lineColor.copy(alpha = 0.10f)
+                val calibrationBandInnerColor = lineColor.copy(alpha = 0.20f)
+                // Shared with the line layer so the band decoration can read the
+                // in-flight intro drawing model and rise/fade with the line.
+                val lineDrawingModelKey = remember {
+                    ExtraStore.Key<LineCartesianLayerDrawingModel>()
+                }
+                val calibrationBandDecoration = remember(
+                    pkCalibration?.band,
+                    yAxisSpec.maxY,
+                    calibrationBandOuterColor,
+                    calibrationBandInnerColor,
+                    chartCoordinateMapper,
+                ) {
+                    pkCalibration?.band?.let { band ->
+                        MainE2CalibrationBandDecoration(
+                            band = band,
+                            maxY = yAxisSpec.maxY,
+                            outerColor = calibrationBandOuterColor,
+                            innerColor = calibrationBandInnerColor,
+                            coordinateMapper = chartCoordinateMapper,
+                            lineDrawingModelKey = lineDrawingModelKey,
+                        )
+                    }
+                }
                 val currentTimeDecoration = remember(
                     currentTimeLineColor,
                     chartCoordinateMapper,
@@ -1396,8 +1469,10 @@ internal fun MainE2ChartCard(
                                                 ),
                                             ),
                                         rangeProvider = rangeProvider,
+                                        drawingModelKey = lineDrawingModelKey,
                                     ),
                                     decorations = listOfNotNull(
+                                        calibrationBandDecoration,
                                         currentTimeDecoration,
                                         interactionMarkerDecoration,
                                     ),
@@ -1545,6 +1620,10 @@ internal fun MainE2ChartCard(
                         }
                     },
                 )
+
+                pkCalibration?.let { pk ->
+                    MainPkCalibrationChartNote(pk)
+                }
             }
         }
     }
@@ -1627,7 +1706,7 @@ private fun mainE2ChartMinimapFullVisibleRange(chartWindowHours: Int): MainE2Cha
     )
 }
 
-private data class MainE2ChartViewportSnapshot(
+internal data class MainE2ChartViewportSnapshot(
     val rawVisibleRange: MainE2ChartVisibleXRange,
     val visibleRange: MainE2ChartVisibleXRange,
     val spec: MainE2ChartViewSpec?,
@@ -2403,6 +2482,7 @@ private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlace
 private fun rememberEdgeAlignedLineCartesianLayer(
     lineProvider: LineCartesianLayer.LineProvider,
     rangeProvider: CartesianLayerRangeProvider,
+    drawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>,
     pointSpacing: Dp = MainE2ChartPointSpacing,
 ): LineCartesianLayer {
     // The drawing-model key and interpolator carry the in-flight animation state
@@ -2412,8 +2492,8 @@ private fun rememberEdgeAlignedLineCartesianLayer(
     // line brush updates would orphan the interpolated frames written under the
     // previous key — the next draw reads null from the new key and snaps to the
     // raw model. Pinning both across recompositions matches Vico's own
-    // rememberLineCartesianLayer + copy() wrapper pattern.
-    val drawingModelKey = remember { ExtraStore.Key<LineCartesianLayerDrawingModel>() }
+    // rememberLineCartesianLayer + copy() wrapper pattern. The key is
+    // caller-owned so decorations can read the same in-flight drawing model.
     val drawingModelInterpolator = remember {
         CartesianLayerDrawingModelInterpolator.default<
                 LineCartesianLayerDrawingModel.Entry,
@@ -2583,7 +2663,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
     }
 }
 
-private class MainE2ChartCoordinateMapper {
+internal class MainE2ChartCoordinateMapper {
     private val _viewportSnapshot = MutableStateFlow<MainE2ChartViewportSnapshot?>(null)
     private var drawingStart: Float = 0f
     private var layerLeft: Float = 0f
@@ -2790,7 +2870,7 @@ private class VerticalLineDecoration(
         with(context) {
             coordinateMapper?.update(context)
             val x = xProvider(context) ?: return
-            val canvasX = canvasXForLine(x) ?: return
+            val canvasX = mainE2ChartCanvasXForLine(x, clampToLayerBounds) ?: return
 
             val strokeWidth = lineWidth.pixels
             val paint = Paint().apply {
@@ -2829,7 +2909,7 @@ private class VerticalLineDecoration(
         with(context) {
             coordinateMapper?.update(context)
             val x = xProvider(context) ?: return
-            val canvasX = canvasXForLine(x) ?: return
+            val canvasX = mainE2ChartCanvasXForLine(x, clampToLayerBounds) ?: return
             if (pointMaxY <= 0.0 || layerBounds.height <= 0f) {
                 return
             }
@@ -2860,25 +2940,6 @@ private class VerticalLineDecoration(
         }
     }
 
-    private fun CartesianDrawingContext.canvasXForLine(x: Double): Float? {
-        if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
-            return null
-        }
-
-        val drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
-                layoutDirectionMultiplier * layerDimensions.startPadding -
-                scroll
-        val canvasX = drawingStart +
-                layoutDirectionMultiplier *
-                layerDimensions.xSpacing *
-                ((x - ranges.minX) / ranges.xStep).toFloat()
-        if (clampToLayerBounds) {
-            return canvasX.coerceIn(layerBounds.left, layerBounds.right)
-        }
-        return canvasX.takeIf { value ->
-            value >= layerBounds.left && value <= layerBounds.right
-        }
-    }
 }
 
 @Composable

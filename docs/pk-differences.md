@@ -179,6 +179,58 @@ should read the upstream README and its `pk_research/` workspace.
   Real per-person variation in mucosal-vs-swallowed fraction can be
   substantial; Featherline does not currently expose it for tuning.
 
+## Route-scale estimate calibration
+
+Featherline 1.4.0 adds a per-user estimate calibration of its own, not taken
+from upstream, on top of the unchanged population engine, in
+[`model/pk`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model/pk)
+(`PkCalibration*`, `PkE2ForwardModel`). It does not touch the
+compartment parameters: it fits one log-scale `beta_r` per route and
+multiplies that route's population contribution by `e^{beta_r}`.
+
+- **Forward model.** For each E2 result `i`, the population engine
+  splits the modeled drug-attributable E2 at the collection time into
+  per-route parts `d_ir`. The adjusted prediction is
+  `m_i(beta) = sum_r e^{beta_r} d_ir`, so a result informs every route
+  in proportion to its modeled share.
+- **Evidence filter.** A result is set aside when the modeled total is
+  below 5 pg/mL (`drugMinInformativePgml`), when its value is zero or
+  below, or when the forward model cannot be evaluated. Results the user
+  excluded are skipped. There is no endogenous-E2 term.
+- **Objective.** A joint MAP over all active routes with a Student-t
+  (`nu = 4`) likelihood on the log residual `log y_i - log m_i`, scaled
+  by `R_LOG = 0.0225` (about 15% log-SD), plus a Gaussian prior
+  `beta_r ~ N(0, 0.30^2)`. Routes with no signal in any result keep
+  `beta_r = 0`.
+- **Solver.** Deterministic multi-start damped Newton. Starts are
+  `beta = 0`, each route's 1-D conditional minimum (grid plus
+  bisection), and every pairwise combination of those. If two distinct
+  minima survive, the best one is used and every route is flagged
+  ambiguous.
+- **Uncertainty.** A Laplace approximation at the MAP gives each route's
+  posterior SD. The Home band is the 68% and 95% posterior predictive
+  interval for a new result (Laplace covariance plus Student-t
+  observation noise, integrated with Gauss-Hermite quadrature). It is
+  not a therapeutic range.
+- **Warn, don't gate.** Every route touched by an included result is
+  applied. Warnings are attached when no result draws at least 20% of
+  its signal from the route, when the scale is outside the route's usual
+  range (0.5 to 2 for injection, patch, and oral; 0.25 to 3 for gel and
+  sublingual) or is a large shift backed by fewer than three results,
+  when the posterior SD is above 0.20 or the supporting results span
+  less than a 2x signal range, when the weighted log RMSE exceeds
+  `2 * sqrt(R_LOG)`, when a supporting result has a Student-t weight
+  below 0.25 and hasn't been reviewed, or when the fit is ambiguous.
+- **Review.** Per-result choices (`REVIEWED`, `EXCLUDED`) live in
+  `e2_calibration_metadata`, `AUTO` as no row; see [data-model.md](data-model.md).
+  `REVIEWED` only hides the review tip and never changes the fit.
+
+The fit runs entirely on device, inside the Home snapshot build, so the
+Home chart, the band, and the widgets all draw from the same adjusted
+parameters. Hipparchus supplies the bisection solver, Cholesky decomposition,
+Gauss-Hermite integration, and Student-t distribution; see
+[third-party-notices.md](third-party-notices.md).
+
 ## What Featherline plans to change
 
 The PK engine swap gates three deferred refactors, all enumerated in
@@ -191,17 +243,12 @@ The PK engine swap gates three deferred refactors, all enumerated in
   truth.
 - Untangle the projection cache from `HomeSnapshotRepository` so PK
   re-simulation isn't triggered by unrelated home mutations.
-- Bring per-user PK calibration back. The EKF draft was tested and
-  dropped from `main` to wait for the new engine's calibration shape;
-  the reference is parked outside this repo's history.
 
 ## Out of scope
 
 - **The PK math itself.** Compartment equations, parameter
   derivations, and the literature anchors for each constant live in
   the upstream README and its `pk_research/` workspace.
-- **Personal-PK calibration.** The drafted-and-paused EKF code lives
-  outside this repo; it isn't tracked in `docs/`.
 - **Testosterone as a user-facing simulation.** `PkHormone.TESTOSTERONE`
   exists in the catalog with full parameters, but no user-logged
   category currently produces testosterone PK events, so testosterone

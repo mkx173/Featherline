@@ -290,8 +290,8 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun currentBackupSnapshotVersion_isSix() {
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun currentBackupSnapshotVersion_isNine() {
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     private fun makeSnapshotWithSingleMedicine(
@@ -370,6 +370,7 @@ class BackupSnapshotJsonCodecTest {
                 appLockGracePeriodOption = "ONE_MINUTE",
                 hideScreenContentEnabled = false,
                 onboardingCompleted = true,
+                pkCalibrationIntroSeen = true,
                 appLanguageOption = "ENGLISH",
                 calibrationDefaultUnits = emptyMap(),
             ),
@@ -401,6 +402,7 @@ class BackupSnapshotJsonCodecTest {
                 "appLockGracePeriodOption": "ONE_MINUTE",
                 "hideScreenContentEnabled": false,
                 "onboardingCompleted": true,
+                "pkCalibrationIntroSeen": true,
                 "appLanguageOption": "ENGLISH",
                 "calibrationDefaultUnits": {}
               },

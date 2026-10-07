@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -38,6 +39,8 @@ import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -46,6 +49,7 @@ import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -76,6 +80,7 @@ class BackupExportServiceTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
+    private val pkCalibrationStorageRepository: PkCalibrationStorageRepository = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
     private val journalRepository: JournalRepository = mockk()
 
@@ -99,6 +104,7 @@ class BackupExportServiceTest {
         } returns false
         coEvery { journalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { journalRepository.getNoteEntities() } returns emptyList()
+        coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns emptyList()
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -108,6 +114,7 @@ class BackupExportServiceTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
+            pkCalibrationStorageRepository = pkCalibrationStorageRepository,
             widgetAppearanceRepository = widgetAppearanceRepository,
             journalRepository = journalRepository,
             backupCrypto = backupCrypto,
@@ -120,13 +127,14 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_remainsAtHeroBackgroundVersion() {
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
     fun buildBackupSnapshotJson_exportsStockNudgeEnabledFalse() = runTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
@@ -146,6 +154,7 @@ class BackupExportServiceTest {
     @Test
     fun buildBackupSnapshotJson_exportsHomeCardLayout() = runTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -192,6 +201,7 @@ class BackupExportServiceTest {
             darkMode = DarkModeOption.DARK,
         )
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -232,6 +242,7 @@ class BackupExportServiceTest {
             updatedAtEpochMillis = 4_000L,
         )
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -286,6 +297,7 @@ class BackupExportServiceTest {
             if (migrated) legacyDerived else WidgetAppearance.Default
         }
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -312,6 +324,7 @@ class BackupExportServiceTest {
         // legacy keys. The export must fail loudly rather than silently baking Default
         // over those settings — a failed export is retryable; a lossy backup is not.
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -334,6 +347,7 @@ class BackupExportServiceTest {
     fun buildBackupSnapshotJson_usesStablePackageNameWhenInstalledPackageHasSuffix() = runTest {
         every { context.packageName } returns "com.mkx.hrttracker.debug"
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -360,6 +374,7 @@ class BackupExportServiceTest {
         )
 
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns listOf(capsuleMedicine)
@@ -402,6 +417,7 @@ class BackupExportServiceTest {
         )
 
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns listOf(medicine)
@@ -465,6 +481,7 @@ class BackupExportServiceTest {
         )
 
         every { settingsRepository.onboardingCompleted } returns flowOf(true)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(true)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
             darkModeOption = DarkModeOption.DARK,
             adaptiveColorEnabled = false,
@@ -607,7 +624,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -742,6 +759,7 @@ class BackupExportServiceTest {
                 importedFromExternalTracker = true,
             )
             every { settingsRepository.onboardingCompleted } returns flowOf(false)
+            every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
             coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
             coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
             coEvery { medicineRepository.getAll() } returns listOf(
@@ -802,6 +820,7 @@ class BackupExportServiceTest {
             importedFromExternalTracker = true,
         )
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns listOf(importedMedicine)
@@ -849,6 +868,13 @@ class BackupExportServiceTest {
                 importPanelKey = 600L,
             )
         )
+        coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns listOf(
+            E2CalibrationMetadata(
+                resultId = resultUuid,
+                disposition = E2CalibrationDisposition.EXCLUDED,
+                updatedAt = Instant.parse("2026-04-26T02:20:00Z"),
+            )
+        )
 
         val snapshot = BackupSnapshotJsonCodec.decode(
             service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
@@ -863,6 +889,11 @@ class BackupExportServiceTest {
         val result = panel.results.single()
         assertEquals("oyama", result.importSourceApp)
         assertEquals("result-60", result.importExternalId)
+        assertEquals("EXCLUDED", result.calibrationDisposition)
+        assertEquals(
+            Instant.parse("2026-04-26T02:20:00Z").toEpochMilli(),
+            result.calibrationMetadataUpdatedAtEpochMillis,
+        )
     }
 
     @Test
@@ -876,6 +907,7 @@ class BackupExportServiceTest {
         val scheduleTimeUuid = UUID.fromString("00000000-0000-0000-0000-0000000001a3")
 
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -948,6 +980,7 @@ class BackupExportServiceTest {
     @Test
     fun buildEncryptedBackupBytes_wraps_snapshot_json_in_binary_container() = runTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()
@@ -977,6 +1010,7 @@ class BackupExportServiceTest {
     @Test
     fun prepareBackupExport_creates_temp_payload_and_discardPreparedBackup_removes_it() = runTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { medicineRepository.getAll() } returns emptyList()

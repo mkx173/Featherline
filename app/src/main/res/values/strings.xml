@@ -48,7 +48,6 @@
     <string name="main_e2_no_last_dose">No logged dose yet</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">Estimated concentrations and WPATH SOC-8 target ranges are references, not measured values or medical advice; your targets may differ.</string>
     <string name="medical_disclaimer_preset_doses">Preset doses are reference values, not medical advice. Safe dosing depends on lab results, other medications, medical history, and clinician supervision.</string>
-    <string name="medical_disclaimer_reference_ranges">Target ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
     <string name="medical_disclaimer_wpath_reference_ranges">Target ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">Plasma concentration values are model estimates based on your dosing schedule, not measured values.</string>
     <string name="main_antiandrogen_title">Antiandrogen</string>
@@ -677,6 +676,7 @@
     <string name="settings_calibration_unit_label">Unit</string>
     <string name="settings_calibration_notes_label">Notes</string>
     <string name="settings_calibration_results">Test results</string>
+    <string name="settings_calibration_collection_time">Collection time</string>
     <string name="settings_calibration_add_analyte">Add result</string>
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_error_invalid_number">Enter a valid value.</string>
@@ -722,12 +722,7 @@
         <item quantity="one">+%1$d record</item>
         <item quantity="other">+%1$d records</item>
     </plurals>
-    <plurals name="settings_calibration_total_count">
-        <item quantity="one">%1$d total</item>
-        <item quantity="other">%1$d total</item>
-    </plurals>
-    <string name="settings_calibration_under_development_message">Calibration is under development. You can still log blood test results.</string>
-    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 target range</string>
+    <string name="settings_calibration_target_ranges_title">Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
@@ -1109,4 +1104,109 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
+    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+    <string name="calibration_pk_global_no_dose_history_title">Log a dose first</string>
+    <string name="calibration_pk_global_no_dose_history_body">Calibration compares your E2 results with the curve from your logged doses. The population estimate is shown until you log an estradiol dose.</string>
+    <string name="calibration_pk_global_no_usable_labs_title">Add an E2 result</string>
+    <string name="calibration_pk_global_no_usable_labs_body">Add an E2 blood test result to start calibrating. The population estimate is shown until then.</string>
+    <string name="calibration_pk_global_numeric_failure_title">Unable to update the estimate</string>
+    <string name="calibration_pk_global_numeric_failure_body">The calculation didn’t finish, so the population estimate is shown for now.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — per-route display states -->
+    <string name="calibration_pk_route_tag_no_supporting_labs">No usable results</string>
+    <string name="calibration_pk_route_tag_numeric_failure">Unable to calibrate</string>
+
+    <!-- Route-isolated E2 calibration (PK) — hero and counts -->
+    <string name="calibration_pk_hero_population">Population estimate</string>
+    <string name="calibration_pk_hero_adjusted">Calibrated</string>
+    <plurals name="calibration_pk_supporting_lab_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+
+    <!-- Route-isolated E2 calibration (PK) — status section -->
+    <string name="calibration_pk_section_title">Estimate calibration</string>
+    <string name="calibration_pk_status_population_title">Using the population estimate</string>
+    <string name="calibration_pk_status_adjusted_title">Calibrated to your results</string>
+    <string name="calibration_pk_retry">Try again</string>
+    <string name="calibration_pk_routes_card_title">Routes</string>
+    <string name="calibration_pk_routes_card_adjusted_of">%1$d of %2$d calibrated</string>
+    <string name="calibration_pk_confidence_low">low</string>
+    <string name="calibration_pk_confidence_medium">medium</string>
+    <string name="calibration_pk_confidence_high">high</string>
+    <string name="calibration_pk_route_meta_confidence">%1$s · %2$s confidence</string>
+    <string name="calibration_pk_coaching_row_title">Tips for better estimates</string>
+
+    <!-- Route-isolated E2 calibration (PK) — sheets -->
+    <string name="calibration_pk_got_it">Got it</string>
+    <string name="calibration_pk_coaching_time_title">Use the collection time</string>
+    <string name="calibration_pk_coaching_time_body">Enter when the blood was drawn, not when you logged it.</string>
+    <string name="calibration_pk_coaching_history_title">Keep dose records accurate</string>
+    <string name="calibration_pk_coaching_history_body">Dose, route, medication, and weight all affect the estimate.</string>
+    <string name="calibration_pk_coaching_assay_title">Stick to one lab</string>
+    <string name="calibration_pk_coaching_assay_body">Results from the same lab and method are easiest to compare.</string>
+    <string name="calibration_pk_coaching_variety_title">Test at different times</string>
+    <string name="calibration_pk_coaching_variety_body">Testing when one route makes up most of your E2 helps calibrate that route.</string>
+    <string name="calibration_pk_coaching_safety_note">Don’t change your doses or test schedule without talking to your clinician.</string>
+    <string name="calibration_pk_edu_title">How estimate calibration works</string>
+    <string name="calibration_pk_edu_intro">Your E2 results fine-tune how much each route adds to the estimate.</string>
+    <string name="calibration_pk_edu_does_header">What it does</string>
+    <string name="calibration_pk_edu_doesnt_header">What it doesn’t do</string>
+    <string name="calibration_pk_edu_does_routes_title">Calibrates each route separately</string>
+    <string name="calibration_pk_edu_does_routes_body">Each result counts toward the routes active at the time of the test. Estimates may change as you add results, including for past dates.</string>
+    <string name="calibration_pk_edu_does_band_title">Shows a likely range</string>
+    <string name="calibration_pk_edu_does_band_body">The shaded band shows where a new result would likely fall. It narrows as you add results and isn’t a target range.</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">Check suppression or lab consistency</string>
+    <string name="calibration_pk_edu_doesnt_verify_body">It doesn’t look at FSH, LH, or testosterone.</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">Learn how your body absorbs a dose</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">It only shifts a route’s overall level, not the shape of its curve.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
+    <string name="calibration_pk_lab_ignored_numeric_note">Not used: the estimate couldn’t be calculated for this time.</string>
+    <string name="calibration_pk_lab_ignored_signal_note">Not used: almost no E2 from your doses is expected at this time.</string>
+    <string name="calibration_pk_lab_invalid_body">Enter a value above zero. If the report says it’s below the detection limit, dismiss this.</string>
+    <string name="calibration_pk_lab_dismiss">Dismiss</string>
+    <string name="calibration_pk_lab_keep">Keep</string>
+    <string name="calibration_pk_lab_outlier_body">This result is far from the %1$s estimate. Check that the details are correct.</string>
+    <string name="calibration_pk_lab_outlier_exclude">Exclude</string>
+    <string name="calibration_pk_lab_excluded_note">Excluded from calibration.</string>
+    <string name="calibration_pk_lab_dismissed_note">Not used: the value isn’t above zero.</string>
+    <string name="calibration_pk_lab_reinclude">Include again</string>
+    <string name="calibration_pk_review_action_rejected">Unable to save this change.</string>
+    <string name="medical_disclaimer_lab_adjustment">Calibrated values are still model estimates, not measured hormone levels or dosing advice—they don’t replace lab tests or your clinician’s guidance.</string>
+
+    <!-- Route-isolated E2 calibration (PK) — home chart -->
+    <string name="calibration_pk_chart_unavailable_title">Unable to show chart</string>
+    <string name="calibration_pk_chart_unavailable_body">The calculation didn’t finish, so no curve is drawn to avoid showing wrong values. Your saved results aren’t affected.</string>
+    <string name="calibration_pk_band_unavailable_note">Unable to calculate the shaded range for this view.</string>
+    <string name="calibration_pk_band_legend">68% / 95% range</string>
+    <string name="calibration_pk_band_a11y_summary">The line combines calibrated estimates for some routes with population estimates for the others. The shaded areas show where lab results would likely fall.</string>
+
+    <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
+    <string name="calibration_pk_lab_accepted_body">Kept. Still used at a lower weight.</string>
+    <string name="calibration_pk_lab_show_review">Undo</string>
+    <string name="calibration_pk_status_info_hint">Still an estimate, not a measurement. Tap to learn more.</string>
+    <plurals name="calibration_pk_review_count">
+        <item quantity="one">%d result to check</item>
+        <item quantity="other">%d results to check</item>
+    </plurals>
+    <string name="calibration_pk_reason_short_weak_signal">Weak signal</string>
+    <string name="calibration_pk_reason_short_scale">Large correction</string>
+    <string name="calibration_pk_reason_short_uncertain">Uncertain</string>
+    <string name="calibration_pk_reason_short_fit">Poor fit</string>
+    <string name="calibration_pk_reason_short_ambiguous">Unclear fit</string>
+    <string name="calibration_pk_reason_short_outlier">Conflicting result</string>
+    <string name="calibration_pk_review_summary_outlier">Far from the %1$s estimate</string>
+    <string name="calibration_pk_review_summary_non_positive">Value must be above zero</string>
+    <string name="calibration_pk_review_summary_accepted">Kept, still counted</string>
+    <string name="calibration_pk_review_summary_dismissed">Dismissed, not counted</string>
+    <string name="calibration_pk_review_summary_excluded">Excluded from the estimate</string>
+    <string name="calibration_pk_review_summary_updated">Updated, nothing to check</string>
+    <string name="calibration_pk_lab_chip_check">Check</string>
+    <string name="calibration_pk_lab_chip_excluded">Excluded</string>
+    <string name="calibration_pk_lab_chip_dismissed">Kept</string>
+    <string name="calibration_pk_lab_chip_not_used">Not used</string>
+    <string name="calibration_pk_edu_next">Next</string>
+    <string name="calibration_pk_edu_back">Back</string>
+    <string name="calibration_pk_edu_finish">Done</string>
 </resources>

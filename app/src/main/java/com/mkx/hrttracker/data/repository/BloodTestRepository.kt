@@ -32,6 +32,7 @@ import javax.inject.Singleton
 class BloodTestRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val medicationLogRepository: MedicationLogRepository,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @Volatile
@@ -106,62 +107,70 @@ class BloodTestRepository @Inject constructor(
         validateTimeZoneId(collectedAtTimeZoneId)
         require(results.isNotEmpty()) { "Blood test panel must contain at least one result." }
 
-        val dao = databaseHolder.get().bloodTestDao()
-        val panelUuid = uuid ?: UUID.randomUUID()
-        val existingPanel = uuid?.let { dao.getPanel(it.toString()) }
-        val existingResultsByUuid = existingPanel?.orEmptyResultsByUuid().orEmpty()
-        val customAnalytesByUuid = resolveCustomAnalytesForResults(results, dao)
-        validateUniqueAnalytes(results)
-        val timeSinceLastEstradiolDoseMillis = resolveTimeSinceLastEstradiolDoseMillis(collectedAt)
+        return homeSnapshotRepository.runHomeDataMutation {
+            val dao = databaseHolder.get().bloodTestDao()
+            val panelUuid = uuid ?: UUID.randomUUID()
+            val existingPanel = uuid?.let { dao.getPanel(it.toString()) }
+            val existingResultsByUuid = existingPanel?.orEmptyResultsByUuid().orEmpty()
+            val customAnalytesByUuid = resolveCustomAnalytesForResults(results, dao)
+            validateUniqueAnalytes(results)
+            val timeSinceLastEstradiolDoseMillis =
+                resolveTimeSinceLastEstradiolDoseMillis(collectedAt)
 
-        val normalizedResults = results.mapIndexed { index, result ->
-            val existingResult = existingResultsByUuid[result.uuid]
-            result.toEntity(
-                panelUuid = panelUuid,
-                displayOrder = index,
-                createdAtEpochMillis = existingResult?.createdAtEpochMillis
-                    ?: now.toEpochMilli(),
-                customAnalytesByUuid = customAnalytesByUuid,
-                importSourceApp = existingResult?.importSourceApp,
-                importExternalId = existingResult?.importExternalId,
+            val normalizedResults = results.mapIndexed { index, result ->
+                val existingResult = existingResultsByUuid[result.uuid]
+                result.toEntity(
+                    panelUuid = panelUuid,
+                    displayOrder = index,
+                    createdAtEpochMillis = existingResult?.createdAtEpochMillis
+                        ?: now.toEpochMilli(),
+                    customAnalytesByUuid = customAnalytesByUuid,
+                    importSourceApp = existingResult?.importSourceApp,
+                    importExternalId = existingResult?.importExternalId,
+                )
+            }
+
+            val createdAtEpochMillis =
+                existingPanel?.panel?.createdAtEpochMillis ?: now.toEpochMilli()
+            dao.upsertPanelWithResults(
+                panel = BloodTestPanelEntity(
+                    uuid = panelUuid.toString(),
+                    collectedAtInstantEpochMillis = collectedAt.toEpochMilli(),
+                    collectedAtTimeZoneId = collectedAtTimeZoneId,
+                    notes = notes?.trim()?.takeUnless(String::isEmpty),
+                    timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
+                    timeSinceLastTestosteroneDoseMillis = null,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                    importSourceApp = existingPanel?.panel?.importSourceApp,
+                    importPanelKey = existingPanel?.panel?.importPanelKey,
+                ),
+                results = normalizedResults,
             )
+            dao.getPanel(panelUuid.toString())?.let { panel ->
+                mapPanels(panels = listOf(panel), dao = dao).firstOrNull()?.also(::cachePanel)
+            }
+            panelUuid
         }
-
-        val createdAtEpochMillis = existingPanel?.panel?.createdAtEpochMillis ?: now.toEpochMilli()
-        dao.upsertPanelWithResults(
-            panel = BloodTestPanelEntity(
-                uuid = panelUuid.toString(),
-                collectedAtInstantEpochMillis = collectedAt.toEpochMilli(),
-                collectedAtTimeZoneId = collectedAtTimeZoneId,
-                notes = notes?.trim()?.takeUnless(String::isEmpty),
-                timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
-                timeSinceLastTestosteroneDoseMillis = null,
-                createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = now.toEpochMilli(),
-                importSourceApp = existingPanel?.panel?.importSourceApp,
-                importPanelKey = existingPanel?.panel?.importPanelKey,
-            ),
-            results = normalizedResults,
-        )
-        dao.getPanel(panelUuid.toString())?.let { panel ->
-            mapPanels(panels = listOf(panel), dao = dao).firstOrNull()?.also(::cachePanel)
-        }
-        return panelUuid
     }
 
     suspend fun deletePanel(uuid: UUID) {
-        databaseHolder.get().bloodTestDao().deletePanel(uuid.toString())
-        cachedPanels = cachedPanels.filterNot { panel -> panel.uuid == uuid }
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().bloodTestDao().deletePanel(uuid.toString())
+            cachedPanels = cachedPanels.filterNot { panel -> panel.uuid == uuid }
+        }
     }
 
     suspend fun deleteAllPanels() {
-        databaseHolder.withTransaction { database ->
-            val dao = database.bloodTestDao()
-            dao.deleteAllResults()
-            dao.deleteAllPanels()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                val dao = database.bloodTestDao()
+                dao.deleteAllResults()
+                dao.deleteAllPanels()
+            }
+            cachedPanels = emptyList()
+            hasCachedPanelList = true
         }
-        cachedPanels = emptyList()
-        hasCachedPanelList = true
     }
 
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {

@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.main
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -108,6 +109,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -163,6 +165,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -201,6 +204,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -220,6 +224,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -247,6 +252,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -272,6 +278,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -320,6 +327,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -344,6 +352,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -367,6 +376,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
             defaultDispatcher = dispatcher,
         )
@@ -388,6 +398,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
             defaultDispatcher = dispatcher,
         )
@@ -408,6 +419,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 9, 0)),
             defaultDispatcher = dispatcher,
         )
@@ -432,6 +444,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -484,6 +497,7 @@ class MainViewModelTest {
                 homeRepository = homeRepository,
                 settingsRepository = settingsRepository,
                 timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+                pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
                 appTimeSource = appTimeSource,
                 defaultDispatcher = dispatcher,
             )
@@ -540,6 +554,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -572,6 +587,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -623,6 +639,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -647,6 +664,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -680,6 +698,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -703,6 +722,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -747,6 +767,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -809,6 +830,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -846,6 +868,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -889,6 +912,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -924,6 +948,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -958,6 +983,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -986,6 +1012,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1014,6 +1041,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1049,6 +1077,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1087,6 +1116,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1115,6 +1145,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1148,6 +1179,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1181,6 +1213,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1212,6 +1245,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1245,6 +1279,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1281,6 +1316,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1342,6 +1378,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1393,6 +1430,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = FakeAppTimeSource(now),
             defaultDispatcher = dispatcher,
         )
@@ -1423,6 +1461,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -1500,6 +1539,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -1558,6 +1598,7 @@ class MainViewModelTest {
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            pkUiFixtureBridge = PkCalibrationUiFixtureBridge(),
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )

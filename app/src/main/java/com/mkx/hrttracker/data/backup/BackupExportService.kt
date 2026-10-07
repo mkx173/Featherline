@@ -11,6 +11,7 @@ import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -25,6 +26,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -36,6 +38,7 @@ import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,6 +51,7 @@ class BackupExportService @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
+    private val pkCalibrationStorageRepository: PkCalibrationStorageRepository,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val journalRepository: JournalRepository,
     private val backupCrypto: BackupCrypto,
@@ -166,6 +170,7 @@ class BackupExportService @Inject constructor(
     ): BackupSnapshot {
         val settings = settingsRepository.getCurrentSettings()
         val onboardingCompleted = settingsRepository.onboardingCompleted.first()
+        val pkCalibrationIntroSeen = settingsRepository.pkCalibrationIntroSeen.first()
         val stockNudgeEnabled = settingsRepository.stockNudgeEnabledFlow.first()
         val stockNudgeUserEnabled = settingsRepository.stockNudgeUserEnabledFlow.first()
         val homeCardLayout = settingsRepository.homeCardLayoutFlow.first()
@@ -187,6 +192,8 @@ class BackupExportService @Inject constructor(
         val medicationLogs = medicationLogRepository.getEntries()
         val customBloodAnalytes = bloodTestRepository.getCustomAnalytes()
         val bloodTestPanels = bloodTestRepository.getPanels()
+        val calibrationMetadataByResultId = pkCalibrationStorageRepository.getAllMetadata()
+            .associateBy { metadata -> metadata.resultId }
         val trackedDates = journalRepository.getTrackedDateEntities()
         val notes = journalRepository.getNoteEntities()
 
@@ -208,6 +215,7 @@ class BackupExportService @Inject constructor(
                 appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
                 hideScreenContentEnabled = settings.hideScreenContentEnabled,
                 onboardingCompleted = onboardingCompleted,
+                pkCalibrationIntroSeen = pkCalibrationIntroSeen,
                 appLanguageOption = settings.appLanguageOption.name,
                 homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
                 homeE2ChartWindow = settings.homeE2ChartWindowOption.name,
@@ -253,7 +261,9 @@ class BackupExportService @Inject constructor(
                     archivedAtEpochMillis = analyte.archivedAt?.toEpochMilli(),
                 )
             },
-            bloodTestPanels = bloodTestPanels.map { panel -> panel.toBackupSnapshot() },
+            bloodTestPanels = bloodTestPanels.map { panel ->
+                panel.toBackupSnapshot(calibrationMetadataByResultId)
+            },
             trackedDates = trackedDates.map { trackedDate -> trackedDate.toBackupSnapshot() },
             notes = notes.map { note -> note.toBackupSnapshot() },
         )
@@ -469,7 +479,9 @@ class BackupExportService @Inject constructor(
         }
     }
 
-    private fun BloodTestPanel.toBackupSnapshot(): BackupBloodTestPanelSnapshot {
+    private fun BloodTestPanel.toBackupSnapshot(
+        calibrationMetadataByResultId: Map<UUID, E2CalibrationMetadata>,
+    ): BackupBloodTestPanelSnapshot {
         return BackupBloodTestPanelSnapshot(
             uuid = uuid.toString(),
             collectedAtInstantEpochMillis = collectedAt.toEpochMilli(),
@@ -481,11 +493,15 @@ class BackupExportService @Inject constructor(
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             importSourceApp = importSourceApp,
             importPanelKey = importPanelKey,
-            results = results.map { result -> result.toBackupSnapshot() },
+            results = results.map { result ->
+                result.toBackupSnapshot(calibrationMetadataByResultId[result.uuid])
+            },
         )
     }
 
-    private fun BloodTestResult.toBackupSnapshot(): BackupBloodTestResultSnapshot {
+    private fun BloodTestResult.toBackupSnapshot(
+        calibrationMetadata: E2CalibrationMetadata?,
+    ): BackupBloodTestResultSnapshot {
         return BackupBloodTestResultSnapshot(
             uuid = uuid.toString(),
             createdAtEpochMillis = createdAt.toEpochMilli(),
@@ -497,6 +513,9 @@ class BackupExportService @Inject constructor(
             canonicalValue = canonicalValue,
             importSourceApp = importSourceApp,
             importExternalId = importExternalId,
+            calibrationDisposition = calibrationMetadata?.disposition?.name,
+            calibrationMetadataUpdatedAtEpochMillis =
+                calibrationMetadata?.updatedAt?.toEpochMilli(),
         )
     }
 

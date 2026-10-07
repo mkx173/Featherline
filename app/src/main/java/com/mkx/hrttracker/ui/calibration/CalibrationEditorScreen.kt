@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -71,6 +73,7 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
@@ -126,6 +129,13 @@ fun CalibrationEditorScreen(
     var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
     val saveEntryFailureMessage =
         stringResource(R.string.settings_calibration_save_entry_failure)
+    val pkReviewFailureMessage = stringResource(R.string.calibration_pk_review_action_rejected)
+    LaunchedEffect(uiState.pkReviewFailed) {
+        if (uiState.pkReviewFailed) {
+            Toast.makeText(context, pkReviewFailureMessage, Toast.LENGTH_SHORT).show()
+            viewModel.consumePkReviewFailure()
+        }
+    }
     val deleteEntryFailureMessage =
         stringResource(R.string.settings_calibration_delete_entry_failure)
     val crossZoneSavedFormat = stringResource(R.string.cross_timezone_saved_toast)
@@ -143,7 +153,7 @@ fun CalibrationEditorScreen(
     // Locks top-level navigation chrome while a save/delete is being written
     // and until the exit pop fires. Loading deliberately does not lock.
     NavigationLockEffect(
-        active = uiState.isSaving || uiState.isDeleting ||
+        active = uiState.isUpdatingPkReview || uiState.isSaving || uiState.isDeleting ||
                 uiState.isSaved || uiState.isDeleted,
     )
 
@@ -256,6 +266,9 @@ fun CalibrationEditorScreen(
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onNotesCommit = viewModel::updateNotes,
+        onPkAcceptLab = viewModel::acceptPkLab,
+        onPkExcludeLab = viewModel::excludePkLab,
+        onPkReincludeLab = viewModel::reincludePkLab,
         onBuiltinAnalyteValueChange = viewModel::updateAnalyteValue,
         onCustomAnalyteValueChange = viewModel::updateCustomAnalyteValue,
         onBuiltinAnalyteUnitChange = viewModel::updateAnalyteUnit,
@@ -318,6 +331,9 @@ private fun CalibrationEditorScreenContent(
     onDeleteClick: () -> Unit,
     onSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onPkAcceptLab: (UUID) -> Unit = {},
+    onPkExcludeLab: (UUID) -> Unit = {},
+    onPkReincludeLab: (UUID) -> Unit = {},
 ) {
     val addAnalyteOptions = remember(uiState.drafts, uiState.customAnalytes) {
         calibrationAddAnalyteOptions(uiState)
@@ -423,14 +439,45 @@ private fun CalibrationEditorScreenContent(
                             locale = itemLocale,
                         )
                     }
-                    CalibrationDateTimeCard(
-                        dateLabel = dateFormatter(uiState.collectedDate),
-                        timeLabel = uiState.collectedTime.format(timeFormatter),
-                        timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
-                        onDateClick = onDateClick,
-                        onTimeClick = onTimeClick,
-                        crossZoneLabel = crossZoneLabel,
-                    )
+                    // Same note and actions as the review queue; the value field
+                    // below is the correction path, so no Correct button here. Leads
+                    // the page so a flagged result is the first thing seen.
+                    uiState.pkReviewFlag?.let { flag ->
+                        HrtSection(
+                            title = stringResource(R.string.calibration_pk_section_title),
+                            topPadding = false,
+                        ) {
+                            item {
+                                // One result per editor, so the card itself is the note's surface.
+                                EditorSegmentedListItem(contentPadding = PaddingValues(4.dp)) {
+                                    PkCalibrationLabRowFooter(
+                                        flag = flag,
+                                        onExclude = { onPkExcludeLab(flag.resultId) },
+                                        onReinclude = { onPkReincludeLab(flag.resultId) },
+                                        onAccept = { onPkAcceptLab(flag.resultId) },
+                                        enabled = !isCalibrationEditorBusy(uiState),
+                                        containerColor = Color.Transparent,
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    }
+                    HrtSection(
+                        title = stringResource(R.string.settings_calibration_collection_time),
+                        topPadding = uiState.pkReviewFlag != null,
+                    ) {
+                        item {
+                            CalibrationDateTimeCard(
+                                dateLabel = dateFormatter(uiState.collectedDate),
+                                timeLabel = uiState.collectedTime.format(timeFormatter),
+                                timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
+                                onDateClick = onDateClick,
+                                onTimeClick = onTimeClick,
+                                crossZoneLabel = crossZoneLabel,
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     val totalCount = uiState.drafts.size

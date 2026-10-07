@@ -12,7 +12,7 @@ that file is read back. The whole subsystem lives in
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 6`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 7`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
@@ -120,7 +120,9 @@ flattened into the parent's JSON.
   old backups restore with an empty Journal. The 5→6 bump added
   `BackupTrackedDateSnapshot.heroBackgroundKey`, so journal hero
   backgrounds round-trip through backups; it too defaults to `null` so
-  older backups restore cleanly.
+  older backups restore cleanly. The 6→7 bump added the per-result
+  calibration review fields described under
+  `BackupBloodTestResultSnapshot` below.
 - `BackupAppSnapshot` — just `packageName`; exports write the stable
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
@@ -129,7 +131,8 @@ flattened into the parent's JSON.
   `cjkTextOffsetEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
-  onboarding, language, `firstDayOfWeekOption`, home E2 display unit,
+  onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
+  intro sheet), language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
   last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
@@ -233,7 +236,14 @@ flattened into the parent's JSON.
   [`BloodTestResultEntity`](data-model.md#bloodtestresultentity);
   carries either `builtinAnalyteKey` or `customAnalyteUuid`
   (exclusive), `value` + `unitSnapshot`, `canonicalValue`, and
-  nullable `importSourceApp` / `importExternalId` provenance.
+  nullable `importSourceApp` / `importExternalId` provenance. Since
+  snapshot 7 it also carries nullable `calibrationDisposition`
+  (`AUTO`, `REVIEWED`, or `EXCLUDED`) and
+  `calibrationMetadataUpdatedAtEpochMillis`, mirroring
+  [`E2CalibrationMetadataEntity`](data-model.md#e2calibrationmetadataentity).
+  Both null means the result has no metadata row. Restore accepts them
+  only on built-in E2 results, requires both when either is present,
+  and restores `AUTO` (and the pre-release value `ACCEPTED`) as no row.
 - `BackupTrackedDateSnapshot` →
   [`TrackedDateEntity`](data-model.md#trackeddateentity); carries the
   journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable
@@ -315,7 +325,7 @@ incompatible files are rejected at the cheapest detection point.
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
-     (currently `2..6`); v1 backups are rejected here with no
+     (currently `2..7`); v1 backups are rejected here with no
      migration path because the medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
      `app.packageName` must match the stable backup identity
@@ -392,6 +402,7 @@ incompatible files are rejected at the cheapest detection point.
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
+`pkCalibrationIntroSeen`,
 `homeE2ChartWindow`, `homeCardOrder` / `homeCardHidden`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and

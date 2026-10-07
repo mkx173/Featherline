@@ -17,8 +17,14 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationBandState
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixture
+import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
@@ -33,10 +39,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,6 +60,7 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
+    private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
@@ -116,13 +126,22 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        val homeStateFlow = combine(
+        // The Home calibration presentation comes from the snapshot, so it is
+        // on the first frame with the curve. The debug harness fixture (plan
+        // D3) overrides it so QA exercises the shipping surface.
+        val keyedInputsWithPkFlow = combine(
             keyedInputsFlow,
+            pkUiFixtureBridge.fixture,
+        ) { keyedInputs, fixture -> keyedInputs to fixture }
+
+        val homeStateFlow = combine(
+            keyedInputsWithPkFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { keyedInputs, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+        ) { keyedInputsWithPk, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+            val (keyedInputs, fixture) = keyedInputsWithPk
             if (!keyedInputs.key.matches(timeSnapshot)) {
                 return@combine null
             }
@@ -146,6 +165,7 @@ class MainViewModel @Inject constructor(
             withContext(defaultDispatcher) {
                 buildHomeUiState(
                     inputs = inputs,
+                    fixture = fixture,
                     now = timeSnapshot.minute,
                     zoneId = timeSnapshot.zone,
                     timeZoneNotice = timeZoneNotice,
@@ -299,6 +319,7 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
+        fixture: PkCalibrationUiFixture?,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -326,12 +347,17 @@ class MainViewModel @Inject constructor(
         //     already passed (the user didn't take them — don't keep them on
         //     the curve as if they did).
         val nowInstant = now.atZone(zoneId).toInstant()
+        // The cached projection was simulated with the snapshot's calibration,
+        // so it is the calibrated curve from the first frame; a local
+        // re-simulation (expired projection) uses the same params. The live
+        // evaluation only contributes the band and the hero/status.
         val freshProjection = inputs.pkProjection?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
         }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
         }
+        val simulationPersonalParams = inputs.pkPersonalParams
         val trendResult = freshProjection?.toMainEstradiolTrend(
             now = now,
             zoneId = zoneId,
@@ -344,6 +370,7 @@ class MainViewModel @Inject constructor(
                 now = now,
                 zoneId = zoneId,
                 option = chartWindowOption,
+                personalParams = simulationPersonalParams,
             )
 
         // When the cached projection is invalid the trend falls back to
@@ -376,6 +403,18 @@ class MainViewModel @Inject constructor(
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
+            // Hero, notes and band all come from the snapshot (same doses, same
+            // calibration as the cached curve); the band is dropped with the
+            // projection on expiry until the snapshot rebuilds.
+            pkCalibration = buildMainPkCalibration(
+                inputs = inputs,
+                fixture = fixture,
+                bandKnots = if (freshProjection != null) inputs.pkBandKnots else emptyList(),
+                now = now,
+                zoneId = zoneId,
+                chartWindowOption = chartWindowOption,
+                displayUnit = homeE2DisplayUnit,
+            ),
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
@@ -483,6 +522,45 @@ class MainViewModel @Inject constructor(
     )
 
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
+
+    private fun buildMainPkCalibration(
+        inputs: HomeInputs,
+        fixture: PkCalibrationUiFixture?,
+        bandKnots: List<PkPredictiveBandKnot>,
+        now: LocalDateTime,
+        zoneId: ZoneId,
+        chartWindowOption: HomeE2ChartWindowOption,
+        displayUnit: BloodUnitKey,
+    ): MainPkCalibrationUiState? {
+        fun band(knots: List<PkPredictiveBandKnot>) = buildMainE2CalibrationBand(
+            bandKnots = knots,
+            now = now,
+            zoneId = zoneId,
+            pastDays = chartWindowOption.pastDays,
+            windowHours = chartWindowOption.chartWindowHours,
+            displayUnit = displayUnit,
+        )
+        if (fixture != null) {
+            val ui = pkCalibrationUiState(fixture.result, fixture.render)
+            return MainPkCalibrationUiState(
+                adjusted = ui.effectivePromotedRoutes.isNotEmpty(),
+                limitedConfidence = ui.limitedConfidence,
+                renderUnavailable = ui.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
+                bandUnavailable = ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
+                band = fixture.render
+                    ?.takeIf { it.bandState == PkCalibrationBandState.READY }
+                    ?.let { band(it.bandKnots) },
+            )
+        }
+        val record = inputs.pkCalibration ?: return null
+        return MainPkCalibrationUiState(
+            adjusted = record.adjusted,
+            limitedConfidence = record.limitedConfidence,
+            renderUnavailable = record.renderUnavailable,
+            bandUnavailable = record.bandUnavailable,
+            band = band(bandKnots),
+        )
+    }
 
     private fun HomeTimeKey.matches(snapshot: AppTimeSnapshot): Boolean {
         return date == snapshot.minute.toLocalDate() &&

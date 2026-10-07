@@ -17,11 +17,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BloodTestPanelEntity::class,
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
+        E2CalibrationMetadataEntity::class,
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 9,
-    exportSchema = false,
+    version = 10,
+    exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicineDao(): MedicineDao
@@ -29,6 +30,7 @@ abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicationGroupDao(): MedicationGroupDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun bloodTestDao(): BloodTestDao
+    abstract fun pkCalibrationDao(): PkCalibrationDao
     abstract fun homeDao(): HomeDao
     abstract fun journalDao(): JournalDao
 }
@@ -198,5 +200,25 @@ internal val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 internal val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE tracked_dates ADD COLUMN heroBackgroundKey TEXT")
+    }
+}
+
+// v9 -> v10: result-owned review metadata (an explicit exclusion of one E2
+// result from route calibration). The table starts empty; no earlier
+// calibration state ever shipped, so there is nothing to convert.
+internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `e2_calibration_metadata` (
+                `resultUuid` TEXT NOT NULL,
+                `disposition` TEXT NOT NULL,
+                `updatedAtEpochMillis` INTEGER NOT NULL,
+                PRIMARY KEY(`resultUuid`),
+                FOREIGN KEY(`resultUuid`) REFERENCES `blood_test_results`(`uuid`)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -50,6 +51,11 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var appTimeSource: AppTimeSource
+
+    // Constructed here so its eager live evaluation starts at app start; the
+    // calibration page then has its section on the first frame.
+    @Inject
+    lateinit var pkCalibrationLiveRepository: PkCalibrationLiveRepository
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {

@@ -39,6 +39,7 @@ data class BackupSettingsSnapshot(
     val appLockGracePeriodOption: String,
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
+    val pkCalibrationIntroSeen: Boolean = false,
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
     val homeE2ChartWindow: String = "SEVEN_DAYS",
@@ -232,6 +233,8 @@ data class BackupBloodTestResultSnapshot(
     val canonicalValue: Double,
     val importSourceApp: String? = null,
     val importExternalId: String? = null,
+    val calibrationDisposition: String? = null,
+    val calibrationMetadataUpdatedAtEpochMillis: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -283,7 +286,12 @@ data class BackupNoteSnapshot(
 // hero backgrounds are included in the backup compatibility gate alongside
 // local Room persistence.
 //
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 6
+// The 6→7 bump added durable E2 calibration review metadata (an explicit
+// exclusion per result). Although the new result fields are nullable so
+// v2–v6 backups remain readable, a pre-v7 app would ignore them and silently
+// lose explicit exclusions.
+//
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

@@ -7,12 +7,14 @@ import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.E2CalibrationMetadataEntity
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
 import com.mkx.hrttracker.data.local.MedicationGroupDao
 import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.PkCalibrationDao
 import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
@@ -23,6 +25,7 @@ import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -50,6 +53,7 @@ import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -77,6 +81,7 @@ class BackupRestoreServiceTest {
     private val medicationGroupDao: MedicationGroupDao = mockk(relaxed = true)
     private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val bloodTestDao: BloodTestDao = mockk(relaxed = true)
+    private val pkCalibrationDao: PkCalibrationDao = mockk(relaxed = true)
     private val userProfileDao: UserProfileDao = mockk(relaxed = true)
     private val journalDao: JournalDao = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
@@ -98,6 +103,7 @@ class BackupRestoreServiceTest {
         every { database.medicationGroupDao() } returns medicationGroupDao
         every { database.medicineDao() } returns medicineDao
         every { database.bloodTestDao() } returns bloodTestDao
+        every { database.pkCalibrationDao() } returns pkCalibrationDao
         every { database.userProfileDao() } returns userProfileDao
         every { database.journalDao() } returns journalDao
         every { databaseHolder.get() } returns database
@@ -151,6 +157,95 @@ class BackupRestoreServiceTest {
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
     }
+
+    @Test
+    fun restoreBackup_restoresExclusionMetadataAfterResults() = runTest {
+        val resultUuid = "00000000-0000-0000-0000-0000000008a1"
+        val snapshot = emptySnapshot().copy(
+            bloodTestPanels = listOf(
+                calibrationMetadataPanel(
+                    panelUuid = "00000000-0000-0000-0000-0000000008a0",
+                    resultUuid = resultUuid,
+                    calibrationDisposition = "EXCLUDED",
+                )
+            ),
+        )
+        val metadataSlot = slot<List<E2CalibrationMetadataEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                BackupSnapshotJsonCodec.encode(snapshot),
+                "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerifyOrder {
+            pkCalibrationDao.deleteAllMetadata()
+            bloodTestDao.insertResults(any())
+            pkCalibrationDao.insertMetadata(capture(metadataSlot))
+        }
+        val restored = metadataSlot.captured.single()
+        assertEquals(resultUuid, restored.resultUuid)
+        assertEquals("EXCLUDED", restored.disposition)
+        assertEquals(2_000L, restored.updatedAtEpochMillis)
+    }
+
+    // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
+    // action); like AUTO it means "no choice" and restores as no row.
+    @Test
+    fun restoreBackup_legacyAcceptedRow_restoresAsNoRowInsteadOfAborting() = runTest {
+        val resultUuid = "00000000-0000-0000-0000-0000000008b1"
+        val snapshot = emptySnapshot().copy(
+            bloodTestPanels = listOf(
+                calibrationMetadataPanel(
+                    panelUuid = "00000000-0000-0000-0000-0000000008b0",
+                    resultUuid = resultUuid,
+                    calibrationDisposition = "ACCEPTED",
+                )
+            ),
+        )
+        val metadataSlot = slot<List<E2CalibrationMetadataEntity>>()
+
+        service.restoreBackupBytes(
+            encryptedBytes = backupCrypto.encryptSnapshotJson(
+                BackupSnapshotJsonCodec.encode(snapshot),
+                "password".toCharArray(),
+            ),
+            password = "password",
+        )
+
+        coVerify(exactly = 0) { pkCalibrationDao.insertMetadata(any()) }
+    }
+
+    private fun calibrationMetadataPanel(
+        panelUuid: String,
+        resultUuid: String,
+        calibrationDisposition: String,
+    ): BackupBloodTestPanelSnapshot = BackupBloodTestPanelSnapshot(
+        uuid = panelUuid,
+        collectedAtInstantEpochMillis = 1_000L,
+        collectedAtTimeZoneId = "UTC",
+        notes = null,
+        timeSinceLastEstradiolDoseMillis = null,
+        timeSinceLastTestosteroneDoseMillis = null,
+        createdAtEpochMillis = 1_000L,
+        updatedAtEpochMillis = 1_000L,
+        results = listOf(
+            BackupBloodTestResultSnapshot(
+                uuid = resultUuid,
+                createdAtEpochMillis = 1_000L,
+                displayOrder = 0,
+                builtinAnalyteKey = BloodAnalyteKey.E2.storageValue,
+                customAnalyteUuid = null,
+                value = 100.0,
+                unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                canonicalValue = 100.0,
+                calibrationDisposition = calibrationDisposition,
+                calibrationMetadataUpdatedAtEpochMillis = 2_000L,
+            )
+        ),
+    )
 
     @Test
     fun validateBackupFile_accepts_supported_backup_container() = runTest {
@@ -1446,10 +1541,12 @@ class BackupRestoreServiceTest {
         val exportMedicationGroupRepository: MedicationGroupRepository = mockk()
         val exportMedicationLogRepository: MedicationLogRepository = mockk()
         val exportBloodTestRepository: BloodTestRepository = mockk()
+        val exportPkCalibrationStorageRepository: PkCalibrationStorageRepository = mockk()
         val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
         val exportJournalRepository: JournalRepository = mockk()
 
         every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
+        every { exportSettingsRepository.pkCalibrationIntroSeen } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
         every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
         every { exportSettingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
@@ -1466,6 +1563,7 @@ class BackupRestoreServiceTest {
         coEvery { exportMedicationLogRepository.getEntries() } returns medicationLogs
         coEvery { exportBloodTestRepository.getCustomAnalytes() } returns emptyList()
         coEvery { exportBloodTestRepository.getPanels() } returns emptyList()
+        coEvery { exportPkCalibrationStorageRepository.getAllMetadata() } returns emptyList()
         coEvery { exportJournalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { exportJournalRepository.getNoteEntities() } returns emptyList()
 
@@ -1477,6 +1575,7 @@ class BackupRestoreServiceTest {
             medicationGroupRepository = exportMedicationGroupRepository,
             medicationLogRepository = exportMedicationLogRepository,
             bloodTestRepository = exportBloodTestRepository,
+            pkCalibrationStorageRepository = exportPkCalibrationStorageRepository,
             widgetAppearanceRepository = exportWidgetAppearanceRepository,
             journalRepository = exportJournalRepository,
             backupCrypto = backupCrypto,

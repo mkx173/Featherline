@@ -1,0 +1,147 @@
+package com.mkx.hrttracker.data.repository
+
+import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.di.DefaultDispatcher
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
+import com.mkx.hrttracker.model.pk.PkCalibrationInput
+import com.mkx.hrttracker.model.pk.PkCalibrationRenderResult
+import com.mkx.hrttracker.model.pk.PkChartDomain
+import java.time.Clock
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.withContext
+
+data class PkCalibrationLive(
+    val input: PkCalibrationInput,
+    val evaluation: PkCalibrationEvaluation,
+    val domain: PkChartDomain,
+    /** Null for a non-READY evaluation. */
+    val render: PkCalibrationRenderResult?,
+)
+
+/** One finished evaluation pass. [live] is null after a failed read or when the inputs cannot form an evaluation. */
+class PkCalibrationLiveResult(val live: PkCalibrationLive?)
+
+@Singleton
+@OptIn(ExperimentalCoroutinesApi::class)
+class PkCalibrationLiveRepository @Inject constructor(
+    private val bloodTestRepository: BloodTestRepository,
+    private val medicationLogRepository: MedicationLogRepository,
+    private val userProfileRepository: UserProfileRepository,
+    private val storageRepository: PkCalibrationStorageRepository,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val clock: Clock,
+    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    @AppScope appScope: CoroutineScope,
+) {
+    private val retryVersion = MutableStateFlow(0L)
+
+    /**
+     * Null until the first evaluation finishes. A re-evaluation keeps the
+     * previous result until it completes, so the calibration section never
+     * blinks out on a snapshot write.
+     *
+     * The solve is shared with the Home snapshot build: every build publishes
+     * its calibration and this only renders it for the page's window. Before
+     * the first build of the process (a usable snapshot skips the build) the
+     * page solves once itself, so it never waits on a snapshot write.
+     */
+    val liveState: StateFlow<PkCalibrationLiveResult?> = combine(
+        homeSnapshotRepository.calibrationBuilds,
+        retryVersion,
+    ) { build, _ -> build }
+        .transformLatest { build ->
+            try {
+                emit(PkCalibrationLiveResult(if (build != null) render(build) else evaluate()))
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                emit(PkCalibrationLiveResult(null))
+            }
+        }
+        .stateIn(
+            scope = appScope,
+            // Eager: evaluated at app start and kept warm across generations,
+            // so the calibration page has its section on the first frame
+            // instead of waiting for a fresh evaluation on every entry.
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
+    /** Re-solves: a forced snapshot rebuild publishes a new build to render. */
+    fun retry() {
+        retryVersion.value = retryVersion.value + 1L
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+    }
+
+    private suspend fun render(build: HomeCalibrationBuild): PkCalibrationLive? {
+        val evaluation = build.evaluation ?: return null
+        val domain = renderDomain() ?: return null
+        return withContext(defaultDispatcher) {
+            PkCalibrationLive(
+                input = build.input,
+                evaluation = evaluation,
+                domain = domain,
+                render = evaluation.renderFor(domain),
+            )
+        }
+    }
+
+    private suspend fun evaluate(): PkCalibrationLive? {
+        val panels = bloodTestRepository.getPanels()
+        val entries = medicationLogRepository.getEntries()
+        val profile = userProfileRepository.getCurrentProfile()
+        val metadata = storageRepository.getAllMetadata()
+        val input = buildPkCalibrationInput(
+            labs = panels.toPkCalibrationLabs(),
+            entries = entries,
+            weightKg = profile.weightKg,
+            metadata = metadata,
+            fallbackOriginEpochMillis = clock.millis(),
+        )
+        val domain = renderDomain() ?: return null
+        return withContext(defaultDispatcher) {
+            val evaluation = PkCalibrationEngine.evaluate(input)
+            PkCalibrationLive(
+                input = input,
+                evaluation = evaluation,
+                domain = domain,
+                render = evaluation.renderFor(domain),
+            )
+        }
+    }
+
+    // The render domain tracks the chart's visible window around the
+    // current clock: the widest selectable past span (plus a day of
+    // start-of-day flooring slack) through the widest future span.
+    private fun renderDomain(): PkChartDomain? {
+        val nowMillis = clock.millis()
+        return PkChartDomain.create(
+            rangeStartEpochMillis = nowMillis - RENDER_PAST_MILLIS,
+            rangeEndEpochMillis = nowMillis + RENDER_FUTURE_MILLIS,
+            samplingIntervalMillis = SIX_HOURS_MILLIS,
+        )
+    }
+
+    private companion object {
+        private const val SIX_HOURS_MILLIS = 6L * 60L * 60L * 1_000L
+        private const val DAY_MILLIS = 24L * 60L * 60L * 1_000L
+        private val RENDER_PAST_MILLIS =
+            (HomeE2ChartWindowOption.entries.maxOf { option -> option.pastDays } + 1L) *
+                DAY_MILLIS
+        private val RENDER_FUTURE_MILLIS =
+            HomeE2ChartWindowOption.entries.maxOf { option -> option.futureDays } * DAY_MILLIS
+    }
+}

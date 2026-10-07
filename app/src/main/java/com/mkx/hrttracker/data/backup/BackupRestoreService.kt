@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
 import com.mkx.hrttracker.data.local.CustomBloodAnalyteEntity
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.E2CalibrationMetadataEntity
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
@@ -43,6 +44,7 @@ import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -233,6 +235,8 @@ class BackupRestoreService @Inject constructor(
                 database.medicationLogDao().deleteAllEntries()
                 database.medicationGroupDao().deleteAllGroups()
                 database.medicineDao().deleteAll()
+                // Review metadata is durable user data restored below.
+                database.pkCalibrationDao().deleteAllMetadata()
                 database.bloodTestDao().deleteAllResults()
                 database.bloodTestDao().deleteAllPanels()
                 database.bloodTestDao().deleteAllCustomAnalytes()
@@ -249,6 +253,10 @@ class BackupRestoreService @Inject constructor(
                 }
                 if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
                     database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
+                }
+                if (validatedSnapshot.e2CalibrationMetadata.isNotEmpty()) {
+                    database.pkCalibrationDao()
+                        .insertMetadata(validatedSnapshot.e2CalibrationMetadata)
                 }
                 // Medicines must be written before any group item or log that
                 // references them; RESTRICT foreign keys would otherwise
@@ -299,6 +307,7 @@ class BackupRestoreService @Inject constructor(
             appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
             hideScreenContentEnabled = validatedSnapshot.settings.hideScreenContentEnabled,
             onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
+            pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
             appLanguageOption = validatedSnapshot.settings.appLanguageOption,
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
@@ -779,6 +788,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
 
     val panelEntities = mutableListOf<BloodTestPanelEntity>()
     val resultEntities = mutableListOf<BloodTestResultEntity>()
+    val calibrationMetadataEntities = mutableListOf<E2CalibrationMetadataEntity>()
     val seenPanelUuids = mutableSetOf<String>()
     val seenResultUuids = mutableSetOf<String>()
     val seenPanelImportKeys = mutableSetOf<Pair<String, Long>>()
@@ -844,7 +854,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 "Blood test result ${result.uuid} must reference exactly one analyte."
             }
 
-            if (hasBuiltinAnalyte) {
+            val builtinAnalyteKey = if (hasBuiltinAnalyte) {
                 val analyteKey =
                     checkNotNull(BloodAnalyteKey.fromStorageValue(result.builtinAnalyteKey)) {
                         "Unsupported built-in blood analyte key ${result.builtinAnalyteKey}."
@@ -864,6 +874,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 require(closeEnough(expectedCanonicalValue, result.canonicalValue)) {
                     "Blood test result ${result.uuid} has an inconsistent canonical value."
                 }
+                analyteKey
             } else {
                 val customAnalyteUuid = result.customAnalyteUuid
                     .parseUuid("blood test custom analyte UUID")
@@ -880,6 +891,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 require(closeEnough(result.value, result.canonicalValue)) {
                     "Custom blood test result ${result.uuid} must store its canonical value unchanged."
                 }
+                null
             }
 
             resultEntities += BloodTestResultEntity(
@@ -895,6 +907,10 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 importSourceApp = resultImportKey?.first,
                 importExternalId = resultImportKey?.second,
             )
+            result.toValidatedCalibrationMetadata(
+                resultUuid = resultUuid,
+                isBuiltinE2 = builtinAnalyteKey == BloodAnalyteKey.E2,
+            )?.let(calibrationMetadataEntities::add)
         }
     }
 
@@ -910,8 +926,44 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         customBloodAnalytes = customAnalytesByUuid.values.toList(),
         bloodTestPanels = panelEntities,
         bloodTestResults = resultEntities,
+        e2CalibrationMetadata = calibrationMetadataEntities,
         trackedDates = trackedDateEntities,
         notes = noteEntities,
+    )
+}
+
+private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
+    resultUuid: String,
+    isBuiltinE2: Boolean,
+): E2CalibrationMetadataEntity? {
+    if (calibrationDisposition == null && calibrationMetadataUpdatedAtEpochMillis == null) {
+        return null
+    }
+    require(isBuiltinE2) {
+        "Calibration metadata may only reference built-in E2 result $resultUuid."
+    }
+    // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
+    // action); it reads as AUTO instead of aborting the whole restore.
+    // AUTO means "no choice", so it restores as no row.
+    val disposition = when (calibrationDisposition) {
+        "ACCEPTED" -> return null
+        else -> runCatching {
+            E2CalibrationDisposition.valueOf(checkNotNull(calibrationDisposition))
+        }.getOrElse {
+            throw IllegalArgumentException(
+                "Unsupported calibration disposition $calibrationDisposition for result $resultUuid."
+            )
+        }
+    }
+    val updatedAtEpochMillis = calibrationMetadataUpdatedAtEpochMillis
+        ?: throw IllegalArgumentException(
+            "Calibration metadata for result $resultUuid is missing updatedAt."
+        )
+    if (disposition == E2CalibrationDisposition.AUTO) return null
+    return E2CalibrationMetadataEntity(
+        resultUuid = resultUuid,
+        disposition = disposition.name,
+        updatedAtEpochMillis = updatedAtEpochMillis,
     )
 }
 
@@ -996,6 +1048,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         appLockGracePeriodOption = appLockGracePeriodOption,
         hideScreenContentEnabled = hideScreenContentEnabled,
         onboardingCompleted = onboardingCompleted,
+        pkCalibrationIntroSeen = pkCalibrationIntroSeen,
         appLanguageOption = appLanguageOption,
         calibrationDefaultUnits = calibrationDefaultUnits,
         homeE2DisplayUnit = homeE2Choice,
@@ -1626,6 +1679,7 @@ internal data class ValidatedBackupSnapshot(
     val customBloodAnalytes: List<CustomBloodAnalyteEntity>,
     val bloodTestPanels: List<BloodTestPanelEntity>,
     val bloodTestResults: List<BloodTestResultEntity>,
+    val e2CalibrationMetadata: List<E2CalibrationMetadataEntity>,
     val trackedDates: List<TrackedDateEntity>,
     val notes: List<NoteEntity>,
 )
@@ -1642,6 +1696,7 @@ internal data class ValidatedBackupSettings(
     val appLockGracePeriodOption: AppLockGracePeriodOption,
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
+    val pkCalibrationIntroSeen: Boolean,
     val appLanguageOption: AppLanguageOption,
     val calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
     val homeE2DisplayUnit: AllowedAnalyteUnit,
