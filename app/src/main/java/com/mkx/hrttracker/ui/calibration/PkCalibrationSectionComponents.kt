@@ -742,6 +742,23 @@ private fun PkCalibrationSectionNotReadyPreview() {
     }
 }
 
+/** The live evaluation failed: the numeric-failure status row plus Try again. */
+@Preview(name = "PK Section · Unavailable", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationSectionUnavailablePreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        PkCalibrationSection(
+            uiState = pkCalibrationUnavailableScreenState().ui,
+            reviewCount = 0,
+            onRetry = { },
+            onOpenRoutes = { },
+            onOpenReview = { },
+            onInfo = { },
+            targetRange = previewPkTargetRange,
+        )
+    }
+}
+
 /**
  * The visually distinct states: plain (all non-READY and population states
  * share it, only copy and icon change), numeric failure, adjusted, adjusted
