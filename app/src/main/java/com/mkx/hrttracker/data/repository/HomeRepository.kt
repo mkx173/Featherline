@@ -203,13 +203,17 @@ class HomeRepository @Inject constructor(
                 homeAnchor = homeAnchor,
             )
         }
+        val nowAndRebuildFlow = combine(
+            nowFlow,
+            homeSnapshotRepository.rebuildInFlight,
+        ) { now, rebuildInFlight -> now to rebuildInFlight }
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
             stockAndAnchorInputsFlow,
-            nowFlow,
-        ) { inputs, snapshot, option, stockAndAnchorInputs, now ->
+            nowAndRebuildFlow,
+        ) { inputs, snapshot, option, stockAndAnchorInputs, (now, rebuildInFlight) ->
             suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
@@ -269,6 +273,7 @@ class HomeRepository @Inject constructor(
                             ?: PkPersonalParams.population(),
                         pkBandKnots = usableSnapshot?.pkBandKnots().orEmpty(),
                         pkCalibration = usableSnapshot?.pkCalibration,
+                        pkRebuildInFlight = rebuildInFlight,
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
@@ -601,6 +606,12 @@ data class HomeInputs(
     val pkBandKnots: List<PkPredictiveBandKnot> = emptyList(),
     /** Calibration hero/status summary from the snapshot; null when no calibration ran. */
     val pkCalibration: HomePkCalibrationRecord? = null,
+    /**
+     * A snapshot rebuild is pending or running. With no usable projection, Home
+     * keeps the E2 skeleton rather than drawing a population curve that the
+     * rebuilt, calibrated one replaces a moment later.
+     */
+    val pkRebuildInFlight: Boolean = false,
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,

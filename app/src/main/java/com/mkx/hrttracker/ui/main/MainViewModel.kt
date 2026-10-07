@@ -378,10 +378,14 @@ class MainViewModel @Inject constructor(
         // those entries, so it can recompute a real curve without waiting for
         // Room; mark it ready whenever a usable projection or PK entries are
         // present. Only a SNAPSHOT with neither (no dose history) stays gated
-        // on the ROOM emission.
+        // on the ROOM emission. While a snapshot rebuild is in flight the
+        // local fallback would draw a population curve that the calibrated
+        // rebuild replaces a moment later, so hold the skeleton instead.
         val e2TrendReady = freshProjection != null ||
-                inputs.estradiolPkEntries.isNotEmpty() ||
-                inputs.source == HomeInputSource.ROOM
+                (!inputs.pkRebuildInFlight && (
+                        inputs.estradiolPkEntries.isNotEmpty() ||
+                                inputs.source == HomeInputSource.ROOM
+                        ))
 
         // Local re-simulation only happens when no usable cached projection
         // remains but embedded PK entries do — log just that case, not every

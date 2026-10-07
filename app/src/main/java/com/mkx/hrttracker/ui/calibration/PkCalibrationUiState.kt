@@ -106,6 +106,8 @@ data class PkCalibrationScreenState(
     val acceptedResultIds: Set<UUID> = emptySet(),
     /** Results the fit can never use (value ≤ 0); excluding one only dismisses its warning. */
     val nonPositiveResultIds: Set<UUID> = emptySet(),
+    /** A rebuild is pending: the section shows the previous result with a progress line. */
+    val isRefreshing: Boolean = false,
 )
 
 /**

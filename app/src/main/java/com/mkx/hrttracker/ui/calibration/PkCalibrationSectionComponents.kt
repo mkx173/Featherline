@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,6 +72,8 @@ fun PkCalibrationSection(
     modifier: Modifier = Modifier,
     // Target range summary shown as the last row; null hides it.
     targetRange: String? = null,
+    // A snapshot rebuild is pending: keep the rows, add a progress line.
+    isRefreshing: Boolean = false,
 ) {
     val adjustedRows = if (uiState.globalState == PkCalibrationGlobalState.READY) {
         uiState.routeRows.filter { row -> row.displayState.isAdjusted }
@@ -84,6 +87,15 @@ fun PkCalibrationSection(
     ) {
         item {
             PkCalibrationStatusRow(uiState = uiState, onInfo = onInfo)
+        }
+        if (isRefreshing) {
+            item {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
         }
         // Other non-READY states carry their call to action in the body copy
         // ("add an E2 result").

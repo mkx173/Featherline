@@ -284,6 +284,7 @@ class HomeSnapshotRepositoryTest {
         repository.runHomeDataMutation {
             displayName = "Renamed"
         }
+        awaitRebuild(testScheduler) { writtenSnapshot.isCaptured }
 
         assertTrue(writtenSnapshot.isCaptured)
         assertEquals(
@@ -452,6 +453,24 @@ class HomeSnapshotRepositoryTest {
      * request arrives while the first build is still loading. Builds load on
      * Dispatchers.IO, so the counter is read and bumped from real threads.
      */
+
+    /**
+     * The mutation returns once the DB commit lands; the rebuild runs in the
+     * app scope and hops through Dispatchers.IO, so advance the test scheduler
+     * until [condition] holds (or fail after a real-time budget).
+     */
+    private fun awaitRebuild(
+        scheduler: kotlinx.coroutines.test.TestCoroutineScheduler,
+        condition: () -> Boolean,
+    ) {
+        val deadline = System.currentTimeMillis() + 10_000L
+        while (!condition()) {
+            check(System.currentTimeMillis() < deadline) { "rebuild did not finish in time" }
+            scheduler.advanceUntilIdle()
+            Thread.sleep(2L)
+        }
+    }
+
     private fun stubSlowEmptyRefreshInputs(
         /** Per-build delay of the first DAO read, in scheduler ms; the last entry repeats. */
         buildDelaysMs: List<Long> = listOf(100L),
@@ -521,6 +540,7 @@ class HomeSnapshotRepositoryTest {
         try {
             every { PkCalibrationEngine.evaluate(any()) } throws IllegalStateException("solver")
             repository.runHomeDataMutation { }
+            awaitRebuild(testScheduler) { writtenSnapshot.isCaptured }
         } finally {
             unmockkObject(PkCalibrationEngine)
         }
@@ -579,6 +599,7 @@ class HomeSnapshotRepositoryTest {
                 PkCalibrationRenderer.render(any(), any(), any())
             } throws IllegalStateException("render")
             repository.runHomeDataMutation { }
+            awaitRebuild(testScheduler) { writtenSnapshot.isCaptured }
         } finally {
             unmockkObject(PkCalibrationEngine, PkCalibrationRenderer)
         }
@@ -694,8 +715,9 @@ class HomeSnapshotRepositoryTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun runHomeDataMutation_awaitsRefreshAfterMutationCommit() = runTest {
-        val appDispatcher = StandardTestDispatcher()
+    fun runHomeDataMutation_rebuildsAfterMutationCommit() = runTest {
+        val appScheduler = kotlinx.coroutines.test.TestCoroutineScheduler()
+        val appDispatcher = StandardTestDispatcher(appScheduler)
         val database: HrtTrackerDatabase = mockk()
         val homeDao: HomeDao = mockk()
         val medicineDao: MedicineDao = mockk()
@@ -742,11 +764,24 @@ class HomeSnapshotRepositoryTest {
             defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
 
+        var written = false
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } coAnswers {
+            assertTrue(mutationCommitted.isCompleted)
+            written = true
+        }
+
         repository.runHomeDataMutation {
             mutationCommitted.complete(Unit)
         }
+        // The caller is back before the rebuild; Home sees it in flight so it
+        // holds the skeleton rather than flashing a population curve.
+        assertTrue(repository.rebuildInFlight.first())
+        awaitRebuild(appScheduler) { written }
+        // The in-flight count drops once the refresh coroutine unwinds.
+        appScheduler.advanceUntilIdle()
 
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
+        assertFalse(repository.rebuildInFlight.first())
     }
 
     @Test
