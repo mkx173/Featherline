@@ -73,7 +73,8 @@ fun PkCalibrationSection(
     modifier: Modifier = Modifier,
     // Target range summary shown as the last row; null hides it.
     targetRange: String? = null,
-    // A snapshot rebuild is pending: keep the rows, add a progress line.
+    // A snapshot rebuild is pending: the routes card is what can change, so
+    // it carries the progress line while the previous rows stay up.
     isRefreshing: Boolean = false,
 ) {
     val adjustedRows = if (uiState.globalState == PkCalibrationGlobalState.READY) {
@@ -88,15 +89,6 @@ fun PkCalibrationSection(
     ) {
         item {
             PkCalibrationStatusRow(uiState = uiState, onInfo = onInfo)
-        }
-        if (isRefreshing) {
-            item {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
         }
         // Other non-READY states carry their call to action in the body copy
         // ("add an E2 result").
@@ -116,6 +108,7 @@ fun PkCalibrationSection(
                     rows = adjustedRows,
                     routeCount = uiState.routeRows.size,
                     reviewCount = reviewCount,
+                    isRefreshing = isRefreshing,
                     onOpen = onOpenRoutes,
                     onOpenReview = onOpenReview,
                 )
@@ -827,6 +820,23 @@ private fun PkCalibrationRouteSummaryCardPreview() {
                 onOpenReview = { },
             )
         }
+    }
+}
+
+/** The card while a snapshot rebuild is pending: title only, one progress line in place of the rows. */
+@Preview(name = "PK Route Summary Card · updating", showBackground = true, widthDp = 420)
+@Composable
+private fun PkCalibrationRouteSummaryCardUpdatingPreview() {
+    val state = previewPkAdjustedUiState
+    PkCalibrationPreviewColumn {
+        PkCalibrationRouteSummaryCard(
+            rows = state.routeRows.filter { row -> row.displayState.isAdjusted },
+            routeCount = state.routeRows.size,
+            reviewCount = 0,
+            isRefreshing = true,
+            onOpen = { },
+            onOpenReview = { },
+        )
     }
 }
 
