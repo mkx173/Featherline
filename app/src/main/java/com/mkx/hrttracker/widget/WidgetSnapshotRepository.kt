@@ -14,6 +14,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 import javax.inject.Singleton
 
 @Singleton
@@ -32,6 +33,16 @@ class WidgetSnapshotRepository @Inject constructor(
         // home-snapshot observer can fan out to the widget.
         val homeSnapshot = homeSnapshotRepository.readUsableHomeSnapshot(now = now)
         if (homeSnapshot == null) {
+            // Mid-rebuild the Home snapshot is cleared on purpose; keep the
+            // widget's last snapshot until the rebuild's observer emission
+            // rewrites it, rather than blanking the widget for a second.
+            if (homeSnapshotRepository.rebuildInFlight.first()) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "widget_snapshot_refresh_skipped reason=home_rebuild_in_flight now=$now"
+                )
+                return
+            }
             diagnosticsLogger.info(
                 TAG,
                 "widget_snapshot_refresh_skipped reason=no_home_snapshot now=$now"
