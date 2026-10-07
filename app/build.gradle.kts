@@ -268,6 +268,12 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.room.testing)
+    // room-migration's schema serializers need kotlinx-serialization 1.8+; AGP pins the
+    // androidTest classpath to the app's (1.7.3 via lifecycle), which breaks every
+    // MigrationTestHelper.createDatabase with AbstractMethodError. Raise it app-side.
+    constraints {
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
+    }
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
