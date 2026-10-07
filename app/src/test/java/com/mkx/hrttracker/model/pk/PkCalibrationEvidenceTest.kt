@@ -94,8 +94,29 @@ class PkCalibrationEvidenceTest {
         assertEquals(before.included, after.included)
         assertEquals(setOf(id), accepted.acceptedLabIds)
         assertTrue(accepted.excludedLabIds.isEmpty())
-        assertEquals(PkCalibrationSolver.solve(before).routeResults, PkCalibrationSolver.solve(after).routeResults)
+        // Keep changes the review flags only; the numerical fit is untouched.
+        val beforeRows = PkCalibrationSolver.solve(before).routeResults
+        val afterRows = PkCalibrationSolver.solve(after).routeResults
+        assertEquals(beforeRows.map(::fitFields), afterRows.map(::fitFields))
+        val oralBefore = beforeRows[PkCalibrationRoute.ORAL.ordinal]
+        val oralAfter = afterRows[PkCalibrationRoute.ORAL.ordinal]
+        assertEquals(setOf(id), oralBefore.unreviewedOutlierLabIds)
+        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER in oralBefore.reasons)
+        assertTrue(oralAfter.unreviewedOutlierLabIds.isEmpty())
+        assertTrue(PkCalibrationReason.UNREVIEWED_OUTLIER !in oralAfter.reasons)
+        assertEquals(
+            oralBefore.reasons - PkCalibrationReason.UNREVIEWED_OUTLIER,
+            oralAfter.reasons,
+        )
     }
+
+    private fun fitFields(row: PkRouteCalibrationResult) = listOf(
+        row.route,
+        row.fittedBeta,
+        row.betaPosteriorSd,
+        row.supportingLabCount,
+        row.minStudentTWeight,
+    )
 
     @Test
     fun build_sortsIncludedLabsByResultId_forDeterministicAccumulation() {
