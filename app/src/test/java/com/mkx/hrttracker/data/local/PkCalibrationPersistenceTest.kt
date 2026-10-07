@@ -5,12 +5,6 @@ import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
-import java.time.ZoneId
-import java.time.LocalDateTime
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.flow.flowOf
-import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
-import com.mkx.hrttracker.data.repository.HOME_SNAPSHOT_SCHEMA_VERSION
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
@@ -217,7 +211,7 @@ class PkCalibrationPersistenceTest {
     }
 
     @Test
-    fun metadataRepository_savesAndRoundTripsAutoAndExcluded() = runTest {
+    fun metadataRepository_savesExcluded_andAutoDeletesTheRow() = runTest {
         val autoId = UUID.fromString("00000000-0000-0000-0000-000000000c01")
         val excludedId = UUID.fromString("00000000-0000-0000-0000-000000000c02")
         val autoPanel = panel("panel-metadata-auto")
@@ -248,14 +242,18 @@ class PkCalibrationPersistenceTest {
         val reExcluded = excluded.copy(updatedAt = Instant.ofEpochMilli(4_000L))
         repository.saveMetadata(reExcluded)
 
+        // AUTO is "no choice": it stores no row.
         assertEquals(
-            mapOf(autoId to auto, excludedId to reExcluded),
+            mapOf(excludedId to reExcluded),
             repository.getAllMetadata().associateBy(E2CalibrationMetadata::resultId),
         )
         val reviewed = auto.copy(disposition = E2CalibrationDisposition.REVIEWED)
         repository.saveMetadata(reviewed)
         assertEquals(reviewed, storageRepository().getAllMetadata().single { it.resultId == autoId })
-        coVerify(exactly = 4) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+        // Back to AUTO deletes the explicit choice again.
+        repository.saveMetadata(auto)
+        assertEquals(listOf(excludedId), storageRepository().getAllMetadata().map { it.resultId })
+        coVerify(exactly = 5) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
@@ -325,47 +323,6 @@ class PkCalibrationPersistenceTest {
         value = value,
         unitSnapshot = "pg_ml",
         canonicalValue = value,
-    )
-
-    @Test
-    fun observeHomeSnapshotWrites_emitsOncePerRebuild_notOncePerGeneration() = runTest {
-        // Date-change and projection-expiry rebuilds keep the generation, so a
-        // generation-keyed live evaluation never followed them and the
-        // calibration page kept a window days behind Home.
-        val zoneId = ZoneId.systemDefault()
-        val first = LocalDateTime.of(2026, 5, 7, 9, 0)
-        val homeSnapshotRepository: HomeSnapshotRepository = mockk()
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(
-            null,
-            snapshotRecord(generation = 3L, generatedAt = first, zoneId = zoneId),
-            snapshotRecord(generation = 3L, generatedAt = first, zoneId = zoneId),
-            snapshotRecord(generation = 3L, generatedAt = first.plusDays(1), zoneId = zoneId),
-            snapshotRecord(generation = 4L, generatedAt = first.plusDays(2), zoneId = zoneId),
-        )
-
-        val writes = storageRepository(homeSnapshotRepository).observeHomeSnapshotWrites().toList()
-
-        assertEquals(
-            listOf(first, first.plusDays(1), first.plusDays(2))
-                .map { at -> at.atZone(zoneId).toInstant().toEpochMilli() },
-            writes,
-        )
-    }
-
-    private fun snapshotRecord(
-        generation: Long,
-        generatedAt: LocalDateTime,
-        zoneId: ZoneId,
-    ) = HomeSnapshotRecord(
-        schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
-        generation = generation,
-        generatedAtEpochMillis = generatedAt.atZone(zoneId).toInstant().toEpochMilli(),
-        anchorDateEpochDay = generatedAt.toLocalDate().toEpochDay(),
-        zoneId = zoneId.id,
-        pkProjection = null,
-        activeGroups = emptyList(),
-        scheduleEntries = emptyList(),
-        antiandrogenHistoryEntries = emptyList(),
     )
 
     private fun reviewedMetadata(resultUuid: String) = E2CalibrationMetadataEntity(

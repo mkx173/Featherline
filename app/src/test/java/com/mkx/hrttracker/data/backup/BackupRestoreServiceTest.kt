@@ -192,9 +192,9 @@ class BackupRestoreServiceTest {
     }
 
     // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
-    // action); restore reads it as AUTO instead of aborting the whole restore.
+    // action); like AUTO it means "no choice" and restores as no row.
     @Test
-    fun restoreBackup_legacyAcceptedRow_readsAsAutoInsteadOfAborting() = runTest {
+    fun restoreBackup_legacyAcceptedRow_restoresAsNoRowInsteadOfAborting() = runTest {
         val resultUuid = "00000000-0000-0000-0000-0000000008b1"
         val snapshot = emptySnapshot().copy(
             bloodTestPanels = listOf(
@@ -215,10 +215,7 @@ class BackupRestoreServiceTest {
             password = "password",
         )
 
-        coVerify(exactly = 1) { pkCalibrationDao.insertMetadata(capture(metadataSlot)) }
-        val restored = metadataSlot.captured.single()
-        assertEquals(resultUuid, restored.resultUuid)
-        assertEquals("AUTO", restored.disposition)
+        coVerify(exactly = 0) { pkCalibrationDao.insertMetadata(any()) }
     }
 
     private fun calibrationMetadataPanel(

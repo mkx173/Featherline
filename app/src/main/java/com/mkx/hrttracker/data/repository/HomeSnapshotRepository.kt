@@ -4,6 +4,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationBandState
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
+import com.mkx.hrttracker.model.pk.PkCalibrationInput
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkChartDomain
@@ -34,9 +36,14 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -66,6 +73,18 @@ class HomeSnapshotRepository @Inject constructor(
 ) {
     private val refreshMutex = Mutex()
     private val snapshotMutationMutex = Mutex()
+
+    /**
+     * The calibration solve of the newest snapshot build, published before the
+     * snapshot write so the live calibration surface reuses it instead of
+     * solving again. Null until the first build of this process.
+     */
+    val calibrationBuilds: StateFlow<HomeCalibrationBuild?>
+        get() = calibrationBuildState
+    private val calibrationBuildState = MutableStateFlow<HomeCalibrationBuild?>(null)
+
+    /** Rebuilds the snapshot when its projection expires; replaced on every write. */
+    private var expiryRefreshJob: Job? = null
 
     init {
         // Observe option changes (not the initial value) and force a rebuild
@@ -492,15 +511,26 @@ class HomeSnapshotRepository @Inject constructor(
             // timeout cancels only its await, and later requests join the
             // still-running build instead of starting another.
             appScope.async {
-                buildAndWriteHomeSnapshot(
-                    refreshGeneration = refreshGeneration,
-                    refreshSequence = sequence,
-                    now = now,
-                    zoneId = zoneId,
-                    option = option,
-                    cacheWindow = cacheWindow,
-                    snapshotWindow = snapshotWindow,
-                )
+                // Logged here, not by the awaiter: a receiver's timeout cancels
+                // only its await, leaving nobody to observe a later failure.
+                try {
+                    buildAndWriteHomeSnapshot(
+                        refreshGeneration = refreshGeneration,
+                        refreshSequence = sequence,
+                        now = now,
+                        zoneId = zoneId,
+                        option = option,
+                        cacheWindow = cacheWindow,
+                        snapshotWindow = snapshotWindow,
+                    )
+                } catch (throwable: Throwable) {
+                    if (throwable is CancellationException) throw throwable
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "home_snapshot_refresh_failed force=$force now=$now",
+                        throwable
+                    )
+                }
             }.also { started ->
                 inFlightRefresh = InFlightRefresh(
                     generation = refreshGeneration,
@@ -651,8 +681,9 @@ class HomeSnapshotRepository @Inject constructor(
                 scheduledEndIso = stockWindowEndIso,
             )
             val homeAnchor = database.journalDao().getFirstPinnedTrackedDate()?.toModel()
-            // Calibration inputs: every E2 lab, every estradiol dose (not just
-            // the chart window), and the user's review metadata.
+            // Calibration inputs: every E2 lab, the estradiol doses that can
+            // still shape a lab (see calibrationDoseWindowStartEpochMillis),
+            // and the user's review metadata.
             val calibrationLabs = database.bloodTestDao().getPanels().flatMap { panel ->
                 panel.results
                     .filter { result ->
@@ -667,7 +698,10 @@ class HomeSnapshotRepository @Inject constructor(
                     }
             }
             val calibrationEntryEntities = homeDao.getEstradiolPkEntries(
-                startEpochMillis = Long.MIN_VALUE,
+                startEpochMillis = calibrationDoseWindowStartEpochMillis(
+                    labs = calibrationLabs,
+                    fallbackStartEpochMillis = cacheWindow.inputStartEpochMillis,
+                ),
                 endEpochMillis = Long.MAX_VALUE,
             )
             val calibrationMetadata = database.pkCalibrationDao().getAllMetadata()
@@ -760,6 +794,14 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }.getOrNull()
         }
+        publishCalibrationBuild(
+            HomeCalibrationBuild(
+                generation = refreshGeneration,
+                generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+                input = calibrationInput,
+                evaluation = calibration,
+            )
+        )
         val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
         val simulationEntries = buildEstradiolPkSimulationEntries(
@@ -868,7 +910,10 @@ class HomeSnapshotRepository @Inject constructor(
                 limitedConfidence = effective.any(provisional::contains),
                 renderUnavailable = evaluation.isReady &&
                         homeRender?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                bandUnavailable = homeRender?.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
+                // Any adjusted curve without a READY band gets the note: a
+                // numeric failure, a thrown render, or an unbuildable domain.
+                bandUnavailable = effective.isNotEmpty() &&
+                        homeRender?.bandState != PkCalibrationBandState.READY,
             )
         }
         // Expire at the soonest planned dose after generation time — the
@@ -876,11 +921,11 @@ class HomeSnapshotRepository @Inject constructor(
         // is exactly when a cached projection starts overstating the curve.
         // Fall back to the projection's window end when there are no future
         // planned slots (nothing to go stale).
-        val expiresAtInstant = simulationEntries.planned.asSequence()
+        val nextPlannedAt = simulationEntries.planned.asSequence()
             .map { entry -> entry.appliedAt }
             .filter { instant -> instant.isAfter(projection.generatedAt) }
             .minOrNull()
-            ?: projection.windowEnd
+        val expiresAtInstant = nextPlannedAt ?: projection.windowEnd
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
@@ -968,6 +1013,9 @@ class HomeSnapshotRepository @Inject constructor(
                     )
                     homeSnapshotStore.writeSnapshot(snapshotRecord)
                     StartupTiming.mark("home_snapshot_rebuilt")
+                    // Only a planned slot needs a timer; a window-end expiry is
+                    // days out and the date-change refresh gets there first.
+                    nextPlannedAt?.let { scheduleExpiryRefresh(it, now, zoneId) }
                     diagnosticsLogger.info(
                         TAG,
                         "home_snapshot_refreshed ${snapshotRecord.diagnosticSummary()}"
@@ -981,6 +1029,39 @@ class HomeSnapshotRepository @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private fun publishCalibrationBuild(build: HomeCalibrationBuild) {
+        calibrationBuildState.update { current ->
+            if (current == null ||
+                current.generation < build.generation ||
+                (current.generation == build.generation &&
+                        current.generatedAtEpochMillis <= build.generatedAtEpochMillis)
+            ) build else current
+        }
+    }
+
+    /**
+     * A planned slot passing expires the cached projection and nothing else
+     * rebuilds the snapshot until the next mutation or date change, so the
+     * band (snapshot-only) would stay gone. Rebuild (non-forced: the
+     * skip-check continues only while expired) once the expiry passes.
+     */
+    private fun scheduleExpiryRefresh(expiresAt: Instant, now: LocalDateTime, zoneId: ZoneId) {
+        expiryRefreshJob?.cancel()
+        val delayMillis = expiresAt.toEpochMilli() - now.atZone(zoneId).toInstant().toEpochMilli()
+        expiryRefreshJob = appScope.launch {
+            delay(delayMillis.coerceAtLeast(0L))
+            runCatching { refreshHomeSnapshotIfNeeded(force = false, zoneId = zoneId) }
+                .onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "home_snapshot_expiry_refresh_failed expiresAt=$expiresAt",
+                        throwable
+                    )
+                }
         }
     }
 
@@ -1187,6 +1268,14 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
             "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
             "hasPkProjection=${pkProjection != null}"
 }
+
+/** One snapshot build's calibration solve. [evaluation] is null when the solve threw. */
+class HomeCalibrationBuild(
+    val generation: Long,
+    val generatedAtEpochMillis: Long,
+    val input: PkCalibrationInput,
+    val evaluation: PkCalibrationEvaluation?,
+)
 
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 8
 

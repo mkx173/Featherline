@@ -944,8 +944,9 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
     }
     // "ACCEPTED" was a pre-release disposition (the removed Keep-outlier
     // action); it reads as AUTO instead of aborting the whole restore.
+    // AUTO means "no choice", so it restores as no row.
     val disposition = when (calibrationDisposition) {
-        "ACCEPTED" -> E2CalibrationDisposition.AUTO
+        "ACCEPTED" -> return null
         else -> runCatching {
             E2CalibrationDisposition.valueOf(checkNotNull(calibrationDisposition))
         }.getOrElse {
@@ -958,6 +959,7 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
         ?: throw IllegalArgumentException(
             "Calibration metadata for result $resultUuid is missing updatedAt."
         )
+    if (disposition == E2CalibrationDisposition.AUTO) return null
     return E2CalibrationMetadataEntity(
         resultUuid = resultUuid,
         disposition = disposition.name,

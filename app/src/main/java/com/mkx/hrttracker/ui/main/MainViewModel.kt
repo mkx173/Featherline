@@ -354,18 +354,6 @@ class MainViewModel @Inject constructor(
         val freshProjection = inputs.pkProjection?.takeIf {
             inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
         }
-        // A planned slot passing expires the cached projection, and nothing
-        // else rebuilds the snapshot until the next mutation or date change:
-        // the band (snapshot-only) would stay gone and the calibration page
-        // would keep its old window. Ask for a non-forced rebuild while the
-        // stored expiry is in the past. The request is idempotent: the refresh
-        // skip-check only continues on an expired projection and a build in
-        // flight is joined, so a failed rebuild is retried on the next tick
-        // and a successful one replaces these inputs.
-        val expiresAt = inputs.pkProjectionExpiresAt
-        if (expiresAt != null && !expiresAt.isAfter(nowInstant)) {
-            homeRepository.refreshHomeSnapshotAsync(now = now, force = false, zoneId = zoneId)
-        }
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
         }

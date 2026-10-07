@@ -152,7 +152,8 @@ No other analyte, and no custom analyte, is read by the fit.
   weight below 0.25) is listed under results to check. The user can keep
   it, which hides the tip and leaves it in the fit at its robust weight,
   exclude it, or undo either choice. The choice is stored per result in
-  `e2_calibration_metadata` (`AUTO`, `REVIEWED`, `EXCLUDED`).
+  `e2_calibration_metadata` (`REVIEWED`, `EXCLUDED`); undoing a choice
+  deletes the row (`AUTO`).
 - **Edits.** Changing a result's analyte drops its metadata row.
   Changing its value or collection time drops a `REVIEWED` choice, so
   the edited value is checked again. `EXCLUDED` survives value edits.

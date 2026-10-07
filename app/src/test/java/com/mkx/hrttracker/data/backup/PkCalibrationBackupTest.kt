@@ -28,9 +28,9 @@ class PkCalibrationBackupTest {
     }
 
     @Test
-    fun version7ExcludedMetadata_roundTripsAndLegacyAcceptedReadsAsAuto() {
-        // "ACCEPTED" was a pre-release disposition; restore maps it to AUTO
-        // rather than rejecting the whole backup.
+    fun version7ExcludedMetadata_roundTripsAndLegacyAcceptedRestoresAsNoRow() {
+        // "ACCEPTED" was a pre-release disposition; like AUTO it is "no
+        // choice", so it restores as no row rather than rejecting the backup.
         val legacyAccepted = result(
             uuid = "00000000-0000-0000-0000-000000000911",
             disposition = "ACCEPTED",
@@ -46,8 +46,7 @@ class PkCalibrationBackupTest {
             .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
         val metadata = validated.e2CalibrationMetadata.associateBy { it.resultUuid }
 
-        assertEquals("AUTO", metadata.getValue(legacyAccepted.uuid).disposition)
-        assertEquals(2_000L, metadata.getValue(legacyAccepted.uuid).updatedAtEpochMillis)
+        assertEquals(setOf(excluded.uuid), metadata.keys)
         assertEquals("EXCLUDED", metadata.getValue(excluded.uuid).disposition)
         assertEquals(3_000L, metadata.getValue(excluded.uuid).updatedAtEpochMillis)
     }

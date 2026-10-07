@@ -5,9 +5,6 @@ import com.mkx.hrttracker.data.local.E2CalibrationMetadataEntity
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.mapNotNull
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -27,7 +24,8 @@ class PkCalibrationStorageRepository @Inject constructor(
      * Writes review metadata through Home's mutation sequence so the Home
      * generation bumps and the live evaluation re-runs. The target is checked
      * inside the write transaction: only a built-in E2 result may carry
-     * calibration metadata.
+     * calibration metadata. AUTO is "no choice", so it deletes the row; the
+     * table holds explicit choices only.
      */
     suspend fun saveMetadata(metadata: E2CalibrationMetadata) {
         homeSnapshotRepository.runHomeDataMutation {
@@ -38,22 +36,13 @@ class PkCalibrationStorageRepository @Inject constructor(
                     "Calibration metadata can only be stored for a built-in E2 result: " +
                             metadata.resultId
                 }
-                dao.upsertMetadata(metadata.toEntity())
+                if (metadata.disposition == E2CalibrationDisposition.AUTO) {
+                    dao.deleteMetadata(metadata.resultId.toString())
+                } else {
+                    dao.upsertMetadata(metadata.toEntity())
+                }
             }
         }
-    }
-
-    /**
-     * Generated-at of the last written Home snapshot. It changes on every
-     * rebuild: after a Home-data mutation has committed (so a calibration read
-     * keyed on it always sees the new data) and on the snapshot-only rebuilds
-     * (date change, projection expiry, chart window), so the live evaluation
-     * follows the same window Home draws.
-     */
-    fun observeHomeSnapshotWrites(): Flow<Long> {
-        return homeSnapshotRepository.observeHomeSnapshot()
-            .mapNotNull { snapshot -> snapshot?.generatedAtEpochMillis }
-            .distinctUntilChanged()
     }
 }
 

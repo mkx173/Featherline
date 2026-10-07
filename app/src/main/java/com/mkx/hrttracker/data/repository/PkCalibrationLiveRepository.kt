@@ -41,30 +41,30 @@ class PkCalibrationLiveRepository @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val userProfileRepository: UserProfileRepository,
     private val storageRepository: PkCalibrationStorageRepository,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     private val clock: Clock,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @AppScope appScope: CoroutineScope,
 ) {
     private val retryVersion = MutableStateFlow(0L)
 
-    // Keyed on Home snapshot writes, not the durable generation:
-    // runHomeDataMutation bumps the generation BEFORE the write commits, so a
-    // generation-triggered read would see pre-write data and never re-run.
-    // The snapshot is written after the mutation, so it is the post-write
-    // signal; it is also rewritten on date change and projection expiry, so
-    // the render domain below tracks the window Home draws.
     /**
      * Null until the first evaluation finishes. A re-evaluation keeps the
      * previous result until it completes, so the calibration section never
      * blinks out on a snapshot write.
+     *
+     * The solve is shared with the Home snapshot build: every build publishes
+     * its calibration and this only renders it for the page's window. Before
+     * the first build of the process (a usable snapshot skips the build) the
+     * page solves once itself, so it never waits on a snapshot write.
      */
     val liveState: StateFlow<PkCalibrationLiveResult?> = combine(
-        storageRepository.observeHomeSnapshotWrites(),
+        homeSnapshotRepository.calibrationBuilds,
         retryVersion,
-    ) { _, _ -> }
-        .transformLatest {
+    ) { build, _ -> build }
+        .transformLatest { build ->
             try {
-                emit(PkCalibrationLiveResult(evaluate()))
+                emit(PkCalibrationLiveResult(if (build != null) render(build) else evaluate()))
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
@@ -80,8 +80,23 @@ class PkCalibrationLiveRepository @Inject constructor(
             initialValue = null,
         )
 
+    /** Re-solves: a forced snapshot rebuild publishes a new build to render. */
     fun retry() {
         retryVersion.value = retryVersion.value + 1L
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+    }
+
+    private suspend fun render(build: HomeCalibrationBuild): PkCalibrationLive? {
+        val evaluation = build.evaluation ?: return null
+        val domain = renderDomain() ?: return null
+        return withContext(defaultDispatcher) {
+            PkCalibrationLive(
+                input = build.input,
+                evaluation = evaluation,
+                domain = domain,
+                render = evaluation.renderFor(domain),
+            )
+        }
     }
 
     private suspend fun evaluate(): PkCalibrationLive? {
@@ -96,15 +111,7 @@ class PkCalibrationLiveRepository @Inject constructor(
             metadata = metadata,
             fallbackOriginEpochMillis = clock.millis(),
         )
-        // The render domain tracks the chart's visible window around the
-        // current clock: the widest selectable past span (plus a day of
-        // start-of-day flooring slack) through the widest future span.
-        val nowMillis = clock.millis()
-        val domain = PkChartDomain.create(
-            rangeStartEpochMillis = nowMillis - RENDER_PAST_MILLIS,
-            rangeEndEpochMillis = nowMillis + RENDER_FUTURE_MILLIS,
-            samplingIntervalMillis = SIX_HOURS_MILLIS,
-        ) ?: return null
+        val domain = renderDomain() ?: return null
         return withContext(defaultDispatcher) {
             val evaluation = PkCalibrationEngine.evaluate(input)
             PkCalibrationLive(
@@ -114,6 +121,18 @@ class PkCalibrationLiveRepository @Inject constructor(
                 render = evaluation.renderFor(domain),
             )
         }
+    }
+
+    // The render domain tracks the chart's visible window around the
+    // current clock: the widest selectable past span (plus a day of
+    // start-of-day flooring slack) through the widest future span.
+    private fun renderDomain(): PkChartDomain? {
+        val nowMillis = clock.millis()
+        return PkChartDomain.create(
+            rangeStartEpochMillis = nowMillis - RENDER_PAST_MILLIS,
+            rangeEndEpochMillis = nowMillis + RENDER_FUTURE_MILLIS,
+            samplingIntervalMillis = SIX_HOURS_MILLIS,
+        )
     }
 
     private companion object {

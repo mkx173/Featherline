@@ -23,6 +23,9 @@ interface PkCalibrationDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMetadata(metadata: List<E2CalibrationMetadataEntity>)
 
+    @Query("DELETE FROM e2_calibration_metadata WHERE resultUuid = :resultUuid")
+    suspend fun deleteMetadata(resultUuid: String)
+
     @Query("DELETE FROM e2_calibration_metadata")
     suspend fun deleteAllMetadata()
 }

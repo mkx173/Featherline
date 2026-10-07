@@ -243,7 +243,7 @@ flattened into the parent's JSON.
   [`E2CalibrationMetadataEntity`](data-model.md#e2calibrationmetadataentity).
   Both null means the result has no metadata row. Restore accepts them
   only on built-in E2 results, requires both when either is present,
-  and reads the pre-release value `ACCEPTED` as `AUTO`.
+  and restores `AUTO` (and the pre-release value `ACCEPTED`) as no row.
 - `BackupTrackedDateSnapshot` →
   [`TrackedDateEntity`](data-model.md#trackeddateentity); carries the
   journal anchor UUID, `name`, `iconKey`, wall-clock `dateIso`, nullable

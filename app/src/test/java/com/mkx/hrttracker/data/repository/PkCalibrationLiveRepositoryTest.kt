@@ -5,10 +5,12 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Instant
 import java.time.Clock
 import java.time.ZoneOffset
@@ -24,6 +26,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -32,21 +36,17 @@ class PkCalibrationLiveRepositoryTest {
     private val medicationLogs: MedicationLogRepository = mockk()
     private val userProfiles: UserProfileRepository = mockk()
     private val storage: PkCalibrationStorageRepository = mockk()
+    private val homeSnapshots: HomeSnapshotRepository = mockk(relaxed = true)
+    private val builds = MutableStateFlow<HomeCalibrationBuild?>(null)
 
     @Test
     fun liveState_publishesActualEngineEvaluation() = runTest {
         val fixture = validResearchFixture()
-        val generations = MutableStateFlow(7L)
-        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
         coEvery { userProfiles.getCurrentProfile() } returns UserProfile(weightKg = 70.0)
         coEvery { storage.getAllMetadata() } returns emptyList()
-        val repository = repository(
-            generations,
-            backgroundScope,
-            StandardTestDispatcher(testScheduler),
-        )
+        val repository = repository(backgroundScope, StandardTestDispatcher(testScheduler))
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.liveState.collect()
         }
@@ -75,8 +75,6 @@ class PkCalibrationLiveRepositoryTest {
     @Test
     fun unsetWeight_fallsBackToTheAppDefault_insteadOfFailingInvalid() = runTest {
         val fixture = validResearchFixture()
-        val generations = MutableStateFlow(1L)
-        every { storage.observeHomeSnapshotWrites() } returns generations
         coEvery { bloodTests.getPanels() } returns listOf(fixture.panel)
         coEvery { medicationLogs.getEntries() } returns emptyList()
         // Current Weight never set: calibration resolves the same 70 kg
@@ -84,7 +82,7 @@ class PkCalibrationLiveRepositoryTest {
         // evaluation as SHARED_INPUT_INVALID ("Check an E2 result").
         coEvery { userProfiles.getCurrentProfile() } returns UserProfile()
         coEvery { storage.getAllMetadata() } returns emptyList()
-        val repository = repository(generations, backgroundScope, StandardTestDispatcher(testScheduler))
+        val repository = repository(backgroundScope, StandardTestDispatcher(testScheduler))
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.liveState.collect()
         }
@@ -105,63 +103,80 @@ class PkCalibrationLiveRepositoryTest {
     }
 
     @Test
-    fun generationChange_andRetry_reReadWithoutCreatingAnotherVersion() = runTest {
-        val generations = MutableStateFlow(4L)
-        every { storage.observeHomeSnapshotWrites() } returns generations
+    fun snapshotBuild_isRenderedInsteadOfSolvedAgain_andRetryForcesARebuild() = runTest {
         stubEmptySourceReads()
-        val repository = repository(generations, backgroundScope, StandardTestDispatcher(testScheduler))
+        val repository = repository(backgroundScope, StandardTestDispatcher(testScheduler))
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.liveState.collect()
         }
         runCurrent()
-        // Empty sources are no longer fail-closed: with no doses and no labs
-        // the origin falls back to the clock and the evaluation lands on
-        // NO_DOSE_HISTORY, keeping the calibration surface alive.
+        // No build yet: the page solves once itself, so it never waits on a
+        // snapshot write.
+        coVerify(exactly = 1) { bloodTests.getPanels() }
+        val selfSolved = requireNotNull(repository.liveState.value?.live)
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
-            requireNotNull(repository.liveState.value?.live)
-                .evaluation.result.globalState,
+            selfSolved.evaluation.result.globalState,
         )
 
-        generations.value = 5L
+        val evaluation = PkCalibrationEngine.evaluate(selfSolved.input)
+        builds.value = HomeCalibrationBuild(
+            generation = 1L,
+            generatedAtEpochMillis = FixedNowMillis,
+            input = selfSolved.input,
+            evaluation = evaluation,
+        )
         runCurrent()
-        repository.retry()
-        runCurrent()
+        // The published solve is reused as-is; no second read or solve.
+        assertSame(evaluation, requireNotNull(repository.liveState.value?.live).evaluation)
+        coVerify(exactly = 1) { bloodTests.getPanels() }
 
-        coVerify(exactly = 3) { bloodTests.getPanels() }
-        coVerify(exactly = 3) { medicationLogs.getEntries() }
-        coVerify(exactly = 3) { userProfiles.getCurrentProfile() }
-        coVerify(exactly = 3) { storage.getAllMetadata() }
+        // A build whose solve threw surfaces as the unavailable state.
+        builds.value = HomeCalibrationBuild(
+            generation = 2L,
+            generatedAtEpochMillis = FixedNowMillis + 1L,
+            input = selfSolved.input,
+            evaluation = null,
+        )
+        runCurrent()
+        assertNull(requireNotNull(repository.liveState.value).live)
+
+        repository.retry()
+        verify(exactly = 1) { homeSnapshots.refreshHomeSnapshotAsync(any(), force = true, any()) }
         collector.cancel()
     }
 
     @Test
-    fun newerGeneration_cancelsAnOlderRead_andOnlyLatestStateSurvives() = runTest {
-        val generations = MutableStateFlow(1L)
-        every { storage.observeHomeSnapshotWrites() } returns generations
+    fun newerBuild_cancelsAnOlderRead_andOnlyLatestStateSurvives() = runTest {
         val firstReadStarted = CompletableDeferred<Unit>()
-        var reads = 0
         coEvery { bloodTests.getPanels() } coAnswers {
-            reads += 1
-            if (reads == 1) {
-                firstReadStarted.complete(Unit)
-                awaitCancellation()
-            }
-            emptyList()
+            firstReadStarted.complete(Unit)
+            awaitCancellation()
         }
         coEvery { medicationLogs.getEntries() } returns emptyList()
         coEvery { userProfiles.getCurrentProfile() } returns UserProfile()
         coEvery { storage.getAllMetadata() } returns emptyList()
-        val repository = repository(generations, backgroundScope, StandardTestDispatcher(testScheduler))
+        val repository = repository(backgroundScope, StandardTestDispatcher(testScheduler))
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repository.liveState.collect()
         }
 
         firstReadStarted.await()
-        generations.value = 2L
+        val input = buildPkCalibrationInput(
+            labs = emptyList(),
+            entries = emptyList(),
+            weightKg = null,
+            metadata = emptyList(),
+            fallbackOriginEpochMillis = FixedNowMillis,
+        )
+        builds.value = HomeCalibrationBuild(
+            generation = 2L,
+            generatedAtEpochMillis = FixedNowMillis,
+            input = input,
+            evaluation = PkCalibrationEngine.evaluate(input),
+        )
         runCurrent()
 
-        assertEquals(2, reads)
         assertEquals(
             com.mkx.hrttracker.model.pk.PkCalibrationGlobalState.NO_DOSE_HISTORY,
             requireNotNull(repository.liveState.value?.live)
@@ -171,16 +186,16 @@ class PkCalibrationLiveRepositoryTest {
     }
 
     private fun repository(
-        generations: MutableStateFlow<Long>,
         appScope: kotlinx.coroutines.CoroutineScope,
         defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
     ): PkCalibrationLiveRepository {
-        every { storage.observeHomeSnapshotWrites() } returns generations
+        every { homeSnapshots.calibrationBuilds } returns builds
         return PkCalibrationLiveRepository(
             bloodTestRepository = bloodTests,
             medicationLogRepository = medicationLogs,
             userProfileRepository = userProfiles,
             storageRepository = storage,
+            homeSnapshotRepository = homeSnapshots,
             clock = Clock.fixed(Instant.ofEpochMilli(FixedNowMillis), ZoneOffset.UTC),
             defaultDispatcher = defaultDispatcher,
             appScope = appScope,

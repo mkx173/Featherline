@@ -287,14 +287,14 @@ Annotated `@Entity(tableName = "e2_calibration_metadata")` — optional,
 result-owned review state for one built-in E2 result. `resultUuid` is
 both the primary key and a foreign key to `blood_test_results.uuid`
 with `ON DELETE CASCADE`, so deleting a result cannot strand its
-disposition. The row stores the `disposition` (`AUTO`, `REVIEWED`, or `EXCLUDED`) and
-`updatedAtEpochMillis`. The rule that only built-in E2 results may
+disposition. The row stores the `disposition` (`REVIEWED` or `EXCLUDED`) and
+`updatedAtEpochMillis`; `AUTO` means "no choice" and is stored as no row. The rule that only built-in E2 results may
 receive metadata is enforced at the repository boundary. `REVIEWED` records the
 user’s acceptance of a result: it leaves the review queue, while the result
 remains included with unchanged calibration weights. Acceptance covers one
 measurement, so saving a changed value or collection time deletes a `REVIEWED`
 row (an `EXCLUDED` row survives edits). The review queue and the result editor
-can both reset it to `AUTO`.
+can both reset it to `AUTO`, which deletes the row.
 
 ### `TrackedDateEntity`
 
@@ -482,7 +482,7 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   enumerate all imported panels for a source, and delete empty
   imported panels left behind after a moved result.
 - [`PkCalibrationDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/PkCalibrationDao.kt)
-  — result-owned calibration review metadata (`AUTO`, `REVIEWED`,
+  — result-owned calibration review metadata (`REVIEWED`,
   `EXCLUDED`); read on demand by the calibration repositories, with no
   Flow observers.
 - [`JournalDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/JournalDao.kt)

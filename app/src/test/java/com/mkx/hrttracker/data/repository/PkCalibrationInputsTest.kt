@@ -5,7 +5,9 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import java.time.Instant
+import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -36,5 +38,34 @@ class PkCalibrationInputsTest {
         )
 
         assertEquals(listOf(convertible.uuid), input.doseEvents.map { it.id })
+    }
+
+    @Test
+    fun buildPkCalibrationInput_dropsDosesTooOldToShapeAnyLab() {
+        val labAt = Instant.parse("2026-06-01T08:00:00Z")
+        val lab = PkCalibrationLab(UUID(0L, 1L), labAt.toEpochMilli(), 100.0)
+        val tooOld = testMedicationLogEntry(
+            medicine = testMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = labAt.minus(PK_CALIBRATION_DOSE_LOOKBACK).minusSeconds(1),
+        )
+        val inWindow = testMedicationLogEntry(
+            medicine = testMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = labAt.minus(PK_CALIBRATION_DOSE_LOOKBACK),
+        )
+
+        val input = buildPkCalibrationInput(
+            labs = listOf(lab),
+            entries = listOf(tooOld, inWindow),
+            weightKg = 60.0,
+            metadata = emptyList(),
+            fallbackOriginEpochMillis = 0L,
+        )
+
+        assertEquals(listOf(inWindow.uuid), input.doseEvents.map { it.id })
+        assertEquals(inWindow.appliedAt.toEpochMilli(), input.originEpochMillis)
+        // No labs: nothing bounds the doses, the caller's fallback applies.
+        assertEquals(7L, calibrationDoseWindowStartEpochMillis(emptyList(), 7L))
     }
 }

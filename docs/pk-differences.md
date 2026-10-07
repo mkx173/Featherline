@@ -221,8 +221,8 @@ multiplies that route's population contribution by `e^{beta_r}`.
   less than a 2x signal range, when the weighted log RMSE exceeds
   `2 * sqrt(R_LOG)`, when a supporting result has a Student-t weight
   below 0.25 and hasn't been reviewed, or when the fit is ambiguous.
-- **Review.** Per-result choices (`AUTO`, `REVIEWED`, `EXCLUDED`) live
-  in `e2_calibration_metadata`; see [data-model.md](data-model.md).
+- **Review.** Per-result choices (`REVIEWED`, `EXCLUDED`) live in
+  `e2_calibration_metadata`, `AUTO` as no row; see [data-model.md](data-model.md).
   `REVIEWED` only hides the review tip and never changes the fit.
 
 The fit runs entirely on device, inside the Home snapshot build, so the
