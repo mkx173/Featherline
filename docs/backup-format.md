@@ -121,7 +121,7 @@ flattened into the parent's JSON.
   `BackupTrackedDateSnapshot.heroBackgroundKey`, so journal hero
   backgrounds round-trip through backups; it too defaults to `null` so
   older backups restore cleanly. The 6→7 bump added the per-result
-  lab-adjustment review fields described under
+  calibration review fields described under
   `BackupBloodTestResultSnapshot` below.
 - `BackupAppSnapshot` — just `packageName`; exports write the stable
   backup identity (`com.mkx.hrttracker`), and restore rejects other app

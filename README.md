@@ -36,7 +36,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Group medications and apply schedules to grouped doses
 - Optional medicine stock tracking with low-stock warnings and schedule-aware "days remaining" estimates
 - Estradiol pharmacokinetic projection from your dose history
-- Lab adjustment: scale the estradiol projection per route to your own E2 results, with per-route confidence, a review list for results that disagree, and a likely-range band on the Home chart
+- Estimate calibration: scale the estradiol projection per route to your own E2 results, with per-route confidence, a review list for results that disagree, and a likely-range band on the Home chart
 - Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L)
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock

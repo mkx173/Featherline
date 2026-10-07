@@ -133,11 +133,11 @@ with the same collection time are ignored because they have null import
 provenance. Empty imported panels left behind after a moved result are
 deleted by the importer cleanup helper.
 
-## E2 results and lab adjustment
+## E2 results and estimate calibration
 
 Built-in E2 results (stored in canonical pg/mL) feed the route-scale lab
 adjustment described in
-[pk-differences.md](pk-differences.md#route-scale-lab-adjustment).
+[pk-differences.md](pk-differences.md#route-scale-estimate-calibration).
 No other analyte, and no custom analyte, is read by the fit.
 
 - **Collection time matters.** The fit compares each value with the

@@ -179,9 +179,9 @@ should read the upstream README and its `pk_research/` workspace.
   Real per-person variation in mucosal-vs-swallowed fraction can be
   substantial; Featherline does not currently expose it for tuning.
 
-## Route-scale lab adjustment
+## Route-scale estimate calibration
 
-Featherline 1.4.0 adds a per-user lab adjustment of its own, not taken
+Featherline 1.4.0 adds a per-user estimate calibration of its own, not taken
 from upstream, on top of the unchanged population engine, in
 [`model/pk`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/model/pk)
 (`PkCalibration*`, `PkE2ForwardModel`). It does not touch the
