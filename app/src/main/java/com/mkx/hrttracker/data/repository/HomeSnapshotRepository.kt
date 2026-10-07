@@ -619,6 +619,12 @@ class HomeSnapshotRepository @Inject constructor(
                 "home_snapshot_refresh_skipped reason=existing_usable " +
                         "${existingSnapshot.diagnosticSummary()} now=$now"
             )
+            // A kept snapshot needs its expiry timer too: after a process
+            // restart nothing else rebuilds when its planned slot passes. An
+            // expiry before the window end is a planned slot.
+            existingSnapshot.pkProjection
+                ?.takeIf { it.pkProjectionExpiresAtEpochMillis < it.windowEndEpochMillis }
+                ?.let { scheduleExpiryRefresh(Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis), now, zoneId) }
             return null
         }
         if (pkExpired) {

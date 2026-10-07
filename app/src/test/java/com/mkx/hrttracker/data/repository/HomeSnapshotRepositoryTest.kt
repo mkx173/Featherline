@@ -55,6 +55,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -842,6 +846,72 @@ class HomeSnapshotRepositoryTest {
         advanceUntilIdle()
 
         assertTrue(failures.isEmpty())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun keptUsableSnapshot_stillRebuildsWhenItsPlannedSlotPasses() = runTest {
+        // After a process restart the startup refresh keeps a still-valid
+        // snapshot, so no write schedules the expiry timer. The kept snapshot
+        // must arm it itself, or the band stays gone once its planned slot
+        // passes until the next mutation or date change.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val builds = stubSlowEmptyRefreshInputs(buildDelaysMs = listOf(0L))
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 7, 7, 0)
+        val plannedAt = now.plusHours(1).atZone(zoneId).toInstant().toEpochMilli()
+        coEvery { homeSnapshotStore.readSnapshot() } returns HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 0L,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = HomePkProjectionRecord(
+                generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+                windowStartEpochMillis = now.toLocalDate().minusDays(3)
+                    .atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                windowEndEpochMillis = now.toLocalDate().plusDays(14)
+                    .atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                pkProjectionExpiresAtEpochMillis = plannedAt,
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+                timeH = emptyList(),
+                concentrations = emptyList(),
+                doseMarkers = emptyList(),
+                latestEstradiolEntry = null,
+                chartWindowHours = 168,
+                densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+                includesPostDoseOffsets = false,
+            ),
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        repository.refreshHomeSnapshotIfNeeded(now = now, force = false, zoneId = zoneId)
+        runCurrent()
+        assertEquals(0, builds.get())
+
+        // Just before the slot: still armed, nothing built.
+        advanceTimeBy(60L * 60L * 1_000L - 1L)
+        runCurrent()
+        assertEquals(0, builds.get())
+
+        advanceTimeBy(2L)
+        runCurrent()
+        // The build's DAO reads run on Dispatchers.IO, outside virtual time.
+        withContext(Dispatchers.Default) {
+            withTimeout(5_000L) { while (builds.get() == 0) delay(10L) }
+        }
+        assertEquals(1, builds.get())
     }
 
     @Test
