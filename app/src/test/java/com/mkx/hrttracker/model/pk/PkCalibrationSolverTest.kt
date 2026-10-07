@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.exp
@@ -364,6 +365,35 @@ class PkCalibrationSolverTest {
         }
     }
 
+    @Test
+    fun keptOutlier_staysInTheFit_withoutTheReviewWarning() {
+        // Keep leaves the lab in the fit at its robust weight: same promoted
+        // routes and the same minimum weight, but the review reason clears.
+        val labs = arrayOf(
+            lab(1, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(2, observed = 25.0, injection = 12.5, oral = 12.5),
+            lab(3, observed = 10.0, injection = 5.0, oral = 5.0),
+            lab(9, observed = 10.0 * exp(2.0), injection = 5.0, oral = 5.0),
+        )
+        val unreviewed = solve(*labs)
+        val kept = solve(
+            *labs,
+            metadata = listOf(
+                E2CalibrationMetadata(uuid(9), E2CalibrationDisposition.REVIEWED, Instant.EPOCH)
+            ),
+        )
+
+        assertEquals(unreviewed.promotedRoutes, kept.promotedRoutes)
+        for (route in kept.promotedRoutes) {
+            val before = unreviewed.routeResults[route.ordinal]
+            val row = kept.routeResults[route.ordinal]
+            assertFalse(PkCalibrationReason.UNREVIEWED_OUTLIER in row.reasons)
+            assertTrue(row.unreviewedOutlierLabIds.isEmpty())
+            assertEquals(before.fittedBeta, row.fittedBeta)
+            assertEquals(before.minStudentTWeight, row.minStudentTWeight)
+        }
+    }
+
     // ------------------------------------------------------------------
     // Warn-only classification at a fixed diagnostics point
     // ------------------------------------------------------------------
@@ -657,18 +687,23 @@ class PkCalibrationSolverTest {
         )
     }
 
-    private fun solve(vararg labs: PkCalibrationIncludedLab): PkCalibrationResult {
-        return PkCalibrationSolver.solve(pool(included = labs.toList()))
+    private fun solve(
+        vararg labs: PkCalibrationIncludedLab,
+        metadata: List<E2CalibrationMetadata> = emptyList(),
+    ): PkCalibrationResult {
+        return PkCalibrationSolver.solve(pool(included = labs.toList(), metadata = metadata))
     }
 
     private fun pool(
         included: List<PkCalibrationIncludedLab> = emptyList(),
+        metadata: List<E2CalibrationMetadata> = emptyList(),
     ): PkCalibrationEvidencePool {
         val input = PkCalibrationInput(
             labs = emptyList(),
             doseEvents = emptyList(),
             originEpochMillis = 0L,
             weightKg = 70.0,
+            metadata = metadata,
             config = PkCalibrationConfig(drugMinInformativePgml = 1e-12, rLog = RLog),
         )
         return PkCalibrationEvidencePool(

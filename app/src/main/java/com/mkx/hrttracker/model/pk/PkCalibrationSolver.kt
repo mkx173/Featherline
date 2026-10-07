@@ -572,6 +572,7 @@ object PkCalibrationSolver {
             objective = objective,
             fit = fit,
             supportingByRoute = supportingByRoute,
+            acceptedLabIds = evidence.input.acceptedLabIds,
         ) ?: return globalNumericFailure(ignored)
         val routeResults = PkCalibrationRoute.entries.map { route ->
             val diagnostics = diagnosticsByRoute[route] ?: return@map populationRow(route)
@@ -611,6 +612,8 @@ object PkCalibrationSolver {
         objective: PkJointStudentTObjective,
         fit: PkJointFit,
         supportingByRoute: Map<PkCalibrationRoute, Set<UUID>>,
+        /** REVIEWED labs: kept in the fit at their robust weight, but no longer flagged for review. */
+        acceptedLabIds: Set<UUID>,
     ): Map<PkCalibrationRoute, PkJointRouteDiagnostics>? {
         val residualByResultId = linkedMapOf<UUID, Double>()
         val weightByResultId = linkedMapOf<UUID, Double>()
@@ -669,7 +672,9 @@ object PkCalibrationSolver {
                 maximumLogTotal = max(maximumLogTotal, point.logTotalDrugPgml)
                 val weight = weightByResultId.getValue(point.resultId)
                 minimumWeight = min(minimumWeight, weight)
-                if (weight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN) {
+                if (weight < PkCalibrationDefaults.OUTLIER_WEIGHT_MIN &&
+                    point.resultId !in acceptedLabIds
+                ) {
                     unreviewed += point.resultId
                 }
             }
