@@ -25,8 +25,8 @@ design-derived material that Gradle cannot detect.
 ### Hipparchus Core
 
 The calibration solver uses the bisection root solver and Cholesky
-decomposition, and the predictive-band renderer uses the Gauss-Hermite
-integration and Student-t distribution APIs, from
+decomposition, and the predictive-band renderer uses the Brent root solver,
+Gauss-Hermite integration and Student-t distribution APIs, from
 `org.hipparchus:hipparchus-core:4.0.3`.
 
 - License: Apache License, Version 2.0

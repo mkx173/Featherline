@@ -227,9 +227,14 @@ multiplies that route's population contribution by `e^{beta_r}`.
 
 The fit runs entirely on device, inside the Home snapshot build, so the
 Home chart, the band, and the widgets all draw from the same adjusted
-parameters. Hipparchus supplies the bisection solver, Cholesky decomposition,
-Gauss-Hermite integration, and Student-t distribution; see
-[third-party-notices.md](third-party-notices.md).
+parameters. Hipparchus supplies the bisection and Brent root solvers,
+Cholesky decomposition, Gauss-Hermite integration, and the Student-t
+distribution (the band uses the closed-form t4 CDF, falling back to the
+library for any other degrees of freedom); see
+[third-party-notices.md](third-party-notices.md). The band solves its
+quantile law once per distinct variance, with variance + R_LOG rounded to a
+0.5% geometric grid (under 0.25% in SD, below a pixel at chart scale), so a
+dense multi-route chart costs a few hundred solves at most.
 
 ## What Featherline plans to change
 

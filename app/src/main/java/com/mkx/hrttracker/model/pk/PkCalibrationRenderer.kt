@@ -2,15 +2,12 @@ package com.mkx.hrttracker.model.pk
 
 import org.hipparchus.analysis.UnivariateFunction
 import org.hipparchus.analysis.integration.gauss.GaussIntegratorFactory
-import org.hipparchus.analysis.solvers.BisectionSolver
+import org.hipparchus.analysis.solvers.BrentSolver
 import org.hipparchus.distribution.continuous.TDistribution
 import java.util.TreeSet
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
-import kotlin.math.floor
-import kotlin.math.log10
-import kotlin.math.pow
 import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -132,10 +129,14 @@ object PkCalibrationRenderer {
                 covariance = covariance,
                 promotedRoutes = effectivePromotedRoutes,
             ) ?: return null
-            // ponytail: the law is solved per distinct variance; quantizing to
-            // three significant digits (<0.5% variance error, invisible at
-            // chart scale) keeps dense multi-route knot grids to a few solves.
-            val quantizedVariance = quantizeVariance(effectiveVariance)
+            // ponytail: the law is solved per distinct variance. Along a
+            // multi-route curve the promoted share, and so the variance, differs
+            // at nearly every knot; three significant digits gave one solve per
+            // knot. The law depends on variance + rLog, so that sum is put on a
+            // geometric grid (0.5% steps, <0.25% in SD, the same accuracy as
+            // before): a few hundred solves at most for any knot count, and
+            // knots where the calibrated share is small all share one law.
+            val quantizedVariance = quantizeVariance(effectiveVariance, rLog)
             val law = lawCache.getOrPut(quantizedVariance.toBits()) {
                 PkPredictiveBandMath.logQuantiles(quantizedVariance, rLog) ?: return null
             }
@@ -148,11 +149,14 @@ object PkCalibrationRenderer {
     }
 }
 
-private fun quantizeVariance(variance: Double): Double {
+private fun quantizeVariance(variance: Double, rLog: Double): Double {
     if (variance <= 0.0) return 0.0
-    val scale = 10.0.pow(floor(log10(variance)) - 2)
-    return (variance / scale).roundToLong() * scale
+    val step = ln(VARIANCE_GRID_RATIO)
+    val total = exp((ln(variance + rLog) / step).roundToLong() * step)
+    return (total - rLog).coerceAtLeast(0.0)
 }
+
+private const val VARIANCE_GRID_RATIO = 1.005
 
 private data class CentralKnot(
     val epochMillis: Long,
@@ -234,9 +238,7 @@ internal object PkPredictiveBandMath {
             for (index in rule.nodes.indices) {
                 val eta = sqrtTwoVariance * rule.nodes[index]
                 val standardized = (logValue - eta) / sqrtObservationVariance
-                val component = runCatching {
-                    studentT.cumulativeProbability(standardized)
-                }.getOrNull() ?: return null
+                val component = studentTCdf(standardized) ?: return null
                 total += rule.weights[index] * component
             }
             return total.takeIf { value -> value in 0.0..1.0 }
@@ -254,8 +256,11 @@ internal object PkPredictiveBandMath {
             )
         }
 
+        // Brent: the CDF is smooth and monotone, so it converges in a handful
+        // of evaluations where bisection needed ~30 (each one a 32-node sum
+        // of Student-t CDFs). The final CDF check below is unchanged.
         val quantile = runCatching {
-            BisectionSolver(PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL).solve(
+            BrentSolver(PkCalibrationDefaults.BAND_ROOT_X_ABS_TOL).solve(
                 PkCalibrationDefaults.BAND_ROOT_MAX_EVAL - evaluations - 1,
                 UnivariateFunction { logValue -> (cdf(logValue) ?: Double.NaN) - probability },
                 -halfWidth,
@@ -266,6 +271,23 @@ internal object PkPredictiveBandMath {
         return quantile.takeIf {
             abs(finalCdf - probability) <= PkCalibrationDefaults.BAND_ROOT_CDF_TOL
         }
+    }
+
+    /**
+     * Student-t CDF at the fixed nu. For nu = 4 the closed form
+     * F(t) = 1/2 + sin(theta)/2 * (1 + cos^2(theta)/2), with
+     * sin(theta) = t / sqrt(4 + t^2), replaces the regularized-beta library
+     * call that dominated every quadrature node; other nu fall back to it.
+     */
+    internal fun studentTCdf(x: Double): Double? {
+        if (!x.isFinite()) return null
+        if (PkCalibrationDefaults.STUDENT_T_NU != 4.0) {
+            return runCatching { studentT.cumulativeProbability(x) }.getOrNull()
+        }
+        val denominator = 4.0 + x * x
+        val sine = x / sqrt(denominator)
+        val cosineSquared = 4.0 / denominator
+        return (0.5 + 0.5 * sine * (1.0 + 0.5 * cosineSquared)).coerceIn(0.0, 1.0)
     }
 
     private fun hermiteRule(nodeCount: Int): PkHermiteRule {

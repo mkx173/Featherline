@@ -201,6 +201,12 @@ class HomeSnapshotRepository @Inject constructor(
         refreshMutex.withLock {
             withContext(NonCancellable) {
                 diagnosticsLogger.info(TAG, "home_data_mutation_start")
+                // Counted as in flight before the generation bump: the bump
+                // alone makes observers reject the stored snapshot, and Home
+                // must already know a rebuild is coming when that happens, or
+                // it draws the population fallback for a frame before the
+                // skeleton.
+                activeRefreshes.update { count -> count + 1 }
                 generation = homeSnapshotGenerationStore.incrementGeneration()
                 diagnosticsLogger.info(
                     TAG,
@@ -216,9 +222,6 @@ class HomeSnapshotRepository @Inject constructor(
                 }
                 // The generation has already been bumped, so observers will reject any
                 // stale snapshot. Clear while still serialized with other mutations.
-                // Counted as in flight from here, so Home shows the skeleton for
-                // the whole gap, not just once the build has started.
-                activeRefreshes.update { count -> count + 1 }
                 clearSnapshotBestEffort()
             }
         }
@@ -779,12 +782,19 @@ class HomeSnapshotRepository @Inject constructor(
         // Lab calibration is part of the snapshot so the calibrated curve is
         // what Home and the widget show first, not a population curve that a
         // later live evaluation swaps out.
+        val phaseStartNanos = System.nanoTime()
+        fun phaseMillis(): Long = (System.nanoTime() - phaseStartNanos) / 1_000_000L
         val calibrationInput = buildPkCalibrationInput(
             labs = inputs.calibrationLabs,
             entries = inputs.calibrationEntries,
             weightKg = inputs.profile.weightKg,
             metadata = inputs.calibrationMetadata,
             fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+        )
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase calibration_input_built ms=${phaseMillis()} " +
+                    "labs=${calibrationInput.labs.size} doseEvents=${calibrationInput.doseEvents.size}"
         )
         // A throwing solve must not drop the snapshot write: Home would fall
         // back to population and the live surface would keep the pre-mutation
@@ -808,6 +818,11 @@ class HomeSnapshotRepository @Inject constructor(
                 input = calibrationInput,
                 evaluation = calibration,
             )
+        )
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase calibration_solved ms=${phaseMillis()} " +
+                    "state=${calibration?.result?.globalState} promoted=${calibration?.result?.promotedRoutes}"
         )
         val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
         val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
@@ -847,6 +862,12 @@ class HomeSnapshotRepository @Inject constructor(
             }
             homeAsync.await() to widgetAsync.await()
         }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase projections_simulated ms=${phaseMillis()} " +
+                    "real=${simulationEntries.real.size} planned=${simulationEntries.planned.size} " +
+                    "samples=${projection.timeH.size}"
+        )
         // The band follows the same projected curve as the chart: the same
         // logged (lookback-limited) plus planned doses, over the projection
         // window. The fit itself used the full dose history.
@@ -885,6 +906,11 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }.getOrNull()
         }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_phase band_rendered ms=${phaseMillis()} " +
+                    "render=${homeRender?.renderState} band=${homeRender?.bandState}"
+        )
         val bandKnots = homeRender
             ?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
             ?.bandKnots
@@ -1016,7 +1042,8 @@ class HomeSnapshotRepository @Inject constructor(
                 } else if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
                     diagnosticsLogger.info(
                         TAG,
-                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
+                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()} " +
+                                "bandKnots=${bandKnots.size} pkEntries=${inputs.pkEntries.size}"
                     )
                     homeSnapshotStore.writeSnapshot(snapshotRecord)
                     StartupTiming.mark("home_snapshot_rebuilt")
