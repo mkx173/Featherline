@@ -92,6 +92,7 @@ fun PkCalibrationSection(
                 PreferenceSegmentedListItem(
                     title = stringResource(R.string.calibration_pk_retry),
                     leadingContent = { PkCalibrationRowIcon(R.drawable.ic_restart_alt) },
+                    trailingContent = { PkCalibrationRowChevron() },
                     onClick = onRetry,
                 )
             }
