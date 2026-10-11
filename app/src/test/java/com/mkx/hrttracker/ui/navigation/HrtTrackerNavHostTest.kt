@@ -49,6 +49,22 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun pkCalibrationDebugRoute_isASettingsChild() {
+        assertEquals(
+            "settings_pk_calibration_debug?topLevelParent=settings",
+            Screen.SettingsPkCalibrationDebug.createRoute(Screen.Settings.route),
+        )
+        assertEquals(
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL,
+            topLevelNavigationTapAction(
+                tappedScreen = Screen.Settings,
+                selectedBottomScreen = Screen.Settings,
+                currentRoute = Screen.SettingsPkCalibrationDebug.baseRoute,
+            ),
+        )
+    }
+
+    @Test
     fun topLevelNavigationTapAction_returnsNavigate_for_different_top_level_route() {
         assertEquals(
             TopLevelNavigationTapAction.NAVIGATE,

@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -82,7 +84,11 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -123,6 +129,8 @@ fun CalibrationScreen(
     viewModel: CalibrationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
+    val pkIntroSeen by viewModel.pkIntroSeen.collectAsStateWithLifecycle()
 
     // Hold the navigation lock while the delete-all runs. The confirm dialog
     // closes before the delete does, so without this a back press (this is a
@@ -144,6 +152,10 @@ fun CalibrationScreen(
 
     CalibrationScreenContent(
         uiState = uiState,
+        pkCalibrationState = pkCalibrationState,
+        pkIntroSeen = pkIntroSeen,
+        onPkIntroSeen = viewModel::markPkIntroSeen,
+        onPkRetry = viewModel::retryPkCalibration,
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
@@ -160,6 +172,10 @@ fun CalibrationScreen(
 @Composable
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
+    pkCalibrationState: PkCalibrationScreenState?,
+    pkIntroSeen: Boolean?,
+    onPkIntroSeen: () -> Unit,
+    onPkRetry: () -> Unit,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: LocalDateFormatter,
     onNavigateBack: () -> Unit,
@@ -177,6 +193,32 @@ private fun CalibrationScreenContent(
     val context = LocalContext.current
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
+    var pkSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    // Review queue snapshot, fixed while the user works through it: rows the
+    // user has decided (or fixed in the editor) stay and show what changed.
+    var pkReviewQueue by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    // Opening a row hides the sheet for the editor; it comes back on return.
+    var pkReopenReview by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (pkReopenReview) {
+            pkReopenReview = false
+            pkSheet = PK_SHEET_REVIEW
+        }
+    }
+    // First open: show the intro once. The flag is persisted (and backed up)
+    // when the sheet is dismissed, so a mid-sheet exit shows it again.
+    LaunchedEffect(pkIntroSeen) {
+        if (pkIntroSeen == false && pkSheet == null) pkSheet = PK_SHEET_EDU
+    }
+    val pkLabFlags = remember(pkCalibrationState, uiState.panels) {
+        pkCalibrationState?.let { state ->
+            pkCalibrationLabRowFlags(state, uiState.panels)
+        }.orEmpty()
+    }
+    // Review queue in list order; one entry per lab however many routes it touches.
+    val pkReviewPanels = remember(pkLabFlags, uiState.panels) {
+        uiState.panels.filter { panel -> pkLabFlags[panel.uuid]?.needsReview == true }
+    }
     val deleteAllEntriesSuccessMessage =
         stringResource(R.string.settings_calibration_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
@@ -281,34 +323,50 @@ private fun CalibrationScreenContent(
                 }
                 return@AppContentContainer
             }
+            val targetRange = if (uiState.settingsState.hideReferenceRanges) {
+                null
+            } else {
+                calibrationHistoryTargetRangeSummary(uiState.settingsState)
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
-                item(key = "calibration-info") {
-                    val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(
-                            dimensionResource(R.dimen.list_segment_gap)
-                        )
-                    ) {
-                        if (hideReferenceRanges) {
-                            CalibrationInfoCard(
-                                panelCount = uiState.panels.size,
-                                index = 0,
-                                count = 1,
+                if (pkCalibrationState != null) {
+                    // Unkeyed on purpose (together with the info item below): a
+                    // keyed first item anchors the viewport to itself, so a
+                    // section inserted above it later scrolls the list down by
+                    // the section's height.
+                    item {
+                        Column {
+                            PkCalibrationSection(
+                                uiState = pkCalibrationState.ui,
+                                reviewCount = pkReviewPanels.size,
+                                onRetry = onPkRetry,
+                                onOpenRoutes = { pkSheet = PK_SHEET_ROUTES },
+                                onOpenReview = {
+                                    pkReviewQueue = pkReviewPanels.map { panel -> panel.uuid.toString() }
+                                    pkSheet = PK_SHEET_REVIEW
+                                },
+                                onInfo = { pkSheet = PK_SHEET_EDU },
+                                targetRange = targetRange,
                             )
-                        } else {
-                            CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                            CalibrationReferenceRangeDisclaimerCard()
-                            CalibrationInfoCard(panelCount = uiState.panels.size)
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
 
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
+                // Without the lab adjustment section the target range stands alone.
+                if (pkCalibrationState == null && targetRange != null) {
+                    item {
+                        Column {
+                            HrtSection(title = null, topPadding = false) {
+                                item { CalibrationTargetRangeRow(summary = targetRange) }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
                 }
 
                 if (uiState.panels.isEmpty() && !uiState.isLoading) {
@@ -332,6 +390,7 @@ private fun CalibrationScreenContent(
                             items = monthGroup.panels,
                             key = { _, panel -> panel.uuid },
                         ) { index, panel ->
+                            val pkFlag = pkLabFlags[panel.uuid]
                             CalibrationPanelRow(
                                 panel = panel,
                                 settingsState = uiState.settingsState,
@@ -339,6 +398,7 @@ private fun CalibrationScreenContent(
                                 index = index,
                                 count = monthGroup.panels.size,
                                 onClick = { onPanelClick(panel.uuid) },
+                                pkChip = pkFlag?.let { flag -> { PkCalibrationLabChip(flag) } },
                             )
                             if (index < monthGroup.panels.size - 1) {
                                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
@@ -352,8 +412,81 @@ private fun CalibrationScreenContent(
                         }
                     }
                 }
+
+                // Same footer as the result editor.
+                if (targetRange != null) {
+                    item(key = "calibration-disclaimer") {
+                        MedicalDisclaimerText(
+                            kinds = MedicalDisclaimerSets.calibrationEditor,
+                            modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_medium)),
+                        )
+                    }
+                }
             }
         }
+    }
+
+    when (pkSheet) {
+        PK_SHEET_ROUTES -> pkCalibrationState?.let { state ->
+            PkCalibrationRoutesSheet(
+                uiState = state.ui,
+                onDismissRequest = { pkSheet = null },
+            )
+        }
+
+        // Rows summarize the review; details and actions live in the editor.
+        PK_SHEET_REVIEW -> {
+            val closeReview = {
+                pkSheet = null
+                pkReviewQueue = emptyList()
+            }
+            // Hide before navigating: a sheet left open lingers over the editor.
+            val openPanelFromReview = { panelId: UUID ->
+                pkSheet = null
+                pkReopenReview = true
+                onPanelClick(panelId)
+            }
+            val reviewRows = remember(pkReviewQueue, uiState.panels) {
+                val panelsById = uiState.panels.associateBy { panel -> panel.uuid.toString() }
+                pkReviewQueue.mapNotNull(panelsById::get)
+            }
+            if (reviewRows.isEmpty()) {
+                LaunchedEffect(Unit) { closeReview() }
+            } else {
+                PkCalibrationReviewSheet(
+                    count = reviewRows.size,
+                    onDismissRequest = closeReview,
+                ) {
+                    reviewRows.forEachIndexed { index, panel ->
+                        CalibrationPanelRow(
+                            panel = panel,
+                            settingsState = uiState.settingsState,
+                            dateTimeFormatters = panelDateTimeFormatters,
+                            index = index,
+                            count = reviewRows.size,
+                            onClick = { openPanelFromReview(panel.uuid) },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            pkFooter = {
+                                PkCalibrationReviewSummary(
+                                    flag = pkLabFlags[panel.uuid],
+                                    modifier = Modifier.padding(top = 12.dp),
+                                )
+                            },
+                        )
+                        if (index < reviewRows.size - 1) {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                        }
+                    }
+                }
+            }
+        }
+
+        PK_SHEET_EDU -> PkCalibrationEduSheet(
+            onDismissRequest = {
+                pkSheet = null
+                if (pkIntroSeen == false) onPkIntroSeen()
+            }
+        )
     }
 
     if (isDeleteAllEntriesConfirmationVisible) {
@@ -403,67 +536,19 @@ private fun CalibrationScreenContent(
     }
 }
 
+/** Last row of the lab adjustment section; its disclaimer sits at the foot of the page. */
 @Composable
-private fun CalibrationInfoCard(
-    panelCount: Int,
-    modifier: Modifier = Modifier,
-    index: Int = 2,
-    count: Int = 3,
-) {
-    SupportMessageListItem(
-//        text = stringResource(R.string.settings_calibration_info_message),
-//        painter = painterResource(R.drawable.ic_lab_panel),
-        text = stringResource(R.string.settings_calibration_under_development_message),
-        painter = painterResource(R.drawable.ic_construction),
-        index = index,
-        count = count,
-        modifier = modifier,
-        trailingContent = {
-            val totalCountLabel = pluralStringResource(
-                R.plurals.settings_calibration_total_count,
-                panelCount,
-                panelCount,
-            ).uppercase()
-            Text(
-                text = totalCountLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.cjkTextOffset(totalCountLabel)
+internal fun CalibrationTargetRangeRow(summary: String) {
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.settings_calibration_target_ranges_title),
+        supportingText = summary,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_bloodtype),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
-    )
-}
-
-@Composable
-private fun CalibrationReferenceRangeDisclaimerCard(
-    modifier: Modifier = Modifier,
-) {
-    SupportMessageListItem(
-        text = stringResource(R.string.medical_disclaimer_reference_ranges),
-        painter = painterResource(R.drawable.ic_help_clinic),
-        index = 1,
-        count = 3,
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun CalibrationTargetRangeCard(
-    settingsState: SettingsState,
-    modifier: Modifier = Modifier,
-) {
-    SupportMessageListItem(
-        supportingText = calibrationHistoryTargetRangeSummary(settingsState),
-        text = stringResource(R.string.settings_calibration_target_ranges_title),
-        painter = painterResource(R.drawable.ic_bloodtype),
-        index = 0,
-        count = 3,
-        modifier = modifier,
-        textStyle = MaterialTheme.typography.titleMedium,
-        supportingTextStyle = MaterialTheme.typography.labelMedium.copy(
-            fontWeight = FontWeight.Normal
-        ),
-        titleColor = MaterialTheme.colorScheme.onSurface
     )
 }
 
@@ -536,6 +621,10 @@ private fun CalibrationMonthHeader(
     }
 }
 
+private const val PK_SHEET_ROUTES = "routes"
+private const val PK_SHEET_REVIEW = "review"
+private const val PK_SHEET_EDU = "edu"
+
 internal data class CalibrationPanelMonthGroup(
     val yearMonth: YearMonth,
     val monthLabel: String,
@@ -565,13 +654,18 @@ internal fun groupCalibrationPanelsByMonth(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun CalibrationPanelRow(
+internal fun CalibrationPanelRow(
     panel: BloodTestPanel,
     settingsState: SettingsState,
     dateTimeFormatters: CalibrationPanelDateTimeFormatters,
     index: Int,
     count: Int,
     onClick: () -> Unit,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    // Lab-adjustment state chip beside the chevron (list rows).
+    pkChip: (@Composable () -> Unit)? = null,
+    // Review note under the row (review queue).
+    pkFooter: (@Composable () -> Unit)? = null,
 ) {
     val deviceZone = remember { ZoneId.systemDefault() }
     val panelZone = remember(panel.collectedAtTimeZoneId, deviceZone) {
@@ -596,7 +690,9 @@ private fun CalibrationPanelRow(
         index = index,
         count = count,
         onClick = onClick,
+        containerColor = containerColor,
     ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
         ConstraintLayout(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -644,16 +740,22 @@ private fun CalibrationPanelRow(
                 isCrossZone = isPanelCrossZone,
             )
 
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.constrainAs(chevron) {
                     end.linkTo(parent.end)
                     top.linkTo(dateTimeColumn.top)
                     bottom.linkTo(dateTimeColumn.bottom)
-                }
-            )
+                },
+            ) {
+                pkChip?.invoke()
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             testosteroneResultSummary?.let { resultSummary ->
                 CalibrationPanelResultAdditionalSummaryRow(
@@ -667,6 +769,8 @@ private fun CalibrationPanelRow(
                     }
                 )
             }
+        }
+        pkFooter?.invoke()
         }
     }
 }
@@ -947,14 +1051,14 @@ private fun CalibrationPanelMetadataRow(
                 "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}"
 
             HrtPill(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 size = HrtPillSize.Small,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 1.dp),
             ) {
                 Text(
                     text = elapsedLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     maxLines = 1,
                     modifier = Modifier.cjkTextOffset(elapsedLabel),
                 )
@@ -1341,25 +1445,48 @@ internal fun calibrationElapsedDurationLabel(durationMillis: Long): String {
     }
 }
 
-@Preview(
-    name = "Calibration Page",
-    showBackground = true,
-    widthDp = 420,
-    heightDp = 920,
-)
+@Preview(name = "Calibration Page", showBackground = true, widthDp = 420, heightDp = 920)
 @Composable
 private fun CalibrationScreenPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState())
+}
+
+@Preview(name = "Calibration Page · Loading", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun CalibrationScreenLoadingPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState(isLoading = true))
+}
+
+@Preview(name = "Calibration Page · Empty", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun CalibrationScreenEmptyPreview() {
+    CalibrationScreenPreviewPage(uiState = previewCalibrationUiState(panels = emptyList()))
+}
+
+@Preview(name = "Calibration Panel Row", showBackground = true, widthDp = 420)
+@Composable
+private fun CalibrationPanelRowPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        CalibrationPanelRow(
+            panel = previewCalibrationPanels().first(),
+            settingsState = previewCalibrationSettingsState(),
+            dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
+            index = 0,
+            count = 1,
+            onClick = { },
+        )
+    }
+}
+
+@Composable
+private fun CalibrationScreenPreviewPage(uiState: CalibrationUiState) {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationScreenContent(
-            uiState = CalibrationUiState(
-                panels = previewCalibrationPanels(),
-                settingsState = SettingsState(
-                    calibrationDefaultUnits = mapOf(
-                        BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
-                        BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
-                    )
-                ),
-            ),
+            uiState = uiState,
+            pkCalibrationState = null,
+            pkIntroSeen = true,
+            onPkIntroSeen = { },
+            onPkRetry = { },
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
@@ -1372,28 +1499,24 @@ private fun CalibrationScreenPreview() {
     }
 }
 
-@Preview(
-    name = "Calibration Panel Row",
-    showBackground = true,
-    widthDp = 420,
-)
-@Composable
-private fun CalibrationPanelRowPreview() {
-    HrtTrackerTheme(dynamicColor = false) {
-        CalibrationPanelRow(
-            panel = previewCalibrationPanels().first(),
-            settingsState = SettingsState(
-                calibrationDefaultUnits = mapOf(
-                    BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
-                    BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
-                )
-            ),
-            dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
-            index = 0,
-            count = 1,
-            onClick = { },
-        )
-    }
+private fun previewCalibrationUiState(
+    panels: List<BloodTestPanel> = previewCalibrationPanels(),
+    isLoading: Boolean = false,
+): CalibrationUiState {
+    return CalibrationUiState(
+        panels = panels,
+        settingsState = previewCalibrationSettingsState(),
+        isLoading = isLoading,
+    )
+}
+
+private fun previewCalibrationSettingsState(): SettingsState {
+    return SettingsState(
+        calibrationDefaultUnits = mapOf(
+            BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+            BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+        ),
+    )
 }
 
 private fun previewCalibrationPanelDateTimeFormatters(): CalibrationPanelDateTimeFormatters {

@@ -35,6 +35,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default also installs the removed `tools` package,
+          # which cmdline-tools 16 no longer offers (setup-android#537).
+          packages: platform-tools
 
       - name: Restore signing keystore
         run: |

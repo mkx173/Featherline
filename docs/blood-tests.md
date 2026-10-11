@@ -133,6 +133,33 @@ with the same collection time are ignored because they have null import
 provenance. Empty imported panels left behind after a moved result are
 deleted by the importer cleanup helper.
 
+## E2 results and estimate calibration
+
+Built-in E2 results (stored in canonical pg/mL) feed the route-scale lab
+adjustment described in
+[pk-differences.md](pk-differences.md#route-scale-estimate-calibration).
+No other analyte, and no custom analyte, is read by the fit.
+
+- **Collection time matters.** The fit compares each value with the
+  modeled drug-attributable E2 at `collectedAtEpochMillis`, so the
+  collection time should be when the blood was drawn, not when the
+  result was entered.
+- **Results the fit sets aside.** A result whose modeled drug signal at
+  collection time is below 5 pg/mL is marked "Not used". A value of zero
+  or below cannot be log-transformed; it is set aside and listed for
+  review. Each set-aside result shows its reason on its row.
+- **Review.** A result the robust fit down-weights strongly (Student-t
+  weight below 0.25) is listed under results to check. The user can keep
+  it, which hides the tip and leaves it in the fit at its robust weight,
+  exclude it, or undo either choice. The choice is stored per result in
+  `e2_calibration_metadata` (`REVIEWED`, `EXCLUDED`); undoing a choice
+  deletes the row (`AUTO`).
+- **Edits.** Changing a result's analyte drops its metadata row.
+  Changing its value or collection time drops a `REVIEWED` choice, so
+  the edited value is checked again. `EXCLUDED` survives value edits.
+- **Backups.** Review choices are carried in the backup snapshot on the
+  result they belong to; see [backup-format.md](backup-format.md).
+
 ## `AllowedAnalyteUnit` validated type
 
 [`AllowedAnalyteUnit`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/bloodtest/AllowedAnalyteUnit.kt)

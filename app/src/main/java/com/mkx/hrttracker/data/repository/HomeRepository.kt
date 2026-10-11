@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.pk.PkPersonalParams
+import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.model.journal.TrackedDate
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -151,6 +153,9 @@ class HomeRepository @Inject constructor(
                     latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
                     estradiolPkEntries = simulationEntries.real,
                     estradiolPkPlannedEntries = simulationEntries.planned,
+                    pkPersonalParams = usable.pkPersonalParams(),
+                    pkBandKnots = usable.pkBandKnots(),
+                    pkCalibration = usable.pkCalibration,
                     stockWarnings = stockWarnings,
                     homeAnchor = usable.homeAnchor,
                     source = HomeInputSource.SNAPSHOT,
@@ -198,13 +203,24 @@ class HomeRepository @Inject constructor(
                 homeAnchor = homeAnchor,
             )
         }
+        val nowAndRebuildFlow = combine(
+            nowFlow,
+            homeSnapshotRepository.rebuildInFlight,
+        ) { now, rebuildInFlight -> now to rebuildInFlight }
+        // A rebuild clears the stored snapshot for a fraction of a second
+        // (about 200 ms on a release build). Through that gap the PK fields
+        // come from the last usable snapshot, so the curve, band and hero
+        // pill neither flash to the population fallback nor blink through a
+        // skeleton; the rebuilt snapshot then replaces them. One per
+        // collection, like the flow itself.
+        var lastPkSnapshot: HomeSnapshotRecord? = null
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
             stockAndAnchorInputsFlow,
-            nowFlow,
-        ) { inputs, snapshot, option, stockAndAnchorInputs, now ->
+            nowAndRebuildFlow,
+        ) { inputs, snapshot, option, stockAndAnchorInputs, (now, rebuildInFlight) ->
             suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
@@ -220,16 +236,18 @@ class HomeRepository @Inject constructor(
                         horizon = pkHorizon,
                         zoneId = zoneId,
                     )
-                    val pkProjectionRecord = snapshot
-                        ?.takeIf {
-                            homeSnapshotRepository.isSnapshotUsable(
-                                snapshot = it,
-                                now = now,
-                                zoneId = zoneId,
-                                option = option,
-                            )
-                        }
-                        ?.pkProjection
+                    val usableSnapshot = snapshot?.takeIf {
+                        homeSnapshotRepository.isSnapshotUsable(
+                            snapshot = it,
+                            now = now,
+                            zoneId = zoneId,
+                            option = option,
+                        )
+                    }
+                    if (usableSnapshot != null) lastPkSnapshot = usableSnapshot
+                    val pkSnapshot = usableSnapshot
+                        ?: lastPkSnapshot?.takeIf { rebuildInFlight }
+                    val pkProjectionRecord = pkSnapshot?.pkProjection
                     val stockWarnings = medicineStockRepository.projectAll(
                         medicines = stockAndAnchorInputs.trackedMedicines,
                         activeGroups = inputs.activeGroups,
@@ -261,6 +279,10 @@ class HomeRepository @Inject constructor(
                             ?: inputs.latestEstradiolEntry,
                         estradiolPkEntries = simulationEntries.real,
                         estradiolPkPlannedEntries = simulationEntries.planned,
+                        pkPersonalParams = pkSnapshot?.pkPersonalParams()
+                            ?: PkPersonalParams.population(),
+                        pkBandKnots = pkSnapshot?.pkBandKnots().orEmpty(),
+                        pkCalibration = pkSnapshot?.pkCalibration,
                         stockWarnings = stockWarnings,
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
@@ -587,6 +609,12 @@ data class HomeInputs(
     val latestEstradiolEntry: MedicationLogEntry?,
     val estradiolPkEntries: List<MedicationLogEntry>,
     val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
+    /** Calibration the cached projection used; local re-simulation must use the same. */
+    val pkPersonalParams: PkPersonalParams = PkPersonalParams.population(),
+    /** Band over the cached projection; valid exactly as long as the projection is. */
+    val pkBandKnots: List<PkPredictiveBandKnot> = emptyList(),
+    /** Calibration hero/status summary from the snapshot; null when no calibration ran. */
+    val pkCalibration: HomePkCalibrationRecord? = null,
     val stockWarnings: List<MedicineStockProjection> = emptyList(),
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,

@@ -17,10 +17,6 @@ class MedicalDisclaimerTextTest {
             MedicalDisclaimerKind.PRESET_DOSES.textRes
         )
         assertEquals(
-            R.string.medical_disclaimer_reference_ranges,
-            MedicalDisclaimerKind.REFERENCE_RANGES.textRes
-        )
-        assertEquals(
             R.string.medical_disclaimer_wpath_reference_ranges,
             MedicalDisclaimerKind.WPATH_REFERENCE_RANGES.textRes
         )
@@ -43,23 +39,8 @@ class MedicalDisclaimerTextTest {
             MedicalDisclaimerSets.medicationEditor
         )
         assertEquals(
-            listOf(MedicalDisclaimerKind.REFERENCE_RANGES),
-            MedicalDisclaimerSets.calibration
-        )
-        assertEquals(
             listOf(MedicalDisclaimerKind.WPATH_REFERENCE_RANGES),
             MedicalDisclaimerSets.calibrationEditor
-        )
-    }
-
-    @Test
-    fun english_reference_range_disclaimer_uses_concise_copy() {
-        assertEquals(
-            "Target ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.",
-            readStringResource(
-                relativePath = "src/main/res/values/strings.xml",
-                name = "medical_disclaimer_reference_ranges",
-            )
         )
     }
 

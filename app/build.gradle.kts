@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.google.ksp)
+    alias(libs.plugins.androidx.room)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.compose)
 }
@@ -61,7 +62,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = gitCommitCount
-        versionName = "1.3.3"
+        versionName = "1.4.0-pre"
 
         buildConfigField(
             "String",
@@ -173,6 +174,14 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
     }
+
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 
@@ -228,6 +237,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.hilt.android)
+    implementation(libs.hipparchus.core)
     implementation(libs.moshi)
     implementation(libs.sqlcipher.android)
     implementation(libs.argon2kt)
@@ -257,6 +267,13 @@ dependencies {
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.room.testing)
+    // room-migration's schema serializers need kotlinx-serialization 1.8+; AGP pins the
+    // androidTest classpath to the app's (1.7.3 via lifecycle), which breaks every
+    // MigrationTestHelper.createDatabase with AbstractMethodError. Raise it app-side.
+    constraints {
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
+    }
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)

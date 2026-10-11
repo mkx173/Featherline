@@ -305,7 +305,8 @@ object PkMedicationSimulation {
     private const val MainChartWindowHours = MainChartWindowDays * 24
     private const val MainChartFallbackSteps = MainChartWindowHours + 1
     private const val MainChartDenseSampleIntervalHours = 0.1
-    private const val DefaultBodyWeightKg = 70.0
+    /** App-wide fallback when Current Weight is unset; calibration uses it too. */
+    const val DefaultBodyWeightKg = 70.0
     private const val ChartXPrecisionScale = 10_000.0
 
     internal const val hoursPerDay = HoursPerDay
@@ -321,6 +322,7 @@ object PkMedicationSimulation {
         zoneId: ZoneId = ZoneId.systemDefault(),
         plannedEntries: List<MedicationLogEntry> = emptyList(),
         option: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+        personalParams: PkPersonalParams = PkPersonalParams.population(),
     ): PkTrendResult? {
         val resolvedBodyWeightKg =
             bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
@@ -333,7 +335,7 @@ object PkMedicationSimulation {
             .toInstant()
         val predictionStartTimeH = Duration.between(startInstant, nowInstant)
             .toMillis() / 3_600_000.0
-        val events = buildEstradiolEvents(
+        val events = buildEstradiolPkDoseEvents(
             anchor = startInstant,
             realEntries = entries,
             plannedEntries = plannedEntries,
@@ -355,6 +357,7 @@ object PkMedicationSimulation {
             startTimeH = 0.0,
             endTimeH = windowEndHours,
             numberOfSteps = (option.chartWindowHours.toInt() + 1).coerceAtLeast(2),
+            personalParams = personalParams,
         ).run(sampleTimeH = chartSampleTimeH)
 
         val dailyConcentrations = (0..option.chartWindowDays.toInt()).map { index ->
@@ -397,6 +400,7 @@ object PkMedicationSimulation {
         plannedEntries: List<MedicationLogEntry> = emptyList(),
         option: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         futureDays: Long = option.projectionFutureDays(),
+        personalParams: PkPersonalParams = PkPersonalParams.population(),
     ): PkProjectionResult {
         val resolvedBodyWeightKg =
             bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
@@ -417,7 +421,7 @@ object PkMedicationSimulation {
             .toMillis() / 3_600_000.0
         val generatedAtTimeH = Duration.between(windowStart, generatedAtInstant)
             .toMillis() / 3_600_000.0
-        val events = buildEstradiolEvents(
+        val events = buildEstradiolPkDoseEvents(
             anchor = windowStart,
             realEntries = entries,
             plannedEntries = plannedEntries,
@@ -435,6 +439,7 @@ object PkMedicationSimulation {
             startTimeH = 0.0,
             endTimeH = windowHours,
             numberOfSteps = ceil(windowHours).toInt().coerceAtLeast(1) + 1,
+            personalParams = personalParams,
         ).run(sampleTimeH = sampleTimeH)
         val doseMarkers = buildDoseMarkers(
             events = events,
@@ -455,23 +460,6 @@ object PkMedicationSimulation {
 
     private fun Double.toChartXHour(): Double {
         return (this * ChartXPrecisionScale).roundToLong() / ChartXPrecisionScale
-    }
-
-    private fun buildEstradiolEvents(
-        anchor: Instant,
-        realEntries: List<MedicationLogEntry>,
-        plannedEntries: List<MedicationLogEntry>,
-    ): List<PkDoseEvent> {
-        val realEvents = realEntries.asSequence()
-            .mapNotNull { entry ->
-                entry.toEstradiolPkDoseEvent(
-                    anchor = anchor,
-                    isPlanned = false
-                )
-            }
-        val plannedEvents = plannedEntries.asSequence()
-            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = anchor, isPlanned = true) }
-        return (realEvents + plannedEvents).toList()
     }
 
     // Groups dose-marker-candidate events by their chart-rounded time. A marker
@@ -637,12 +625,13 @@ class PkSimulationEngine(
     private val startTimeH: Double,
     private val endTimeH: Double,
     private val numberOfSteps: Int,
+    private val personalParams: PkPersonalParams = PkPersonalParams.population(),
 ) {
     private val sortedEvents = events.sortedBy(PkDoseEvent::timeH)
     private val eventModels = sortedEvents
         .asSequence()
         .filter { event -> event.hormone == hormone && event.route != PkRoute.PATCH_REMOVE }
-        .map { event -> PrecomputedPkEventModel(event, sortedEvents) }
+        .map { event -> PkForwardEventModel(event, sortedEvents) }
         .toList()
     private val metadata = PkSimulationMetadata(
         hormone = hormone,
@@ -677,7 +666,24 @@ class PkSimulationEngine(
         var auc = 0.0
 
         sampleTimes.forEachIndexed { index, t ->
-            val totalAmountMg = eventModels.sumOf { model -> model.amountAt(t) }
+            var totalAmountMg = 0.0
+            if (personalParams.routeLogScale.isEmpty() || hormone != PkHormone.ESTRADIOL) {
+                // Keep the population path byte-for-byte equivalent to the pre-calibration loop.
+                for (model in eventModels) {
+                    totalAmountMg += model.amountAt(t)
+                }
+            } else {
+                for (model in eventModels) {
+                    val amountMg = model.amountAt(t)
+                    val route = model.event.calibrationRoute()
+                    val beta = route?.let(personalParams.routeLogScale::get)
+                    totalAmountMg += if (route == null || beta == null) {
+                        amountMg
+                    } else {
+                        amountMg * personalParams.scaleFor(route)
+                    }
+                }
+            }
             val concentration = totalAmountMg * concentrationScale
 
             time += t
@@ -703,8 +709,8 @@ class PkSimulationEngine(
     }
 }
 
-private class PrecomputedPkEventModel(
-    event: PkDoseEvent,
+internal class PkForwardEventModel(
+    val event: PkDoseEvent,
     allEvents: List<PkDoseEvent>,
 ) {
     private val startTime = event.timeH
@@ -1051,7 +1057,9 @@ object ThreeCompartmentModel {
         val term1 = exp(-k1 * tau) / (k1k2 * k1k3)
         val term2 = exp(-k2 * tau) / (-k1k2 * k2k3)
         val term3 = exp(-k3 * tau) / (k1k3 * k2k3)
-        return doseMg * bioavailability * k1 * k2 * (term1 + term2 + term3)
+        // The partial fractions cancel exactly at tau = 0 but round to ~-1e-17;
+        // an absorbed amount is never negative.
+        return (doseMg * bioavailability * k1 * k2 * (term1 + term2 + term3)).coerceAtLeast(0.0)
     }
 
     private fun analyticThreeCompartmentRepeatedRates(
@@ -1166,7 +1174,30 @@ private fun pkDoseAmounts(
     )
 }
 
-private fun MedicationLogEntry.toEstradiolPkDoseEvent(
+/** Shared medication-entry conversion used by population and calibration paths. */
+internal fun buildEstradiolPkDoseEvents(
+    anchor: Instant,
+    realEntries: List<MedicationLogEntry>,
+    plannedEntries: List<MedicationLogEntry>,
+): List<PkDoseEvent> {
+    val realEvents = realEntries.asSequence()
+        .mapNotNull { entry ->
+            entry.buildEstradiolPkDoseEvent(
+                anchor = anchor,
+                isPlanned = false,
+            )
+        }
+    val plannedEvents = plannedEntries.asSequence()
+        .mapNotNull { entry ->
+            entry.buildEstradiolPkDoseEvent(
+                anchor = anchor,
+                isPlanned = true,
+            )
+        }
+    return (realEvents + plannedEvents).toList()
+}
+
+internal fun MedicationLogEntry.buildEstradiolPkDoseEvent(
     anchor: Instant,
     isPlanned: Boolean = false,
 ): PkDoseEvent? {

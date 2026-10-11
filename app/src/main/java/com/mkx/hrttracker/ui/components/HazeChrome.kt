@@ -38,6 +38,12 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.ViewCompat
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -458,6 +464,13 @@ fun HazeModalBottomSheet(
     // covering the appear/disappear frames where the window doesn't yet (or no
     // longer) blocks chrome taps itself.
     NavigationLockEffect(active = true)
+    // Raw status-bar height from the host window, read before Material3's
+    // per-offset inset consumption inside the sheet can shrink it.
+    val hostView = LocalView.current
+    val statusBarTop = remember(hostView) {
+        ViewCompat.getRootWindowInsets(hostView)
+            ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+    }
     MaterialModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -469,9 +482,32 @@ fun HazeModalBottomSheet(
         HazeBottomSheetSurface(
             sheetState = sheetState,
             onDismissRequest = onDismissRequest,
+            statusBarTop = statusBarTop,
             dragHandle = dragHandle,
             content = content,
         )
+    }
+}
+
+/**
+ * Status-bar padding that does not depend on the sheet's drag offset.
+ *
+ * Material3 consumes the top inset by the sheet's current offset, so a
+ * content-sized sheet that reaches the top of the screen loses status-bar
+ * padding as it is dragged, shrinks, and has its expanded anchor recomputed
+ * under the finger (it snaps back up). Instead: content that would reach the
+ * top makes the sheet exactly full height with a fixed status-bar pad; shorter
+ * content is left content-sized with no top pad, which is what the consumed
+ * inset would have produced anyway.
+ */
+private fun Modifier.stableStatusBarPadding(statusBarTop: Int): Modifier = layout { measurable, constraints ->
+    val maxHeight = constraints.maxHeight
+    val placeable = measurable.measure(
+        constraints.copy(minHeight = 0, maxHeight = (maxHeight - statusBarTop).coerceAtLeast(0)),
+    )
+    val reachesTop = placeable.height + statusBarTop >= maxHeight
+    layout(placeable.width, if (reachesTop) maxHeight else placeable.height) {
+        placeable.place(0, if (reachesTop) statusBarTop else 0)
     }
 }
 
@@ -479,6 +515,7 @@ fun HazeModalBottomSheet(
 private fun HazeBottomSheetSurface(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
+    statusBarTop: Int,
     modifier: Modifier = Modifier,
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.modalWindowInsets },
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
@@ -490,7 +527,10 @@ private fun HazeBottomSheetSurface(
                 .fillMaxWidth()
                 .hazeBottomSheet()
                 .background(hazeBottomSheetContainerColor())
-                .windowInsetsPadding(contentWindowInsets()),
+                .windowInsetsPadding(
+                    contentWindowInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+                )
+                .stableStatusBarPadding(statusBarTop),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (dragHandle != null) {

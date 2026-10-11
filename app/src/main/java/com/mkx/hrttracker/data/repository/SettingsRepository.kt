@@ -81,6 +81,7 @@ class SettingsRepository internal constructor(
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+    private val pkCalibrationIntroSeenKey = booleanPreferencesKey("pk_calibration_intro_seen")
     private val homeLowStockSectionExpandedKey =
         booleanPreferencesKey("home_low_stock_section_expanded")
     private val homeLowStockAcknowledgedWarningStatesKey =
@@ -117,6 +118,11 @@ class SettingsRepository internal constructor(
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
+        .distinctUntilChanged()
+
+    /** Whether the lab-adjustment intro sheet has been shown on the calibration screen. */
+    val pkCalibrationIntroSeen: Flow<Boolean> = storedPreferences
+        .map { it[pkCalibrationIntroSeenKey] ?: false }
         .distinctUntilChanged()
 
     val homeLowStockSectionExpandedFlow: Flow<Boolean> = storedPreferences
@@ -422,6 +428,12 @@ class SettingsRepository internal constructor(
         }
     }
 
+    suspend fun setPkCalibrationIntroSeen(seen: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[pkCalibrationIntroSeenKey] = seen
+        }
+    }
+
     suspend fun acknowledgeTimeZone(zoneId: String) {
         activeDataStore().edit { preferences ->
             preferences[lastSeenTimeZoneIdKey] = zoneId
@@ -452,6 +464,7 @@ class SettingsRepository internal constructor(
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
         medicationDayStartMinutes: Int = 0,
+        pkCalibrationIntroSeen: Boolean = false,
     ) {
         require(medicationDayStartMinutes in 0..1439)
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
@@ -470,6 +483,7 @@ class SettingsRepository internal constructor(
             preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
             preferences[hideScreenContentKey] = hideScreenContentEnabled
             preferences[onboardingCompletedKey] = onboardingCompleted
+            preferences[pkCalibrationIntroSeenKey] = pkCalibrationIntroSeen
 
             calibrationDefaultUnitKeys.values.forEach(preferences::remove)
             calibrationDefaultUnits.forEach { choice ->

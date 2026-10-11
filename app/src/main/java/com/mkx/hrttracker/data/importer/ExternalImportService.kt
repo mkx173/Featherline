@@ -287,10 +287,10 @@ class ExternalImportService @Inject constructor(
         // and leaves child results untouched.
         plan.panelsToUpsert.forEach { panel -> bloodTestDao.upsertPanel(panel) }
         if (plan.resultsToUpsert.isNotEmpty()) {
-            // REPLACE on the unique (panelUuid, analyte) index evicts an imported
-            // result this overwrites; a row moved across panels keeps its uuid so
-            // the same DB row relocates instead of duplicating.
-            bloodTestDao.insertResults(plan.resultsToUpsert)
+            // A row moved across panels keeps its UUID so the same DB row relocates
+            // instead of duplicating. The DAO parks conflicting unique keys and
+            // updates that row in place rather than delete/reinsert via REPLACE.
+            bloodTestDao.upsertResultsInPlace(plan.resultsToUpsert)
         }
         bloodTestDao.deleteEmptyImportedPanels()
 
@@ -347,7 +347,7 @@ class ExternalImportService @Inject constructor(
         // panel entities (panelStateFor) and result lists, so the upsert sets can
         // drop rows identical to what is already persisted. Without this, a
         // re-import of an unchanged export bumps every visited panel's updatedAt
-        // and REPLACE-rewrites byte-identical results, dirtying the DB and firing
+        // and rewrites byte-identical results in place, dirtying the DB and firing
         // spurious home/widget recomputes despite "nothing changed".
         val originalPanelsByUuid = panelStatesByUuid.mapValues { (_, state) -> state.panel }
         val originalResultsByUuid = buildMap {

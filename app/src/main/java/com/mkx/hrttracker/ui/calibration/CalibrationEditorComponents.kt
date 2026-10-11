@@ -167,7 +167,8 @@ internal fun CalibrationElapsedEstradiolDosePill(
             R.string.settings_calibration_last_e2_elapsed,
             calibrationElapsedDurationLabel(elapsedMillis)
         ),
-        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = modifier,
         size = HrtPillSize.Medium,
         icon = {

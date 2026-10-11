@@ -100,6 +100,30 @@ class MainContentSkeletonTest {
     }
 
     @Test
+    fun calibrationOverlayIsAbsentFromPopulationHome() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val populationPillLabel =
+            context.getString(R.string.calibration_pk_hero_population)
+
+        composeRule.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                MainContent(
+                    uiState = buildMainContentPreviewUiState().copy(
+                        pkCalibration = null,
+                        e2TrendReady = true,
+                    ),
+                    scrollState = rememberScrollState(),
+                    onQuickLogDoseClick = { },
+                    onEntryClick = { },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(populationPillLabel, useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
     fun manualTodayRowUsesIconIndicatorInsteadOfTextLabel() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val manualLabel = context.getString(R.string.plan_entry_label_manual)
@@ -174,4 +198,5 @@ class MainContentSkeletonTest {
             assertTrue(openedTimeline)
         }
     }
+
 }

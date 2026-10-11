@@ -41,6 +41,7 @@ class BloodTestRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val dao: BloodTestDao = mockk(relaxed = true)
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
 
     private lateinit var repository: BloodTestRepository
 
@@ -49,8 +50,15 @@ class BloodTestRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.bloodTestDao() } returns dao
         coEvery { dao.getPanel(any()) } returns null
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) } coAnswers {
+            firstArg<suspend () -> Any?>().invoke()
+        }
 
-        repository = BloodTestRepository(databaseHolder, medicationLogRepository)
+        repository = BloodTestRepository(
+            databaseHolder,
+            medicationLogRepository,
+            homeSnapshotRepository,
+        )
     }
 
     @Test
@@ -117,6 +125,7 @@ class BloodTestRepositoryTest {
         assertEquals("e2", second.builtinAnalyteKey)
         assertEquals("pmol_l", second.unitSnapshot)
         assertEquals(100.0, second.canonicalValue, 1e-6)
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<UUID>(any()) }
     }
 
     @Test
@@ -198,6 +207,7 @@ class BloodTestRepositoryTest {
             dao.deleteAllResults()
             dao.deleteAllPanels()
         }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test(expected = IllegalArgumentException::class)

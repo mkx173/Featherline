@@ -19,7 +19,7 @@ class HeroBackgroundBackupRoundTripTest {
 
     @Test
     fun snapshotVersionWasBumpedForTheNewField() {
-        assertEquals(6, CURRENT_BACKUP_SNAPSHOT_VERSION)
+        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
