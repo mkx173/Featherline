@@ -206,7 +206,11 @@ class HomeRepository @Inject constructor(
         val nowAndRebuildFlow = combine(
             nowFlow,
             homeSnapshotRepository.rebuildInFlight,
-        ) { now, rebuildInFlight -> now to rebuildInFlight }
+            homeSnapshotRepository.forcedRebuildInFlight,
+            homeSnapshotRepository.lastWrite,
+        ) { now, rebuildInFlight, forcedRebuildInFlight, lastWrite ->
+            HomeRebuildSignals(now, rebuildInFlight, forcedRebuildInFlight, lastWrite)
+        }
         // A rebuild clears the stored snapshot for a fraction of a second
         // (about 200 ms on a release build). Through that gap the PK fields
         // come from the last usable snapshot, so the curve, band and hero
@@ -220,11 +224,22 @@ class HomeRepository @Inject constructor(
             settingsRepository.homeE2ChartWindowOptionFlow,
             stockAndAnchorInputsFlow,
             nowAndRebuildFlow,
-        ) { inputs, snapshot, option, stockAndAnchorInputs, (now, rebuildInFlight) ->
+        ) { inputs, snapshot, option, stockAndAnchorInputs, signals ->
             suppressInconsistentHomeEmission("room_inputs") {
                 if (inputs.settings.homeE2ChartWindowOption != option) {
                     null
                 } else {
+                    val now = signals.now
+                    // The counters drop when the build's write returns, which
+                    // can be before this combine has the written record: the
+                    // rebuild has not landed here until the observed snapshot
+                    // is that write. A clear nulls the write, so a failed
+                    // rebuild releases to the fallback instead of waiting.
+                    val lastWrite = signals.lastWrite
+                    val writePending = lastWrite != null && !lastWrite.matches(snapshot)
+                    val rebuildInFlight = signals.rebuildInFlight || writePending
+                    val forcedRebuildInFlight =
+                        signals.forcedRebuildInFlight || (writePending && lastWrite.forced)
                     val nowInstant = now.atZone(zoneId).toInstant()
                     val pkHorizon = date
                         .plusDays(option.projectionFutureDays())
@@ -287,6 +302,7 @@ class HomeRepository @Inject constructor(
                         homeAnchor = stockAndAnchorInputs.homeAnchor,
                         source = HomeInputSource.ROOM,
                         now = now,
+                        isRebuilding = forcedRebuildInFlight,
                     )
                 }
             }
@@ -519,6 +535,19 @@ class HomeRepository @Inject constructor(
             .flowOn(Dispatchers.IO)
     }
 
+    /**
+     * A data change like any other: counted as a rebuild from before the
+     * write, so Home holds its chart instead of drawing the population
+     * fallback, and the mutation's rebuild reads the new option. This is the
+     * only in-app writer of the option; restore writes it inside its own
+     * mutation.
+     */
+    suspend fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
+        homeSnapshotRepository.runHomeDataMutation {
+            settingsRepository.setHomeE2ChartWindowOption(option)
+        }
+    }
+
     fun refreshHomeSnapshotAsync(
         now: LocalDateTime,
         force: Boolean = false,
@@ -591,6 +620,13 @@ data class HomeStartupInputs(
     val latestEstradiolEntry: MedicationLogEntry?,
 )
 
+private data class HomeRebuildSignals(
+    val now: LocalDateTime,
+    val rebuildInFlight: Boolean,
+    val forcedRebuildInFlight: Boolean,
+    val lastWrite: HomeSnapshotWrite?,
+)
+
 data class HomeInputs(
     val activeGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup>,
     val archivedGroups: List<com.mkx.hrttracker.model.medication.MedicationGroup> = emptyList(),
@@ -619,6 +655,8 @@ data class HomeInputs(
     val homeAnchor: TrackedDate? = null,
     val source: HomeInputSource,
     val now: LocalDateTime,
+    /** A data change's rebuild is in flight; Home holds its E2 hero and chart until it lands. */
+    val isRebuilding: Boolean = false,
 )
 
 enum class HomeInputSource {

@@ -66,7 +66,6 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
                 ) {
                     Text(
                         text = label,
-                        modifier = Modifier.cjkTextOffset(label),
                     )
                 }
             }
@@ -106,7 +105,6 @@ internal fun HrtSnackbar(snackbarData: SnackbarData) {
             )
             Text(
                 text = message,
-                modifier = Modifier.cjkTextOffset(message),
             )
         }
     }

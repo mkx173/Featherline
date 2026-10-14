@@ -154,15 +154,6 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `cjk text offset setting persists and defaults off`() = runTest(testDispatcher) {
-        assertEquals(false, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
-
-        settingsRepository.setCjkTextOffsetEnabled(true)
-
-        assertEquals(true, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
-    }
-
-    @Test
     fun `haze blur setting persists and defaults on`() = runTest(testDispatcher) {
         assertEquals(true, settingsRepository.getCurrentSettings().hazeBlurEnabled)
 
@@ -171,13 +162,6 @@ class SettingsRepositoryTest {
 
         settingsRepository.setHazeBlurEnabled(true)
         assertEquals(true, settingsRepository.getCurrentSettings().hazeBlurEnabled)
-    }
-
-    @Test
-    fun `restoreSettings restores cjk text offset setting`() = runTest(testDispatcher) {
-        restoreSettingsWithCjkTextOffsetEnabled(true)
-
-        assertEquals(true, settingsRepository.getCurrentSettings().cjkTextOffsetEnabled)
     }
 
     @Test
@@ -573,28 +557,6 @@ class SettingsRepositoryTest {
             homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
             stockNudgeEnabled = enabled,
             stockNudgeUserEnabled = userEnabled,
-        )
-    }
-
-    private suspend fun restoreSettingsWithCjkTextOffsetEnabled(enabled: Boolean) {
-        settingsRepository.restoreSettings(
-            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
-            adaptiveColorEnabled = true,
-            pureBlackEnabled = false,
-            cjkTextOffsetEnabled = enabled,
-            remindersEnabled = true,
-            showArchivedGroupRecords = true,
-            hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
-            onboardingCompleted = true,
-            appLanguageOption = AppLanguageOption.ENGLISH,
-            calibrationDefaultUnits = emptySet(),
-            homeE2DisplayUnit = AllowedAnalyteUnit.of(
-                BloodAnalyteKey.E2,
-                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
-            ),
-            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
         )
     }
 

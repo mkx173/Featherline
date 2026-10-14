@@ -76,7 +76,6 @@ import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
@@ -186,12 +185,14 @@ internal fun MedicinesScreen(
     onNewMedicineCreated: (UUID) -> Unit = { },
     stockNudgeEnabled: Boolean = true,
     onSetStockNudgeEnabled: (Boolean) -> Unit = { },
+    draftGroup: DraftGroupReferences? = null,
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
     slotDraftViewModel: MedicineSlotDraftViewModel = hiltViewModel(),
     newMedicineSlotViewModel: NewMedicineSlotViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val savedUiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState = remember(savedUiState, draftGroup) { savedUiState.withDraftGroup(draftGroup) }
     val stockOptInResult by viewModel.stockOptInResult.collectAsStateWithLifecycle()
     val slotDraftUiState by slotDraftViewModel.uiState.collectAsStateWithLifecycle()
     val newMedicineSlotUiState by newMedicineSlotViewModel.uiState.collectAsStateWithLifecycle()
@@ -578,7 +579,6 @@ private fun MedicinesScreenContent(
                     val title = stringResource(titleRes)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {
@@ -844,7 +844,7 @@ private fun MedicinesScreenPreview() {
                         medicines = listOf(
                             MedicineListItem(
                                 medicine = previewMedicine(),
-                                activeGroupReferenceCount = 2,
+                                activeGroupIds = setOf(UUID.randomUUID(), UUID.randomUUID()),
                             ),
                         ),
                     ),
@@ -871,7 +871,7 @@ private fun MedicinesScreenOnboardingPreview() {
                         medicines = listOf(
                             MedicineListItem(
                                 medicine = previewMedicine(),
-                                activeGroupReferenceCount = 2,
+                                activeGroupIds = setOf(UUID.randomUUID(), UUID.randomUUID()),
                             ),
                         ),
                     ),

@@ -113,7 +113,7 @@ internal fun WeeklyScheduleEditor(
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(bottom = 6.dp)
+                modifier = Modifier.padding(bottom = 2.dp)
             ) {
                 val isDaySelectionAtDefault =
                     selectedDaysOfWeek == setOf(sinceDate.dayOfWeek)
@@ -210,7 +210,7 @@ private fun WeeklyTimeCard(
         count = count,
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(bottom = 6.dp),
         ) {
             Text(
                 text = label.uppercase(),

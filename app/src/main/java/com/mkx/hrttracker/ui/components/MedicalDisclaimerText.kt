@@ -48,8 +48,7 @@ fun MedicalDisclaimerText(
             Text(
                 text = disclaimerText,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .cjkTextOffset(disclaimerText),
+                    .fillMaxWidth(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

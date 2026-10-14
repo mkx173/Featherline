@@ -46,6 +46,18 @@ val PkCalibrationGlobalState.statusBodyRes: Int?
             R.string.calibration_pk_global_numeric_failure_body
     }
 
+/**
+ * The routes sheet's empty line: the global state's body when there are no
+ * route rows, the loading line before the first evaluation (null state), and
+ * null when there are rows to list.
+ */
+@StringRes
+fun pkCalibrationRoutesSheetEmptyTextRes(uiState: PkCalibrationUiState?): Int? = when {
+    uiState == null -> R.string.calibration_pk_routes_sheet_loading
+    uiState.routeRows.isNotEmpty() -> null
+    else -> uiState.globalState.statusBodyRes ?: R.string.calibration_pk_routes_sheet_loading
+}
+
 /** Why a population row has no adjustment; adjusted rows show confidence instead. */
 @get:StringRes
 val PkRouteCalibrationDisplayState.tagRes: Int?

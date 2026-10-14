@@ -149,7 +149,6 @@ class MedicinesScreenLayoutTest {
                     medicines = listOf(
                         MedicineListItem(
                             medicine = medicine,
-                            activeGroupReferenceCount = 0,
                             stockProjection = projection,
                         )
                     ),

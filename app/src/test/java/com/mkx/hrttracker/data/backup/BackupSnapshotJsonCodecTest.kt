@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.backup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BackupSnapshotJsonCodecTest {
@@ -296,6 +297,19 @@ class BackupSnapshotJsonCodecTest {
 
         assertEquals(emptyList<BackupTrackedDateSnapshot>(), decoded?.trackedDates)
         assertEquals(emptyList<BackupNoteSnapshot>(), decoded?.notes)
+    }
+
+    // Older backups still carry settings keys that were later dropped from the snapshot (retired
+    // toggles). Decoding must skip them rather than reject the file.
+    @Test
+    fun decodingSettingsWithKeyThisVersionDoesNotDeclare_ignoresIt() {
+        val json = BackupSnapshotJsonCodec.encode(baselineSnapshot())
+            .replace(""""settings":{""", """"settings":{"retiredToggle":true,""")
+        assertTrue(json.contains(""""retiredToggle":true"""))
+
+        val decoded = BackupSnapshotJsonCodec.decode(json)
+
+        assertEquals("FOLLOW_SYSTEM", decoded?.settings?.darkModeOption)
     }
 
     @Test

@@ -1,0 +1,5 @@
+- New estimate calibration: tune the estradiol estimate to your own blood test results, route by route, with a prediction interval on the Home chart
+- Oral, sublingual, patch, gel and injection estimates updated to follow published blood levels
+- New Journal date widget and home-screen shortcuts, plus 100-day milestones
+- More catalog medications, plus Traditional Chinese and Cantonese translations
+- Better Chinese text alignment, smoother refreshes and widget fixes

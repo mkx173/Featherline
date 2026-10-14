@@ -78,7 +78,6 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -187,7 +186,6 @@ private fun CalibrationUnitsScreenContent(
                     val title = stringResource(R.string.settings_calibration_settings)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {
@@ -323,7 +321,6 @@ private fun CalibrationUnitPreferenceItem(
                 optionLabel = { unit -> calibrationUnitLabel(unit) },
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
-                applyCjkTextOffset = false,
             )
         },
     )

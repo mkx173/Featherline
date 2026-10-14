@@ -261,8 +261,7 @@ internal fun MedicationStockSubcard(
                         Text(
                             text = runwayTextString,
                             modifier = Modifier
-                                .weight(1f)
-                                .cjkTextOffset(runwayTextString),
+                                .weight(1f),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.End,
@@ -331,7 +330,6 @@ private fun StockSubcardMetricCell(
     modifier: Modifier = Modifier,
 ) {
     val metricTextStyle = MaterialTheme.typography.labelMedium
-    val appLocale = rememberAppLocale()
 
     Row(
         modifier = modifier.height(IntrinsicSize.Min),
@@ -423,8 +421,7 @@ private fun StockSubcardMetricCell(
                     text = labelText + sealedSuffix,
                     modifier = Modifier
                         .weight(1f)
-                        .alignByBaseline()
-                        .cjkTextOffset(appLocale),
+                        .alignByBaseline(),
                     style = metricTextStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
@@ -486,7 +483,6 @@ private fun RowScope.StockSubcardValueText(
     blinkPreview: Boolean,
     pulseAlpha: Float,
 ) {
-    val appLocale = rememberAppLocale()
     val onSurface = MaterialTheme.colorScheme.onSurface
     val tertiary = MaterialTheme.colorScheme.tertiary
     val error = MaterialTheme.colorScheme.error
@@ -513,8 +509,7 @@ private fun RowScope.StockSubcardValueText(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .alignByBaseline()
-                .cjkTextOffset(appLocale),
+                .alignByBaseline(),
         )
         return
     }
@@ -533,8 +528,7 @@ private fun RowScope.StockSubcardValueText(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .alignByBaseline()
-                .cjkTextOffset(appLocale),
+                .alignByBaseline(),
         )
     }
     Text(
@@ -544,8 +538,7 @@ private fun RowScope.StockSubcardValueText(
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         modifier = Modifier
-            .alignByBaseline()
-            .cjkTextOffset(appLocale),
+            .alignByBaseline(),
     )
     Text(
         text = resolvedStockValueText(
@@ -561,7 +554,6 @@ private fun RowScope.StockSubcardValueText(
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .alignByBaseline()
-            .cjkTextOffset(appLocale)
             .alpha(blinkAlpha),
     )
 }

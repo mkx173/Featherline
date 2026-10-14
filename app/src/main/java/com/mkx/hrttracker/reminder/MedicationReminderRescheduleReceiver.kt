@@ -98,7 +98,8 @@ internal fun handleReminderRescheduleBroadcast(
                 action == Intent.ACTION_BOOT_COMPLETED ||
                 action == Intent.ACTION_MY_PACKAGE_REPLACED
             ) {
-                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+                // Silent: a system event, not a data change, so no updating indicator.
+                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true, silent = true)
             }
             diagnosticsLogger.info(
                 REMINDER_RESCHEDULE_RECEIVER_TAG,

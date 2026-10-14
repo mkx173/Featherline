@@ -51,7 +51,6 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.stockCountPluralQuantity
 import com.mkx.hrttracker.ui.components.stockInventoryUnitRes
@@ -133,11 +132,7 @@ private fun HeaderOverflowMenu(
             IconButton(
                 onClick = { expanded = true },
                 modifier = Modifier
-                    .size(buttonSize)
-                    // Same font-metric issue as cjkTextOffset: the bottom-aligned
-                    // icon sits above the title glyphs. Nudge the icon down
-                    // (title stays constant).
-                    .cjkTextOffset(text = title, amount = 1.dp),
+                    .size(buttonSize),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
@@ -343,8 +338,7 @@ private fun StockRowCard(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .weight(1f)
-                            .alignByBaseline()
-                            .cjkTextOffset(label),
+                            .alignByBaseline(),
                     )
                     val trailingCountText = trailingCount.resolve()
                     Text(
@@ -358,7 +352,6 @@ private fun StockRowCard(
                         ),
                         modifier = Modifier
                             .alignByBaseline()
-                            .cjkTextOffset(trailingCountText)
                     )
                 }
                 if (progress != null) {
@@ -538,14 +531,12 @@ private fun RunwayRowCard(
             ) {
                 Text(
                     text = titleText,
-                    modifier = Modifier.cjkTextOffset(titleText),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (subtitleText != null) {
                     Text(
                         text = subtitleText,
-                        modifier = Modifier.cjkTextOffset(subtitleText),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

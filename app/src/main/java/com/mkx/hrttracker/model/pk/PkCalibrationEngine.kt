@@ -11,8 +11,9 @@ class PkCalibrationEvaluation internal constructor(
     fun renderFor(
         domain: PkChartDomain,
         doseEvents: List<PkDoseEvent> = evidence?.input?.doseEvents.orEmpty(),
+        statusRange: LongRange = domain.rangeStartEpochMillis..domain.rangeEndEpochMillis,
     ): PkCalibrationRenderResult? {
-        return PkCalibrationRenderer.render(this, domain, doseEvents)
+        return PkCalibrationRenderer.render(this, domain, doseEvents, statusRange)
     }
 }
 

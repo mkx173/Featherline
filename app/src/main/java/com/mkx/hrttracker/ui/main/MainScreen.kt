@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.ui.calibration.PkCalibrationRoutesSheet
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.ReportDrawnWhen
@@ -37,19 +38,22 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
+import com.mkx.hrttracker.ui.calibration.smallShareRoutes
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeCenterAlignedTopAppBar
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
+import com.mkx.hrttracker.ui.components.TopUpdatingIndicator
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -133,9 +137,15 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val highlightRequest by viewModel.highlightRequest.collectAsStateWithLifecycle()
+    LifecycleStartEffect(viewModel) {
+        viewModel.setScreenVisible(true)
+        onStopOrDispose { viewModel.setScreenVisible(false) }
+    }
     val scrollState = rememberScrollState()
     var highlightFlashReady by remember { mutableStateOf(false) }
     var showCardLayoutDialog by remember { mutableStateOf(false) }
+    val pkCalibrationSheetState by viewModel.pkCalibrationSheetState.collectAsStateWithLifecycle()
+    var showCalibrationRoutesSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(highlightRequest, highlightEffectsEnabled) {
         val activeRequest = highlightRequest
@@ -200,7 +210,6 @@ fun MainScreen(
                     val title = stringResource(R.string.tab_main)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 actions = {
@@ -236,9 +245,11 @@ fun MainScreen(
                 onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 onLowStockSectionExpandedChange = viewModel::setLowStockSectionExpanded,
                 onOpenTimeline = onOpenTimeline,
+                onCalibrationClick = { showCalibrationRoutesSheet = true },
                 claimE2ChartIntroAnimation = viewModel::claimHomeE2ChartIntroAnimation,
                 modifier = Modifier.fillMaxSize(),
             )
+            TopUpdatingIndicator(isUpdating = uiState.isUpdating, innerPadding = innerPadding)
         }
     }
 
@@ -250,6 +261,22 @@ fun MainScreen(
                 showCardLayoutDialog = false
             },
             onDismiss = { showCardLayoutDialog = false },
+        )
+    }
+    // The hero icon's sheet is the calibration page's routes sheet over the
+    // live evaluation, titled for the estimate and carrying its disclaimer;
+    // null (before the first evaluation) is its loading state. The "small
+    // share" rows come from the hero's own snapshot, not the live render: the
+    // two are judged over different ranges and the sheet explains the icon.
+    if (showCalibrationRoutesSheet) {
+        val home = uiState.pkCalibration
+        PkCalibrationRoutesSheet(
+            uiState = pkCalibrationSheetState,
+            onDismissRequest = { showCalibrationRoutesSheet = false },
+            title = stringResource(R.string.main_e2_estimate_sheet_title),
+            disclaimerKinds = listOf(MedicalDisclaimerKind.PLASMA_CONCENTRATION_ESTIMATES),
+            smallShareRoutes = home?.smallShareRoutes(pkCalibrationSheetState)
+                ?: pkCalibrationSheetState?.smallShareRoutes.orEmpty(),
         )
     }
 }
@@ -343,7 +370,6 @@ internal fun HomeMoreOptionsMenu(
                     text = {
                         Text(
                             text = selectUnitText,
-                            modifier = Modifier.cjkTextOffset(selectUnitText)
                         )
                     },
                     shape = MaterialTheme.shapes.medium,
@@ -365,7 +391,6 @@ internal fun HomeMoreOptionsMenu(
                     text = {
                         Text(
                             text = customizeCardsText,
-                            modifier = Modifier.cjkTextOffset(customizeCardsText),
                         )
                     },
                     shape = MaterialTheme.shapes.medium,

@@ -33,8 +33,8 @@ object PkCalibrationDefaults {
 
     /**
      * A lab supports route r when its population share d_ir/D_i is at least
-     * this value. Support only feeds warnings; every route a lab
-     * touches is fitted and shown.
+     * this value. Only routes with a supporting lab are fitted and applied;
+     * the rest stay at population.
      */
     const val PROMOTION_SUPPORT_SHARE_MIN = 0.2
 
@@ -52,7 +52,15 @@ object PkCalibrationDefaults {
         ROBUST_RMSE_GATE_FACTOR * sqrt(rLog)
 
     const val GLOBAL_SEARCH_NUMERIC_GUARD_ABS_BETA = 20.0
-    const val GRID_STEP_LOG = 1e-3
+
+    /**
+     * 1-D stationary-point scan step in log scale. The scan only brackets
+     * sign changes of the restricted gradient (bisection refines each to
+     * 1e-12), and the Student-t features it must resolve are at least
+     * sqrt(R_LOG) ~ 0.15 wide, so 0.01 loses nothing. At 1e-3 the scan was
+     * the whole solve: 5 s for 20 labs on five routes on a Galaxy S20.
+     */
+    const val GRID_STEP_LOG = 1e-2
     const val GRID_MIN_NODES = 16
     const val STATIONARY_ROOT_BETA_ABS_TOL = 1e-12
     const val STATIONARY_ROOT_MAX_EVAL = 200

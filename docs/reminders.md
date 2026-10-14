@@ -390,9 +390,11 @@ fold every "the world changed" event into a single re-derivation:
   timestamp is simpler than tracking which alarms moved. The receiver
   also refreshes `AppTimeSource` synchronously so foreground Home UI and
   timezone notices observe the new minute/zone without a lifecycle round
-  trip, and forces a
-  `HomeSnapshotRepository.refreshHomeSnapshotAsync` because the snapshot
-  caches a `zoneId` at write time and would otherwise stay stale on disk.
+  trip, and forces a silent
+  `HomeSnapshotRepository.refreshHomeSnapshotAsync(force = true, silent = true)`
+  because the snapshot caches a `zoneId` at write time and would
+  otherwise stay stale on disk. Silent: it is a system event, not a data
+  change, so Home shows no updating indicator while it lands.
 - `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` — the user just
   granted or revoked `SCHEDULE_EXACT_ALARM` in system settings. The
   reconciler re-reads `canScheduleExactAlarms()` into the state flow

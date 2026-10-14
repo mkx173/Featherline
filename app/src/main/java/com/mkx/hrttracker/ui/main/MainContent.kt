@@ -41,7 +41,6 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.journal.SimpleHomeCard
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -92,6 +91,7 @@ fun MainContent(
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     onLowStockSectionExpandedChange: (Boolean) -> Unit = { },
     onOpenTimeline: () -> Unit = { },
+    onCalibrationClick: () -> Unit = { },
     claimE2ChartIntroAnimation: () -> Boolean = { false },
     contentPadding: PaddingValues? = null,
 ) {
@@ -174,6 +174,7 @@ fun MainContent(
                     onE2ChartWindowOptionSelected = onE2ChartWindowOptionSelected,
                     claimE2ChartIntroAnimation = claimE2ChartIntroAnimation,
                     onOpenTimeline = onOpenTimeline,
+                    onCalibrationClick = onCalibrationClick,
                 )
             }
 
@@ -258,6 +259,7 @@ private fun RenderHomeCard(
     onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit,
     claimE2ChartIntroAnimation: () -> Boolean,
     onOpenTimeline: () -> Unit,
+    onCalibrationClick: () -> Unit,
 ) {
     when (type) {
         HomeCardType.LOW_STOCK -> MainLowStockSection(
@@ -274,6 +276,7 @@ private fun RenderHomeCard(
             trendReady = uiState.e2TrendReady,
             hideReferenceRanges = uiState.hideReferenceRanges,
             pkCalibration = uiState.pkCalibration,
+            onCalibrationClick = onCalibrationClick,
         )
 
         HomeCardType.E2_CHART -> MainE2ChartCard(
@@ -355,7 +358,6 @@ private fun MainTimeZoneChangeNoticeBanner(
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .weight(1f)
-                    .cjkTextOffset(timeZoneChangeNoticeText)
             )
             CompositionLocalProvider(
                 LocalMinimumInteractiveComponentSize provides Dp.Unspecified,

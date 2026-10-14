@@ -329,7 +329,7 @@ internal fun ActualAmountRulerCard(
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 2.dp)
             ) {
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                     val sidePadding = (maxWidth - tickSpacing) / 2

@@ -118,7 +118,6 @@ import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
@@ -785,7 +784,6 @@ private fun OnboardingBottomChrome(
             ) {
                 Text(
                     text = secondaryButtonLabel,
-                    modifier = Modifier.cjkTextOffset(secondaryButtonLabel)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -797,7 +795,6 @@ private fun OnboardingBottomChrome(
         ) {
             Text(
                 text = ctaLabel,
-                modifier = Modifier.cjkTextOffset(ctaLabel)
             )
             Spacer(modifier = Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
             Icon(
@@ -1150,8 +1147,7 @@ private fun AcceptanceCheckbox(
             style = MaterialTheme.typography.bodyMedium,
             color = textColor,
             modifier = Modifier
-                .padding(start = 8.dp)
-                .cjkTextOffset(label),
+                .padding(start = 8.dp),
         )
     }
 }
@@ -1282,13 +1278,11 @@ private fun ReminderMasterCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.cjkTextOffset(title)
                 )
                 Text(
                     text = desc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(desc)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1355,7 +1349,6 @@ private fun PermissionCard(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .alignByBaseline()
-                            .cjkTextOffset(title)
                     )
                     if (optional) {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1365,7 +1358,6 @@ private fun PermissionCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .alignByBaseline()
-                                .cjkTextOffset(stringResource(R.string.onboarding_notifications_optional))
                         )
                     }
                 }
@@ -1373,7 +1365,6 @@ private fun PermissionCard(
                     text = desc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(desc)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1550,13 +1541,11 @@ private fun InfoCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.cjkTextOffset(title)
                 )
                 Text(
                     text = desc,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(desc)
                 )
             }
             if (showAction) {

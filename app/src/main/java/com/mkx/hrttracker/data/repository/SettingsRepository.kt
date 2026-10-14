@@ -73,7 +73,6 @@ class SettingsRepository internal constructor(
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val pureBlackKey = booleanPreferencesKey("pure_black")
-    private val cjkTextOffsetKey = booleanPreferencesKey("cjk_text_offset")
     private val hazeBlurKey = booleanPreferencesKey("haze_blur")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
@@ -207,12 +206,6 @@ class SettingsRepository internal constructor(
     suspend fun setPureBlackEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[pureBlackKey] = enabled
-        }
-    }
-
-    suspend fun setCjkTextOffsetEnabled(enabled: Boolean) {
-        activeDataStore().edit { preferences ->
-            preferences[cjkTextOffsetKey] = enabled
         }
     }
 
@@ -444,7 +437,6 @@ class SettingsRepository internal constructor(
         darkModeOption: DarkModeOption,
         adaptiveColorEnabled: Boolean,
         pureBlackEnabled: Boolean,
-        cjkTextOffsetEnabled: Boolean = false,
         hazeBlurEnabled: Boolean = true,
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
@@ -475,7 +467,6 @@ class SettingsRepository internal constructor(
             preferences[darkModeKey] = darkModeOption.name
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[pureBlackKey] = pureBlackEnabled
-            preferences[cjkTextOffsetKey] = cjkTextOffsetEnabled
             preferences[hazeBlurKey] = hazeBlurEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
@@ -550,7 +541,6 @@ class SettingsRepository internal constructor(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
             pureBlackEnabled = preferences[pureBlackKey] ?: false,
-            cjkTextOffsetEnabled = preferences[cjkTextOffsetKey] ?: false,
             hazeBlurEnabled = preferences[hazeBlurKey] ?: true,
             calibrationDefaultUnits = BloodAnalyteKey.entries.mapNotNull { analyteKey ->
                 preferences[calibrationDefaultUnitKeys.getValue(analyteKey)]

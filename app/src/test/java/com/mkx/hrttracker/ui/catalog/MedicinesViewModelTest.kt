@@ -142,6 +142,35 @@ class MedicinesViewModelTest {
         collectJob.cancel()
     }
 
+    // Why this matters: the group-slot picker opens over an unsaved plan. A
+    // slot removed there must stop counting before save, and a slot added to
+    // a never-saved plan must start counting.
+    @Test
+    fun draftGroupReplacesItsSavedVersionInReferenceCount() {
+        val removed = testMedicine(uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000003"))
+        val added = testMedicine(uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000004"))
+        val editedGroupId = UUID.fromString("44444444-0000-0000-0000-000000000000")
+        val otherGroupId = UUID.fromString("55555555-0000-0000-0000-000000000000")
+        val saved = MedicinesUiState(
+            activeSections = listOf(
+                MedicineCategorySection(
+                    category = removed.category,
+                    medicines = listOf(
+                        MedicineListItem(removed, activeGroupIds = setOf(editedGroupId, otherGroupId)),
+                        MedicineListItem(added),
+                    ),
+                ),
+            ),
+        )
+
+        fun counts(draft: DraftGroupReferences) = saved.withDraftGroup(draft)
+            .activeSections.single().medicines.map { it.activeGroupReferenceCount }
+
+        assertEquals(listOf(2, 0), counts(DraftGroupReferences(otherGroupId, setOf(removed.uuid))))
+        assertEquals(listOf(1, 1), counts(DraftGroupReferences(editedGroupId, setOf(added.uuid))))
+        assertEquals(listOf(3, 1), counts(DraftGroupReferences(null, setOf(removed.uuid, added.uuid))))
+    }
+
     // Why this matters: archived groups should not contribute to the
     // reference count — they are "linked active groups" by definition for the
     // archive guard.

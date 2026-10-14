@@ -163,7 +163,6 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -297,8 +296,7 @@ private fun PinnedDatesCardHeader(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(title),
+                .weight(1f),
         )
 
         Icon(
@@ -346,7 +344,6 @@ fun SimpleHomeCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(anchor.name),
                 )
                 val supportingTextLabel = anchorDateLabel(anchor.isFuture, dateFormatter(anchor.date))
                 Text(
@@ -355,7 +352,6 @@ fun SimpleHomeCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(supportingTextLabel),
                     )
             }
             Row(
@@ -367,7 +363,6 @@ fun SimpleHomeCard(
                     text = dayCountLabel,
                     style = MaterialTheme.typography.titleMedium,
                     color = if (anchor.isOnToday()) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(dayCountLabel),
                 )
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
@@ -435,7 +430,6 @@ private fun PinnedDateRow(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(anchor.name),
                 )
                 Text(
                     text = dateLabel,
@@ -443,7 +437,6 @@ private fun PinnedDateRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(dateLabel),
                 )
             }
 
@@ -455,7 +448,6 @@ private fun PinnedDateRow(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.cjkTextOffset(dayCountLabel),
             )
         }
     }
@@ -506,7 +498,6 @@ fun EmptyMilestonesCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.cjkTextOffset(title),
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -514,7 +505,6 @@ fun EmptyMilestonesCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.cjkTextOffset(subtitle),
             )
             Spacer(modifier = Modifier.height(14.dp))
             HrtFilledTonalButton(
@@ -579,14 +569,12 @@ private fun MilestonesEmptyCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.cjkTextOffset(title),
                     fontWeight = FontWeight.Normal
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(subtitle),
                 )
             }
             Icon(
@@ -679,8 +667,7 @@ fun JournalHeroCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
-                                .weight(1f)
-                                .cjkTextOffset(hero.name),
+                                .weight(1f),
                         )
                     }
                     JournalHeroPills(
@@ -777,14 +764,11 @@ private fun CompactHeroDayCount(
         }
     }
 
-    // The unit ("days") is the only part that can be CJK; offsetting the whole line by it shifts
-    // the number and prefix in lockstep. Today is a single span, so offset by it instead.
     Text(
         text = text,
         style = MaterialTheme.typography.titleLarge.copy(
             fontSize = 20.sp
         ),
-        modifier = Modifier.cjkTextOffset(if (parts.isToday) parts.todayText else parts.dayUnit),
     )
 }
 
@@ -1198,7 +1182,6 @@ private fun PinnedCompactLayout(
                     text = baseSummary,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(baseSummary),
                 )
             }
             // The trailing cluster slides in/out with the edit toggle. Two paths, one spec:
@@ -1262,8 +1245,7 @@ private fun SharedTransitionScope.HeroTitle(
             .sharedBounds(
                 rememberSharedContentState(key = HeroTitleSharedKey),
                 animatedVisibilityScope = animatedVisibilityScope,
-            )
-            .cjkTextOffset(name),
+            ),
     )
 }
 
@@ -1528,13 +1510,11 @@ private fun AnchorSummaryText(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Normal,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.cjkTextOffset(anchor.name),
         )
         Text(
             text = dateLabel,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.cjkTextOffset(dateLabel),
         )
     }
 }
@@ -2132,7 +2112,6 @@ internal fun AnchorMilestoneCard(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.cjkTextOffset(dayCountLabelText)
                 )
                 Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
                 FlipSlot(
@@ -2734,7 +2713,7 @@ private fun TodayComposerHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(journalTodayLabel),
+            modifier = Modifier.weight(1f).alignByBaseline(),
         )
         // Trailing date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue").
         val todayLabel = dateFormatter(today)
@@ -2743,7 +2722,7 @@ private fun TodayComposerHeader(
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Normal,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alignByBaseline().cjkTextOffset(todayLabel)
+            modifier = Modifier.alignByBaseline()
         )
     }
 }
@@ -2819,7 +2798,6 @@ private fun TodayComposerPrompt(
             text = journalWriteAboutTodayLabel,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.cjkTextOffset(journalWriteAboutTodayLabel)
         )
     }
 }
@@ -2963,8 +2941,7 @@ private fun NoteTimelineRow(
                 .constrainAs(header) {
                     top.linkTo(parent.top)
                     start.linkTo(contentStart)
-                }
-                .cjkTextOffset(dateLabel),
+                },
         )
         Box(
             modifier = Modifier
@@ -3160,7 +3137,6 @@ fun AllNotesNoteRow(
                         text = dateLabel,
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.cjkTextOffset(dateLabel),
                     )
                 }
             },

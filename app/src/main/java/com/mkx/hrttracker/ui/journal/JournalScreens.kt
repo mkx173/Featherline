@@ -90,7 +90,6 @@ import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.SelectionFabScrollState
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
@@ -187,7 +186,6 @@ fun JournalScreenContent(
                     val title = stringResource(R.string.tab_journal)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
@@ -550,7 +548,6 @@ fun MilestonesScreenContent(
                     val title = stringResource(R.string.journal_since_you_started)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior, listState),
@@ -643,11 +640,7 @@ fun MilestonesScreenContent(
                                         IconButton(
                                             onClick = onOpenHeroBackground,
                                             modifier = Modifier
-                                                .size(iconSize)
-                                                // Same font-metric issue as cjkTextOffset: the
-                                                // bottom-aligned icon sits above the title glyphs.
-                                                // Nudge the icon down (title stays constant).
-                                                .cjkTextOffset(text = pinnedTitle, amount = 2.dp),
+                                                .size(iconSize),
                                         ) {
                                             Icon(
                                                 painter = painterResource(R.drawable.ic_wand_stars),
@@ -957,7 +950,6 @@ fun AllNotesScreenContent(
                             val title = stringResource(R.string.journal_all_notes)
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                         back = {
@@ -968,7 +960,6 @@ fun AllNotesScreenContent(
                             )
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                     )

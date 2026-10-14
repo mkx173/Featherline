@@ -54,7 +54,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
             // surface refreshes that follow.
             runCatching {
                 entryPoint.homeSnapshotRepository()
-                    .refreshHomeSnapshotIfNeeded(force = true)
+                    .refreshHomeSnapshotIfNeeded(force = true, silent = true)
             }.onFailure {
                 if (it is kotlinx.coroutines.CancellationException) throw it
                 diagnosticsLogger.warning(TAG, "home_snapshot_refresh_failed action=$action", it)

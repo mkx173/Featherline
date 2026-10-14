@@ -96,7 +96,6 @@ import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.journal.AddDateSheet
 import com.mkx.hrttracker.ui.journal.AnchorSelectorSheet
 import com.mkx.hrttracker.ui.journal.FlagSwatch
@@ -313,7 +312,6 @@ internal fun WidgetConfigScreen(
                     val title = stringResource(R.string.widget_config_title)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(),
@@ -686,15 +684,11 @@ private fun SliderRow(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f).cjkTextOffset(label),
+                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = readout,
                     style = MaterialTheme.typography.bodyMedium,
-                    // Keyed on the label on purpose: the "NN%" text is always non-CJK, so
-                    // keying on its own text would never offset it — it must follow the
-                    // label's CJK offset to stay baseline-aligned with it.
-                    modifier = Modifier.cjkTextOffset(label)
                 )
             }
             Slider(
@@ -739,7 +733,7 @@ private fun HueSliderRow(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f).cjkTextOffset(label),
+                    modifier = Modifier.weight(1f),
                 )
                 Box(
                     modifier = Modifier

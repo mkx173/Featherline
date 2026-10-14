@@ -187,15 +187,19 @@ data class HomePkBandKnotRecord(
     val p50Pgml: Double,
     val p841344746Pgml: Double,
     val p975Pgml: Double,
+    /** See [PkPredictiveBandKnot.segment]. */
+    val segment: Int,
 )
 
 /** What Home needs to draw the calibration hero and chart notes on first frame. */
 data class HomePkCalibrationRecord(
-    /** Some route shapes the visible curve with a lab adjustment. */
+    /** Some route shapes the estimate in the chart range with a lab adjustment (a band is drawn). */
     val adjusted: Boolean,
     val limitedConfidence: Boolean,
     val renderUnavailable: Boolean,
     val bandUnavailable: Boolean,
+    /** The routes behind [adjusted], by [PkCalibrationRoute.stableId]; the estimate sheet explains the rest. */
+    val effectiveRoutes: List<String>,
 )
 
 fun HomeSnapshotRecord.pkBandKnots(): List<PkPredictiveBandKnot> = pkBandKnots.map { knot ->
@@ -206,6 +210,7 @@ fun HomeSnapshotRecord.pkBandKnots(): List<PkPredictiveBandKnot> = pkBandKnots.m
         p50Pgml = knot.p50Pgml,
         p841344746Pgml = knot.p841344746Pgml,
         p975Pgml = knot.p975Pgml,
+        segment = knot.segment,
     )
 }
 
@@ -345,6 +350,7 @@ internal object HomeSnapshotCodec {
                 writeDouble(knot.p50Pgml)
                 writeDouble(knot.p841344746Pgml)
                 writeDouble(knot.p975Pgml)
+                writeInt(knot.segment)
             }
             stream.writeBoolean(record.pkCalibration != null)
             record.pkCalibration?.let { calibration ->
@@ -352,6 +358,7 @@ internal object HomeSnapshotCodec {
                 stream.writeBoolean(calibration.limitedConfidence)
                 stream.writeBoolean(calibration.renderUnavailable)
                 stream.writeBoolean(calibration.bandUnavailable)
+                stream.writeList(calibration.effectiveRoutes) { route -> writeString(route) }
             }
         }
         return output.toByteArray()
@@ -389,6 +396,7 @@ internal object HomeSnapshotCodec {
                         p50Pgml = readDouble(),
                         p841344746Pgml = readDouble(),
                         p975Pgml = readDouble(),
+                        segment = readInt(),
                     )
                 },
                 pkCalibration = if (stream.readBoolean()) {
@@ -397,6 +405,7 @@ internal object HomeSnapshotCodec {
                         limitedConfidence = stream.readBoolean(),
                         renderUnavailable = stream.readBoolean(),
                         bandUnavailable = stream.readBoolean(),
+                        effectiveRoutes = stream.readList { readString() },
                     )
                 } else {
                     null
@@ -1121,7 +1130,7 @@ private const val TAG = "HomeSnapshotStore"
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
 // v23-v26 append the calibration route log-scales, predictive band and hero summary.
-private const val SNAPSHOT_CODEC_VERSION = 26
+private const val SNAPSHOT_CODEC_VERSION = 27
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

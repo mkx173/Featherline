@@ -13,6 +13,7 @@ import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -37,6 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.runningReduce
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +68,7 @@ class SettingsViewModel @Inject constructor(
     private val externalImportService: ExternalImportService,
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
+    homeSnapshotRepository: HomeSnapshotRepository,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -113,6 +118,15 @@ class SettingsViewModel @Inject constructor(
         isBackupRestoreInProgress,
         isExternalImportInProgress,
         isWeightMutationInProgress,
+        // The same basis Home's hero title names, from the snapshot it is
+        // built with, so the calibration row never lags the hero. The first
+        // value is the current one (no start-with-null: that would reach the
+        // combine after the seed and blank the row for a frame); a mutation
+        // clears the snapshot until its rebuild lands, so the last record holds.
+        homeSnapshotRepository.latestObservedSnapshot
+            .runningReduce { held, snapshot -> snapshot ?: held }
+            .map { snapshot -> snapshot?.pkCalibration?.adjusted }
+            .distinctUntilChanged(),
     ) { values ->
         val settingsState = values[0] as SettingsState
         val profile = values[1] as UserProfile?
@@ -125,6 +139,7 @@ class SettingsViewModel @Inject constructor(
         val restoreInProgress = values[8] as Boolean
         val externalImportInProgress = values[9] as Boolean
         val weightInProgress = values[10] as Boolean
+        val calibrationAdjusted = values[11] as Boolean?
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
@@ -137,11 +152,18 @@ class SettingsViewModel @Inject constructor(
             isBackupRestoreInProgress = restoreInProgress,
             isExternalImportInProgress = externalImportInProgress,
             isWeightMutationInProgress = weightInProgress,
+            calibrationAdjusted = calibrationAdjusted,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = SettingsUiState()
+        // Seeded from the snapshot Home already observed so the calibration
+        // row has its support text on the first frame; the combine above
+        // waits on a Room read before its first value.
+        initialValue = SettingsUiState(
+            calibrationAdjusted = homeSnapshotRepository.latestObservedSnapshot.value
+                ?.pkCalibration?.adjusted,
+        ),
     )
 
     init {
@@ -191,12 +213,6 @@ class SettingsViewModel @Inject constructor(
     fun setPureBlackEnabled(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setPureBlackEnabled(enabled)
-        }
-    }
-
-    fun setCjkTextOffsetEnabled(enabled: Boolean) {
-        launchSettingsMutation {
-            settingsRepository.setCjkTextOffsetEnabled(enabled)
         }
     }
 
@@ -678,6 +694,8 @@ data class SettingsUiState(
     val isBackupRestoreInProgress: Boolean = false,
     val isExternalImportInProgress: Boolean = false,
     val isWeightMutationInProgress: Boolean = false,
+    /** The basis Home's hero title names: null until a snapshot with a calibration record exists. */
+    val calibrationAdjusted: Boolean? = null,
 )
 
 data class PendingPreparedBackupExport(

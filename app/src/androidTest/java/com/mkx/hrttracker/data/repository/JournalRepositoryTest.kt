@@ -13,7 +13,6 @@ import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -392,14 +391,14 @@ class JournalRepositoryTest {
         // after the add above.
         repo.updateTrackedDate(id, "__warmup2__", icon, LocalDate.of(2000, 1, 1), null)
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
         clearMocks(homeSnapshotRepository, answers = false)
         // Empty the table; the delete is the last change, so waiting for its refresh drains
         // any earlier in-flight one (the single collector processes emissions in order).
         repo.deleteTrackedDate(id)
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
         clearMocks(homeSnapshotRepository, answers = false)
     }
@@ -419,11 +418,7 @@ class JournalRepositoryTest {
         // The refresh is reactive (off the pinned-dates flow), so it lands shortly after the
         // write commits rather than inline.
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(
-                now = any(),
-                force = true,
-                zoneId = any(),
-            )
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
     }
 
@@ -435,7 +430,7 @@ class JournalRepositoryTest {
         repo.addTrackedDate("Other", icon, LocalDate.of(2021, 1, 1), null, pinned = false)
         // Let the pin-driven refresh from adding the hero settle, then reset.
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
         clearMocks(homeSnapshotRepository, answers = false)
 
@@ -453,10 +448,10 @@ class JournalRepositoryTest {
         repo.updateTrackedDate(heroId, "Hero renamed", icon, LocalDate.of(2020, 1, 1), null)
 
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
         coVerify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
     }
 
@@ -557,7 +552,7 @@ class JournalRepositoryTest {
         resetToEmptyWithLiveObserver()
         val icon = AnchorIcon.entries.first().storageKey
         var invalidateCalls = 0
-        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
+        coEvery { homeSnapshotRepository.invalidateAndRebuildHomeSnapshot() } coAnswers {
             invalidateCalls += 1
             if (invalidateCalls == 1) throw IOException("simulated DataStore failure")
         }
@@ -568,26 +563,10 @@ class JournalRepositoryTest {
             .first { it.name == "Hero" }
             .id
 
-        // Second hero change: only fires a refresh if the collector survived the failure.
+        // Second hero change: only fires a second call if the collector survived the failure.
         repo.updateTrackedDate(id, "Hero renamed", icon, LocalDate.of(2024, 1, 1), null)
-        coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
-        }
-    }
-
-    @Test
-    fun heroChange_invalidatesSnapshotBeforeRefresh() = runBlocking {
-        resetToEmptyWithLiveObserver()
-        val icon = AnchorIcon.entries.first().storageKey
-
-        repo.addTrackedDate("Hero", icon, LocalDate.of(2024, 1, 1), null, pinned = true)
-
-        coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
-        }
-        coVerifyOrder {
-            homeSnapshotRepository.invalidateHomeSnapshot()
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, zoneId = any())
+        coVerify(timeout = 5_000L, atLeast = 2) {
+            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
         }
     }
 

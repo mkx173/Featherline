@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TimePickerDisplayMode
+import androidx.compose.material3.Typography
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -203,7 +204,14 @@ fun TimePickerModal(
             )
         }
     ) {
-        TimePicker(state = timePickerState, modifier = Modifier.testTag("time_picker"))
+        // M3's DisplaySeparator replaces the whole lineHeightStyle on the ":" (dropping
+        // AppTypography's Mode.Tight), so on CJK-fix devices the colon is padded to the
+        // featherline font box, overflows its 80 dp slot and drops below the digits. The
+        // clock digits are Latin-only, so stock displayLarge metrics lose nothing here.
+        val current = MaterialTheme.typography
+        MaterialTheme(typography = current.copy(displayLarge = Typography().displayLarge)) {
+            TimePicker(state = timePickerState, modifier = Modifier.testTag("time_picker"))
+        }
     }
 }
 

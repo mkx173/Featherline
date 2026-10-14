@@ -51,7 +51,6 @@ import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.hazeSheetSurface
 import kotlinx.coroutines.delay
 import sh.calvin.reorderable.ReorderableColumn
@@ -97,7 +96,7 @@ fun HomeCardLayoutDialog(
         onDismissRequest = onDismiss,
         title = {
             val title = stringResource(R.string.home_card_layout_title)
-            Text(text = title, modifier = Modifier.cjkTextOffset(title))
+            Text(text = title)
         },
         text = {
             ReorderableColumn(
@@ -248,8 +247,7 @@ private fun HomeCardLayoutRow(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Normal,
                 modifier = Modifier
-                    .weight(1f)
-                    .cjkTextOffset(name),
+                    .weight(1f),
             )
             Spacer(modifier = Modifier.width(12.dp))
             CompositionLocalProvider(

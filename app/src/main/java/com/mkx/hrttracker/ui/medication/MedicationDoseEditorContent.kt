@@ -58,7 +58,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.util.labelRes
 import kotlin.math.roundToInt
 
@@ -192,7 +191,7 @@ private fun MedicationSummaryHeader(
     MedicationEditorSectionLabel(stringResource(R.string.field_medication), topPadding = false)
     val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
     val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull() ?: DoseInstruction.Noop
-    Spacer(modifier = Modifier.height(2.dp))
+    // The label's own 4 dp is the gap to the card, as in every other sheet.
     MedicationCardWithStockSubcard(
         medicine = medicine,
         doseInstruction = doseInstruction,
@@ -471,7 +470,6 @@ internal fun DoseAssistPresetRow(
                     label = {
                         Text(
                             text = label,
-                            modifier = Modifier.cjkTextOffset(label),
                         )
                     },
                 )

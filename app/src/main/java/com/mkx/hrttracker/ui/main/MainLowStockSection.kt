@@ -44,7 +44,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.StockStatusIndicator
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.medicineDisplayName
 import com.mkx.hrttracker.ui.medication.medicinePreparationIconRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -156,8 +155,7 @@ private fun MainLowStockCardHeader(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(title),
+                .weight(1f),
         )
 
         Icon(
@@ -223,7 +221,6 @@ private fun MainLowStockSubCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(medicineName),
                 )
                 Text(
                     text = supportingText,
@@ -231,7 +228,6 @@ private fun MainLowStockSubCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.cjkTextOffset(supportingText),
                 )
             }
 

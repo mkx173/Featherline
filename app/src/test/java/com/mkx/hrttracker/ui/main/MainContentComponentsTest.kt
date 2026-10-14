@@ -20,6 +20,28 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainContentComponentsTest {
     @Test
+    fun monotoneTangent_isFlatAtDoseTroughAndBoundedOnRise() {
+        // Flat tail, then a sublingual spike (screen y grows downward).
+        assertEquals(0f, monotoneTangent(dx0 = 10f, dy0 = 0f, dx1 = 10f, dy1 = -300f))
+        assertEquals(0f, monotoneTangent(dx0 = 10f, dy0 = 5f, dx1 = 10f, dy1 = -300f))
+        // On a monotone run the tangent never exceeds twice the shallower secant.
+        val tangent = monotoneTangent(dx0 = 10f, dy0 = -10f, dx1 = 10f, dy1 = -300f)
+        assertTrue(tangent < 0f && tangent >= -2f)
+    }
+
+    @Test
+    fun mainE2ChartMinimapDateLabelXs_separatesCollidingLabels() {
+        // Wide viewport: labels pin to its edges.
+        assertEquals(10 to 240, mainE2ChartMinimapDateLabelXs(300, 10f, 280f, 50, 50, 8))
+        // Narrow viewport: side by side, centred on it, no overlap.
+        val (start, end) = mainE2ChartMinimapDateLabelXs(300, 140f, 20f, 50, 50, 8)
+        assertEquals(start + 58, end)
+        assertEquals(96, start)
+        // Narrow viewport at the right edge: the pair clamps inside the canvas.
+        assertEquals(192 to 250, mainE2ChartMinimapDateLabelXs(300, 280f, 20f, 50, 50, 8))
+    }
+
+    @Test
     fun mainTodayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
         assertEquals(18.dp, MainTodayRowIndicatorSlotSize)
         assertEquals(16.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_download))
@@ -236,14 +258,6 @@ class MainContentComponentsTest {
         )
 
         assertNotEquals(firstMedicationKey, secondMedicationKey)
-    }
-
-    @Test
-    fun mainE2EstimateInfoToastRes_uses_plasma_concentration_estimate_disclaimer() {
-        assertEquals(
-            R.string.medical_disclaimer_plasma_concentration_estimates,
-            mainE2EstimateInfoToastRes()
-        )
     }
 
     @Test

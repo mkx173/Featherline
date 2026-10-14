@@ -65,7 +65,6 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.TimePickerModal
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -545,7 +544,6 @@ private fun MedicationEditorGroupInfoCard(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.cjkTextOffset(scheduleOffsetText),
                             )
                             if (showScheduleOffsetWarning) {
                                 Icon(
@@ -584,7 +582,6 @@ private fun MedicationEditorGroupInfoCard(
                         text = groupName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Normal,
-                        modifier = Modifier.cjkTextOffset(groupName),
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -600,7 +597,6 @@ private fun MedicationEditorGroupInfoCard(
                             text = scheduledForText,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.cjkTextOffset(scheduledForText),
                         )
                     }
                 }

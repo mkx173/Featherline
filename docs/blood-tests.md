@@ -145,7 +145,8 @@ No other analyte, and no custom analyte, is read by the fit.
   collection time should be when the blood was drawn, not when the
   result was entered.
 - **Results the fit sets aside.** A result whose modeled drug signal at
-  collection time is below 5 pg/mL is marked "Not used". A value of zero
+  collection time is below 5 pg/mL is marked "Not used", as a result
+  drawn long after the last estradiol dose usually is. A value of zero
   or below cannot be log-transformed; it is set aside and listed for
   review. Each set-aside result shows its reason on its row.
 - **Review.** A result the robust fit down-weights strongly (Student-t

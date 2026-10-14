@@ -64,3 +64,17 @@ Featherline adapts plot display logic from
 Featherline's pharmacokinetic projection draws on the model and math reference
 from [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test).
 This is listed here as a source attribution for the PK reference material.
+
+### Roboto (modified metrics)
+
+The app bundles Roboto Regular, Medium, SemiBold and Bold
+(`app/src/main/res/font/roboto_featherline_*.ttf`), instanced from the official
+Roboto variable font (version 3.015) with the `hhea`/`OS/2` vertical metrics
+raised to 1.50/0.76 em and the family renamed "Roboto Featherline". The taller
+line box covers every CJK fallback font, so Chinese text no longer moves the
+baseline. The family is used only on devices whose system CJK fallback font is
+taller than their Latin font (see `ui/theme/CjkFallbackMetrics.kt`).
+
+- License: SIL Open Font License, Version 1.1 (no Reserved Font Name)
+- Source: [google/fonts, ofl/roboto](https://github.com/google/fonts/tree/main/ofl/roboto)
+- Local license text: [OFL-1.1.txt](licenses/OFL-1.1.txt)

@@ -68,7 +68,6 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
@@ -431,8 +430,7 @@ private fun SelectedDayRow(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .weight(1f)
-                            .alignByBaseline()
-                            .cjkTextOffset("$titleText$timeLabel"),
+                            .alignByBaseline(),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -446,7 +444,6 @@ private fun SelectedDayRow(
                         maxLines = 1,
                         modifier = Modifier
                             .alignByBaseline()
-                            .cjkTextOffset("$titleText$timeLabel")
                     )
                 }
                 Row(
@@ -460,8 +457,7 @@ private fun SelectedDayRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .weight(1f)
-                            .alignByBaseline()
-                            .cjkTextOffset(supportingText),
+                            .alignByBaseline(),
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -493,7 +489,6 @@ private fun SelectedDayRow(
                             maxLines = 1,
                             modifier = Modifier
                                 .alignByBaseline()
-                                .cjkTextOffset(labelDisplayText)
                         )
                     }
                 }
@@ -644,7 +639,6 @@ internal fun RegimenGroupCard(
                         text = group.name,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.cjkTextOffset(group.name)
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -690,8 +684,7 @@ internal fun RegimenGroupCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
-                                .weight(1f)
-                                .cjkTextOffset(groupScheduleSummary),
+                                .weight(1f),
                             softWrap = true
                         )
                     }
@@ -822,12 +815,14 @@ internal fun RegimenGroupCard(
                 )
 
                 val upcomingText = stringResource(R.string.plan_group_upcoming_title)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(bottom = 2.dp),
+                ) {
                     Text(
                         text = upcomingText.uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.cjkTextOffset(upcomingText)
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -888,8 +883,7 @@ private fun RegimenGroupCardMetadataRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(metadata.text),
+                .weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1071,7 +1065,6 @@ private fun RegimenMedicationChip(
             color = groupColorScheme.onPrimaryFixed,
             modifier = Modifier
                 .padding(end = 2.dp)
-                .cjkTextOffset(medicationString)
         )
     }
 }

@@ -12,6 +12,9 @@ import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.HomePkCalibrationRecord
+import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -63,6 +66,9 @@ class SettingsViewModelTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
+        every { latestObservedSnapshot } returns MutableStateFlow(null)
+    }
     private val appLockSecurityManager: AppLockSecurityManager = mockk(relaxed = true)
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
@@ -540,6 +546,34 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun uiState_seedsCalibrationFromTheObservedSnapshotBeforeCombineRuns() {
+        every { homeSnapshotRepository.latestObservedSnapshot } returns MutableStateFlow(
+            HomeSnapshotRecord(
+                schemaVersion = 1,
+                generatedAtEpochMillis = 0L,
+                anchorDateEpochDay = 0L,
+                zoneId = "UTC",
+                pkProjection = null,
+                activeGroups = emptyList(),
+                scheduleEntries = emptyList(),
+                antiandrogenHistoryEntries = emptyList(),
+                pkCalibration = HomePkCalibrationRecord(
+                    adjusted = true,
+                    limitedConfidence = false,
+                    renderUnavailable = false,
+                    bandUnavailable = false,
+                    effectiveRoutes = emptyList(),
+                ),
+            )
+        )
+
+        val viewModel = createViewModel()
+
+        // Synchronous: the row must not flash empty on the first frame.
+        assertEquals(true, viewModel.uiState.value.calibrationAdjusted)
+    }
+
+    @Test
     fun diagnosticsExportFileName_delegatesToDiagnosticsExportService() {
         val viewModel = createViewModel()
 
@@ -563,6 +597,7 @@ class SettingsViewModelTest {
             externalImportService = externalImportService,
             diagnosticsExportService = diagnosticsExportService,
             widgetAppearanceRepository = widgetAppearanceRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
         )
     }
 

@@ -35,8 +35,6 @@ fun PreferenceSegmentedListItem(
     supportingTextStyle: TextStyle? = null,
     titleColor: Color? = null,
     supportingTextColor: Color? = null,
-    titleCjkTextOffsetEnabled: Boolean = true,
-    supportingCjkTextOffsetEnabled: Boolean = true,
 ) {
     val resolvedTitleTextStyle = titleTextStyle ?: MaterialTheme.typography.titleMedium
     val resolvedSupportingTextStyle = supportingTextStyle ?: MaterialTheme.typography.bodyMedium
@@ -68,10 +66,6 @@ fun PreferenceSegmentedListItem(
                     text = title,
                     style = resolvedTitleTextStyle,
                     color = resolvedTitleColor,
-                    modifier = Modifier.cjkTextOffset(
-                        text = title,
-                        enabled = titleCjkTextOffsetEnabled,
-                    ),
                     fontWeight = FontWeight.Normal
                 )
                 supportingText?.let { supporting ->
@@ -79,10 +73,6 @@ fun PreferenceSegmentedListItem(
                         text = supporting,
                         style = resolvedSupportingTextStyle,
                         color = resolvedSupportingTextColor,
-                        modifier = Modifier.cjkTextOffset(
-                            text = supporting,
-                            enabled = supportingCjkTextOffsetEnabled,
-                        )
                     )
                 }
             }

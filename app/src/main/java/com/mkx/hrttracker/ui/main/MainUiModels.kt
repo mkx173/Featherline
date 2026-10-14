@@ -46,6 +46,8 @@ import kotlin.math.roundToLong
 
 data class MainUiState(
     val homeDataReady: Boolean = false,
+    /** Shows the top updating indicator; the E2 hero and chart are held until the rebuild lands. */
+    val isUpdating: Boolean = false,
     val e2TrendReady: Boolean = false,
     val homeSource: HomeInputSource? = null,
     val now: LocalDateTime = LocalDateTime.now(),
@@ -406,61 +408,21 @@ internal fun mainE2ChartNoonTickHours(
     return tickHours.distinct()
 }
 
-// Adaptive bottom-axis tick interval, picked from the currently visible
-// chart span. Max granularity is one day; the chart never shows sub-daily
-// ticks even when pinch-zoomed past a one-day visible window.
-internal fun mainE2ChartAxisTickIntervalDays(visibleHours: Double): Long {
-    return when {
-        visibleHours <= 168.0 -> 1L      // ≤ 7 d → daily
-        visibleHours <= 336.0 -> 2L      // ≤ 14 d → every 2 days
-        visibleHours <= 720.0 -> 6L      // ≤ 30 d → every 6 days
-        else -> 7L                       // > 30 d → weekly
-    }
-}
+// The 30-day axis labels days at noon on nested grids: every six days
+// unzoomed — five labels, centred in the window — then every three, then
+// daily, all through the same anchor day, so zooming only adds or removes
+// labels between the ones on screen; none moves or changes date.
+internal const val MainE2ChartAxisBaseStepDays = 6
 
-// Noon-tick xHours (relative to chartWindowStart) at the given interval,
-// clipped to the chart's [0, chartWindowHours] range and the visible x range.
-// Anchored at chartWindowStart + interval/2 days so the tick series is centred
-// in the window and the first tick falls near day 4 (not day 7). Coarser
-// intervals remain supersets of finer ones (no jitter across zoom boundaries).
-// Ticks on the first and last calendar day of the window are suppressed to
-// avoid label clipping at the canvas edges.
-internal fun mainE2ChartAxisLabelTickHours(
-    chartWindowStart: LocalDateTime,
-    chartWindowHours: Int,
-    visibleXRange: ClosedFloatingPointRange<Double>,
-    intervalDays: Long,
-): List<Double> {
-    val safeInterval = intervalDays.coerceAtLeast(1L)
-    val resolvedWindowHours = chartWindowHours.coerceAtLeast(1)
-    val windowEnd = chartWindowStart.plusHours(resolvedWindowHours.toLong())
-    val endDate = windowEnd.toLocalDate()
-    val firstDay = chartWindowStart.toLocalDate()
-    val lastDay = windowEnd.toLocalDate().let { d ->
-        if (windowEnd == d.atStartOfDay()) d.minusDays(1) else d
-    }
-    val tickHours = mutableListOf<Double>()
-    var date = chartWindowStart.toLocalDate().plusDays(safeInterval / 2L)
-
-    while (!date.isAfter(endDate)) {
-        val noon = LocalDateTime.of(date, LocalTime.NOON)
-        if (
-            noon.isAfter(chartWindowStart) && noon.isBefore(windowEnd) &&
-            date != firstDay && date != lastDay
-        ) {
-            val hoursFromWindowStart =
-                Duration.between(chartWindowStart, noon).toMillis() / 3_600_000.0
-            if (
-                hoursFromWindowStart in 0.0..resolvedWindowHours.toDouble() &&
-                hoursFromWindowStart in visibleXRange
-            ) {
-                tickHours += hoursFromWindowStart.toVicoXHour()
-            }
-        }
-        date = date.plusDays(safeInterval)
-    }
-
-    return tickHours.distinct()
+// Noon xHours (relative to the midnight window start) of the days every
+// `stepDays` through the anchor: the day that puts the first of the five
+// unzoomed labels as many days from the window's first day as the last is
+// from its last day, or a day nearer if uneven.
+internal fun mainE2ChartAxisGridHours(windowHours: Int, stepDays: Int): List<Double> {
+    val windowDays = windowHours / 24
+    val anchorDay = (windowDays - 1 - MainE2ChartAxisBaseStepDays * 4) / 2
+    return (Math.floorMod(anchorDay, stepDays) until windowDays step stepDays)
+        .map { day -> day * 24 + 12.0 }
 }
 
 internal fun splitMainE2ChartSeries(

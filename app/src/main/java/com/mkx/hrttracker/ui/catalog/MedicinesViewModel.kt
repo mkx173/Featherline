@@ -85,7 +85,7 @@ class MedicinesViewModel @Inject constructor(
         return MedicinesUiState(
             activeSections = buildSections(
                 activeMedicines = activeMedicines,
-                referenceCounts = activeGroupReferenceCounts(groups),
+                referencingGroupIds = activeGroupIdsByMedicine(groups),
                 stockProjections = stockProjections.associateBy { it.medicine.uuid },
             ),
             isLoading = false,
@@ -109,7 +109,7 @@ class MedicinesViewModel @Inject constructor(
 
     private fun buildSections(
         activeMedicines: List<Medicine>,
-        referenceCounts: Map<UUID, Int>,
+        referencingGroupIds: Map<UUID, Set<UUID>>,
         stockProjections: Map<UUID, MedicineStockProjection>,
     ): List<MedicineCategorySection> {
         val visibleMedicines = activeMedicines.visibleInMedicineManager()
@@ -135,7 +135,7 @@ class MedicinesViewModel @Inject constructor(
                     .map { medicine ->
                         MedicineListItem(
                             medicine = medicine,
-                            activeGroupReferenceCount = referenceCounts[medicine.uuid] ?: 0,
+                            activeGroupIds = referencingGroupIds[medicine.uuid].orEmpty(),
                             stockProjection = stockProjections[medicine.uuid],
                         )
                     },
@@ -143,9 +143,9 @@ class MedicinesViewModel @Inject constructor(
         }
     }
 
-    private fun activeGroupReferenceCounts(
+    private fun activeGroupIdsByMedicine(
         groups: List<MedicationGroup>,
-    ): Map<UUID, Int> {
+    ): Map<UUID, Set<UUID>> {
         // Count over groups, not slots: a group with two slots pointing at
         // the same medicine still counts once per group. The archive guard
         // we mirror in MedicineRepository.archive uses the same semantics.
@@ -154,10 +154,10 @@ class MedicinesViewModel @Inject constructor(
             .flatMap { group ->
                 group.medications.asSequence()
                     .mapNotNull { it.medicineUuid }
-                    .distinct()
+                    .map { medicineUuid -> medicineUuid to group.uuid }
             }
-            .groupingBy { it }
-            .eachCount()
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, groupIds) -> groupIds.toSet() }
     }
 
     fun previewRunwayFor(
@@ -231,6 +231,46 @@ data class MedicineCategorySection(
 
 data class MedicineListItem(
     val medicine: Medicine,
-    val activeGroupReferenceCount: Int,
+    val activeGroupIds: Set<UUID> = emptySet(),
     val stockProjection: MedicineStockProjection? = null,
+) {
+    val activeGroupReferenceCount: Int get() = activeGroupIds.size
+}
+
+/**
+ * The unsaved plan open in the editor that launched the picker. [groupId] is
+ * null for a plan that has never been saved.
+ */
+data class DraftGroupReferences(
+    val groupId: UUID?,
+    val medicineUuids: Set<UUID>,
 )
+
+// Stands in for a never-saved draft plan in the referencing-group sets.
+private val UNSAVED_DRAFT_GROUP_ID = UUID(0L, 0L)
+
+/**
+ * Counts [draft] in place of its saved group, so a slot removed (or added) in
+ * the editor changes the picker's per-medicine plan count before the plan is
+ * saved.
+ */
+internal fun MedicinesUiState.withDraftGroup(draft: DraftGroupReferences?): MedicinesUiState {
+    draft ?: return this
+    val draftGroupId = draft.groupId ?: UNSAVED_DRAFT_GROUP_ID
+    return copy(
+        activeSections = activeSections.map { section ->
+            section.copy(
+                medicines = section.medicines.map { item ->
+                    val otherGroupIds = item.activeGroupIds - draftGroupId
+                    item.copy(
+                        activeGroupIds = if (item.medicine.uuid in draft.medicineUuids) {
+                            otherGroupIds + draftGroupId
+                        } else {
+                            otherGroupIds
+                        },
+                    )
+                },
+            )
+        },
+    )
+}

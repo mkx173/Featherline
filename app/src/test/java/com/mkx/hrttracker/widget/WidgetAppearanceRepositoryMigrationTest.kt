@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -74,6 +75,8 @@ class WidgetAppearanceRepositoryMigrationTest {
 
         // The widget DataStore singleton survives across tests; start each empty.
         runBlocking { widgetDataStore().edit { it.clear() } }
+        baselineValues.clear()
+        baselineCommitSucceeds = true
     }
 
     @After
@@ -149,6 +152,115 @@ class WidgetAppearanceRepositoryMigrationTest {
             assertFalse(repository.migrateFromLegacySettingsIfNeeded())
         }
 
+    @Test
+    fun `legacy baseline ratio follows the placed widget types`() {
+        // A stale medium height (that widget was removed) must not override the placed large.
+        assertEquals(204f / 276f, legacyBaselineScaleRatio(138f, 204f, false, true)!!, 1e-6f)
+        assertEquals(138f / 276f, legacyBaselineScaleRatio(138f, 204f, true, false)!!, 1e-6f)
+        // Both placed but different: the smaller factor, so neither grows past its old size.
+        assertEquals(138f / 276f, legacyBaselineScaleRatio(204f, 138f, true, true)!!, 1e-6f)
+        // None placed: still fold the old-meaning scale with this device's captured height.
+        assertEquals(138f / 276f, legacyBaselineScaleRatio(204f, 138f, false, false)!!, 1e-6f)
+        // A placed type with no usable height falls back to the captured one.
+        assertEquals(204f / 276f, legacyBaselineScaleRatio(0f, 204f, true, false)!!, 1e-6f)
+        // The old ratio floor.
+        assertEquals(0.35f, legacyBaselineScaleRatio(60f, 0f, true, false)!!, 1e-6f)
+        // Never captured, or outside the range the old code would persist.
+        assertNull(legacyBaselineScaleRatio(0f, 0f, true, true))
+        assertNull(legacyBaselineScaleRatio(20f, 500f, true, true))
+    }
+
+    @Test
+    fun `baseline folds into the default scale once and is cleared`() =
+        runTest(testDispatcher) {
+            // One UI 2-row cell: v1.3.x drew the medium widget at 100% x 204/276.
+            baselineValues["medium_height_dp_v3"] = 204f
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+
+            val folded = store.observeEntry(null).first()
+            assertEquals(WidgetAppearance.Default.copy(contentScale = 204f / 276f), folded)
+            assertTrue(baselineValues.isEmpty())
+
+            // Next start (fresh flags): nothing left to fold, scale not shrunk again.
+            val nextStart = WidgetAppearanceRepository(store, settingsRepository, mockk(relaxed = true))
+            assertFalse(nextStart.migrateFromLegacySettingsIfNeeded())
+            assertEquals(folded, store.observeEntry(null).first())
+        }
+
+    @Test
+    fun `baseline rescales an existing default and keeps its other fields`() =
+        runTest(testDispatcher) {
+            store.setEntry(null, WidgetAppearance.Default.copy(contentScale = 1.5f, seedHue = 200f))
+            baselineValues["medium_height_dp_v3"] = 138f
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+            assertEquals(
+                WidgetAppearance.Default.copy(contentScale = 0.75f, seedHue = 200f),
+                store.observeEntry(null).first(),
+            )
+        }
+
+    @Test
+    fun `baseline below the slider range lands on its 50 percent floor`() =
+        runTest(testDispatcher) {
+            // 100% x 100/276 = 36%.
+            baselineValues["medium_height_dp_v3"] = 100f
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+            assertEquals(0.5f, store.observeEntry(null).first()!!.contentScale)
+        }
+
+    @Test
+    fun `baseline rescales the value the legacy seed just wrote`() =
+        runTest(testDispatcher) {
+            settingsDataStore.edit { it[widgetContentScaleKey] = 1.3f }
+            baselineValues["medium_height_dp_v3"] = 138f
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+
+            assertEquals(0.65f, store.observeEntry(null).first()!!.contentScale, 1e-6f)
+        }
+
+    @Test
+    fun `failed fold write keeps the baseline so the next start folds it`() =
+        runTest(testDispatcher) {
+            baselineValues["medium_height_dp_v3"] = 138f
+            val failingStore = spyk(store)
+            coEvery {
+                failingStore.foldLegacyBaselineScale(any())
+            } throws IOException("injected write failure")
+            val firstStart =
+                WidgetAppearanceRepository(failingStore, settingsRepository, mockk(relaxed = true))
+
+            val failure = runCatching { firstStart.migrateFromLegacySettingsIfNeeded() }
+            assertTrue(failure.exceptionOrNull() is IOException)
+            assertNull(store.observeEntry(null).first())
+            assertEquals(138f, baselineValues["medium_height_dp_v3"])
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+            assertEquals(0.5f, store.observeEntry(null).first()!!.contentScale)
+            assertTrue(baselineValues.isEmpty())
+        }
+
+    @Test
+    fun `failed baseline clear still folds once and the marker stops a refold`() =
+        runTest(testDispatcher) {
+            baselineValues["medium_height_dp_v3"] = 204f
+            baselineCommitSucceeds = false
+
+            assertTrue(repository.migrateFromLegacySettingsIfNeeded())
+            assertEquals(204f / 276f, store.observeEntry(null).first()!!.contentScale)
+            assertEquals(204f, baselineValues["medium_height_dp_v3"])
+
+            // Next start: the clear is retried, the scale is not folded again.
+            baselineCommitSucceeds = true
+            val nextStart = WidgetAppearanceRepository(store, settingsRepository, mockk(relaxed = true))
+            assertFalse(nextStart.migrateFromLegacySettingsIfNeeded())
+            assertEquals(204f / 276f, store.observeEntry(null).first()!!.contentScale)
+            assertTrue(baselineValues.isEmpty())
+        }
+
     // The store's DataStore is created by a process-wide singleton delegate keyed to
     // the first Context's filesDir, so every test must share one stable directory
     // (a per-test TemporaryFolder would leave the cached singleton pointing at a
@@ -163,9 +275,28 @@ class WidgetAppearanceRepositoryMigrationTest {
 
     private companion object {
         val widgetFilesDir = Files.createTempDirectory("widget_appearance_test").toFile()
+
+        // In-memory stand-in for the v1.3.x hrt_widget_baseline file; commit() applies clear().
+        val baselineValues = mutableMapOf<String, Float>()
+        var baselineCommitSucceeds = true
+        val baselineEditor: SharedPreferences.Editor = mockk {
+            every { clear() } returns this
+            every { commit() } answers {
+                baselineCommitSucceeds.also { if (it) baselineValues.clear() }
+            }
+        }
+        val baselinePrefs: SharedPreferences = mockk {
+            every { getFloat(any(), any()) } answers {
+                baselineValues[firstArg()] ?: secondArg()
+            }
+            every { edit() } returns baselineEditor
+        }
+
         val widgetContext: Context = mockk<Context>().also {
             every { it.applicationContext } returns it
             every { it.filesDir } returns widgetFilesDir
+            every { it.getSharedPreferences("hrt_widget_baseline", Context.MODE_PRIVATE) } returns
+                baselinePrefs
         }
     }
 }

@@ -135,6 +135,28 @@ class PkCalibrationUiStateTest {
     }
 
     @Test
+    fun smallShareRoutes_areAdjustedRowsOutsideTheEffectiveSet_andNoneAfterARenderFailure() {
+        val base = PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)
+        val rows = ui(base).routeRows
+        val adjustedRoutes = rows.filter { row -> row.displayState.isAdjusted }.map { row -> row.route }
+        assertEquals(listOf(PkCalibrationRoute.INJECTION, PkCalibrationRoute.ORAL), adjustedRoutes)
+
+        // Both routes shape the estimate: nothing to explain.
+        assertTrue(ui(base).smallShareRoutes.isEmpty())
+        // Oral calibrated but under the support share across the range: its row says so.
+        assertEquals(
+            setOf(PkCalibrationRoute.ORAL),
+            pkCalibrationSmallShareRoutes(rows, listOf(PkCalibrationRoute.INJECTION), renderUnavailable = false),
+        )
+        // A failed render clears the effective set without computing any
+        // share, so no row may claim a small one.
+        val failed = ui(base.withCentralUnavailable(true))
+        assertTrue(failed.effectivePromotedRoutes.isEmpty())
+        assertTrue(failed.smallShareRoutes.isEmpty())
+        assertTrue(pkCalibrationSmallShareRoutes(rows, emptyList(), renderUnavailable = true).isEmpty())
+    }
+
+    @Test
     fun nullRenderOnReadyEvaluation_usesFitLevelPromotion() {
         val snapshot = PkCalibrationDebugFixtures.build(
             PkCalibrationDebugScenario.preset(PkCalibrationDebugPreset.MIXED_INJECTION_ORAL)

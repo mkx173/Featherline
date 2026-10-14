@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.ui.calibration.pkCalibrationUnavailableScreenState
+import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
+import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.HomeInputSource
@@ -17,19 +21,17 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PkCalibrationBandState
-import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
-import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixture
-import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationUiFixtureBridge
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
+import com.mkx.hrttracker.util.holdWhileUpdating
 import com.mkx.hrttracker.util.tickWhileSubscribed
 import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -61,13 +63,26 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
-    private val pkUiFixtureBridge: PkCalibrationUiFixtureBridge,
+    pkCalibrationLiveRepository: PkCalibrationLiveRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val currentSnapshot = appTimeSource.currentSnapshot
     private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
+
+    /**
+     * The routes sheet the hero's calibration icon opens: the calibration
+     * page's own evaluation, so both screens show the same route rows. Null
+     * until the first live evaluation finishes.
+     */
+    val pkCalibrationSheetState: StateFlow<PkCalibrationUiState?> = pkCalibrationLiveRepository.liveState
+        .map(::pkCalibrationSheetUiState)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Home's own visibility: the activity collects uiState too, so its
+    // subscriber count does not say whether Home is on screen.
+    private val screenVisible = MutableStateFlow(false)
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -127,22 +142,24 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
+        // Only the E2 hero and chart are held while a data change's rebuild
+        // lands: curve, band and hero change together. They are held as
+        // inputs, so the live time and display unit still render them; the
+        // dose lists and the rest of Home show the change at once.
+        val heldInputsFlow = combine(
+            keyedInputsFlow.holdWhileUpdating(screenVisible) { keyed -> keyed.inputs.isRebuilding },
+            settingsRepository.settingsState,
+        ) { held, settings -> held to settings.homeE2DisplayUnit }
         // The Home calibration presentation comes from the snapshot, so it is
-        // on the first frame with the curve. The debug harness fixture (plan
-        // D3) overrides it so QA exercises the shipping surface.
-        val keyedInputsWithPkFlow = combine(
-            keyedInputsFlow,
-            pkUiFixtureBridge.fixture,
-        ) { keyedInputs, fixture -> keyedInputs to fixture }
-
+        // on the first frame with the curve.
         val homeStateFlow = combine(
-            keyedInputsWithPkFlow,
+            heldInputsFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { keyedInputsWithPk, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-            val (keyedInputs, fixture) = keyedInputsWithPk
+        ) { (held, homeE2DisplayUnit), timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
+            val keyedInputs = held.latest
             if (!keyedInputs.key.matches(timeSnapshot)) {
                 return@combine null
             }
@@ -164,9 +181,8 @@ class MainViewModel @Inject constructor(
                 }
             }
             withContext(defaultDispatcher) {
-                buildHomeUiState(
-                    inputs = inputs,
-                    fixture = fixture,
+                fun build(from: HomeInputs) = buildHomeUiState(
+                    inputs = from,
                     now = timeSnapshot.minute,
                     zoneId = timeSnapshot.zone,
                     timeZoneNotice = timeZoneNotice,
@@ -175,6 +191,20 @@ class MainViewModel @Inject constructor(
                         stockWarnings = inputs.stockWarnings,
                         acknowledgedWarningStates = acknowledgedWarningStates,
                     ),
+                    homeE2DisplayUnit = homeE2DisplayUnit,
+                    isUpdating = held.isUpdating,
+                )
+                val state = build(inputs)
+                // At the live time a held projection is re-sliced, or
+                // re-simulated from the held doses once its window no longer
+                // covers the chart (a hold across midnight).
+                val e2 = if (held.isUpdating) build(held.value.inputs) else state
+                state.copy(
+                    e2TrendReady = e2.e2TrendReady,
+                    homeE2ChartWindowOption = e2.homeE2ChartWindowOption,
+                    pkCalibration = e2.pkCalibration,
+                    e2Hero = e2.e2Hero,
+                    e2Chart = e2.e2Chart,
                 )
             }
         }
@@ -214,6 +244,10 @@ class MainViewModel @Inject constructor(
     // non-null savedInstanceState, because a dead instance can never receive onNewIntent)
     // still parses the fresh intent and navigates.
     var launchIntentParsed = false
+
+    fun setScreenVisible(visible: Boolean) {
+        screenVisible.value = visible
+    }
 
     fun requestMilestonesDeepLink() {
         _milestonesDeepLinkSignal.update { it + 1 }
@@ -280,7 +314,7 @@ class MainViewModel @Inject constructor(
 
     fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
         viewModelScope.launch {
-            settingsRepository.setHomeE2ChartWindowOption(option)
+            homeRepository.setHomeE2ChartWindowOption(option)
         }
     }
 
@@ -320,13 +354,13 @@ class MainViewModel @Inject constructor(
 
     private fun buildHomeUiState(
         inputs: HomeInputs,
-        fixture: PkCalibrationUiFixture?,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
         lowStockSectionExpanded: Boolean,
+        homeE2DisplayUnit: BloodUnitKey,
+        isUpdating: Boolean,
     ): MainUiState {
-        val homeE2DisplayUnit = inputs.settings.homeE2DisplayUnit
         val chartWindowOption = inputs.settings.homeE2ChartWindowOption
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
             .distinctBy { entry -> entry.uuid }
@@ -399,6 +433,7 @@ class MainViewModel @Inject constructor(
 
         return MainUiState(
             homeDataReady = true,
+            isUpdating = isUpdating,
             e2TrendReady = e2TrendReady,
             homeSource = inputs.source,
             now = now,
@@ -409,7 +444,6 @@ class MainViewModel @Inject constructor(
             // projection on expiry until the snapshot rebuilds.
             pkCalibration = buildMainPkCalibration(
                 inputs = inputs,
-                fixture = fixture,
                 bandKnots = if (freshProjection != null) inputs.pkBandKnots else emptyList(),
                 now = now,
                 zoneId = zoneId,
@@ -530,7 +564,6 @@ class MainViewModel @Inject constructor(
 
     private fun buildMainPkCalibration(
         inputs: HomeInputs,
-        fixture: PkCalibrationUiFixture?,
         bandKnots: List<PkPredictiveBandKnot>,
         now: LocalDateTime,
         zoneId: ZoneId,
@@ -545,18 +578,6 @@ class MainViewModel @Inject constructor(
             windowHours = chartWindowOption.chartWindowHours,
             displayUnit = displayUnit,
         )
-        if (fixture != null) {
-            val ui = pkCalibrationUiState(fixture.result, fixture.render)
-            return MainPkCalibrationUiState(
-                adjusted = ui.effectivePromotedRoutes.isNotEmpty(),
-                limitedConfidence = ui.limitedConfidence,
-                renderUnavailable = ui.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                bandUnavailable = ui.bandState == PkCalibrationBandState.NUMERIC_UNAVAILABLE,
-                band = fixture.render
-                    ?.takeIf { it.bandState == PkCalibrationBandState.READY }
-                    ?.let { band(it.bandKnots) },
-            )
-        }
         val record = inputs.pkCalibration ?: return null
         return MainPkCalibrationUiState(
             adjusted = record.adjusted,
@@ -564,6 +585,7 @@ class MainViewModel @Inject constructor(
             renderUnavailable = record.renderUnavailable,
             bandUnavailable = record.bandUnavailable,
             band = band(bandKnots),
+            effectivePromotedRoutes = record.effectiveRoutes.mapNotNull(PkCalibrationRoute::fromStableId),
         )
     }
 
@@ -575,4 +597,11 @@ class MainViewModel @Inject constructor(
     private companion object {
         const val TAG = "MainViewModel"
     }
+}
+
+/** Null while the first live evaluation loads; a failed one shows the numeric-failure sheet. */
+internal fun pkCalibrationSheetUiState(live: PkCalibrationLiveResult?): PkCalibrationUiState? = when {
+    live == null -> null
+    else -> live.live?.let { pkCalibrationUiState(it.evaluation.result, it.render) }
+        ?: pkCalibrationUnavailableScreenState().ui
 }

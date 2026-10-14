@@ -242,8 +242,7 @@ class JournalRepository @Inject constructor(
                 if (hero == previousHero) return@collect
                 previousHero = hero
                 runCatching {
-                    homeSnapshotRepository.invalidateHomeSnapshot()
-                    homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+                    homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
                 }.onFailure { if (it is CancellationException) throw it }
             }
         }

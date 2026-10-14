@@ -65,6 +65,18 @@ class PkCalibrationInputsTest {
 
         assertEquals(listOf(inWindow.uuid), input.doseEvents.map { it.id })
         assertEquals(inWindow.appliedAt.toEpochMilli(), input.originEpochMillis)
+
+        // Every dose too old: the latest stays so the engine reports the lab
+        // as below the modeled signal rather than no dose history.
+        val onlyOld = buildPkCalibrationInput(
+            labs = listOf(lab),
+            entries = listOf(tooOld),
+            weightKg = 60.0,
+            metadata = emptyList(),
+            fallbackOriginEpochMillis = 0L,
+        )
+        assertEquals(listOf(tooOld.uuid), onlyOld.doseEvents.map { it.id })
+        assertEquals(tooOld.appliedAt.toEpochMilli(), onlyOld.originEpochMillis)
         // No labs: nothing bounds the doses, the caller's fallback applies.
         assertEquals(7L, calibrationDoseWindowStartEpochMillis(emptyList(), 7L))
     }

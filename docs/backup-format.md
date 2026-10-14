@@ -127,8 +127,7 @@ flattened into the parent's JSON.
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, AMOLED pure-black, `hazeBlurEnabled`,
-  `cjkTextOffsetEnabled`, reminders,
+  adaptive color, AMOLED pure-black, `hazeBlurEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
@@ -419,7 +418,14 @@ snapshot versions, which are rejected by version checks. The later
 defaulted too, but shipped with a v5→v6 gate so older apps reject
 backups carrying journal hero backgrounds instead of silently dropping
 that choice.
-Removing or renaming a field is *not* in this bucket.
+Removing or renaming a field is *not* in this bucket, with one narrow
+exception: a field that already has a Kotlin default can be dropped
+without a bump when older readers can live with that default. They read
+the missing key as the default, and the generated adapters skip the
+leftover key in backups written before the removal (the codec never
+sets `failOnUnknown`), so restores keep working in both directions. The
+retired "Adjust Chinese text display" setting left
+`BackupSettingsSnapshot` this way.
 The external-import provenance fields themselves are nullable/defaulted
 (`BackupMedicineSnapshot.importedFromExternalTracker`,
 `BackupMedicationLogSnapshot.importSourceApp` / `importExternalId`,

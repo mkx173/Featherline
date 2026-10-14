@@ -125,6 +125,7 @@ class PkCalibrationLiveRepositoryTest {
             generatedAtEpochMillis = FixedNowMillis,
             input = selfSolved.input,
             evaluation = evaluation,
+            statusRange = StatusRange,
         )
         runCurrent()
         // The published solve is reused as-is; no second read or solve.
@@ -137,12 +138,49 @@ class PkCalibrationLiveRepositoryTest {
             generatedAtEpochMillis = FixedNowMillis + 1L,
             input = selfSolved.input,
             evaluation = null,
+            statusRange = StatusRange,
         )
         runCurrent()
         assertNull(requireNotNull(repository.liveState.value).live)
 
         repository.retry()
         verify(exactly = 1) { homeSnapshots.refreshHomeSnapshotAsync(any(), force = true, any()) }
+        collector.cancel()
+    }
+
+    @Test
+    fun forcedPromotionAfterPublication_isObservedByUpdating() = runTest {
+        stubEmptySourceReads()
+        val repository = repository(backgroundScope, StandardTestDispatcher(testScheduler))
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.liveState.collect()
+        }
+        runCurrent()
+        val selfSolved = requireNotNull(repository.liveState.value?.live)
+        val forced = MutableStateFlow(false)
+        val build = HomeCalibrationBuild(
+            generation = 1L,
+            generatedAtEpochMillis = FixedNowMillis,
+            input = selfSolved.input,
+            evaluation = PkCalibrationEngine.evaluate(selfSolved.input),
+            statusRange = StatusRange,
+            forcedChanges = forced,
+        )
+        val updating = mutableListOf<Boolean>()
+        val updatingCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.updating.collect { updating += it }
+        }
+
+        // Published, then promoted by a forced joiner before the page has
+        // rendered it; no counter transition reaches this observer, only the
+        // build's flag. The page must report updating until its render lands.
+        builds.value = build
+        forced.value = true
+        runCurrent()
+
+        assertSame(build, repository.liveState.value?.build)
+        assertEquals(listOf(false, true, false), updating)
+        updatingCollector.cancel()
         collector.cancel()
     }
 
@@ -174,6 +212,7 @@ class PkCalibrationLiveRepositoryTest {
             generatedAtEpochMillis = FixedNowMillis,
             input = input,
             evaluation = PkCalibrationEngine.evaluate(input),
+            statusRange = StatusRange,
         )
         runCurrent()
 
@@ -190,6 +229,8 @@ class PkCalibrationLiveRepositoryTest {
         defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
     ): PkCalibrationLiveRepository {
         every { homeSnapshots.calibrationBuilds } returns builds
+        every { homeSnapshots.forcedRebuildInFlight } returns MutableStateFlow(false)
+        coEvery { homeSnapshots.visibleChartRange(any(), any()) } returns StatusRange
         return PkCalibrationLiveRepository(
             bloodTestRepository = bloodTests,
             medicationLogRepository = medicationLogs,
@@ -239,5 +280,6 @@ class PkCalibrationLiveRepositoryTest {
 
     private companion object {
         const val FixedNowMillis = 1_700_000_000_000L
+        val StatusRange = FixedNowMillis - 3 * 86_400_000L..FixedNowMillis + 4 * 86_400_000L
     }
 }

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.takeOrElse
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
@@ -46,7 +47,6 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.medicationApplicationIconRes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -69,8 +69,6 @@ fun PkCalibrationSection(
     onOpenReview: () -> Unit,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier,
-    // Target range summary shown as the last row; null hides it.
-    targetRange: String? = null,
 ) {
     val adjustedRows = if (uiState.globalState == PkCalibrationGlobalState.READY) {
         uiState.routeRows.filter { row -> row.displayState.isAdjusted }
@@ -126,9 +124,6 @@ fun PkCalibrationSection(
                     onClick = onOpenReview,
                 )
             }
-        }
-        targetRange?.let { summary ->
-            item { CalibrationTargetRangeRow(summary = summary) }
         }
     }
 }
@@ -250,11 +245,17 @@ private fun PkCalibrationRouteSummaryCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_route),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_route),
+                        modifier = Modifier.size(23.dp),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 val title = stringResource(R.string.calibration_pk_routes_card_title)
                 val trailingText = stringResource(
                     R.string.calibration_pk_routes_card_adjusted_of,
@@ -264,19 +265,17 @@ private fun PkCalibrationRouteSummaryCard(
                 Text(
                     text = title,
                     modifier = Modifier
-                        .weight(1f)
-                        .cjkTextOffset(title),
+                        .weight(1f),
                 )
                 Text(
                     text = trailingText,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(trailingText),
                 )
                 PkCalibrationRowChevron()
             }
-            HrtSection(title = null, modifier = Modifier.padding(top = 12.dp)) {
-                rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row) } }
+            HrtSection(title = null, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+                rows.forEach { row -> item { PkCalibrationRouteSummaryCell(row = row, onClick = onOpen) } }
                 if (reviewCount > 0) {
                     item { PkCalibrationReviewEntry(count = reviewCount, onClick = onOpenReview) }
                 }
@@ -307,12 +306,13 @@ private fun PkCalibrationReviewEntry(
     )
 }
 
-/** Sub-card for one adjusted route: tile, name, labs and confidence. */
+/** Sub-card for one adjusted route: tile, name, labs and confidence. Opens the routes sheet. */
 @Composable
-private fun PkCalibrationRouteSummaryCell(row: PkCalibrationRouteRowUiState) {
+private fun PkCalibrationRouteSummaryCell(row: PkCalibrationRouteRowUiState, onClick: () -> Unit) {
     PkCalibrationSubCard(
         title = stringResource(row.route.applicationType.labelRes),
         supportingText = pkCalibrationRouteMeta(row),
+        onClick = onClick,
         leading = {
             PkCalibrationRouteTile(
                 route = row.route,
@@ -441,8 +441,13 @@ internal fun PkCalibrationRouteTile(
             .background(routeScheme.primaryContainer),
         contentAlignment = Alignment.Center,
     ) {
+        // A route is the medicine, not the "apply" action, so patch drops the plus badge.
+        val iconRes = when (route.applicationType) {
+            MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker
+            else -> medicationApplicationIconRes(route.applicationType)
+        }
         Icon(
-            painter = painterResource(medicationApplicationIconRes(route.applicationType)),
+            painter = painterResource(iconRes),
             contentDescription = null,
             tint = routeScheme.onPrimaryContainer,
             modifier = Modifier.size(iconSize),
@@ -550,7 +555,6 @@ fun PkCalibrationLabRowFooter(
     onReinclude: () -> Unit,
     onAccept: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
     // Transparent where the caller's card is already the surface (result editor).
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
 ) {
@@ -564,7 +568,7 @@ fun PkCalibrationLabRowFooter(
             text = stringResource(R.string.calibration_pk_lab_accepted_body),
             modifier = note.padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
         ) {
-            TextButton(onClick = onReinclude, enabled = enabled) {
+            TextButton(onClick = onReinclude) {
                 Text(text = stringResource(R.string.calibration_pk_lab_show_review))
             }
         }
@@ -574,7 +578,7 @@ fun PkCalibrationLabRowFooter(
                 body = stringResource(R.string.calibration_pk_lab_invalid_body),
                 modifier = note,
             ) {
-                TextButton(onClick = onExclude, enabled = enabled) {
+                TextButton(onClick = onExclude) {
                     Text(text = stringResource(R.string.calibration_pk_lab_dismiss))
                 }
             }
@@ -601,13 +605,12 @@ fun PkCalibrationLabRowFooter(
                 modifier = note,
             ) {
                 // Keep leaves the result at its reduced weight; Exclude drops it.
-                TextButton(onClick = onAccept, enabled = enabled) {
+                TextButton(onClick = onAccept) {
                     Text(text = stringResource(R.string.calibration_pk_lab_keep))
                 }
                 HrtFilledTonalButton(
                     text = stringResource(R.string.calibration_pk_lab_outlier_exclude),
                     onClick = onExclude,
-                    enabled = enabled,
                     compact = true,
                 )
             }
@@ -621,7 +624,7 @@ fun PkCalibrationLabRowFooter(
             ),
             modifier = note.padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
         ) {
-            TextButton(onClick = onReinclude, enabled = enabled) {
+            TextButton(onClick = onReinclude) {
                 Text(
                     text = stringResource(
                         if (flag.dismissed) R.string.calibration_pk_lab_show_review
@@ -646,12 +649,12 @@ private fun PkCalibrationLabNote(
         bodyStyle.lineHeight.takeOrElse { bodyStyle.fontSize }.toDp()
     }
     Column(
-        modifier = modifier.padding(start = 12.dp, top = 12.dp, end = 4.dp, bottom = 4.dp),
+        modifier = modifier.padding(start = 12.dp, top = 12.dp, end = 4.dp, bottom = 2.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.height(firstLineHeight), contentAlignment = Alignment.Center) {
                 Icon(
@@ -665,8 +668,7 @@ private fun PkCalibrationLabNote(
                 text = body,
                 style = bodyStyle,
                 modifier = Modifier
-                    .weight(1f)
-                    .cjkTextOffset(body),
+                    .weight(1f),
             )
         }
         Row(
@@ -703,8 +705,7 @@ internal fun PkCalibrationNoteRow(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .weight(1f)
-                .cjkTextOffset(text),
+                .weight(1f),
         )
         action?.invoke()
     }
@@ -721,7 +722,6 @@ private fun PkCalibrationSectionReadyPreview() {
             onOpenRoutes = { },
             onOpenReview = { },
             onInfo = { },
-            targetRange = previewPkTargetRange,
         )
     }
 }
@@ -738,7 +738,6 @@ private fun PkCalibrationSectionNotReadyPreview() {
             onOpenRoutes = { },
             onOpenReview = { },
             onInfo = { },
-            targetRange = previewPkTargetRange,
         )
     }
 }
@@ -755,7 +754,6 @@ private fun PkCalibrationSectionUnavailablePreview() {
             onOpenRoutes = { },
             onOpenReview = { },
             onInfo = { },
-            targetRange = previewPkTargetRange,
         )
     }
 }
@@ -858,7 +856,6 @@ private val previewPkLabFlags = listOf(
     PkCalibrationLabRowFlag.Excluded(previewPkLabResultId, dismissed = true),
 )
 
-private const val previewPkTargetRange = "Estradiol: 100–200 pg/mL\nTestosterone: <50 ng/dL"
 
 @Composable
 private fun PkCalibrationPreviewColumn(content: @Composable () -> Unit) {

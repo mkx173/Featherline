@@ -84,7 +84,6 @@ import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.datePickerSelectableDates
 import com.mkx.hrttracker.ui.components.hazeDatePickerColors
 import com.mkx.hrttracker.ui.components.hazeDatePickerDialogColors
@@ -288,7 +287,6 @@ private fun PlanBatchAddScreenContent(
                     val title = stringResource(R.string.plan_batch_add_title)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {

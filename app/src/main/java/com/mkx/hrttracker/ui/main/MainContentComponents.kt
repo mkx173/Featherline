@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
-import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
@@ -45,22 +44,17 @@ import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -133,7 +127,6 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
@@ -146,7 +139,6 @@ import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
-import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -158,6 +150,7 @@ import com.patrykandpatrick.vico.compose.cartesian.VicoZoomState
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisLabelComponent
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModel
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
@@ -174,6 +167,7 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.Insets
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import com.patrykandpatrick.vico.compose.common.data.CartesianLayerDrawingModelInterpolator
 import com.patrykandpatrick.vico.compose.common.data.ExtraStore
@@ -346,11 +340,33 @@ private val MainE2ChartPlotHeight = 184.dp
 private val MainE2ChartMinimapHeight = 48.dp
 private val MainE2ChartMinimapHorizontalInset = 5.dp
 private val MainE2ChartMinimapResetButtonSize = 32.dp
-private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
+private val MainE2ChartMinimapDateLabelGap = 8.dp
+// Minimum space between bottom-axis labels. The labels carry no horizontal
+// padding of their own, so labels at the window's ends can sit closer to it.
+private val MainE2ChartAxisLabelGap = 12.dp
 
-@StringRes
-internal fun mainE2EstimateInfoToastRes(): Int =
-    R.string.medical_disclaimer_plasma_concentration_estimates
+// Start label pins to the viewport's left edge and end label to its right
+// edge, both clamped to the canvas. When a narrow viewport would make them
+// collide, the pair is laid out side by side, centred on the viewport.
+internal fun mainE2ChartMinimapDateLabelXs(
+    canvasWidth: Int,
+    viewportLeft: Float,
+    viewportWidth: Float,
+    startWidth: Int,
+    endWidth: Int,
+    gap: Int,
+): Pair<Int, Int> {
+    val startX = viewportLeft.roundToInt()
+        .coerceIn(0, (canvasWidth - startWidth).coerceAtLeast(0))
+    val endX = ((viewportLeft + viewportWidth).roundToInt() - endWidth)
+        .coerceIn(0, (canvasWidth - endWidth).coerceAtLeast(0))
+    if (startX + startWidth + gap <= endX) return startX to endX
+    val pairWidth = startWidth + gap + endWidth
+    val pairX = ((viewportLeft + viewportWidth / 2f).roundToInt() - pairWidth / 2)
+        .coerceIn(0, (canvasWidth - pairWidth).coerceAtLeast(0))
+    return pairX to pairX + startWidth + gap
+}
+private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
 private enum class MainTodayTimeRange(
     val labelRes: Int,
@@ -496,6 +512,8 @@ internal fun MainE2HeroCard(
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
     pkCalibration: MainPkCalibrationUiState? = null,
+    /** The title's population/lab icon opens the estimate sheet. */
+    onCalibrationClick: () -> Unit = {},
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -519,8 +537,7 @@ internal fun MainE2HeroCard(
         now = now
     )
     val hasPreviousRecord = section.lastDoseAt != null
-    // The title names the estimate's basis; a pill beside the value wrapped
-    // under the range pill whenever the value or the label ran wide.
+    // The title names the estimate's basis.
     val titleText = stringResource(
         when (pkCalibration?.adjusted) {
             true -> R.string.main_e2_title_calibrated
@@ -528,12 +545,6 @@ internal fun MainE2HeroCard(
             null -> R.string.main_e2_title
         }
     )
-    val estimateInfoTooltipText = stringResource(mainE2EstimateInfoToastRes())
-    val estimateInfoTooltipState = rememberTooltipState(isPersistent = true)
-    val estimateInfoTooltipScope = rememberCoroutineScope()
-    BackHandler(enabled = estimateInfoTooltipState.isVisible) {
-        estimateInfoTooltipState.dismiss()
-    }
     val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
     // When the trend isn't ready, we pin the pill to "in range" so the slot
@@ -592,47 +603,34 @@ internal fun MainE2HeroCard(
                             color = heroSupportingColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.cjkTextOffset(titleText)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        CompositionLocalProvider(
-                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                        ) {
-                            @OptIn(ExperimentalMaterial3Api::class)
-                            TooltipBox(
-                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                    TooltipAnchorPosition.Above
-                                ),
-                                tooltip = {
-                                    RichTooltip {
-                                        Text(
-                                            text = estimateInfoTooltipText,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(vertical = 8.dp)
-                                        )
-                                    }
-                                },
-                                state = estimateInfoTooltipState,
+                        // Opens the estimate sheet: the routes behind the value
+                        // and the estimate disclaimer. Nothing is announced
+                        // before the first evaluation (null) or while the value
+                        // is still a skeleton: an un-evaluated hero is not
+                        // "population", and it would flip a moment later.
+                        if (!showSkeleton && pkCalibration != null) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                             ) {
                                 IconButton(
-                                    onClick = {
-                                        if (estimateInfoTooltipState.isVisible) {
-                                            estimateInfoTooltipState.dismiss()
-                                        } else {
-                                            estimateInfoTooltipScope.launch {
-                                                estimateInfoTooltipState.show()
-                                            }
-                                        }
-                                    },
+                                    onClick = onCalibrationClick,
                                     modifier = Modifier.size(24.dp),
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.ic_info),
-                                        contentDescription = stringResource(R.string.main_e2_estimate_info),
+                                        painter = painterResource(
+                                            if (pkCalibration.adjusted) R.drawable.ic_experiment else R.drawable.ic_group
+                                        ),
+                                        contentDescription = stringResource(
+                                            if (pkCalibration.adjusted) {
+                                                R.string.calibration_pk_hero_adjusted
+                                            } else {
+                                                R.string.calibration_pk_hero_population
+                                            }
+                                        ),
                                         tint = heroSupportingColor,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(16.dp),
                                     )
                                 }
                             }
@@ -673,47 +671,22 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        // A plain Row: a FlowRow here wrapped its second child under
-                        // the first even with the whole card width free, because
-                        // ConstraintLayout measures preferredWrapContent from the
-                        // flow's own wrap pass.
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.constrainAs(rangeStatusRef) {
-                                start.linkTo(unitRef.end, margin = 8.dp)
-                                end.linkTo(parent.end)
-                                top.linkTo(unitRef.top)
-                                bottom.linkTo(unitRef.bottom)
-                                width = Dimension.wrapContent
-                                horizontalBias = 0f
-                            },
-                        ) {
-                            if (!hideReferenceRanges) {
-                                SkeletonOverlay(
-                                    active = showSkeleton,
-                                    shape = CircleShape,
-                                ) {
-                                    MainE2RangeStatusPill(
-                                        iconDrawableRes = rangeStatusIconDrawableRes,
-                                        label = rangeStatusLabel,
-                                    )
-                                }
-                            }
-                            if (!showSkeleton && pkCalibration != null) {
-                                Icon(
-                                    painter = painterResource(
-                                        if (pkCalibration.adjusted) R.drawable.ic_experiment else R.drawable.ic_group
-                                    ),
-                                    contentDescription = stringResource(
-                                        if (pkCalibration.adjusted) {
-                                            R.string.calibration_pk_hero_adjusted
-                                        } else {
-                                            R.string.calibration_pk_hero_population
-                                        }
-                                    ),
-                                    tint = heroSupportingColor,
-                                    modifier = Modifier.size(16.dp),
+                        if (!hideReferenceRanges) {
+                            SkeletonOverlay(
+                                active = showSkeleton,
+                                shape = CircleShape,
+                                modifier = Modifier.constrainAs(rangeStatusRef) {
+                                    start.linkTo(unitRef.end, margin = 8.dp)
+                                    end.linkTo(parent.end)
+                                    top.linkTo(unitRef.top)
+                                    bottom.linkTo(unitRef.bottom)
+                                    width = Dimension.wrapContent
+                                    horizontalBias = 0f
+                                },
+                            ) {
+                                MainE2RangeStatusPill(
+                                    iconDrawableRes = rangeStatusIconDrawableRes,
+                                    label = rangeStatusLabel,
                                 )
                             }
                         }
@@ -1015,6 +988,13 @@ internal fun MainE2ChartCard(
     val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
         MainE2ChartCoordinateMapper()
     }
+    // The mapper is recreated on return to Home and publishes nothing until
+    // the chart lays out (and Vico restores the scroll maximum only then), so
+    // the minimap keeps the last viewport it reported and draws from it until
+    // live measurements arrive: without it the box and date labels snap to the
+    // full window for those frames and back. One state object for the card's
+    // lifetime (gesture lambdas capture it); a reset clears its value.
+    val lastMinimapViewport = rememberSaveable { mutableStateOf<DoubleArray?>(null) }
     val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
     // The touch marker's x is captured in whatever coord space was active
     // when the user tapped, so it has no meaningful position after the
@@ -1145,9 +1125,12 @@ internal fun MainE2ChartCard(
     }
     // Hoisted up so maxChartZoom can recompute against the measured plot
     // width once .onSizeChanged fires; rememberVicoZoomState is keyed on
-    // option + width so the floor reflects the live form factor.
-    val chartSize = remember { mutableStateOf(IntSize.Zero) }
-    val measuredChartWidthPx = chartSize.value.width
+    // option + width so the floor reflects the live form factor. Saved so the
+    // key is stable on return to Home: a width of 0 on the first frame back
+    // would restore the unzoomed state saved under that key before the
+    // measured key restores the user's zoom.
+    val chartWidthPx = rememberSaveable { mutableIntStateOf(0) }
+    val measuredChartWidthPx = chartWidthPx.intValue
     val maxChartZoom = remember(section.chartWindowOption, measuredChartWidthPx) {
         Zoom.max(
             Zoom.Content,
@@ -1251,7 +1234,9 @@ internal fun MainE2ChartCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 10.dp)
-                .padding(bottom = 6.dp)
+                // The minimap sub-card needs 6dp more to match its side inset;
+                // a text legend under it sits on the plain card padding.
+                .padding(bottom = if (pkCalibration?.showsChartNote == true) 0.dp else 6.dp)
         ) {
 
             MainE2ChartCardHeader(
@@ -1278,8 +1263,9 @@ internal fun MainE2ChartCard(
                 val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
-                val calibrationBandOuterColor = lineColor.copy(alpha = 0.10f)
-                val calibrationBandInnerColor = lineColor.copy(alpha = 0.20f)
+                val calibrationBandColor = mainE2CalibrationBandColor()
+                val calibrationBandOuterColor = calibrationBandColor.copy(alpha = MainE2CalibrationBandOuterAlpha)
+                val calibrationBandInnerColor = calibrationBandColor.copy(alpha = MainE2CalibrationBandInnerAlpha)
                 // Shared with the line layer so the band decoration can read the
                 // in-flight intro drawing model and rise/fade with the line.
                 val lineDrawingModelKey = remember {
@@ -1389,7 +1375,7 @@ internal fun MainE2ChartCard(
                                 .fillMaxWidth()
                                 .height(MainE2ChartPlotHeight)
                                 .padding(MainE2ChartContentPadding)
-                                .onSizeChanged { chartSize.value = it }
+                                .onSizeChanged { chartWidthPx.intValue = it.width }
                                 .pointerInput(chartCoordinateMapper, chartWindowHours) {
                                     detectMainE2ChartMarkerGestures(
                                         coordinateMapper = chartCoordinateMapper,
@@ -1450,13 +1436,13 @@ internal fun MainE2ChartCard(
                                                                 )
                                                             )
                                                         ),
-                                                    interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                    interpolator = MonotoneCubicInterpolator,
                                                 ),
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(
                                                         Fill(lineColor.copy(alpha = MainE2ChartPredictedAlpha))
                                                     ),
-                                                    interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                    interpolator = MonotoneCubicInterpolator,
                                                 ),
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(
@@ -1515,6 +1501,9 @@ internal fun MainE2ChartCard(
                                         itemPlacer = startAxisItemPlacer,
                                     ),
                                     bottomAxis = HorizontalAxis.rememberBottom(
+                                        label = rememberAxisLabelComponent(
+                                            padding = Insets(horizontal = 0.dp, vertical = 4.dp),
+                                        ),
                                         valueFormatter = bottomAxisValueFormatter,
                                         tick = null,
                                         guideline = null,
@@ -1604,7 +1593,7 @@ internal fun MainE2ChartCard(
                                         val labelWidth = markerLabelSize.value.width
                                         val labelHeight = markerLabelSize.value.height
                                         val maxXOffset =
-                                            (chartSize.value.width - labelWidth).coerceAtLeast(0)
+                                            (measuredChartWidthPx - labelWidth).coerceAtLeast(0)
                                         IntOffset(
                                             x = (markerCanvasX.roundToInt() - labelWidth / 2)
                                                 .coerceIn(0, maxXOffset),
@@ -1637,9 +1626,11 @@ internal fun MainE2ChartCard(
                     chartWindowHours = chartWindowHours,
                     maxY = yAxisSpec.maxY,
                     coordinateMapper = chartCoordinateMapper,
+                    lastViewport = lastMinimapViewport,
                     scrollState = chartScrollState,
                     zoomState = chartZoomState,
                     onReset = {
+                        lastMinimapViewport.value = null
                         chartViewportResetVersion.intValue += 1
                     },
                     onViewportScrollFractionChanged = { scrollFraction ->
@@ -1863,6 +1854,8 @@ private fun MainE2ChartMinimap(
     chartWindowHours: Int,
     maxY: Double,
     coordinateMapper: MainE2ChartCoordinateMapper,
+    /** [rawStart, rawEnd, start, end, chartWindowHours] of the last reported viewport. */
+    lastViewport: MutableState<DoubleArray?>,
     scrollState: VicoScrollState,
     zoomState: VicoZoomState,
     onReset: () -> Unit,
@@ -1905,13 +1898,24 @@ private fun MainE2ChartMinimap(
     val pendingResetDateLabelRange = remember(chartWindowHours) {
         mutableStateOf<MainE2ChartVisibleXRange?>(null)
     }
-    val rawVisibleRange = viewportSnapshot
-        ?.takeIf { snapshotMatchesLiveWindow }
-        ?.rawVisibleRange
+    val liveViewport = viewportSnapshot?.takeIf { snapshotMatchesLiveWindow }
+    LaunchedEffect(liveViewport) {
+        if (liveViewport != null) {
+            lastViewport.value = doubleArrayOf(
+                liveViewport.rawVisibleRange.start,
+                liveViewport.rawVisibleRange.endInclusive,
+                liveViewport.visibleRange.start,
+                liveViewport.visibleRange.endInclusive,
+                chartWindowHours.toDouble(),
+            )
+        }
+    }
+    val savedViewport = lastViewport.value?.takeIf { it[4].toInt() == chartWindowHours }
+    val rawVisibleRange = liveViewport?.rawVisibleRange
+        ?: savedViewport?.let { MainE2ChartVisibleXRange(it[0], it[1]) }
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
-    val visibleRange = viewportSnapshot
-        ?.takeIf { snapshotMatchesLiveWindow }
-        ?.visibleRange
+    val visibleRange = liveViewport?.visibleRange
+        ?: savedViewport?.let { MainE2ChartVisibleXRange(it[2], it[3]) }
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
     val pendingResetRange = pendingResetDateLabelRange.value
     LaunchedEffect(visibleRange, pendingResetRange) {
@@ -1968,6 +1972,15 @@ private fun MainE2ChartMinimap(
 
     fun viewportMetrics(canvasWidth: Float): Pair<Float, Float> {
         val plotWidth = (canvasWidth - minimapHorizontalInsetPx * 2).coerceAtLeast(1f)
+        // Before the first draw after a return the scroll maximum is still 0;
+        // the saved range is the geometry until the live one arrives.
+        if (scrollState.maxValue <= 0f && liveViewport == null && savedViewport != null) {
+            val leftFraction = (rawVisibleRange.start.coerceIn(0.0, fullHours) / fullHours).toFloat()
+            val rightFraction =
+                (rawVisibleRange.endInclusive.coerceIn(0.0, fullHours) / fullHours).toFloat()
+            return minimapHorizontalInsetPx + leftFraction * plotWidth to
+                    ((rightFraction - leftFraction) * plotWidth).coerceIn(0f, plotWidth)
+        }
         val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
             .coerceIn(0.0, fullHours)
         val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
@@ -2004,6 +2017,19 @@ private fun MainE2ChartMinimap(
         return pendingResetRange
             ?.let { range -> viewportMetricsForRange(canvasWidth, range) }
             ?: viewportMetrics(canvasWidth)
+    }
+
+    fun dateLabelXs(gap: Int): Pair<Int, Int> {
+        val canvasWidth = minimapCanvasSize.value.width
+        val (viewportLeft, viewportWidth) = dateLabelViewportMetrics(canvasWidth.toFloat())
+        return mainE2ChartMinimapDateLabelXs(
+            canvasWidth = canvasWidth,
+            viewportLeft = viewportLeft,
+            viewportWidth = viewportWidth,
+            startWidth = startDateLabelSize.value.width,
+            endWidth = endDateLabelSize.value.width,
+            gap = gap,
+        )
     }
 
     Surface(
@@ -2048,7 +2074,18 @@ private fun MainE2ChartMinimap(
                                         (size.width.toFloat() - minimapHorizontalInsetPx * 2)
                                             .coerceAtLeast(1f)
                                     val maxScroll = scrollState.maxValue
-                                    if (maxScroll <= 0f) return 0f to plotWidth
+                                    if (maxScroll <= 0f) {
+                                        // Not drawn yet: the saved range (see
+                                        // lastMinimapViewport) or the full window.
+                                        val saved = lastViewport.value
+                                            ?.takeIf { it[4].toInt() == chartWindowHours }
+                                            ?: return 0f to plotWidth
+                                        val left = (saved[0] / fullHours).toFloat()
+                                            .coerceIn(0f, 1f) * plotWidth
+                                        val width = ((saved[1] - saved[0]) / fullHours).toFloat()
+                                            .coerceIn(0f, 1f) * plotWidth
+                                        return left to width.coerceAtMost(plotWidth - left)
+                                    }
                                     val visibleRange = coordinateMapper.rawVisibleXRange()
                                         ?: MainE2ChartVisibleXRange(0.0, fullHours)
                                     val visibleSpan =
@@ -2347,17 +2384,7 @@ private fun MainE2ChartMinimap(
                         modifier = Modifier
                             .onSizeChanged { startDateLabelSize.value = it }
                             .offset {
-                                val (viewportLeft, _) = dateLabelViewportMetrics(
-                                    minimapCanvasSize.value.width.toFloat()
-                                )
-                                val maxX = (
-                                        minimapCanvasSize.value.width -
-                                                startDateLabelSize.value.width
-                                        ).coerceAtLeast(0)
-                                IntOffset(
-                                    x = viewportLeft.roundToInt().coerceIn(0, maxX),
-                                    y = 0,
-                                )
+                                IntOffset(x = dateLabelXs(MainE2ChartMinimapDateLabelGap.roundToPx()).first, y = 0)
                             },
                     )
                     Text(
@@ -2370,19 +2397,7 @@ private fun MainE2ChartMinimap(
                         modifier = Modifier
                             .onSizeChanged { endDateLabelSize.value = it }
                             .offset {
-                                val (viewportLeft, viewportWidth) = dateLabelViewportMetrics(
-                                    minimapCanvasSize.value.width.toFloat()
-                                )
-                                val maxX = (
-                                        minimapCanvasSize.value.width -
-                                                endDateLabelSize.value.width
-                                        ).coerceAtLeast(0)
-                                val x = (viewportLeft + viewportWidth).roundToInt() -
-                                        endDateLabelSize.value.width
-                                IntOffset(
-                                    x = x.coerceIn(0, maxX),
-                                    y = 0,
-                                )
+                                IntOffset(x = dateLabelXs(MainE2ChartMinimapDateLabelGap.roundToPx()).second, y = 0)
                             },
                     )
                 }
@@ -2444,13 +2459,25 @@ private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlace
             }
 
             HomeE2ChartWindowOption.THIRTY_DAYS -> {
-                val visibleHours = visibleXRange.endInclusive - visibleXRange.start
-                mainE2ChartAxisLabelTickHours(
-                    chartWindowStart = spec.chartWindowStart,
-                    chartWindowHours = spec.chartWindowHours,
-                    visibleXRange = visibleXRange,
-                    intervalDays = mainE2ChartAxisTickIntervalDays(visibleHours),
-                )
+                // Densest nested step whose labels fit, with no more than about
+                // seven on screen; every other base label if even that's tight.
+                val pxPerHour = context.layerDimensions.xSpacing / context.ranges.xStep
+                val minStepPx = maxLabelWidth + with(context) { MainE2ChartAxisLabelGap.pixels }
+                val visibleDays = (visibleXRange.endInclusive - visibleXRange.start) / 24
+                val stepDays = listOf(1, 3, MainE2ChartAxisBaseStepDays).firstOrNull { step ->
+                    step >= visibleDays / 7 && step * 24 * pxPerHour >= minStepPx
+                } ?: (MainE2ChartAxisBaseStepDays * 2)
+                // Vico ellipsizes a label nearer the window's ends than half its
+                // width. Labels just outside the viewport stay, so they scroll
+                // in under the clip instead of popping in.
+                val halfLabelHours = maxLabelWidth / 2 / pxPerHour
+                mainE2ChartAxisGridHours(spec.chartWindowHours, stepDays)
+                    .filter { x ->
+                        x - fullXRange.start >= halfLabelHours &&
+                            fullXRange.endInclusive - x >= halfLabelHours &&
+                            x >= visibleXRange.start - halfLabelHours &&
+                            x <= visibleXRange.endInclusive + halfLabelHours
+                    }
             }
         }
     }
@@ -2497,12 +2524,8 @@ private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlace
             ?: return listOf(fullXRange.start)
         val ticks = when (spec.chartWindowOption) {
             HomeE2ChartWindowOption.SEVEN_DAYS -> noonTicksFor(spec)
-            HomeE2ChartWindowOption.THIRTY_DAYS -> mainE2ChartAxisLabelTickHours(
-                chartWindowStart = spec.chartWindowStart,
-                chartWindowHours = spec.chartWindowHours,
-                visibleXRange = fullXRange,
-                intervalDays = 1L,
-            )
+            HomeE2ChartWindowOption.THIRTY_DAYS ->
+                mainE2ChartAxisGridHours(windowHours = spec.chartWindowHours, stepDays = 1)
         }
         return ticks.ifEmpty { listOf(fullXRange.start) }
     }
@@ -3013,7 +3036,6 @@ private fun MainE2ChartCardHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.cjkTextOffset(mainE2ChartTitleText)
             )
             Spacer(modifier = Modifier.width(4.dp))
             IconButton(
@@ -3123,7 +3145,6 @@ private fun MainAntiandrogenCardHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.cjkTextOffset(title)
         )
     }
 }
@@ -3273,7 +3294,6 @@ private fun MainAntiandrogenMedicationSubCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.cjkTextOffset(medicationName),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3283,7 +3303,6 @@ private fun MainAntiandrogenMedicationSubCard(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.cjkTextOffset(supportingText),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -3808,8 +3827,7 @@ private fun MainTodayDoseRow(
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier
                                 .weight(1f)
-                                .alignByBaseline()
-                                .cjkTextOffset(headline),
+                                .alignByBaseline(),
                             fontWeight = FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -3828,8 +3846,7 @@ private fun MainTodayDoseRow(
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier
                                 .weight(1f)
-                                .alignByBaseline()
-                                .cjkTextOffset(supportingText),
+                                .alignByBaseline(),
                         )
                     }
                 }
@@ -3916,7 +3933,6 @@ private fun MainUpcomingDoseRow(
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End,
                     maxLines = 1,
-                    modifier = Modifier.cjkTextOffset(timeLabel)
                 )
             }
         ) {
@@ -3937,7 +3953,6 @@ private fun MainUpcomingDoseRow(
                     Text(
                         text = headline,
                         style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.cjkTextOffset(headline),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -3948,7 +3963,6 @@ private fun MainUpcomingDoseRow(
                             text = supportingText,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.cjkTextOffset(supportingText),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -4057,7 +4071,6 @@ private fun MainTodayTrailingContent(
                         },
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.cjkTextOffset(textLabel.text)
                     )
                 }
             }
@@ -4263,8 +4276,7 @@ private fun MainSectionHeader(
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
             modifier = Modifier
-                .alignByBaseline()
-                .cjkTextOffset(title),
+                .alignByBaseline(),
             maxLines = 1,
         )
         if (!summary.isNullOrEmpty()) {
@@ -4281,8 +4293,7 @@ private fun MainSectionHeader(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier
-                    .alignByBaseline()
-                    .cjkTextOffset(summary),
+                    .alignByBaseline(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.End
@@ -4301,7 +4312,6 @@ private fun MainTodayTimeRangeHeader(
     timeFormatter: DateTimeFormatter,
     modifier: Modifier = Modifier
 ) {
-    val appLocale = rememberAppLocale()
     val timeRangeLabel = stringResource(timeRange.labelRes)
     val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
         timeRange = timeRange,
@@ -4329,14 +4339,11 @@ private fun MainTodayTimeRangeHeader(
             },
             size = HrtPillSize.Medium,
         ) {
-            // Icon, label, and time share one ConstraintLayout so their vertical
-            // alignment is explicit and independent of each other's height. The icon
-            // is centered on the CJK label (reproducing the pill row's old
-            // CenterVertically pairing), and the time label's baseline is constrained
-            // one-directionally to the CJK label — so neither the time label's metrics
-            // nor its presence can shift the icon/label alignment.
-            ConstraintLayout {
-                val (iconRef, labelRef, timeRef) = createRefs()
+            // Both labels share labelMedium, so centring them also lines up their baselines.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Icon(
                     painter = painterResource(iconDrawableRes),
                     contentDescription = null,
@@ -4345,13 +4352,7 @@ private fun MainTodayTimeRangeHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier
-                        .size(14.dp)
-                        .constrainAs(iconRef) {
-                            start.linkTo(parent.start)
-                            top.linkTo(labelRef.top)
-                            bottom.linkTo(labelRef.bottom)
-                        }
+                    modifier = Modifier.size(14.dp)
                 )
                 Text(
                     text = timeRangeLabel,
@@ -4362,12 +4363,6 @@ private fun MainTodayTimeRangeHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier
-                        .constrainAs(labelRef) {
-                            start.linkTo(iconRef.end, margin = 6.dp)
-                            top.linkTo(parent.top)
-                        }
-                        .cjkTextOffset(timeRangeLabel)
                 )
                 Text(
                     text = timeRangeTimeLabel,
@@ -4377,15 +4372,7 @@ private fun MainTodayTimeRangeHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    // Locale-based, not content-based: a 24h time string is pure
-                    // digits yet must still ride up with the CJK label.
-                    modifier = Modifier
-                        .constrainAs(timeRef) {
-                            start.linkTo(labelRef.end, margin = 6.dp)
-                            baseline.linkTo(labelRef.baseline)
-                        }
-                        .padding(end = 1.dp)
-                        .cjkTextOffset(appLocale)
+                    modifier = Modifier.padding(end = 1.dp)
                 )
             }
         }

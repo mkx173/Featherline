@@ -69,7 +69,7 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
                 text = stringResource(R.string.external_import_detected_source),
                 supportingText = preview.sourceAppLabel,
                 painter = painterResource(R.drawable.ic_data_object),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 leadingIconSize = 19.dp
             )
         }
@@ -93,7 +93,7 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
                     existingCount = preview.medicationRowsUnchanged,
                 ),
                 painter = painterResource(R.drawable.ic_medication),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
             )
         }
         item {
@@ -116,7 +116,7 @@ private fun ExternalImportReviewSheetContent(preview: ExternalImportPreview) {
                     existingCount = preview.labRowsUnchanged,
                 ),
                 painter = painterResource(R.drawable.ic_experiment),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
             )
         }
         if (skippedWarnings.isNotEmpty()) {
@@ -143,7 +143,7 @@ private fun ExternalImportSkippedRowsItem(skippedWarnings: List<ExternalImportWa
             skippedWarnings.size,
         ),
         painter = painterResource(R.drawable.ic_error_outline),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         onClick = {
             // Throttle like the settings copy action: ignore rapid repeat taps and
             // cancel the previous toast so confirmations don't queue up.

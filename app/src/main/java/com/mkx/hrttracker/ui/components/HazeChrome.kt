@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.ViewCompat
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.only
@@ -457,6 +458,24 @@ fun HazeModalBottomSheet(
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Previews never resume, and a modal window wouldn't render in one anyway:
+    // draw the sheet inline, fully expanded.
+    if (LocalInspectionMode.current) {
+        Surface(
+            modifier = modifier,
+            shape = BottomSheetDefaults.ExpandedShape,
+            color = hazeBottomSheetContainerColor(),
+        ) {
+            HazeBottomSheetSurface(
+                sheetState = sheetState,
+                onDismissRequest = onDismissRequest,
+                statusBarTop = 0,
+                dragHandle = dragHandle,
+                content = content,
+            )
+        }
+        return
+    }
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }

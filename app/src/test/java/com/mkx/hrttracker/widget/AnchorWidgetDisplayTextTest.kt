@@ -98,7 +98,7 @@ class AnchorWidgetDisplayTextTest {
             today = LocalDate.of(2026, 7, 5),
         )
 
-        assertEquals(AnchorWidgetDisplayText.Empty(message = "请选择一个日期"), displayText)
+        assertEquals(AnchorWidgetDisplayText.Empty(message = "请选择日期"), displayText)
     }
 
     private fun localizedContext(locale: Locale): Context =

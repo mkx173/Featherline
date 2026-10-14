@@ -49,7 +49,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
-import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
@@ -83,7 +82,6 @@ import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -99,8 +97,8 @@ import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
+import com.mkx.hrttracker.ui.plan.toDraftGroupReferences
 import com.mkx.hrttracker.ui.plan.PlanScreen
-import com.mkx.hrttracker.ui.pkcalibrationdebug.PkCalibrationDebugScreenEntry
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
@@ -173,17 +171,6 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
 
     data object Settings : Screen("settings", R.string.tab_settings)
-    data object SettingsPkCalibrationDebug : Screen(
-        "settings_pk_calibration_debug?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
-        R.string.settings_diagnostics,
-    ) {
-        const val baseRoute = "settings_pk_calibration_debug"
-
-        fun createRoute(topLevelParentRoute: String): String {
-            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
-        }
-    }
-
     data object SettingsCalibration : Screen(
         "settings_calibration?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.settings_personalization_calibration
@@ -800,7 +787,6 @@ fun HrtTrackerNavHost(
                         val screenLabelText = stringResource(navItem.screen.label)
                         Text(
                             text = screenLabelText,
-                            modifier = Modifier.cjkTextOffset(screenLabelText)
                         )
                     }
                 )
@@ -1078,33 +1064,11 @@ fun HrtTrackerNavHost(
                         SettingsScreen(
                             modifier = modifier,
                             scrollToTopSignal = settingsScrollToTopSignal,
-                            onPkCalibrationDebugClick = {
-                                if (BuildConfig.DEBUG) {
-                                    navController.navigate(
-                                        Screen.SettingsPkCalibrationDebug.createRoute(
-                                            Screen.Settings.route,
-                                        ),
-                                    )
-                                }
-                            },
                             onCalibrationClick = {
                                 navController.navigate(
                                     Screen.SettingsCalibration.createRoute(Screen.Settings.route)
                                 )
                             }
-                        )
-                    }
-                }
-                // The entry is a no-op outside debug builds (src/release, src/benchmark);
-                // the Settings row that navigates here is DEBUG-gated.
-                composable(
-                    route = Screen.SettingsPkCalibrationDebug.route,
-                    arguments = topLevelParentArgs(Screen.Settings.route),
-                ) {
-                    RoutedTopChromeHazeProvider(navController, it) {
-                        PkCalibrationDebugScreenEntry(
-                            onNavigateBack = { navController.popBackStackSafely() },
-                            modifier = modifier,
                         )
                     }
                 }
@@ -1208,6 +1172,28 @@ fun HrtTrackerNavHost(
                             slotResultKey = slotResultKey,
                             manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
                         )
+                        // A group-slot pick comes from the plan editor right
+                        // below; count its unsaved draft so a slot removed
+                        // there no longer shows as a plan using that medicine.
+                        val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
+                        val groupEditorEntry = remember(backStackEntry) {
+                            navController.previousBackStackEntry?.takeIf {
+                                groupSlotMode != null &&
+                                    it.destination.route == Screen.EditMedicationGroup.route
+                            }
+                        }
+                        val draftGroup = if (groupSlotMode != null && groupEditorEntry != null) {
+                            val groupEditorViewModel: MedicationGroupEditorViewModel =
+                                hiltViewModel(groupEditorEntry)
+                            val editorState by groupEditorViewModel.uiState
+                                .collectAsStateWithLifecycle()
+                            editorState.toDraftGroupReferences(
+                                pickingLocalId = groupSlotMode.resultKey
+                                    .removePrefix(GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX),
+                            )
+                        } else {
+                            null
+                        }
                         // Sheet-completion pops below fire after the sheet's
                         // hide animation and can race an in-flight navigation,
                         // which silently drops the pop and strands the user on
@@ -1261,6 +1247,7 @@ fun HrtTrackerNavHost(
                             onNewMedicineCreated = stockNudgeViewModel::onNewMedicineCreated,
                             stockNudgeEnabled = stockNudgeEnabled,
                             onSetStockNudgeEnabled = stockNudgeViewModel::setEnabled,
+                            draftGroup = draftGroup,
                         )
                     }
                 }

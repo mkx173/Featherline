@@ -60,7 +60,6 @@ fun AddChip(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.cjkTextOffset(label),
                 )
             }
         }

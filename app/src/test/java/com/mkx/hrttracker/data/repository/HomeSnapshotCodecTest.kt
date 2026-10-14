@@ -101,14 +101,15 @@ class HomeSnapshotCodecTest {
         val record = minimalRecord().copy(
             pkRouteLogScale = mapOf("injection" to 0.25, "oral" to -0.1, "unknown-route" to 1.0),
             pkBandKnots = listOf(
-                HomePkBandKnotRecord(1_700_000_000_000L, 60.0, 80.0, 100.0, 125.0, 160.0),
-                HomePkBandKnotRecord(1_700_021_600_000L, 55.0, 75.0, 95.0, 120.0, 150.0),
+                HomePkBandKnotRecord(1_700_000_000_000L, 60.0, 80.0, 100.0, 125.0, 160.0, segment = 0),
+                HomePkBandKnotRecord(1_700_021_600_000L, 55.0, 75.0, 95.0, 120.0, 150.0, segment = 1),
             ),
             pkCalibration = HomePkCalibrationRecord(
                 adjusted = true,
                 limitedConfidence = true,
                 renderUnavailable = false,
                 bandUnavailable = false,
+                effectiveRoutes = listOf("injection"),
             ),
         )
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
@@ -117,6 +118,7 @@ class HomeSnapshotCodecTest {
         assertEquals(record.pkCalibration, decoded.pkCalibration)
         assertNull(HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(minimalRecord())).pkCalibration)
         assertEquals(100.0, decoded.pkBandKnots().first().p50Pgml, 0.0)
+        assertEquals(listOf(0, 1), decoded.pkBandKnots().map { knot -> knot.segment })
         val params = decoded.pkPersonalParams()
         assertEquals(0.25, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.INJECTION), 0.0)
         assertEquals(-0.1, params.logScaleFor(com.mkx.hrttracker.model.pk.PkCalibrationRoute.ORAL), 0.0)

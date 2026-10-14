@@ -53,7 +53,6 @@ import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -86,7 +85,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kizitonwose.calendar.compose.CalendarLayoutInfo
 import com.kizitonwose.calendar.compose.CalendarState
 import com.kizitonwose.calendar.compose.HorizontalCalendar
@@ -122,7 +123,6 @@ import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.SelectionFabScrollState
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -242,10 +242,13 @@ fun HistoryScreen(
         active = uiState.isDeletingSelectedEntries || uiState.isDeletingAllEntries,
     )
 
-    DisposableEffect(viewModel) {
-        onDispose {
-            viewModel.resetCalendarViewport()
-        }
+    // Reset the calendar only when this back-stack entry is popped. A bottom-tab
+    // switch saves the entry (saveState/restoreState), which disposes the
+    // composable but keeps the entry's ViewModelStore, so a dispose-time reset
+    // would also wipe the selection the user comes back to. An entry-scoped
+    // ViewModel is cleared on pop and kept on save, which is exactly the split.
+    viewModel<HistoryEntryScope> {
+        HistoryEntryScope(onPopped = viewModel::resetCalendarViewport)
     }
 
     HistoryScreenContent(
@@ -768,7 +771,6 @@ private fun HistoryScreenContent(
                             val title = stringResource(R.string.tab_history)
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                         back = {
@@ -779,7 +781,6 @@ private fun HistoryScreenContent(
                             )
                             Text(
                                 text = title,
-                                modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                             )
                         },
                     )
@@ -1452,7 +1453,6 @@ private fun HistoryCalendarLegendItem(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .padding(start = dimensionResource(R.dimen.padding_xsmall))
-                .cjkTextOffset(label)
         )
     }
 }
@@ -1572,7 +1572,6 @@ private fun HistoryCalendarTitle(
                     onClick = { isMonthPickerVisible = true }
                 )
                 .padding(horizontal = 12.dp, vertical = 6.dp)
-                .cjkTextOffset(dateLabel)
         )
     }
 }
@@ -2116,7 +2115,6 @@ internal fun HistoryEntryGroupHeader(
                 },
                 modifier = Modifier
                     .alignByBaseline()
-                    .cjkTextOffset(label)
             )
             Text(
                 text = weekdayDisplayLabel,
@@ -2128,8 +2126,7 @@ internal fun HistoryEntryGroupHeader(
                 },
                 modifier = Modifier
                     .alignByBaseline()
-                    .padding(end = 1 .dp)
-                    .cjkTextOffset(weekdayDisplayLabel),
+                    .padding(end = 1 .dp),
             )
         }
         if (!countLabel.isNullOrBlank()) {
@@ -2719,3 +2716,7 @@ private val CalendarLayoutInfo.completelyVisibleMonths: List<CalendarMonth>
             visibleItemsInfo.map { it.month }
         }
     }
+
+private class HistoryEntryScope(private val onPopped: () -> Unit) : ViewModel() {
+    override fun onCleared() = onPopped()
+}

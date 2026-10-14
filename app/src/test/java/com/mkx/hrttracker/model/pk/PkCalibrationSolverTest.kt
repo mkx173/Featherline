@@ -228,7 +228,7 @@ class PkCalibrationSolverTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun supportFloor_isInclusiveAtExactShare_andBelowItOnlyWarns() {
+    fun supportFloor_isInclusiveAtExactShare_andBelowItTheRouteIsNotFitted() {
         val atFloor = requireNotNull(
             PkForwardBreakdown.create(
                 breakdownMap(injection = 8.0, oral = 2.0)
@@ -267,6 +267,23 @@ class PkCalibrationSolverTest {
         assertEquals(
             2,
             excluded.routeResults[PkCalibrationRoute.INJECTION.ordinal].supportingLabCount,
+        )
+        // Below the floor the route is not a fitted coordinate at all, so the
+        // injection MAP, the applied params and the band covariance describe
+        // one model instead of a joint fit with oral dropped afterwards.
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION.ordinal, PkCalibrationRoute.ORAL.ordinal),
+            jointObjective(
+                labFrom(1, observed = 10.0, breakdown = atFloor),
+                labFrom(2, observed = 20.0, breakdown = scale(atFloor, 2.0)),
+            ).activeRouteIndices,
+        )
+        assertEquals(
+            listOf(PkCalibrationRoute.INJECTION.ordinal),
+            jointObjective(
+                labFrom(1, observed = 10.0, breakdown = oneUlpBelow),
+                labFrom(2, observed = 20.0, breakdown = scale(oneUlpBelow, 2.0)),
+            ).activeRouteIndices,
         )
     }
 

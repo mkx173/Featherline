@@ -35,7 +35,7 @@
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_title_calibrated">雌二醇 · 已校准</string>
     <string name="main_e2_title_population">雌二醇 · 人群估算</string>
-    <string name="main_e2_estimate_info">显示雌二醇估算说明</string>
+    <string name="main_e2_estimate_sheet_title">关于此估算</string>
     <string name="main_e2_chart_title_seven_days">7 天趋势</string>
     <string name="main_e2_chart_title_thirty_days">30 天趋势</string>
     <string name="main_e2_chart_window_toggle_cd">切换图表窗口</string>
@@ -611,8 +611,6 @@
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
-    <string name="settings_cjk_text_offset">调整中文文字显示</string>
-    <string name="settings_cjk_text_offset_summary">如遇到文字对齐问题可尝试调整此项</string>
     <string name="settings_first_day_of_week">每周第一天</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
@@ -904,7 +902,7 @@
     <string name="widget_medium_description">剂量概览</string>
     <string name="widget_large_description">剂量列表</string>
     <string name="widget_anchor_description">时间线</string>
-    <string name="anchor_widget_empty">请选择一个日期</string>
+    <string name="anchor_widget_empty">请选择日期</string>
     <string name="anchor_widget_planned_for">计划于 %1$s</string>
     <string name="anchor_widget_preview_since">开始于 2026年1月1日</string>
     <string name="anchor_widget_preview_days">67 天</string>
@@ -1037,12 +1035,12 @@
     <string name="settings_medication_day_start_summary">%1$s · 按此时间划分用药记录和每日完成统计。</string>
     <string name="medication_next_day_time">次日 %1$s</string>
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
-    <string name="calibration_pk_global_no_dose_history_title">请先记录用药</string>
-    <string name="calibration_pk_global_no_dose_history_body">估算校准会将您的 E2 检查结果与用药记录算出的曲线对比，记录雌二醇用药前会显示人群估算</string>
-    <string name="calibration_pk_global_no_usable_labs_title">添加 E2 检查结果</string>
-    <string name="calibration_pk_global_no_usable_labs_body">添加 E2 检查结果后即可开始校准，在此之前会显示人群估算</string>
+    <string name="calibration_pk_global_no_dose_history_title">请添加用药记录</string>
+    <string name="calibration_pk_global_no_dose_history_body">添加雌二醇用药记录前将显示人群估算</string>
+    <string name="calibration_pk_global_no_usable_labs_title">请添加检查结果</string>
+    <string name="calibration_pk_global_no_usable_labs_body">添加雌二醇检查结果前将显示人群估算</string>
     <string name="calibration_pk_global_numeric_failure_title">无法更新估算</string>
-    <string name="calibration_pk_global_numeric_failure_body">计算未能完成，暂时显示人群估算</string>
+    <string name="calibration_pk_global_numeric_failure_body">计算未完成，将显示人群估算</string>
 
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_tag_no_supporting_labs">暂无可用结果</string>
@@ -1051,6 +1049,7 @@
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">人群估算</string>
     <string name="calibration_pk_hero_adjusted">已校准</string>
+    <string name="calibration_pk_routes_sheet_loading">校准仍在加载中</string>
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="other">%1$d 项结果</item>
     </plurals>
@@ -1058,7 +1057,7 @@
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">估算校准</string>
     <string name="calibration_pk_status_population_title">正在使用人群估算</string>
-    <string name="calibration_pk_status_adjusted_title">已按您的检查结果校准</string>
+    <string name="calibration_pk_status_adjusted_title">已根据检查结果校准</string>
     <string name="calibration_pk_retry">重试</string>
     <string name="calibration_pk_routes_card_title">给药途径</string>
     <string name="calibration_pk_routes_card_adjusted_of">已校准 %1$d/%2$d</string>
@@ -1071,7 +1070,7 @@
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">知道了</string>
     <string name="calibration_pk_coaching_time_title">填写采样时间</string>
-    <string name="calibration_pk_coaching_time_body">填写抽血的时间，而不是记录的时间</string>
+    <string name="calibration_pk_coaching_time_body">填写抽血时间，而非记录时间</string>
     <string name="calibration_pk_coaching_history_title">保持用药记录准确</string>
     <string name="calibration_pk_coaching_history_body">剂量、给药途径、药物和体重都会影响估算</string>
     <string name="calibration_pk_coaching_assay_title">尽量在同一机构检查</string>
@@ -1080,43 +1079,44 @@
     <string name="calibration_pk_coaching_variety_body">在某个给药途径占主导时检查，有助于校准该途径</string>
     <string name="calibration_pk_coaching_safety_note">未经医生同意，请勿更改用药或检查时间</string>
     <string name="calibration_pk_edu_title">估算校准的原理</string>
-    <string name="calibration_pk_edu_intro">您的 E2 检查结果会微调各给药途径对估算的贡献</string>
-    <string name="calibration_pk_edu_does_header">可以做到</string>
-    <string name="calibration_pk_edu_doesnt_header">无法做到</string>
+    <string name="calibration_pk_edu_intro_title">根据检查结果校准雌二醇估算</string>
+    <string name="calibration_pk_edu_intro">各给药途径的权重会根据您的检查结果进行调整</string>
+    <string name="calibration_pk_edu_does_header">能做什么</string>
+    <string name="calibration_pk_edu_doesnt_header">不能做什么</string>
     <string name="calibration_pk_edu_does_routes_title">分别校准每个给药途径</string>
-    <string name="calibration_pk_edu_does_routes_body">每项结果只计入检查时起效的给药途径，随着结果增加，估算可能会变化，包括过去的日期</string>
-    <string name="calibration_pk_edu_does_band_title">显示可能范围</string>
-    <string name="calibration_pk_edu_does_band_body">阴影区域是新结果可能落入的范围，结果越多越窄，它不是目标范围</string>
-    <string name="calibration_pk_edu_doesnt_verify_title">判断抑制情况或检查方法是否一致</string>
+    <string name="calibration_pk_edu_does_routes_body">每个结果只校准抽血时有效的途径</string>
+    <string name="calibration_pk_edu_does_band_title">显示可能的范围</string>
+    <string name="calibration_pk_edu_does_band_body">阴影是下次抽血结果可能落在的范围，它包含了化验误差和抽血时间的波动，不是置信区间</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">判断HPG轴的抑制情况</string>
     <string name="calibration_pk_edu_doesnt_verify_body">不会参考 FSH、LH 或睾酮</string>
     <string name="calibration_pk_edu_doesnt_learn_title">了解您的吸收情况</string>
-    <string name="calibration_pk_edu_doesnt_learn_body">只调整给药途径的整体水平，不改变曲线形状</string>
+    <string name="calibration_pk_edu_doesnt_learn_body">只调整各给药途径的整体水平，不调整吸收或清除速率</string>
 
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：无法计算此时间点的估算</string>
-    <string name="calibration_pk_lab_ignored_signal_note">未使用：此时间点预计几乎没有来自用药的 E2</string>
-    <string name="calibration_pk_lab_invalid_body">请输入大于零的数值，如果报告提示低于检测下限，请忽略此提示</string>
+    <string name="calibration_pk_lab_ignored_signal_note">未使用：此时间点预计几乎没有来自用药的雌二醇</string>
+    <string name="calibration_pk_lab_invalid_body">数值需大于零。若报告显示低于检测下限，可忽略此提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>
     <string name="calibration_pk_lab_outlier_body">此结果与%1$s的估算相差较大，请核对信息是否正确</string>
     <string name="calibration_pk_lab_outlier_exclude">排除</string>
-    <string name="calibration_pk_lab_excluded_note">已从估算校准中排除</string>
+    <string name="calibration_pk_lab_excluded_note">已从校准中排除</string>
     <string name="calibration_pk_lab_dismissed_note">未使用：数值需大于零</string>
     <string name="calibration_pk_lab_reinclude">重新纳入</string>
     <string name="calibration_pk_review_action_rejected">无法保存此更改</string>
-    <string name="medical_disclaimer_lab_adjustment">校准后的数值仍是模型估算值，并非实测激素水平或用药建议——不能替代实验室检测或医生的指导</string>
+    <string name="medical_disclaimer_lab_adjustment">校准后的数值仍是模型估算，并非实测值或用药建议，不能替代实验室检查或医生指导</string>
 
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">无法显示图表</string>
-    <string name="calibration_pk_chart_unavailable_body">计算未能完成，为避免显示错误数值，此处不绘制曲线，已保存的数据不受影响</string>
-    <string name="calibration_pk_band_unavailable_note">无法计算此视图的阴影范围</string>
-    <string name="calibration_pk_band_legend">68% / 95% 范围</string>
-    <string name="calibration_pk_band_a11y_summary">曲线结合了已校准给药途径的校准估算和其他途径的人群估算，阴影区域表示检查结果可能落入的范围</string>
+    <string name="calibration_pk_chart_unavailable_body">计算未完成，暂不显示曲线。已保存的数据不受影响</string>
+    <string name="calibration_pk_band_unavailable_note">无法计算此视图的预测区间</string>
+    <string name="calibration_pk_band_legend">68% / 95% 预测区间</string>
+    <string name="calibration_pk_band_a11y_summary">已校准的途径使用校准估算，其余途径使用人群估算。阴影为抽血结果的预测区间</string>
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
-    <string name="calibration_pk_lab_accepted_body">已保留，仍以较低权重使用</string>
+    <string name="calibration_pk_lab_accepted_body">已保留，将以较低权重计入</string>
     <string name="calibration_pk_lab_show_review">撤销</string>
-    <string name="calibration_pk_status_info_hint">仍是估算值，并非实测值，轻触了解详情</string>
+    <string name="calibration_pk_status_info_hint">点击以了解详情</string>
     <plurals name="calibration_pk_review_count">
         <item quantity="other">%d 项结果待核对</item>
     </plurals>
@@ -1124,7 +1124,8 @@
     <string name="calibration_pk_reason_short_uncertain">不确定性高</string>
     <string name="calibration_pk_reason_short_fit">拟合较差</string>
     <string name="calibration_pk_reason_short_ambiguous">拟合不明确</string>
-    <string name="calibration_pk_reason_short_outlier">存在不一致结果</string>
+    <string name="calibration_pk_reason_short_outlier">结果不一致</string>
+    <string name="calibration_pk_route_pill_small_share">占比过低</string>
     <string name="calibration_pk_review_summary_outlier">与%1$s的估算相差较大</string>
     <string name="calibration_pk_review_summary_non_positive">数值需大于零</string>
     <string name="calibration_pk_review_summary_accepted">已保留，仍计入估算</string>

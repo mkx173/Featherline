@@ -10,7 +10,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,7 +22,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.SettingsState
-import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -231,10 +229,7 @@ class WidgetConfigActivity : AppCompatActivity() {
                     dynamicColor = loaded.settings.adaptiveColorEnabled,
                     amoled = loaded.settings.pureBlackEnabled,
                 ) {
-                    CompositionLocalProvider(
-                        LocalCjkTextOffsetEnabled provides loaded.settings.cjkTextOffsetEnabled,
-                    ) {
-                        when {
+                    when {
                         // Lock state not yet known: stay blank (same as the pre-load
                         // window) rather than flashing anchors that may need to hide.
                         !appLockUiState.isReady -> Unit
@@ -399,7 +394,6 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 },
                                 onCancel = { finish() },
                             )
-                        }
                         }
                     }
                 }

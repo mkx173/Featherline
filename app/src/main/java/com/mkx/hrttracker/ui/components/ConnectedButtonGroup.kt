@@ -43,7 +43,6 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyCjkTextOffset: Boolean = true,
     textStyle: TextStyle? = null,
 ) {
     val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
@@ -60,7 +59,6 @@ fun <T> ConnectedButtonGroup(
             }
         },
         enabled = enabled,
-        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -82,7 +80,6 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyCjkTextOffset: Boolean = true,
     textStyle: TextStyle? = null,
 ) {
     ConnectedButtonGroup(
@@ -94,7 +91,6 @@ fun <T> ConnectedButtonGroup(
         optionLeadingContent = optionLeadingContent,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
-        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -116,7 +112,6 @@ private fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyCjkTextOffset: Boolean = true,
     textStyle: TextStyle? = null,
 ) {
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
@@ -158,7 +153,6 @@ private fun <T> ConnectedButtonGroup(
                         },
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
-                        applyCjkTextOffset = applyCjkTextOffset,
                         colors = resolvedColors,
                         textStyle = localTextStyle,
                     )
@@ -195,7 +189,6 @@ private fun <T> ConnectedButtonGroup(
                         },
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
-                        applyCjkTextOffset = applyCjkTextOffset,
                         colors = resolvedColors,
                         textStyle = localTextStyle,
                     )
@@ -219,7 +212,6 @@ private fun <T> ConnectedButtonGroupButton(
     optionLeadingContent: (@Composable () -> Unit)?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
-    applyCjkTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     val hasStartIcon = connectedButtonGroupButtonHasStartIcon(
@@ -258,7 +250,6 @@ private fun <T> ConnectedButtonGroupButton(
         }
         LocalizedButtonLabelText(
             text = optionLabel(option),
-            applyCjkTextOffset = applyCjkTextOffset,
             textStyle = textStyle
         )
     }
@@ -278,7 +269,6 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionLeadingContent: (@Composable () -> Unit)?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
-    applyCjkTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     ConnectedButtonGroupButton(
@@ -293,7 +283,6 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionLeadingContent = optionLeadingContent,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
-        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
     )
 }

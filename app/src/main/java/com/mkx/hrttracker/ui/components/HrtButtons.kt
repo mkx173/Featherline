@@ -200,11 +200,10 @@ internal fun LocalizedButtonLabelText(
     text: String,
     modifier: Modifier = Modifier,
     textStyle: TextStyle? = null,
-    applyCjkTextOffset: Boolean = true,
 ) {
     Text(
         text = text,
-        modifier = modifier.cjkTextOffset(text = text, enabled = applyCjkTextOffset),
+        modifier = modifier,
         style = textStyle ?: LocalTextStyle.current
     )
 }

@@ -11,17 +11,43 @@ import org.junit.Test
 class MainE2CalibrationOverlayTest {
 
     @Test
-    fun bandGapSegments_splitOnSpacingJumps_soShadingNeverBridgesAGap() {
-        // Hourly knots with one 12-hour hole: §7 spans without promoted
-        // contribution stay unshaded, so the fill must break at the hole.
-        val xHours = listOf(0.0, 1.0, 2.0, 3.0, 15.0, 16.0, 17.0)
-        assertEquals(listOf(0..3, 4..6), bandGapSegments(xHours))
+    fun bandSegments_splitOnEngineTags_soShadingNeverBridgesAHole() {
+        // §7 spans without promoted contribution stay unshaded. The engine
+        // tags each run; a one- or two-knot hole leaves no spacing jump a
+        // heuristic could see, so the fill must break on the tag alone.
+        assertEquals(listOf(0..3, 4..6), bandSegments(listOf(0, 0, 0, 0, 1, 1, 1)))
+        assertEquals(listOf(0..0, 1..2, 3..3), bandSegments(listOf(0, 1, 1, 2)))
+        assertEquals(listOf(0..10), bandSegments(List(11) { 0 }))
+        assertEquals(emptyList<IntRange>(), bandSegments(emptyList()))
     }
 
     @Test
-    fun bandGapSegments_uniformSpacing_isOneSegment() {
-        val xHours = (0..10).map { it.toDouble() }
-        assertEquals(listOf(0..10), bandGapSegments(xHours))
+    fun buildBand_keepsTheEngineSegments_regardlessOfKnotSpacing() {
+        val now = LocalDateTime.of(2026, 5, 8, 12, 0)
+        val zone = ZoneOffset.UTC
+        val windowStart = mainE2ChartWindowStart(now, pastDays = 6)
+            .atZone(zone).toInstant().toEpochMilli()
+        // Evenly spaced at 6h with a single-knot hole after the second knot:
+        // the spacing is only 2x, but the tags say the shading breaks there.
+        val knots = listOf(
+            knot(windowStart, 100.0, segment = 0),
+            knot(windowStart + 6 * 3_600_000L, 100.0, segment = 0),
+            knot(windowStart + 18 * 3_600_000L, 100.0, segment = 1),
+            knot(windowStart + 24 * 3_600_000L, 100.0, segment = 1),
+        )
+
+        val band = checkNotNull(
+            buildMainE2CalibrationBand(
+                bandKnots = knots,
+                now = now,
+                zoneId = zone,
+                pastDays = 6,
+                windowHours = 168,
+                displayUnit = BloodUnitKey.PG_ML,
+            )
+        )
+
+        assertEquals(listOf(0..1, 2..3), band.segments)
     }
 
     @Test
@@ -100,7 +126,7 @@ class MainE2CalibrationOverlayTest {
         return p158655254[index]
     }
 
-    private fun knot(epochMillis: Long, valuePgml: Double): PkPredictiveBandKnot {
+    private fun knot(epochMillis: Long, valuePgml: Double, segment: Int = 0): PkPredictiveBandKnot {
         return PkPredictiveBandKnot(
             epochMillis = epochMillis,
             p025Pgml = valuePgml,
@@ -108,6 +134,7 @@ class MainE2CalibrationOverlayTest {
             p50Pgml = valuePgml,
             p841344746Pgml = valuePgml,
             p975Pgml = valuePgml,
+            segment = segment,
         )
     }
 }

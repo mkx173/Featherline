@@ -138,12 +138,19 @@ enum class PkRouteCalibrationDisplayState {
         get() = this == LAB_ADJUSTED_PROVISIONAL || this == LAB_CALIBRATED
 }
 
+/**
+ * What the central curve was simulated with: PERSONALIZED when any supported
+ * promoted route is applied in the chart range, POPULATION otherwise. An
+ * applied route can be too small a share to shape anything;
+ * [PkCalibrationRenderResult.effectivePromotedRoutes] names those that do.
+ */
 enum class PkCalibrationRenderState {
     POPULATION,
     PERSONALIZED,
     NUMERIC_UNAVAILABLE,
 }
 
+/** The band covers every knot a calibrated route shapes; a PERSONALIZED curve may shape none in range. */
 enum class PkCalibrationBandState {
     NOT_APPLICABLE_POPULATION,
     READY,
@@ -201,6 +208,12 @@ data class PkPredictiveBandKnot(
     val p50Pgml: Double,
     val p841344746Pgml: Double,
     val p975Pgml: Double,
+    /**
+     * Contiguous run index, ascending in curve order. Consecutive knots in
+     * different runs have an unshaded span between them; the drawer must not
+     * bridge it.
+     */
+    val segment: Int = 0,
 )
 
 /**
@@ -254,8 +267,18 @@ data class PkCalibrationResult(
 
 data class PkCalibrationRenderResult(
     val renderState: PkCalibrationRenderState,
-    /** Promoted routes with a positive contribution somewhere in this chart range. */
+    /**
+     * Supported promoted routes that are at least the support share of the
+     * drawn signal at some knot of the status range: what Home and the
+     * status row call the estimate calibrated by. Non-empty exactly when the
+     * band has knots there.
+     */
     val effectivePromotedRoutes: List<PkCalibrationRoute> = emptyList(),
+    /**
+     * Every supported promoted route with a contribution in this range, as
+     * applied to [centralCurve]; non-population exactly when [renderState] is
+     * PERSONALIZED.
+     */
     val effectiveDisplayParams: PkPersonalParams = PkPersonalParams.population(),
     val centralCurve: List<PkCurvePoint>,
     val bandState: PkCalibrationBandState,

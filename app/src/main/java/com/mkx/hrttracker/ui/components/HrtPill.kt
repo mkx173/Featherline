@@ -53,7 +53,6 @@ private data class HrtPillTokens(
     val iconSize: Dp,
     val contentPadding: PaddingValues,
     val horizontalArrangement: Arrangement.Horizontal,
-    val cjkTextOffsetAmount: Dp,
 )
 
 @Composable
@@ -65,7 +64,6 @@ private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
             iconSize = 12.dp,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            cjkTextOffsetAmount = (-0.5).dp
         )
 
         HrtPillSize.Small -> HrtPillTokens(
@@ -73,7 +71,6 @@ private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
             iconSize = 12.dp,
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            cjkTextOffsetAmount = (-0.5).dp
         )
 
         HrtPillSize.Medium -> HrtPillTokens(
@@ -81,7 +78,6 @@ private fun hrtPillTokens(size: HrtPillSize): HrtPillTokens {
             iconSize = 14.dp,
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            cjkTextOffsetAmount = (-1).dp
         )
     }
 }
@@ -136,8 +132,8 @@ fun HrtPill(
 
 /**
  * Convenience pill for the dominant case: an optional leading [icon] followed by a
- * single [label]. Bakes in the shared label treatment (`cjkTextOffset`, the trailing
- * `2.dp` pad, single line) so it lives in exactly one place.
+ * single [label]. Bakes in the shared label treatment (the trailing `2.dp` pad, single
+ * line) so it lives in exactly one place.
  *
  * The [icon] slot runs in an [HrtPillScope]; apply its `iconModifier` to size the
  * icon to the pill's [size] token. The icon inherits [contentColor] as its tint.
@@ -176,8 +172,7 @@ fun HrtPill(
             // The trailing pad only balances a leading icon's optical weight; a
             // text-only pill stays centered without it.
             modifier = Modifier
-                .then(if (icon != null) Modifier.padding(end = 2.dp) else Modifier)
-                .cjkTextOffset(label, amount = tokens.cjkTextOffsetAmount),
+                .then(if (icon != null) Modifier.padding(end = 2.dp) else Modifier),
         )
     }
 }

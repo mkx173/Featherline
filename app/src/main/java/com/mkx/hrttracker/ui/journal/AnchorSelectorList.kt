@@ -118,6 +118,7 @@ fun AnchorSelectorList(
         SupportMessageListItem(
             text = stringResource(R.string.anchor_selector_empty_state),
             painter = painterResource(R.drawable.ic_info),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
             modifier = modifier.fillMaxWidth(),
         )
         return

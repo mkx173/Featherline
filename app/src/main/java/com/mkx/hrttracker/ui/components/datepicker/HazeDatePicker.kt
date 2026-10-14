@@ -18,8 +18,9 @@ package com.mkx.hrttracker.ui.components.datepicker
  * referenced in place via the file-level @Suppress above (Kotlin warns this is
  * "UNSPECIFIED and WILL NOT BE PRESERVED" — re-sync on every Material3 bump).
  *
- * The ONE real change vs upstream is in `YearPicker`'s LazyVerticalGrid background
- * (see the `ponytail:` comment there). Everything else is a verbatim copy.
+ * Changes vs upstream: `YearPicker`'s LazyVerticalGrid background (see the `ponytail:`
+ * comment there), and month navigation/labelling via `headingMonthIndex` (see there).
+ * Everything else is a verbatim copy.
  */
 
 // Public Material3 symbols referenced by simple name below
@@ -29,7 +30,7 @@ package com.mkx.hrttracker.ui.components.datepicker
 // Surface, Text, TextButton, TooltipAnchorPosition, TooltipBox, TooltipDefaults,
 // rememberTooltipState) and the internal chain (BaseDatePickerStateImpl,
 // DateEntryContainer, DateInputContent, DisplayModeToggleButton, Month, WeekDays,
-// updateDisplayedMonth, numberOfMonthsInRange, createCalendarModel, getString,
+// numberOfMonthsInRange, createCalendarModel, getString,
 // Strings, Icons, CalendarModel, toLocalString, formatDatePickerNavigateToYearString,
 // DatePickerModeTogglePadding, DatePickerHorizontalPadding, MonthYearHeight,
 // RecommendedSizeForAccessibility, the token `.value`/`.value()` extensions, and the
@@ -108,7 +109,6 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.toLocalString
 import androidx.compose.material3.tokens.DatePickerModalTokens
 import androidx.compose.material3.tokens.MotionSchemeKeyTokens
-import androidx.compose.material3.updateDisplayedMonth
 import androidx.compose.material3.value
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -119,6 +119,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -164,6 +165,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.blurEffect
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeEffect
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -378,6 +380,28 @@ private fun DatePickerContent(
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // Step from the in-flight arrow target so rapid taps chain, else from where the list is
+    // heading (upstream stepped from firstVisibleItemIndex; see headingMonthIndex).
+    var arrowTargetIndex by remember { mutableStateOf<Int?>(null) }
+    fun scrollMonthsBy(delta: Int) {
+        val base =
+            arrowTargetIndex
+                ?: monthsListState.headingMonthIndex()
+                ?: monthsListState.firstVisibleItemIndex
+        val target =
+            (base + delta)
+                .coerceAtMost(monthsListState.layoutInfo.totalItemsCount - 1)
+                .coerceAtLeast(0)
+        arrowTargetIndex = target
+        coroutineScope.launch {
+            try {
+                monthsListState.animateScrollToItem(target)
+            } finally {
+                // A newer tap or a swipe cancels this animation; only the latest one clears.
+                if (arrowTargetIndex == target) arrowTargetIndex = null
+            }
+        }
+    }
     var yearPickerVisible by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val (
@@ -398,30 +422,8 @@ private fun DatePickerContent(
                     locale = calendarModel.locale,
                 ) ?: "-",
             nextButtonModifier = Modifier.focusRequester(nextButtonFocusRequester),
-            onNextClicked = {
-                coroutineScope.launch {
-                    try {
-                        monthsListState.animateScrollToItem(
-                            monthsListState.firstVisibleItemIndex + 1
-                        )
-                    } catch (_: IllegalArgumentException) {
-                        // Ignore. This may happen if the user clicked the "next" arrow fast while
-                        // the list was still animating to the next item.
-                    }
-                }
-            },
-            onPreviousClicked = {
-                coroutineScope.launch {
-                    try {
-                        monthsListState.animateScrollToItem(
-                            monthsListState.firstVisibleItemIndex - 1
-                        )
-                    } catch (_: IllegalArgumentException) {
-                        // Ignore. This may happen if the user clicked the "previous" arrow fast
-                        // while  the list was still animating to the previous item.
-                    }
-                }
-            },
+            onNextClicked = { scrollMonthsBy(1) },
+            onPreviousClicked = { scrollMonthsBy(-1) },
             onYearPickerButtonClicked = { yearPickerVisible = !yearPickerVisible },
             onYearPickerButtonTabPressed = {
                 // Keyboard focus on the selected year when tabbed from the open year picker button.
@@ -605,14 +607,34 @@ private fun HorizontalMonthsList(
     }
 
     LaunchedEffect(lazyListState) {
-        updateDisplayedMonth(
-            lazyListState = lazyListState,
-            onDisplayedMonthChange = onDisplayedMonthChange,
-            calendarModel = calendarModel,
-            yearRange = yearRange,
-        )
+        snapshotFlow { lazyListState.headingMonthIndex() }
+            .filterNotNull()
+            .collect { index ->
+                onDisplayedMonthChange(
+                    calendarModel
+                        .getMonth(year = yearRange.first + index / 12, month = index % 12 + 1)
+                        .startUtcTimeMillis
+                )
+            }
     }
 }
+
+/**
+ * The month the list is settling on. Upstream M3 used firstVisibleItemIndex for both the label
+ * and the arrows, but a forward scroll keeps the outgoing month "first visible" until it fully
+ * leaves, while a backward scroll reveals the incoming one at once. So forward lagged (late
+ * label, swallowed "next" taps) and backward didn't. Mid-scroll forward, take the incoming month.
+ *
+ * Null when unknown: a zero-pixel scroll step (the first frame of every animateScrollToItem)
+ * clears both lastScrolled flags, which would otherwise flash the previous month on each tap.
+ */
+private fun LazyListState.headingMonthIndex(): Int? =
+    when {
+        firstVisibleItemScrollOffset == 0 -> firstVisibleItemIndex
+        lastScrolledForward -> firstVisibleItemIndex + 1
+        lastScrolledBackward -> firstVisibleItemIndex
+        else -> null
+    }
 
 @Composable
 private fun YearPicker(

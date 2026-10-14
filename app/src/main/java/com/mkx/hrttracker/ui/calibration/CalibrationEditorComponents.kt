@@ -5,12 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -100,7 +97,7 @@ internal fun CalibrationDateTimeCard(
     crossZoneLabel: String? = null,
 ) {
     CalibrationEditorCard(
-        modifier = Modifier.padding(vertical = 8.dp)
+        modifier = Modifier.padding(vertical = 6.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -379,18 +376,14 @@ internal fun CalibrationAnalyteCard(
             if (defaultUnitValueLabel != null || showRangeStatusChip) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
-                // Pin the row to its tallest pill so a taller line box (e.g. CJK range
-                // labels) doesn't leave the converted-value pill looking stunted beside it.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(IntrinsicSize.Min)
                     .padding(top = 4.dp)
             ) {
                 if (defaultUnitValueLabel != null) {
                     HrtPill(
                         label = defaultUnitValueLabel,
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        modifier = Modifier.fillMaxHeight(),
                         size = HrtPillSize.Medium,
                         icon = {
                             Icon(
@@ -404,17 +397,14 @@ internal fun CalibrationAnalyteCard(
                 }
                 if (showRangeStatusChip) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    CalibrationRangeStatusChip(
-                        status = rangeStatus,
-                        modifier = Modifier.fillMaxHeight(),
-                    )
+                    CalibrationRangeStatusChip(status = rangeStatus)
                 }
             }
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp),
+                    .padding(top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
@@ -434,7 +424,6 @@ internal fun CalibrationAnalyteCard(
                         onUnitChange(selectedUnit)
                     },
                     layout = ConnectedButtonGroupLayout.ROW,
-                    applyCjkTextOffset = false
                 )
             }
         }
@@ -560,7 +549,7 @@ internal fun CalibrationCustomAnalyteCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp),
+                    .padding(top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Spacer(modifier = Modifier.weight(1f))

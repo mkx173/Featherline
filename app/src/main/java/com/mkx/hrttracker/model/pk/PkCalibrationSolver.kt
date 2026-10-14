@@ -27,6 +27,11 @@ internal data class PkJointLabPoint(
     /** Population share w_ir = d_ir / D_i; gates never read fitted shares. */
     fun populationShare(routeIndex: Int): Double =
         drugByRoutePgml[routeIndex] / totalDrugPgml
+
+    /** S_r membership: d_ir >= 0.2 * D_i on the population decomposition. */
+    fun supports(routeIndex: Int): Boolean =
+        drugByRoutePgml[routeIndex] >=
+            PkCalibrationDefaults.PROMOTION_SUPPORT_SHARE_MIN * totalDrugPgml
 }
 
 /**
@@ -37,7 +42,9 @@ internal data class PkJointLabPoint(
  *   J(beta)   = sum_i rho_nu(z_i) + sum_r beta_r^2 / (2 sigma_s^2)
  *
  * Gradient and Hessian use the model shares s_ir = e^{beta_r} d_ir / m_i.
- * Inactive routes (d_ir = 0 for every lab) are never fitted; beta stays 0.
+ * Only supported routes (some lab draws >= 20% of its population signal
+ * from the route) are fitted; every other route stays at beta = 0, so the
+ * MAP, the applied params and the band covariance describe one model.
  */
 internal class PkJointStudentTObjective private constructor(
     val points: List<PkJointLabPoint>,
@@ -50,9 +57,9 @@ internal class PkJointStudentTObjective private constructor(
 
     val routeCount = PkCalibrationRoute.entries.size
 
-    /** Active coordinates in canonical order. */
+    /** Fitted coordinates in canonical order: routes with at least one supporting lab. */
     val activeRouteIndices: List<Int> = (0 until routeCount).filter { routeIndex ->
-        points.any { point -> point.drugByRoutePgml[routeIndex] > 0.0 }
+        points.any { point -> point.supports(routeIndex) }
     }
 
     fun objective(beta: DoubleArray): Double? {
@@ -575,11 +582,9 @@ object PkCalibrationSolver {
             acceptedLabIds = evidence.input.acceptedLabIds,
         ) ?: return globalNumericFailure(ignored)
         val routeResults = PkCalibrationRoute.entries.map { route ->
+            // Absent diagnostics: no lab supports the route, so it was never
+            // fitted and shows as population.
             val diagnostics = diagnosticsByRoute[route] ?: return@map populationRow(route)
-            // A route no lab draws >=20% of its signal from has nothing to be
-            // calibrated by: its fitted beta is the prior. Show it as
-            // population rather than as an adjusted row with "0 results".
-            if (diagnostics.supportingLabCount == 0) return@map populationRow(route)
             classifyRoute(route, diagnostics, rLog, fit.ambiguous)
                 ?: return globalNumericFailure(ignored)
         }
@@ -632,8 +637,8 @@ object PkCalibrationSolver {
             weightByResultId[point.resultId] = weight
         }
 
-        // Every active route (some included lab has d_ir > 0) gets a row;
-        // inactive routes are absent and stay population.
+        // Every fitted route (some included lab supports it) gets a row; the
+        // rest are absent and stay population.
         val result = linkedMapOf<PkCalibrationRoute, PkJointRouteDiagnostics>()
         for ((routeIndex, route) in PkCalibrationRoute.entries.withIndex()) {
             val activePosition = fit.activeRouteIndices.indexOf(routeIndex)

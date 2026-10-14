@@ -4,10 +4,14 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +33,28 @@ internal fun legacyWidgetAppearance(
     backgroundAlpha = backgroundAlpha,
     darkMode = darkMode,
 ).sanitized()
+
+// v1.3.x rendered each dose widget type at (that type's captured launcher portrait cell
+// height / 276dp) × contentScale; v1.4.0 dropped the factor, so upgraded widgets grew by its
+// inverse. A type captured its height once, reused it for every later instance, and never
+// cleared it on removal, so only a placed type's height describes a widget on screen. With
+// none placed, any captured height is still this device's best estimate for the old-meaning
+// scale in the store. One shared scale can't hold two factors, so when the placed types
+// differ, take the smaller: no widget ends up larger than it was. Null when nothing usable
+// was captured. Heights outside 50..400dp were never persisted; 0.35 is the old ratio floor.
+// No released build captured an anchor height (the anchor widget shipped after the removal).
+internal fun legacyBaselineScaleRatio(
+    mediumDp: Float,
+    largeDp: Float,
+    mediumPlaced: Boolean,
+    largePlaced: Boolean,
+): Float? {
+    val captured = listOf(mediumDp to mediumPlaced, largeDp to largePlaced)
+        .filter { (heightDp, _) -> heightDp in 50f..400f }
+    val heightDp = captured.filter { (_, placed) -> placed }.ifEmpty { captured }
+        .minOfOrNull { (heightDp, _) -> heightDp } ?: return null
+    return (heightDp / 276f).coerceAtLeast(0.35f)
+}
 
 @Singleton
 class WidgetAppearanceRepository @Inject constructor(
@@ -104,7 +130,15 @@ class WidgetAppearanceRepository @Inject constructor(
     @Volatile
     private var legacyMigrationComplete = false
 
+    // Also folds the v1.3.x launcher baseline into the stored scale (foldLegacyBaselineScale),
+    // after the seed so it rescales the seeded value.
     suspend fun migrateFromLegacySettingsIfNeeded(): Boolean {
+        val seeded = migrateLegacySettingsKeys()
+        val rescaled = foldLegacyBaselineScale()
+        return seeded || rescaled
+    }
+
+    private suspend fun migrateLegacySettingsKeys(): Boolean {
         if (legacyMigrationComplete) return false
         val legacy = settingsRepository.readLegacyWidgetAppearance() ?: run {
             legacyMigrationComplete = true
@@ -119,6 +153,35 @@ class WidgetAppearanceRepository @Inject constructor(
         if (cleared) legacyMigrationComplete = true
         diagnosticsLogger.info(TAG, "widget_appearance_migrated seeded=$seeded cleared=$cleared")
         return true
+    }
+
+    // Keeps upgraded widgets at their v1.3.x size by multiplying the old launcher factor into
+    // the default's contentScale (sanitized() clamps it to the slider range). The scale and a
+    // folded marker land in one store edit before the legacy file is cleared, so a failed
+    // write retries next start and a failed clear can't fold twice. Locked, so a caller that
+    // reads the store right after (WidgetConfigActivity, SettingsViewModel) waits for it.
+    // ponytail: default entry only; per-instance overrides are dormant in v1.
+    private val baselineMigrationMutex = Mutex()
+
+    @Volatile
+    private var baselineMigrationComplete = false
+
+    private suspend fun foldLegacyBaselineScale(): Boolean {
+        if (baselineMigrationComplete) return false
+        return baselineMigrationMutex.withLock {
+            if (baselineMigrationComplete) return@withLock false
+            val ratio = withContext(Dispatchers.IO) { store.readLegacyBaselineScaleRatio() }
+            val folded = ratio != null && store.foldLegacyBaselineScale(ratio)
+            val cleared = ratio == null || withContext(Dispatchers.IO) { store.clearLegacyBaseline() }
+            if (ratio != null) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "widget_baseline_scale_folded ratio=$ratio folded=$folded cleared=$cleared",
+                )
+            }
+            if (cleared) baselineMigrationComplete = true
+            folded
+        }
     }
 
     private companion object {

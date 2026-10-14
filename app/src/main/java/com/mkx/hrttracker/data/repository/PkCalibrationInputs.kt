@@ -56,9 +56,13 @@ fun buildPkCalibrationInput(
     fallbackOriginEpochMillis: Long,
 ): PkCalibrationInput {
     val windowStart = calibrationDoseWindowStartEpochMillis(labs, Long.MIN_VALUE)
-    val estradiolEntries = entries.filter {
-        it.category == MedicationCategory.ESTRADIOL && it.appliedAt.toEpochMilli() >= windowStart
-    }
+    val allEstradiolEntries = entries.filter { it.category == MedicationCategory.ESTRADIOL }
+    // Every dose older than the window: keep the latest so the state reads as
+    // labs below the modeled signal, not as no dose logged. The snapshot build
+    // reads the window plus the latest dose, so both callers see this entry.
+    val estradiolEntries = allEstradiolEntries
+        .filter { it.appliedAt.toEpochMilli() >= windowStart }
+        .ifEmpty { listOfNotNull(allEstradiolEntries.maxByOrNull { it.appliedAt }) }
     val origin = (labs.map { it.collectedAtEpochMillis } +
             estradiolEntries.map { it.appliedAt.toEpochMilli() })
         .minOrNull() ?: fallbackOriginEpochMillis

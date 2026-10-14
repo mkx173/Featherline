@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-14
+
+### Fixed
+
+- After you log a dose or add a result, the dose lists on Home and the results on the calibration page update right away. Only the estimate waits under the refresh indicator until the update is ready: the estradiol card and chart on Home, and the Estimate calibration section on the calibration page.
+- The estradiol line on the Home chart no longer dips below a dose marker, and below the bottom of the chart, right after a sublingual dose.
+- The 30-day chart labels five dates six days apart. As you zoom in, more dates appear between them, and the dates already shown no longer move or change. Dates at the chart's ends are no longer cut short on small screens.
+- When you zoom far into the chart on a narrow screen, the start and end dates under it no longer overlap.
+
+## [1.4.1] - 2026-10-13
+
+### Changed
+
+- Estradiol estimates were refit to the primary pharmacokinetic literature. Oral estradiol and valerate estimates are about 30% lower on average and peak about an hour later, matching blood levels measured by mass spectrometry in trans women. Sublingual estimates peak about a quarter lower and no longer fall below what the same tablet swallowed would give from 8 hours on. Benzoate, valerate, cypionate and enanthate injections now share one bioavailability: valerate estimates rise about 25%, cypionate falls about 18% and now peaks on day 2 instead of day 4, enanthate falls about 12%, benzoate is unchanged. Gel estimates are about 43% higher, in line with the Oestrogel label and a 2025 cohort of trans people on EstroGel. Existing calibrations are refit on the first open after the update.
+- Patch routes in calibration show the patch icon instead of the "apply patch" icon, and the rows in the routes sheet are tidier.
+
+### Fixed
+
+- When you remove a medicine from a plan you are editing and then add another, the medicine list no longer counts the unsaved plan as still using the removed medicine.
+- Right after the app starts, "About this estimate" shows a loading indicator and then grows smoothly to fit the routes, instead of blinking from a "still loading" row.
+- In the date picker, tapping the next-month arrow quickly now moves forward one month per tap, as the previous-month arrow already did, and the month name updates right away.
+- The colon in the time picker no longer sits below the digits with its lower dot cut off on some phones, such as the Galaxy S20.
+
+## [1.4.0] - 2026-10-12
+
+### Added
+
+- The Calibration entry in Settings shows whether the estimate is calibrated or the population estimate.
+- The icon beside the estradiol title on Home now opens "About this estimate", which lists the routes behind the estimate and the estimate disclaimer. A calibrated route that makes up only a small share of the curve is marked "Small share". It replaces the info button.
+
+### Fixed
+
+- After you log a dose, add a result, or switch the chart between 7 and 30 days, Home and the calibration page no longer flash in-between states such as the population estimate. They keep showing the previous state with a refresh indicator under the top bar until the update is ready, then switch to it all at once.
+- Home-screen widgets placed before 1.4.0 no longer grow after the update. The widget content scale is lowered once to match the size the widget had before. If you already lowered the scale on 1.4.0-pre, check it again.
+- Chinese text no longer sits below the icon next to it, and text fields no longer jump when a Chinese character follows Latin text. This affected phones whose Latin and Chinese system fonts differ (Pixel, Samsung); phones whose system font covers both, such as Xiaomi with MiSans, are unchanged. The "Adjust Chinese text display" setting is gone, since it is no longer needed.
+- Estimate calibration fits only the routes that at least one result supports; a route no result supports is held at the population estimate instead of being fitted and then dropped, so the drawn curve and its prediction interval describe the same fit.
+- When every logged estradiol dose is more than 180 days older than your earliest estradiol result, calibration now reports those results as below the modeled signal instead of saying no dose has been logged.
+- Home and the calibration page call the estimate calibrated only when a calibrated route makes up a meaningful share of the curve somewhere on Home's visible chart, so a curve from a new, uncalibrated route (for example gel after only oral results) is no longer called calibrated. The prediction interval is drawn only where a calibrated route shapes the curve, so "calibrated" and a visible band go together, and both screens now agree.
+- The prediction interval now breaks where calibration stops shaping the curve, instead of bridging short gaps with a straight line.
+- The "results to check" sheet now slides away before opening a result instead of blinking off.
+- Tapping a route in the calibration page's Routes card now opens the routes sheet, like tapping the card's header.
+- The day you selected on the History calendar stays selected when you switch to another tab and back. Leaving History with the back button still resets the calendar.
+- Turning reminders on from the "notifications are off" message no longer makes the switch flick off before it turns on after you grant the permission, and a failed save no longer leaves the switch showing on.
+- The Calibration entry in Settings shows "calibrated" or "population estimate" as soon as Settings opens, instead of appearing a few seconds after the app starts. It now reads the same information as the estradiol title on Home.
+- The refresh indicator under the top bar no longer appears a few seconds after the app starts when nothing changed. Rebuilds caused by the device booting, the clock or time zone changing, an app update, or the midnight refresh now run silently; the indicator shows only after you change data.
+
+### Changed
+
+- Oral and sublingual estradiol estimates now follow published blood levels. Oral estradiol estimates are about 43% higher on average with a peak about 36% lower, and no longer drop to almost zero before the next dose, so results drawn just before a dose now count toward calibration. Sublingual estradiol now drops quickly after its peak, as measured in published studies, instead of staying high for hours. Estradiol valerate tablets, swallowed or under the tongue, are now estimated like estradiol tablets with the same estradiol content. Swallowed valerate estimates rise by about 40%, and sublingual valerate peaks within the first hour. Patches entered by their total amount, such as Estrana tape, are now estimated about half as high, matching the package insert. Estradiol benzoate, cypionate and enanthate injection estimates are about 20–30% lower, in line with published blood levels and other estimators. Gel estimates are about 30% lower and peak sooner after each dose, in line with the EstroGel and Oestrogel labels. Existing calibrations are refit automatically.
+- Estimate calibration solves about ten times faster. On a Galaxy S20, a five-route history with 20 results took about 5 seconds per Home refresh and now takes about half a second.
+- The shaded band on the Home chart is now called a prediction interval and is drawn lighter, and its legend matches the chart.
+- Calibration text is shorter and clearer in every language.
+- Settings > About the model now opens Featherline's notes on how its model differs from the original, instead of the original model's repository.
+- Sheets and cards look more consistent: calibration sheets use the same cards as the rest of the app, every editor sheet has the same gap under its title, sheet cards share one background color, and cards nested in cards have even margins.
+
 ## [1.4.0-pre] - 2026-10-07
 
 ### Added
@@ -267,7 +322,11 @@ First public release on Google Play.
 - Material 3 interface with dynamic color.
 - Fully on-device, encrypted local storage — no accounts, no telemetry, no network calls.
 
-[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/mkx173/Featherline/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/mkx173/Featherline/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/mkx173/Featherline/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/mkx173/Featherline/compare/v1.4.0-pre...v1.4.0
+[1.4.0-pre]: https://github.com/mkx173/Featherline/compare/v1.3.3...v1.4.0-pre
 [1.3.3]: https://github.com/mkx173/Featherline/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/mkx173/Featherline/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/mkx173/Featherline/compare/v1.3.0...v1.3.1

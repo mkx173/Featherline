@@ -28,6 +28,7 @@ import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.ui.catalog.DraftGroupReferences
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
@@ -912,7 +913,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private fun MedicationGroupMedicationItemUiState.toInput(): MedicationGroupMedicationInput {
         return MedicationGroupMedicationInput(
             uuid = persistedMedicationId?.let(UUID::fromString),
-            medicineUuid = resolvedMedicine?.uuid ?: medicineDraft.selectedMedicineUuid,
+            medicineUuid = medicineUuid,
             applicationType = applicationType,
             doseInstruction = doseInstruction,
             count = count,
@@ -2610,6 +2611,24 @@ internal fun shouldShowLockedScheduleTimeNote(uiState: MedicationGroupEditorUiSt
 // A slot draft inside the group editor. `resolvedMedicine` is set when the slot
 // references an existing medicine (loaded from DB, or picked from the existing
 // cards); a brand-new "+ New" slot keeps it null until `saveGroup` resolves it.
+/**
+ * This plan as the medicine picker should count it, unsaved edits included.
+ * [pickingLocalId] is the slot the picker is choosing a medicine for, left out
+ * so its current medicine doesn't count while being replaced. Archived plans
+ * never count, so they have no draft.
+ */
+internal fun MedicationGroupEditorUiState.toDraftGroupReferences(
+    pickingLocalId: String?,
+): DraftGroupReferences? {
+    if (isArchived) return null
+    return DraftGroupReferences(
+        groupId = editingGroupId?.let(UUID::fromString),
+        medicineUuids = medications
+            .filterNot { it.localId == pickingLocalId }
+            .mapNotNullTo(mutableSetOf()) { it.medicineUuid },
+    )
+}
+
 data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
@@ -2621,6 +2640,9 @@ data class MedicationGroupMedicationItemUiState(
     val doseInstruction: DoseInstruction = DoseInstruction.Noop,
     val count: Int = 1,
 ) {
+    val medicineUuid: UUID?
+        get() = resolvedMedicine?.uuid ?: medicineDraft.selectedMedicineUuid
+
     fun toEditorUiState(): MedicationGroupMedicationEditorUiState {
         return MedicationGroupMedicationEditorUiState(
             localId = localId,

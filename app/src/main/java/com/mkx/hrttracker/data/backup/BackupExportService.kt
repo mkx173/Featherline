@@ -206,7 +206,6 @@ class BackupExportService @Inject constructor(
                 darkModeOption = settings.darkModeOption.name,
                 adaptiveColorEnabled = settings.adaptiveColorEnabled,
                 pureBlackEnabled = settings.pureBlackEnabled,
-                cjkTextOffsetEnabled = settings.cjkTextOffsetEnabled,
                 hazeBlurEnabled = settings.hazeBlurEnabled,
                 remindersEnabled = settings.remindersEnabled,
                 showArchivedGroupRecords = settings.showArchivedGroupRecords,

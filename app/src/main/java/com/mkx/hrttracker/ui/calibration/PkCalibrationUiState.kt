@@ -71,7 +71,11 @@ data class PkCalibrationRouteRowUiState(
  */
 data class PkCalibrationUiState(
     val globalState: PkCalibrationGlobalState,
-    /** Some supported route shapes the drawn curve with a lab adjustment. */
+    /**
+     * Some supported route shapes the estimate in the chart range with a lab
+     * adjustment. Fit-level: [routeRows] can list an adjusted route while
+     * this is false (its share is under the support share throughout).
+     */
     val adjusted: Boolean,
     /** True when an effective promoted route is still provisional. */
     val limitedConfidence: Boolean,
@@ -95,6 +99,30 @@ data class PkCalibrationUiState(
                 row.displayState == PkRouteCalibrationDisplayState.POPULATION_NUMERIC_FAILURE
             })
 }
+
+/**
+ * Adjusted routes under the support share of the estimate across the chart
+ * range: calibrated, but not among what the hero counts. Empty when the
+ * render failed, since no share was computed then; the rows then stay plain.
+ */
+fun pkCalibrationSmallShareRoutes(
+    routeRows: List<PkCalibrationRouteRowUiState>,
+    effectivePromotedRoutes: List<PkCalibrationRoute>,
+    renderUnavailable: Boolean,
+): Set<PkCalibrationRoute> {
+    if (renderUnavailable) return emptySet()
+    return routeRows
+        .filter { row -> row.displayState.isAdjusted && row.route !in effectivePromotedRoutes }
+        .mapTo(HashSet()) { row -> row.route }
+}
+
+/** [pkCalibrationSmallShareRoutes] for this state's own render. */
+val PkCalibrationUiState.smallShareRoutes: Set<PkCalibrationRoute>
+    get() = pkCalibrationSmallShareRoutes(
+        routeRows = routeRows,
+        effectivePromotedRoutes = effectivePromotedRoutes,
+        renderUnavailable = renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
+    )
 
 /**
  * [PkCalibrationUiState] plus the per-lab review context the lab list needs

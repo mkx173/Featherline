@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -122,8 +124,13 @@ internal fun MedicationEditorSheetScaffold(
             )
 
             if (title != null || onCloseClick != null) {
+                // As tall as the Cancel button whether or not it is shown, so
+                // the title sits at the same height (and the same 14 dp above
+                // the content) in every sheet.
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = ButtonDefaults.MinHeight),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

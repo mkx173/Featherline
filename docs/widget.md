@@ -212,6 +212,17 @@ clip content at larger user-selected scales; it does not silently shrink text,
 icons, rows, or controls to fit. Launcher-picker previews remain independent and
 use the fixed `WIDGET_PREVIEW_CONTENT_SCALE` miniature scale described below.
 
+Before 1.4.0 the medium and large widgets rendered at `(captured portrait cell
+height / 276dp) × contentScale`, with the cell height stored per widget type in the
+`hrt_widget_baseline` SharedPreferences. So upgraded widgets keep their size,
+`WidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded` multiplies that old
+factor into the default appearance's `contentScale` (the height of the dose widget type
+placed now, the smaller one if medium and large differ, or any captured height when
+neither is placed, since v1.3.x never cleared a removed type's height),
+writing a `legacy_baseline_folded` marker in the same store edit, then clears the
+file. The marker keeps a failed clear from folding twice. No release captured an
+anchor height: the anchor widget shipped after the factor was removed.
+
 ## Launcher preview
 
 The widget picker has its own rendering path — independent of the
@@ -360,8 +371,9 @@ graph TD
   whether the PK projection has expired, or whether any row's
   `UPCOMING`/`DUE_SOON` status should have transitioned by `now`. If
   any of those are true it calls
-  `homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)` —
-  which routes back into the home-snapshot observer above. Otherwise it
+  `homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true, silent = true)`
+  — forced past the usable-snapshot check but without the Home updating
+  indicator — which routes back into the home-snapshot observer above. Otherwise it
   just calls `updateAllHrtWidgets` to re-render against the existing
   snapshot.
 - **Date / time / timezone events.**

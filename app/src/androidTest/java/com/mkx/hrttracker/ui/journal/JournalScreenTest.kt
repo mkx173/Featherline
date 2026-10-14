@@ -225,13 +225,14 @@ class JournalScreenTest {
             scrollToTopSignal++
         }
 
+        // HrtSection draws its title in caps.
         val milestonesHeader = context.getString(R.string.journal_milestones_section)
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText(milestonesHeader)
+            composeRule.onAllNodesWithText(milestonesHeader, ignoreCase = true)
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithText(milestonesHeader).assertIsDisplayed()
+        composeRule.onNodeWithText(milestonesHeader, ignoreCase = true).assertIsDisplayed()
     }
 
     @Test
@@ -606,9 +607,8 @@ class JournalScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .assertIsDisplayed()
             .performClick()
-        composeRule.onNodeWithText("Older note")
-            .assertIsDisplayed()
-            .performClick()
+        // The open Today editor's keyboard can cover the row; the helper clears it.
+        tapTimelineRow("june-15")
 
         composeRule.runOnIdle {
             assertFalse(todayNoteSaved)

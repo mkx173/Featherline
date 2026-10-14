@@ -224,7 +224,7 @@ internal fun MedicationCardWithStockSubcard(
                             containerColor = stockSubcardContainerColor,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 8.dp),
+                                .padding(bottom = 6.dp),
                             shape = MaterialTheme.shapes.small,
                             mutationPreviewDoseMagnitude = stockMutationPreviewDoseMagnitude,
                             previewPostMutationState = previewPostMutationState,
@@ -447,7 +447,6 @@ internal fun MedicationCard(
                     Text(
                         text = medicationName,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.cjkTextOffset(medicationName),
                         fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -456,7 +455,6 @@ internal fun MedicationCard(
                     Text(
                         text = supportingText,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.cjkTextOffset(supportingText),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

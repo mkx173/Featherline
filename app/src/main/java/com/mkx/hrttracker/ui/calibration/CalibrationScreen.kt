@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +69,7 @@ import androidx.constraintlayout.compose.Dimension
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -84,17 +87,16 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
-import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
-import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.TopUpdatingIndicator
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.CalibrationPanelDateTimeFormatters
 import com.mkx.hrttracker.util.CalibrationPanelDateTimeLabels
@@ -131,6 +133,10 @@ fun CalibrationScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pkCalibrationState by viewModel.pkCalibrationState.collectAsStateWithLifecycle()
     val pkIntroSeen by viewModel.pkIntroSeen.collectAsStateWithLifecycle()
+    LifecycleStartEffect(viewModel) {
+        viewModel.setScreenVisible(true)
+        onStopOrDispose { viewModel.setScreenVisible(false) }
+    }
 
     // Hold the navigation lock while the delete-all runs. The confirm dialog
     // closes before the delete does, so without this a back press (this is a
@@ -263,7 +269,6 @@ private fun CalibrationScreenContent(
                     val title = stringResource(R.string.settings_personalization_calibration)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 navigationIcon = {
@@ -333,11 +338,20 @@ private fun CalibrationScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValuesBehindTopAppBar(innerPadding),
             ) {
+                // Unkeyed on purpose (together with the section below): a keyed
+                // first item anchors the viewport to itself, so a section
+                // inserted above it later scrolls the list down by the
+                // section's height.
+                if (targetRange != null) {
+                    item {
+                        Column {
+                            CalibrationTargetRangeRow(summary = targetRange)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+                }
+
                 if (pkCalibrationState != null) {
-                    // Unkeyed on purpose (together with the info item below): a
-                    // keyed first item anchors the viewport to itself, so a
-                    // section inserted above it later scrolls the list down by
-                    // the section's height.
                     item {
                         Column {
                             PkCalibrationSection(
@@ -350,20 +364,7 @@ private fun CalibrationScreenContent(
                                     pkSheet = PK_SHEET_REVIEW
                                 },
                                 onInfo = { pkSheet = PK_SHEET_EDU },
-                                targetRange = targetRange,
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                    }
-                }
-
-                // Without the lab adjustment section the target range stands alone.
-                if (pkCalibrationState == null && targetRange != null) {
-                    item {
-                        Column {
-                            HrtSection(title = null, topPadding = false) {
-                                item { CalibrationTargetRangeRow(summary = targetRange) }
-                            }
                             Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
@@ -423,6 +424,7 @@ private fun CalibrationScreenContent(
                     }
                 }
             }
+            TopUpdatingIndicator(isUpdating = uiState.isUpdating, innerPadding = innerPadding)
         }
     }
 
@@ -440,11 +442,16 @@ private fun CalibrationScreenContent(
                 pkSheet = null
                 pkReviewQueue = emptyList()
             }
-            // Hide before navigating: a sheet left open lingers over the editor.
+            val reviewSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            val reviewSheetScope = rememberCoroutineScope()
+            // Animate the sheet off, then navigate: a sheet left open lingers
+            // over the editor, and dropping it outright makes it blink off.
             val openPanelFromReview = { panelId: UUID ->
-                pkSheet = null
-                pkReopenReview = true
-                onPanelClick(panelId)
+                hideBottomSheet(reviewSheetScope, reviewSheetState) {
+                    pkSheet = null
+                    pkReopenReview = true
+                    onPanelClick(panelId)
+                }
             }
             val reviewRows = remember(pkReviewQueue, uiState.panels) {
                 val panelsById = uiState.panels.associateBy { panel -> panel.uuid.toString() }
@@ -456,6 +463,7 @@ private fun CalibrationScreenContent(
                 PkCalibrationReviewSheet(
                     count = reviewRows.size,
                     onDismissRequest = closeReview,
+                    sheetState = reviewSheetState,
                 ) {
                     reviewRows.forEachIndexed { index, panel ->
                         CalibrationPanelRow(
@@ -469,7 +477,7 @@ private fun CalibrationScreenContent(
                             pkFooter = {
                                 PkCalibrationReviewSummary(
                                     flag = pkLabFlags[panel.uuid],
-                                    modifier = Modifier.padding(top = 12.dp),
+                                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
                                 )
                             },
                         )
@@ -536,19 +544,13 @@ private fun CalibrationScreenContent(
     }
 }
 
-/** Last row of the lab adjustment section; its disclaimer sits at the foot of the page. */
+/** Leads the page; its disclaimer sits at the foot of the page. */
 @Composable
-internal fun CalibrationTargetRangeRow(summary: String) {
-    PreferenceSegmentedListItem(
-        title = stringResource(R.string.settings_calibration_target_ranges_title),
+private fun CalibrationTargetRangeRow(summary: String) {
+    SupportMessageListItem(
+        text = stringResource(R.string.settings_calibration_target_ranges_title),
         supportingText = summary,
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_bloodtype),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
+        painter = painterResource(R.drawable.ic_target_check),
     )
 }
 
@@ -761,6 +763,12 @@ internal fun CalibrationPanelRow(
                 CalibrationPanelResultAdditionalSummaryRow(
                     resultSummary = resultSummary,
                     hideReferenceRanges = settingsState.hideReferenceRanges,
+                    // One tonal step above the row: page rows are Low, sheet rows Container.
+                    containerColor = if (containerColor == MaterialTheme.colorScheme.surfaceContainerLow) {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHigh
+                    },
                     modifier = Modifier.constrainAs(additionalSummary) {
                         start.linkTo(summaryColumn.start)
                         end.linkTo(parent.end)
@@ -882,11 +890,12 @@ private fun CalibrationPanelResultSummaryRow(
 private fun CalibrationPanelResultAdditionalSummaryRow(
     resultSummary: CalibrationPanelResultSummary,
     hideReferenceRanges: Boolean,
+    containerColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = containerColor,
         modifier = modifier.padding(vertical = 6.dp)
     ) {
         Row(
@@ -1060,7 +1069,6 @@ private fun CalibrationPanelMetadataRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     maxLines = 1,
-                    modifier = Modifier.cjkTextOffset(elapsedLabel),
                 )
             }
         }
@@ -1080,7 +1088,6 @@ private fun CalibrationPanelMetadataRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier.cjkTextOffset(extraEntriesLabel),
                 )
             }
         }

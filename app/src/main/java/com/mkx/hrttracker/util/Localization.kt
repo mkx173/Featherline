@@ -46,7 +46,7 @@ fun systemLocale(): Locale {
 }
 
 // Chinese-family UI languages: Mandarin ("zh") and Cantonese ("yue"). Gates the
-// Chinese-specific date/time patterns and the locale-based CJK text offset.
+// Chinese-specific date/time patterns.
 fun Locale.isChineseLanguage(): Boolean {
     return language == Locale.CHINESE.language || language == "yue"
 }

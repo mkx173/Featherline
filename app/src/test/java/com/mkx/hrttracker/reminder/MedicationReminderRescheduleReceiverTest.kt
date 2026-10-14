@@ -109,7 +109,7 @@ class MedicationReminderRescheduleReceiverTest {
         handle(action = Intent.ACTION_TIMEZONE_CHANGED)
 
         verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
         }
     }
 
@@ -120,7 +120,7 @@ class MedicationReminderRescheduleReceiverTest {
         handle(action = Intent.ACTION_TIME_CHANGED)
 
         verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
         }
     }
 
@@ -131,7 +131,7 @@ class MedicationReminderRescheduleReceiverTest {
         handle(action = Intent.ACTION_BOOT_COMPLETED)
 
         verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
         }
     }
 

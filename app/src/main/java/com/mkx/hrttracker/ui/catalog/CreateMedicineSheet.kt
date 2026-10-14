@@ -865,7 +865,6 @@ private fun CustomDoseUnitPicker(
                 optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
                 onOptionSelected = onUnitSelected,
                 layout = ConnectedButtonGroupLayout.ROW,
-                applyCjkTextOffset = false,
             )
         }
     }

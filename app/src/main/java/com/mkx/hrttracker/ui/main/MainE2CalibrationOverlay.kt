@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.res.painterResource
@@ -31,11 +32,13 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
+import com.mkx.hrttracker.ui.calibration.pkCalibrationSmallShareRoutes
 import com.mkx.hrttracker.ui.calibration.applicationType
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.desaturateHct
 import com.mkx.hrttracker.util.labelRes
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerDrawingModel
@@ -61,15 +64,44 @@ data class MainPkCalibrationUiState(
     val renderUnavailable: Boolean,
     val bandUnavailable: Boolean,
     val band: MainE2CalibrationBand?,
-)
+    /** The routes behind [adjusted], over the snapshot's chart range. */
+    val effectivePromotedRoutes: List<PkCalibrationRoute> = emptyList(),
+) {
+    /** The estimate sheet's "small share" rows, judged over the same range as the hero. */
+    fun smallShareRoutes(sheet: PkCalibrationUiState?): Set<PkCalibrationRoute> =
+        pkCalibrationSmallShareRoutes(
+            routeRows = sheet?.routeRows.orEmpty(),
+            effectivePromotedRoutes = effectivePromotedRoutes,
+            renderUnavailable = renderUnavailable,
+        )
 
-/** Band knots mapped to chart coordinates (xHours + display-unit values). */
+    /** The legend/note row under the chart is shown. */
+    val showsChartNote: Boolean get() = band != null || bandUnavailable
+}
+
+/** Primary-color alphas of the 95% and 68% bands; the 68% band is drawn over the 95% one. */
+internal const val MainE2CalibrationBandOuterAlpha = 0.06f
+internal const val MainE2CalibrationBandInnerAlpha = 0.10f
+
+/** Desaturated primary the bands and their legend swatches are tinted with. */
+@Composable
+internal fun mainE2CalibrationBandColor(): Color {
+    val primary = MaterialTheme.colorScheme.primary
+    return remember(primary) { primary.desaturateHct() }
+}
+
+/**
+ * Band knots mapped to chart coordinates (xHours + display-unit values).
+ * [segments] are the engine's contiguous runs as index ranges; the fill
+ * breaks between them.
+ */
 data class MainE2CalibrationBand(
     val xHours: List<Double>,
     val p025: List<Float>,
     val p158655254: List<Float>,
     val p841344746: List<Float>,
     val p975: List<Float>,
+    val segments: List<IntRange> = listOf(xHours.indices),
 )
 
 /**
@@ -122,14 +154,15 @@ fun buildMainE2CalibrationBand(
         p158655254 = bandKnots.map { knot -> display(knot.p158655254Pgml) },
         p841344746 = bandKnots.map { knot -> display(knot.p841344746Pgml) },
         p975 = bandKnots.map { knot -> display(knot.p975Pgml) },
+        segments = bandSegments(bandKnots.map(PkPredictiveBandKnot::segment)),
     )
 }
 
 /**
  * Draws the nested 95% and 68% predictive envelopes under the chart layers.
- * Knots are engine-supplied at the right x positions; spans without knots stay
- * unshaded, so the fill is segmented on x gaps instead of interpolating across
- * a PK discontinuity.
+ * Knots are engine-supplied at the right x positions; spans the engine left
+ * out stay unshaded, so the fill is drawn per engine segment instead of
+ * interpolating across a PK discontinuity.
  */
 internal class MainE2CalibrationBandDecoration(
     private val band: MainE2CalibrationBand,
@@ -139,7 +172,7 @@ internal class MainE2CalibrationBandDecoration(
     private val coordinateMapper: MainE2ChartCoordinateMapper? = null,
     private val lineDrawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>? = null,
 ) : Decoration {
-    private val segments: List<IntRange> = bandGapSegments(band.xHours)
+    private val segments: List<IntRange> = band.segments
 
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         coordinateMapper?.update(context)
@@ -207,27 +240,22 @@ internal class MainE2CalibrationBandDecoration(
 }
 
 /**
- * Splits knot indices into contiguous runs. A spacing jump far above the
- * median marks an engine-left gap (a span with no promoted contribution);
- * shading must not bridge it.
+ * Groups knot indices by the engine's run tag ([PkPredictiveBandKnot.segment])
+ * into contiguous index ranges. The engine leaves out every knot no calibrated
+ * route shapes, and spacing is nonuniform, so a hole of one or two knots is
+ * only visible through the tag; shading must not bridge it.
  */
-internal fun bandGapSegments(xHours: List<Double>): List<IntRange> {
-    if (xHours.size < 2) {
-        return if (xHours.isEmpty()) emptyList() else listOf(0..0)
-    }
-    val spacings = xHours.zipWithNext { a, b -> b - a }.sorted()
-    val medianSpacing = spacings[spacings.size / 2]
-    val gapThreshold = medianSpacing * 3.0
+internal fun bandSegments(segmentTags: List<Int>): List<IntRange> {
     val segments = mutableListOf<IntRange>()
     var start = 0
-    for (index in 1 until xHours.size) {
-        if (xHours[index] - xHours[index - 1] > gapThreshold) {
+    for (index in 1 until segmentTags.size) {
+        if (segmentTags[index] != segmentTags[index - 1]) {
             segments += start until index
             start = index
         }
     }
-    segments += start until xHours.size
-    return segments.map { range -> range.first..range.last }
+    if (segmentTags.isNotEmpty()) segments += start until segmentTags.size
+    return segments
 }
 
 /** Shared x mapper for chart decorations (extracted from VerticalLineDecoration). */
@@ -281,7 +309,6 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.cjkTextOffset(title),
             )
             val body = stringResource(R.string.calibration_pk_chart_unavailable_body)
             Text(
@@ -289,8 +316,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .padding(top = 4.dp)
-                    .cjkTextOffset(body),
+                    .padding(top = 4.dp),
             )
         }
     }
@@ -304,7 +330,7 @@ internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier
 internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
     val bandUnavailable = pk.bandUnavailable
     // An empty note would still take the parent column's spacing.
-    if (pk.band == null && !bandUnavailable) {
+    if (!pk.showsChartNote) {
         return
     }
     val bandSummary = stringResource(R.string.calibration_pk_band_a11y_summary)
@@ -319,17 +345,26 @@ internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
             ) {
                 Spacer(modifier = Modifier.weight(1f))
                 val pkBandLegendText = stringResource(R.string.calibration_pk_band_legend)
+                // Swatches sit on the card, but the bands blend over the chart's
+                // surfaceContainer plot (the 68% band over the 95% one), so paint
+                // the opaque result the plot shows.
+                val bandColor = mainE2CalibrationBandColor()
+                val plotColor = MaterialTheme.colorScheme.surfaceContainer
+                val outerSwatchColor = bandColor.copy(alpha = MainE2CalibrationBandOuterAlpha)
+                    .compositeOver(plotColor)
+                val innerSwatchColor = bandColor.copy(alpha = MainE2CalibrationBandInnerAlpha)
+                    .compositeOver(outerSwatchColor)
                 Box {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                            color = innerSwatchColor,
                             shape = MaterialTheme.shapes.extraSmall,
                             modifier = Modifier.size(9.dp),
                         ) { }
                         Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            color = outerSwatchColor,
                             shape = MaterialTheme.shapes.extraSmall,
                             modifier = Modifier.size(9.dp),
                         ) { }
@@ -340,8 +375,6 @@ internal fun MainPkCalibrationChartNote(pk: MainPkCalibrationUiState) {
                     text = pkBandLegendText,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(pkBandLegendText)
-
                 )
             }
         }
@@ -367,7 +400,6 @@ private fun MainPkCalibrationNoteLine(text: String) {
             text = text,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.cjkTextOffset(text),
         )
     }
 }

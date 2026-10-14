@@ -36,7 +36,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Group medications and apply schedules to grouped doses
 - Optional medicine stock tracking with low-stock warnings and schedule-aware "days remaining" estimates
 - Estradiol pharmacokinetic projection from your dose history
-- Estimate calibration: scale the estradiol projection per route to your own E2 results, with per-route confidence, a review list for results that disagree, and a likely-range band on the Home chart
+- Estimate calibration: scale the estradiol projection per route to your own E2 results, with per-route confidence, a review list for results that disagree, and a prediction interval on the Home chart
 - Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L)
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
@@ -65,7 +65,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## How it works
 
-Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. When you log E2 results, an on-device fit scales each route's contribution to match them and draws a predictive band around the adjusted curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
+Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. When you log E2 results, an on-device fit scales each route's contribution to match them and draws a prediction interval around the adjusted curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
 
 The full architecture, data model, and reminder pipeline are documented in [docs/architecture.md](docs/architecture.md).
 

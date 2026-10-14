@@ -113,7 +113,6 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
@@ -144,7 +143,6 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
-    onPkCalibrationDebugClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -258,6 +256,9 @@ fun SettingsScreen(
         viewModel.settingsMutationEvents.collect { event ->
             when (event) {
                 is SettingsMutationEvent.Failure -> {
+                    // A pending enable whose write failed must not keep the
+                    // reminders switch drawn on.
+                    isReminderEnablePending = false
                     Toast.makeText(
                         latestContext,
                         latestContext.getString(R.string.settings_update_failed),
@@ -530,6 +531,7 @@ fun SettingsScreen(
         widgetAppearance = widgetAppearance,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
+        isReminderEnablePending = isReminderEnablePending,
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
         onRemindersEnabledChange = onRemindersEnabledChange,
@@ -545,7 +547,6 @@ fun SettingsScreen(
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
-        onCjkTextOffsetEnabledChange = viewModel::setCjkTextOffsetEnabled,
         onHazeBlurEnabledChange = viewModel::setHazeBlurEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
@@ -595,9 +596,6 @@ fun SettingsScreen(
                     ).show()
                 }
             }
-        },
-        onPkCalibrationDebugClick = {
-            if (BuildConfig.DEBUG) onPkCalibrationDebugClick()
         },
         onCalibrationClick = onCalibrationClick,
         scrollToTopSignal = scrollToTopSignal,
@@ -749,7 +747,6 @@ internal fun WidgetAppearanceDialog(
                     Text(
                         text = widgetDarkModeText,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.cjkTextOffset(widgetDarkModeText)
                     )
                     // Only the trailing chip is interactive, so the ripple is bounded to
                     // the selection area. The popup anchors to this Box so the menu opens
@@ -769,7 +766,6 @@ internal fun WidgetAppearanceDialog(
                                 text = widgetDarkModeLabelText,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.cjkTextOffset(widgetDarkModeLabelText)
                             )
                             Icon(
                                 imageVector = Icons.Rounded.ArrowDropDown,
@@ -800,14 +796,10 @@ internal fun WidgetAppearanceDialog(
                         Text(
                             text = contentScaleLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
                         )
                         Text(
                             text = "${(localContentScale * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
-                            // Keyed on the label, not "NN%": the percentage is always non-CJK,
-                            // so it must follow the label's offset to stay baseline-aligned.
-                            modifier = Modifier.cjkTextOffset(contentScaleLabel),
                         )
                     }
                     Slider(
@@ -826,12 +818,10 @@ internal fun WidgetAppearanceDialog(
                         Text(
                             text = opacityLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(opacityLabel),
                         )
                         Text(
                             text = "${(localBackgroundAlpha * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(opacityLabel),
                         )
                     }
                     Slider(
@@ -850,7 +840,6 @@ internal fun WidgetAppearanceDialog(
                         Text(
                             text = seedHueLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(seedHueLabel),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
@@ -895,12 +884,10 @@ internal fun WidgetAppearanceDialog(
                         Text(
                             text = saturationLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(saturationLabel),
                         )
                         Text(
                             text = "${(localSaturation * 100).roundToInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(saturationLabel),
                         )
                     }
                     Slider(
@@ -919,12 +906,10 @@ internal fun WidgetAppearanceDialog(
                         Text(
                             text = balanceLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(balanceLabel),
                         )
                         Text(
                             text = centeredOffsetReadout(localBalance, 0f..1f),
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.cjkTextOffset(balanceLabel),
                         )
                     }
                     Slider(
@@ -969,6 +954,7 @@ internal fun SettingsScreenContent(
     widgetAppearance: WidgetAppearance,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
+    isReminderEnablePending: Boolean = false,
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
     onRemindersEnabledChange: (Boolean) -> Unit,
@@ -982,7 +968,6 @@ internal fun SettingsScreenContent(
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
-    onCjkTextOffsetEnabledChange: (Boolean) -> Unit,
     onHazeBlurEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
@@ -994,7 +979,6 @@ internal fun SettingsScreenContent(
     showDiagnosticsExport: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
-    onPkCalibrationDebugClick: () -> Unit = {},
     scrollToTopSignal: Int = 0,
 ) {
     val settingsState = uiState.settingsState
@@ -1085,7 +1069,6 @@ internal fun SettingsScreenContent(
                     val title = stringResource(R.string.tab_settings)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title, amount = (-1.5).dp),
                     )
                 },
                 scrollBehavior = scrollBehavior
@@ -1106,7 +1089,6 @@ internal fun SettingsScreenContent(
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.personalization_weight),
                             supportingText = weightSummary,
-                            supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
                             onClick = {
                                 if (!uiState.isWeightMutationInProgress) {
                                     showWeightDialog = true
@@ -1126,6 +1108,11 @@ internal fun SettingsScreenContent(
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_personalization_calibration),
+                            supportingText = when (uiState.calibrationAdjusted) {
+                                true -> stringResource(R.string.calibration_pk_hero_adjusted)
+                                false -> stringResource(R.string.calibration_pk_hero_population)
+                                null -> null
+                            },
                             onClick = onCalibrationClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
@@ -1168,7 +1155,12 @@ internal fun SettingsScreenContent(
                             },
                             trailingContent = {
                                 Switch(
-                                    checked = settingsState.remindersEnabled && hasNotificationAccess,
+                                    // Track the pending enable too: after a permission grant the
+                                    // capability state flips in memory at once while the setting
+                                    // write goes through DataStore, so without this the switch
+                                    // shows enabled-but-off for a few frames before turning on.
+                                    checked = (settingsState.remindersEnabled || isReminderEnablePending) &&
+                                            hasNotificationAccess,
                                     onCheckedChange = onRemindersEnabledChange,
                                     enabled = hasNotificationAccess
                                 )
@@ -1537,29 +1529,6 @@ internal fun SettingsScreenContent(
                             )
                         }
                     }
-
-                    if (shouldShowCjkTextOffset(appLanguageOption)) {
-                        item {
-                            SettingsSegmentedListItem(
-                                title = stringResource(R.string.settings_cjk_text_offset),
-                                supportingText = stringResource(R.string.settings_cjk_text_offset_summary),
-                                onClick = {
-                                    onCjkTextOffsetEnabledChange(!settingsState.cjkTextOffsetEnabled)
-                                },
-                                leadingContent = {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_text_up)
-                                    )
-                                },
-                                trailingContent = {
-                                    Switch(
-                                        checked = settingsState.cjkTextOffsetEnabled,
-                                        onCheckedChange = onCjkTextOffsetEnabledChange
-                                    )
-                                }
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1628,21 +1597,6 @@ internal fun SettingsScreenContent(
                                 trailingContent = {
                                     SettingsChevronTrailingIcon()
                                 }
-                            )
-                        }
-
-                        item {
-                            SettingsSegmentedListItem(
-                                title = "Calibration (debug)",
-                                onClick = onPkCalibrationDebugClick,
-                                leadingContent = {
-                                    SettingsLeadingIconSlot(
-                                        painter = painterResource(R.drawable.ic_bug_report)
-                                    )
-                                },
-                                trailingContent = {
-                                    SettingsChevronTrailingIcon()
-                                },
                             )
                         }
                     }
@@ -1958,11 +1912,6 @@ internal fun resolveSettingsReminderSupportState(
 internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
     sdkInt >= Build.VERSION_CODES.S
 
-internal fun shouldShowCjkTextOffset(appLanguageOption: AppLanguageOption): Boolean =
-    appLanguageOption == AppLanguageOption.SIMPLIFIED_CHINESE ||
-        appLanguageOption == AppLanguageOption.TRADITIONAL_CHINESE ||
-        appLanguageOption == AppLanguageOption.CANTONESE
-
 @Composable
 private fun SettingsLeadingIconSlot(
     modifier: Modifier = Modifier,
@@ -2046,8 +1995,6 @@ private fun SettingsSegmentedListItem(
     supportingTextStyle: TextStyle? = null,
     titleColor: Color? = null,
     supportingTextColor: Color? = null,
-    titleCjkTextOffsetEnabled: Boolean = true,
-    supportingCjkTextOffsetEnabled: Boolean = true,
 ) {
     PreferenceSegmentedListItem(
         title = title,
@@ -2063,8 +2010,6 @@ private fun SettingsSegmentedListItem(
         supportingTextStyle = supportingTextStyle,
         titleColor = titleColor,
         supportingTextColor = supportingTextColor,
-        titleCjkTextOffsetEnabled = titleCjkTextOffsetEnabled,
-        supportingCjkTextOffsetEnabled = supportingCjkTextOffsetEnabled,
     )
 }
 
@@ -2199,7 +2144,7 @@ private fun launchFeedbackEmail(
 
 private const val FEEDBACK_EMAIL_URI = "mailto:support@asterismlabs.io"
 private const val MODEL_REPOSITORY_URL =
-    "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
+    "https://github.com/mkx173/Featherline/blob/main/docs/pk-differences.md"
 
 private const val APP_REPOSITORY_URL =
     "https://github.com/mkx173/Featherline"
@@ -2249,7 +2194,6 @@ private fun SettingsScreenPreview() {
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
             onPureBlackEnabledChange = { },
-            onCjkTextOffsetEnabledChange = { },
             onHazeBlurEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },

@@ -70,7 +70,6 @@ class BackupRestoreValidationTest {
                 ),
                 widgetContentScale = 0.8f,
                 widgetBackgroundAlpha = 0.6f,
-                cjkTextOffsetEnabled = true,
                 hazeBlurEnabled = false,
             ),
             userProfile = BackupUserProfileSnapshot(
@@ -195,7 +194,6 @@ class BackupRestoreValidationTest {
             AppLanguageOption.SIMPLIFIED_CHINESE,
             validatedSnapshot.settings.appLanguageOption
         )
-        assertEquals(true, validatedSnapshot.settings.cjkTextOffsetEnabled)
         assertEquals(false, validatedSnapshot.settings.hazeBlurEnabled)
         assertEquals(
             AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.NG_DL),
@@ -271,26 +269,6 @@ class BackupRestoreValidationTest {
         val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(medicineUuid.toString(), result.medicines.single().uuid)
-    }
-
-    @Test
-    fun toValidatedSnapshot_defaultsCjkTextOffsetOffWhenMissing() {
-        val snapshot = BackupSnapshot(
-            exportedAtEpochMillis = 1L,
-            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = baselineSettings(),
-            userProfile = baselineUserProfile(),
-            medicines = emptyList(),
-            medicationGroups = emptyList(),
-            medicationLogs = emptyList(),
-            customBloodAnalytes = emptyList(),
-            bloodTestPanels = emptyList(),
-        )
-
-        val validatedSnapshot =
-            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
-
-        assertEquals(false, validatedSnapshot.settings.cjkTextOffsetEnabled)
     }
 
     @Test

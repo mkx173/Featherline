@@ -1,8 +1,11 @@
 package com.mkx.hrttracker.widget
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -35,6 +38,10 @@ private const val IO_RETRY_DELAY_MS = 250L
 
 private val DEFAULT_KEY = stringPreferencesKey("appearance_default")
 private fun overrideKey(appWidgetId: Int) = stringPreferencesKey("appearance_$appWidgetId")
+
+// Written by v1.3.x widgetScale(); folded once by foldLegacyBaselineScale.
+private const val LEGACY_BASELINE_PREFS = "hrt_widget_baseline"
+private val LEGACY_BASELINE_FOLDED_KEY = booleanPreferencesKey("legacy_baseline_folded")
 
 @Singleton
 class WidgetAppearanceStore @Inject constructor(
@@ -114,6 +121,51 @@ class WidgetAppearanceStore @Inject constructor(
         }
         return seeded
     }
+
+    // The v1.3.x launcher factor from hrt_widget_baseline, weighed by which dose widget types
+    // are placed now, or null when none was captured (fresh install, or already cleared).
+    // Blocking I/O.
+    internal fun readLegacyBaselineScaleRatio(): Float? {
+        val prefs = legacyBaselinePrefs()
+        return legacyBaselineScaleRatio(
+            mediumDp = prefs.getFloat("medium_height_dp_v3", 0f),
+            largeDp = prefs.getFloat("large_height_dp_v3", 0f),
+            mediumPlaced = isPlaced(HrtWidgetMediumReceiver::class.java),
+            largePlaced = isPlaced(HrtWidgetLargeReceiver::class.java),
+        )
+    }
+
+    // False when the lookup fails (no widget support, JVM tests); the ratio then falls back
+    // to any captured height.
+    private fun isPlaced(receiverClass: Class<*>): Boolean = runCatching {
+        AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, receiverClass))
+            .isNotEmpty()
+    }.getOrDefault(false)
+
+    // Multiplies [ratio] into the default's contentScale and sets the folded marker in one
+    // edit, so the fold lands at most once even if clearing the legacy file fails or the
+    // process dies before it. Returns false when an earlier run already folded.
+    internal suspend fun foldLegacyBaselineScale(ratio: Float): Boolean {
+        var folded = false
+        context.widgetAppearanceDataStore.edit { prefs ->
+            if (prefs[LEGACY_BASELINE_FOLDED_KEY] == true) return@edit
+            val current = prefs[DEFAULT_KEY]?.let(WidgetAppearanceCodec::decode)
+                ?: WidgetAppearance.Default
+            prefs[DEFAULT_KEY] = WidgetAppearanceCodec.encode(
+                current.copy(contentScale = current.contentScale * ratio).sanitized()
+            )
+            prefs[LEGACY_BASELINE_FOLDED_KEY] = true
+            folded = true
+        }
+        return folded
+    }
+
+    // Blocking I/O. False when the clear failed; the marker keeps a retry from refolding.
+    internal fun clearLegacyBaseline(): Boolean = legacyBaselinePrefs().edit().clear().commit()
+
+    private fun legacyBaselinePrefs() =
+        context.getSharedPreferences(LEGACY_BASELINE_PREFS, Context.MODE_PRIVATE)
 
     private fun keyFor(appWidgetId: Int?): Preferences.Key<String> =
         if (appWidgetId == null) DEFAULT_KEY else overrideKey(appWidgetId)

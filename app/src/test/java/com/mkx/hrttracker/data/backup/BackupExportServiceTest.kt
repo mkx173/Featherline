@@ -497,7 +497,6 @@ class BackupExportServiceTest {
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
             hideScreenContentEnabled = true,
             pureBlackEnabled = true,
-            cjkTextOffsetEnabled = true,
             hazeBlurEnabled = false,
         )
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile(
@@ -628,7 +627,6 @@ class BackupExportServiceTest {
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
-        assertEquals(true, snapshot.settings.cjkTextOffsetEnabled)
         assertEquals(false, snapshot.settings.hazeBlurEnabled)
 
         // Medicine appears in the standalone medicines list — the restore path

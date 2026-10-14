@@ -55,7 +55,6 @@ import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
-import com.mkx.hrttracker.ui.components.LocalCjkTextOffsetEnabled
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.NavigationLockState
@@ -268,7 +267,6 @@ class MainActivity : AppCompatActivity() {
                 // Overriding LocalContext detaches the Activity that LocalActivity
                 // resolves by walking the context chain, so provide it explicitly.
                 LocalActivity provides this@MainActivity,
-                LocalCjkTextOffsetEnabled provides settingsState.cjkTextOffsetEnabled,
                 LocalHazeBlurEnabled provides appHazeBlurEnabled,
                 LocalNavigationLock provides navigationLock,
             ) {

@@ -10,8 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -105,6 +109,30 @@ fun appContentPaddingValuesBehindTopAppBar(
         horizontal = horizontal,
         top = innerPadding.calculateTopPadding() + top,
         bottom = bottom,
+    )
+}
+
+/**
+ * The pull-to-refresh indicator, without the pull: slides down from under the top app bar
+ * while [isUpdating] and back up when it ends, for content refreshing in the background.
+ */
+@Composable
+fun BoxScope.TopUpdatingIndicator(
+    isUpdating: Boolean,
+    innerPadding: PaddingValues,
+) {
+    // Not saveable: a screen restored mid-slide would resume it, and the
+    // indicator would come back up after the update it shows has ended.
+    val state = remember { PullToRefreshState() }
+    LaunchedEffect(isUpdating) {
+        if (isUpdating) state.animateToThreshold() else state.animateToHidden()
+    }
+    PullToRefreshDefaults.LoadingIndicator(
+        state = state,
+        isRefreshing = isUpdating,
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(top = innerPadding.calculateTopPadding()),
     )
 }
 
