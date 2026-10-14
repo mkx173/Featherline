@@ -48,6 +48,34 @@ class WidgetSnapshotBuilderTest {
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
+    fun medicationBoundaryKeepsNightRowsInTodayAndLabelsNextDayTimes() {
+        val now = LocalDateTime.of(2026, 10, 2, 1, 0)
+        val group = widgetTestGroup(
+            groupName = "Night", medicationKey = MedicationKey.ESTRADIOL,
+            since = now.toLocalDate().minusDays(2), time = LocalTime.of(1, 0),
+        )
+        val configuredGroup = group.copy(schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY, interval = 1,
+            since = now.toLocalDate().minusDays(2), weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)),
+        ))
+        val entry = testMedicationLogEntry(
+            medicine = configuredGroup.medications.single().medicine,
+            sourceGroupUuid = null, appliedAt = now.atZone(zoneId).toInstant(), appliedAtTimeZoneId = zoneId.id,
+        )
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(configuredGroup)).copy(scheduleEntries = listOf(entry)),
+            settings = SettingsState(medicationDayStartMinutes = 300), now = now, zoneId = zoneId,
+        )
+        assertEquals(now.toLocalDate().minusDays(1).toEpochDay(), snapshot.anchorDateEpochDay)
+        assertEquals(2, snapshot.totalCount)
+        assertEquals(1, snapshot.manualCount)
+        assertTrue(snapshot.doseRows.all { it.contextChip == null })
+        assertTrue(snapshot.doseRows.first { it.scheduledAt == now && !it.isManualRecord }.trailingText!!.contains("Next day"))
+    }
+
+    @Test
     fun writesMedicationNamesToWidgetRows() {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         val group = widgetTestGroup(

@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.mkx.hrttracker.util.medicationDay
 
 class WidgetDailyRefreshWorker(
     private val appContext: Context,
@@ -25,7 +26,8 @@ class WidgetDailyRefreshWorker(
         val projectionExpired = snapshot == null ||
                 snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
 
-        val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
+        val dayStartMinutes = entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes
+        val anchorDateStale = snapshot?.isAnchoredBefore(now, dayStartMinutes) == true
         val doseStatusStale = snapshot?.doseRows?.any { row ->
             when (row.status) {
                 WidgetDoseStatus.UPCOMING ->
@@ -48,5 +50,5 @@ class WidgetDailyRefreshWorker(
     }
 }
 
-internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime): Boolean =
-    anchorDateEpochDay < now.toLocalDate().toEpochDay()
+internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime, dayStartMinutes: Int = 0): Boolean =
+    anchorDateEpochDay < medicationDay(now, dayStartMinutes).toEpochDay()

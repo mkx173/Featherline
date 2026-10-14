@@ -30,9 +30,16 @@ class WidgetDateReceiver : BroadcastReceiver() {
         )
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
         diagnosticsLogger.info(TAG, "widget_date_receiver_received action=$action")
+        val dayStartMinutes = runCatching {
+            entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes
+        }.onFailure {
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            diagnosticsLogger.warning(TAG, "widget_day_start_read_failed", it)
+        }.getOrDefault(0)
         scheduleNextWidgetDateRefresh(
             context = context.applicationContext,
             diagnosticsLogger = diagnosticsLogger,
+            dayStartMinutes = dayStartMinutes,
         )
         // One overall bound for every DB-touching step: the home refresh blocks unbounded
         // on the database open, and the anchor steps each run their own 5s await — on a

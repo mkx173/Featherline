@@ -66,6 +66,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -91,6 +92,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -138,6 +140,7 @@ import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationDayTimeText
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
@@ -181,6 +184,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
+import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.floor
@@ -277,11 +281,12 @@ internal fun mainE2ChartMaxZoomXRangeHours(
 
 private fun mainTodayDoseRowsByTimeRange(
     rows: List<MainTodayDoseRowUiState>,
-): List<Map.Entry<MainTodayTimeRange, List<MainTodayDoseRowUiState>>> =
+): List<Pair<MainTodayTimeRange, List<MainTodayDoseRowUiState>>> =
     rows
-        .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
+        .groupBy { row -> row.scheduledAt.toLocalDate() to mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
         .entries
-        .sortedBy { (timeRange, _) -> timeRange.ordinal }
+        .sortedWith(compareBy({ it.key.first }, { it.key.second.ordinal }))
+        .map { (key, dayRows) -> key.second to dayRows }
 
 internal fun mainDoseRowHighlightScrollTargetKey(
     uiState: MainUiState,
@@ -3418,7 +3423,7 @@ internal fun MainTodaySection(
     ).joinToString(separator = " · ")
 
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().testTag("main_today_section"),
     ) {
         MainSectionHeader(
             title = stringResource(R.string.main_today_title),
@@ -3439,7 +3444,8 @@ internal fun MainTodaySection(
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MainTodayTimeRangeHeader(
                         timeRange = timeRange,
-                        isCurrent = timeRange == mainTodayTimeRange(now.toLocalTime()),
+                        isCurrent = rows.first().scheduledAt.toLocalDate() == now.toLocalDate() &&
+                            timeRange == mainTodayTimeRange(now.toLocalTime()),
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
                         totalCount = scheduledRows.size,
                         manualCount = rows.count { row -> row.isManualRecord },
@@ -3460,6 +3466,7 @@ internal fun MainTodaySection(
                             key(rowKey) {
                                 MainTodayDoseRow(
                                     row = row,
+                                    dayDate = section.date,
                                     index = index,
                                     itemCount = rows.size,
                                     now = now,
@@ -3524,6 +3531,7 @@ internal fun MainLastNightSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
+                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3585,6 +3593,7 @@ internal fun MainComingUpSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
+                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3644,6 +3653,7 @@ internal fun MainUpcomingSection(
                     key(rowKey) {
                         MainUpcomingDoseRow(
                             row = row,
+                            dayDate = section.anchorDate ?: row.scheduledAt.toLocalDate(),
                             index = index,
                             itemCount = section.rows.size,
                             timeFormatter = timeFormatter,
@@ -3688,6 +3698,7 @@ private fun MainTodayDoseRow(
     itemCount: Int,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
+    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     isHighlighted: Boolean = false,
@@ -3727,6 +3738,9 @@ private fun MainTodayDoseRow(
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
+        row.scheduledAt.takeIf { it.toLocalDate() != dayDate }?.let {
+            medicationDayTimeText(LocalContext.current, it, dayDate, timeFormatter)
+        },
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
     val hasOnlyOutsideScheduleWindowLog = row.loggedAt == null &&
@@ -3839,6 +3853,7 @@ private fun MainTodayDoseRow(
 
                 MainTodayTrailingContent(
                     row = row,
+                    dayDate = dayDate,
                     now = now,
                     timeFormatter = timeFormatter,
                     onStatusClick = onStatusClick
@@ -3854,6 +3869,7 @@ private fun MainUpcomingDoseRow(
     index: Int,
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
+    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     isHighlighted: Boolean = false,
     isHighlightFlashReady: Boolean = isHighlighted,
     isHighlightScrollTarget: Boolean = isHighlighted,
@@ -3891,7 +3907,7 @@ private fun MainUpcomingDoseRow(
         routeLabel,
         doseText,
     ).joinToString(separator = " · ")
-    val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
+    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter)
     // See MainTodayDoseRow: animate the container color (rest -> secondaryContainer)
     // rather than fading a translucent overlay, to avoid 8-bit banding in the tail.
     val containerColor = lerp(
@@ -3962,6 +3978,7 @@ private fun MainTodayTrailingContent(
     row: MainTodayDoseRowUiState,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
+    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     onStatusClick: () -> Unit,
 ) {
     val loggedAt = row.loggedAt ?: row.outsideScheduleWindowLoggedAt
@@ -3980,7 +3997,7 @@ private fun MainTodayTrailingContent(
                     scheduledFor = row.scheduledAt,
                     now = now
                 ) -> MainTodayTrailingText(
-                    text = row.scheduledAt.toLocalTime().format(timeFormatter),
+                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter),
                     isDelta = false
                 )
 
@@ -4708,6 +4725,7 @@ private fun MainTodayTrailingContentPreview() {
             uiState.todaySection.rows.forEach { row ->
                 MainTodayTrailingContent(
                     row = row,
+                    dayDate = uiState.todaySection.date,
                     now = uiState.now,
                     timeFormatter = timeFormatter,
                     onStatusClick = { }

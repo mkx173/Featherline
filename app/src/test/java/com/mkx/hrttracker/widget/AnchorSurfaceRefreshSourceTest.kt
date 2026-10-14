@@ -104,9 +104,7 @@ class AnchorSurfaceRefreshSourceTest {
                 "unguarded throw from this root coroutine crashes the process on every " +
                 "midnight/boot/timezone broadcast while the failure holds, and skips the " +
                 "anchor widget/shortcut refreshes behind it.",
-            source.contains("runCatching {") &&
-                source.substringAfter("runCatching {")
-                    .substringBefore("}").contains("refreshHomeSnapshotIfNeeded"),
+            Regex("""runCatching\s*\{[^}]*refreshHomeSnapshotIfNeeded""").containsMatchIn(source),
         )
     }
 

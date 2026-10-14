@@ -64,7 +64,18 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
-        scheduleNextWidgetDateRefresh(context, diagnosticsLogger = diagnosticsLogger)
+        appScope.launch {
+            runCatching {
+                scheduleNextWidgetDateRefresh(
+                    context,
+                    diagnosticsLogger = diagnosticsLogger,
+                    dayStartMinutes = settingsRepository.getCurrentSettings().medicationDayStartMinutes,
+                )
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                diagnosticsLogger.warning(TAG, "widget_date_refresh_startup_failed", throwable)
+            }
+        }
         publishGeneratedWidgetPreviewsIfNeeded()
 
         appScope.launch {
@@ -107,6 +118,7 @@ class HomeWidgetManager @Inject constructor(
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
                         settings.showArchivedGroupRecords,
+                        settings.medicationDayStartMinutes,
                     )
                 }
                 .distinctUntilChanged()
@@ -118,6 +130,11 @@ class HomeWidgetManager @Inject constructor(
                 }
                 .collect {
                     runCatching {
+                        scheduleNextWidgetDateRefresh(
+                            context,
+                            diagnosticsLogger = diagnosticsLogger,
+                            dayStartMinutes = settingsRepository.getCurrentSettings().medicationDayStartMinutes,
+                        )
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable

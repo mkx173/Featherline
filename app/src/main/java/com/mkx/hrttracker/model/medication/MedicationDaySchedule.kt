@@ -52,10 +52,13 @@ fun buildPlanDaySchedule(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    dayStartMinutes: Int = 0,
 ): PlanDaySchedule {
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
-        entries = entries.filter { entry -> entry.planCalendarDate(zoneId) == date },
+        entries = entries.filter { entry -> entry.planCalendarDate(zoneId, dayStartMinutes) == date },
+        dayStartMinutes = dayStartMinutes,
+        zoneId = zoneId,
     )
     val scheduledEntries = scheduledGroups
         .flatMap { group ->
@@ -70,6 +73,7 @@ fun buildPlanDaySchedule(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+                dayStartMinutes = dayStartMinutes,
             ).flatMap { slot ->
                 val slotDateTime = slot.scheduledFor
                 val matchingSlotLogs = entries.filter { entry ->
@@ -164,11 +168,12 @@ fun buildPlanDaySchedule(
 
     val unplannedEntries = entries
         .filter { entry ->
-            entry.planCalendarDate(zoneId) == date &&
+            entry.planCalendarDate(zoneId, dayStartMinutes) == date &&
                     isPlanOffPlanEntry(
                         entry = entry,
                         scheduledGroups = scheduledGroups,
                         date = date,
+                        dayStartMinutes = dayStartMinutes,
                         zoneId = zoneId,
                     )
         }

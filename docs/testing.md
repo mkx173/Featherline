@@ -34,6 +34,59 @@ After a run, Gradle writes HTML reports for browsing:
 
 Open the report HTML directly in a browser; the failure stack trace there is more readable than the Gradle console output.
 
+## End-to-end tests
+
+E2E tests live in `app/src/androidTest/java/com/mkx/hrttracker/e2e/`. Run them with:
+
+```bash
+devenv tasks run android:e2e
+
+# Use a different project emulator port.
+ANDROID_EMULATOR_PORT=5556 devenv tasks run android:e2e
+```
+
+The task builds and launches the Debug app on the project emulator, then runs
+every instrumented test in `com.mkx.hrttracker.e2e`. Put future feature suites
+in that package to include them automatically. To run one case on an already
+running emulator:
+
+```bash
+ANDROID_SERIAL=emulator-5556 devenv shell -- ./gradlew connectedPlayDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.mkx.hrttracker.e2e.MedicationDayE2eTest#defaultMidnightKeepsDawnInCivilDay
+```
+
+The medication-day suite starts the real `MainActivity` and uses production
+Hilt bindings, SQLCipher/Room, DataStore, navigation, clock broadcasts and
+application lifecycle. A Debug-only entry point provides fixture access; no
+repositories or time sources are mocked. Tests require an emulator, reset the
+Debug app's database, configure its settings, and temporarily change the device
+clock, timezone and 12/24-hour format. Device settings are restored in teardown,
+including on assertion failure.
+
+Coverage includes:
+
+| Area | Scenarios |
+| --- | --- |
+| Settings | Confirm, cancel, minute precision, recreation and activity relaunch |
+| Boundaries | Default midnight, 04:30, 05:00, 23:59, exact boundary and the preceding second |
+| Home and plans | Next-day labels and ordering, no duplicated context rows, quick-log confirmation, completion counts, weekly recurrence |
+| History | Manual versus linked records, regrouping existing records, edit/delete, archive visibility, month/year transitions and stored entry timezone |
+| Lifecycle | Natural foreground tick across the boundary, background clock change and relaunch |
+| System integration | Actual 01:00 notification delivery; real Android widget host, rendered counts and boundary refresh |
+| Persistence | Encrypted backup restore and a legacy backup without the boundary field |
+| Other date features | Journal notes retain their civil day |
+
+Backup tests invoke the real export/encryption/restore services with generated
+payloads and verify the resulting UI. They do not drive Android's system document
+picker. Widget tests use an `AppWidgetHost` rather than automating a particular
+launcher's widget placement gestures. Device reboot, launcher placement, lab-test
+and milestone screens remain manual checks.
+
+Reports are written to `app/build/reports/androidTests/connected/debug/flavors/play/`.
+Per-case logcat and JUnit XML are in
+`app/build/outputs/androidTest-results/connected/debug/flavors/play/`. Failed UI
+waits include the Compose semantics tree in the failure message.
+
 ## Where to put new tests
 
 - **Pure-Kotlin domain logic** (`model/`, time math, fulfillment predicates, factor-table conversions, validation predicates) → `app/src/test/`. This is where the bulk of the suite lives. The math itself is JVM-runnable so these tests stay fast (sub-second).

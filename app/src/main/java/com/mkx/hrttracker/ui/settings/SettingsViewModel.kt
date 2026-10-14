@@ -282,6 +282,10 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.setAppLanguageOption(option)
     }
 
+    fun setMedicationDayStartMinutes(minutes: Int) {
+        launchSettingsMutation { settingsRepository.setMedicationDayStartMinutes(minutes) }
+    }
+
     fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
         launchSettingsMutation {
             settingsRepository.setFirstDayOfWeekOption(option)

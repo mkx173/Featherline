@@ -8,22 +8,29 @@ import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.medicationDayStart
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
 
-internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime =
-    now.toLocalDate().plusDays(1).atStartOfDay()
+internal fun nextWidgetDateRefreshAt(now: LocalDateTime, dayStartMinutes: Int = 0): LocalDateTime {
+    val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
+    val boundaryToday = medicationDayStart(now.toLocalDate(), dayStartMinutes)
+    val boundary = if (boundaryToday.isAfter(now)) boundaryToday else boundaryToday.plusDays(1)
+    // Midnight also refreshes journal anchors, which retain their civil dates.
+    return minOf(midnight, boundary)
+}
 
 internal fun scheduleNextWidgetDateRefresh(
     context: Context,
     now: LocalDateTime = LocalDateTime.now(),
     diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     sdkInt: Int = Build.VERSION.SDK_INT,
+    dayStartMinutes: Int = 0,
 ) {
     val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-    val triggerAt = nextWidgetDateRefreshAt(now)
+    val triggerAt = nextWidgetDateRefreshAt(now, dayStartMinutes)
     val triggerAtMillis = triggerAt
         .atZone(ZoneId.systemDefault())
         .toInstant()

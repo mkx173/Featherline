@@ -96,6 +96,7 @@ data class SettingsState(
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    val medicationDayStartMinutes: Int = 0,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),

@@ -54,6 +54,7 @@ data class BackupSettingsSnapshot(
     // read new backups' scale/alpha/darkMode).
     val widgetAppearance: String? = null,
     val groupNameCounter: Int = 0,
+    val medicationDayStartMinutes: Int = 0,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
     val stockNudgeEnabled: Boolean = true,
     val stockNudgeUserEnabled: Boolean = false,

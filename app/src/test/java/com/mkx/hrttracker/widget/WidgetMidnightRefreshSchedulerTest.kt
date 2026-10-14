@@ -43,6 +43,15 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
+    fun nextRefreshIncludesMedicationBoundaryAndCivilMidnight() {
+        val midnight = LocalDateTime.of(2026, 10, 2, 0, 0)
+        assertEquals(midnight.withHour(5), nextWidgetDateRefreshAt(midnight, 300))
+        assertEquals(midnight.withHour(5), nextWidgetDateRefreshAt(midnight.withHour(1), 300))
+        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(5), 300))
+        assertEquals(midnight.withHour(4).withMinute(30), nextWidgetDateRefreshAt(midnight, 270))
+    }
+
+    @Test
     fun nextWidgetDateRefreshAt_returnsNextLocalMidnight() {
         assertEquals(
             LocalDateTime.of(2026, 5, 23, 0, 0),

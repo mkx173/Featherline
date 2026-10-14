@@ -1104,6 +1104,9 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
+    <string name="settings_medication_day_start">Medication day starts at</string>
+    <string name="settings_medication_day_start_summary">%1$s · Groups medication records and daily progress by this time.</string>
+    <string name="medication_next_day_time">Next day %1$s</string>
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>
     <string name="calibration_pk_global_no_dose_history_body">The population estimate is shown until you add an estradiol dose.</string>

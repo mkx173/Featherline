@@ -137,7 +137,7 @@ class HomeRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
-                manualEndEpochMillis = LocalDate.of(2026, 5, 7)
+                manualEndEpochMillis = LocalDate.of(2026, 5, 8)
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
@@ -199,7 +199,7 @@ class HomeRepositoryTest {
             .atStartOfDay(providedZone)
             .toInstant()
             .toEpochMilli()
-        val manualEndEpochMillis = today.plusDays(1)
+        val manualEndEpochMillis = today.plusDays(2)
             .atStartOfDay(providedZone)
             .toInstant()
             .toEpochMilli()
@@ -1173,7 +1173,7 @@ class HomeRepositoryTest {
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),
-                    manualEndEpochMillis = LocalDate.of(2026, 5, 7)
+                    manualEndEpochMillis = LocalDate.of(2026, 5, 8)
                         .atStartOfDay(zoneId)
                         .toInstant()
                         .toEpochMilli(),

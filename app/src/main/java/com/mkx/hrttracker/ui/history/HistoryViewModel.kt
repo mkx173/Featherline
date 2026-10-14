@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
+import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -111,13 +112,17 @@ class HistoryViewModel @Inject constructor(
         } else {
             activeGroups
         }
-        val today = now.toLocalDate()
+        val today = medicationDay(now, settingsState.medicationDayStartMinutes)
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
-            YearMonth.from(entry.planCalendarDate(ZoneId.systemDefault()))
+            YearMonth.from(entry.planCalendarDate(ZoneId.systemDefault(), settingsState.medicationDayStartMinutes))
         }
         val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
-            YearMonth.from(group.schedule.since)
+            YearMonth.from(
+                group.schedule.times.minOrNull()?.let { time ->
+                    medicationDay(group.schedule.since.atTime(time), settingsState.medicationDayStartMinutes)
+                } ?: group.schedule.since
+            )
         }
         val selectedMonth = selectedDay?.let(YearMonth::from)
         val calendarStartMonth = listOfNotNull(
@@ -138,6 +143,7 @@ class HistoryViewModel @Inject constructor(
         HistoryUiState(
             isLoading = isLoading,
             today = today,
+            medicationDayStartMinutes = settingsState.medicationDayStartMinutes,
             entries = entries,
             allEntryCount = allEntries.size,
             hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
@@ -347,6 +353,7 @@ private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
 data class HistoryUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
+    val medicationDayStartMinutes: Int = 0,
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,
