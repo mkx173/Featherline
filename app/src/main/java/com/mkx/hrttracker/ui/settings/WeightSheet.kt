@@ -283,7 +283,8 @@ internal fun WeightSheetContent(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
+        // AdjustStockSheet's rhythm: 8dp between blocks, the title's own 4/10dp around it.
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
     ) {
         // On API 26 the sheet window auto-focuses the first text field and opens
         // the IME on entry; parking focus on the (non-text) title avoids it, like
@@ -294,7 +295,7 @@ internal fun WeightSheetContent(
             text = stringResource(R.string.personalization_weight_dialog_title),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier
-                .padding(top = 4.dp)
+                .padding(top = 4.dp, bottom = 10.dp)
                 .focusRequester(dismissFocusAnchor)
                 .focusable(),
         )
@@ -374,11 +375,7 @@ internal fun WeightSheetContent(
             targetValue = if (syncOn) 0f else 1f,
             label = "weightSheetLeftButton",
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-        ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
             if (leftWeight > 0f) {
                 Box(
                     modifier = Modifier
