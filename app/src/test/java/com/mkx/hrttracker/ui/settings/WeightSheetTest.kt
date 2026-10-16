@@ -78,6 +78,39 @@ class WeightSheetTest {
     }
 
     @Test
+    fun syncOn_withNoReadingYet_saysSyncing_untilASyncFindsNone() {
+        var profile by mutableStateOf(weight(62.4))
+        var hasNoReading by mutableStateOf(false)
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = profile,
+                syncEnabled = true,
+                healthConnect = access,
+                isSyncing = false,
+                hasNoHealthConnectWeight = hasNoReading,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+
+        // Sync just turned on: no reading's date yet, and no sync found none.
+        composeRule.onNodeWithText("Syncing…").assertExists()
+
+        hasNoReading = true
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("No weight records yet").assertExists()
+
+        hasNoReading = false
+        profile = weight(61.8, Instant.parse("2026-10-15T07:00:00Z"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Synced").assertExists()
+    }
+
+    @Test
     fun aDenial_showsAMessageThatOpensHealthConnect() {
         var opened = false
         composeRule.setContent {

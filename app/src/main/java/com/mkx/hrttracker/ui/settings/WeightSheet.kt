@@ -604,11 +604,12 @@ private fun healthConnectStatusText(
         syncEnabled && !healthConnect.hasAccess ->
             stringResource(R.string.health_connect_status_permission_off)
         !syncEnabled -> stringResource(R.string.health_connect_status_off)
-        isSyncing -> stringResource(R.string.health_connect_status_syncing)
-        // No measured time also means the weight didn't come from HC (e.g. the
-        // first sync of this process hasn't finished).
-        hasNoReading || profile.weightMeasuredAt == null ->
-            stringResource(R.string.health_connect_status_no_reading)
+        // No measured time without a sync that found nothing means a sync is on
+        // its way (sync just turned on, or this process's first one).
+        // ponytail: a sync that throws leaves this until the next one runs.
+        isSyncing || (!hasNoReading && profile.weightMeasuredAt == null) ->
+            stringResource(R.string.health_connect_status_syncing)
+        hasNoReading -> stringResource(R.string.health_connect_status_no_reading)
         // The reading's date sits under the weight field.
         else -> stringResource(R.string.health_connect_status_synced)
     }
