@@ -418,6 +418,7 @@ private fun WeightUnitSwitch(
                     unitLabel,
                     stringResource(otherUnit.shortLabelRes),
                 ),
+                modifier = Modifier.size(20.dp)
             )
         }
     }
