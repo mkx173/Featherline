@@ -149,8 +149,8 @@ internal fun WeightSheet(
     if (showClearConfirm) {
         HazeAlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text(text = stringResource(R.string.personalization_weight_clear_confirm_title)) },
-            text = { Text(text = stringResource(R.string.personalization_weight_clear_confirm_body)) },
+            title = { Text(text = stringResource(R.string.personalization_weight_clear_title)) },
+            text = { Text(text = stringResource(R.string.personalization_weight_clear_confirmation)) },
             confirmButton = {
                 TextButton(
                     onClick = {

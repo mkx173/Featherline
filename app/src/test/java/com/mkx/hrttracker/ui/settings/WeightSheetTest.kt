@@ -99,7 +99,7 @@ class WeightSheetTest {
         }
 
         composeRule.onNodeWithText(
-            "Health Connect access was denied. Tap to allow it in Health Connect."
+            "Access denied. Tap to allow it in Health Connect."
         ).performClick()
         assertEquals(true, opened)
     }
@@ -109,7 +109,7 @@ class WeightSheetTest {
         setSheet(profile = { weight(62.4) }, syncEnabled = false)
 
         composeRule.onNodeWithText(
-            "Health Connect access was denied. Tap to allow it in Health Connect."
+            "Access denied. Tap to allow it in Health Connect."
         ).assertDoesNotExist()
         composeRule.onNodeWithText("62.4").assertIsEnabled()
         composeRule.onNodeWithText("Clear").assertExists()

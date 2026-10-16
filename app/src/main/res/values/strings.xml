@@ -805,16 +805,16 @@
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_title" translatable="false">Health Connect</string>
     <string name="health_connect_status_measured">Measured %1$s, %2$s</string>
-    <string name="health_connect_status_no_reading">No weight in Health Connect yet</string>
+    <string name="health_connect_status_no_reading">No weight records yet</string>
     <string name="health_connect_status_syncing">Syncing…</string>
     <string name="health_connect_status_off">Sync off</string>
-    <string name="health_connect_status_not_installed">Health Connect not installed</string>
+    <string name="health_connect_status_not_installed">Not installed</string>
     <string name="health_connect_status_permission_off">Permission off · tap to grant</string>
-    <string name="health_connect_permission_denied">Health Connect access was denied. Tap to allow it in Health Connect.</string>
+    <string name="health_connect_permission_denied">Access denied. Tap to allow it in Health Connect.</string>
     <string name="health_connect_sync_now">Sync now</string>
     <string name="health_connect_switch_a11y">Sync with Health Connect</string>
-    <string name="personalization_weight_clear_confirm_title">Clear body weight?</string>
-    <string name="personalization_weight_clear_confirm_body">Estimates will stop using your weight.</string>
+    <string name="personalization_weight_clear_title">Clear body weight</string>
+    <string name="personalization_weight_clear_confirmation">Clear your body weight? Estimates will stop using it.</string>
     <string name="onboarding_update_failed">Unable to update onboarding.</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
