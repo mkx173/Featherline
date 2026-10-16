@@ -89,7 +89,6 @@ import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -603,13 +602,10 @@ private fun healthConnectStatusText(
         hasNoReading || measuredAt == null ->
             stringResource(R.string.health_connect_status_no_reading)
         else -> {
-            val locale = rememberAppLocale()
             val zone = ZoneId.systemDefault()
-            val dateTime = measuredAt.atZone(zone)
             stringResource(
-                R.string.health_connect_status_measured,
-                dateLabelFormatter(locale, LocalDate.now(zone))(dateTime.toLocalDate()),
-                rememberLocalizedShortTimeFormatter(locale).format(dateTime),
+                R.string.health_connect_status_recorded,
+                dateLabelFormatter(rememberAppLocale(), LocalDate.now(zone))(measuredAt.atZone(zone).toLocalDate()),
             )
         }
     }

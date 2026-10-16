@@ -215,7 +215,7 @@
     <string name="journal_add_date">添加日期</string>
     <string name="journal_see_all_notes">查看全部笔记</string>
     <string name="journal_today">今天</string>
-    <string name="journal_write_about_today">随手记下这一刻...</string>
+    <string name="journal_write_about_today">随手记下这一刻…</string>
     <string name="journal_no_dates_subtitle">添加一个日期，记录重要的瞬间</string>
     <string name="journal_nothing_pinned_title">暂无已固定的日期</string>
     <string name="journal_nothing_pinned_subtitle">已固定的日期会显示在这里</string>
@@ -773,7 +773,7 @@
     <string name="personalization_weight_update_failed">无法更新体重。</string>
     <string name="personalization_weight_unit_a11y">单位：%1$s，切换为 %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
-    <string name="health_connect_status_measured">测量于 %1$s %2$s</string>
+    <string name="health_connect_status_recorded">已同步 · 记录于 %1$s</string>
     <string name="health_connect_status_no_reading">还没有体重记录</string>
     <string name="health_connect_status_syncing">正在同步…</string>
     <string name="health_connect_status_off">同步已关闭</string>
@@ -861,7 +861,7 @@
         <item quantity="other">%1$s、%2$s 和其他 %3$d 个分组</item>
     </plurals>
     <plurals name="reminder_notification_more_medications">
-        <item quantity="other">...以及其他 %1$d 个药物</item>
+        <item quantity="other">…以及其他 %1$d 个药物</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已添加 %1$d 条记录</item>

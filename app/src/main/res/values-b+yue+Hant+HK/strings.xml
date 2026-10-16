@@ -215,7 +215,7 @@
     <string name="journal_add_date">新增日期</string>
     <string name="journal_see_all_notes">檢視全部筆記</string>
     <string name="journal_today">今日</string>
-    <string name="journal_write_about_today">隨手記低呢一刻...</string>
+    <string name="journal_write_about_today">隨手記低呢一刻…</string>
     <string name="journal_no_dates_subtitle">新增一個日期，記錄重要嘅瞬間</string>
     <string name="journal_nothing_pinned_title">暫時冇已固定嘅日期</string>
     <string name="journal_nothing_pinned_subtitle">已固定嘅日期會顯示喺呢度</string>
@@ -773,7 +773,7 @@
     <string name="personalization_weight_update_failed">未能更新體重。</string>
     <string name="personalization_weight_unit_a11y">單位：%1$s，轉做 %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
-    <string name="health_connect_status_measured">%1$s %2$s 量度</string>
+    <string name="health_connect_status_recorded">已同步 · %1$s 記錄</string>
     <string name="health_connect_status_no_reading">仲未有體重記錄</string>
     <string name="health_connect_status_syncing">同步緊…</string>
     <string name="health_connect_status_off">同步已關閉</string>

@@ -223,7 +223,7 @@
     <string name="journal_add_date">Add a date</string>
     <string name="journal_see_all_notes">See all notes</string>
     <string name="journal_today">Today</string>
-    <string name="journal_write_about_today">Write about this moment...</string>
+    <string name="journal_write_about_today">Write about this moment…</string>
     <string name="journal_no_dates_subtitle">Add a date to see how far you\'ve come.</string>
     <string name="journal_nothing_pinned_title">No pinned dates yet</string>
     <string name="journal_nothing_pinned_subtitle">Pinned dates appear here.</string>
@@ -804,7 +804,7 @@
     <string name="personalization_weight_unit_a11y">Unit: %1$s. Switch to %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_title" translatable="false">Health Connect</string>
-    <string name="health_connect_status_measured">Measured %1$s, %2$s</string>
+    <string name="health_connect_status_recorded">Synced · recorded %1$s</string>
     <string name="health_connect_status_no_reading">No weight records yet</string>
     <string name="health_connect_status_syncing">Syncing…</string>
     <string name="health_connect_status_off">Sync off</string>
@@ -894,8 +894,8 @@
         <item quantity="other">%1$s, %2$s, and %3$d more groups</item>
     </plurals>
     <plurals name="reminder_notification_more_medications">
-        <item quantity="one">...and %1$d more medication</item>
-        <item quantity="other">...and %1$d more medications</item>
+        <item quantity="one">…and %1$d more medication</item>
+        <item quantity="other">…and %1$d more medications</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="one">Added %1$d record.</item>
