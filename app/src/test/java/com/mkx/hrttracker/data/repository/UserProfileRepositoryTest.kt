@@ -232,7 +232,7 @@ class UserProfileRepositoryTest {
 
         runCurrent()
 
-        assertTrue(seeded in profiles)
+        assertEquals(seeded, profiles.last())
         coVerify(exactly = 1) { homeSnapshotRepository.currentState() }
     }
 
