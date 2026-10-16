@@ -78,9 +78,39 @@ class WeightSheetTest {
     }
 
     @Test
+    fun aDenial_showsAMessageThatOpensHealthConnect() {
+        var opened = false
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4),
+                syncEnabled = false,
+                healthConnect = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = false),
+                isSyncing = false,
+                hasNoHealthConnectWeight = false,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+                showPermissionDenied = true,
+                onOpenHealthConnect = { opened = true },
+            )
+        }
+
+        composeRule.onNodeWithText(
+            "Health Connect access was denied. Tap to allow it in Health Connect."
+        ).performClick()
+        assertEquals(true, opened)
+    }
+
+    @Test
     fun syncOffWithWeight_isEditableWithClearAndSave() {
         setSheet(profile = { weight(62.4) }, syncEnabled = false)
 
+        composeRule.onNodeWithText(
+            "Health Connect access was denied. Tap to allow it in Health Connect."
+        ).assertDoesNotExist()
         composeRule.onNodeWithText("62.4").assertIsEnabled()
         composeRule.onNodeWithText("Clear").assertExists()
         composeRule.onNodeWithText("Save").assertExists()

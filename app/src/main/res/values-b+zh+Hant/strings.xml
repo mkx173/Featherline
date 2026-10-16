@@ -779,6 +779,7 @@
     <string name="health_connect_status_off">同步已關閉</string>
     <string name="health_connect_status_not_installed">未安裝 Health Connect</string>
     <string name="health_connect_status_permission_off">權限已關閉 · 點擊以授予</string>
+    <string name="health_connect_permission_denied">Health Connect 存取權限遭拒。點擊以在 Health Connect 中允許。</string>
     <string name="health_connect_sync_now">立即同步</string>
     <string name="health_connect_switch_a11y">與 Health Connect 同步</string>
     <string name="personalization_weight_clear_confirm_title">清除體重？</string>

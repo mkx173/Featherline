@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.settings
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -25,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -71,10 +67,10 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
-import com.mkx.hrttracker.ui.components.LocalChromeHazeState
-import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.formatWeightForInput
-import com.mkx.hrttracker.ui.components.hazeSheetSurface
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -101,6 +97,8 @@ internal fun WeightSheet(
     onSyncEnabledChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     onDismissRequest: () -> Unit,
+    showPermissionDenied: Boolean = false,
+    onOpenHealthConnect: () -> Unit = {},
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     val scope = rememberCoroutineScope()
@@ -131,6 +129,8 @@ internal fun WeightSheet(
             onSyncEnabledChange = onSyncEnabledChange,
             onSyncNow = onSyncNow,
             onClose = close,
+            showPermissionDenied = showPermissionDenied,
+            onOpenHealthConnect = onOpenHealthConnect,
             modifier = Modifier.padding(
                 start = dimensionResource(R.dimen.padding_large),
                 end = dimensionResource(R.dimen.padding_large),
@@ -178,6 +178,8 @@ internal fun WeightSheetContent(
     onSyncNow: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    showPermissionDenied: Boolean = false,
+    onOpenHealthConnect: () -> Unit = {},
 ) {
     // Follows the switch's checked state. With sync on, Health Connect is the
     // source and the weight is read-only; turn sync off to type one.
@@ -286,15 +288,17 @@ internal fun WeightSheetContent(
             ),
         )
 
-        HealthConnectCard(
+        HealthConnectSection(
             profile = profile,
             syncEnabled = syncEnabled,
             syncOn = syncOn,
             healthConnect = healthConnect,
             isSyncing = isSyncing,
             hasNoReading = hasNoHealthConnectWeight,
+            showPermissionDenied = showPermissionDenied,
             onToggle = { onSyncEnabledChange(!syncOn) },
             onSyncNow = onSyncNow,
+            onOpenHealthConnect = onOpenHealthConnect,
         )
 
         // Same height in every state: buttons share one min height.
@@ -358,119 +362,106 @@ private fun WeightUnitSwitch(
     }
 }
 
+/**
+ * The sync row and, after a denial, a message to open Health Connect, grouped
+ * like Settings' reminders switch and its notification message. surfaceContainer
+ * sits one step above the sheet's surfaceContainerLow.
+ */
 @Composable
-private fun HealthConnectCard(
+private fun HealthConnectSection(
     profile: UserProfile,
     syncEnabled: Boolean,
     syncOn: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
     hasNoReading: Boolean,
+    showPermissionDenied: Boolean,
     onToggle: () -> Unit,
     onSyncNow: () -> Unit,
+    onOpenHealthConnect: () -> Unit,
 ) {
-    // Same container as HomeCardLayoutRow: secondaryContainer when on,
-    // surfaceContainerHighest when off, a haze tint on haze sheets.
-    val containerColor by animateColorAsState(
-        targetValue = if (syncOn) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHighest
-        },
-        label = "healthConnectCardContainer",
-    )
-    val contentColor by animateColorAsState(
-        targetValue = if (syncOn) {
-            MaterialTheme.colorScheme.onSecondaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        label = "healthConnectCardContent",
-    )
-    val hazeBlur = LocalHazeBlurEnabled.current && LocalChromeHazeState.current != null
-    val shape = MaterialTheme.shapes.large
-    Surface(
-        onClick = onToggle,
-        enabled = healthConnect.sdkAvailable,
-        modifier = Modifier.hazeSheetSurface(
-            containerColor = containerColor,
-            shape = shape,
-            active = hazeBlur,
-        ),
-        shape = shape,
-        color = if (hazeBlur) Color.Transparent else containerColor,
-        contentColor = contentColor,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.FavoriteBorder,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f).padding(end = 4.dp)) {
-                Text(
-                    text = stringResource(R.string.health_connect_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = healthConnectStatusText(
-                        profile,
-                        syncEnabled,
-                        healthConnect,
-                        isSyncing,
-                        hasNoReading,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (syncOn) {
-                // Compact like HomeCardLayoutRow's trailing button, so the status
-                // line keeps its width; the card itself stays the large target.
-                IconButton(
-                    onClick = onSyncNow,
-                    enabled = !isSyncing,
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    val rotation = if (isSyncing) {
-                        rememberInfiniteTransition(label = "healthConnectSync").animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(
-                                    // One turn per minimum syncing time, so a fast sync shows a whole turn.
-                                    durationMillis = WeightSyncCoordinator.MIN_SYNCING_MILLIS.toInt(),
-                                    easing = LinearEasing,
-                                ),
-                                repeatMode = RepeatMode.Restart,
-                            ),
-                            label = "healthConnectSyncRotation",
-                        ).value
-                    } else {
-                        0f
-                    }
-                    Icon(
-                        painter = painterResource(R.drawable.ic_sync),
-                        contentDescription = stringResource(R.string.health_connect_sync_now),
-                        // The icon spins counter-clockwise, like its arrows.
-                        modifier = Modifier.rotate(-rotation),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            val switchDescription = stringResource(R.string.health_connect_switch_a11y)
-            Switch(
-                checked = syncOn,
-                onCheckedChange = { onToggle() },
+    val containerColor = MaterialTheme.colorScheme.surfaceContainer
+    val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, hasNoReading)
+    HrtSection(title = null) {
+        item {
+            PreferenceSegmentedListItem(
+                title = stringResource(R.string.health_connect_title),
+                supportingText = status,
+                onClick = onToggle,
                 enabled = healthConnect.sdkAvailable,
-                modifier = Modifier.semantics { contentDescription = switchDescription },
+                containerColor = containerColor,
+                supportingTextStyle = MaterialTheme.typography.bodySmall,
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Rounded.FavoriteBorder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                },
+                trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (syncOn) {
+                            SyncNowButton(isSyncing = isSyncing, onClick = onSyncNow)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        val switchDescription = stringResource(R.string.health_connect_switch_a11y)
+                        Switch(
+                            checked = syncOn,
+                            onCheckedChange = { onToggle() },
+                            enabled = healthConnect.sdkAvailable,
+                            modifier = Modifier.semantics { contentDescription = switchDescription },
+                        )
+                    }
+                },
             )
         }
+        // Health Connect stops showing its dialog after repeated denials, with
+        // no signal to the app, so any denial points to its settings instead.
+        animatedItem(visible = showPermissionDenied) {
+            SupportMessageListItem(
+                text = stringResource(R.string.health_connect_permission_denied),
+                painter = painterResource(R.drawable.ic_error_outline),
+                leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                onClick = onOpenHealthConnect,
+                showChevron = true,
+                containerColor = containerColor,
+            )
+        }
+    }
+}
+
+/** Compact, so the status line keeps its width; spins while syncing. */
+@Composable
+private fun SyncNowButton(isSyncing: Boolean, onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        enabled = !isSyncing,
+        modifier = Modifier.size(36.dp),
+    ) {
+        val rotation = if (isSyncing) {
+            rememberInfiniteTransition(label = "healthConnectSync").animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(
+                        // One turn per minimum syncing time, so a fast sync shows a whole turn.
+                        durationMillis = WeightSyncCoordinator.MIN_SYNCING_MILLIS.toInt(),
+                        easing = LinearEasing,
+                    ),
+                    repeatMode = RepeatMode.Restart,
+                ),
+                label = "healthConnectSyncRotation",
+            ).value
+        } else {
+            0f
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_sync),
+            contentDescription = stringResource(R.string.health_connect_sync_now),
+            // The icon spins counter-clockwise, like its arrows.
+            modifier = Modifier.rotate(-rotation),
+        )
     }
 }
 
