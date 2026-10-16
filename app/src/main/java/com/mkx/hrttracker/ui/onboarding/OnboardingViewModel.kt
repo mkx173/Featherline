@@ -160,6 +160,8 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 settingsRepository.setHealthConnectWeightSyncEnabled(enabled)
+                // Like Settings: an old reading's date mustn't show when sync is back on.
+                if (!enabled) userProfileRepository.clearHcMeasuredAt()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {

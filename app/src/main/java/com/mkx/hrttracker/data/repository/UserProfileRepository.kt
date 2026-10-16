@@ -200,8 +200,9 @@ class UserProfileRepository @Inject constructor(
     }
 
     /**
-     * Health Connect has no reading left: the weight stays, but it no longer
-     * came from a reading, so its measured time goes. No-op when already unset.
+     * Health Connect has no reading left, or sync was turned off: the weight
+     * stays, but it no longer comes from a reading, so its measured time goes.
+     * No-op when already unset.
      */
     suspend fun clearHcMeasuredAt(): Boolean {
         if (databaseHolder.get().userProfileDao().getProfile()?.weightMeasuredAtEpochMillis == null) {

@@ -199,6 +199,9 @@ class SettingsViewModel @Inject constructor(
     fun disableHealthConnectWeightSync() {
         launchSettingsMutation {
             settingsRepository.setHealthConnectWeightSyncEnabled(false)
+            // The weight is the user's now; turning sync back on shouldn't show
+            // the old reading's date before the new sync lands.
+            userProfileRepository.clearHcMeasuredAt()
         }
     }
 
