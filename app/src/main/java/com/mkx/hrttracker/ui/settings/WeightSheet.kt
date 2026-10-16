@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import com.mkx.hrttracker.healthconnect.HEALTH_CONNECT_READ_WEIGHT_PERMISSION
+import com.mkx.hrttracker.healthconnect.healthConnectWeightPermissions
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -131,7 +132,7 @@ internal fun rememberHealthConnectWeightSync(
             when {
                 !enabled -> onDisable()
                 hasAccess -> onEnable()
-                else -> permissionLauncher.launch(setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION))
+                else -> permissionLauncher.launch(healthConnectWeightPermissions(context))
             }
         },
         showPermissionDenied = denied && !hasAccess,

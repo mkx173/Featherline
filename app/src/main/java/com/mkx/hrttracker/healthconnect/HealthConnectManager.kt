@@ -2,6 +2,7 @@ package com.mkx.hrttracker.healthconnect
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -36,6 +37,24 @@ interface HealthConnectManager {
 
 val HEALTH_CONNECT_READ_WEIGHT_PERMISSION: String =
     HealthPermission.getReadPermission(WeightRecord::class)
+
+/**
+ * What turning sync on asks for: READ weight, plus history where supported, since
+ * without it HC hides records from over 30 days before the first grant. History
+ * is optional; sync only needs READ weight.
+ */
+fun healthConnectWeightPermissions(context: Context): Set<String> {
+    val historySupported =
+        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE &&
+                HealthConnectClient.getOrCreate(context).features.getFeatureStatus(
+                    HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY
+                ) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    return if (historySupported) {
+        setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION, HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY)
+    } else {
+        setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION)
+    }
+}
 
 @Singleton
 class AndroidHealthConnectManager @Inject constructor(
