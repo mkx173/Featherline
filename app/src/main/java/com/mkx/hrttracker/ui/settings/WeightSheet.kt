@@ -47,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,6 +73,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.roundWeightToTenth
@@ -87,8 +89,10 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -631,5 +635,47 @@ internal fun formatWeightForInput(value: Double): String {
         value.toLong().toString()
     } else {
         value.toString()
+    }
+}
+
+@Preview(name = "WeightSheet content · synced", showBackground = true, widthDp = 420)
+@Composable
+private fun WeightSheetContentSyncedPreview() {
+    WeightSheetPreview(syncEnabled = true, measuredAt = Instant.parse("2026-10-14T07:12:00Z"))
+}
+
+@Preview(name = "WeightSheet content · sync off", showBackground = true, widthDp = 420)
+@Composable
+private fun WeightSheetContentSyncOffPreview() {
+    WeightSheetPreview(syncEnabled = false, measuredAt = null)
+}
+
+@Composable
+private fun WeightSheetPreview(syncEnabled: Boolean, measuredAt: Instant?) {
+    HrtTrackerTheme(dynamicColor = false) {
+        // The sheet's own container color.
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            // Toggles in interactive mode.
+            var syncOn by remember { mutableStateOf(syncEnabled) }
+            WeightSheetContent(
+                profile = UserProfile(
+                    weightKg = 62.4,
+                    weightOriginalValue = 62.4,
+                    weightOriginalUnit = WeightUnit.KILOGRAMS,
+                    weightMeasuredAt = measuredAt,
+                ),
+                syncEnabled = syncOn,
+                healthConnect = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = true),
+                isSyncing = false,
+                hasNoHealthConnectWeight = false,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = { syncOn = it },
+                onSyncNow = {},
+                onClose = {},
+                modifier = Modifier.padding(dimensionResource(R.dimen.padding_large)),
+            )
+        }
     }
 }
