@@ -1,6 +1,14 @@
 package com.mkx.hrttracker.ui.settings
 
 import androidx.compose.animation.core.LinearEasing
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -64,7 +72,6 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtSection
@@ -278,12 +285,7 @@ internal fun WeightSheetContent(
                     )
                 )
             },
-            // The default disabled colors (38 %) make a read-only value hard to read.
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                disabledSupportingTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
+            colors = readOnlyFadeColors(readOnly = syncOn),
         )
 
         HealthConnectSection(
@@ -299,23 +301,38 @@ internal fun WeightSheetContent(
             onOpenHealthConnect = onOpenHealthConnect,
         )
 
-        // Same height in every state: buttons share one min height.
+        // Same height in every state. Clear/Cancel shares Save's width and
+        // animates its width away while syncing, so Save grows to fill the row.
+        val leftWeight by animateFloatAsState(
+            targetValue = if (syncOn) 0f else 1f,
+            label = "weightSheetLeftButton",
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (!syncOn) {
-                if (hasWeight) {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.personalization_weight_dialog_clear),
-                        onClick = { if (!isInProgress) onClearRequest() },
-                    )
-                } else {
-                    HrtOutlinedButton(
-                        text = stringResource(R.string.cancel),
-                        onClick = { if (!isInProgress) onClose() },
+            if (leftWeight > 0f) {
+                Box(
+                    modifier = Modifier
+                        .weight(leftWeight)
+                        .clipToBounds()
+                        .graphicsLayer { alpha = leftWeight },
+                ) {
+                    HrtFilledTonalButton(
+                        text = stringResource(
+                            if (hasWeight) R.string.personalization_weight_dialog_clear else R.string.cancel
+                        ),
+                        onClick = {
+                            if (!isInProgress) {
+                                if (hasWeight) onClearRequest() else onClose()
+                            }
+                        },
+                        // Shrinks with its slot down to its natural width, then
+                        // clips, so the label never wraps mid-animation.
+                        modifier = Modifier
+                            .atLeastNaturalWidth()
+                            .padding(end = 8.dp),
                     )
                 }
             }
@@ -328,6 +345,44 @@ internal fun WeightSheetContent(
             )
         }
     }
+}
+
+/**
+ * Material 3 animates a disabled field's label but snaps its outline, so they
+ * finish at different times. One shared fraction drives every color instead,
+ * and the enabled and disabled slots get the same value, so the whole field
+ * fades together into the standard disabled colors.
+ */
+@Composable
+private fun readOnlyFadeColors(readOnly: Boolean): TextFieldColors {
+    val fraction by animateFloatAsState(
+        targetValue = if (readOnly) 1f else 0f,
+        label = "weightFieldReadOnly",
+    )
+    val scheme = MaterialTheme.colorScheme
+    val faded = scheme.onSurface.copy(alpha = 0.38f)
+    val text = lerp(scheme.onSurface, faded, fraction)
+    val muted = lerp(scheme.onSurfaceVariant, faded, fraction)
+    val border = lerp(scheme.outline, scheme.onSurface.copy(alpha = 0.12f), fraction)
+    return OutlinedTextFieldDefaults.colors(
+        unfocusedTextColor = text,
+        disabledTextColor = text,
+        unfocusedBorderColor = border,
+        disabledBorderColor = border,
+        unfocusedLabelColor = muted,
+        disabledLabelColor = muted,
+        unfocusedTrailingIconColor = muted,
+        disabledTrailingIconColor = muted,
+        unfocusedSupportingTextColor = muted,
+        disabledSupportingTextColor = muted,
+    )
+}
+
+/** Fills the incoming width, but never measures narrower than its content wants. */
+private fun Modifier.atLeastNaturalWidth(): Modifier = layout { measurable, constraints ->
+    val width = maxOf(constraints.maxWidth, measurable.maxIntrinsicWidth(constraints.maxHeight))
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(0, 0) }
 }
 
 /** The field's trailing content: the unit, then a button that converts kg <-> lb. */
