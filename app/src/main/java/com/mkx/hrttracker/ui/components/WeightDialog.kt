@@ -147,7 +147,7 @@ fun WeightDialog(
     )
 }
 
-private fun formatWeightForInput(value: Double): String {
+internal fun formatWeightForInput(value: Double): String {
     return if (value == value.toLong().toDouble()) {
         value.toLong().toString()
     } else {

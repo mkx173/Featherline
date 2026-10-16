@@ -1,0 +1,121 @@
+package com.mkx.hrttracker.ui.settings
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.personalization.WeightUnit
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import java.time.Instant
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34])
+class WeightSheetTest {
+    @get:Rule
+    val composeRule = createComposeRule()
+
+    private val access = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = true)
+
+    private fun weight(value: Double?, measuredAt: Instant? = null) = UserProfile(
+        weightKg = value,
+        weightOriginalValue = value,
+        weightOriginalUnit = WeightUnit.KILOGRAMS,
+        weightMeasuredAt = measuredAt,
+    )
+
+    private fun setSheet(
+        profile: () -> UserProfile,
+        syncEnabled: Boolean,
+        onSave: (Double, WeightUnit) -> Unit = { _, _ -> },
+    ) {
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = profile(),
+                syncEnabled = syncEnabled,
+                healthConnect = access,
+                isSyncing = false,
+                hasNoHealthConnectWeight = false,
+                isInProgress = false,
+                onSave = onSave,
+                onClearRequest = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+    }
+
+    @Test
+    fun syncOn_isReadOnlyWithOkOnly_andUpdatesWhenASyncLands() {
+        var profile by mutableStateOf(weight(62.4, Instant.parse("2026-10-14T07:12:00Z")))
+        setSheet(profile = { profile }, syncEnabled = true)
+
+        composeRule.onNodeWithText("62.4").assertIsNotEnabled()
+        composeRule.onNodeWithText("kg").assertExists()
+        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertDoesNotExist()
+        composeRule.onNodeWithText("OK").assertExists()
+        composeRule.onNodeWithText("Clear").assertDoesNotExist()
+        composeRule.onNodeWithText("Cancel").assertDoesNotExist()
+        composeRule.onNodeWithText("Save").assertDoesNotExist()
+
+        profile = weight(61.8, Instant.parse("2026-10-15T07:00:00Z"))
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("61.8").assertExists()
+    }
+
+    @Test
+    fun syncOffWithWeight_isEditableWithClearAndSave() {
+        setSheet(profile = { weight(62.4) }, syncEnabled = false)
+
+        composeRule.onNodeWithText("62.4").assertIsEnabled()
+        composeRule.onNodeWithText("Clear").assertExists()
+        composeRule.onNodeWithText("Save").assertExists()
+        composeRule.onNodeWithText("Sync off").assertExists()
+        composeRule.onNodeWithContentDescription("Sync now").assertDoesNotExist()
+    }
+
+    @Test
+    fun syncOffWithoutWeight_showsCancelAndSave() {
+        setSheet(profile = { weight(null) }, syncEnabled = false)
+
+        composeRule.onNodeWithText("Cancel").assertExists()
+        composeRule.onNodeWithText("Save").assertExists()
+        composeRule.onNodeWithText("Clear").assertDoesNotExist()
+    }
+
+    @Test
+    fun unitSwitchInsideFieldConvertsAndRounds_andSaveUsesNewUnit() {
+        var saved: Pair<Double, WeightUnit>? = null
+        setSheet(profile = { weight(62.4) }, syncEnabled = false, onSave = { v, u -> saved = v to u })
+
+        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").performClick()
+        composeRule.onNodeWithText("137.6").assertExists()
+        composeRule.onNodeWithText("lb").assertExists()
+        composeRule.onNodeWithContentDescription("Unit: lb. Switch to kg").assertExists()
+        composeRule.onNodeWithText("Save").performClick()
+        assertEquals(137.6 to WeightUnit.POUNDS, saved)
+    }
+
+    @Test
+    fun convertWeightText_convertsRoundsAndLeavesInvalidTextAlone() {
+        assertEquals("137.6", convertWeightText("62.4", WeightUnit.KILOGRAMS, WeightUnit.POUNDS))
+        assertEquals("62.4", convertWeightText("137.6", WeightUnit.POUNDS, WeightUnit.KILOGRAMS))
+        assertEquals("62.4", convertWeightText("137,6", WeightUnit.POUNDS, WeightUnit.KILOGRAMS))
+        assertEquals("", convertWeightText("", WeightUnit.KILOGRAMS, WeightUnit.POUNDS))
+        assertEquals("abc", convertWeightText("abc", WeightUnit.KILOGRAMS, WeightUnit.POUNDS))
+    }
+}

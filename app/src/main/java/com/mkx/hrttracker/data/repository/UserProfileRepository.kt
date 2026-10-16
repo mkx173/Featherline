@@ -40,13 +40,13 @@ class UserProfileRepository @Inject constructor(
                             // Handle per emission rather than via a terminal `.catch`
                             // inside flatMapLatest: a terminal catch would freeze this
                             // Eagerly, app-scoped flow — and the Settings weight — until
-                            // the database (app process) is rebuilt. toModel() can't
+                            // the database (app process) is rebuilt. toUserProfileModel() can't
                             // currently throw, so this is defensive parity with the
                             // medication/medicine flows that share this shape. Suppress
                             // (null -> filterNotNull below) rather than emit a default:
                             // a fabricated default profile would flash for one frame
                             // before the next consistent emission lands.
-                            runCatching { entity?.toModel() ?: UserProfile() }
+                            runCatching { entity?.toUserProfileModel() ?: UserProfile() }
                                 .getOrElse { error ->
                                     // No suspension point inside the block today, so
                                     // cancellation can't surface here — but rethrow it
@@ -102,7 +102,7 @@ class UserProfileRepository @Inject constructor(
     suspend fun getCurrentProfile(): UserProfile {
         return databaseHolder.get().userProfileDao()
             .getProfile()
-            ?.toModel()
+            ?.toUserProfileModel()
             ?: UserProfile()
     }
 
@@ -117,31 +117,64 @@ class UserProfileRepository @Inject constructor(
                     weightKg = originalUnit.toKg(originalValue),
                     weightOriginalValue = originalValue,
                     weightOriginalUnit = originalUnit.name,
-                    updatedAtEpochMillis = now.toEpochMilli()
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                    weightMeasuredAtEpochMillis = null,
                 )
             )
         }
     }
 
+    // Keeps the unit, so a Health Connect reading adopted later still shows in
+    // the unit the user picked.
     suspend fun clearWeight(now: Instant = Instant.now()) {
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().userProfileDao().upsertProfile(
+            val dao = databaseHolder.get().userProfileDao()
+            dao.upsertProfile(
                 UserProfileEntity(
                     weightKg = null,
                     weightOriginalValue = null,
-                    weightOriginalUnit = null,
-                    updatedAtEpochMillis = now.toEpochMilli()
+                    weightOriginalUnit = dao.getProfile()?.weightOriginalUnit,
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                    weightMeasuredAtEpochMillis = null,
                 )
             )
         }
     }
 
-    private fun UserProfileEntity.toModel(): UserProfile {
-        return UserProfile(
-            weightKg = weightKg,
-            weightOriginalValue = weightOriginalValue,
-            weightOriginalUnit = WeightUnit.fromStorageValue(weightOriginalUnit),
-            updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis)
+    /**
+     * Makes a Health Connect reading the weight (with sync on, HC is the source).
+     * The value is rounded to 0.1 in the user's last unit and kg is derived from
+     * that, which keeps the backup validator's kg/unit consistency check true.
+     * Returns false without writing when the reading is the one already stored
+     * (same time in millis, same rounded value).
+     */
+    suspend fun adoptHcWeight(
+        weightKg: Double,
+        measuredAt: Instant,
+        now: Instant = Instant.now(),
+    ): Boolean = homeSnapshotRepository.runHomeDataMutation {
+        val dao = databaseHolder.get().userProfileDao()
+        val current = dao.getProfile()
+        val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
+        val originalValue = roundWeightToTenth(weightKg / unit.kgPerUnit)
+        // Millis on both sides: the column stores millis, and a reading with
+        // sub-millisecond precision must not look changed on every sync.
+        if (current?.weightMeasuredAtEpochMillis == measuredAt.toEpochMilli() &&
+            current.weightOriginalValue == originalValue
+        ) {
+            return@runHomeDataMutation false
+        }
+        dao.upsertProfile(
+            UserProfileEntity(
+                weightKg = unit.toKg(originalValue),
+                weightOriginalValue = originalValue,
+                weightOriginalUnit = unit.name,
+                updatedAtEpochMillis = now.toEpochMilli(),
+                weightMeasuredAtEpochMillis = measuredAt.toEpochMilli(),
+            )
         )
+        true
     }
 }
+
+internal fun roundWeightToTenth(value: Double): Double = Math.round(value * 10.0) / 10.0

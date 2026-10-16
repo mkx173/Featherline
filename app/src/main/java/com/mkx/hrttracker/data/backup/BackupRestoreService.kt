@@ -302,6 +302,8 @@ class BackupRestoreService @Inject constructor(
                 pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
                 hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
                 remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                healthConnectWeightSyncEnabled =
+                    validatedSnapshot.settings.healthConnectWeightSyncEnabled,
                 showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
                 hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
                 appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
@@ -1043,6 +1045,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         pureBlackEnabled = pureBlackEnabled,
         hazeBlurEnabled = hazeBlurEnabled,
         remindersEnabled = remindersEnabled,
+        healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
         appLockGracePeriodOption = appLockGracePeriodOption,
@@ -1095,6 +1098,7 @@ private fun BackupUserProfileSnapshot.toValidatedEntity(
         weightOriginalValue = resolvedOriginalValue,
         weightOriginalUnit = weightUnit.name,
         updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
+        weightMeasuredAtEpochMillis = weightMeasuredAtEpochMillis,
     )
 }
 
@@ -1690,6 +1694,7 @@ internal data class ValidatedBackupSettings(
     val pureBlackEnabled: Boolean,
     val hazeBlurEnabled: Boolean,
     val remindersEnabled: Boolean,
+    val healthConnectWeightSyncEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
     val appLockGracePeriodOption: AppLockGracePeriodOption,

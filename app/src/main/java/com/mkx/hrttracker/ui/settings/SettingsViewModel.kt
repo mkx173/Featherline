@@ -16,6 +16,9 @@ import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -68,6 +71,8 @@ class SettingsViewModel @Inject constructor(
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     e2EstimateRepository: E2EstimateRepository,
+    private val weightSyncCoordinator: WeightSyncCoordinator,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -166,6 +171,11 @@ class SettingsViewModel @Inject constructor(
         preloadCalibrationData()
     }
 
+    val healthConnectState: StateFlow<HealthConnectCapabilityState> =
+        healthConnectCapabilityReconciler.state
+    val isWeightSyncing: StateFlow<Boolean> = weightSyncCoordinator.isSyncing
+    val hasNoHealthConnectWeight: StateFlow<Boolean> = weightSyncCoordinator.hasNoReading
+
     fun setWeight(value: Double, unit: WeightUnit) {
         launchWeightMutation {
             userProfileRepository.setWeight(value, unit)
@@ -176,6 +186,24 @@ class SettingsViewModel @Inject constructor(
         launchWeightMutation {
             userProfileRepository.clearWeight()
         }
+    }
+
+    /** Called once READ weight is granted. */
+    fun enableHealthConnectWeightSync() {
+        launchSettingsMutation {
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+            healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+        }
+    }
+
+    fun disableHealthConnectWeightSync() {
+        launchSettingsMutation {
+            settingsRepository.setHealthConnectWeightSyncEnabled(false)
+        }
+    }
+
+    fun syncWeightNow() {
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now")
     }
 
     private fun launchWeightMutation(block: suspend () -> Unit) {

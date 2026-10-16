@@ -5,6 +5,7 @@ biometric = "1.1.0"
 coreSplashscreen = "1.2.0"
 datastorePreferences = "1.2.1"
 glanceAppwidget = "1.2.0-rc01"
+healthConnect = "1.1.0"
 hilt = "2.59.2"
 haze = "2.0.0-alpha03"
 ksp = "2.3.4"
@@ -44,6 +45,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-datastore = { module = "androidx.datastore:datastore", version.ref = "datastorePreferences" }
+androidx-health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "healthConnect" }
 androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glanceAppwidget" }
 androidx-glance-appwidget-preview = { module = "androidx.glance:glance-appwidget-preview", version.ref = "glanceAppwidget" }
 androidx-glance-preview = { module = "androidx.glance:glance-preview", version.ref = "glanceAppwidget" }

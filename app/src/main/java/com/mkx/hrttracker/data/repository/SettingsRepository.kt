@@ -83,6 +83,8 @@ class SettingsRepository @Inject constructor(
     private val pureBlackKey = booleanPreferencesKey("pure_black")
     private val hazeBlurKey = booleanPreferencesKey("haze_blur")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val healthConnectWeightSyncEnabledKey =
+        booleanPreferencesKey("health_connect_weight_sync_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
@@ -334,6 +336,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[healthConnectWeightSyncEnabledKey] = enabled
+        }
+    }
+
     suspend fun setShowArchivedGroupRecords(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[showArchivedGroupRecordsKey] = enabled
@@ -459,6 +467,7 @@ class SettingsRepository @Inject constructor(
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
         pkCalibrationIntroSeen: Boolean = false,
+        healthConnectWeightSyncEnabled: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -470,6 +479,7 @@ class SettingsRepository @Inject constructor(
             preferences[pureBlackKey] = pureBlackEnabled
             preferences[hazeBlurKey] = hazeBlurEnabled
             preferences[remindersEnabledKey] = remindersEnabled
+            preferences[healthConnectWeightSyncEnabledKey] = healthConnectWeightSyncEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
             preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
@@ -552,6 +562,7 @@ class SettingsRepository @Inject constructor(
             homeE2ChartWindowOption = HomeE2ChartWindowOption
                 .fromStorageValue(preferences[homeE2ChartWindowKey]),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
+            healthConnectWeightSyncEnabled = preferences[healthConnectWeightSyncEnabledKey] ?: false,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
