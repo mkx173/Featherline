@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -287,7 +289,7 @@ internal fun WeightSheetContent(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        // AdjustStockSheet's rhythm: 8dp between blocks, the title's own 4/10dp around it.
+        // 8dp between blocks; the title sits in the same 40dp header box as the other sheets.
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
     ) {
         // On API 26 the sheet window auto-focuses the first text field and opens
@@ -295,14 +297,18 @@ internal fun WeightSheetContent(
         // AdjustStockSheet's anchor. On the title so it takes no spacedBy slot.
         val dismissFocusAnchor = remember { FocusRequester() }
         LaunchedEffect(Unit) { dismissFocusAnchor.requestFocus() }
-        Text(
-            text = stringResource(R.string.personalization_weight_dialog_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier
-                .padding(top = 4.dp, bottom = 10.dp)
-                .focusRequester(dismissFocusAnchor)
-                .focusable(),
-        )
+        Box(
+            modifier = Modifier.heightIn(min = ButtonDefaults.MinHeight),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = stringResource(R.string.personalization_weight_dialog_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier
+                    .focusRequester(dismissFocusAnchor)
+                    .focusable(),
+            )
+        }
 
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
