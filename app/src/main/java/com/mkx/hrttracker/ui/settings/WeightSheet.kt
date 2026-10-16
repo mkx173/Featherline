@@ -8,6 +8,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.foundation.layout.Box
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.platform.LocalContext
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
+import com.mkx.hrttracker.healthconnect.HEALTH_CONNECT_READ_WEIGHT_PERMISSION
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -77,7 +84,6 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtSection
-import com.mkx.hrttracker.ui.components.formatWeightForInput
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -86,10 +92,60 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** The sync switch's actions; from [rememberHealthConnectWeightSync]. */
+internal class HealthConnectWeightSync(
+    val onSyncEnabledChange: (Boolean) -> Unit,
+    val showPermissionDenied: Boolean,
+    val onOpenHealthConnect: () -> Unit,
+)
+
 /**
- * Settings' body-weight sheet with the Health Connect card. Onboarding keeps
- * WeightDialog: sync can't be on that early.
+ * Turning sync on asks for READ weight first; a grant enables it, a denial
+ * leaves it off. Shared by Settings and onboarding.
  */
+@Composable
+internal fun rememberHealthConnectWeightSync(
+    hasAccess: Boolean,
+    onEnable: () -> Unit,
+    onDisable: () -> Unit,
+): HealthConnectWeightSync {
+    val context = LocalContext.current
+    // Set by a denial: the sheet then points to Health Connect's settings, since
+    // after repeated denials its dialog stops showing and the app can't tell.
+    var denied by rememberSaveable { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        denied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
+        if (!denied) onEnable()
+    }
+    // Access granted in Health Connect after a denial finishes the enable.
+    LaunchedEffect(hasAccess) {
+        if (hasAccess && denied) {
+            denied = false
+            onEnable()
+        }
+    }
+    return HealthConnectWeightSync(
+        onSyncEnabledChange = { enabled ->
+            when {
+                !enabled -> onDisable()
+                hasAccess -> onEnable()
+                else -> permissionLauncher.launch(setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION))
+            }
+        },
+        showPermissionDenied = denied && !hasAccess,
+        onOpenHealthConnect = {
+            try {
+                context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+            } catch (_: ActivityNotFoundException) {
+                // Health Connect went away; the card shows "not installed".
+            }
+        },
+    )
+}
+
+/** The body-weight sheet with the Health Connect card. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WeightSheet(
@@ -202,7 +258,7 @@ internal fun WeightSheetContent(
     // With sync on the field always shows the profile, so a sync landing while
     // the sheet is open updates it live, and turning sync on drops typed text.
     // With sync off it re-seeds only until the user types or switches the unit,
-    // which covers the placeholder -> real profile load (see WeightDialog).
+    // which covers the placeholder -> real profile load.
     LaunchedEffect(profile.weightOriginalValue, profile.weightOriginalUnit, syncOn) {
         if (syncOn || !isDirty) {
             valueText = profile.weightOriginalValue?.let(::formatWeightForInput).orEmpty()
@@ -572,3 +628,10 @@ internal fun convertWeightText(text: String, from: WeightUnit, to: WeightUnit): 
     return formatWeightForInput(roundWeightToTenth(parsed * from.kgPerUnit / to.kgPerUnit))
 }
 
+internal fun formatWeightForInput(value: Double): String {
+    return if (value == value.toLong().toDouble()) {
+        value.toLong().toString()
+    } else {
+        value.toString()
+    }
+}

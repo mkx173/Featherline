@@ -105,6 +105,22 @@ class WeightSheetTest {
     }
 
     @Test
+    fun syncOff_reseedsToRealProfile_whenItArrivesAfterPlaceholder() {
+        // uiState starts at UserProfile() (weight unset, KILOGRAMS); a sheet restored
+        // before the profile loads must pick up the real weight and unit.
+        var profile by mutableStateOf(UserProfile())
+        var saved: Pair<Double, WeightUnit>? = null
+        setSheet(profile = { profile }, syncEnabled = false, onSave = { v, u -> saved = v to u })
+
+        profile = UserProfile(weightOriginalValue = 115.0, weightOriginalUnit = WeightUnit.POUNDS)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("115").assertExists()
+        composeRule.onNodeWithText("Save").performClick()
+        assertEquals(115.0 to WeightUnit.POUNDS, saved)
+    }
+
+    @Test
     fun syncOffWithWeight_isEditableWithClearAndSave() {
         setSheet(profile = { weight(62.4) }, syncEnabled = false)
 

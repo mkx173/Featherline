@@ -89,10 +89,7 @@ import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
-import com.mkx.hrttracker.healthconnect.HEALTH_CONNECT_READ_WEIGHT_PERMISSION
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.PermissionController
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -288,33 +285,11 @@ fun SettingsScreen(
     val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
     val hasNoHealthConnectWeight by viewModel.hasNoHealthConnectWeight.collectAsStateWithLifecycle()
-    // Set by a denial: the sheet then points to Health Connect's settings, since
-    // after repeated denials its dialog stops showing and the app can't tell.
-    var healthConnectDenied by rememberSaveable { mutableStateOf(false) }
-    // Like notificationPermissionLauncher: a READ weight grant turns sync on and
-    // syncs; a denial leaves it off.
-    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
-        contract = PermissionController.createRequestPermissionResultContract()
-    ) { granted ->
-        healthConnectDenied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
-        if (!healthConnectDenied) {
-            viewModel.enableHealthConnectWeightSync()
-        }
-    }
-    // Access granted in Health Connect after a denial finishes the enable.
-    LaunchedEffect(healthConnectState.hasAccess) {
-        if (healthConnectState.hasAccess && healthConnectDenied) {
-            healthConnectDenied = false
-            viewModel.enableHealthConnectWeightSync()
-        }
-    }
-    val onHealthConnectSyncChange = { enabled: Boolean ->
-        when {
-            !enabled -> viewModel.disableHealthConnectWeightSync()
-            healthConnectState.hasAccess -> viewModel.enableHealthConnectWeightSync()
-            else -> healthConnectPermissionLauncher.launch(setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION))
-        }
-    }
+    val healthConnectWeightSync = rememberHealthConnectWeightSync(
+        hasAccess = healthConnectState.hasAccess,
+        onEnable = viewModel::enableHealthConnectWeightSync,
+        onDisable = viewModel::disableHealthConnectWeightSync,
+    )
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -566,16 +541,10 @@ fun SettingsScreen(
         healthConnectState = healthConnectState,
         isWeightSyncing = isWeightSyncing,
         hasNoHealthConnectWeight = hasNoHealthConnectWeight,
-        onHealthConnectSyncChange = onHealthConnectSyncChange,
+        onHealthConnectSyncChange = healthConnectWeightSync.onSyncEnabledChange,
         onWeightSyncNow = viewModel::syncWeightNow,
-        showHealthConnectDenied = healthConnectDenied && !healthConnectState.hasAccess,
-        onOpenHealthConnect = {
-            try {
-                context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
-            } catch (_: ActivityNotFoundException) {
-                // Health Connect went away; the card shows "not installed".
-            }
-        },
+        showHealthConnectDenied = healthConnectWeightSync.showPermissionDenied,
+        onOpenHealthConnect = healthConnectWeightSync.onOpenHealthConnect,
         onRemindersEnabledChange = onRemindersEnabledChange,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)

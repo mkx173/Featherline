@@ -7,6 +7,9 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -31,6 +34,8 @@ class OnboardingViewModel @Inject constructor(
     private val medicationReminderScheduler: MedicationReminderScheduler,
     medicationGroupRepository: MedicationGroupRepository,
     medicineRepository: MedicineRepository,
+    weightSyncCoordinator: WeightSyncCoordinator,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
 ) : ViewModel() {
 
     private val mutationEvents = MutableSharedFlow<OnboardingMutationEvent>(
@@ -55,6 +60,7 @@ class OnboardingViewModel @Inject constructor(
             // elsewhere during the flow (e.g. enabling reminders in the step-3
             // group editor) instead of tracking a stale local choice.
             remindersEnabled = settings.remindersEnabled,
+            healthConnectWeightSyncEnabled = settings.healthConnectWeightSyncEnabled,
         )
     }
         .stateIn(
@@ -65,6 +71,11 @@ class OnboardingViewModel @Inject constructor(
 
     val onboardingMutationEvents: SharedFlow<OnboardingMutationEvent> =
         mutationEvents.asSharedFlow()
+
+    val healthConnectState: StateFlow<HealthConnectCapabilityState> =
+        healthConnectCapabilityReconciler.state
+    val isWeightSyncing: StateFlow<Boolean> = weightSyncCoordinator.isSyncing
+    val hasNoHealthConnectWeight: StateFlow<Boolean> = weightSyncCoordinator.hasNoReading
 
     fun completeWithRemindersEnabled() {
         viewModelScope.launch {
@@ -136,6 +147,29 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
+    /** Called once READ weight is granted. */
+    fun enableHealthConnectWeightSync() = setHealthConnectWeightSyncEnabled(true)
+
+    fun disableHealthConnectWeightSync() = setHealthConnectWeightSyncEnabled(false)
+
+    fun syncWeightNow() {
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now")
+    }
+
+    private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.setHealthConnectWeightSyncEnabled(enabled)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutationEvents.tryEmit(OnboardingMutationEvent.Failure(error))
+                return@launch
+            }
+            if (enabled) healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeOnboardingMutationEvent() {
         mutationEvents.resetReplayCache()
@@ -160,6 +194,7 @@ data class OnboardingUiState(
     val activeGroupCount: Int = 0,
     val trackedMedicineCount: Int = 0,
     val remindersEnabled: Boolean = false,
+    val healthConnectWeightSyncEnabled: Boolean = false,
     val isDebugBuild: Boolean = BuildConfig.DEBUG,
 ) {
     val shouldShowOnboarding: Boolean
