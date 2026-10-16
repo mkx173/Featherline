@@ -33,6 +33,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -257,7 +259,7 @@ internal fun WeightSheetContent(
             trailingIcon = {
                 WeightUnitSwitch(
                     unit = selectedUnit,
-                    showSwitch = !syncOn,
+                    enabled = !syncOn,
                     onSwitch = { otherUnit ->
                         if (!isInProgress) {
                             valueText = convertWeightText(valueText, selectedUnit, otherUnit)
@@ -389,7 +391,7 @@ private fun Modifier.atLeastNaturalWidth(): Modifier = layout { measurable, cons
 @Composable
 private fun WeightUnitSwitch(
     unit: WeightUnit,
-    showSwitch: Boolean,
+    enabled: Boolean,
     onSwitch: (WeightUnit) -> Unit,
 ) {
     val unitLabel = stringResource(unit.shortLabelRes)
@@ -398,19 +400,25 @@ private fun WeightUnitSwitch(
         Text(
             text = unitLabel,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(start = 8.dp, end = if (showSwitch) 0.dp else 16.dp),
+            modifier = Modifier.padding(start = 8.dp),
         )
-        if (showSwitch) {
-            IconButton(onClick = { onSwitch(otherUnit) }) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_sync_alt),
-                    contentDescription = stringResource(
-                        R.string.personalization_weight_unit_a11y,
-                        unitLabel,
-                        stringResource(otherUnit.shortLabelRes),
-                    ),
-                )
-            }
+        IconButton(
+            onClick = { onSwitch(otherUnit) },
+            enabled = enabled,
+            // The field already fades its trailing color while syncing; the
+            // default disabled alpha would fade the icon a second time.
+            colors = IconButtonDefaults.iconButtonColors(
+                disabledContentColor = LocalContentColor.current,
+            ),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_sync_alt),
+                contentDescription = stringResource(
+                    R.string.personalization_weight_unit_a11y,
+                    unitLabel,
+                    stringResource(otherUnit.shortLabelRes),
+                ),
+            )
         }
     }
 }

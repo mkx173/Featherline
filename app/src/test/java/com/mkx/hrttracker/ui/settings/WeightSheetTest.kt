@@ -66,7 +66,7 @@ class WeightSheetTest {
 
         composeRule.onNodeWithText("62.4").assertIsNotEnabled()
         composeRule.onNodeWithText("kg").assertExists()
-        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertIsNotEnabled()
         composeRule.onNodeWithText("OK").assertExists()
         composeRule.onNodeWithText("Clear").assertDoesNotExist()
         composeRule.onNodeWithText("Cancel").assertDoesNotExist()
