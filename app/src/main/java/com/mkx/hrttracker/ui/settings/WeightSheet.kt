@@ -333,14 +333,23 @@ internal fun WeightSheetContent(
             keyboardActions = KeyboardActions(onDone = { submit() }),
             isError = showValidationError,
             supportingText = {
+                val measuredAt = profile.weightMeasuredAt
                 Text(
-                    text = stringResource(
-                        if (showValidationError) {
-                            R.string.personalization_weight_validation_invalid
-                        } else {
-                            R.string.personalization_weight_dialog_description
+                    text = when {
+                        showValidationError ->
+                            stringResource(R.string.personalization_weight_validation_invalid)
+                        // The synced weight's date, shown with the field's value.
+                        syncOn && measuredAt != null -> {
+                            val zone = ZoneId.systemDefault()
+                            stringResource(
+                                R.string.personalization_weight_dialog_description_recorded,
+                                dateLabelFormatter(rememberAppLocale(), LocalDate.now(zone))(
+                                    measuredAt.atZone(zone).toLocalDate()
+                                ),
+                            )
                         }
-                    )
+                        else -> stringResource(R.string.personalization_weight_dialog_description)
+                    }
                 )
             },
             colors = readOnlyFadeColors(readOnly = syncOn),
@@ -590,7 +599,6 @@ private fun healthConnectStatusText(
     isSyncing: Boolean,
     hasNoReading: Boolean,
 ): String {
-    val measuredAt = profile.weightMeasuredAt
     return when {
         !healthConnect.sdkAvailable -> stringResource(R.string.health_connect_status_not_installed)
         syncEnabled && !healthConnect.hasAccess ->
@@ -599,15 +607,10 @@ private fun healthConnectStatusText(
         isSyncing -> stringResource(R.string.health_connect_status_syncing)
         // No measured time also means the weight didn't come from HC (e.g. the
         // first sync of this process hasn't finished).
-        hasNoReading || measuredAt == null ->
+        hasNoReading || profile.weightMeasuredAt == null ->
             stringResource(R.string.health_connect_status_no_reading)
-        else -> {
-            val zone = ZoneId.systemDefault()
-            stringResource(
-                R.string.health_connect_status_recorded,
-                dateLabelFormatter(rememberAppLocale(), LocalDate.now(zone))(measuredAt.atZone(zone).toLocalDate()),
-            )
-        }
+        // The reading's date sits under the weight field.
+        else -> stringResource(R.string.health_connect_status_synced)
     }
 }
 
