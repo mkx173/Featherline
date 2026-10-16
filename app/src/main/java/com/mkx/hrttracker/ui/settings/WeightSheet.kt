@@ -22,8 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -393,10 +391,9 @@ private fun HealthConnectSection(
                 supportingTextStyle = MaterialTheme.typography.bodySmall,
                 leadingContent = {
                     Icon(
-                        imageVector = Icons.Rounded.FavoriteBorder,
+                        painter = painterResource(R.drawable.ic_health_connect),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp),
                     )
                 },
                 trailingContent = {

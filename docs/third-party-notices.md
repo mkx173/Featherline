@@ -50,6 +50,17 @@ Featherline includes Material Symbols vector icons from Google.
 - Source: [Material Symbols guide](https://developers.google.cn/fonts/docs/material_symbols?hl=en)
 - Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
 
+### Health Connect logo
+
+Featherline includes the monochrome Health Connect logo vector
+(`ic_health_connect.xml`) from the Android Open Source Project's Health
+Connect app, unchanged, to label Health Connect sync.
+
+- License: Apache License, Version 2.0
+- Copyright: Copyright (C) 2022 The Android Open Source Project
+- Source: [platform/packages/modules/HealthFitness](https://android.googlesource.com/platform/packages/modules/HealthFitness/+/refs/heads/main/apk/res/drawable/ic_health_connect.xml)
+- Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
+
 ### Oyama's HRT Tracker
 
 Featherline adapts plot display logic from
