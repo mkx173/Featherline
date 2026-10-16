@@ -173,10 +173,30 @@ class UserProfileRepositoryTest {
         // Same millisecond (sub-millisecond precision ignored), same rounded value.
         assertFalse(repository.adoptHcWeight(60.04, Instant.ofEpochMilli(1_000L).plusNanos(500)))
         coVerify(exactly = 0) { dao.upsertProfile(any()) }
+        // Not even a mutation: one would bump Home's generation and rebuild.
+        coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
         // HC is the source: an older reading or a new value at the same time is adopted.
         assertTrue(repository.adoptHcWeight(60.0, Instant.ofEpochMilli(999L)))
         assertTrue(repository.adoptHcWeight(61.0, Instant.ofEpochMilli(1_000L)))
         coVerify(exactly = 2) { dao.upsertProfile(any()) }
+    }
+
+    @Test
+    fun clearHcMeasuredAt_keepsWeight_andIsANoOpWhenAlreadyUnset() = runTest {
+        val synced = UserProfileEntity(
+            weightKg = 60.0,
+            weightOriginalValue = 60.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = 0L,
+            weightMeasuredAtEpochMillis = 1_000L,
+        )
+        coEvery { dao.getProfile() } returns synced
+        assertTrue(repository.clearHcMeasuredAt())
+        coVerify(exactly = 1) { dao.upsertProfile(synced.copy(weightMeasuredAtEpochMillis = null)) }
+
+        coEvery { dao.getProfile() } returns synced.copy(weightMeasuredAtEpochMillis = null)
+        assertFalse(repository.clearHcMeasuredAt())
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

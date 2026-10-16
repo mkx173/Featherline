@@ -152,18 +152,27 @@ class UserProfileRepository @Inject constructor(
         weightKg: Double,
         measuredAt: Instant,
         now: Instant = Instant.now(),
-    ): Boolean = homeSnapshotRepository.runHomeDataMutation {
+    ): Boolean {
+        // Checked before the mutation as well as inside it: a mutation always
+        // bumps Home's generation and rebuilds, and most syncs change nothing.
+        if (isStoredReading(databaseHolder.get().userProfileDao().getProfile(), weightKg, measuredAt)) {
+            return false
+        }
+        return homeSnapshotRepository.runHomeDataMutation {
+            adoptHcWeightLocked(weightKg, measuredAt, now)
+        }
+    }
+
+    private suspend fun adoptHcWeightLocked(
+        weightKg: Double,
+        measuredAt: Instant,
+        now: Instant,
+    ): Boolean {
         val dao = databaseHolder.get().userProfileDao()
         val current = dao.getProfile()
+        if (isStoredReading(current, weightKg, measuredAt)) return false
         val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
         val originalValue = roundWeightToTenth(weightKg / unit.kgPerUnit)
-        // Millis on both sides: the column stores millis, and a reading with
-        // sub-millisecond precision must not look changed on every sync.
-        if (current?.weightMeasuredAtEpochMillis == measuredAt.toEpochMilli() &&
-            current.weightOriginalValue == originalValue
-        ) {
-            return@runHomeDataMutation false
-        }
         dao.upsertProfile(
             UserProfileEntity(
                 weightKg = unit.toKg(originalValue),
@@ -173,7 +182,37 @@ class UserProfileRepository @Inject constructor(
                 weightMeasuredAtEpochMillis = measuredAt.toEpochMilli(),
             )
         )
-        true
+        return true
+    }
+
+    // Millis on both sides: the column stores millis, and a reading with
+    // sub-millisecond precision must not look changed on every sync.
+    private fun isStoredReading(
+        current: UserProfileEntity?,
+        weightKg: Double,
+        measuredAt: Instant,
+    ): Boolean {
+        val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
+        return current?.weightMeasuredAtEpochMillis == measuredAt.toEpochMilli() &&
+            current.weightOriginalValue == roundWeightToTenth(weightKg / unit.kgPerUnit)
+    }
+
+    /**
+     * Health Connect has no reading left: the weight stays, but it no longer
+     * came from a reading, so its measured time goes. No-op when already unset.
+     */
+    suspend fun clearHcMeasuredAt(): Boolean {
+        if (databaseHolder.get().userProfileDao().getProfile()?.weightMeasuredAtEpochMillis == null) {
+            return false
+        }
+        return homeSnapshotRepository.runHomeDataMutation {
+            val dao = databaseHolder.get().userProfileDao()
+            val current = dao.getProfile()
+                ?.takeIf { it.weightMeasuredAtEpochMillis != null }
+                ?: return@runHomeDataMutation false
+            dao.upsertProfile(current.copy(weightMeasuredAtEpochMillis = null))
+            true
+        }
     }
 }
 

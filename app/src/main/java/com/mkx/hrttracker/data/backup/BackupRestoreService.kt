@@ -20,6 +20,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.decrementDenominatorOnCrack
 import com.mkx.hrttracker.data.repository.normalizeOpenContainer
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -92,6 +93,7 @@ class BackupRestoreService @Inject constructor(
     private val reminderNotificationManager: ReminderNotificationManager,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     /**
@@ -378,6 +380,9 @@ class BackupRestoreService @Inject constructor(
                 error,
             )
         }
+        // The app is already in the foreground, so a restored sync flag would
+        // otherwise wait for the next onStart. Fire-and-forget; it never throws.
+        healthConnectCapabilityReconciler.requestReconcile("backup_restore")
     }
 
     private companion object {

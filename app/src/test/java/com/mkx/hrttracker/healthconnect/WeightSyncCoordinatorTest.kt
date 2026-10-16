@@ -132,11 +132,37 @@ class WeightSyncCoordinatorTest {
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
         assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
 
-        // Nothing left: the weight stays.
+        // Nothing left: the weight stays, but no longer claims a measured time.
         hc.records.clear()
         coordinator.sync(now = now)
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
         assertTrue(coordinator.hasNoReading.value)
+    }
+
+    @Test
+    fun zeroKgReadingIsIgnored() = runTest {
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t0)
+        // Backup restore rejects a 0 weight, so adopting one would break every backup.
+        hc.records += HealthConnectWeight(weightKg = 0.04, time = t1)
+
+        coordinator.sync(now = now)
+
+        assertEquals(62.4, dao.row!!.weightOriginalValue!!, 0.0)
+        assertTrue(coordinator.hasNoReading.value)
+    }
+
+    @Test
+    fun cancelledSyncDoesNotLeaveSyncingOn() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
+
+        val job = launch { coordinator.sync(now = now) }
+        runCurrent()
+        assertTrue(coordinator.isSyncing.value)
+        job.cancel()
+        runCurrent()
+
+        assertFalse(coordinator.isSyncing.value)
     }
 
     @Test

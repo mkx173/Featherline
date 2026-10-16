@@ -45,21 +45,27 @@ class WeightSyncCoordinator @Inject constructor(
         val startedAtNanos = System.nanoTime()
         try {
             val notAfter = now + FUTURE_TOLERANCE
-            // Ignore readings from a scale whose clock is ahead.
             val latest = healthConnectManager.readLatestWeight(notAfter)
-                ?.takeIf { reading -> reading.time <= notAfter }
+                // Ignore readings from a scale whose clock is ahead, and ones that
+                // round to 0 in either unit: backup restore rejects a 0 weight.
+                ?.takeIf { reading -> reading.time <= notAfter && reading.weightKg >= MIN_WEIGHT_KG }
             _hasNoReading.value = latest == null
-            val adopted = latest != null &&
-                    userProfileRepository.adoptHcWeight(latest.weightKg, latest.time, now)
+            val changed = if (latest != null) {
+                userProfileRepository.adoptHcWeight(latest.weightKg, latest.time, now)
+            } else {
+                userProfileRepository.clearHcMeasuredAt()
+            }
             diagnosticsLogger.info(
                 TAG,
-                "weight_sync_complete reason=$reason reading=${latest != null} adopted=$adopted",
+                "weight_sync_complete reason=$reason reading=${latest != null} changed=$changed",
             )
-        } finally {
             // A read often returns in a few ms; hold the state so the sheet shows
             // "Syncing…" and one whole turn of the icon instead of a flash.
             val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
             delay(MIN_SYNCING_MILLIS - elapsedMillis)
+        } finally {
+            // Nothing suspends before this, so a cancelled or failed sync can't
+            // leave the singleton's state stuck on.
             _isSyncing.value = false
         }
     }
@@ -70,5 +76,7 @@ class WeightSyncCoordinator @Inject constructor(
 
         private const val TAG = "WeightSyncCoordinator"
         private val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
+        // 0.1 kg rounds to at least 0.1 in kg and 0.2 in lb.
+        private const val MIN_WEIGHT_KG = 0.1
     }
 }
