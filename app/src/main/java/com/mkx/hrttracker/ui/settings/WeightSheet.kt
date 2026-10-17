@@ -534,13 +534,15 @@ private fun HealthConnectSection(
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainer
     val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, readingProblem)
+    // After a denial the message below is the way to grant access (see there).
+    val switchEnabled = healthConnect.sdkAvailable && !showPermissionDenied
     HrtSection(title = null) {
         item {
             PreferenceSegmentedListItem(
                 title = stringResource(R.string.health_connect_title),
                 supportingText = status,
                 onClick = onToggle,
-                enabled = healthConnect.sdkAvailable,
+                enabled = switchEnabled,
                 containerColor = containerColor,
                 supportingTextStyle = MaterialTheme.typography.bodySmall,
                 leadingContent = {
@@ -560,7 +562,7 @@ private fun HealthConnectSection(
                         Switch(
                             checked = syncOn,
                             onCheckedChange = { onToggle() },
-                            enabled = healthConnect.sdkAvailable,
+                            enabled = switchEnabled,
                             modifier = Modifier.semantics { contentDescription = switchDescription },
                         )
                     }
@@ -639,9 +641,8 @@ private fun healthConnectStatusText(
         healthConnect.providerUpdateRequired ->
             stringResource(R.string.health_connect_status_update_required)
         !healthConnect.sdkAvailable -> stringResource(R.string.health_connect_status_unavailable)
-        syncEnabled && !healthConnect.hasAccess ->
-            stringResource(R.string.health_connect_status_permission_off)
-        !syncEnabled -> stringResource(R.string.health_connect_status_off)
+        // Without access sync is off: the reconciler turns the flag off too.
+        !syncEnabled || !healthConnect.hasAccess -> stringResource(R.string.health_connect_status_off)
         isSyncing -> stringResource(R.string.health_connect_status_syncing)
         healthConnect.syncFailed -> stringResource(R.string.health_connect_status_sync_failed)
         readingProblem == ReadingProblem.NONE_FOUND ->

@@ -813,7 +813,6 @@
     <string name="health_connect_status_unavailable">Not available on this device</string>
     <string name="health_connect_status_update_required">Install or update needed</string>
     <string name="health_connect_status_sync_failed">Couldn’t sync</string>
-    <string name="health_connect_status_permission_off">Permission off · tap to grant</string>
     <string name="health_connect_permission_denied">Access denied. Tap to allow it in Health Connect.</string>
     <string name="health_connect_update_required">Health Connect needs to be installed or updated. Tap to get it on Google Play.</string>
     <string name="health_connect_sync_now">Sync now</string>

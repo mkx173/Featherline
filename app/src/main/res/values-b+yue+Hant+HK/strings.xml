@@ -782,7 +782,6 @@
     <string name="health_connect_status_unavailable">唔支援呢部裝置</string>
     <string name="health_connect_status_update_required">要安裝或者更新</string>
     <string name="health_connect_status_sync_failed">同步唔到</string>
-    <string name="health_connect_status_permission_off">權限已關閉 · 撳一下授權</string>
     <string name="health_connect_permission_denied">存取被拒絕，撳一下去 Health Connect 允許</string>
     <string name="health_connect_update_required">要安裝或者更新 Health Connect，撳一下去 Google Play 攞</string>
     <string name="health_connect_sync_now">即刻同步</string>

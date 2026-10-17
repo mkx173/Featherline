@@ -123,7 +123,7 @@ class WeightSheetTest {
     }
 
     @Test
-    fun aDenial_showsAMessageThatOpensHealthConnect() {
+    fun aDenial_disablesTheSwitch_andShowsAMessageThatOpensHealthConnect() {
         var opened = false
         composeRule.setContent {
             WeightSheetContent(
@@ -143,6 +143,7 @@ class WeightSheetTest {
             )
         }
 
+        composeRule.onNodeWithContentDescription("Sync with Health Connect").assertIsNotEnabled()
         composeRule.onNodeWithText(
             "Access denied. Tap to allow it in Health Connect."
         ).performClick()
