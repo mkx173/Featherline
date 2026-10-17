@@ -81,11 +81,12 @@ class WeightSheetTest {
     fun syncOn_withNoReadingYet_saysSyncing_untilASyncFindsNone() {
         var profile by mutableStateOf(weight(62.4))
         var hasNoReading by mutableStateOf(false)
+        var healthConnect by mutableStateOf(access)
         composeRule.setContent {
             WeightSheetContent(
                 profile = profile,
                 syncEnabled = true,
-                healthConnect = access,
+                healthConnect = healthConnect,
                 isSyncing = false,
                 hasNoHealthConnectWeight = hasNoReading,
                 isInProgress = false,
@@ -99,6 +100,12 @@ class WeightSheetTest {
 
         // Sync just turned on: no reading's date yet, and no sync found none.
         composeRule.onNodeWithText("Syncing…").assertExists()
+
+        // That sync threw: nothing is running any more.
+        healthConnect = access.copy(syncFailed = true)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Couldn’t sync").assertExists()
+        healthConnect = access
 
         hasNoReading = true
         composeRule.waitForIdle()
@@ -133,6 +140,34 @@ class WeightSheetTest {
 
         composeRule.onNodeWithText(
             "Access denied. Tap to allow it in Health Connect."
+        ).performClick()
+        assertEquals(true, opened)
+    }
+
+    @Test
+    fun providerUpdateRequired_showsAMessageThatOpensPlay() {
+        var opened = false
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4),
+                syncEnabled = false,
+                healthConnect = HealthConnectCapabilityState(providerUpdateRequired = true),
+                isSyncing = false,
+                hasNoHealthConnectWeight = false,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+                onOpenHealthConnect = { opened = true },
+            )
+        }
+
+        composeRule.onNodeWithText("Install or update needed").assertExists()
+        composeRule.onNodeWithContentDescription("Sync with Health Connect").assertIsNotEnabled()
+        composeRule.onNodeWithText(
+            "Health Connect needs to be installed or updated. Tap to get it on Google Play."
         ).performClick()
         assertEquals(true, opened)
     }

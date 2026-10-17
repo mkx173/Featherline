@@ -34,7 +34,7 @@ class OnboardingViewModel @Inject constructor(
     private val medicationReminderScheduler: MedicationReminderScheduler,
     medicationGroupRepository: MedicationGroupRepository,
     medicineRepository: MedicineRepository,
-    weightSyncCoordinator: WeightSyncCoordinator,
+    private val weightSyncCoordinator: WeightSyncCoordinator,
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
 ) : ViewModel() {
 
@@ -159,9 +159,12 @@ class OnboardingViewModel @Inject constructor(
     private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                settingsRepository.setHealthConnectWeightSyncEnabled(enabled)
-                // Like Settings: an old reading's date mustn't show when sync is back on.
-                if (!enabled) userProfileRepository.clearHcMeasuredAt()
+                // Like Settings: disable() also clears the old reading's date.
+                if (enabled) {
+                    settingsRepository.setHealthConnectWeightSyncEnabled(true)
+                } else {
+                    weightSyncCoordinator.disable()
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {

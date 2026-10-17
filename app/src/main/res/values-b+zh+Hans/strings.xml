@@ -778,9 +778,12 @@
     <string name="health_connect_status_no_reading">还没有体重记录</string>
     <string name="health_connect_status_syncing">正在同步…</string>
     <string name="health_connect_status_off">同步已关闭</string>
-    <string name="health_connect_status_not_installed">未安装</string>
+    <string name="health_connect_status_unavailable">不支持此设备</string>
+    <string name="health_connect_status_update_required">需要安装或更新</string>
+    <string name="health_connect_status_sync_failed">同步失败</string>
     <string name="health_connect_status_permission_off">权限已关闭 · 点击以授予</string>
     <string name="health_connect_permission_denied">访问被拒绝，点击前往 Health Connect 允许</string>
+    <string name="health_connect_update_required">需要安装或更新 Health Connect，点击前往 Google Play 获取</string>
     <string name="health_connect_sync_now">立即同步</string>
     <string name="health_connect_switch_a11y">与 Health Connect 同步</string>
     <string name="personalization_weight_clear_title">清除体重</string>

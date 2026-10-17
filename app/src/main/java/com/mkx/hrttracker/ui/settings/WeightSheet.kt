@@ -10,6 +10,7 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.foundation.layout.Box
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.core.net.toUri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.platform.LocalContext
 import androidx.health.connect.client.HealthConnectClient
@@ -142,10 +143,26 @@ internal fun rememberHealthConnectWeightSync(
         },
         showPermissionDenied = denied && !hasAccess,
         onOpenHealthConnect = {
+            val intent = if (
+                HealthConnectClient.getSdkStatus(context) ==
+                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
+            ) {
+                // Android 9–13 without an up-to-date Health Connect: its Play
+                // listing, as HealthConnectClient's docs show.
+                Intent(Intent.ACTION_VIEW).apply {
+                    setPackage("com.android.vending")
+                    data = ("market://details?id=com.google.android.apps.healthdata" +
+                            "&url=healthconnect%3A%2F%2Fonboarding").toUri()
+                    putExtra("overlay", true)
+                    putExtra("callerId", context.packageName)
+                }
+            } else {
+                Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
+            }
             try {
-                context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+                context.startActivity(intent)
             } catch (_: ActivityNotFoundException) {
-                // Health Connect went away; the card shows "not installed".
+                // Health Connect (or Play) went away; the card shows it as unavailable.
             }
         },
     )
@@ -561,6 +578,17 @@ private fun HealthConnectSection(
                 containerColor = containerColor,
             )
         }
+        // Android 9–13 without an up-to-date Health Connect: its Play listing.
+        animatedItem(visible = healthConnect.providerUpdateRequired) {
+            SupportMessageListItem(
+                text = stringResource(R.string.health_connect_update_required),
+                painter = painterResource(R.drawable.ic_error_outline),
+                leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                onClick = onOpenHealthConnect,
+                showChevron = true,
+                containerColor = containerColor,
+            )
+        }
     }
 }
 
@@ -607,14 +635,17 @@ private fun healthConnectStatusText(
     hasNoReading: Boolean,
 ): String {
     return when {
-        !healthConnect.sdkAvailable -> stringResource(R.string.health_connect_status_not_installed)
+        healthConnect.providerUpdateRequired ->
+            stringResource(R.string.health_connect_status_update_required)
+        !healthConnect.sdkAvailable -> stringResource(R.string.health_connect_status_unavailable)
         syncEnabled && !healthConnect.hasAccess ->
             stringResource(R.string.health_connect_status_permission_off)
         !syncEnabled -> stringResource(R.string.health_connect_status_off)
+        isSyncing -> stringResource(R.string.health_connect_status_syncing)
+        healthConnect.syncFailed -> stringResource(R.string.health_connect_status_sync_failed)
         // No measured time without a sync that found nothing means a sync is on
         // its way (sync just turned on, or this process's first one).
-        // ponytail: a sync that throws leaves this until the next one runs.
-        isSyncing || (!hasNoReading && profile.weightMeasuredAt == null) ->
+        !hasNoReading && profile.weightMeasuredAt == null ->
             stringResource(R.string.health_connect_status_syncing)
         hasNoReading -> stringResource(R.string.health_connect_status_no_reading)
         // The reading's date sits under the weight field.

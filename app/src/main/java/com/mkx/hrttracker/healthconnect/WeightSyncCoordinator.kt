@@ -49,6 +49,8 @@ class WeightSyncCoordinator @Inject constructor(
                 // Ignore readings from a scale whose clock is ahead, and ones that
                 // round to 0 in either unit: backup restore rejects a 0 weight.
                 ?.takeIf { reading -> reading.time <= notAfter && reading.weightKg >= MIN_WEIGHT_KG }
+            // Turned off while the read was in flight: the weight is the user's now.
+            if (!settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return@withLock
             _hasNoReading.value = latest == null
             val changed = if (latest != null) {
                 userProfileRepository.adoptHcWeight(latest.weightKg, latest.time, now)
@@ -68,6 +70,16 @@ class WeightSyncCoordinator @Inject constructor(
             // leave the singleton's state stuck on.
             _isSyncing.value = false
         }
+    }
+
+    /**
+     * Turns sync off. The flag goes first so an in-flight sync drops its reading;
+     * the measured time is cleared under the lock, so a sync already past that
+     * check can't write one back afterwards.
+     */
+    suspend fun disable() {
+        settingsRepository.setHealthConnectWeightSyncEnabled(false)
+        syncMutex.withLock { userProfileRepository.clearHcMeasuredAt() }
     }
 
     companion object {

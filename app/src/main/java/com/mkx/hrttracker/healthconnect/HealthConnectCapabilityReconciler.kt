@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,6 +14,10 @@ import javax.inject.Singleton
 data class HealthConnectCapabilityState(
     val sdkAvailable: Boolean = false,
     val hasAccess: Boolean = false,
+    /** Not available, but installing or updating Health Connect from Play fixes that. */
+    val providerUpdateRequired: Boolean = false,
+    /** The last reconcile or sync threw; cleared when the next one starts. */
+    val syncFailed: Boolean = false,
 )
 
 /**
@@ -29,9 +34,12 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     // Seeded with SDK availability (a cheap package lookup) so the weight sheet
-    // doesn't flash "not installed" before the first foreground reconcile lands.
+    // doesn't flash "not available" before the first foreground reconcile lands.
     private val _state = MutableStateFlow(
-        HealthConnectCapabilityState(sdkAvailable = healthConnectManager.isAvailable())
+        HealthConnectCapabilityState(
+            sdkAvailable = healthConnectManager.isAvailable(),
+            providerUpdateRequired = healthConnectManager.isProviderUpdateRequired(),
+        )
     )
     val state: StateFlow<HealthConnectCapabilityState> = _state.asStateFlow()
 
@@ -39,6 +47,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         appScope.launch {
             runCatching { reconcile(reason) }
                 .onFailure { throwable ->
+                    _state.update { it.copy(syncFailed = true) }
                     diagnosticsLogger.warning(
                         TAG,
                         "health_connect_reconcile_failed reason=$reason",
@@ -51,7 +60,11 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     suspend fun reconcile(reason: String) {
         val sdkAvailable = healthConnectManager.isAvailable()
         val hasAccess = sdkAvailable && healthConnectManager.hasWeightAccess()
-        _state.value = HealthConnectCapabilityState(sdkAvailable = sdkAvailable, hasAccess = hasAccess)
+        _state.value = HealthConnectCapabilityState(
+            sdkAvailable = sdkAvailable,
+            hasAccess = hasAccess,
+            providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired(),
+        )
         diagnosticsLogger.info(
             TAG,
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",

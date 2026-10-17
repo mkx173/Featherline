@@ -344,16 +344,15 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun disableHealthConnectWeightSync_clearsTheReadingsMeasuredTime() = runTest {
+    fun disableHealthConnectWeightSync_goesThroughTheCoordinator() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
-        coEvery { userProfileRepository.clearHcMeasuredAt() } returns true
 
         viewModel.disableHealthConnectWeightSync()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { settingsRepository.setHealthConnectWeightSyncEnabled(false) }
-        coVerify(exactly = 1) { userProfileRepository.clearHcMeasuredAt() }
+        // It turns the flag off and clears the reading's date, serialized with sync.
+        coVerify(exactly = 1) { weightSyncCoordinator.disable() }
     }
 
     @Test

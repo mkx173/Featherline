@@ -28,6 +28,9 @@ data class HealthConnectWeight(
 interface HealthConnectManager {
     fun isAvailable(): Boolean
 
+    /** Android 9–13 without an up-to-date Health Connect app: installing or updating it fixes that. */
+    fun isProviderUpdateRequired(): Boolean
+
     /** READ weight is granted. */
     suspend fun hasWeightAccess(): Boolean
 
@@ -66,6 +69,10 @@ class AndroidHealthConnectManager @Inject constructor(
 
     override fun isAvailable(): Boolean =
         HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+
+    override fun isProviderUpdateRequired(): Boolean =
+        HealthConnectClient.getSdkStatus(context) ==
+                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
     override suspend fun hasWeightAccess(): Boolean =
         isAvailable() &&

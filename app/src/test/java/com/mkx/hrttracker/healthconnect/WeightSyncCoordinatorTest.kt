@@ -12,12 +12,14 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -54,6 +56,9 @@ class WeightSyncCoordinatorTest {
         }
         coEvery { settingsRepository.getCurrentSettings() } answers {
             SettingsState(healthConnectWeightSyncEnabled = syncEnabled)
+        }
+        coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } answers {
+            syncEnabled = firstArg()
         }
         val scope = CoroutineScope(StandardTestDispatcher())
         repository = UserProfileRepository(databaseHolder, homeSnapshotRepository, scope)
@@ -166,6 +171,25 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
+    fun turningSyncOffDuringARead_keepsTheTypedWeight() = runTest {
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t1)
+        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
+        val gate = CompletableDeferred<Unit>()
+        hc.readGate = gate
+
+        launch { coordinator.sync(now = now) }
+        runCurrent()
+        launch { coordinator.disable() }
+        runCurrent()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(syncEnabled)
+        assertEquals(62.4, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
     fun readingWithFutureTimestampIsIgnored() = runTest {
         repository.setWeight(60.0, WeightUnit.KILOGRAMS, now = t1)
         hc.records += HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofMinutes(10))
@@ -220,8 +244,11 @@ private class FakeHealthConnectManager : HealthConnectManager {
     val records = mutableListOf<HealthConnectWeight>()
     var lastNotAfter: Instant? = null
     var reads = 0
+    var readGate: CompletableDeferred<Unit>? = null
 
     override fun isAvailable(): Boolean = available
+
+    override fun isProviderUpdateRequired(): Boolean = false
 
     override suspend fun hasWeightAccess(): Boolean = access
 
@@ -230,6 +257,7 @@ private class FakeHealthConnectManager : HealthConnectManager {
     override suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight? {
         reads++
         lastNotAfter = notAfter
+        readGate?.await()
         return records.maxByOrNull { it.time }
     }
 }
