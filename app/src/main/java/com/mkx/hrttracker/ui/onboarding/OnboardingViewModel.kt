@@ -153,19 +153,17 @@ class OnboardingViewModel @Inject constructor(
     fun disableHealthConnectWeightSync() = setHealthConnectWeightSyncEnabled(false)
 
     fun syncWeightNow() {
-        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now")
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", force = true)
     }
 
     private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            // Like Settings: no sync when it was already on, and disable() also
-            // clears the old reading's date.
-            val turnedOn = try {
+            try {
+                // Like Settings: disable() also clears the old reading's date.
                 if (enabled) {
-                    weightSyncCoordinator.enable()
+                    settingsRepository.setHealthConnectWeightSyncEnabled(true)
                 } else {
                     weightSyncCoordinator.disable()
-                    false
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -173,7 +171,8 @@ class OnboardingViewModel @Inject constructor(
                 mutationEvents.tryEmit(OnboardingMutationEvent.Failure(error))
                 return@launch
             }
-            if (turnedOn) healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+            // Like Settings: even when already on, to refresh access.
+            if (enabled) healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
         }
     }
 

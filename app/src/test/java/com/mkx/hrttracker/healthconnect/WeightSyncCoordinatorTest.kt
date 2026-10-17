@@ -210,12 +210,22 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
-    fun enable_reportsWhetherItTurnedSyncOn() = runTest {
-        syncEnabled = false
-        assertTrue(coordinator.enable())
-        assertTrue(syncEnabled)
-        // Already on (only access was missing): the caller mustn't sync again.
-        assertFalse(coordinator.enable())
+    fun skipIfFresh_skipsRightAfterASync_untilSyncIsTurnedOff() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
+        coordinator.sync(now = now)
+
+        // A foreground sync, then the grant's: the second is skipped...
+        coordinator.sync(now = now, skipIfFresh = true)
+        assertEquals(1, hc.reads)
+        // ...but Sync now isn't.
+        coordinator.sync(now = now)
+        assertEquals(2, hc.reads)
+
+        // Turned off and straight back on: the enable's sync runs.
+        coordinator.disable()
+        syncEnabled = true
+        coordinator.sync(now = now, skipIfFresh = true)
+        assertEquals(3, hc.reads)
     }
 
     @Test

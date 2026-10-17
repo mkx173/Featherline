@@ -382,7 +382,8 @@ class BackupRestoreService @Inject constructor(
         }
         // The app is already in the foreground, so a restored sync flag would
         // otherwise wait for the next onStart. Fire-and-forget; it never throws.
-        healthConnectCapabilityReconciler.requestReconcile("backup_restore")
+        // The restored weight must give way to HC's, however recent the last sync.
+        healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true)
     }
 
     private companion object {

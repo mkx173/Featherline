@@ -161,7 +161,7 @@ class BackupRestoreServiceTest {
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         // A restored sync flag syncs now, not at the next onStart.
-        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore") }
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true) }
     }
 
     @Test

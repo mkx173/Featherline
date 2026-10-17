@@ -43,9 +43,10 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     )
     val state: StateFlow<HealthConnectCapabilityState> = _state.asStateFlow()
 
-    fun requestReconcile(reason: String) {
+    /** [force] syncs even right after another sync, as Sync now and a restore want. */
+    fun requestReconcile(reason: String, force: Boolean = false) {
         appScope.launch {
-            runCatching { reconcile(reason) }
+            runCatching { reconcile(reason, force) }
                 .onFailure { throwable ->
                     _state.update { it.copy(syncFailed = true) }
                     diagnosticsLogger.warning(
@@ -57,7 +58,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         }
     }
 
-    suspend fun reconcile(reason: String) {
+    suspend fun reconcile(reason: String, force: Boolean = false) {
         val sdkAvailable = healthConnectManager.isAvailable()
         val hasAccess = sdkAvailable && healthConnectManager.hasWeightAccess()
         _state.value = HealthConnectCapabilityState(
@@ -70,7 +71,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
         // sync() checks the intent flag itself.
-        if (hasAccess) weightSyncCoordinator.sync(reason)
+        if (hasAccess) weightSyncCoordinator.sync(reason, skipIfFresh = !force)
     }
 
     private companion object {

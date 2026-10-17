@@ -35,9 +35,25 @@ class WeightSyncCoordinator @Inject constructor(
     private val _hasNoReading = MutableStateFlow(false)
     val hasNoReading: StateFlow<Boolean> = _hasNoReading.asStateFlow()
 
-    /** No-op unless sync is enabled and Health Connect access is held. */
-    suspend fun sync(reason: String = "explicit", now: Instant = Instant.now()) = syncMutex.withLock {
+    // When the last sync finished; guarded by syncMutex. Null after disable().
+    private var lastSyncedAtNanos: Long? = null
+
+    /**
+     * No-op unless sync is enabled and Health Connect access is held. With
+     * [skipIfFresh], also when a sync finished in the last [FRESH_NANOS]: a
+     * return to the app can refresh twice (foreground, then a permission grant).
+     */
+    suspend fun sync(
+        reason: String = "explicit",
+        now: Instant = Instant.now(),
+        skipIfFresh: Boolean = false,
+    ) = syncMutex.withLock {
         if (!settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return@withLock
+        val lastSynced = lastSyncedAtNanos
+        if (skipIfFresh && lastSynced != null && System.nanoTime() - lastSynced < FRESH_NANOS) {
+            diagnosticsLogger.info(TAG, "weight_sync_skipped_fresh reason=$reason")
+            return@withLock
+        }
         if (!healthConnectManager.isAvailable() || !healthConnectManager.hasWeightAccess()) {
             return@withLock
         }
@@ -67,21 +83,12 @@ class WeightSyncCoordinator @Inject constructor(
             // "Syncing…" and one whole turn of the icon instead of a flash.
             val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
             delay(MIN_SYNCING_MILLIS - elapsedMillis)
+            lastSyncedAtNanos = System.nanoTime()
         } finally {
             // Nothing suspends before this, so a cancelled or failed sync can't
             // leave the singleton's state stuck on.
             _isSyncing.value = false
         }
-    }
-
-    /**
-     * Turns sync on; false when it already was. Then only access was missing,
-     * and the foreground reconcile that saw it come back has already synced.
-     */
-    suspend fun enable(): Boolean {
-        if (settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return false
-        settingsRepository.setHealthConnectWeightSyncEnabled(true)
-        return true
     }
 
     /**
@@ -91,7 +98,11 @@ class WeightSyncCoordinator @Inject constructor(
      */
     suspend fun disable() {
         settingsRepository.setHealthConnectWeightSyncEnabled(false)
-        syncMutex.withLock { userProfileRepository.clearHcMeasuredAt() }
+        syncMutex.withLock {
+            userProfileRepository.clearHcMeasuredAt()
+            // Turning it back on must sync, however soon.
+            lastSyncedAtNanos = null
+        }
     }
 
     companion object {
@@ -102,5 +113,8 @@ class WeightSyncCoordinator @Inject constructor(
         private val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
         // 0.1 kg rounds to at least 0.1 in kg and 0.2 in lb.
         private const val MIN_WEIGHT_KG = 0.1
+        // ponytail: a fixed window; a reading added in HC and back within it waits
+        // for the next sync (Sync now always runs).
+        private val FRESH_NANOS = Duration.ofSeconds(5).toNanos()
     }
 }
