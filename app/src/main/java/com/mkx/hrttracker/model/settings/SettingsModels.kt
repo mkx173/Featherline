@@ -101,6 +101,9 @@ data class SettingsState(
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val remindersEnabled: Boolean = true,
+    // Intent flag: the user wants weight synced with Health Connect. Sync also
+    // needs Health Connect access (HealthConnectCapabilityReconciler).
+    val healthConnectWeightSyncEnabled: Boolean = false,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
     val screenLockProtectionEnabled: Boolean = false,

@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -40,8 +41,8 @@ class UserProfileRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.userProfileDao() } returns dao
-        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
-            firstArg<suspend () -> Unit>().invoke()
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) } coAnswers {
+            firstArg<suspend () -> Any?>().invoke()
         }
 
         val testScope = CoroutineScope(StandardTestDispatcher())
@@ -64,6 +65,8 @@ class UserProfileRepositoryTest {
         assertEquals("KILOGRAMS", captured.captured.weightOriginalUnit)
         assertEquals(1_700_000_000_000L, captured.captured.updatedAtEpochMillis)
         assertEquals(UserProfileEntity.SINGLETON_ID, captured.captured.id)
+        // A typed weight has no Health Connect measured time.
+        assertNull(captured.captured.weightMeasuredAtEpochMillis)
     }
 
     @Test
@@ -106,18 +109,94 @@ class UserProfileRepositoryTest {
     }
 
     @Test
-    fun clearWeight_persists_all_null_fields() = runTest {
+    fun clearWeight_nullsWeightButKeepsUnit() = runTest {
         val captured = slot<UserProfileEntity>()
+        coEvery { dao.getProfile() } returns UserProfileEntity(
+            weightKg = 52.2,
+            weightOriginalValue = 115.0,
+            weightOriginalUnit = WeightUnit.POUNDS.name,
+            updatedAtEpochMillis = 1L,
+            weightMeasuredAtEpochMillis = 1L,
+        )
         coEvery { dao.upsertProfile(capture(captured)) } returns Unit
 
         repository.clearWeight(now = Instant.ofEpochMilli(42L))
 
         assertNull(captured.captured.weightKg)
         assertNull(captured.captured.weightOriginalValue)
-        assertNull(captured.captured.weightOriginalUnit)
+        // The unit is kept so a Health Connect reading adopted later shows in it.
+        assertEquals(WeightUnit.POUNDS.name, captured.captured.weightOriginalUnit)
         assertEquals(42L, captured.captured.updatedAtEpochMillis)
+        assertNull(captured.captured.weightMeasuredAtEpochMillis)
         coVerify(exactly = 1) { dao.upsertProfile(any()) }
         coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+    }
+
+    @Test
+    fun adoptHcWeight_roundsInLastUnit_andKeepsKgConsistentWithIt() = runTest {
+        val captured = mutableListOf<UserProfileEntity>()
+        coEvery { dao.upsertProfile(capture(captured)) } returns Unit
+        val samplesKg = listOf(61.83, 70.0, 49.96, 103.456, 58.04999)
+        for (unit in WeightUnit.entries) {
+            for (kg in samplesKg) {
+                coEvery { dao.getProfile() } returns UserProfileEntity(
+                    weightKg = null,
+                    weightOriginalValue = null,
+                    weightOriginalUnit = unit.name,
+                    updatedAtEpochMillis = 0L,
+                )
+                assertTrue(repository.adoptHcWeight(kg, Instant.ofEpochMilli(5L)))
+                val row = captured.last()
+                val original = row.weightOriginalValue!!
+                assertEquals(unit.name, row.weightOriginalUnit)
+                // One decimal place in the user's unit...
+                assertEquals(original, Math.round(original * 10.0) / 10.0, 0.0)
+                // ...kg derived from it, as the backup validator checks (eps 1e-6)...
+                assertTrue(abs(unit.toKg(original) - row.weightKg!!) <= 1e-6)
+                // ...and at most 0.05 of a unit from the reading.
+                assertTrue(abs(original - kg / unit.kgPerUnit) <= 0.05 + 1e-9)
+                assertEquals(5L, row.weightMeasuredAtEpochMillis)
+            }
+        }
+    }
+
+    @Test
+    fun adoptHcWeight_isNoOpOnlyWhenTimeAndRoundedValueAreUnchanged() = runTest {
+        coEvery { dao.getProfile() } returns UserProfileEntity(
+            weightKg = 60.0,
+            weightOriginalValue = 60.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = 0L,
+            weightMeasuredAtEpochMillis = 1_000L,
+        )
+
+        // Same millisecond (sub-millisecond precision ignored), same rounded value.
+        assertFalse(repository.adoptHcWeight(60.04, Instant.ofEpochMilli(1_000L).plusNanos(500)))
+        coVerify(exactly = 0) { dao.upsertProfile(any()) }
+        // Not even a mutation: one would bump Home's generation and rebuild.
+        coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
+        // HC is the source: an older reading or a new value at the same time is adopted.
+        assertTrue(repository.adoptHcWeight(60.0, Instant.ofEpochMilli(999L)))
+        assertTrue(repository.adoptHcWeight(61.0, Instant.ofEpochMilli(1_000L)))
+        coVerify(exactly = 2) { dao.upsertProfile(any()) }
+    }
+
+    @Test
+    fun clearHcMeasuredAt_keepsWeight_andIsANoOpWhenAlreadyUnset() = runTest {
+        val synced = UserProfileEntity(
+            weightKg = 60.0,
+            weightOriginalValue = 60.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = 0L,
+            weightMeasuredAtEpochMillis = 1_000L,
+        )
+        coEvery { dao.getProfile() } returns synced
+        assertTrue(repository.clearHcMeasuredAt())
+        coVerify(exactly = 1) { dao.upsertProfile(synced.copy(weightMeasuredAtEpochMillis = null)) }
+
+        coEvery { dao.getProfile() } returns synced.copy(weightMeasuredAtEpochMillis = null)
+        assertFalse(repository.clearHcMeasuredAt())
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -153,7 +232,7 @@ class UserProfileRepositoryTest {
 
         runCurrent()
 
-        assertTrue(seeded in profiles)
+        assertEquals(seeded, profiles.last())
         coVerify(exactly = 1) { homeSnapshotRepository.currentState() }
     }
 

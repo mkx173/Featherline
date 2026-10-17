@@ -41,7 +41,7 @@ fun DatePickerModal(
     minimumDate: LocalDate? = null,
     maximumDate: LocalDate? = null,
     // When provided, a left-aligned reset button (e.g. "Reset to now") clears the
-    // caller's selection and dismisses, matching the WeightDialog clear pattern.
+    // caller's selection and dismisses, matching the weight sheet's clear pattern.
     onReset: (() -> Unit)? = null,
     resetButtonText: String? = null,
 ) {

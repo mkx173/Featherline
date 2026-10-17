@@ -29,6 +29,8 @@ import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import io.mockk.Runs
 import io.mockk.clearMocks
 import io.mockk.coEvery
@@ -82,6 +84,9 @@ class SettingsViewModelTest {
     private val externalImportService: ExternalImportService = mockk()
     private val diagnosticsExportService: AppDiagnosticsExportService = mockk()
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
+    private val weightSyncCoordinator: WeightSyncCoordinator = mockk(relaxed = true)
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler =
+        mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -98,6 +103,7 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setHideScreenContentEnabled(any()) } just Runs
         coEvery { settingsRepository.setPureBlackEnabled(any()) } just Runs
         coEvery { settingsRepository.setHazeBlurEnabled(any()) } just Runs
+        coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
@@ -322,6 +328,31 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun clearWeight_leavesHealthConnectSyncFlagAlone() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { userProfileRepository.clearWeight(any()) } just Runs
+
+        viewModel.clearWeight()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { userProfileRepository.clearWeight(any()) }
+        coVerify(exactly = 0) { settingsRepository.setHealthConnectWeightSyncEnabled(any()) }
+    }
+
+    @Test
+    fun disableHealthConnectWeightSync_goesThroughTheCoordinator() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.disableHealthConnectWeightSync()
+        advanceUntilIdle()
+
+        // It turns the flag off and clears the reading's date, serialized with sync.
+        coVerify(exactly = 1) { weightSyncCoordinator.disable() }
     }
 
     @Test
@@ -604,6 +635,8 @@ class SettingsViewModelTest {
             diagnosticsExportService = diagnosticsExportService,
             widgetAppearanceRepository = widgetAppearanceRepository,
             e2EstimateRepository = e2EstimateRepository,
+            weightSyncCoordinator = weightSyncCoordinator,
+            healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
         )
     }
 

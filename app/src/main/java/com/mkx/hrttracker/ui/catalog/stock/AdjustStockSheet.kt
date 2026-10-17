@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -151,19 +153,22 @@ fun AdjustStockSheet(
                     .focusable(),
             )
 
+            // Same header box as MedicationEditorSheetScaffold: 40 dp tall, 8 dp gap below.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = ButtonDefaults.MinHeight),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = stringResource(R.string.stock_adjust_title),
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
                 )
                 HrtFilledTonalButton(
                     text = stringResource(R.string.stock_cancel),
                     onClick = resolvedOnCloseClick,
+                    compact = true,
                 )
             }
 

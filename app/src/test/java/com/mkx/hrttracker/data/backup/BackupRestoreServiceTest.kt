@@ -28,6 +28,7 @@ import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.home.HomeCardLayout
@@ -58,6 +59,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -88,6 +90,7 @@ class BackupRestoreServiceTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
     private val reminderNotificationManager: ReminderNotificationManager =
         mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
@@ -139,6 +142,7 @@ class BackupRestoreServiceTest {
             reminderNotificationManager = reminderNotificationManager,
             widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = backupCrypto,
+            healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
         )
     }
 
@@ -156,6 +160,8 @@ class BackupRestoreServiceTest {
 
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        // A restored sync flag syncs now, not at the next onStart.
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true) }
     }
 
     @Test

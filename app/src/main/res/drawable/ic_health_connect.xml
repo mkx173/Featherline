@@ -1,0 +1,33 @@
+<!--
+  ~ Copyright (C) 2022 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<!-- Health Connect's monochrome logo, unchanged from AOSP
+     platform/packages/modules/HealthFitness apk/res/drawable/ic_health_connect.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?attr/colorControlNormal"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+    <path
+        android:pathData="M96,163C83,163 69.9,158.1 60,148.2L27,115.4C17.4,105.8 12,93.1 12,79.6C12,66.1 17.3,53.3 27,43.8C46.8,24.1 79.1,24.1 99,43.8L82,60.8C71.5,50.4 54.3,50.4 43.8,60.8C38.7,65.8 35.9,72.5 35.9,79.6C35.9,86.7 38.7,93.4 43.8,98.4L76.9,131.2C87.4,141.6 104.6,141.6 115.1,131.2L132,148.2C122.1,158.1 109,163 96,163Z"
+        android:fillColor="@android:color/white"/>
+    <path
+        android:pathData="M96,163C83,163 69.9,158.1 60,148.2C50.4,138.6 45,125.9 45,112.4C45,98.9 50.3,86.1 60,76.6L93,43.8C112.8,24.1 145.1,24.1 165,43.8C174.6,53.4 180,66.1 180,79.6C180,93.1 174.7,105.9 165,115.4L132,148.2C122.1,158.1 109,163 96,163ZM129.1,53C122.2,53 115.3,55.6 110,60.8L76.9,93.6C71.8,98.6 69,105.3 69,112.4C69,119.5 71.8,126.2 76.9,131.2C87.4,141.6 104.6,141.6 115.1,131.2L148.2,98.4C153.3,93.4 156.1,86.7 156.1,79.6C156.1,72.5 153.3,65.8 148.2,60.8C142.9,55.6 136,53 129.1,53Z"
+        android:fillColor="@android:color/white"/>
+    <path
+        android:pathData="M128.2,99.5C138.69,99.5 147.2,91.04 147.2,80.6C147.2,70.16 138.69,61.7 128.2,61.7C117.71,61.7 109.2,70.16 109.2,80.6C109.2,91.04 117.71,99.5 128.2,99.5Z"
+        android:fillColor="@android:color/white"/>
+</vector>

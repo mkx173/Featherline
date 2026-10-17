@@ -71,7 +71,7 @@ class Migration9To10Test {
             testDb,
         )
             .openHelperFactory(cipherFactory())
-            .addMigrations(MIGRATION_9_10)
+            .addMigrations(MIGRATION_9_10, MIGRATION_10_11)
             .allowMainThreadQueries()
             .build()
         migrationHelper.closeWhenFinished(roomDatabase)

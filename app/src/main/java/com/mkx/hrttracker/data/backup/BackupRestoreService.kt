@@ -20,6 +20,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.decrementDenominatorOnCrack
 import com.mkx.hrttracker.data.repository.normalizeOpenContainer
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -92,6 +93,7 @@ class BackupRestoreService @Inject constructor(
     private val reminderNotificationManager: ReminderNotificationManager,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     /**
@@ -302,6 +304,8 @@ class BackupRestoreService @Inject constructor(
                 pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
                 hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
                 remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                healthConnectWeightSyncEnabled =
+                    validatedSnapshot.settings.healthConnectWeightSyncEnabled,
                 showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
                 hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
                 appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
@@ -376,6 +380,10 @@ class BackupRestoreService @Inject constructor(
                 error,
             )
         }
+        // The app is already in the foreground, so a restored sync flag would
+        // otherwise wait for the next onStart. Fire-and-forget; it never throws.
+        // The restored weight must give way to HC's, however recent the last sync.
+        healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true)
     }
 
     private companion object {
@@ -1043,6 +1051,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         pureBlackEnabled = pureBlackEnabled,
         hazeBlurEnabled = hazeBlurEnabled,
         remindersEnabled = remindersEnabled,
+        healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
         appLockGracePeriodOption = appLockGracePeriodOption,
@@ -1095,6 +1104,7 @@ private fun BackupUserProfileSnapshot.toValidatedEntity(
         weightOriginalValue = resolvedOriginalValue,
         weightOriginalUnit = weightUnit.name,
         updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
+        weightMeasuredAtEpochMillis = weightMeasuredAtEpochMillis,
     )
 }
 
@@ -1690,6 +1700,7 @@ internal data class ValidatedBackupSettings(
     val pureBlackEnabled: Boolean,
     val hazeBlurEnabled: Boolean,
     val remindersEnabled: Boolean,
+    val healthConnectWeightSyncEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
     val appLockGracePeriodOption: AppLockGracePeriodOption,
