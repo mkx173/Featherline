@@ -148,12 +148,15 @@ class UserProfileRepository @Inject constructor(
      * The value is rounded to 0.1 in the user's last unit and kg is derived from
      * that, which keeps the backup validator's kg/unit consistency check true.
      * Returns false without writing when the reading is the one already stored
-     * (same time in millis, same rounded value).
+     * (same time in millis, same rounded value), or when [isSyncOn] is false.
+     * That's checked inside the mutation, which manual edits share: sync turned
+     * off mid-sync then can't overwrite a weight typed right after.
      */
     suspend fun adoptHcWeight(
         weightKg: Double,
         measuredAt: Instant,
         now: Instant = Instant.now(),
+        isSyncOn: suspend () -> Boolean = { true },
     ): Boolean {
         // Checked before the mutation as well as inside it: a mutation always
         // bumps Home's generation and rebuilds, and most syncs change nothing.
@@ -161,7 +164,7 @@ class UserProfileRepository @Inject constructor(
             return false
         }
         return homeSnapshotRepository.runHomeDataMutation {
-            adoptHcWeightLocked(weightKg, measuredAt, now)
+            isSyncOn() && adoptHcWeightLocked(weightKg, measuredAt, now)
         }
     }
 

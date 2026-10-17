@@ -190,6 +190,26 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
+    fun aWeightTypedRightAfterTurningSyncOff_survivesThePendingAdoption() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
+        // Holds the sync in adoptHcWeight's profile read, before its mutation.
+        val gate = CompletableDeferred<Unit>()
+        dao.getProfileGate = gate
+
+        launch { coordinator.sync(now = now) }
+        runCurrent()
+        launch { coordinator.disable() }
+        runCurrent()
+        // The field is editable once the flag is off.
+        repository.setWeight(65.0, WeightUnit.KILOGRAMS, now = now)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(65.0, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
     fun readingWithFutureTimestampIsIgnored() = runTest {
         repository.setWeight(60.0, WeightUnit.KILOGRAMS, now = t1)
         hc.records += HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofMinutes(10))
@@ -223,8 +243,15 @@ class WeightSyncCoordinatorTest {
 private class FakeUserProfileDao : UserProfileDao {
     var row: UserProfileEntity? = null
     var adoptWrites = 0 // writes carrying an HC measured time
+    var getProfileGate: CompletableDeferred<Unit>? = null // the next read waits on it
 
-    override suspend fun getProfile(id: String): UserProfileEntity? = row
+    override suspend fun getProfile(id: String): UserProfileEntity? {
+        getProfileGate?.let { gate ->
+            getProfileGate = null
+            gate.await()
+        }
+        return row
+    }
 
     override fun observeProfile(id: String): Flow<UserProfileEntity?> = MutableStateFlow(row)
 
