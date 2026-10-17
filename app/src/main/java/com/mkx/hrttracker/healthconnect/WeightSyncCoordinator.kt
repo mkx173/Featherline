@@ -75,6 +75,16 @@ class WeightSyncCoordinator @Inject constructor(
     }
 
     /**
+     * Turns sync on; false when it already was. Then only access was missing,
+     * and the foreground reconcile that saw it come back has already synced.
+     */
+    suspend fun enable(): Boolean {
+        if (settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return false
+        settingsRepository.setHealthConnectWeightSyncEnabled(true)
+        return true
+    }
+
+    /**
      * Turns sync off. The flag goes first so an in-flight sync drops its reading
      * (adoptHcWeight checks it under the lock manual edits share); the measured
      * time is cleared after that sync, so it can't write one back.

@@ -210,6 +210,15 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
+    fun enable_reportsWhetherItTurnedSyncOn() = runTest {
+        syncEnabled = false
+        assertTrue(coordinator.enable())
+        assertTrue(syncEnabled)
+        // Already on (only access was missing): the caller mustn't sync again.
+        assertFalse(coordinator.enable())
+    }
+
+    @Test
     fun readingWithFutureTimestampIsIgnored() = runTest {
         repository.setWeight(60.0, WeightUnit.KILOGRAMS, now = t1)
         hc.records += HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofMinutes(10))
