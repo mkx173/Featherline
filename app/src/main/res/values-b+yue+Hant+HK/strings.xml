@@ -776,6 +776,7 @@
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_status_synced">已同步</string>
     <string name="health_connect_status_no_reading">仲未有體重記錄</string>
+    <string name="health_connect_status_invalid_reading">最新記錄唔係有效體重</string>
     <string name="health_connect_status_syncing">同步緊…</string>
     <string name="health_connect_status_off">同步已關閉</string>
     <string name="health_connect_status_unavailable">唔支援呢部裝置</string>

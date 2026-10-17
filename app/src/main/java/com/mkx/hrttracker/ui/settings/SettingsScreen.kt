@@ -90,6 +90,7 @@ import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -284,7 +285,7 @@ fun SettingsScreen(
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
     val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
-    val hasNoHealthConnectWeight by viewModel.hasNoHealthConnectWeight.collectAsStateWithLifecycle()
+    val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
     val healthConnectWeightSync = rememberHealthConnectWeightSync(
         hasAccess = healthConnectState.hasAccess,
         onEnable = viewModel::enableHealthConnectWeightSync,
@@ -540,7 +541,7 @@ fun SettingsScreen(
         onWeightClear = viewModel::clearWeight,
         healthConnectState = healthConnectState,
         isWeightSyncing = isWeightSyncing,
-        hasNoHealthConnectWeight = hasNoHealthConnectWeight,
+        healthConnectReadingProblem = healthConnectReadingProblem,
         onHealthConnectSyncChange = healthConnectWeightSync.onSyncEnabledChange,
         onWeightSyncNow = viewModel::syncWeightNow,
         showHealthConnectDenied = healthConnectWeightSync.showPermissionDenied,
@@ -969,7 +970,7 @@ internal fun SettingsScreenContent(
     onWeightClear: () -> Unit,
     healthConnectState: HealthConnectCapabilityState = HealthConnectCapabilityState(),
     isWeightSyncing: Boolean = false,
-    hasNoHealthConnectWeight: Boolean = false,
+    healthConnectReadingProblem: ReadingProblem? = null,
     onHealthConnectSyncChange: (Boolean) -> Unit = {},
     onWeightSyncNow: () -> Unit = {},
     showHealthConnectDenied: Boolean = false,
@@ -1869,7 +1870,7 @@ internal fun SettingsScreenContent(
             syncEnabled = settingsState.healthConnectWeightSyncEnabled,
             healthConnect = healthConnectState,
             isSyncing = isWeightSyncing,
-            hasNoHealthConnectWeight = hasNoHealthConnectWeight,
+            readingProblem = healthConnectReadingProblem,
             isInProgress = uiState.isWeightMutationInProgress,
             onSave = onWeightSave,
             onClear = onWeightClear,

@@ -11,7 +11,6 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
@@ -51,9 +50,6 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var appTimeSource: AppTimeSource
-
-    @Inject
-    lateinit var healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -116,11 +112,9 @@ class HrtTrackerApplication : Application() {
         // screens reflect a date/time change that happened while backgrounded.
         // The minute-ticker StateFlow otherwise stays stale until its next
         // monotonic tick (up to a minute, longer while the process is frozen).
-        // Foreground is also when body weight syncs with Health Connect (no worker).
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 appTimeSource.refresh()
-                healthConnectCapabilityReconciler.requestReconcile("foreground")
             }
         })
         diagnosticsLogger.info(TAG, "application_app_time_source_refresh_attached")

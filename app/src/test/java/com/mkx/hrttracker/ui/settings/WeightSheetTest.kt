@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import org.junit.Assert.assertEquals
@@ -48,7 +49,7 @@ class WeightSheetTest {
                 syncEnabled = syncEnabled,
                 healthConnect = access,
                 isSyncing = false,
-                hasNoHealthConnectWeight = false,
+                readingProblem = null,
                 isInProgress = false,
                 onSave = onSave,
                 onClearRequest = {},
@@ -80,7 +81,7 @@ class WeightSheetTest {
     @Test
     fun syncOn_withNoReadingYet_saysSyncing_untilASyncFindsNone() {
         var profile by mutableStateOf(weight(62.4))
-        var hasNoReading by mutableStateOf(false)
+        var readingProblem by mutableStateOf<ReadingProblem?>(null)
         var healthConnect by mutableStateOf(access)
         composeRule.setContent {
             WeightSheetContent(
@@ -88,7 +89,7 @@ class WeightSheetTest {
                 syncEnabled = true,
                 healthConnect = healthConnect,
                 isSyncing = false,
-                hasNoHealthConnectWeight = hasNoReading,
+                readingProblem = readingProblem,
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
@@ -107,11 +108,15 @@ class WeightSheetTest {
         composeRule.onNodeWithText("Couldn’t sync").assertExists()
         healthConnect = access
 
-        hasNoReading = true
+        readingProblem = ReadingProblem.NONE_FOUND
         composeRule.waitForIdle()
         composeRule.onNodeWithText("No weight records yet").assertExists()
 
-        hasNoReading = false
+        readingProblem = ReadingProblem.INVALID
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Latest record isn’t a valid weight").assertExists()
+
+        readingProblem = null
         profile = weight(61.8, Instant.parse("2026-10-15T07:00:00Z"))
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Synced").assertExists()
@@ -126,7 +131,7 @@ class WeightSheetTest {
                 syncEnabled = false,
                 healthConnect = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = false),
                 isSyncing = false,
-                hasNoHealthConnectWeight = false,
+                readingProblem = null,
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
@@ -153,7 +158,7 @@ class WeightSheetTest {
                 syncEnabled = false,
                 healthConnect = HealthConnectCapabilityState(providerUpdateRequired = true),
                 isSyncing = false,
-                hasNoHealthConnectWeight = false,
+                readingProblem = null,
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},

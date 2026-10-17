@@ -214,7 +214,7 @@ fun OnboardingScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
-    val hasNoHealthConnectWeight by viewModel.hasNoHealthConnectWeight.collectAsStateWithLifecycle()
+    val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
     val healthConnectWeightSync = rememberHealthConnectWeightSync(
         hasAccess = healthConnectState.hasAccess,
         onEnable = viewModel::enableHealthConnectWeightSync,
@@ -550,7 +550,7 @@ fun OnboardingScreen(
             syncEnabled = uiState.healthConnectWeightSyncEnabled,
             healthConnect = healthConnectState,
             isSyncing = isWeightSyncing,
-            hasNoHealthConnectWeight = hasNoHealthConnectWeight,
+            readingProblem = healthConnectReadingProblem,
             isInProgress = false,
             onSave = viewModel::setWeight,
             onClear = viewModel::clearWeight,

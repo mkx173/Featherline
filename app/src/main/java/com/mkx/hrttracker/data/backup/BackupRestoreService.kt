@@ -383,7 +383,7 @@ class BackupRestoreService @Inject constructor(
         // The app is already in the foreground, so a restored sync flag would
         // otherwise wait for the next onStart. Fire-and-forget; it never throws.
         // The restored weight must give way to HC's, however recent the last sync.
-        healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true)
+        healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
     }
 
     private companion object {
@@ -1081,18 +1081,26 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
 
 private fun BackupUserProfileSnapshot.toValidatedEntity(
     restoredAtEpochMillis: Long,
-): UserProfileEntity? {
+): UserProfileEntity {
     require((weightKg == null) == (weightOriginalValue == null)) {
         "Backup user profile must either include both stored weight values or neither."
     }
-    if (weightKg == null && weightOriginalValue == null) {
-        return null
-    }
-
     val weightUnit = requireEnumName<WeightUnit>(
         weightOriginalUnit,
         "weight unit",
     )
+    if (weightKg == null) {
+        // Like clearWeight: no weight, but the unit stays for the next Health
+        // Connect reading.
+        return UserProfileEntity(
+            weightKg = null,
+            weightOriginalValue = null,
+            weightOriginalUnit = weightUnit.name,
+            updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
+            weightMeasuredAtEpochMillis = null,
+        )
+    }
+
     val resolvedWeightKg = weightKg.requirePositiveFinite("stored weight")
     val resolvedOriginalValue = weightOriginalValue.requirePositiveFinite("original weight")
     require(closeEnough(weightUnit.toKg(resolvedOriginalValue), resolvedWeightKg)) {

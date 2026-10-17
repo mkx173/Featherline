@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -75,7 +76,7 @@ class OnboardingViewModel @Inject constructor(
     val healthConnectState: StateFlow<HealthConnectCapabilityState> =
         healthConnectCapabilityReconciler.state
     val isWeightSyncing: StateFlow<Boolean> = weightSyncCoordinator.isSyncing
-    val hasNoHealthConnectWeight: StateFlow<Boolean> = weightSyncCoordinator.hasNoReading
+    val healthConnectReadingProblem: StateFlow<ReadingProblem?> = weightSyncCoordinator.readingProblem
 
     fun completeWithRemindersEnabled() {
         viewModelScope.launch {
@@ -153,7 +154,7 @@ class OnboardingViewModel @Inject constructor(
     fun disableHealthConnectWeightSync() = setHealthConnectWeightSyncEnabled(false)
 
     fun syncWeightNow() {
-        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", force = true)
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", sync = true)
     }
 
     private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
@@ -172,7 +173,9 @@ class OnboardingViewModel @Inject constructor(
                 return@launch
             }
             // Like Settings: even when already on, to refresh access.
-            if (enabled) healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+            if (enabled) {
+                healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled", sync = true)
+            }
         }
     }
 

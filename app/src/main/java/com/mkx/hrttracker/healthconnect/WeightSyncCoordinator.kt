@@ -17,8 +17,8 @@ import javax.inject.Singleton
 /**
  * Read-only, latest-only body-weight sync from Health Connect. With sync on, HC
  * is the source: its latest reading becomes the app's weight, so an HC deletion
- * makes the next-latest reading the weight. With no reading, the current weight
- * stays and [hasNoReading] tells the UI.
+ * makes the next-latest reading the weight. With no reading or an invalid one,
+ * the current weight stays and [readingProblem] tells the UI.
  */
 @Singleton
 class WeightSyncCoordinator @Inject constructor(
@@ -31,29 +31,16 @@ class WeightSyncCoordinator @Inject constructor(
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-    // UI state from the last sync, not a column: Health Connect had no reading.
-    private val _hasNoReading = MutableStateFlow(false)
-    val hasNoReading: StateFlow<Boolean> = _hasNoReading.asStateFlow()
+    // UI state from the last sync, not a column: why it kept the current weight.
+    private val _readingProblem = MutableStateFlow<ReadingProblem?>(null)
+    val readingProblem: StateFlow<ReadingProblem?> = _readingProblem.asStateFlow()
 
-    // When the last sync finished; guarded by syncMutex. Null after disable().
-    private var lastSyncedAtNanos: Long? = null
-
-    /**
-     * No-op unless sync is enabled and Health Connect access is held. With
-     * [skipIfFresh], also when a sync finished in the last [FRESH_NANOS]: a
-     * return to the app can refresh twice (foreground, then a permission grant).
-     */
+    /** No-op unless sync is enabled and Health Connect access is held. */
     suspend fun sync(
         reason: String = "explicit",
         now: Instant = Instant.now(),
-        skipIfFresh: Boolean = false,
     ) = syncMutex.withLock {
         if (!settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return@withLock
-        val lastSynced = lastSyncedAtNanos
-        if (skipIfFresh && lastSynced != null && System.nanoTime() - lastSynced < FRESH_NANOS) {
-            diagnosticsLogger.info(TAG, "weight_sync_skipped_fresh reason=$reason")
-            return@withLock
-        }
         if (!healthConnectManager.isAvailable() || !healthConnectManager.hasWeightAccess()) {
             return@withLock
         }
@@ -62,18 +49,26 @@ class WeightSyncCoordinator @Inject constructor(
         try {
             val notAfter = now + FUTURE_TOLERANCE
             val latest = healthConnectManager.readLatestWeight(notAfter)
-                // Ignore readings from a scale whose clock is ahead, and ones that
-                // round to 0 in either unit: backup restore rejects a 0 weight.
-                ?.takeIf { reading -> reading.time <= notAfter && reading.weightKg >= MIN_WEIGHT_KG }
-            _hasNoReading.value = latest == null
-            val changed = if (latest != null) {
+            // Not from a scale whose clock is ahead, and not one that rounds to 0
+            // in either unit: backup restore rejects a 0 weight.
+            val valid = latest?.takeIf { reading ->
+                reading.time <= notAfter && reading.weightKg >= MIN_WEIGHT_KG
+            }
+            _readingProblem.value = when {
+                latest == null -> ReadingProblem.NONE_FOUND
+                valid == null -> ReadingProblem.INVALID
+                else -> null
+            }
+            val changed = when {
                 // Rechecked under the lock manual edits share: turned off mid-sync,
                 // the weight is the user's now.
-                userProfileRepository.adoptHcWeight(latest.weightKg, latest.time, now) {
+                valid != null -> userProfileRepository.adoptHcWeight(valid.weightKg, valid.time, now) {
                     settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
                 }
-            } else {
-                userProfileRepository.clearHcMeasuredAt()
+                latest == null -> userProfileRepository.clearHcMeasuredAt()
+                // ponytail: only the latest is read, not a search for a valid one;
+                // the last saved weight and its date stay until a valid reading.
+                else -> false
             }
             diagnosticsLogger.info(
                 TAG,
@@ -83,7 +78,6 @@ class WeightSyncCoordinator @Inject constructor(
             // "Syncing…" and one whole turn of the icon instead of a flash.
             val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
             delay(MIN_SYNCING_MILLIS - elapsedMillis)
-            lastSyncedAtNanos = System.nanoTime()
         } finally {
             // Nothing suspends before this, so a cancelled or failed sync can't
             // leave the singleton's state stuck on.
@@ -100,8 +94,8 @@ class WeightSyncCoordinator @Inject constructor(
         settingsRepository.setHealthConnectWeightSyncEnabled(false)
         syncMutex.withLock {
             userProfileRepository.clearHcMeasuredAt()
-            // Turning it back on must sync, however soon.
-            lastSyncedAtNanos = null
+            // Turning it back on reads "Syncing…" until the new sync, not the old result.
+            _readingProblem.value = null
         }
     }
 
@@ -113,8 +107,12 @@ class WeightSyncCoordinator @Inject constructor(
         private val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
         // 0.1 kg rounds to at least 0.1 in kg and 0.2 in lb.
         private const val MIN_WEIGHT_KG = 0.1
-        // ponytail: a fixed window; a reading added in HC and back within it waits
-        // for the next sync (Sync now always runs).
-        private val FRESH_NANOS = Duration.ofSeconds(5).toNanos()
     }
+}
+
+/** Why the last sync kept the current weight. */
+enum class ReadingProblem {
+    NONE_FOUND,
+    /** The latest reading is one the app can't use, e.g. 0 kg. */
+    INVALID,
 }

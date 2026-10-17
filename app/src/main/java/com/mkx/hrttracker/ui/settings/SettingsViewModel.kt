@@ -18,6 +18,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -174,7 +175,7 @@ class SettingsViewModel @Inject constructor(
     val healthConnectState: StateFlow<HealthConnectCapabilityState> =
         healthConnectCapabilityReconciler.state
     val isWeightSyncing: StateFlow<Boolean> = weightSyncCoordinator.isSyncing
-    val hasNoHealthConnectWeight: StateFlow<Boolean> = weightSyncCoordinator.hasNoReading
+    val healthConnectReadingProblem: StateFlow<ReadingProblem?> = weightSyncCoordinator.readingProblem
 
     fun setWeight(value: Double, unit: WeightUnit) {
         launchWeightMutation {
@@ -192,9 +193,8 @@ class SettingsViewModel @Inject constructor(
     fun enableHealthConnectWeightSync() {
         launchSettingsMutation {
             settingsRepository.setHealthConnectWeightSyncEnabled(true)
-            // Even when it was already on: this refreshes access, and the
-            // coordinator skips a sync the foreground reconcile just ran.
-            healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+            // Even when it was already on: this refreshes access.
+            healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled", sync = true)
         }
     }
 
@@ -207,7 +207,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun syncWeightNow() {
-        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", force = true)
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", sync = true)
     }
 
     private fun launchWeightMutation(block: suspend () -> Unit) {

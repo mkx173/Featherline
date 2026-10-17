@@ -807,6 +807,7 @@
     <string name="health_connect_title" translatable="false">Health Connect</string>
     <string name="health_connect_status_synced">Synced</string>
     <string name="health_connect_status_no_reading">No weight records yet</string>
+    <string name="health_connect_status_invalid_reading">Latest record isn’t a valid weight</string>
     <string name="health_connect_status_syncing">Syncing…</string>
     <string name="health_connect_status_off">Sync off</string>
     <string name="health_connect_status_unavailable">Not available on this device</string>

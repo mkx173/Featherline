@@ -78,7 +78,7 @@ class WeightSyncCoordinatorTest {
         assertEquals(WeightUnit.POUNDS.name, row.weightOriginalUnit)
         assertEquals(154.3, row.weightOriginalValue!!, 0.0)
         assertEquals(t0.toEpochMilli(), row.weightMeasuredAtEpochMillis)
-        assertFalse(coordinator.hasNoReading.value)
+        assertNull(coordinator.readingProblem.value)
     }
 
     @Test
@@ -105,7 +105,11 @@ class WeightSyncCoordinatorTest {
         coordinator.sync(now = now)
 
         assertEquals(before, dao.row)
-        assertTrue(coordinator.hasNoReading.value)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+
+        // Turned back on, it reads Syncing until the new sync, not the old result.
+        coordinator.disable()
+        assertNull(coordinator.readingProblem.value)
     }
 
     @Test
@@ -142,19 +146,21 @@ class WeightSyncCoordinatorTest {
         coordinator.sync(now = now)
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
         assertNull(dao.row!!.weightMeasuredAtEpochMillis)
-        assertTrue(coordinator.hasNoReading.value)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
     }
 
     @Test
-    fun zeroKgReadingIsIgnored() = runTest {
-        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t0)
-        // Backup restore rejects a 0 weight, so adopting one would break every backup.
-        hc.records += HealthConnectWeight(weightKg = 0.04, time = t1)
-
+    fun invalidLatestReading_keepsTheSavedWeightAndItsDate() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 61.8, time = t0)
         coordinator.sync(now = now)
 
-        assertEquals(62.4, dao.row!!.weightOriginalValue!!, 0.0)
-        assertTrue(coordinator.hasNoReading.value)
+        // Backup restore rejects a 0 weight, so adopting one would break every backup.
+        hc.records += HealthConnectWeight(weightKg = 0.04, time = t1)
+        coordinator.sync(now = now)
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        assertEquals(ReadingProblem.INVALID, coordinator.readingProblem.value)
     }
 
     @Test
@@ -207,25 +213,6 @@ class WeightSyncCoordinatorTest {
 
         assertEquals(65.0, dao.row!!.weightOriginalValue!!, 0.0)
         assertNull(dao.row!!.weightMeasuredAtEpochMillis)
-    }
-
-    @Test
-    fun skipIfFresh_skipsRightAfterASync_untilSyncIsTurnedOff() = runTest {
-        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
-        coordinator.sync(now = now)
-
-        // A foreground sync, then the grant's: the second is skipped...
-        coordinator.sync(now = now, skipIfFresh = true)
-        assertEquals(1, hc.reads)
-        // ...but Sync now isn't.
-        coordinator.sync(now = now)
-        assertEquals(2, hc.reads)
-
-        // Turned off and straight back on: the enable's sync runs.
-        coordinator.disable()
-        syncEnabled = true
-        coordinator.sync(now = now, skipIfFresh = true)
-        assertEquals(3, hc.reads)
     }
 
     @Test
@@ -284,7 +271,7 @@ private class FakeUserProfileDao : UserProfileDao {
     }
 }
 
-private class FakeHealthConnectManager : HealthConnectManager {
+internal class FakeHealthConnectManager : HealthConnectManager {
     var available = true
     var access = true
     val records = mutableListOf<HealthConnectWeight>()

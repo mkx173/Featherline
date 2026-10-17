@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.roundWeightToTenth
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -176,7 +177,7 @@ internal fun WeightSheet(
     syncEnabled: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
-    hasNoHealthConnectWeight: Boolean,
+    readingProblem: ReadingProblem?,
     isInProgress: Boolean,
     onSave: (Double, WeightUnit) -> Unit,
     onClear: () -> Unit,
@@ -205,7 +206,7 @@ internal fun WeightSheet(
             syncEnabled = syncEnabled,
             healthConnect = healthConnect,
             isSyncing = isSyncing,
-            hasNoHealthConnectWeight = hasNoHealthConnectWeight,
+            readingProblem = readingProblem,
             isInProgress = isInProgress,
             onSave = { value, unit ->
                 onSave(value, unit)
@@ -256,7 +257,7 @@ internal fun WeightSheetContent(
     syncEnabled: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
-    hasNoHealthConnectWeight: Boolean,
+    readingProblem: ReadingProblem?,
     isInProgress: Boolean,
     onSave: (Double, WeightUnit) -> Unit,
     onClearRequest: () -> Unit,
@@ -389,7 +390,7 @@ internal fun WeightSheetContent(
             syncOn = syncOn,
             healthConnect = healthConnect,
             isSyncing = isSyncing,
-            hasNoReading = hasNoHealthConnectWeight,
+            readingProblem = readingProblem,
             showPermissionDenied = showPermissionDenied,
             onToggle = { onSyncEnabledChange(!syncOn) },
             onSyncNow = onSyncNow,
@@ -525,14 +526,14 @@ private fun HealthConnectSection(
     syncOn: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
-    hasNoReading: Boolean,
+    readingProblem: ReadingProblem?,
     showPermissionDenied: Boolean,
     onToggle: () -> Unit,
     onSyncNow: () -> Unit,
     onOpenHealthConnect: () -> Unit,
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainer
-    val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, hasNoReading)
+    val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, readingProblem)
     HrtSection(title = null) {
         item {
             PreferenceSegmentedListItem(
@@ -632,7 +633,7 @@ private fun healthConnectStatusText(
     syncEnabled: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
-    hasNoReading: Boolean,
+    readingProblem: ReadingProblem?,
 ): String {
     return when {
         healthConnect.providerUpdateRequired ->
@@ -643,11 +644,13 @@ private fun healthConnectStatusText(
         !syncEnabled -> stringResource(R.string.health_connect_status_off)
         isSyncing -> stringResource(R.string.health_connect_status_syncing)
         healthConnect.syncFailed -> stringResource(R.string.health_connect_status_sync_failed)
-        // No measured time without a sync that found nothing means a sync is on
-        // its way (sync just turned on, or this process's first one).
-        !hasNoReading && profile.weightMeasuredAt == null ->
-            stringResource(R.string.health_connect_status_syncing)
-        hasNoReading -> stringResource(R.string.health_connect_status_no_reading)
+        readingProblem == ReadingProblem.NONE_FOUND ->
+            stringResource(R.string.health_connect_status_no_reading)
+        readingProblem == ReadingProblem.INVALID ->
+            stringResource(R.string.health_connect_status_invalid_reading)
+        // No measured time without a sync that kept the weight means a sync is
+        // on its way (sync just turned on, or this process's first one).
+        profile.weightMeasuredAt == null -> stringResource(R.string.health_connect_status_syncing)
         // The reading's date sits under the weight field.
         else -> stringResource(R.string.health_connect_status_synced)
     }
@@ -704,7 +707,7 @@ private fun WeightSheetPreview(syncEnabled: Boolean, measuredAt: Instant?) {
                 syncEnabled = syncOn,
                 healthConnect = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = true),
                 isSyncing = false,
-                hasNoHealthConnectWeight = false,
+                readingProblem = null,
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},

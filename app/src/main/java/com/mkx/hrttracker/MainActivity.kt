@@ -50,6 +50,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
@@ -153,6 +154,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var reminderCapabilityReconciler: ReminderCapabilityReconciler
+
+    @Inject
+    lateinit var healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val startupTimingEnabled =
@@ -513,6 +517,8 @@ class MainActivity : AppCompatActivity() {
         // disposed before the result arrives. Resume-time reconciliation
         // self-heals the capability state no matter which screen asked.
         reminderCapabilityReconciler.requestReconcile("main_activity_on_resume")
+        // Also turns weight sync off when access is gone; syncs once a day.
+        healthConnectCapabilityReconciler.requestReconcile("main_activity_on_resume")
     }
 
     override fun onStop() {

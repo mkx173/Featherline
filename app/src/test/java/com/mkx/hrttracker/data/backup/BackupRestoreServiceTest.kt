@@ -160,8 +160,35 @@ class BackupRestoreServiceTest {
 
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        // A restored sync flag syncs now, not at the next onStart.
-        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", force = true) }
+        // A restored sync flag syncs now, or turns off without access.
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true) }
+    }
+
+    @Test
+    fun restoreBackup_keepsTheUnitOfAProfileWithoutAWeight() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        val snapshot = emptySnapshot().copy(
+            userProfile = BackupUserProfileSnapshot(
+                weightKg = null,
+                weightOriginalValue = null,
+                weightOriginalUnit = "POUNDS",
+            ),
+        )
+        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
+            backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            )
+        )
+
+        service.restoreBackup(fileUri = fileUri, password = "password")
+
+        // A later Health Connect reading then shows in lb, as after clearWeight.
+        coVerify(exactly = 1) {
+            userProfileDao.upsertProfile(
+                match { it.weightKg == null && it.weightOriginalUnit == "POUNDS" }
+            )
+        }
     }
 
     @Test

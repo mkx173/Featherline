@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.healthconnect
 
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CoroutineScope
@@ -8,6 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,19 +28,22 @@ data class HealthConnectCapabilityState(
 
 /**
  * Works like ReminderCapabilityReconciler: refreshes whether Health Connect is
- * usable (SDK available and READ weight granted), then syncs when access is held
- * and the intent flag is set. A lost permission leaves the flag on; the weight
- * sheet shows it as a recovery state and the weight becomes editable again.
+ * usable (SDK available and READ weight granted) on every resume, and turns sync
+ * off when it isn't, so a later grant can't replace a weight typed meanwhile.
+ * Syncs on the first reconcile of each day (app start included) and when a
+ * caller asks for it.
  */
 @Singleton
 class HealthConnectCapabilityReconciler @Inject constructor(
     @AppScope private val appScope: CoroutineScope,
     private val healthConnectManager: HealthConnectManager,
     private val weightSyncCoordinator: WeightSyncCoordinator,
+    private val settingsRepository: SettingsRepository,
+    private val clock: Clock,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     // Seeded with SDK availability (a cheap package lookup) so the weight sheet
-    // doesn't flash "not available" before the first foreground reconcile lands.
+    // doesn't flash "not available" before the first reconcile lands.
     private val _state = MutableStateFlow(
         HealthConnectCapabilityState(
             sdkAvailable = healthConnectManager.isAvailable(),
@@ -43,22 +52,34 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     )
     val state: StateFlow<HealthConnectCapabilityState> = _state.asStateFlow()
 
-    /** [force] syncs even right after another sync, as Sync now and a restore want. */
-    fun requestReconcile(reason: String, force: Boolean = false) {
+    // Like ReminderCapabilityReconciler's: runs one at a time, failure included,
+    // so an older run can't publish its state (or syncFailed) over a newer one.
+    private val reconcileMutex = Mutex()
+
+    // Guarded by reconcileMutex. Null until the first sync of this process.
+    private var lastSyncDate: LocalDate? = null
+
+    /** [sync] syncs too, as turning sync on, Sync now and a restore want. */
+    fun requestReconcile(reason: String, sync: Boolean = false) {
         appScope.launch {
-            runCatching { reconcile(reason, force) }
-                .onFailure { throwable ->
-                    _state.update { it.copy(syncFailed = true) }
-                    diagnosticsLogger.warning(
-                        TAG,
-                        "health_connect_reconcile_failed reason=$reason",
-                        throwable,
-                    )
-                }
+            reconcileMutex.withLock {
+                runCatching { reconcile(reason, sync) }
+                    .onFailure { throwable ->
+                        _state.update { it.copy(syncFailed = true) }
+                        diagnosticsLogger.warning(
+                            TAG,
+                            "health_connect_reconcile_failed reason=$reason",
+                            throwable,
+                        )
+                    }
+            }
         }
     }
 
-    suspend fun reconcile(reason: String, force: Boolean = false) {
+    private suspend fun reconcile(reason: String, sync: Boolean) {
+        val today = clock.instant().atZone(ZoneId.systemDefault()).toLocalDate()
+        // Read before access: sync turned on after a stale access check must stay on.
+        val syncEnabled = settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
         val sdkAvailable = healthConnectManager.isAvailable()
         val hasAccess = sdkAvailable && healthConnectManager.hasWeightAccess()
         _state.value = HealthConnectCapabilityState(
@@ -70,8 +91,17 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             TAG,
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
-        // sync() checks the intent flag itself.
-        if (hasAccess) weightSyncCoordinator.sync(reason, skipIfFresh = !force)
+        when {
+            !hasAccess && syncEnabled -> {
+                weightSyncCoordinator.disable()
+                diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
+            }
+            // sync() checks the intent flag itself.
+            hasAccess && (sync || lastSyncDate != today) -> {
+                lastSyncDate = today
+                weightSyncCoordinator.sync(reason)
+            }
+        }
     }
 
     private companion object {
