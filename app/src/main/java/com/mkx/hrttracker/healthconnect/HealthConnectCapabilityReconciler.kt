@@ -94,6 +94,14 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         }
     }
 
+    /** Queues enable with disable and reconcile so the last toggle wins. */
+    suspend fun enableSync() {
+        reconcileMutex.withLock {
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+        }
+        requestReconcile("weight_sync_enabled")
+    }
+
     /**
      * Turns sync off and resets the daily gate under one lock, so a quick
      * off-then-on can't reconcile before the old date is cleared.

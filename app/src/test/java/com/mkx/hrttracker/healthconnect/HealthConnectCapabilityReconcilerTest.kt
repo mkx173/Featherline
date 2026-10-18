@@ -6,9 +6,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,6 +33,10 @@ class HealthConnectCapabilityReconcilerTest {
         coEvery { settingsRepository.getCurrentSettings() } answers {
             SettingsState(healthConnectWeightSyncEnabled = syncEnabled)
         }
+        coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } answers {
+            syncEnabled = firstArg()
+        }
+        coEvery { coordinator.disable() } answers { syncEnabled = false }
         every { clock.instant() } answers { now }
     }
 
@@ -71,9 +78,8 @@ class HealthConnectCapabilityReconcilerTest {
 
         // A permission grant returns to MainActivity (resume) and calls
         // onEnable (weight_sync_enabled): only one sync runs.
-        syncEnabled = true
+        reconciler.enableSync()
         reconciler.requestReconcile("resume")
-        reconciler.requestReconcile("weight_sync_enabled")
         advanceUntilIdle()
         coVerify(exactly = 1) { coordinator.sync(any(), now) }
 
@@ -81,9 +87,53 @@ class HealthConnectCapabilityReconcilerTest {
         // and syncs again.
         reconciler.disableSync()
         coVerify(exactly = 1) { coordinator.disable() }
-        reconciler.requestReconcile("weight_sync_enabled")
+        reconciler.enableSync()
         advanceUntilIdle()
         coVerify(exactly = 2) { coordinator.sync(any(), now) }
+    }
+
+    @Test
+    fun offThenOnWhileReconciling_finishesEnabledAndSyncsAgain() = runTest {
+        val reconciler = reconciler()
+        val readGate = CompletableDeferred<Unit>()
+        coEvery { coordinator.sync(any(), any()) } coAnswers { readGate.await() }
+        reconciler.requestReconcile("resume")
+        runCurrent()
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
+
+        // Both toggles must queue behind the in-flight reconcile, in order.
+        launch { reconciler.disableSync() }
+        runCurrent()
+        launch { reconciler.enableSync() }
+        runCurrent()
+        coVerify(exactly = 0) { settingsRepository.setHealthConnectWeightSyncEnabled(any()) }
+
+        readGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(syncEnabled)
+        coVerify(exactly = 1) { coordinator.disable() }
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
+    }
+
+    @Test
+    fun onThenOffWhileReconciling_finishesDisabledWithoutAnotherSync() = runTest {
+        val reconciler = reconciler()
+        val readGate = CompletableDeferred<Unit>()
+        coEvery { coordinator.sync(any(), any()) } coAnswers { readGate.await() }
+        reconciler.requestReconcile("resume")
+        runCurrent()
+
+        launch { reconciler.enableSync() }
+        runCurrent()
+        launch { reconciler.disableSync() }
+        runCurrent()
+        readGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(syncEnabled)
+        coVerify(exactly = 1) { coordinator.disable() }
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
     }
 
     @Test

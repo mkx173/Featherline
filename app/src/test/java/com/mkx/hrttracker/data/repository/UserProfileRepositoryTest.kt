@@ -182,6 +182,29 @@ class UserProfileRepositoryTest {
     }
 
     @Test
+    fun adoptHcWeight_whenSyncIsOff_doesNotRebuildHome() = runTest {
+        assertFalse(repository.adoptHcWeight(60.0, Instant.ofEpochMilli(1_000L)) { false })
+
+        coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
+        coVerify(exactly = 0) { dao.upsertProfile(any()) }
+    }
+
+    @Test
+    fun adoptHcWeight_rechecksSyncAfterAcquiringTheMutationLock() = runTest {
+        var syncEnabled = true
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) } coAnswers {
+            // Disabled after the fast check, while waiting for the mutation lock.
+            syncEnabled = false
+            firstArg<suspend () -> Any?>().invoke()
+        }
+
+        assertFalse(repository.adoptHcWeight(60.0, Instant.ofEpochMilli(1_000L)) { syncEnabled })
+
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Any?>(any()) }
+        coVerify(exactly = 0) { dao.upsertProfile(any()) }
+    }
+
+    @Test
     fun clearHcMeasuredAt_keepsWeight_andIsANoOpWhenAlreadyUnset() = runTest {
         val synced = UserProfileEntity(
             weightKg = 60.0,

@@ -163,6 +163,7 @@ class UserProfileRepository @Inject constructor(
         if (isStoredReading(databaseHolder.get().userProfileDao().getProfile(), weightKg, measuredAt)) {
             return false
         }
+        if (!isSyncOn()) return false
         return homeSnapshotRepository.runHomeDataMutation {
             isSyncOn() && adoptHcWeightLocked(weightKg, measuredAt, now)
         }

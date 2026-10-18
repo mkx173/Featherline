@@ -192,9 +192,7 @@ class SettingsViewModel @Inject constructor(
     /** Called once READ weight is granted. */
     fun enableHealthConnectWeightSync() {
         launchSettingsMutation {
-            settingsRepository.setHealthConnectWeightSyncEnabled(true)
-            // Refreshes access and syncs if the resume reconcile hasn't already.
-            healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
+            healthConnectCapabilityReconciler.enableSync()
         }
     }
 

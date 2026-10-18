@@ -168,7 +168,7 @@ class OnboardingViewModel @Inject constructor(
             try {
                 // Like Settings: disableSync() also clears the old reading's date.
                 if (enabled) {
-                    settingsRepository.setHealthConnectWeightSyncEnabled(true)
+                    healthConnectCapabilityReconciler.enableSync()
                 } else {
                     healthConnectCapabilityReconciler.disableSync()
                 }
@@ -179,10 +179,6 @@ class OnboardingViewModel @Inject constructor(
                     OnboardingMutationEvent.Failure(error, R.string.settings_update_failed)
                 )
                 return@launch
-            }
-            // Like Settings: refreshes access and syncs if the resume reconcile hasn't already.
-            if (enabled) {
-                healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
             }
         }
     }
