@@ -27,7 +27,11 @@ data class HealthConnectCapabilityState(
     val syncFailed: Boolean = false,
     /** READ history can be asked for alongside READ weight. */
     val readHistorySupported: Boolean = false,
-    /** No reconcile has finished yet, so [hasAccess] is a guess (cold start, or the first one threw). */
+    /**
+     * [hasAccess] isn't settled yet: no reconcile has finished (cold start, or
+     * the first one threw), or access is gone but turning sync off hasn't
+     * gone through.
+     */
     val accessPending: Boolean = false,
 ) {
     /**
@@ -133,11 +137,17 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         val sdkAvailable = healthConnectManager.isAvailable()
         val hasAccess = sdkAvailable && healthConnectManager.hasWeightAccess()
         val providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired()
+        // Health Connect needing an update is passing: sync resumes once it is
+        // updated, and the sheet says so meanwhile.
+        val disableSync = !hasAccess && syncEnabled && !providerUpdateRequired
         _state.value = HealthConnectCapabilityState(
             sdkAvailable = sdkAvailable,
             hasAccess = hasAccess,
             providerUpdateRequired = providerUpdateRequired,
             readHistorySupported = sdkAvailable && healthConnectManager.supportsReadHistory(),
+            // Read-only until the flag is off, so a failed disable can't let a
+            // weight be typed that a later grant's sync would replace.
+            accessPending = disableSync,
         )
         diagnosticsLogger.info(
             TAG,
@@ -147,10 +157,9 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             lastSyncAt = null
         }
         when {
-            // Health Connect needing an update is passing: sync resumes once it
-            // is updated, and the sheet says so meanwhile.
-            !hasAccess && syncEnabled && !providerUpdateRequired -> {
+            disableSync -> {
                 weightSyncCoordinator.disable()
+                _state.update { it.copy(accessPending = false) }
                 diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
             }
             // The time is set after it, so a sync that threw is retried on the

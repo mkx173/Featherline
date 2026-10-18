@@ -229,6 +229,23 @@ class HealthConnectCapabilityReconcilerTest {
     }
 
     @Test
+    fun lostAccess_staysReadOnly_untilTurningSyncOffGoesThrough() = runTest {
+        val reconciler = reconciler()
+        hc.access = false
+        coEvery { coordinator.disable() } throws IllegalStateException("datastore")
+
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertTrue(reconciler.state.value.isSyncOn(syncEnabled = true))
+
+        coEvery { coordinator.disable() } answers { syncEnabled = false }
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.accessPending)
+        assertFalse(reconciler.state.value.isSyncOn(syncEnabled))
+    }
+
+    @Test
     fun unavailableHealthConnectTurnsSyncOff_butSyncAlreadyOffIsLeftAlone() = runTest {
         val reconciler = reconciler()
         hc.available = false
