@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Clock
 import java.time.Duration
@@ -52,6 +53,40 @@ class HealthConnectCapabilityReconcilerTest {
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
         coVerify(exactly = 3) { coordinator.sync(any(), any()) }
+    }
+
+    @Test
+    fun aSyncThatThrew_isRetriedOnTheNextReconcileThatDay() = runTest {
+        val reconciler = reconciler()
+        coEvery { coordinator.sync(any(), any()) } throws IllegalStateException("hc ipc")
+
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertTrue(reconciler.state.value.syncFailed)
+
+        coEvery { coordinator.sync(any(), any()) } returns Unit
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), any()) }
+        assertFalse(reconciler.state.value.syncFailed)
+    }
+
+    @Test
+    fun providerUpdateRequired_leavesSyncOn_untilHealthConnectIsUpdated() = runTest {
+        val reconciler = reconciler()
+        hc.available = false
+        hc.providerUpdateRequired = true
+
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 0) { coordinator.disable() }
+        assertTrue(reconciler.state.value.providerUpdateRequired)
+
+        hc.available = true
+        hc.providerUpdateRequired = false
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { coordinator.sync(any(), any()) }
     }
 
     @Test

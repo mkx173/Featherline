@@ -274,6 +274,7 @@ private class FakeUserProfileDao : UserProfileDao {
 internal class FakeHealthConnectManager : HealthConnectManager {
     var available = true
     var access = true
+    var providerUpdateRequired = false
     val records = mutableListOf<HealthConnectWeight>()
     var lastNotAfter: Instant? = null
     var reads = 0
@@ -281,7 +282,7 @@ internal class FakeHealthConnectManager : HealthConnectManager {
 
     override fun isAvailable(): Boolean = available
 
-    override fun isProviderUpdateRequired(): Boolean = false
+    override fun isProviderUpdateRequired(): Boolean = providerUpdateRequired
 
     override suspend fun hasWeightAccess(): Boolean = access
 

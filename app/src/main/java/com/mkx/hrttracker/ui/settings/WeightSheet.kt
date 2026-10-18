@@ -101,7 +101,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** The sync switch's actions; from [rememberHealthConnectWeightSync]. */
-internal class HealthConnectWeightSync(
+private class HealthConnectWeightSync(
     val onSyncEnabledChange: (Boolean) -> Unit,
     val showPermissionDenied: Boolean,
     val onOpenHealthConnect: () -> Unit,
@@ -109,10 +109,12 @@ internal class HealthConnectWeightSync(
 
 /**
  * Turning sync on asks for READ weight first; a grant enables it, a denial
- * leaves it off. Shared by Settings and onboarding.
+ * leaves it off. Lives in [WeightSheet], so a denial's pending enable dies with
+ * the sheet: a grant made some other day can't turn sync on by itself and
+ * replace a weight typed meanwhile.
  */
 @Composable
-internal fun rememberHealthConnectWeightSync(
+private fun rememberHealthConnectWeightSync(
     hasAccess: Boolean,
     onEnable: () -> Unit,
     onDisable: () -> Unit,
@@ -181,14 +183,14 @@ internal fun WeightSheet(
     isInProgress: Boolean,
     onSave: (Double, WeightUnit) -> Unit,
     onClear: () -> Unit,
-    onSyncEnabledChange: (Boolean) -> Unit,
+    onSyncEnable: () -> Unit,
+    onSyncDisable: () -> Unit,
     onSyncNow: () -> Unit,
     onDismissRequest: () -> Unit,
-    showPermissionDenied: Boolean = false,
-    onOpenHealthConnect: () -> Unit = {},
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     val scope = rememberCoroutineScope()
+    val sync = rememberHealthConnectWeightSync(healthConnect.hasAccess, onSyncEnable, onSyncDisable)
     // Shown beside the sheet, not inside its window: a dialog composed in the
     // sheet's content stretches edge to edge.
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }
@@ -198,7 +200,9 @@ internal fun WeightSheet(
     }
     HazeModalBottomSheet(
         sheetState = sheetState,
-        onDismissRequest = { if (!isInProgress) onDismissRequest() },
+        // Not guarded by isInProgress: the sheet has already animated to hidden
+        // when this runs, so refusing would leave it composed but invisible.
+        onDismissRequest = onDismissRequest,
         modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
     ) {
         WeightSheetContent(
@@ -213,11 +217,11 @@ internal fun WeightSheet(
                 close()
             },
             onClearRequest = { showClearConfirm = true },
-            onSyncEnabledChange = onSyncEnabledChange,
+            onSyncEnabledChange = sync.onSyncEnabledChange,
             onSyncNow = onSyncNow,
             onClose = close,
-            showPermissionDenied = showPermissionDenied,
-            onOpenHealthConnect = onOpenHealthConnect,
+            showPermissionDenied = sync.showPermissionDenied,
+            onOpenHealthConnect = sync.onOpenHealthConnect,
             modifier = Modifier.padding(
                 start = dimensionResource(R.dimen.padding_large),
                 end = dimensionResource(R.dimen.padding_large),
@@ -269,8 +273,10 @@ internal fun WeightSheetContent(
     onOpenHealthConnect: () -> Unit = {},
 ) {
     // Follows the switch's checked state. With sync on, Health Connect is the
-    // source and the weight is read-only; turn sync off to type one.
-    val syncOn = syncEnabled && healthConnect.hasAccess
+    // source and the weight is read-only; turn sync off to type one. That holds
+    // while Health Connect only needs an update (the reconciler keeps sync on),
+    // so the reading after the update can't replace a weight typed meanwhile.
+    val syncOn = syncEnabled && (healthConnect.hasAccess || healthConnect.providerUpdateRequired)
     val hasWeight = profile.weightOriginalValue != null
     var valueText by rememberSaveable {
         mutableStateOf(profile.weightOriginalValue?.let(::formatWeightForInput).orEmpty())
@@ -535,7 +541,8 @@ private fun HealthConnectSection(
     val containerColor = MaterialTheme.colorScheme.surfaceContainer
     val status = healthConnectStatusText(profile, syncEnabled, healthConnect, isSyncing, readingProblem)
     // After a denial the message below is the way to grant access (see there).
-    val switchEnabled = healthConnect.sdkAvailable && !showPermissionDenied
+    // Sync on without the SDK (update needed) can still be turned off.
+    val switchEnabled = (healthConnect.sdkAvailable || syncOn) && !showPermissionDenied
     HrtSection(title = null) {
         item {
             PreferenceSegmentedListItem(
@@ -554,7 +561,7 @@ private fun HealthConnectSection(
                 },
                 trailingContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (syncOn) {
+                        if (syncOn && healthConnect.hasAccess) {
                             SyncNowButton(isSyncing = isSyncing, onClick = onSyncNow)
                             Spacer(modifier = Modifier.width(8.dp))
                         }
@@ -663,7 +670,7 @@ private fun WeightUnit.other(): WeightUnit = when (this) {
 }
 
 internal fun parseWeightText(text: String): Double? =
-    text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 }
+    text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
 
 /** Converts typed text between units, rounded to 0.1; empty or invalid text is left alone. */
 internal fun convertWeightText(text: String, from: WeightUnit, to: WeightUnit): String {

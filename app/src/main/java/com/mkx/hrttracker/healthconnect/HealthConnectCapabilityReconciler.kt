@@ -82,24 +82,28 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         val syncEnabled = settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
         val sdkAvailable = healthConnectManager.isAvailable()
         val hasAccess = sdkAvailable && healthConnectManager.hasWeightAccess()
+        val providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired()
         _state.value = HealthConnectCapabilityState(
             sdkAvailable = sdkAvailable,
             hasAccess = hasAccess,
-            providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired(),
+            providerUpdateRequired = providerUpdateRequired,
         )
         diagnosticsLogger.info(
             TAG,
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
         when {
-            !hasAccess && syncEnabled -> {
+            // Health Connect needing an update is passing: sync resumes once it
+            // is updated, and the sheet says so meanwhile.
+            !hasAccess && syncEnabled && !providerUpdateRequired -> {
                 weightSyncCoordinator.disable()
                 diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
             }
-            // sync() checks the intent flag itself.
+            // sync() checks the intent flag itself. The date is set after it,
+            // so a sync that threw is retried on the next reconcile.
             hasAccess && (sync || lastSyncDate != today) -> {
-                lastSyncDate = today
                 weightSyncCoordinator.sync(reason)
+                lastSyncDate = today
             }
         }
     }

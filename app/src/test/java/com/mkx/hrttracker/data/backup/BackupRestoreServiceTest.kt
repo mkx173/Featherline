@@ -192,6 +192,32 @@ class BackupRestoreServiceTest {
     }
 
     @Test
+    fun restoreBackup_fallsBackToKilograms_forAProfileWithoutAWeightAndAnUnknownUnit() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        val snapshot = emptySnapshot().copy(
+            userProfile = BackupUserProfileSnapshot(
+                weightKg = null,
+                weightOriginalValue = null,
+                weightOriginalUnit = "stone",
+            ),
+        )
+        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
+            backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(snapshot),
+                password = "password".toCharArray(),
+            )
+        )
+
+        service.restoreBackup(fileUri = fileUri, password = "password")
+
+        coVerify(exactly = 1) {
+            userProfileDao.upsertProfile(
+                match { it.weightKg == null && it.weightOriginalUnit == "KILOGRAMS" }
+            )
+        }
+    }
+
+    @Test
     fun restoreBackup_restoresExclusionMetadataAfterResults() = runTest {
         val resultUuid = "00000000-0000-0000-0000-0000000008a1"
         val snapshot = emptySnapshot().copy(

@@ -286,11 +286,6 @@ fun SettingsScreen(
     val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
     val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
-    val healthConnectWeightSync = rememberHealthConnectWeightSync(
-        hasAccess = healthConnectState.hasAccess,
-        onEnable = viewModel::enableHealthConnectWeightSync,
-        onDisable = viewModel::disableHealthConnectWeightSync,
-    )
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -542,10 +537,9 @@ fun SettingsScreen(
         healthConnectState = healthConnectState,
         isWeightSyncing = isWeightSyncing,
         healthConnectReadingProblem = healthConnectReadingProblem,
-        onHealthConnectSyncChange = healthConnectWeightSync.onSyncEnabledChange,
+        onWeightSyncEnable = viewModel::enableHealthConnectWeightSync,
+        onWeightSyncDisable = viewModel::disableHealthConnectWeightSync,
         onWeightSyncNow = viewModel::syncWeightNow,
-        showHealthConnectDenied = healthConnectWeightSync.showPermissionDenied,
-        onOpenHealthConnect = healthConnectWeightSync.onOpenHealthConnect,
         onRemindersEnabledChange = onRemindersEnabledChange,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
@@ -971,10 +965,9 @@ internal fun SettingsScreenContent(
     healthConnectState: HealthConnectCapabilityState = HealthConnectCapabilityState(),
     isWeightSyncing: Boolean = false,
     healthConnectReadingProblem: ReadingProblem? = null,
-    onHealthConnectSyncChange: (Boolean) -> Unit = {},
+    onWeightSyncEnable: () -> Unit = {},
+    onWeightSyncDisable: () -> Unit = {},
     onWeightSyncNow: () -> Unit = {},
-    showHealthConnectDenied: Boolean = false,
-    onOpenHealthConnect: () -> Unit = {},
     onRemindersEnabledChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
@@ -1874,11 +1867,10 @@ internal fun SettingsScreenContent(
             isInProgress = uiState.isWeightMutationInProgress,
             onSave = onWeightSave,
             onClear = onWeightClear,
-            onSyncEnabledChange = onHealthConnectSyncChange,
+            onSyncEnable = onWeightSyncEnable,
+            onSyncDisable = onWeightSyncDisable,
             onSyncNow = onWeightSyncNow,
             onDismissRequest = { showWeightDialog = false },
-            showPermissionDenied = showHealthConnectDenied,
-            onOpenHealthConnect = onOpenHealthConnect,
         )
     }
 }

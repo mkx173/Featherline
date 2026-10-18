@@ -291,9 +291,7 @@ class BackupRestoreService @Inject constructor(
                 if (validatedSnapshot.notes.isNotEmpty()) {
                     database.journalDao().insertNotes(validatedSnapshot.notes)
                 }
-                validatedSnapshot.userProfile?.let { profile ->
-                    database.userProfileDao().upsertProfile(profile)
-                }
+                database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
             }
 
             // Inside the mutation so its rebuild reads the restored chart
@@ -1085,22 +1083,23 @@ private fun BackupUserProfileSnapshot.toValidatedEntity(
     require((weightKg == null) == (weightOriginalValue == null)) {
         "Backup user profile must either include both stored weight values or neither."
     }
-    val weightUnit = requireEnumName<WeightUnit>(
-        weightOriginalUnit,
-        "weight unit",
-    )
     if (weightKg == null) {
         // Like clearWeight: no weight, but the unit stays for the next Health
-        // Connect reading.
+        // Connect reading. Only a preference here, so an unknown one falls
+        // back instead of failing the restore, as before the unit was kept.
         return UserProfileEntity(
             weightKg = null,
             weightOriginalValue = null,
-            weightOriginalUnit = weightUnit.name,
+            weightOriginalUnit = WeightUnit.fromStorageValue(weightOriginalUnit).name,
             updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
             weightMeasuredAtEpochMillis = null,
         )
     }
 
+    val weightUnit = requireEnumName<WeightUnit>(
+        weightOriginalUnit,
+        "weight unit",
+    )
     val resolvedWeightKg = weightKg.requirePositiveFinite("stored weight")
     val resolvedOriginalValue = weightOriginalValue.requirePositiveFinite("original weight")
     require(closeEnough(weightUnit.toKg(resolvedOriginalValue), resolvedWeightKg)) {
@@ -1687,7 +1686,7 @@ private fun BackupMedicationLogSnapshot.toValidatedLogData(
 
 internal data class ValidatedBackupSnapshot(
     val settings: ValidatedBackupSettings,
-    val userProfile: UserProfileEntity?,
+    val userProfile: UserProfileEntity,
     val medicines: List<MedicineEntity>,
     val medicationGroups: List<MedicationGroupEntity>,
     val medicationGroupItems: List<MedicationGroupItemEntity>,

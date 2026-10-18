@@ -124,7 +124,6 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.settings.WeightSheet
-import com.mkx.hrttracker.ui.settings.rememberHealthConnectWeightSync
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -215,11 +214,6 @@ fun OnboardingScreen(
     val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
     val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
     val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
-    val healthConnectWeightSync = rememberHealthConnectWeightSync(
-        hasAccess = healthConnectState.hasAccess,
-        onEnable = viewModel::enableHealthConnectWeightSync,
-        onDisable = viewModel::disableHealthConnectWeightSync,
-    )
     val totalSteps = 4
     val progressSteps = totalSteps - 1
     var step by rememberSaveable { mutableIntStateOf(0) }
@@ -554,11 +548,10 @@ fun OnboardingScreen(
             isInProgress = false,
             onSave = viewModel::setWeight,
             onClear = viewModel::clearWeight,
-            onSyncEnabledChange = healthConnectWeightSync.onSyncEnabledChange,
+            onSyncEnable = viewModel::enableHealthConnectWeightSync,
+            onSyncDisable = viewModel::disableHealthConnectWeightSync,
             onSyncNow = viewModel::syncWeightNow,
             onDismissRequest = { showWeightDialog = false },
-            showPermissionDenied = healthConnectWeightSync.showPermissionDenied,
-            onOpenHealthConnect = healthConnectWeightSync.onOpenHealthConnect,
         )
     }
 

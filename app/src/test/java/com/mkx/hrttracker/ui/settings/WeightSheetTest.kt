@@ -179,6 +179,32 @@ class WeightSheetTest {
     }
 
     @Test
+    fun syncOnWhileAnUpdateIsNeeded_keepsTheWeightReadOnly_andTheSwitchUsable() {
+        var disabled = false
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4),
+                syncEnabled = true,
+                healthConnect = HealthConnectCapabilityState(providerUpdateRequired = true),
+                isSyncing = false,
+                readingProblem = null,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = { disabled = !it },
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+
+        composeRule.onNodeWithText("62.4").assertIsNotEnabled()
+        composeRule.onNodeWithText("Install or update needed").assertExists()
+        composeRule.onNodeWithContentDescription("Sync now").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Sync with Health Connect").assertIsEnabled().performClick()
+        assertEquals(true, disabled)
+    }
+
+    @Test
     fun syncOff_reseedsToRealProfile_whenItArrivesAfterPlaceholder() {
         // uiState starts at UserProfile() (weight unset, KILOGRAMS); a sheet restored
         // before the profile loads must pick up the real weight and unit.
@@ -228,6 +254,16 @@ class WeightSheetTest {
         composeRule.onNodeWithContentDescription("Unit: lb. Switch to kg").assertExists()
         composeRule.onNodeWithText("Save").performClick()
         assertEquals(137.6 to WeightUnit.POUNDS, saved)
+    }
+
+    @Test
+    fun parseWeightText_rejectsNonPositiveAndNonFinite() {
+        assertEquals(62.4, parseWeightText(" 62,4 "))
+        assertEquals(null, parseWeightText("0"))
+        assertEquals(null, parseWeightText("-1"))
+        assertEquals(null, parseWeightText("Infinity"))
+        assertEquals(null, parseWeightText("1e400"))
+        assertEquals(null, parseWeightText("NaN"))
     }
 
     @Test
