@@ -91,7 +91,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -279,14 +278,22 @@ internal fun mainE2ChartMaxZoomXRangeHours(
     )
 }
 
-private fun mainTodayDoseRowsByTimeRange(
+internal data class MainTodayDoseRowGroup(
+    val date: LocalDate,
+    val timeRange: MainTodayTimeRange,
+    val rows: List<MainTodayDoseRowUiState>,
+)
+
+internal fun mainTodayDoseRowGroups(
     rows: List<MainTodayDoseRowUiState>,
-): List<Pair<MainTodayTimeRange, List<MainTodayDoseRowUiState>>> =
+): List<MainTodayDoseRowGroup> =
     rows
         .groupBy { row -> row.scheduledAt.toLocalDate() to mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
         .entries
         .sortedWith(compareBy({ it.key.first }, { it.key.second.ordinal }))
-        .map { (key, dayRows) -> key.second to dayRows }
+        .map { (key, dayRows) ->
+            MainTodayDoseRowGroup(date = key.first, timeRange = key.second, rows = dayRows)
+        }
 
 internal fun mainDoseRowHighlightScrollTargetKey(
     uiState: MainUiState,
@@ -303,8 +310,8 @@ internal fun mainDoseRowHighlightScrollTargetKey(
             return mainTodayDoseRowCompositionKey(row)
         }
     }
-    mainTodayDoseRowsByTimeRange(uiState.todaySection.rows).forEach { (_, rows) ->
-        rows.forEach { row ->
+    mainTodayDoseRowGroups(uiState.todaySection.rows).forEach { group ->
+        group.rows.forEach { row ->
             if (highlightRequest.matches(row)) {
                 return mainTodayDoseRowCompositionKey(row)
             }
@@ -368,7 +375,7 @@ internal fun mainE2ChartMinimapDateLabelXs(
 }
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
-private enum class MainTodayTimeRange(
+internal enum class MainTodayTimeRange(
     val labelRes: Int,
     val startHour: Int,
     val endHour: Int,
@@ -3409,7 +3416,7 @@ internal fun MainTodaySection(
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val groupedRows = remember(section.rows) { mainTodayDoseRowsByTimeRange(section.rows) }
+    val groupedRows = remember(section.rows) { mainTodayDoseRowGroups(section.rows) }
     val countLabel = mainTodayCountLabel(
         doneCount = section.doneCount,
         totalCount = section.totalCount,
@@ -3440,10 +3447,13 @@ internal fun MainTodaySection(
             Column(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                groupedRows.forEachIndexed { groupIndex, (timeRange, rows) ->
+                groupedRows.forEachIndexed { groupIndex, group ->
+                    val timeRange = group.timeRange
+                    val rows = group.rows
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MainTodayTimeRangeHeader(
                         timeRange = timeRange,
+                        dateLabel = dateFormatter(group.date).takeIf { group.date != section.date },
                         isCurrent = rows.first().scheduledAt.toLocalDate() == now.toLocalDate() &&
                             timeRange == mainTodayTimeRange(now.toLocalTime()),
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
@@ -3735,10 +3745,19 @@ private fun MainTodayDoseRow(
             doseAmountDelta = row.doseAmountDelta,
         )
     }
+    // The trailing side already prints the scheduled time for an
+    // unlogged row in the grace window. Only repeat the next-day label there
+    // when the trailing text is an offset or absent instead.
+    val trailingShowsScheduledTime = !row.isManualRecord &&
+        row.loggedAt == null &&
+        row.outsideScheduleWindowLoggedAt == null &&
+        mainTodayIsBeforeOrInGracePeriod(row.scheduledAt, now)
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
-        row.scheduledAt.takeIf { it.toLocalDate() != dayDate }?.let {
+        row.scheduledAt.takeIf {
+            !trailingShowsScheduledTime && it.toLocalDate() != dayDate
+        }?.let {
             medicationDayTimeText(LocalContext.current, it, dayDate, timeFormatter)
         },
     ).joinToString(separator = " · ")
@@ -4310,9 +4329,13 @@ private fun MainTodayTimeRangeHeader(
     totalCount: Int,
     manualCount: Int,
     timeFormatter: DateTimeFormatter,
+    dateLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val timeRangeLabel = stringResource(timeRange.labelRes)
+    val timeRangeLabel = listOfNotNull(
+        dateLabel,
+        stringResource(timeRange.labelRes),
+    ).joinToString(separator = " · ")
     val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
         timeRange = timeRange,
         timeFormatter = timeFormatter

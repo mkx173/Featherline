@@ -64,6 +64,20 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
+        // Arm the date alarm before start() returns, with the cached value, so
+        // a process that dies before the settings read below still has the
+        // midnight fallback. The async pass then replaces it with the stored
+        // boundary.
+        runCatching {
+            scheduleNextWidgetDateRefresh(
+                context,
+                diagnosticsLogger = diagnosticsLogger,
+                dayStartMinutes = settingsRepository.settingsState.value.medicationDayStartMinutes,
+            )
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
+            diagnosticsLogger.warning(TAG, "widget_date_refresh_startup_failed", throwable)
+        }
         appScope.launch {
             runCatching {
                 scheduleNextWidgetDateRefresh(

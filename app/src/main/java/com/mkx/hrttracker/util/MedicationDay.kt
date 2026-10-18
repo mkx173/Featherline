@@ -20,6 +20,3 @@ fun medicationDayStartTime(dayStartMinutes: Int): LocalTime {
 
 fun medicationDayStart(date: LocalDate, dayStartMinutes: Int = 0): LocalDateTime =
     date.atTime(medicationDayStartTime(dayStartMinutes))
-
-fun medicationDayEnd(date: LocalDate, dayStartMinutes: Int = 0): LocalDateTime =
-    medicationDayStart(date.plusDays(1), dayStartMinutes)

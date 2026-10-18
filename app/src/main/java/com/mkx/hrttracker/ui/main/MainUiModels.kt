@@ -723,6 +723,13 @@ internal fun buildMainComingUpSection(
     if (!mainIsEveningComingUpWindow(now.toLocalTime())) {
         return MainComingUpSectionUiState()
     }
+    // Only a boundary at or before the end of the overnight window makes the
+    // next calendar morning the start of the next medication day. For a later
+    // boundary those early rows belong to the upcoming day (or to today), and
+    // buildMainUpcomingSection keeps them in chronological order instead.
+    if (dayStartMinutes >= MainOvernightEndMinuteOfDay) {
+        return MainComingUpSectionUiState()
+    }
     val tomorrow = now.toLocalDate().plusDays(1)
     val entriesByUuid = entries.associateBy { it.uuid }
     val comingUpRows = buildMainTodayRowsForDate(
@@ -966,7 +973,12 @@ internal fun buildMainUpcomingSection(
     dayStartMinutes: Int = 0,
 ): MainUpcomingSectionUiState {
     val tomorrow = medicationDay(now, dayStartMinutes).plusDays(1)
-    val shouldExcludeTomorrowOvernightRows = mainIsEveningComingUpWindow(now.toLocalTime())
+    // Coming up owns the next calendar morning only for an early boundary
+    // (see buildMainComingUpSection). With a later boundary those rows are
+    // part of this upcoming day, so keep them here to preserve time order.
+    val shouldExcludeTomorrowOvernightRows =
+        mainIsEveningComingUpWindow(now.toLocalTime()) &&
+            dayStartMinutes < MainOvernightEndMinuteOfDay
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
@@ -1163,6 +1175,7 @@ private const val MainAntiandrogenDueLookbackDays = 2L
 private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
 private val MainOvernightEndTime = LocalTime.of(6, 0)
+private const val MainOvernightEndMinuteOfDay = 6 * 60
 private val MainLastNightStartTime = LocalTime.of(18, 0)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L

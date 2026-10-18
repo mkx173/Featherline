@@ -262,7 +262,11 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
                 count = medication.count,
                 doseAmountDelta = doseAmountDelta,
             ),
-            scheduledFor.takeIf { it.toLocalDate() != dayDate }?.let {
+            // The trailing side carries the same text for an actionable row;
+            // repeat it here only when the trailing text is absent.
+            scheduledFor.takeIf {
+                displayTime == null && it.toLocalDate() != dayDate
+            }?.let {
                 medicationDayTimeText(context, it, dayDate, timeFormatter)
             },
         ).joinToString(separator = " · "),

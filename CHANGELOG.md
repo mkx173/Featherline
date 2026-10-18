@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings now has a medication-day start time, midnight by default. Records and planned doses before that time count toward the previous day on Home, Plan and History, so a dose taken after midnight stays with the evening it belongs to. Existing records regroup on the next open without changing their stored times, and reminders and Journal keep their actual times and dates.
+
 ### Fixed
 
 - After a planned dose's time passes, opening the app no longer shows an estradiol curve that looks like the population estimate, or the calibrated curve without its prediction interval. Home now works the estimate out again whenever the time, your data or the chart window moves it, usually in the background before you open the app.

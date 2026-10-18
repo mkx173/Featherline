@@ -57,7 +57,7 @@ private val Context.dataStore by preferencesDataStore(
 
 @Singleton
 class SettingsRepository internal constructor(
-    private val context: Context,
+    context: Context,
     private val preferencesDataStore: DataStore<Preferences>,
 ) {
     @Inject

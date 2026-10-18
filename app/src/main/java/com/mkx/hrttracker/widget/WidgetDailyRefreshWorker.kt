@@ -9,6 +9,8 @@ import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDateTime
 
+private const val TAG = "WidgetDailyRefreshWorker"
+
 class WidgetDailyRefreshWorker(
     private val appContext: Context,
     workerParams: WorkerParameters,
@@ -17,15 +19,19 @@ class WidgetDailyRefreshWorker(
     override suspend fun doWork(): Result {
         val entryPoint =
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        val dayStartMinutes = runCatching {
+            entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes
+        }.onFailure { throwable ->
+            if (throwable is kotlinx.coroutines.CancellationException) throw throwable
+            entryPoint.diagnosticsLogger().warning(TAG, "widget_day_start_read_failed", throwable)
+        }.getOrDefault(0)
         handleWidgetDailyRefresh(
             now = LocalDateTime.now(),
             snapshot = entryPoint.widgetSnapshotStore().readSnapshot(),
             homeSnapshotRepository = entryPoint.homeSnapshotRepository(),
             widgetSnapshotRepository = entryPoint.widgetSnapshotRepository(),
             e2EstimateRepository = entryPoint.e2EstimateRepository(),
-            dayStartMinutes = entryPoint.settingsRepository()
-                .getCurrentSettings()
-                .medicationDayStartMinutes,
+            dayStartMinutes = dayStartMinutes,
             rerender = { updateAllHrtWidgets(appContext) },
         )
         return Result.success()

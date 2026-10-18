@@ -119,26 +119,6 @@ class EntryDisplayZoneTest {
     }
 
     @Test
-    fun formatEntryWallTime_renders_time_in_entry_zone() {
-        val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
-            .atZone(ZoneId.of("Asia/Tokyo"))
-            .toInstant()
-        val entry = testMedicationLogEntry(
-            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
-            applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.TabletFraction(1, 1),
-            sourceGroupUuid = null,
-            appliedAt = instant,
-            appliedAtTimeZoneId = "Asia/Tokyo"
-        )
-        val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-        assertEquals(
-            "09:00",
-            formatEntryWallTime(entry, formatter, deviceZone = ZoneId.of("America/Los_Angeles"))
-        )
-    }
-
-    @Test
     fun formatEditorZoneLabel_null_when_picker_zone_matches_device() {
         assertNull(
             formatEditorZoneLabel(

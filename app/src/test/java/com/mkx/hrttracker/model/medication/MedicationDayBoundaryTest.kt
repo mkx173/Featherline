@@ -10,7 +10,6 @@ import com.mkx.hrttracker.ui.main.buildMainTodaySection
 import com.mkx.hrttracker.ui.main.buildMainUpcomingSection
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.medicationDayEnd
 import com.mkx.hrttracker.util.medicationDayStart
 import java.time.DayOfWeek
 import java.time.Instant
@@ -37,7 +36,6 @@ class MedicationDayBoundaryTest {
         assertEquals(day, medicationDay(nextDay.atTime(4, 29, 59), 270))
         assertEquals(nextDay, medicationDay(nextDay.atTime(4, 30), 270))
         assertEquals(day.atTime(4, 30), medicationDayStart(day, 270))
-        assertEquals(nextDay.atTime(4, 30), medicationDayEnd(day, 270))
         assertEquals(LocalDate.of(2026, 12, 31), medicationDay(LocalDateTime.of(2027, 1, 1, 0, 1), 300))
         assertEquals(day, medicationDay(nextDay.atTime(23, 58), 1439))
         assertEquals(nextDay, medicationDay(nextDay.atTime(23, 59), 1439))
@@ -133,6 +131,68 @@ class MedicationDayBoundaryTest {
         assertEquals(day.plusDays(1), upcoming.anchorDate)
         assertEquals(listOf(day.plusDays(1).atTime(20, 0), day.plusDays(2).atTime(1, 0)), upcoming.rows.map { it.scheduledAt })
         assertEquals(day.plusDays(1), buildMainTodaySection(groups, emptyList(), now.withHour(5), zone, dayStartMinutes = 300).date)
+    }
+
+    @Test
+    fun lateBoundaryKeepsComingUpOutOfUpcomingChronology() {
+        val dayStartMinutes = 23 * 60
+        val now = day.atTime(20, 0)
+        val group = group(listOf(LocalTime.of(23, 30), LocalTime.of(2, 0)))
+
+        val comingUp = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = zone,
+            dayStartMinutes = dayStartMinutes,
+        )
+        assertTrue(comingUp.rows.isEmpty())
+
+        val upcoming = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = zone,
+            dayStartMinutes = dayStartMinutes,
+        )
+        assertEquals(day, upcoming.anchorDate)
+        assertEquals(
+            listOf(day.atTime(23, 30), day.plusDays(1).atTime(2, 0)),
+            upcoming.rows.map { row -> row.scheduledAt },
+        )
+    }
+
+    @Test
+    fun earlyBoundaryKeepsComingUpAheadOfUpcoming() {
+        val dayStartMinutes = 5 * 60
+        val now = day.atTime(20, 0)
+        val group = group(listOf(LocalTime.of(5, 30), LocalTime.of(20, 0)))
+
+        val comingUp = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = zone,
+            dayStartMinutes = dayStartMinutes,
+        )
+        assertEquals(day.plusDays(1), comingUp.date)
+        assertEquals(
+            listOf(day.plusDays(1).atTime(5, 30)),
+            comingUp.rows.map { row -> row.scheduledAt },
+        )
+
+        val upcoming = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = zone,
+            dayStartMinutes = dayStartMinutes,
+        )
+        assertEquals(day.plusDays(1), upcoming.anchorDate)
+        assertEquals(
+            listOf(day.plusDays(1).atTime(20, 0)),
+            upcoming.rows.map { row -> row.scheduledAt },
+        )
     }
 
     private fun log(at: LocalDateTime) = testMedicationLogEntry(

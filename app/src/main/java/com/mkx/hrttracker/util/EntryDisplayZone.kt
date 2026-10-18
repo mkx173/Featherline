@@ -5,7 +5,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -49,14 +48,6 @@ fun appliedAtAsLocalDateTime(
     entry: MedicationLogEntry,
     deviceZone: ZoneId = ZoneId.systemDefault(),
 ): LocalDateTime = atStoredZone(entry.appliedAt, entry.appliedAtTimeZoneId, deviceZone)
-
-fun formatEntryWallTime(
-    entry: MedicationLogEntry,
-    formatter: DateTimeFormatter,
-    deviceZone: ZoneId = ZoneId.systemDefault(),
-): String {
-    return appliedAtAsLocalDateTime(entry, deviceZone).format(formatter)
-}
 
 fun zoneDisplayName(
     zoneId: ZoneId,
