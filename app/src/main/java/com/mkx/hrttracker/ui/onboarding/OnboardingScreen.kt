@@ -10,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -1454,7 +1455,7 @@ private fun UsefulInfoStep(
             desc = when {
                 weightSyncOn -> stringResource(
                     R.string.personalization_weight_display_health_connect,
-                    formatWeightSummary(profile),
+                    formatWeightSummary(profile, R.string.personalization_weight_no_records),
                 )
                 profile.weightOriginalValue == null -> stringResource(R.string.onboarding_useful_weight_desc)
                 else -> formatWeightSummary(profile)
@@ -1575,11 +1576,14 @@ private fun InfoCard(
 }
 
 @Composable
-private fun formatWeightSummary(profile: UserProfile): String {
+private fun formatWeightSummary(
+    profile: UserProfile,
+    @StringRes emptyRes: Int = R.string.personalization_weight_not_set,
+): String {
     val value = profile.weightOriginalValue
     val unit = profile.weightOriginalUnit
     return if (value == null) {
-        stringResource(R.string.personalization_weight_not_set)
+        stringResource(emptyRes)
     } else {
         val formatted = if (value == value.toLong().toDouble()) {
             value.toLong().toString()

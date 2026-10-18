@@ -1056,12 +1056,13 @@ internal fun SettingsScreenContent(
     val scrollState = rememberScrollState()
     val isWeightSyncOn =
         settingsState.healthConnectWeightSyncEnabled && healthConnectState.hasAccess
-    val weightSummary = formatWeightSummary(uiState.userProfile).let { summary ->
-        if (isWeightSyncOn) {
-            stringResource(R.string.personalization_weight_display_health_connect, summary)
-        } else {
-            summary
-        }
+    val weightSummary = if (isWeightSyncOn) {
+        stringResource(
+            R.string.personalization_weight_display_health_connect,
+            formatWeightSummary(uiState.userProfile, R.string.personalization_weight_no_records),
+        )
+    } else {
+        formatWeightSummary(uiState.userProfile)
     }
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
@@ -2053,11 +2054,14 @@ private fun requestExactAlarmAccess(
 }
 
 @Composable
-private fun formatWeightSummary(profile: UserProfile): String {
+private fun formatWeightSummary(
+    profile: UserProfile,
+    @StringRes emptyRes: Int = R.string.personalization_weight_not_set,
+): String {
     val value = profile.weightOriginalValue
     val unit = profile.weightOriginalUnit
     return if (value == null) {
-        stringResource(R.string.personalization_weight_not_set)
+        stringResource(emptyRes)
     } else {
         val formatted = if (value == value.toLong().toDouble()) {
             value.toLong().toString()
