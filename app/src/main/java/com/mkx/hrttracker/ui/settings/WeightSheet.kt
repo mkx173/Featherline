@@ -692,6 +692,14 @@ private fun healthConnectStatusText(
         healthConnect.providerUpdateRequired ->
             stringResource(R.string.health_connect_status_update_required)
         !healthConnect.sdkAvailable -> stringResource(R.string.health_connect_status_unavailable)
+        // Sync stays on until the first reconcile says whether access is there.
+        syncEnabled && healthConnect.accessPending -> stringResource(
+            if (healthConnect.syncFailed) {
+                R.string.health_connect_status_sync_failed
+            } else {
+                R.string.health_connect_status_syncing
+            }
+        )
         // Without access sync is off: the reconciler turns the flag off too.
         !syncEnabled || !healthConnect.hasAccess -> stringResource(R.string.health_connect_status_off)
         isSyncing -> stringResource(R.string.health_connect_status_syncing)

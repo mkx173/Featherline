@@ -253,6 +253,7 @@ internal class FakeHealthConnectManager : HealthConnectManager {
     var available = true
     var access = true
     var providerUpdateRequired = false
+    var accessError: Throwable? = null
     val records = mutableListOf<HealthConnectWeight>()
     var lastNotAfter: Instant? = null
     var reads = 0
@@ -262,7 +263,7 @@ internal class FakeHealthConnectManager : HealthConnectManager {
 
     override fun isProviderUpdateRequired(): Boolean = providerUpdateRequired
 
-    override suspend fun hasWeightAccess(): Boolean = access
+    override suspend fun hasWeightAccess(): Boolean = accessError?.let { throw it } ?: access
 
     override fun supportsReadHistory(): Boolean = false
 

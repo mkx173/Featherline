@@ -261,6 +261,33 @@ class WeightSheetTest {
     }
 
     @Test
+    fun syncOnWhileAccessIsPending_keepsTheWeightReadOnly() {
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4),
+                syncEnabled = true,
+                healthConnect = HealthConnectCapabilityState(
+                    sdkAvailable = true,
+                    accessPending = true,
+                    syncFailed = true,
+                ),
+                isSyncing = false,
+                readingProblem = null,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onClear = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+
+        composeRule.onNodeWithText("62.4").assertIsNotEnabled()
+        composeRule.onNodeWithText("Couldn’t sync").assertExists()
+    }
+
+    @Test
     fun syncOff_reseedsToRealProfile_whenItArrivesAfterPlaceholder() {
         // uiState starts at UserProfile() (weight unset, KILOGRAMS); a sheet restored
         // before the profile loads must pick up the real weight and unit.

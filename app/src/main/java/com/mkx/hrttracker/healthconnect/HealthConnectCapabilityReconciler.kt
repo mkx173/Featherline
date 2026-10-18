@@ -27,15 +27,19 @@ data class HealthConnectCapabilityState(
     val syncFailed: Boolean = false,
     /** READ history can be asked for alongside READ weight. */
     val readHistorySupported: Boolean = false,
+    /** No reconcile has finished yet, so [hasAccess] is a guess (cold start, or the first one threw). */
+    val accessPending: Boolean = false,
 ) {
     /**
      * Sync is on from the user's side: the flag is set and Health Connect is
      * the source, including while it only needs an update (the reconciler
-     * keeps sync on then). Drives the sheet's switch and the "No records"
-     * text; the "· Health Connect" suffix outside needs [hasAccess].
+     * keeps sync on then) or while access is pending, so a weight typed before
+     * the first reconcile can't be replaced by its sync. Drives the sheet's
+     * switch and the "No records" text; the "· Health Connect" suffix outside
+     * needs [hasAccess].
      */
     fun isSyncOn(syncEnabled: Boolean): Boolean =
-        syncEnabled && (hasAccess || providerUpdateRequired)
+        syncEnabled && (hasAccess || providerUpdateRequired || accessPending)
 
     /**
      * What turning sync on asks for: READ weight, plus history where supported,
@@ -75,6 +79,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             HealthConnectCapabilityState(
                 sdkAvailable = sdkAvailable,
                 providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired(),
+                accessPending = true,
             )
         }
     )

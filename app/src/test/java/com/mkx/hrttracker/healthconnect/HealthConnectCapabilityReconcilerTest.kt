@@ -198,6 +198,24 @@ class HealthConnectCapabilityReconcilerTest {
     }
 
     @Test
+    fun syncStaysOn_untilAReconcileKnowsTheAccess_soATypedWeightCantBeReplaced() = runTest {
+        val reconciler = reconciler()
+        hc.accessError = IllegalStateException("hc ipc")
+        assertTrue(reconciler.state.value.isSyncOn(syncEnabled = true))
+
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertTrue(reconciler.state.value.syncFailed)
+        assertTrue(reconciler.state.value.isSyncOn(syncEnabled = true))
+
+        hc.accessError = null
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        assertFalse(reconciler.state.value.accessPending)
+        coVerify(exactly = 1) { coordinator.sync(any(), any()) }
+    }
+
+    @Test
     fun lostAccessTurnsSyncOff_soALaterGrantCantReplaceATypedWeight() = runTest {
         val reconciler = reconciler()
         hc.access = false
