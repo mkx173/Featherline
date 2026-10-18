@@ -44,10 +44,10 @@ class HealthConnectCapabilityReconcilerTest {
         HealthConnectCapabilityReconciler(this, hc, coordinator, settingsRepository, clock)
 
     @Test
-    fun resumesSyncOnceADay_andWhenAsked() = runTest {
+    fun resumesSyncAtMostOnceAMinute_andWhenAsked() = runTest {
         val reconciler = reconciler()
 
-        // App start, then more resumes the same day.
+        // App start, then more resumes within the minute.
         reconciler.requestReconcile("resume")
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
@@ -57,11 +57,33 @@ class HealthConnectCapabilityReconcilerTest {
         advanceUntilIdle()
         coVerify(exactly = 2) { coordinator.sync(any(), now) }
 
-        now += Duration.ofDays(1)
+        now += Duration.ofMinutes(1)
         reconciler.requestReconcile("resume")
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
         coVerify(exactly = 1) { coordinator.sync(any(), now) }
+        coVerify(exactly = 3) { coordinator.sync(any(), any()) }
+    }
+
+    @Test
+    fun backwardClockCorrection_expiresTheGuardAndStartsANewInterval() = runTest {
+        val reconciler = reconciler()
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+
+        now -= Duration.ofHours(1)
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), any()) }
+
+        now += Duration.ofSeconds(59)
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), any()) }
+
+        now += Duration.ofSeconds(1)
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
         coVerify(exactly = 3) { coordinator.sync(any(), any()) }
     }
 
@@ -71,7 +93,7 @@ class HealthConnectCapabilityReconcilerTest {
         syncEnabled = false
 
         // Access is already granted, but sync is off: resume mustn't sync or
-        // mark today as synced.
+        // arm the burst guard.
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
         coVerify(exactly = 0) { coordinator.sync(any(), any()) }
@@ -83,7 +105,7 @@ class HealthConnectCapabilityReconcilerTest {
         advanceUntilIdle()
         coVerify(exactly = 1) { coordinator.sync(any(), now) }
 
-        // Turned off and back on the same day: disables through the coordinator
+        // Turned off and back on within the minute: disables through the coordinator
         // and syncs again.
         reconciler.disableSync()
         coVerify(exactly = 1) { coordinator.disable() }
@@ -137,7 +159,7 @@ class HealthConnectCapabilityReconcilerTest {
     }
 
     @Test
-    fun aSyncThatThrew_isRetriedOnTheNextReconcileThatDay() = runTest {
+    fun aSyncThatThrew_isRetriedOnTheNextReconcile() = runTest {
         val reconciler = reconciler()
         coEvery { coordinator.sync(any(), any()) } throws IllegalStateException("hc ipc")
 
@@ -155,7 +177,7 @@ class HealthConnectCapabilityReconcilerTest {
     @Test
     fun providerUpdateRequired_leavesSyncOn_untilHealthConnectIsUpdated() = runTest {
         val reconciler = reconciler()
-        // Synced earlier today before Health Connect needed an update.
+        // Synced just before Health Connect needed an update.
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
         coVerify(exactly = 1) { coordinator.sync(any(), now) }

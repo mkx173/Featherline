@@ -517,7 +517,7 @@ class MainActivity : AppCompatActivity() {
         // disposed before the result arrives. Resume-time reconciliation
         // self-heals the capability state no matter which screen asked.
         reminderCapabilityReconciler.requestReconcile("main_activity_on_resume")
-        // Also turns weight sync off when access is gone; syncs once a day.
+        // Also turns weight sync off when access is gone; syncs, at most once a minute.
         healthConnectCapabilityReconciler.requestReconcile("main_activity_on_resume")
     }
 

@@ -13,8 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
-import java.time.LocalDate
-import java.time.ZoneId
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,8 +45,9 @@ data class HealthConnectCapabilityState(
  * Works like ReminderCapabilityReconciler: refreshes whether Health Connect is
  * usable (SDK available and READ weight granted) on every resume, and turns sync
  * off when it isn't, so a later grant can't replace a weight typed meanwhile.
- * Syncs on the first reconcile of each day (app start included) and when a
- * caller asks for it.
+ * Syncs on reconcile, at most once a minute (a burst guard for resumes seconds
+ * apart, like the round trip through Health Connect's settings), and whenever
+ * a caller asks for it.
  */
 @Singleton
 class HealthConnectCapabilityReconciler @Inject constructor(
@@ -75,9 +76,9 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     private val reconcileMutex = Mutex()
 
     // Guarded by reconcileMutex. Null until the first sync of this process.
-    private var lastSyncDate: LocalDate? = null
+    private var lastSyncAt: Instant? = null
 
-    /** [sync] forces a sync even if one already ran today (Sync now, backup restore). */
+    /** [sync] forces a sync even if one just ran (Sync now, backup restore). */
     fun requestReconcile(reason: String, sync: Boolean = false) {
         appScope.launch {
             reconcileMutex.withLock {
@@ -103,17 +104,16 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     }
 
     /**
-     * Turns sync off and resets the daily gate under one lock, so a quick
-     * off-then-on can't reconcile before the old date is cleared.
+     * Turns sync off and resets the burst guard under one lock, so a quick
+     * off-then-on can't reconcile before the old time is cleared.
      */
     suspend fun disableSync() = reconcileMutex.withLock {
         weightSyncCoordinator.disable()
-        lastSyncDate = null
+        lastSyncAt = null
     }
 
     private suspend fun reconcile(reason: String, sync: Boolean) {
         val now = clock.instant()
-        val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
         // Read before access: sync turned on after a stale access check must stay on.
         val syncEnabled = settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
         val sdkAvailable = healthConnectManager.isAvailable()
@@ -130,7 +130,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
         if (!hasAccess || !syncEnabled) {
-            lastSyncDate = null
+            lastSyncAt = null
         }
         when {
             // Health Connect needing an update is passing: sync resumes once it
@@ -139,16 +139,21 @@ class HealthConnectCapabilityReconciler @Inject constructor(
                 weightSyncCoordinator.disable()
                 diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
             }
-            // The date is set after it, so a sync that threw is retried on the
+            // The time is set after it, so a sync that threw is retried on the
             // next reconcile.
-            hasAccess && syncEnabled && (sync || lastSyncDate != today) -> {
+            hasAccess && syncEnabled && (sync || lastSyncAt.isNotWithinInterval(now)) -> {
                 weightSyncCoordinator.sync(reason, now)
-                lastSyncDate = today
+                lastSyncAt = now
             }
         }
     }
 
+    private fun Instant?.isNotWithinInterval(now: Instant): Boolean =
+        // A backward clock correction must not suppress sync until the old time catches up.
+        this == null || now < this || Duration.between(this, now) >= RESUME_SYNC_INTERVAL
+
     private companion object {
         const val TAG = "HealthConnectCapabilityReconciler"
+        val RESUME_SYNC_INTERVAL: Duration = Duration.ofMinutes(1)
     }
 }
