@@ -798,6 +798,8 @@
     <string name="personalization_weight_dialog_title">Body weight</string>
     <string name="personalization_weight_dialog_description">Used to improve plasma concentration estimates.</string>
     <string name="personalization_weight_dialog_description_recorded">Used to improve plasma concentration estimates · recorded %1$s</string>
+    <string name="personalization_weight_dialog_description_no_reading">Used to improve plasma concentration estimates · no weight records yet</string>
+    <string name="personalization_weight_dialog_description_invalid_reading">Used to improve plasma concentration estimates · latest record isn’t a valid weight</string>
     <string name="personalization_weight_dialog_value_label">Weight</string>
     <string name="personalization_weight_dialog_save">Save</string>
     <string name="personalization_weight_dialog_clear">Clear</string>
@@ -807,8 +809,6 @@
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_title" translatable="false">Health Connect</string>
     <string name="health_connect_status_synced">Synced</string>
-    <string name="health_connect_status_no_reading">No weight records yet</string>
-    <string name="health_connect_status_invalid_reading">Latest record isn’t a valid weight</string>
     <string name="health_connect_status_syncing">Syncing…</string>
     <string name="health_connect_status_off">Sync off</string>
     <string name="health_connect_status_unavailable">Not available on this device</string>

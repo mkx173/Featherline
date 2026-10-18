@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -42,6 +43,7 @@ class WeightSheetTest {
         profile: () -> UserProfile,
         syncEnabled: Boolean,
         onSave: (Double, WeightUnit) -> Unit = { _, _ -> },
+        onClear: () -> Unit = {},
     ) {
         composeRule.setContent {
             WeightSheetContent(
@@ -53,6 +55,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = onSave,
                 onClearRequest = {},
+                onClear = onClear,
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
@@ -93,6 +96,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
@@ -108,13 +112,21 @@ class WeightSheetTest {
         composeRule.onNodeWithText("Couldn’t sync").assertExists()
         healthConnect = access
 
+        // The reason sits under the field; the switch's line says the sync ran.
         readingProblem = ReadingProblem.NONE_FOUND
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("No weight records yet").assertExists()
+        composeRule.onNodeWithText(
+            "Used to improve plasma concentration estimates · no weight records yet"
+        ).assertExists()
+        composeRule.onNodeWithText("Synced").assertExists()
+        composeRule.onNodeWithText("Syncing…").assertDoesNotExist()
 
         readingProblem = ReadingProblem.INVALID
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Latest record isn’t a valid weight").assertExists()
+        composeRule.onNodeWithText(
+            "Used to improve plasma concentration estimates · latest record isn’t a valid weight"
+        ).assertExists()
+        composeRule.onNodeWithText("Synced").assertExists()
 
         readingProblem = null
         profile = weight(61.8, Instant.parse("2026-10-15T07:00:00Z"))
@@ -136,6 +148,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
@@ -175,6 +188,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
@@ -203,6 +217,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
@@ -231,6 +246,7 @@ class WeightSheetTest {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = { disabled = !it },
                 onSyncNow = {},
                 onClose = {},
@@ -272,6 +288,25 @@ class WeightSheetTest {
         composeRule.onNodeWithText("Save").assertExists()
         composeRule.onNodeWithText("Sync off").assertExists()
         composeRule.onNodeWithContentDescription("Sync now").assertDoesNotExist()
+    }
+
+    @Test
+    fun syncOff_savingAnEmptyField_clearsTheWeightWithoutAsking() {
+        var cleared = false
+        var saved = false
+        setSheet(
+            profile = { weight(62.4) },
+            syncEnabled = false,
+            onSave = { _, _ -> saved = true },
+            onClear = { cleared = true },
+        )
+
+        composeRule.onNodeWithText("62.4").performTextClearance()
+        composeRule.onNodeWithText("Save").performClick()
+
+        assertEquals(true, cleared)
+        assertEquals(false, saved)
+        composeRule.onNodeWithText("Enter a valid weight.").assertDoesNotExist()
     }
 
     @Test

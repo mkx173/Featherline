@@ -247,6 +247,10 @@ internal fun WeightSheet(
                 close()
             },
             onClearRequest = { showClearConfirm = true },
+            onClear = {
+                onClear()
+                close()
+            },
             onSyncEnabledChange = sync.onSyncEnabledChange,
             onSyncNow = onSyncNow,
             onClose = close,
@@ -294,7 +298,10 @@ internal fun WeightSheetContent(
     readingProblem: ReadingProblem?,
     isInProgress: Boolean,
     onSave: (Double, WeightUnit) -> Unit,
+    /** The Clear button: asks first. */
     onClearRequest: () -> Unit,
+    /** Saving an empty field: clears without asking, the user emptied it. */
+    onClear: () -> Unit,
     onSyncEnabledChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     onClose: () -> Unit,
@@ -332,10 +339,10 @@ internal fun WeightSheetContent(
     val submit = {
         if (!isInProgress) {
             val parsed = parseWeightText(valueText)
-            if (parsed == null) {
-                showValidationError = true
-            } else {
-                onSave(parsed, selectedUnit)
+            when {
+                valueText.isBlank() -> if (hasWeight) onClear() else onClose()
+                parsed == null -> showValidationError = true
+                else -> onSave(parsed, selectedUnit)
             }
         }
     }
@@ -404,6 +411,12 @@ internal fun WeightSheetContent(
                     text = when {
                         showValidationError ->
                             stringResource(R.string.personalization_weight_validation_invalid)
+                        // Why the last sync kept the field's value; the switch's
+                        // status line only says the sync ran.
+                        syncOn && readingProblem == ReadingProblem.NONE_FOUND ->
+                            stringResource(R.string.personalization_weight_dialog_description_no_reading)
+                        syncOn && readingProblem == ReadingProblem.INVALID ->
+                            stringResource(R.string.personalization_weight_dialog_description_invalid_reading)
                         // The synced weight's date, shown with the field's value.
                         syncOn && measuredAt != null -> {
                             val zone = ZoneId.systemDefault()
@@ -683,14 +696,11 @@ private fun healthConnectStatusText(
         !syncEnabled || !healthConnect.hasAccess -> stringResource(R.string.health_connect_status_off)
         isSyncing -> stringResource(R.string.health_connect_status_syncing)
         healthConnect.syncFailed -> stringResource(R.string.health_connect_status_sync_failed)
-        readingProblem == ReadingProblem.NONE_FOUND ->
-            stringResource(R.string.health_connect_status_no_reading)
-        readingProblem == ReadingProblem.INVALID ->
-            stringResource(R.string.health_connect_status_invalid_reading)
-        // No measured time without a sync that kept the weight means a sync is
-        // on its way (sync just turned on, or this process's first one).
-        profile.weightMeasuredAt == null -> stringResource(R.string.health_connect_status_syncing)
-        // The reading's date sits under the weight field.
+        // No measured time and no sync that kept the weight means a sync is on
+        // its way (sync just turned on, or this process's first one).
+        profile.weightMeasuredAt == null && readingProblem == null ->
+            stringResource(R.string.health_connect_status_syncing)
+        // The reading's date, or why the sync kept the weight, sits under the field.
         else -> stringResource(R.string.health_connect_status_synced)
     }
 }
@@ -750,6 +760,7 @@ private fun WeightSheetPreview(syncEnabled: Boolean, measuredAt: Instant?) {
                 isInProgress = false,
                 onSave = { _, _ -> },
                 onClearRequest = {},
+                onClear = {},
                 onSyncEnabledChange = { syncOn = it },
                 onSyncNow = {},
                 onClose = {},
