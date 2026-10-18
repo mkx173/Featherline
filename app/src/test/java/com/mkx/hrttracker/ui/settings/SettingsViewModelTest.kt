@@ -344,15 +344,15 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun disableHealthConnectWeightSync_goesThroughTheCoordinator() = runTest {
+    fun disableHealthConnectWeightSync_goesThroughTheReconciler() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.disableHealthConnectWeightSync()
         advanceUntilIdle()
 
-        // It turns the flag off and clears the reading's date, serialized with sync.
-        coVerify(exactly = 1) { weightSyncCoordinator.disable() }
+        // Turns the flag off, clears the reading's date, and resets the daily gate under one lock.
+        coVerify(exactly = 1) { healthConnectCapabilityReconciler.disableSync() }
     }
 
     @Test

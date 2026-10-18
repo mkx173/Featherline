@@ -50,7 +50,7 @@ data class HealthConnectCapabilityState(
  */
 @Singleton
 class HealthConnectCapabilityReconciler @Inject constructor(
-    @AppScope private val appScope: CoroutineScope,
+    @param:AppScope private val appScope: CoroutineScope,
     private val healthConnectManager: HealthConnectManager,
     private val weightSyncCoordinator: WeightSyncCoordinator,
     private val settingsRepository: SettingsRepository,
@@ -77,7 +77,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     // Guarded by reconcileMutex. Null until the first sync of this process.
     private var lastSyncDate: LocalDate? = null
 
-    /** [sync] syncs too, as turning sync on, Sync now and a restore want. */
+    /** [sync] forces a sync even if one already ran today (Sync now, backup restore). */
     fun requestReconcile(reason: String, sync: Boolean = false) {
         appScope.launch {
             reconcileMutex.withLock {
@@ -94,8 +94,18 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         }
     }
 
+    /**
+     * Turns sync off and resets the daily gate under one lock, so a quick
+     * off-then-on can't reconcile before the old date is cleared.
+     */
+    suspend fun disableSync() = reconcileMutex.withLock {
+        weightSyncCoordinator.disable()
+        lastSyncDate = null
+    }
+
     private suspend fun reconcile(reason: String, sync: Boolean) {
-        val today = clock.instant().atZone(ZoneId.systemDefault()).toLocalDate()
+        val now = clock.instant()
+        val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
         // Read before access: sync turned on after a stale access check must stay on.
         val syncEnabled = settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
         val sdkAvailable = healthConnectManager.isAvailable()
@@ -111,6 +121,9 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             TAG,
             "health_connect_reconcile reason=$reason sdk=$sdkAvailable access=$hasAccess",
         )
+        if (!hasAccess || !syncEnabled) {
+            lastSyncDate = null
+        }
         when {
             // Health Connect needing an update is passing: sync resumes once it
             // is updated, and the sheet says so meanwhile.
@@ -118,10 +131,10 @@ class HealthConnectCapabilityReconciler @Inject constructor(
                 weightSyncCoordinator.disable()
                 diagnosticsLogger.info(TAG, "health_connect_reconcile_disabled_sync reason=$reason")
             }
-            // sync() checks the intent flag itself. The date is set after it,
-            // so a sync that threw is retried on the next reconcile.
-            hasAccess && (sync || lastSyncDate != today) -> {
-                weightSyncCoordinator.sync(reason)
+            // The date is set after it, so a sync that threw is retried on the
+            // next reconcile.
+            hasAccess && syncEnabled && (sync || lastSyncDate != today) -> {
+                weightSyncCoordinator.sync(reason, now)
                 lastSyncDate = today
             }
         }

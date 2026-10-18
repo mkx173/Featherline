@@ -144,10 +144,10 @@ class WeightSheetTest {
         composeRule.mainClock.advanceTimeByFrame()
         composeRule.onNodeWithText("Synced").assertExists()
 
-        // The coordinator flips back within a few frames; the sheet holds.
+        // The coordinator flips back before the next frame after recomposition; the sheet still holds.
         composeRule.runOnUiThread { isSyncing = true }
         composeRule.waitForIdle()
-        composeRule.mainClock.advanceTimeBy(50)
+        composeRule.mainClock.advanceTimeByFrame()
         composeRule.runOnUiThread { isSyncing = false }
         composeRule.waitForIdle()
         composeRule.mainClock.advanceTimeBy(50)

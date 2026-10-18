@@ -179,15 +179,19 @@ private fun rememberHealthConnectWeightSync(
  */
 @Composable
 private fun rememberSyncingHeldForATurn(isSyncing: Boolean): Boolean {
-    var shown by remember { mutableStateOf(isSyncing) }
-    var startedAtMillis by remember { mutableLongStateOf(0L) }
+    var shown by remember { mutableStateOf(false) }
+    var startedAtMillis by remember { mutableLongStateOf(-1L) }
+    // Set during composition too: the effect may be cancelled before its first frame.
+    if (isSyncing) shown = true
     LaunchedEffect(isSyncing) {
         // Frame time, which the test clock drives together with delay().
         if (isSyncing) {
+            startedAtMillis = -1L
             startedAtMillis = withFrameMillis { it }
-            shown = true
         } else if (shown) {
-            delay(SYNC_TURN_MILLIS - (withFrameMillis { it } - startedAtMillis))
+            val nowMillis = withFrameMillis { it }
+            val elapsed = if (startedAtMillis < 0L) 0L else nowMillis - startedAtMillis
+            delay(SYNC_TURN_MILLIS - elapsed)
             shown = false
         }
     }

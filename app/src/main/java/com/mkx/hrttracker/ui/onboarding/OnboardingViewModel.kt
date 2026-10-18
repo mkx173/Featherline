@@ -166,11 +166,11 @@ class OnboardingViewModel @Inject constructor(
     private fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Like Settings: disable() also clears the old reading's date.
+                // Like Settings: disableSync() also clears the old reading's date.
                 if (enabled) {
                     settingsRepository.setHealthConnectWeightSyncEnabled(true)
                 } else {
-                    weightSyncCoordinator.disable()
+                    healthConnectCapabilityReconciler.disableSync()
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -180,9 +180,9 @@ class OnboardingViewModel @Inject constructor(
                 )
                 return@launch
             }
-            // Like Settings: even when already on, to refresh access.
+            // Like Settings: refreshes access and syncs if the resume reconcile hasn't already.
             if (enabled) {
-                healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled", sync = true)
+                healthConnectCapabilityReconciler.requestReconcile("weight_sync_enabled")
             }
         }
     }
@@ -222,6 +222,6 @@ sealed class OnboardingMutationEvent {
     data class Failure(
         val error: Throwable,
         /** Shown as a toast; the weight and sync paths name what failed, like Settings. */
-        @StringRes val messageRes: Int = R.string.onboarding_update_failed,
+        @param:StringRes val messageRes: Int = R.string.onboarding_update_failed,
     ) : OnboardingMutationEvent()
 }

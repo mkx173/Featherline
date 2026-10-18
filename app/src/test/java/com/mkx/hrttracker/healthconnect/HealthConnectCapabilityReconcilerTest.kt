@@ -6,6 +6,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -16,6 +17,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HealthConnectCapabilityReconcilerTest {
     private val hc = FakeHealthConnectManager()
     private val coordinator: WeightSyncCoordinator = mockk(relaxed = true)
@@ -42,17 +44,46 @@ class HealthConnectCapabilityReconcilerTest {
         reconciler.requestReconcile("resume")
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
-        coVerify(exactly = 1) { coordinator.sync(any(), any()) }
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
 
         reconciler.requestReconcile("weight_sync_now", sync = true)
         advanceUntilIdle()
-        coVerify(exactly = 2) { coordinator.sync(any(), any()) }
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
 
         now += Duration.ofDays(1)
         reconciler.requestReconcile("resume")
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
         coVerify(exactly = 3) { coordinator.sync(any(), any()) }
+    }
+
+    @Test
+    fun syncOff_doesNotSyncOrConsumeTodaysSync_andTurningOnSyncsOnce() = runTest {
+        val reconciler = reconciler()
+        syncEnabled = false
+
+        // Access is already granted, but sync is off: resume mustn't sync or
+        // mark today as synced.
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 0) { coordinator.sync(any(), any()) }
+
+        // A permission grant returns to MainActivity (resume) and calls
+        // onEnable (weight_sync_enabled): only one sync runs.
+        syncEnabled = true
+        reconciler.requestReconcile("resume")
+        reconciler.requestReconcile("weight_sync_enabled")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
+
+        // Turned off and back on the same day: disables through the coordinator
+        // and syncs again.
+        reconciler.disableSync()
+        coVerify(exactly = 1) { coordinator.disable() }
+        reconciler.requestReconcile("weight_sync_enabled")
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
     }
 
     @Test
@@ -74,6 +105,11 @@ class HealthConnectCapabilityReconcilerTest {
     @Test
     fun providerUpdateRequired_leavesSyncOn_untilHealthConnectIsUpdated() = runTest {
         val reconciler = reconciler()
+        // Synced earlier today before Health Connect needed an update.
+        reconciler.requestReconcile("resume")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { coordinator.sync(any(), now) }
+
         hc.available = false
         hc.providerUpdateRequired = true
 
@@ -86,7 +122,7 @@ class HealthConnectCapabilityReconcilerTest {
         hc.providerUpdateRequired = false
         reconciler.requestReconcile("resume")
         advanceUntilIdle()
-        coVerify(exactly = 1) { coordinator.sync(any(), any()) }
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
     }
 
     @Test
