@@ -304,9 +304,9 @@ internal fun WeightSheetContent(
 ) {
     // Follows the switch's checked state. With sync on, Health Connect is the
     // source and the weight is read-only; turn sync off to type one. That holds
-    // while Health Connect only needs an update (the reconciler keeps sync on),
-    // so the reading after the update can't replace a weight typed meanwhile.
-    val syncOn = syncEnabled && (healthConnect.hasAccess || healthConnect.providerUpdateRequired)
+    // while Health Connect only needs an update, so the reading after the
+    // update can't replace a weight typed meanwhile.
+    val syncOn = healthConnect.isSyncOn(syncEnabled)
     val isSyncingShown = rememberSyncingHeldForATurn(isSyncing)
     val hasWeight = profile.weightOriginalValue != null
     var valueText by rememberSaveable {

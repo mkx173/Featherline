@@ -1054,15 +1054,23 @@ internal fun SettingsScreenContent(
     }
 
     val scrollState = rememberScrollState()
-    val isWeightSyncOn =
-        settingsState.healthConnectWeightSyncEnabled && healthConnectState.hasAccess
-    val weightSummary = if (isWeightSyncOn) {
-        stringResource(
-            R.string.personalization_weight_display_health_connect,
-            formatWeightSummary(uiState.userProfile, R.string.personalization_weight_no_records),
-        )
-    } else {
-        formatWeightSummary(uiState.userProfile)
+    val syncEnabled = settingsState.healthConnectWeightSyncEnabled
+    val isWeightSyncOn = syncEnabled && healthConnectState.hasAccess
+    val weightSummary = formatWeightSummary(
+        uiState.userProfile,
+        // With sync on, a Health Connect update pending included: no weight
+        // means no records, not "Not set".
+        emptyRes = if (healthConnectState.isSyncOn(syncEnabled)) {
+            R.string.personalization_weight_no_records
+        } else {
+            R.string.personalization_weight_not_set
+        },
+    ).let { summary ->
+        if (isWeightSyncOn) {
+            stringResource(R.string.personalization_weight_display_health_connect, summary)
+        } else {
+            summary
+        }
     }
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 

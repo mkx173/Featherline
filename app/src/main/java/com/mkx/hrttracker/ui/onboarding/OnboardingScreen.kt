@@ -496,6 +496,15 @@ fun OnboardingScreen(
                                 profile = uiState.userProfile,
                                 weightSyncOn = uiState.healthConnectWeightSyncEnabled &&
                                     healthConnectState.hasAccess,
+                                // With sync on, a Health Connect update pending included:
+                                // no weight means no records, not the prompt.
+                                weightEmptyRes = if (
+                                    healthConnectState.isSyncOn(uiState.healthConnectWeightSyncEnabled)
+                                ) {
+                                    R.string.personalization_weight_no_records
+                                } else {
+                                    R.string.onboarding_useful_weight_desc
+                                },
                                 activeGroupCount = uiState.activeGroupCount,
                                 trackedMedicineCount = uiState.trackedMedicineCount,
                                 onSetWeightClick = { showWeightDialog = true },
@@ -1430,6 +1439,7 @@ private fun AllowButton(
 private fun UsefulInfoStep(
     profile: UserProfile,
     weightSyncOn: Boolean,
+    @StringRes weightEmptyRes: Int,
     activeGroupCount: Int,
     trackedMedicineCount: Int,
     onSetWeightClick: () -> Unit,
@@ -1452,13 +1462,12 @@ private fun UsefulInfoStep(
             iconPainter = painterResource(R.drawable.ic_monitor_weight),
             title = stringResource(R.string.onboarding_useful_weight_title),
             // Sync on counts as set, like the Settings weight row.
-            desc = when {
-                weightSyncOn -> stringResource(
-                    R.string.personalization_weight_display_health_connect,
-                    formatWeightSummary(profile, R.string.personalization_weight_no_records),
-                )
-                profile.weightOriginalValue == null -> stringResource(R.string.onboarding_useful_weight_desc)
-                else -> formatWeightSummary(profile)
+            desc = formatWeightSummary(profile, weightEmptyRes).let { summary ->
+                if (weightSyncOn) {
+                    stringResource(R.string.personalization_weight_display_health_connect, summary)
+                } else {
+                    summary
+                }
             },
             index = 0,
             count = 3,
@@ -1732,6 +1741,7 @@ private fun OnboardingUsefulInfoPreview() {
         UsefulInfoStep(
             profile = UserProfile(),
             weightSyncOn = false,
+            weightEmptyRes = R.string.onboarding_useful_weight_desc,
             activeGroupCount = 0,
             trackedMedicineCount = 0,
             onSetWeightClick = {},

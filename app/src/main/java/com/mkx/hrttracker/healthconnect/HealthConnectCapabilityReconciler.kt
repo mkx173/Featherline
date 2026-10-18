@@ -29,6 +29,15 @@ data class HealthConnectCapabilityState(
     val readHistorySupported: Boolean = false,
 ) {
     /**
+     * Sync is on from the user's side: the flag is set and Health Connect is
+     * the source, including while it only needs an update (the reconciler
+     * keeps sync on then). Drives the sheet's switch and the "No records"
+     * text; the "· Health Connect" suffix outside needs [hasAccess].
+     */
+    fun isSyncOn(syncEnabled: Boolean): Boolean =
+        syncEnabled && (hasAccess || providerUpdateRequired)
+
+    /**
      * What turning sync on asks for: READ weight, plus history where supported,
      * since without it HC hides records from over 30 days before the first
      * grant. History is optional; sync only needs READ weight.
