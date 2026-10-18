@@ -10,9 +10,9 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 10. It declares 13 entities
+  is the Room database at schema version 11. It declares 13 entities
   and exposes 8 DAOs. `exportSchema` is on; compiler-produced schema
-  JSON for each schema version (v9 shipped in 1.3.x, v10 ships in 1.4.0) is committed under `app/schemas` and
+  JSON for each schema version (v9 shipped in 1.3.x, v10 ships in 1.4.0, v11 adds read-only Health Connect weight sync) is committed under `app/schemas` and
   is also packaged as an instrumentation-test asset for Room migration
   validation.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
@@ -20,7 +20,7 @@ format used for manual backups, see [backup-format.md](backup-format.md).
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
   `MIGRATION_4_5`, `MIGRATION_5_6`, `MIGRATION_6_7`, `MIGRATION_7_8`,
-  `MIGRATION_8_9`, and `MIGRATION_9_10`.
+  `MIGRATION_8_9`, `MIGRATION_9_10`, and `MIGRATION_10_11`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -123,7 +123,13 @@ the body-weight inputs that feed PK simulation
 (`weightKg`, `weightOriginalValue`, `weightOriginalUnit` — the
 original value plus its display unit are kept so the UI can
 round-trip the user's chosen unit without re-converting). Updated
-timestamp via `updatedAtEpochMillis`.
+timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis`
+serves read-only Health Connect weight sync (see `WeightSyncCoordinator`):
+the time of the adopted HC reading, null for a typed weight or none. It
+backs the weight sheet's "Measured ..." line and lets a sync skip the
+write when the reading hasn't changed. Clearing the weight keeps
+`weightOriginalUnit`, so a later adopted reading shows in the user's
+unit.
 
 ### `MedicationGroupEntity`
 
@@ -514,7 +520,7 @@ fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
 → `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7` →
-`MIGRATION_7_8` → `MIGRATION_8_9` → `MIGRATION_9_10`.
+`MIGRATION_7_8` → `MIGRATION_8_9` → `MIGRATION_9_10` → `MIGRATION_10_11`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -543,6 +549,9 @@ ever shipped, so there is nothing to convert. The instrumentation test
 creates the compiler-exported v9 schema, applies `MIGRATION_9_10` through
 SQLCipher, validates it against the exported v10 schema, and reopens the
 file through Room to exercise the runtime identity hash.
+`MIGRATION_10_11` adds the nullable `weightMeasuredAtEpochMillis` to
+`user_profile`; every existing weight was typed, so all rows start null
+(`Migration10To11Test`).
 These migrations are additive and do not rewrite existing tables.
 The reset
 deliberately did not register a `MIGRATION_29_*` shim, and no

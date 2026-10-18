@@ -78,6 +78,7 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -1398,6 +1399,20 @@ class HomeSnapshotRepositoryTest {
             runCurrent()
             Thread.sleep(2L)
         }
+    }
+
+    @Test
+    fun codec_keepsTheProfilesHealthConnectMeasuredTime() {
+        // The Settings weight seed paints from this before Room opens.
+        val profile = UserProfile(
+            weightKg = 61.0,
+            weightOriginalValue = 61.0,
+            updatedAt = Instant.ofEpochMilli(5L),
+            weightMeasuredAt = Instant.ofEpochMilli(7L),
+        )
+        val record = homeData(generation = 0L).copy(userProfile = profile)
+
+        assertEquals(profile, HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record)).userProfile)
     }
 
     private fun homeData(generation: Long, at: LocalDateTime = now) = HomeSnapshotRecord(

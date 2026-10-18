@@ -89,6 +89,8 @@ import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -111,7 +113,6 @@ import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
-import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
@@ -282,6 +283,9 @@ fun SettingsScreen(
     val diagnosticsExportSuccessMessage =
         stringResource(R.string.settings_diagnostics_export_success)
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
+    val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
+    val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
+    val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -530,6 +534,12 @@ fun SettingsScreen(
         isReminderEnablePending = isReminderEnablePending,
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
+        healthConnectState = healthConnectState,
+        isWeightSyncing = isWeightSyncing,
+        healthConnectReadingProblem = healthConnectReadingProblem,
+        onWeightSyncEnable = viewModel::enableHealthConnectWeightSync,
+        onWeightSyncDisable = viewModel::disableHealthConnectWeightSync,
+        onWeightSyncNow = viewModel::syncWeightNow,
         onRemindersEnabledChange = onRemindersEnabledChange,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
@@ -952,6 +962,12 @@ internal fun SettingsScreenContent(
     isReminderEnablePending: Boolean = false,
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
+    healthConnectState: HealthConnectCapabilityState = HealthConnectCapabilityState(),
+    isWeightSyncing: Boolean = false,
+    healthConnectReadingProblem: ReadingProblem? = null,
+    onWeightSyncEnable: () -> Unit = {},
+    onWeightSyncDisable: () -> Unit = {},
+    onWeightSyncNow: () -> Unit = {},
     onRemindersEnabledChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
@@ -1038,7 +1054,24 @@ internal fun SettingsScreenContent(
     }
 
     val scrollState = rememberScrollState()
-    val weightSummary = formatWeightSummary(uiState.userProfile)
+    val syncEnabled = settingsState.healthConnectWeightSyncEnabled
+    val isWeightSyncOn = syncEnabled && healthConnectState.hasAccess
+    val weightSummary = formatWeightSummary(
+        uiState.userProfile,
+        // With sync on, a Health Connect update pending included: no weight
+        // means no records, not "Not set".
+        emptyRes = if (healthConnectState.isSyncOn(syncEnabled)) {
+            R.string.personalization_weight_no_records
+        } else {
+            R.string.personalization_weight_not_set
+        },
+    ).let { summary ->
+        if (isWeightSyncOn) {
+            stringResource(R.string.personalization_weight_display_health_connect, summary)
+        } else {
+            summary
+        }
+    }
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
     val topAppBarState = rememberTopAppBarState()
@@ -1834,22 +1867,19 @@ internal fun SettingsScreenContent(
     }
 
     if (showWeightDialog) {
-        WeightDialog(
+        WeightSheet(
             profile = uiState.userProfile,
-            onSave = { value, unit ->
-                showWeightDialog = false
-                onWeightSave(value, unit)
-            },
-            onClear = {
-                showWeightDialog = false
-                onWeightClear()
-            },
-            onDismiss = {
-                if (!uiState.isWeightMutationInProgress) {
-                    showWeightDialog = false
-                }
-            },
+            syncEnabled = settingsState.healthConnectWeightSyncEnabled,
+            healthConnect = healthConnectState,
+            isSyncing = isWeightSyncing,
+            readingProblem = healthConnectReadingProblem,
             isInProgress = uiState.isWeightMutationInProgress,
+            onSave = onWeightSave,
+            onClear = onWeightClear,
+            onSyncEnable = onWeightSyncEnable,
+            onSyncDisable = onWeightSyncDisable,
+            onSyncNow = onWeightSyncNow,
+            onDismissRequest = { showWeightDialog = false },
         )
     }
 }
@@ -2032,11 +2062,14 @@ private fun requestExactAlarmAccess(
 }
 
 @Composable
-private fun formatWeightSummary(profile: UserProfile): String {
+private fun formatWeightSummary(
+    profile: UserProfile,
+    @StringRes emptyRes: Int = R.string.personalization_weight_not_set,
+): String {
     val value = profile.weightOriginalValue
     val unit = profile.weightOriginalUnit
     return if (value == null) {
-        stringResource(R.string.personalization_weight_not_set)
+        stringResource(emptyRes)
     } else {
         val formatted = if (value == value.toLong().toDouble()) {
             value.toLong().toString()

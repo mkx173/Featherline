@@ -20,4 +20,5 @@ data class UserProfile(
     val weightOriginalValue: Double? = null,
     val weightOriginalUnit: WeightUnit = WeightUnit.KILOGRAMS,
     val updatedAt: Instant? = null,
+    val weightMeasuredAt: Instant? = null,
 )

@@ -20,6 +20,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.decrementDenominatorOnCrack
 import com.mkx.hrttracker.data.repository.normalizeOpenContainer
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -92,6 +93,7 @@ class BackupRestoreService @Inject constructor(
     private val reminderNotificationManager: ReminderNotificationManager,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     /**
@@ -289,9 +291,7 @@ class BackupRestoreService @Inject constructor(
                 if (validatedSnapshot.notes.isNotEmpty()) {
                     database.journalDao().insertNotes(validatedSnapshot.notes)
                 }
-                validatedSnapshot.userProfile?.let { profile ->
-                    database.userProfileDao().upsertProfile(profile)
-                }
+                database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
             }
 
             // Inside the mutation so its rebuild reads the restored chart
@@ -302,6 +302,8 @@ class BackupRestoreService @Inject constructor(
                 pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
                 hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
                 remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                healthConnectWeightSyncEnabled =
+                    validatedSnapshot.settings.healthConnectWeightSyncEnabled,
                 showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
                 hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
                 appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
@@ -376,6 +378,10 @@ class BackupRestoreService @Inject constructor(
                 error,
             )
         }
+        // The app is already in the foreground, so a restored sync flag would
+        // otherwise wait for the next onStart. Fire-and-forget; it never throws.
+        // The restored weight must give way to HC's, however recent the last sync.
+        healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
     }
 
     private companion object {
@@ -1043,6 +1049,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         pureBlackEnabled = pureBlackEnabled,
         hazeBlurEnabled = hazeBlurEnabled,
         remindersEnabled = remindersEnabled,
+        healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
         appLockGracePeriodOption = appLockGracePeriodOption,
@@ -1072,12 +1079,21 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
 
 private fun BackupUserProfileSnapshot.toValidatedEntity(
     restoredAtEpochMillis: Long,
-): UserProfileEntity? {
+): UserProfileEntity {
     require((weightKg == null) == (weightOriginalValue == null)) {
         "Backup user profile must either include both stored weight values or neither."
     }
-    if (weightKg == null && weightOriginalValue == null) {
-        return null
+    if (weightKg == null) {
+        // Like clearWeight: no weight, but the unit stays for the next Health
+        // Connect reading. Only a preference here, so an unknown one falls
+        // back instead of failing the restore, as before the unit was kept.
+        return UserProfileEntity(
+            weightKg = null,
+            weightOriginalValue = null,
+            weightOriginalUnit = WeightUnit.fromStorageValue(weightOriginalUnit).name,
+            updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
+            weightMeasuredAtEpochMillis = null,
+        )
     }
 
     val weightUnit = requireEnumName<WeightUnit>(
@@ -1095,6 +1111,7 @@ private fun BackupUserProfileSnapshot.toValidatedEntity(
         weightOriginalValue = resolvedOriginalValue,
         weightOriginalUnit = weightUnit.name,
         updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
+        weightMeasuredAtEpochMillis = weightMeasuredAtEpochMillis,
     )
 }
 
@@ -1669,7 +1686,7 @@ private fun BackupMedicationLogSnapshot.toValidatedLogData(
 
 internal data class ValidatedBackupSnapshot(
     val settings: ValidatedBackupSettings,
-    val userProfile: UserProfileEntity?,
+    val userProfile: UserProfileEntity,
     val medicines: List<MedicineEntity>,
     val medicationGroups: List<MedicationGroupEntity>,
     val medicationGroupItems: List<MedicationGroupItemEntity>,
@@ -1690,6 +1707,7 @@ internal data class ValidatedBackupSettings(
     val pureBlackEnabled: Boolean,
     val hazeBlurEnabled: Boolean,
     val remindersEnabled: Boolean,
+    val healthConnectWeightSyncEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
     val appLockGracePeriodOption: AppLockGracePeriodOption,

@@ -225,6 +225,8 @@ class OnboardingViewModelTest {
             medicationReminderScheduler = medicationReminderScheduler,
             medicationGroupRepository = medicationGroupRepository,
             medicineRepository = medicineRepository,
+            weightSyncCoordinator = mockk(relaxed = true),
+            healthConnectCapabilityReconciler = mockk(relaxed = true),
         )
     }
 

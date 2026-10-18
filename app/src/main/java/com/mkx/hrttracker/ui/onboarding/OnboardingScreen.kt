@@ -10,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -117,13 +118,13 @@ import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
+import com.mkx.hrttracker.ui.settings.WeightSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -201,6 +202,7 @@ internal fun shouldShowExactAlarmOnboardingCard(
     return sdkInt >= Build.VERSION_CODES.S && !exactAlarmGrantedAtStart
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
     onOpenPrivacyPolicy: () -> Unit,
@@ -210,6 +212,9 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val healthConnectState by viewModel.healthConnectState.collectAsStateWithLifecycle()
+    val isWeightSyncing by viewModel.isWeightSyncing.collectAsStateWithLifecycle()
+    val healthConnectReadingProblem by viewModel.healthConnectReadingProblem.collectAsStateWithLifecycle()
     val totalSteps = 4
     val progressSteps = totalSteps - 1
     var step by rememberSaveable { mutableIntStateOf(0) }
@@ -301,7 +306,7 @@ fun OnboardingScreen(
                 is OnboardingMutationEvent.Failure -> {
                     Toast.makeText(
                         latestContext,
-                        latestContext.getString(R.string.onboarding_update_failed),
+                        latestContext.getString(event.messageRes),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -489,6 +494,17 @@ fun OnboardingScreen(
 
                             3 -> UsefulInfoStep(
                                 profile = uiState.userProfile,
+                                weightSyncOn = uiState.healthConnectWeightSyncEnabled &&
+                                    healthConnectState.hasAccess,
+                                // With sync on, a Health Connect update pending included:
+                                // no weight means no records, not the prompt.
+                                weightEmptyRes = if (
+                                    healthConnectState.isSyncOn(uiState.healthConnectWeightSyncEnabled)
+                                ) {
+                                    R.string.personalization_weight_no_records
+                                } else {
+                                    R.string.onboarding_useful_weight_desc
+                                },
                                 activeGroupCount = uiState.activeGroupCount,
                                 trackedMedicineCount = uiState.trackedMedicineCount,
                                 onSetWeightClick = { showWeightDialog = true },
@@ -533,17 +549,19 @@ fun OnboardingScreen(
     }
 
     if (showWeightDialog) {
-        WeightDialog(
+        WeightSheet(
             profile = uiState.userProfile,
-            onSave = { value, unit ->
-                viewModel.setWeight(value, unit)
-                showWeightDialog = false
-            },
-            onClear = {
-                viewModel.clearWeight()
-                showWeightDialog = false
-            },
-            onDismiss = { showWeightDialog = false },
+            syncEnabled = uiState.healthConnectWeightSyncEnabled,
+            healthConnect = healthConnectState,
+            isSyncing = isWeightSyncing,
+            readingProblem = healthConnectReadingProblem,
+            isInProgress = false,
+            onSave = viewModel::setWeight,
+            onClear = viewModel::clearWeight,
+            onSyncEnable = viewModel::enableHealthConnectWeightSync,
+            onSyncDisable = viewModel::disableHealthConnectWeightSync,
+            onSyncNow = viewModel::syncWeightNow,
+            onDismissRequest = { showWeightDialog = false },
         )
     }
 
@@ -1420,6 +1438,8 @@ private fun AllowButton(
 @Composable
 private fun UsefulInfoStep(
     profile: UserProfile,
+    weightSyncOn: Boolean,
+    @StringRes weightEmptyRes: Int,
     activeGroupCount: Int,
     trackedMedicineCount: Int,
     onSetWeightClick: () -> Unit,
@@ -1441,14 +1461,17 @@ private fun UsefulInfoStep(
         InfoCard(
             iconPainter = painterResource(R.drawable.ic_monitor_weight),
             title = stringResource(R.string.onboarding_useful_weight_title),
-            desc = if (profile.weightOriginalValue == null) {
-                stringResource(R.string.onboarding_useful_weight_desc)
-            } else {
-                formatWeightSummary(profile)
+            // Sync on counts as set, like the Settings weight row.
+            desc = formatWeightSummary(profile, weightEmptyRes).let { summary ->
+                if (weightSyncOn) {
+                    stringResource(R.string.personalization_weight_display_health_connect, summary)
+                } else {
+                    summary
+                }
             },
             index = 0,
             count = 3,
-            actionGranted = profile.weightOriginalValue != null,
+            actionGranted = weightSyncOn || profile.weightOriginalValue != null,
             onActionClick = onSetWeightClick,
             actionIconPainter = painterResource(R.drawable.ic_edit),
             actionIconSize = 16.dp
@@ -1562,11 +1585,14 @@ private fun InfoCard(
 }
 
 @Composable
-private fun formatWeightSummary(profile: UserProfile): String {
+private fun formatWeightSummary(
+    profile: UserProfile,
+    @StringRes emptyRes: Int = R.string.personalization_weight_not_set,
+): String {
     val value = profile.weightOriginalValue
     val unit = profile.weightOriginalUnit
     return if (value == null) {
-        stringResource(R.string.personalization_weight_not_set)
+        stringResource(emptyRes)
     } else {
         val formatted = if (value == value.toLong().toDouble()) {
             value.toLong().toString()
@@ -1714,6 +1740,8 @@ private fun OnboardingUsefulInfoPreview() {
     ) {
         UsefulInfoStep(
             profile = UserProfile(),
+            weightSyncOn = false,
+            weightEmptyRes = R.string.onboarding_useful_weight_desc,
             activeGroupCount = 0,
             trackedMedicineCount = 0,
             onSetWeightClick = {},
