@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import com.mkx.hrttracker.healthconnect.HEALTH_CONNECT_READ_WEIGHT_PERMISSION
-import com.mkx.hrttracker.healthconnect.healthConnectWeightPermissions
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -58,11 +57,13 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -82,7 +83,6 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.roundWeightToTenth
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
-import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -96,6 +96,7 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -115,7 +116,7 @@ private class HealthConnectWeightSync(
  */
 @Composable
 private fun rememberHealthConnectWeightSync(
-    hasAccess: Boolean,
+    healthConnect: HealthConnectCapabilityState,
     onEnable: () -> Unit,
     onDisable: () -> Unit,
 ): HealthConnectWeightSync {
@@ -129,6 +130,7 @@ private fun rememberHealthConnectWeightSync(
         denied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
         if (!denied) onEnable()
     }
+    val hasAccess = healthConnect.hasAccess
     // Access granted in Health Connect after a denial finishes the enable.
     LaunchedEffect(hasAccess) {
         if (hasAccess && denied) {
@@ -136,40 +138,64 @@ private fun rememberHealthConnectWeightSync(
             onEnable()
         }
     }
-    return HealthConnectWeightSync(
-        onSyncEnabledChange = { enabled ->
-            when {
-                !enabled -> onDisable()
-                hasAccess -> onEnable()
-                else -> permissionLauncher.launch(healthConnectWeightPermissions(context))
-            }
-        },
-        showPermissionDenied = denied && !hasAccess,
-        onOpenHealthConnect = {
-            val intent = if (
-                HealthConnectClient.getSdkStatus(context) ==
-                HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
-            ) {
-                // Android 9–13 without an up-to-date Health Connect: its Play
-                // listing, as HealthConnectClient's docs show.
-                Intent(Intent.ACTION_VIEW).apply {
-                    setPackage("com.android.vending")
-                    data = ("market://details?id=com.google.android.apps.healthdata" +
-                            "&url=healthconnect%3A%2F%2Fonboarding").toUri()
-                    putExtra("overlay", true)
-                    putExtra("callerId", context.packageName)
+    return remember(healthConnect, denied, onEnable, onDisable) {
+        HealthConnectWeightSync(
+            onSyncEnabledChange = { enabled ->
+                when {
+                    !enabled -> onDisable()
+                    hasAccess -> onEnable()
+                    else -> permissionLauncher.launch(healthConnect.weightPermissionsToRequest)
                 }
-            } else {
-                Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
-            }
-            try {
-                context.startActivity(intent)
-            } catch (_: ActivityNotFoundException) {
-                // Health Connect (or Play) went away; the card shows it as unavailable.
-            }
-        },
-    )
+            },
+            showPermissionDenied = denied && !hasAccess,
+            onOpenHealthConnect = {
+                val intent = if (healthConnect.providerUpdateRequired) {
+                    // Android 9–13 without an up-to-date Health Connect: its Play
+                    // listing, as HealthConnectClient's docs show.
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setPackage("com.android.vending")
+                        data = ("market://details?id=com.google.android.apps.healthdata" +
+                                "&url=healthconnect%3A%2F%2Fonboarding").toUri()
+                        putExtra("overlay", true)
+                        putExtra("callerId", context.packageName)
+                    }
+                } else {
+                    Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
+                }
+                try {
+                    context.startActivity(intent)
+                } catch (_: ActivityNotFoundException) {
+                    // Health Connect (or Play) went away; the card shows it as unavailable.
+                }
+            },
+        )
+    }
 }
+
+/**
+ * A read often returns in a few ms; holds the syncing state for one whole turn
+ * of the sync icon so the sheet doesn't flash. UI timing only: the coordinator
+ * releases its lock as soon as the data work is done.
+ */
+@Composable
+private fun rememberSyncingHeldForATurn(isSyncing: Boolean): Boolean {
+    var shown by remember { mutableStateOf(isSyncing) }
+    var startedAtMillis by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(isSyncing) {
+        // Frame time, which the test clock drives together with delay().
+        if (isSyncing) {
+            startedAtMillis = withFrameMillis { it }
+            shown = true
+        } else if (shown) {
+            delay(SYNC_TURN_MILLIS - (withFrameMillis { it } - startedAtMillis))
+            shown = false
+        }
+    }
+    return shown
+}
+
+/** One turn of the sync icon, and the shortest time the sheet shows "Syncing…". */
+private const val SYNC_TURN_MILLIS = 900L
 
 /** The body-weight sheet with the Health Connect card. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -190,7 +216,7 @@ internal fun WeightSheet(
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     val scope = rememberCoroutineScope()
-    val sync = rememberHealthConnectWeightSync(healthConnect.hasAccess, onSyncEnable, onSyncDisable)
+    val sync = rememberHealthConnectWeightSync(healthConnect, onSyncEnable, onSyncDisable)
     // Shown beside the sheet, not inside its window: a dialog composed in the
     // sheet's content stretches edge to edge.
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }
@@ -277,6 +303,7 @@ internal fun WeightSheetContent(
     // while Health Connect only needs an update (the reconciler keeps sync on),
     // so the reading after the update can't replace a weight typed meanwhile.
     val syncOn = syncEnabled && (healthConnect.hasAccess || healthConnect.providerUpdateRequired)
+    val isSyncingShown = rememberSyncingHeldForATurn(isSyncing)
     val hasWeight = profile.weightOriginalValue != null
     var valueText by rememberSaveable {
         mutableStateOf(profile.weightOriginalValue?.let(::formatWeightForInput).orEmpty())
@@ -395,7 +422,7 @@ internal fun WeightSheetContent(
             syncEnabled = syncEnabled,
             syncOn = syncOn,
             healthConnect = healthConnect,
-            isSyncing = isSyncing,
+            isSyncing = isSyncingShown,
             readingProblem = readingProblem,
             showPermissionDenied = showPermissionDenied,
             onToggle = { onSyncEnabledChange(!syncOn) },
@@ -616,8 +643,8 @@ private fun SyncNowButton(isSyncing: Boolean, onClick: () -> Unit) {
                 targetValue = 360f,
                 animationSpec = infiniteRepeatable(
                     animation = tween(
-                        // One turn per minimum syncing time, so a fast sync shows a whole turn.
-                        durationMillis = WeightSyncCoordinator.MIN_SYNCING_MILLIS.toInt(),
+                        // One turn per shortest syncing time, so a fast sync shows a whole turn.
+                        durationMillis = SYNC_TURN_MILLIS.toInt(),
                         easing = LinearEasing,
                     ),
                     repeatMode = RepeatMode.Restart,

@@ -3,7 +3,6 @@ package com.mkx.hrttracker.healthconnect
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,17 +34,16 @@ class WeightSyncCoordinator @Inject constructor(
     private val _readingProblem = MutableStateFlow<ReadingProblem?>(null)
     val readingProblem: StateFlow<ReadingProblem?> = _readingProblem.asStateFlow()
 
-    /** No-op unless sync is enabled and Health Connect access is held. */
+    /**
+     * No-op unless sync is enabled. Access is the caller's check (the
+     * reconciler's, which has just made it); a read without it throws.
+     */
     suspend fun sync(
         reason: String = "explicit",
         now: Instant = Instant.now(),
     ) = syncMutex.withLock {
         if (!settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return@withLock
-        if (!healthConnectManager.isAvailable() || !healthConnectManager.hasWeightAccess()) {
-            return@withLock
-        }
         _isSyncing.value = true
-        val startedAtNanos = System.nanoTime()
         try {
             val notAfter = now + FUTURE_TOLERANCE
             val latest = healthConnectManager.readLatestWeight(notAfter)
@@ -74,10 +72,6 @@ class WeightSyncCoordinator @Inject constructor(
                 TAG,
                 "weight_sync_complete reason=$reason reading=${latest != null} changed=$changed",
             )
-            // A read often returns in a few ms; hold the state so the sheet shows
-            // "Syncing…" and one whole turn of the icon instead of a flash.
-            val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000
-            delay(MIN_SYNCING_MILLIS - elapsedMillis)
         } finally {
             // Nothing suspends before this, so a cancelled or failed sync can't
             // leave the singleton's state stuck on.
@@ -99,14 +93,11 @@ class WeightSyncCoordinator @Inject constructor(
         }
     }
 
-    companion object {
-        /** Shortest time [isSyncing] stays true; also one turn of the sheet's sync icon. */
-        const val MIN_SYNCING_MILLIS = 900L
-
-        private const val TAG = "WeightSyncCoordinator"
-        private val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
+    private companion object {
+        const val TAG = "WeightSyncCoordinator"
+        val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
         // 0.1 kg rounds to at least 0.1 in kg and 0.2 in lb.
-        private const val MIN_WEIGHT_KG = 0.1
+        const val MIN_WEIGHT_KG = 0.1
     }
 }
 

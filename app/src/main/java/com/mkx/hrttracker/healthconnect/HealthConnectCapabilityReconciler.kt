@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.healthconnect
 
+import androidx.health.connect.client.permission.HealthPermission
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -24,7 +25,21 @@ data class HealthConnectCapabilityState(
     val providerUpdateRequired: Boolean = false,
     /** The last reconcile or sync threw; cleared when the next one starts. */
     val syncFailed: Boolean = false,
-)
+    /** READ history can be asked for alongside READ weight. */
+    val readHistorySupported: Boolean = false,
+) {
+    /**
+     * What turning sync on asks for: READ weight, plus history where supported,
+     * since without it HC hides records from over 30 days before the first
+     * grant. History is optional; sync only needs READ weight.
+     */
+    val weightPermissionsToRequest: Set<String>
+        get() = if (readHistorySupported) {
+            setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION, HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY)
+        } else {
+            setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION)
+        }
+}
 
 /**
  * Works like ReminderCapabilityReconciler: refreshes whether Health Connect is
@@ -42,13 +57,16 @@ class HealthConnectCapabilityReconciler @Inject constructor(
     private val clock: Clock,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    // Seeded with SDK availability (a cheap package lookup) so the weight sheet
-    // doesn't flash "not available" before the first reconcile lands.
+    // Seeded with SDK availability (a package lookup, on the UI thread at
+    // injection) so the weight sheet doesn't flash "not available" before the
+    // first reconcile lands.
     private val _state = MutableStateFlow(
-        HealthConnectCapabilityState(
-            sdkAvailable = healthConnectManager.isAvailable(),
-            providerUpdateRequired = healthConnectManager.isProviderUpdateRequired(),
-        )
+        healthConnectManager.isAvailable().let { sdkAvailable ->
+            HealthConnectCapabilityState(
+                sdkAvailable = sdkAvailable,
+                providerUpdateRequired = !sdkAvailable && healthConnectManager.isProviderUpdateRequired(),
+            )
+        }
     )
     val state: StateFlow<HealthConnectCapabilityState> = _state.asStateFlow()
 
@@ -87,6 +105,7 @@ class HealthConnectCapabilityReconciler @Inject constructor(
             sdkAvailable = sdkAvailable,
             hasAccess = hasAccess,
             providerUpdateRequired = providerUpdateRequired,
+            readHistorySupported = sdkAvailable && healthConnectManager.supportsReadHistory(),
         )
         diagnosticsLogger.info(
             TAG,

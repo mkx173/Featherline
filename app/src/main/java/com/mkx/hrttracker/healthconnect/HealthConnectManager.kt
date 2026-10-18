@@ -31,8 +31,14 @@ interface HealthConnectManager {
     /** Android 9–13 without an up-to-date Health Connect app: installing or updating it fixes that. */
     fun isProviderUpdateRequired(): Boolean
 
-    /** READ weight is granted. */
+    /** READ weight is granted. Only after [isAvailable] has passed. */
     suspend fun hasWeightAccess(): Boolean
+
+    /**
+     * READ history can be asked for: without it HC hides records from over 30
+     * days before the first grant. Only after [isAvailable] has passed.
+     */
+    fun supportsReadHistory(): Boolean
 
     /** The latest weight record measured at or before [notAfter], or null. */
     suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight?
@@ -40,24 +46,6 @@ interface HealthConnectManager {
 
 val HEALTH_CONNECT_READ_WEIGHT_PERMISSION: String =
     HealthPermission.getReadPermission(WeightRecord::class)
-
-/**
- * What turning sync on asks for: READ weight, plus history where supported, since
- * without it HC hides records from over 30 days before the first grant. History
- * is optional; sync only needs READ weight.
- */
-fun healthConnectWeightPermissions(context: Context): Set<String> {
-    val historySupported =
-        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE &&
-                HealthConnectClient.getOrCreate(context).features.getFeatureStatus(
-                    HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY
-                ) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
-    return if (historySupported) {
-        setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION, HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY)
-    } else {
-        setOf(HEALTH_CONNECT_READ_WEIGHT_PERMISSION)
-    }
-}
 
 @Singleton
 class AndroidHealthConnectManager @Inject constructor(
@@ -75,8 +63,11 @@ class AndroidHealthConnectManager @Inject constructor(
                 HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
     override suspend fun hasWeightAccess(): Boolean =
-        isAvailable() &&
-                HEALTH_CONNECT_READ_WEIGHT_PERMISSION in client.permissionController.getGrantedPermissions()
+        HEALTH_CONNECT_READ_WEIGHT_PERMISSION in client.permissionController.getGrantedPermissions()
+
+    override fun supportsReadHistory(): Boolean =
+        client.features.getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY) ==
+                HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
 
     override suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight? {
         val response = client.readRecords(

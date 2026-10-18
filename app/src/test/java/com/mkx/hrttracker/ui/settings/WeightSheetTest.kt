@@ -123,6 +123,46 @@ class WeightSheetTest {
     }
 
     @Test
+    fun aFastSync_showsSyncingForOneWholeTurn() {
+        var isSyncing by mutableStateOf(false)
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4, Instant.parse("2026-10-14T07:12:00Z")),
+                syncEnabled = true,
+                healthConnect = access,
+                isSyncing = isSyncing,
+                readingProblem = null,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+        composeRule.mainClock.advanceTimeByFrame()
+        composeRule.onNodeWithText("Synced").assertExists()
+
+        // The coordinator flips back within a few frames; the sheet holds.
+        composeRule.runOnUiThread { isSyncing = true }
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(50)
+        composeRule.runOnUiThread { isSyncing = false }
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(50)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Syncing…").assertExists()
+        composeRule.mainClock.advanceTimeBy(500)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Syncing…").assertExists()
+
+        composeRule.mainClock.advanceTimeBy(500)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Synced").assertExists()
+    }
+
+    @Test
     fun aDenial_disablesTheSwitch_andShowsAMessageThatOpensHealthConnect() {
         var opened = false
         composeRule.setContent {

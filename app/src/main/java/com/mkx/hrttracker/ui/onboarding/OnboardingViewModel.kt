@@ -1,8 +1,10 @@
 package com.mkx.hrttracker.ui.onboarding
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.BuildConfig
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -131,7 +133,9 @@ class OnboardingViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutationEvents.tryEmit(OnboardingMutationEvent.Failure(error))
+                mutationEvents.tryEmit(
+                    OnboardingMutationEvent.Failure(error, R.string.personalization_weight_update_failed)
+                )
             }
         }
     }
@@ -143,7 +147,9 @@ class OnboardingViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutationEvents.tryEmit(OnboardingMutationEvent.Failure(error))
+                mutationEvents.tryEmit(
+                    OnboardingMutationEvent.Failure(error, R.string.personalization_weight_update_failed)
+                )
             }
         }
     }
@@ -169,7 +175,9 @@ class OnboardingViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutationEvents.tryEmit(OnboardingMutationEvent.Failure(error))
+                mutationEvents.tryEmit(
+                    OnboardingMutationEvent.Failure(error, R.string.settings_update_failed)
+                )
                 return@launch
             }
             // Like Settings: even when already on, to refresh access.
@@ -211,5 +219,9 @@ data class OnboardingUiState(
 }
 
 sealed class OnboardingMutationEvent {
-    data class Failure(val error: Throwable) : OnboardingMutationEvent()
+    data class Failure(
+        val error: Throwable,
+        /** Shown as a toast; the weight and sync paths name what failed, like Settings. */
+        @StringRes val messageRes: Int = R.string.onboarding_update_failed,
+    ) : OnboardingMutationEvent()
 }

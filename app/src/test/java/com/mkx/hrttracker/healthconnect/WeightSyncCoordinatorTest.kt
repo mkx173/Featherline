@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -79,22 +78,6 @@ class WeightSyncCoordinatorTest {
         assertEquals(154.3, row.weightOriginalValue!!, 0.0)
         assertEquals(t0.toEpochMilli(), row.weightMeasuredAtEpochMillis)
         assertNull(coordinator.readingProblem.value)
-    }
-
-    @Test
-    fun aFastSyncStaysSyncingForTheMinimumTime() = runTest {
-        hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
-
-        launch { coordinator.sync(now = now) }
-        runCurrent()
-        assertTrue(coordinator.isSyncing.value)
-
-        // The fake read returns at once; the state still holds for one whole turn.
-        // The margin absorbs the few real ms the sync itself takes.
-        advanceTimeBy(WeightSyncCoordinator.MIN_SYNCING_MILLIS - 100)
-        assertTrue(coordinator.isSyncing.value)
-        advanceTimeBy(200)
-        assertFalse(coordinator.isSyncing.value)
     }
 
     @Test
@@ -166,6 +149,7 @@ class WeightSyncCoordinatorTest {
     @Test
     fun cancelledSyncDoesNotLeaveSyncingOn() = runTest {
         hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
+        hc.readGate = CompletableDeferred() // cancelled mid-read
 
         val job = launch { coordinator.sync(now = now) }
         runCurrent()
@@ -228,17 +212,11 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
-    fun doesNothingWhenSyncIsOffOrAccessIsMissing() = runTest {
+    fun doesNothingWhenSyncIsOff() = runTest {
         repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = t1)
         hc.records += HealthConnectWeight(weightKg = 70.0, time = t0)
 
         syncEnabled = false
-        coordinator.sync(now = now)
-        syncEnabled = true
-        hc.access = false
-        coordinator.sync(now = now)
-        hc.access = true
-        hc.available = false
         coordinator.sync(now = now)
 
         assertEquals(0, hc.reads)
@@ -285,6 +263,8 @@ internal class FakeHealthConnectManager : HealthConnectManager {
     override fun isProviderUpdateRequired(): Boolean = providerUpdateRequired
 
     override suspend fun hasWeightAccess(): Boolean = access
+
+    override fun supportsReadHistory(): Boolean = false
 
     // Returns the latest record regardless of notAfter, so the coordinator's own
     // future-timestamp guard is what the tests exercise.

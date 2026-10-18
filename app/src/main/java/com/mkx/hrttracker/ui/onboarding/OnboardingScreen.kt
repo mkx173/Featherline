@@ -305,7 +305,7 @@ fun OnboardingScreen(
                 is OnboardingMutationEvent.Failure -> {
                     Toast.makeText(
                         latestContext,
-                        latestContext.getString(R.string.onboarding_update_failed),
+                        latestContext.getString(event.messageRes),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
