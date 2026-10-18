@@ -12,13 +12,17 @@ import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
@@ -54,51 +58,61 @@ class MedicineStockRepository @Inject constructor(
         val isLive: Boolean,
     )
 
+    // Declared before projectionsCacheFlow, whose eager collection can start
+    // during construction.
+    private val snapshotProjectionsCacheFlow: Flow<ProjectionsCache?> =
+        homeSnapshotRepository.currentCache.map { state ->
+            val snapshot = state?.homeData ?: return@map null
+            val now = clock.instant()
+            ProjectionsCache(
+                projections = projectAll(
+                    medicines = snapshot.stockMedicines,
+                    activeGroups = snapshot.activeGroups,
+                    logEntries = snapshot.stockFulfillmentEntries,
+                    now = now,
+                ),
+                medicines = snapshot.stockMedicines,
+                activeGroups = snapshot.activeGroups,
+                logEntries = snapshot.stockFulfillmentEntries,
+                now = now,
+                isLive = false,
+            )
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val projectionsCacheFlow: StateFlow<ProjectionsCache?> =
         combine(
             medicineRepository.observeAllActiveOrNull(),
             medicationGroupRepository.observeGroups(),
             medicationLogRepository.observeEntries(),
-            homeSnapshotRepository.observeHomeSnapshot(),
-        ) { medicines, groups, logEntries, snapshot ->
+            // The cache's day and zone, which only the midnight and zone-change
+            // runs move. From cache, not currentCache, so a pending mutation
+            // doesn't toggle it.
+            homeSnapshotRepository.cache
+                .map { state -> state?.homeData?.let { homeData -> homeData.anchorDateEpochDay to homeData.zoneId } }
+                .distinctUntilChanged(),
+        ) { medicines, groups, logEntries, _ ->
+            if (medicines == null || groups == null || logEntries == null) return@combine null
             val now = clock.instant()
-            when {
-                medicines != null && groups != null && logEntries != null -> {
-                    val activeGroups = groups.filter { group -> group.archivedAt == null }
-                    ProjectionsCache(
-                        projections = projectAll(
-                            medicines = medicines,
-                            activeGroups = activeGroups,
-                            logEntries = logEntries,
-                            now = now,
-                        ),
-                        medicines = medicines,
-                        activeGroups = activeGroups,
-                        logEntries = logEntries,
-                        now = now,
-                        isLive = true,
-                    )
-                }
-
-                snapshot != null -> {
-                    ProjectionsCache(
-                        projections = projectAll(
-                            medicines = snapshot.stockMedicines,
-                            activeGroups = snapshot.activeGroups,
-                            logEntries = snapshot.stockFulfillmentEntries,
-                            now = now,
-                        ),
-                        medicines = snapshot.stockMedicines,
-                        activeGroups = snapshot.activeGroups,
-                        logEntries = snapshot.stockFulfillmentEntries,
-                        now = now,
-                        isLive = false,
-                    )
-                }
-
-                else -> null
-            }
+            val activeGroups = groups.filter { group -> group.archivedAt == null }
+            ProjectionsCache(
+                projections = projectAll(
+                    medicines = medicines,
+                    activeGroups = activeGroups,
+                    logEntries = logEntries,
+                    now = now,
+                ),
+                medicines = medicines,
+                activeGroups = activeGroups,
+                logEntries = logEntries,
+                now = now,
+                isLive = true,
+            )
         }
+            // Home data seeds the projections only until Room's first complete
+            // emission. From then on Room alone drives the data, and the cache's
+            // day only re-anchors the clock: a same-day publish recomputes nothing.
+            .flatMapLatest { live -> if (live != null) flowOf(live) else snapshotProjectionsCacheFlow }
             .catch {
                 emit(
                     ProjectionsCache(

@@ -157,10 +157,6 @@ class WidgetSnapshotStore @Inject constructor(
     suspend fun writeSnapshot(record: WidgetSnapshotRecord) {
         context.widgetSnapshotDataStore.updateData { WidgetSnapshotState(record) }
     }
-
-    suspend fun clearSnapshot() {
-        context.widgetSnapshotDataStore.updateData { WidgetSnapshotState.Empty }
-    }
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────

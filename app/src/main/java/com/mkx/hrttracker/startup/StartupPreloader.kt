@@ -98,7 +98,7 @@ class StartupPreloader @Inject constructor(
             diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start now=$now")
             rescheduleAllSnoozes(now = now)
             runCatching {
-                val snapshot = homeSnapshotRepository.readUsableHomeSnapshot(now = now)
+                val snapshot = homeSnapshotRepository.currentState()?.homeData
                     ?: return@runCatching diagnosticsLogger.info(
                         TAG,
                         "snapshot_reminder_reschedule_no_usable_snapshot now=$now"

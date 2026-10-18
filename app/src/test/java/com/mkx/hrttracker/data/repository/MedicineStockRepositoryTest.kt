@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 import java.time.Clock
@@ -78,7 +79,8 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(emptyList())
         every { medicationGroupRepository.observeGroups() } returns MutableStateFlow(emptyList())
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.cache } returns MutableStateFlow(null)
         repository = MedicineStockRepository(
             medicineRepository = medicineRepository,
             medicationGroupRepository = medicationGroupRepository,
@@ -369,7 +371,7 @@ class MedicineStockRepositoryTest {
         every { medicationGroupRepository.observeGroups() } returns
                 MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
         val projectionScope =
             CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
@@ -392,6 +394,193 @@ class MedicineStockRepositoryTest {
                 RunwayProjection.Days(days = 21, lastFulfillable = LocalDate.of(2026, 1, 22)),
                 preview,
             )
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
+    @Test
+    fun beforeRoomIsLive_projectionsSeedFromCurrentHomeData_andOnlyCurrent() = runTest {
+        val medicine = pill(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 30.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 0,
+                generation = 1L,
+            )
+        )
+        val homeData = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = 0L,
+            anchorDateEpochDay = LocalDate.of(2026, 1, 1).toEpochDay(),
+            zoneId = "UTC",
+            activeGroups = listOf(dailyGroup(medicine)),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            stockMedicines = listOf(medicine),
+        )
+        val currentCache = MutableStateFlow<HomeCacheState?>(HomeCacheState(1L, homeData, e2Inputs = null))
+        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(null)
+        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow(null)
+        every { medicationLogRepository.observeEntries() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns currentCache
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = clock,
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(medicine.uuid), repository.getCachedProjections()?.map { it.medicine.uuid })
+
+            // A mutation committed, and its run hasn't published.
+            currentCache.value = null
+            advanceUntilIdle()
+            assertEquals(null, repository.getCachedProjections())
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onceRoomIsLive_aCachePublishNeitherChangesNorRecomputesTheProjections() = runTest {
+        val medicine = pill(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 2.0,
+                unitsLastTotal = 30.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 0,
+                generation = 1L,
+            )
+        )
+        val homeData = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generatedAtEpochMillis = 0L,
+            anchorDateEpochDay = LocalDate.of(2026, 1, 1).toEpochDay(),
+            zoneId = "UTC",
+            activeGroups = listOf(dailyGroup(medicine)),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            stockMedicines = listOf(medicine),
+        )
+        val currentCache = MutableStateFlow<HomeCacheState?>(HomeCacheState(1L, homeData, e2Inputs = null))
+        val medicines = MutableStateFlow<List<Medicine>?>(null)
+        val groups = MutableStateFlow<List<MedicationGroup>?>(null)
+        val logs = MutableStateFlow<List<com.mkx.hrttracker.model.medication.MedicationLogEntry>?>(null)
+        every { medicineRepository.observeAllActiveOrNull() } returns medicines
+        every { medicationGroupRepository.observeGroups() } returns groups
+        every { medicationLogRepository.observeEntries() } returns logs
+        every { homeSnapshotRepository.currentCache } returns currentCache
+        every { homeSnapshotRepository.cache } returns currentCache
+        // Ticks on every read, so a recompute can't hide behind an equal value.
+        var clockReads = 0L
+        val tickingClock = object : Clock() {
+            override fun getZone(): ZoneId = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId): Clock = this
+            override fun instant(): Instant = clock.instant().plusMillis(clockReads++)
+        }
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = tickingClock,
+            )
+            advanceUntilIdle()
+            assertEquals(listOf(medicine.uuid), repository.getCachedProjections()?.map { it.medicine.uuid })
+
+            // Room's first emission.
+            medicines.value = listOf(medicine)
+            groups.value = listOf(dailyGroup(medicine))
+            logs.value = emptyList()
+            advanceUntilIdle()
+            val live = repository.getCachedProjections()
+            assertEquals(live, repository.observeProjections().first())
+            val clockReadsWhenLive = clockReads
+
+            // The next run publishes, on the same day, with stock that differs.
+            currentCache.value = HomeCacheState(2L, homeData.copy(stockMedicines = emptyList()), e2Inputs = null)
+            advanceUntilIdle()
+
+            assertSame(live, repository.getCachedProjections())
+            assertEquals(clockReadsWhenLive, clockReads)
+        } finally {
+            projectionScope.cancel()
+        }
+    }
+
+    @Test
+    fun onceRoomIsLive_aPublishForANewDay_reAnchorsTheProjections() = runTest {
+        // 19 tablets of a daily dose, today's taken.
+        val medicine = pill(
+            MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 19.0,
+                unitsLastTotal = 30.0,
+                openContainerAmount = null,
+                warnAtDaysRemaining = 7,
+                generation = 1L,
+            )
+        )
+        val group = dailyGroup(medicine)
+        fun publishedOn(date: LocalDate) = HomeCacheState(
+            generation = 1L,
+            homeData = HomeSnapshotRecord(
+                schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+                generation = 1L,
+                generatedAtEpochMillis = 0L,
+                anchorDateEpochDay = date.toEpochDay(),
+                zoneId = "UTC",
+                activeGroups = listOf(group),
+                scheduleEntries = emptyList(),
+                antiandrogenHistoryEntries = emptyList(),
+            ),
+            e2Inputs = null,
+        )
+        val cache = MutableStateFlow<HomeCacheState?>(publishedOn(LocalDate.of(2026, 1, 1)))
+        every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(listOf(medicine))
+        every { medicationGroupRepository.observeGroups() } returns MutableStateFlow(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns
+                MutableStateFlow(listOf(logForToday(group = group, medicine = medicine)))
+        every { homeSnapshotRepository.currentCache } returns cache
+        every { homeSnapshotRepository.cache } returns cache
+        var instant = Instant.parse("2026-01-01T12:00:00Z")
+        val movingClock = object : Clock() {
+            override fun getZone(): ZoneId = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId): Clock = this
+            override fun instant(): Instant = instant
+        }
+        val projectionScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val repository = MedicineStockRepository(
+                medicineRepository = medicineRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicationLogRepository = medicationLogRepository,
+                homeSnapshotRepository = homeSnapshotRepository,
+                appScope = projectionScope,
+                clock = movingClock,
+            )
+            advanceUntilIdle()
+            fun daysLeft() = (repository.getCachedProjections()?.single()?.runway as RunwayProjection.Days).days
+            val today = daysLeft()
+
+            // Past midnight, the date broadcast's run publishes the new day, at
+            // the same generation: a system run.
+            instant = Instant.parse("2026-01-02T00:30:00Z")
+            cache.value = publishedOn(LocalDate.of(2026, 1, 2))
+            advanceUntilIdle()
+
+            assertEquals(today - 1, daysLeft())
         } finally {
             projectionScope.cancel()
         }
@@ -421,7 +610,7 @@ class MedicineStockRepositoryTest {
         every { medicationGroupRepository.observeGroups() } returns
                 MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
         val projectionScope =
             CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
@@ -471,7 +660,7 @@ class MedicineStockRepositoryTest {
         every { medicationGroupRepository.observeGroups() } returns
                 MutableStateFlow<List<MedicationGroup>?>(listOf(group))
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
         val projectionScope =
             CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
@@ -520,7 +709,7 @@ class MedicineStockRepositoryTest {
         every { medicineRepository.observeAllActiveOrNull() } returns medicines
         every { medicationGroupRepository.observeGroups() } returns groups
         every { medicationLogRepository.observeEntries() } returns logs
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
         val projectionScope =
             CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
         try {
@@ -575,7 +764,7 @@ class MedicineStockRepositoryTest {
             emptyList()
         )
         every { medicationLogRepository.observeEntries() } returns MutableStateFlow(emptyList())
-        every { homeSnapshotRepository.observeHomeSnapshot() } returns MutableStateFlow(null)
+        every { homeSnapshotRepository.currentCache } returns MutableStateFlow(null)
         clearMocks(
             medicineRepository,
             medicationGroupRepository,
@@ -602,7 +791,8 @@ class MedicineStockRepositoryTest {
         verify(exactly = 1) { medicineRepository.observeAllActiveOrNull() }
         verify(exactly = 1) { medicationGroupRepository.observeGroups() }
         verify(exactly = 1) { medicationLogRepository.observeEntries() }
-        verify(exactly = 1) { homeSnapshotRepository.observeHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.currentCache }
+        verify(exactly = 1) { homeSnapshotRepository.cache }
     }
 
     @Test

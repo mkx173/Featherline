@@ -49,7 +49,7 @@ class MainE2HeroCalibrationIconTest {
 
     @Test
     fun whileTheValueIsASkeleton_thereIsNoIcon() {
-        setHero(adjusted = false, trendReady = false)
+        setHero(adjusted = false, hasEstimate = false)
         assertNoIcon()
     }
 
@@ -67,14 +67,14 @@ class MainE2HeroCalibrationIconTest {
     }
 
     /** Sets the hero and returns a click counter. */
-    private fun setHero(adjusted: Boolean?, trendReady: Boolean = true): () -> Int {
+    private fun setHero(adjusted: Boolean?, hasEstimate: Boolean = true): () -> Int {
         var clicks = 0
         composeRule.setContent {
             MainE2HeroCard(
                 section = MainE2HeroUiState(currentValue = 120.0),
                 now = LocalDateTime.of(2026, 10, 11, 12, 0),
                 displayUnit = BloodUnitKey.PG_ML,
-                trendReady = trendReady,
+                hasEstimate = hasEstimate,
                 pkCalibration = adjusted?.let {
                     MainPkCalibrationUiState(
                         adjusted = it,

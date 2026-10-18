@@ -103,36 +103,30 @@ class MedicationReminderRescheduleReceiverTest {
     }
 
     @Test
-    fun timezoneChange_forcesHomeSnapshotRefresh() = runTest {
+    fun timezoneChange_requestsARun() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_TIMEZONE_CHANGED)
 
-        verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
-        }
+        verify(exactly = 1) { homeSnapshotRepository.requestRebuild() }
     }
 
     @Test
-    fun timeChange_forcesHomeSnapshotRefresh() = runTest {
+    fun timeChange_requestsARun() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_TIME_CHANGED)
 
-        verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
-        }
+        verify(exactly = 1) { homeSnapshotRepository.requestRebuild() }
     }
 
     @Test
-    fun bootCompleted_forcesHomeSnapshotRefresh() = runTest {
+    fun bootCompleted_requestsARun() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any(), any()) } returns Unit
 
         handle(action = Intent.ACTION_BOOT_COMPLETED)
 
-        verify(exactly = 1) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true, silent = true)
-        }
+        verify(exactly = 1) { homeSnapshotRepository.requestRebuild() }
     }
 
     @Test

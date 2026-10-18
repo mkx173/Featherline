@@ -83,7 +83,7 @@ class PkCalibrationUiStateTest {
             assertFalse(uiState.limitedConfidence)
             assertTrue(uiState.routeRows.isEmpty())
             assertTrue(uiState.effectivePromotedRoutes.isEmpty())
-            // renderFor is null for non-READY evaluations; the mapper must not
+            // The render is null for a non-READY result; the mapper must not
             // synthesize a personalized render from a stale value.
             assertEquals(PkCalibrationRenderState.POPULATION, uiState.renderState)
             assertEquals(PkCalibrationBandState.NOT_APPLICABLE_POPULATION, uiState.bandState)

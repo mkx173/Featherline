@@ -46,9 +46,10 @@ import kotlin.math.roundToLong
 
 data class MainUiState(
     val homeDataReady: Boolean = false,
-    /** Shows the top updating indicator; the E2 hero and chart are held until the rebuild lands. */
+    /** Shows the top updating indicator; the E2 hero and chart are held until the new estimate lands. */
     val isUpdating: Boolean = false,
-    val e2TrendReady: Boolean = false,
+    /** The E2 hero and chart have an estimate to show; without one they show the skeleton. */
+    val hasE2Estimate: Boolean = false,
     val homeSource: HomeInputSource? = null,
     val now: LocalDateTime = LocalDateTime.now(),
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,

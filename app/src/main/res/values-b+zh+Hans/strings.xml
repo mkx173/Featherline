@@ -84,6 +84,7 @@
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_single_title">该用药了</string>
     <string name="reminder_notification_merged_title">该用药了</string>
+    <string name="reminder_notification_scheduled_at">计划于 %1$s %2$s</string>
     <string name="reminder_notification_action_log_now">立即记录</string>
     <string name="reminder_notification_action_log_all">全部记录</string>
     <string name="reminder_notification_action_remind_later">稍后提醒</string>

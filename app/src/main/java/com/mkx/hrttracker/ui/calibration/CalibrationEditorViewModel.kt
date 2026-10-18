@@ -4,9 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
 import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
+import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationNumericValue
 import com.mkx.hrttracker.util.zoneDisplayName
@@ -71,7 +72,8 @@ class CalibrationEditorViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
     private val pkStorageRepository: PkCalibrationStorageRepository,
-    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository,
+    private val e2EstimateRepository: E2EstimateRepository,
+    private val appTimeSource: AppTimeSource,
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
     private val draftSnapshotAdapter =
@@ -122,18 +124,18 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
-    /** The saved E2 result's lab-adjustment state, from the same live evaluation as the list. */
+    /** The saved E2 result's lab-adjustment state, from the same estimate as the list. */
     private fun observePkReview() {
         viewModelScope.launch {
             combine(
                 uiState.map { state ->
                     state.drafts.firstOrNull { it.analyteKey == BloodAnalyteKey.E2 }?.resultUuid
                 }.distinctUntilChanged(),
-                pkCalibrationLiveRepository.liveState,
-            ) { resultId, liveState ->
-                val live = liveState?.live
-                if (resultId == null || live == null) null
-                else pkCalibrationLabFlag(pkCalibrationScreenState(live), resultId)
+                e2EstimateRepository.observeCalibration(appTimeSource.currentMinute),
+            ) { resultId, state ->
+                val estimate = state.value
+                if (resultId == null || estimate == null) null
+                else pkCalibrationLabFlag(pkCalibrationScreenState(estimate), resultId)
             }.collect { flag ->
                 _uiState.update { it.copy(pkReviewFlag = flag) }
             }
@@ -146,7 +148,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     fun reincludePkLab(resultId: UUID) = savePkDisposition(resultId, E2CalibrationDisposition.AUTO)
 
-    /** Saved immediately, independently of form edits; the live evaluation then refreshes the flag. */
+    /** Saved immediately, independently of form edits; the re-solved estimate then refreshes the flag. */
     private fun savePkDisposition(resultId: UUID, disposition: E2CalibrationDisposition) {
         if (isCalibrationEditorBusy(uiState.value)) return
         _uiState.update { it.copy(isUpdatingPkReview = true, pkReviewFailed = false) }

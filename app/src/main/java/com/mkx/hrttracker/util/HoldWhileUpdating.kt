@@ -19,11 +19,11 @@ data class Held<T>(val value: T, val isUpdating: Boolean, val latest: T = value)
 const val UPDATING_MIN_HOLD_MILLIS = 400L
 
 /**
- * Keeps the last settled value on screen while [isUpdating] says a rebuild is
- * landing, then releases the newest value once it settles, no sooner than
- * [minHoldMillis] after the screen was [visible] with the hold. The
- * intermediate values (a cleared snapshot's fallback) never show, and the
- * content changes together with the indicator leaving.
+ * Keeps the last settled value on screen while [isUpdating] says a newer one
+ * is being worked out, then releases the newest value once it settles, no
+ * sooner than [minHoldMillis] after the screen was [visible] with the hold.
+ * The values in between never show, and the content changes together with
+ * the indicator leaving.
  *
  * Through a hold [Held.latest] carries the newest value, so a screen can hold
  * only the part that is re-solving (an estimate) and show the rest (a dose
@@ -35,7 +35,7 @@ const val UPDATING_MIN_HOLD_MILLIS = 400L
  * value that settles while the screen is hidden is released at once: the
  * screen comes back to it without an indicator.
  *
- * [settled] is what the consumer already shows, so a rebuild in flight when
+ * [settled] is what the consumer already shows, so an update in flight when
  * collection starts holds that instead of passing intermediate values
  * through. Without one there is nothing to hold, so updating values are
  * dropped and the consumer keeps its loading state until the first settled

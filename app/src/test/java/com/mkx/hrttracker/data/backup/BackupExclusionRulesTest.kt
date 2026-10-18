@@ -33,6 +33,8 @@ class BackupExclusionRulesTest {
         Exclusion("sharedpref", "hrt_tracker_secure_storage.xml"),
         Exclusion("file", "datastore/settings.preferences_pb"),
         Exclusion("file", "datastore/home_snapshot.pb"),
+        Exclusion("file", "datastore/home_e2_inputs.pb"),
+        Exclusion("file", "datastore/home_e2_estimate.pb"),
         Exclusion("file", "datastore/widget_snapshot.pb"),
         Exclusion("file", "datastore/anchor_snapshot.pb"),
         Exclusion("file", "datastore/home_snapshot_metadata.preferences_pb"),

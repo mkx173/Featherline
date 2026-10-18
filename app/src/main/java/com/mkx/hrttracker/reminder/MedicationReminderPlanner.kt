@@ -20,12 +20,30 @@ internal fun buildNextMedicationReminderPlans(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = 90L
+    lookaheadDays: Long = 90L,
+    /** Each group's armed reminder time, from the schedule store. */
+    armed: Map<UUID, LocalDateTime> = emptyMap(),
 ): List<MedicationReminderPlan> {
     return groups.asSequence()
         .filter(MedicationGroup::isActive)
         .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
         .mapNotNull { group ->
+            // Armed and past its time: the alarm never reached the receiver
+            // (it would have replaced this entry with the next time), as when
+            // the device was off at the time. Re-arm it, which fires at once,
+            // and the receiver names the group's latest due dose.
+            // ponytail: an alarm in flight when this runs is delivered twice;
+            // the second replaces the same notification.
+            armed[group.uuid]
+                ?.takeUnless { scheduledAt -> scheduledAt.isAfter(now) }
+                ?.let { scheduledAt ->
+                    return@mapNotNull MedicationReminderPlan(
+                        groupUuid = group.uuid,
+                        groupName = group.name,
+                        scheduledAt = scheduledAt,
+                        scheduleTimeUuid = null,
+                    )
+                }
             group
                 .nextOccurrencesInPlanWindowFrom(
                     start = now,

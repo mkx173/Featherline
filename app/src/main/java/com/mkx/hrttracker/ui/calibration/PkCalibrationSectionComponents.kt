@@ -742,7 +742,7 @@ private fun PkCalibrationSectionNotReadyPreview() {
     }
 }
 
-/** The live evaluation failed: the numeric-failure status row plus Try again. */
+/** The fit or its render failed: the numeric-failure status row plus Try again. */
 @Preview(name = "PK Section · Unavailable", showBackground = true, widthDp = 420)
 @Composable
 private fun PkCalibrationSectionUnavailablePreview() {

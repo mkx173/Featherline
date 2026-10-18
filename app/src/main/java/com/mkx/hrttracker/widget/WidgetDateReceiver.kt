@@ -48,13 +48,14 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // blocking open can't be interrupted, but cancelling here lets the receiver finish
         // inside its budget while the open resolves on its own thread.
         val completed = kotlinx.coroutines.withTimeoutOrNull(HANDLE_BUDGET_MS) {
-            // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
+            // A run for the new date or zone, which ends by warming Home's estimate for it;
+            // HomeWidgetManager's cache observer rebuilds the widget from its publish. Out of
+            // budget, only this wait ends: the run carries on in the app scope.
             // Guarded like the anchor refreshes below: a DataStore/database failure here must
             // neither crash the process (this is the root coroutine) nor skip the anchor
             // surface refreshes that follow.
             runCatching {
-                entryPoint.homeSnapshotRepository()
-                    .refreshHomeSnapshotIfNeeded(force = true, silent = true)
+                entryPoint.homeSnapshotRepository().rebuildNow()
             }.onFailure {
                 if (it is kotlinx.coroutines.CancellationException) throw it
                 diagnosticsLogger.warning(TAG, "home_snapshot_refresh_failed action=$action", it)

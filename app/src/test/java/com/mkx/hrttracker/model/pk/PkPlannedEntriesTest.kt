@@ -419,7 +419,7 @@ class PkPlannedEntriesTest {
             entries = simulationEntries.real,
             plannedEntries = simulationEntries.planned,
             bodyWeightKg = 70.0,
-            generatedAt = now,
+            windowDate = now.toLocalDate(),
             zoneId = zoneId,
             futureDays = 14,
         )
@@ -475,7 +475,7 @@ class PkPlannedEntriesTest {
             entries = simulationEntries.real,
             plannedEntries = simulationEntries.planned,
             bodyWeightKg = 70.0,
-            generatedAt = now,
+            windowDate = now.toLocalDate(),
             zoneId = zoneId,
             futureDays = 3,
         )

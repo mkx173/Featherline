@@ -509,13 +509,13 @@ internal fun MainE2HeroCard(
     now: LocalDateTime,
     displayUnit: BloodUnitKey,
     modifier: Modifier = Modifier,
-    trendReady: Boolean = true,
+    hasEstimate: Boolean = true,
     hideReferenceRanges: Boolean = false,
     pkCalibration: MainPkCalibrationUiState? = null,
     /** The title's population/lab icon opens the estimate sheet. */
     onCalibrationClick: () -> Unit = {},
 ) {
-    val showSkeleton = !trendReady
+    val showSkeleton = !hasEstimate
     val trendDeltaLabel = mainTrendDeltaLabel(
         changeSinceYesterday = section.changeSinceYesterday,
         unit = section.unit,
@@ -792,7 +792,7 @@ internal fun MainE2ChartCard(
     // afterwards the chart renders a synchronously built model, so navigation
     // re-entry and data changes paint the current data on the first frame.
     modelProducer: CartesianChartModelProducer = remember { CartesianChartModelProducer() },
-    trendReady: Boolean = true,
+    hasEstimate: Boolean = true,
     hideReferenceRanges: Boolean = false,
     onChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
     // Atomically claims the once-per-process intro animation (owned by
@@ -800,7 +800,7 @@ internal fun MainE2ChartCard(
     // composition renders the synchronous-model path from its first frame.
     claimIntroAnimation: () -> Boolean = { false },
 ) {
-    if (!trendReady) {
+    if (!hasEstimate) {
         Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.extraLarge,
@@ -4563,7 +4563,7 @@ private fun MainE2HeroCardPreview() {
                 section = uiState.e2Hero,
                 now = uiState.now,
                 displayUnit = uiState.homeE2DisplayUnit,
-                trendReady = false,
+                hasEstimate = false,
             )
         }
     }
@@ -4593,7 +4593,7 @@ private fun MainE2ChartCardPreview() {
                 displayUnit = uiState.homeE2DisplayUnit,
                 targetRangeLow = uiState.e2Hero.targetMin,
                 targetRangeHigh = uiState.e2Hero.targetMax,
-                trendReady = false,
+                hasEstimate = false,
             )
         }
     }

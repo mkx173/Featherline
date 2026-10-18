@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.actionParametersOf
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -30,6 +31,7 @@ import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -38,11 +40,16 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -52,6 +59,9 @@ import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class QuickLogActionCallbackTest {
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
+        coEvery { rebuildNow() } just Runs
+    }
 
     @After
     fun tearDown() {
@@ -94,6 +104,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
@@ -108,6 +119,66 @@ class QuickLogActionCallbackTest {
         coVerify { logRepository.saveNewEntries(any()) }
         verify { notificationManager.showStockUserLowToast(medicine) }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        // It finishes only once the log's rebuild, and its warm-up, are done.
+        coVerifyOrder {
+            logRepository.saveNewEntries(any())
+            homeSnapshotRepository.rebuildNow()
+        }
+    }
+
+    @Test
+    fun onAction_finishesWhenTheBudgetRunsOut() = runTest {
+        // The log is never cut short, only the wait for its run, which carries
+        // on in the app scope.
+        coEvery { homeSnapshotRepository.rebuildNow() } coAnswers { awaitCancellation() }
+        mockkStatic(EntryPointAccessors::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("5b0f3a8e-2c51-4d0b-9a3e-7c6f1d2e8b40"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns mockk(relaxed = true)
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
+
+        val action = launch { QuickLogActionCallback().onAction(context, mockk(), parameters) }
+        runCurrent()
+        advanceTimeBy(7_000L)
+        runCurrent()
+        coVerify(exactly = 1) { logRepository.saveNewEntries(any()) }
+        assertTrue(action.isActive)
+
+        advanceTimeBy(1_100L)
+        runCurrent()
+        assertTrue(action.isCompleted)
+        verify { diagnosticsLogger.warning(TAG, "widget_quick_log_rebuild_timeout") }
     }
 
     @Test
@@ -145,6 +216,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
@@ -208,6 +280,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         every { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
@@ -267,6 +340,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } just Runs
@@ -319,6 +393,7 @@ class QuickLogActionCallbackTest {
             every { entryPoint.settingsRepository() } returns settingsRepository
             every { entryPoint.reminderNotificationManager() } returns notificationManager
             every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
             coEvery { groupRepository.getGroup(group.uuid) } returns group
             coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
             coEvery { logRepository.saveNewEntries(any()) } just Runs

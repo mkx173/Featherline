@@ -3,9 +3,6 @@ package com.mkx.hrttracker.widget
 import android.content.Context
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HOME_SNAPSHOT_SCHEMA_VERSION
-import com.mkx.hrttracker.data.repository.HomePkDenseSamplePolicyRecord
-import com.mkx.hrttracker.data.repository.HomePkProjectionDoseMarkerRecord
-import com.mkx.hrttracker.data.repository.HomePkProjectionRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -20,6 +17,8 @@ import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkDoseMarker
+import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
@@ -66,6 +65,7 @@ class WidgetSnapshotBuilderTest {
         val snapshot = buildWidgetSnapshotRecord(
             context = realContext,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(configuredGroup)).copy(scheduleEntries = listOf(entry)),
+            widgetEstimate = null,
             settings = SettingsState(medicationDayStartMinutes = 300), now = now, zoneId = zoneId,
         )
         assertEquals(now.toLocalDate().minusDays(1).toEpochDay(), snapshot.anchorDateEpochDay)
@@ -89,6 +89,7 @@ class WidgetSnapshotBuilderTest {
         val snapshot = buildWidgetSnapshotRecord(
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
@@ -115,6 +116,7 @@ class WidgetSnapshotBuilderTest {
         val snapshot = buildWidgetSnapshotRecord(
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now),
+            widgetEstimate = null,
             settings = SettingsState(appLanguageOption = AppLanguageOption.SIMPLIFIED_CHINESE),
             now = now,
             zoneId = zoneId,
@@ -155,6 +157,7 @@ class WidgetSnapshotBuilderTest {
         val snapshot = buildWidgetSnapshotRecord(
             context = realContext,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
@@ -178,6 +181,7 @@ class WidgetSnapshotBuilderTest {
         val snapshot = buildWidgetSnapshotRecord(
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
@@ -188,42 +192,31 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
-    fun preservesHomeProjectionFieldsForWidgetSnapshot() {
+    fun carriesTheWidgetEstimate_stampedWithTheBuildTime_andExpiringAtItsWindowEnd() {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        val projection = HomePkProjectionRecord(
-            generatedAtEpochMillis = 1_000L,
-            windowStartEpochMillis = 500L,
-            windowEndEpochMillis = 2_000L,
-            pkProjectionExpiresAtEpochMillis = 3_000L,
-            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+        val estimate = PkProjectionResult(
+            windowStart = Instant.ofEpochMilli(500L),
+            windowEnd = Instant.ofEpochMilli(2_000L),
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
             timeH = listOf(0.0, 1.0),
             concentrations = listOf(100.0, 90.0),
-            doseMarkers = listOf(
-                HomePkProjectionDoseMarkerRecord(
-                    timeH = 0.5,
-                    concentration = 95.0,
-                    isPlanned = false
-                )
-            ),
-            latestEstradiolEntry = null,
-            chartWindowHours = 168,
-            densePolicy = HomePkDenseSamplePolicyRecord.Interval(0.5),
-            includesPostDoseOffsets = false,
+            doseMarkers = listOf(PkDoseMarker(timeH = 0.5, concentration = 95.0, isPlanned = false)),
         )
 
         val widget = buildWidgetSnapshotRecord(
             context = context,
-            homeSnapshot = homeSnapshotRecord(now = now, widgetPkProjection = projection),
+            homeSnapshot = homeSnapshotRecord(now = now),
+            widgetEstimate = estimate,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
         ).pkProjection
 
         requireNotNull(widget)
-        assertEquals(1_000L, widget.generatedAtEpochMillis)
+        assertEquals(now.atZone(zoneId).toInstant().toEpochMilli(), widget.generatedAtEpochMillis)
         assertEquals(500L, widget.windowStartEpochMillis)
         assertEquals(2_000L, widget.windowEndEpochMillis)
-        assertEquals(3_000L, widget.pkProjectionExpiresAtEpochMillis)
+        assertEquals(2_000L, widget.pkProjectionExpiresAtEpochMillis)
         assertEquals(PkConcentrationUnit.PG_PER_ML.name, widget.concentrationUnit)
         assertEquals(listOf(0.0, 1.0), widget.timeH)
         assertEquals(listOf(100.0, 90.0), widget.concentrations)
@@ -231,6 +224,17 @@ class WidgetSnapshotBuilderTest {
         assertEquals(0.5, widget.doseMarkers[0].timeH, 0.0001)
         assertEquals(95.0, widget.doseMarkers[0].concentration, 0.0001)
         assertEquals(false, widget.doseMarkers[0].isPlanned)
+        // Without an estimate the widget shows none, and its rows still come.
+        assertNull(
+            buildWidgetSnapshotRecord(
+                context = context,
+                homeSnapshot = homeSnapshotRecord(now = now),
+                widgetEstimate = null,
+                settings = SettingsState(),
+                now = now,
+                zoneId = zoneId,
+            ).pkProjection
+        )
     }
 
     @Test
@@ -260,6 +264,7 @@ class WidgetSnapshotBuilderTest {
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, archivedGroups = listOf(archived))
                 .copy(scheduleEntries = listOf(logged)),
+            widgetEstimate = null,
             settings = SettingsState(showArchivedGroupRecords = true),
             now = now,
             zoneId = zoneId,
@@ -300,6 +305,7 @@ class WidgetSnapshotBuilderTest {
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, archivedGroups = listOf(archived))
                 .copy(scheduleEntries = listOf(logged)),
+            widgetEstimate = null,
             settings = SettingsState(showArchivedGroupRecords = false),
             now = now,
             zoneId = zoneId,
@@ -322,6 +328,7 @@ class WidgetSnapshotBuilderTest {
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = emptyList())
                 .copy(scheduleEntries = listOf(manual)),
+            widgetEstimate = null,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
@@ -348,6 +355,7 @@ class WidgetSnapshotBuilderTest {
             context = context,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = emptyList())
                 .copy(scheduleEntries = listOf(imported)),
+            widgetEstimate = null,
             settings = SettingsState(),
             now = now,
             zoneId = zoneId,
@@ -398,16 +406,12 @@ class WidgetSnapshotBuilderTest {
         now: LocalDateTime,
         activeGroups: List<MedicationGroup> = emptyList(),
         archivedGroups: List<MedicationGroup> = emptyList(),
-        pkProjection: HomePkProjectionRecord? = null,
-        widgetPkProjection: HomePkProjectionRecord? = null,
     ): HomeSnapshotRecord {
         return HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
-            pkProjection = pkProjection,
-            widgetPkProjection = widgetPkProjection,
             activeGroups = activeGroups,
             archivedGroups = archivedGroups,
             scheduleEntries = emptyList(),

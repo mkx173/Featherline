@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.ui.calibration
 
-import com.mkx.hrttracker.data.repository.PkCalibrationLive
+import com.mkx.hrttracker.data.repository.CalibrationEstimate
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -126,7 +126,7 @@ val PkCalibrationUiState.smallShareRoutes: Set<PkCalibrationRoute>
 
 /**
  * [PkCalibrationUiState] plus the per-lab review context the lab list needs
- * (excluded dispositions come from the same atomic evaluation snapshot).
+ * (the dispositions come from the labs and metadata stored with the fit).
  */
 data class PkCalibrationScreenState(
     val ui: PkCalibrationUiState,
@@ -137,9 +137,8 @@ data class PkCalibrationScreenState(
 )
 
 /**
- * The live evaluation itself failed (a read or input error), so there is no
- * fit to project. Shown as the global numeric failure with Try again; no lab
- * row is flagged.
+ * The solve or its render failed, so there is no fit to project. Shown as the
+ * global numeric failure with Try again; no lab row is flagged.
  */
 fun pkCalibrationUnavailableScreenState(): PkCalibrationScreenState = PkCalibrationScreenState(
     ui = PkCalibrationUiState(
@@ -155,15 +154,14 @@ fun pkCalibrationUnavailableScreenState(): PkCalibrationScreenState = PkCalibrat
     excludedResultIds = emptySet(),
 )
 
-/** Builds the screen state from one live evaluation; shared by the list and the result editor. */
-fun pkCalibrationScreenState(live: PkCalibrationLive): PkCalibrationScreenState {
+/** Builds the screen state from one estimate; shared by the list, the result editor and Home's sheet. */
+fun pkCalibrationScreenState(estimate: CalibrationEstimate): PkCalibrationScreenState {
+    val result = estimate.result ?: return pkCalibrationUnavailableScreenState()
     return PkCalibrationScreenState(
-        ui = pkCalibrationUiState(live.evaluation.result, live.render),
-        excludedResultIds = live.input.excludedLabIds,
-        acceptedResultIds = live.input.acceptedLabIds,
-        nonPositiveResultIds = live.input.labs
-            .filter { lab -> lab.valuePgml <= 0.0 }
-            .mapTo(HashSet()) { lab -> lab.resultId },
+        ui = pkCalibrationUiState(result, estimate.render),
+        excludedResultIds = estimate.excludedLabIds,
+        acceptedResultIds = estimate.acceptedLabIds,
+        nonPositiveResultIds = estimate.nonPositiveLabIds,
     )
 }
 

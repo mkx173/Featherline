@@ -3,12 +3,17 @@ package com.mkx.hrttracker.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 @AndroidEntryPoint
 class MedicationReminderActionReceiver : BroadcastReceiver() {
@@ -22,7 +27,11 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
+    @Inject
+    lateinit var homeSnapshotRepository: HomeSnapshotRepository
+
     override fun onReceive(context: Context, intent: Intent) {
+        val deadline = TimeSource.Monotonic.markNow() + HANDLE_BUDGET_MS.milliseconds
         val slots = intent.getStringArrayListExtra(EXTRA_REMINDER_SLOTS)
             .orEmpty()
             .mapNotNull(::medicationReminderSlotFromStorageValue)
@@ -59,46 +68,88 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
                 }
                 parsed
             }
-        appScope.launch {
-            runCatching {
-                when (intent.action) {
-                    ACTION_MEDICATION_REMINDER_LOG_NOW -> actionHandler.logNow(
+        handleReminderAction(
+            action = intent.action,
+            slots = slots,
+            logTargets = logTargets,
+            notificationTag = notificationTag,
+            deadline = deadline,
+            appScope = appScope,
+            actionHandler = actionHandler,
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+            pendingResult = pendingResult,
+        )
+    }
+}
+
+/** Runs a reminder notification's action and finishes the broadcast once it is done. */
+internal fun handleReminderAction(
+    action: String?,
+    slots: List<MedicationReminderSlot>,
+    logTargets: List<MedicationReminderLogTarget>?,
+    notificationTag: String?,
+    /** The end of the broadcast's budget, counted from its receipt. */
+    deadline: TimeMark,
+    appScope: CoroutineScope,
+    actionHandler: MedicationReminderActionHandler,
+    homeSnapshotRepository: HomeSnapshotRepository,
+    diagnosticsLogger: AppDiagnosticsLogger,
+    pendingResult: BroadcastReceiver.PendingResult,
+) {
+    appScope.launch {
+        runCatching {
+            when (action) {
+                ACTION_MEDICATION_REMINDER_LOG_NOW -> {
+                    actionHandler.logNow(
                         slots = slots,
                         logTargets = logTargets,
                         notificationTag = notificationTag,
                     )
-
-                    ACTION_MEDICATION_REMINDER_REMIND_LATER -> actionHandler.remindLater(
-                        slots = slots,
-                        notificationTag = notificationTag,
-                    )
-
-                    ACTION_MEDICATION_REMINDER_SNOOZE_ALARM -> actionHandler.showSnoozedReminder(
-                        slots = slots,
-                        notificationTag = notificationTag,
-                    )
-
-                    else -> diagnosticsLogger.info(
-                        TAG,
-                        "reminder_action_receiver_ignored reason=unknown_action action=${intent.action}"
-                    )
+                    // Finish only once a run that read the log, and its
+                    // warm-up, stored Home's estimate, so the next open shows
+                    // it at once. Bounded by what is left of the budget; the
+                    // run itself carries on in the app scope.
+                    val rebuilt = withTimeoutOrNull(-deadline.elapsedNow()) {
+                        homeSnapshotRepository.rebuildNow()
+                    }
+                    if (rebuilt == null) {
+                        diagnosticsLogger.warning(TAG, "reminder_action_receiver_rebuild_timeout")
+                    }
                 }
-            }.onFailure { throwable ->
-                diagnosticsLogger.warning(
-                    TAG,
-                    "reminder_action_receiver_failed action=${intent.action} slots=${slots.size}",
-                    throwable,
+
+                ACTION_MEDICATION_REMINDER_REMIND_LATER -> actionHandler.remindLater(
+                    slots = slots,
+                    notificationTag = notificationTag,
                 )
-            }.also {
-                pendingResult.finish()
+
+                ACTION_MEDICATION_REMINDER_SNOOZE_ALARM -> actionHandler.showSnoozedReminder(
+                    slots = slots,
+                    notificationTag = notificationTag,
+                )
+
+                else -> diagnosticsLogger.info(
+                    TAG,
+                    "reminder_action_receiver_ignored reason=unknown_action action=$action"
+                )
             }
+        }.onFailure { throwable ->
+            diagnosticsLogger.warning(
+                TAG,
+                "reminder_action_receiver_failed action=$action slots=${slots.size}",
+                throwable,
+            )
+        }.also {
+            pendingResult.finish()
         }
     }
-
-    private companion object {
-        const val TAG = "MedicationReminderActionReceiver"
-    }
 }
+
+private const val TAG = "MedicationReminderActionReceiver"
+
+// Inside the ~10s background-broadcast goAsync allowance, as in
+// WidgetDateReceiver; the log itself is never cut short.
+private const val HANDLE_BUDGET_MS = 8_000L
 
 const val ACTION_MEDICATION_REMINDER_LOG_NOW =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_LOG_NOW"

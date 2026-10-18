@@ -16,30 +16,30 @@ import kotlin.math.sqrt
 /** Pure central-curve and predictive-band rendering for one exact chart domain. */
 object PkCalibrationRenderer {
     /**
-     * [doseEvents] defaults to the fitted history; Home passes logged plus
-     * planned doses so the band follows the same projected curve the chart
-     * draws. The fit (and its covariance) is unaffected either way.
-     * [statusRange] is the visible part of [domain] the status describes;
-     * Home's domain runs past its chart to cache the forecast.
+     * The render of a stored fit: [doseEvents] are relative to its
+     * [originEpochMillis], and [weightKg] and [config] are the ones it was
+     * solved with. Home passes logged plus planned doses so the band follows
+     * the same projected curve the chart draws; the fit (and its covariance)
+     * is unaffected either way. [statusRange] is the visible part of [domain]
+     * the status describes; Home's domain, its projection window, runs past
+     * its chart. Null unless [result] is READY; a numeric render failure is a
+     * NUMERIC_UNAVAILABLE result.
      */
     fun render(
-        evaluation: PkCalibrationEvaluation,
+        result: PkCalibrationResult,
+        originEpochMillis: Long,
+        weightKg: Double,
+        config: PkCalibrationConfig,
         domain: PkChartDomain,
-        doseEvents: List<PkDoseEvent> = evaluation.evidence?.input?.doseEvents.orEmpty(),
+        doseEvents: List<PkDoseEvent>,
         statusRange: LongRange = domain.rangeStartEpochMillis..domain.rangeEndEpochMillis,
     ): PkCalibrationRenderResult? {
-        val evidence = evaluation.evidence ?: return null
-        val result = evaluation.result
-        val input = evidence.input
-        val forwardModel = if (doseEvents === input.doseEvents) {
-            evidence.forwardModel
-        } else {
-            PkE2ForwardModel.create(doseEvents, input.weightKg) ?: return NumericUnavailable
-        }
+        if (result.globalState != PkCalibrationGlobalState.READY) return null
+        val model = PkE2ForwardModel.create(doseEvents, weightKg) ?: return NumericUnavailable
 
         val knots = TreeSet(domain.knotEpochMillis)
         for (event in doseEvents) {
-            val epochMillis = input.originEpochMillis +
+            val epochMillis = originEpochMillis +
                     (event.timeH * MILLIS_PER_HOUR).roundToLong()
             if (epochMillis in domain.rangeStartEpochMillis..domain.rangeEndEpochMillis) {
                 knots += epochMillis
@@ -48,8 +48,8 @@ object PkCalibrationRenderer {
 
         val population = ArrayList<Pair<Long, PkForwardBreakdown>>(knots.size)
         for (epochMillis in knots) {
-            val breakdown = forwardModel.breakdownAt(
-                epochDifferenceHours(epochMillis, input.originEpochMillis)
+            val breakdown = model.breakdownAt(
+                epochDifferenceHours(epochMillis, originEpochMillis)
             ) ?: return NumericUnavailable
             population += epochMillis to breakdown
         }
@@ -110,7 +110,7 @@ object PkCalibrationRenderer {
             shapedKnots = shapedKnots,
             appliedRoutes = appliedRoutes,
             promotedBetaCovariance = result.promotedBetaCovariance,
-            rLog = input.config.rLog,
+            rLog = config.rLog,
         )
         return PkCalibrationRenderResult(
             renderState = renderState,

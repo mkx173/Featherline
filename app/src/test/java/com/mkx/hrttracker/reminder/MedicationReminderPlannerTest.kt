@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -58,6 +59,48 @@ class MedicationReminderPlannerTest {
             listOf(firstGroup.uuid, secondGroup.uuid),
             plans.map { it.groupUuid }
         )
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_rearms_an_armed_time_that_has_passed() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("5b1c7a0e-2d3f-4e5a-9b6c-7d8e9f0a1b2c"),
+            name = "Evening estradiol",
+            time = LocalTime.of(20, 0),
+            notificationsEnabled = true
+        )
+        // The device was off at 20:00 on the 19th: the alarm never fired.
+        val missed = LocalDateTime.of(2026, 4, 19, 20, 0)
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 20, 8, 0),
+            armed = mapOf(group.uuid to missed),
+        )
+
+        assertEquals(listOf(missed), plans.map { it.scheduledAt })
+        assertEquals(listOf(null), plans.map { it.scheduleTimeUuid })
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_plans_past_an_armed_time_still_ahead() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("6c2d8b1f-3e4a-4f6b-8c7d-8e9f0a1b2c3d"),
+            name = "Evening estradiol",
+            time = LocalTime.of(20, 0),
+            notificationsEnabled = true
+        )
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 20, 8, 0),
+            armed = mapOf(group.uuid to LocalDateTime.of(2026, 4, 20, 20, 0)),
+        )
+
+        assertEquals(listOf(LocalDateTime.of(2026, 4, 20, 20, 0)), plans.map { it.scheduledAt })
+        assertTrue(plans.single().scheduleTimeUuid != null)
     }
 
     @Test

@@ -3,11 +3,11 @@ package com.mkx.hrttracker.ui.settings
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.CalibrationEstimate
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
+import com.mkx.hrttracker.data.repository.E2State
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
-import com.mkx.hrttracker.data.repository.PkCalibrationLive
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -25,7 +25,6 @@ import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationInput
-import com.mkx.hrttracker.model.pk.PkChartDomain
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationAddAnalyteOption
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteEntryResult
@@ -37,6 +36,7 @@ import com.mkx.hrttracker.ui.calibration.PkCalibrationLabRowFlag
 import com.mkx.hrttracker.ui.calibration.calibrationAddAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.calibrationAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.canSaveCalibrationEditorState
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -72,10 +72,11 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalibrationEditorViewModelTest {
     private val pkStorageRepository: com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository = mockk(relaxed = true)
-    private val pkLiveState = MutableStateFlow<PkCalibrationLiveResult?>(null)
-    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
-        every { liveState } returns pkLiveState
+    private val calibrationEstimates = MutableStateFlow(E2State<CalibrationEstimate>(null))
+    private val e2EstimateRepository: E2EstimateRepository = mockk {
+        every { observeCalibration(any()) } returns calibrationEstimates
     }
+    private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 5, 20, 10, 0))
     private val repository: BloodTestRepository = mockk(relaxed = true)
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
@@ -102,15 +103,15 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun reviewState_followsTheLiveEvaluation_andUndoResetsAcceptance() = runTest {
+    fun reviewState_followsTheCalibrationEstimate_andUndoResetsAcceptance() = runTest {
         // The editor must show the same review state as the list, so it reads
-        // the shared live evaluation rather than a copy of the metadata.
+        // the shared calibration estimate rather than a copy of the metadata.
         val panel = testBloodTestPanel(uuid = UUID.randomUUID(), collectedAt = Instant.EPOCH)
         val resultId = panel.results.first { (it.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2 }.uuid
         every { repository.getCachedPanel(panel.uuid) } returns panel
-        pkLiveState.value = live(E2CalibrationMetadata(resultId, E2CalibrationDisposition.REVIEWED, Instant.EPOCH))
+        calibrationEstimates.value = estimate(E2CalibrationMetadata(resultId, E2CalibrationDisposition.REVIEWED, Instant.EPOCH))
         coEvery { pkStorageRepository.saveMetadata(any()) } answers {
-            pkLiveState.value = live(firstArg())
+            calibrationEstimates.value = estimate(firstArg())
         }
         val editor = editorFor(panel)
         advanceUntilIdle()
@@ -131,7 +132,7 @@ class CalibrationEditorViewModelTest {
         val panel = testBloodTestPanel(uuid = UUID.randomUUID(), collectedAt = Instant.EPOCH)
         val resultId = panel.results.first { (it.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2 }.uuid
         every { repository.getCachedPanel(panel.uuid) } returns panel
-        pkLiveState.value = live(E2CalibrationMetadata(resultId, E2CalibrationDisposition.EXCLUDED, Instant.EPOCH))
+        calibrationEstimates.value = estimate(E2CalibrationMetadata(resultId, E2CalibrationDisposition.EXCLUDED, Instant.EPOCH))
         coEvery { pkStorageRepository.saveMetadata(any()) } throws IllegalStateException("write failed")
         val editor = editorFor(panel)
         advanceUntilIdle()
@@ -144,7 +145,7 @@ class CalibrationEditorViewModelTest {
         assertFalse(editor.uiState.value.isUpdatingPkReview)
 
         editor.consumePkReviewFailure()
-        coEvery { pkStorageRepository.saveMetadata(any()) } answers { pkLiveState.value = live(firstArg()) }
+        coEvery { pkStorageRepository.saveMetadata(any()) } answers { calibrationEstimates.value = estimate(firstArg()) }
         editor.reincludePkLab(resultId)
         advanceUntilIdle()
         assertNull(editor.uiState.value.pkReviewFlag)
@@ -155,11 +156,11 @@ class CalibrationEditorViewModelTest {
     private fun editorFor(panel: BloodTestPanel) = CalibrationEditorViewModel(
         repository, medicationLogRepository, settingsRepository,
         SavedStateHandle(mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panel.uuid.toString())),
-        pkStorageRepository, pkCalibrationLiveRepository,
+        pkStorageRepository, e2EstimateRepository, appTimeSource,
     )
 
     /** A real evaluation with no labs: only the stored dispositions shape the flag. */
-    private fun live(vararg metadata: E2CalibrationMetadata): PkCalibrationLiveResult {
+    private fun estimate(vararg metadata: E2CalibrationMetadata): E2State<CalibrationEstimate> {
         val input = PkCalibrationInput(
             labs = emptyList(),
             doseEvents = emptyList(),
@@ -167,8 +168,15 @@ class CalibrationEditorViewModelTest {
             weightKg = 60.0,
             metadata = metadata.toList(),
         )
-        val domain = checkNotNull(PkChartDomain.create(0L, 86_400_000L, 21_600_000L))
-        return PkCalibrationLiveResult(PkCalibrationLive(input, PkCalibrationEngine.evaluate(input), domain, null))
+        return E2State(
+            CalibrationEstimate(
+                result = PkCalibrationEngine.evaluate(input).result,
+                render = null,
+                acceptedLabIds = input.acceptedLabIds,
+                excludedLabIds = input.excludedLabIds,
+                nonPositiveLabIds = emptySet(),
+            )
+        )
     }
 
     @Test
@@ -191,7 +199,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
 
         val initialState = viewModel.uiState.value
@@ -229,7 +238,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
 
         assertEquals(listOf(customAnalyte), viewModel.uiState.value.customAnalytes)
@@ -260,7 +270,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
 
         val initialState = viewModel.uiState.value
@@ -287,7 +298,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -332,7 +344,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -397,7 +410,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -424,7 +438,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             savedStateHandle,
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         firstSession.updateCollectedDate(LocalDate.of(2026, 4, 24))
@@ -444,7 +459,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             savedStateHandle,
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -508,7 +524,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             savedStateHandle,
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         firstSession.updateNotes("Edited note")
@@ -522,7 +539,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             savedStateHandle,
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -564,7 +582,8 @@ class CalibrationEditorViewModelTest {
                 settingsRepository,
                 savedStateHandle,
                 pkStorageRepository = pkStorageRepository,
-                pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+                e2EstimateRepository = e2EstimateRepository,
+                appTimeSource = appTimeSource,
             )
             advanceUntilIdle()
             firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -590,7 +609,8 @@ class CalibrationEditorViewModelTest {
                 settingsRepository,
                 savedStateHandle,
                 pkStorageRepository = pkStorageRepository,
-                pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+                e2EstimateRepository = e2EstimateRepository,
+                appTimeSource = appTimeSource,
             )
             advanceUntilIdle()
             assertNull(restoredSession.uiState.value.panelUuid)
@@ -618,7 +638,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
@@ -682,7 +703,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -742,7 +764,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -786,7 +809,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -820,7 +844,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "95")
@@ -859,7 +884,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
         viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
@@ -905,7 +931,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -931,7 +958,8 @@ class CalibrationEditorViewModelTest {
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             ),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -958,7 +986,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 
@@ -1002,7 +1031,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
 
         assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)
@@ -1068,7 +1098,8 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle(),
             pkStorageRepository = pkStorageRepository,
-            pkCalibrationLiveRepository = pkCalibrationLiveRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
 

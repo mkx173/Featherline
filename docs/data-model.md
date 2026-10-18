@@ -499,10 +499,11 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   `observeActiveGroups`, `observeScheduleEntries`,
   `observeLatestAntiandrogenEntriesOnOrBefore` (one row per
   antiandrogen medication signature, picked from the latest applied
-  entry on or before the cutoff), `observeEstradiolPkEntries` (a
-  bounded window of estradiol doses for PK simulation),
-  `observeLatestEstradiolEntryOnOrBefore`, and the singleton-profile
-  observer.
+  entry on or before the cutoff), and
+  `observeLatestEstradiolEntryOnOrBefore`; plus one-shot reads for the
+  home rebuild worker's runs, among them `getEstradiolPkEntries`
+  (estradiol doses between two bounds, for PK simulation and the
+  calibration fit).
 
 ## Migration policy
 

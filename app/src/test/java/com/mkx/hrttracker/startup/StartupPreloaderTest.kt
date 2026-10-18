@@ -4,6 +4,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.repository.HomeCacheState
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -85,7 +86,7 @@ class StartupPreloaderTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshot: HomeSnapshotRecord = mockk()
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        coEvery { homeSnapshotRepository.readUsableHomeSnapshot(now = now) } returns snapshot
+        coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(0L, snapshot, e2Inputs = null)
         coEvery {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
@@ -112,7 +113,7 @@ class StartupPreloaderTest {
         coVerify(
             timeout = 1_000,
             exactly = 1
-        ) { homeSnapshotRepository.readUsableHomeSnapshot(now = now) }
+        ) { homeSnapshotRepository.currentState() }
         coVerify(timeout = 1_000, exactly = 1) {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
@@ -132,7 +133,7 @@ class StartupPreloaderTest {
         runTest {
             val dispatcher = StandardTestDispatcher(testScheduler)
             val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-            coEvery { homeSnapshotRepository.readUsableHomeSnapshot(now = now) } returns null
+            coEvery { homeSnapshotRepository.currentState() } returns null
             coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
 
             StartupPreloader(

@@ -27,9 +27,14 @@ import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.toStorageValue
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.appLanguageLocale
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicineDisplayName
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -122,6 +127,19 @@ class ReminderNotificationManager @Inject constructor(
             .setSmallIcon(R.drawable.ic_notification_icon)
             .setContentTitle(title)
             .setContentText(body)
+            // Two reminders for one group, say a snoozed dose and a later one,
+            // would otherwise read the same: name the dose each one is for.
+            .setSubText(
+                localizedContext.getString(
+                    R.string.reminder_notification_scheduled_at,
+                    dateLabelFormatter(appLanguageLocale(), LocalDate.now())(bundle.scheduledAt.toLocalDate()),
+                    bundle.scheduledAt.format(
+                        localizedShortTimeFormatter(appLanguageLocale(), context.uses24HourTimeFormat())
+                    ),
+                )
+            )
+            // The header would show the post time next to the subtext's dose time.
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)

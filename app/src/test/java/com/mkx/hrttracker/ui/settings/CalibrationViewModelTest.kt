@@ -1,32 +1,58 @@
 package com.mkx.hrttracker.ui.settings
 
+import androidx.lifecycle.Lifecycle
 import com.mkx.hrttracker.data.repository.BloodTestRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
+import com.mkx.hrttracker.data.repository.CalibrationEstimate
+import com.mkx.hrttracker.data.repository.E2Derivation
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
+import com.mkx.hrttracker.data.repository.E2FitRecord
+import com.mkx.hrttracker.data.repository.E2Pending
+import com.mkx.hrttracker.data.repository.E2State
+import com.mkx.hrttracker.data.repository.FitOutcome
+import com.mkx.hrttracker.data.repository.E2InputsRecord
+import com.mkx.hrttracker.data.repository.HomeCacheState
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.buildPkCalibrationInput
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
+import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteAllEntriesResult
 import com.mkx.hrttracker.ui.calibration.CalibrationPanelResultSummary
 import com.mkx.hrttracker.ui.calibration.CalibrationRangeStatus
+import com.mkx.hrttracker.ui.calibration.CalibrationUiState
 import com.mkx.hrttracker.ui.calibration.CalibrationViewModel
+import com.mkx.hrttracker.ui.calibration.PkCalibrationLabRowFlag
+import com.mkx.hrttracker.ui.calibration.PkCalibrationScreenState
 import com.mkx.hrttracker.ui.calibration.calibrationRangeStatus
 import com.mkx.hrttracker.ui.calibration.calibrationValueInPreferredUnitLabel
 import com.mkx.hrttracker.ui.calibration.formatCalibrationPanelValueSummary
 import com.mkx.hrttracker.ui.calibration.groupCalibrationPanelsByMonth
 import com.mkx.hrttracker.ui.calibration.parseCalibrationNumericInput
+import com.mkx.hrttracker.ui.calibration.pkCalibrationLabFlag
 import com.mkx.hrttracker.util.CalibrationPanelDateTimeFormatters
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,8 +61,12 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -46,7 +76,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Clock
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -57,10 +89,15 @@ import java.util.UUID
 class CalibrationViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
-    private val pkCalibrationLiveRepository: PkCalibrationLiveRepository = mockk {
-        every { liveState } returns MutableStateFlow<PkCalibrationLiveResult?>(PkCalibrationLiveResult(null))
-        every { updating } returns MutableStateFlow(false)
+
+    // The estimator's state: each observation, a restart included, starts
+    // from its current value, as the repository's cold start does.
+    private val calibrationEstimates = MutableStateFlow(E2State(estimate()))
+    private val e2EstimateRepository: E2EstimateRepository = mockk {
+        every { observeCalibration(any()) } returns calibrationEstimates
     }
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
+    private val processLifecycleState = MutableStateFlow(Lifecycle.State.STARTED)
     private val dispatcher = StandardTestDispatcher()
     private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
@@ -77,7 +114,7 @@ class CalibrationViewModelTest {
     fun pkIntroSeen_surfacesTheStoredFlag_andMarkingPersistsIt() = runTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { settingsRepository.setPkCalibrationIntroSeen(true) } returns Unit
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        val viewModel = viewModel()
         val collector = backgroundScope.launch { viewModel.pkIntroSeen.collect() }
         advanceUntilIdle()
         assertEquals(false, viewModel.pkIntroSeen.value)
@@ -90,34 +127,406 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun pkCalibrationState_showsNumericFailureWhenLiveEvaluationFails() = runTest {
+    fun pkCalibrationState_showsNumericFailure_whenTheFitOrItsRenderFailed() = runTest {
         every { repository.observePanels() } returns flowOf(emptyList())
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        calibrationEstimates.value = E2State(estimate(result = null))
+        val viewModel = viewModel()
         val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
         advanceUntilIdle()
 
         val state = checkNotNull(viewModel.pkCalibrationState.value)
         assertEquals(PkCalibrationGlobalState.NUMERIC_FAILURE, state.ui.globalState)
         assertTrue(state.ui.numericFailure)
+        assertFalse(viewModel.uiState.value.isLoading)
         collector.cancel()
     }
 
     @Test
-    fun pkCalibrationState_isNullWhileFirstEvaluationLoads() = runTest {
-        every { repository.observePanels() } returns flowOf(emptyList())
-        every { pkCalibrationLiveRepository.liveState } returns MutableStateFlow<PkCalibrationLiveResult?>(null)
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+    fun coldStart_showsTheLoadingState_untilTheEstimateIsDerived() = runTest {
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        calibrationEstimates.value = E2State(null, E2Pending.SYSTEM)
+        val viewModel = viewModel()
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+        assertNull(viewModel.pkCalibrationState.value)
+        assertTrue(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.isUpdating)
+
+        calibrationEstimates.value = E2State(estimate())
+        advanceUntilIdle()
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, viewModel.pkCalibrationState.value?.ui?.globalState)
+        assertFalse(viewModel.uiState.value.isLoading)
+        collector.cancel()
+    }
+
+    @Test
+    fun withNothingToDeriveTheSectionFrom_theLabListStillShows() = runTest {
+        // A mutation's rebuild pending, or failing on every try: no value
+        // and nothing being derived. The lab list is live, so the page shows
+        // it, without the section, instead of a spinner.
+        val panel = testBloodTestPanel()
+        every { repository.observePanels() } returns flowOf(listOf(panel))
+        calibrationEstimates.value = E2State(null)
+        val viewModel = viewModel()
         val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
         advanceUntilIdle()
 
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(listOf(panel), viewModel.uiState.value.panels)
         assertNull(viewModel.pkCalibrationState.value)
         collector.cancel()
+    }
+
+    @Test
+    fun aDerivationStartingAfterTheListShows_neverTakesThePageBackToLoading() = runTest {
+        // Opened while a run is going: nothing to derive from, so the list
+        // shows alone. The run publishes and the section is derived; the
+        // section then appears above the list, with no loading state between.
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        calibrationEstimates.value = E2State(null)
+        val viewModel = viewModel()
+        val sections = collectSections(viewModel)
+        advanceUntilIdle()
+        val pages = collectPages(viewModel)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(sections.last())
+
+        calibrationEstimates.value = E2State(null, E2Pending.SYSTEM)
+        advanceUntilIdle()
+        calibrationEstimates.value = E2State(estimate())
+        advanceUntilIdle()
+
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, sections.last()?.ui?.globalState)
+        assertTrue(pages.none { page -> page.isLoading })
+    }
+
+    @Test
+    fun aReturn_throughTheEstimator_showsAMovedKeyAlreadyDerived_inline() = runTest {
+        // The real estimator rather than one stubbed flow. A review lands
+        // while the app is away, and the result editor, which keeps
+        // observing, derives the new key: the page's restarted observation
+        // finds it in the memo, in the pass that brings the app back.
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 20, 10, 0)
+        val estradiol = testMedicine(preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0))
+        val logged = (1L..60L).map { daysAgo ->
+            val at = now.toLocalDate().minusDays(daysAgo).atTime(8, 0)
+            testMedicationLogEntry(
+                uuid = UUID.nameUUIDFromBytes("dose:$at".toByteArray()),
+                medicine = estradiol,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                appliedAt = at.atZone(zoneId).toInstant(),
+                appliedAtTimeZoneId = zoneId.id,
+            )
+        }
+        val labs = listOf(10L, 6L, 2L).mapIndexed { index, daysAgo ->
+            PkCalibrationLab(
+                resultId = UUID(0L, index + 1L),
+                collectedAtEpochMillis = now.toLocalDate().minusDays(daysAgo).atTime(9, 0)
+                    .atZone(zoneId).toInstant().toEpochMilli(),
+                valuePgml = 140.0,
+            )
+        }
+        fun inputs(generation: Long, metadata: List<E2CalibrationMetadata>): HomeCacheState {
+            val input = buildPkCalibrationInput(labs = labs, entries = logged, weightKg = 62.0, metadata = metadata)
+            return HomeCacheState(
+                generation = generation,
+                homeData = null,
+                e2Inputs = E2InputsRecord(
+                    generation = generation,
+                    anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+                    zoneId = zoneId.id,
+                    option = HomeE2ChartWindowOption.SEVEN_DAYS,
+                    weightKg = 62.0,
+                    estradiolEntries = logged,
+                    plannedSources = emptyList(),
+                    labs = labs,
+                    labMetadata = metadata,
+                    fit = E2FitRecord(
+                        fitId = E2Derivation.fitId(input),
+                        epoch = 0,
+                        outcome = FitOutcome.Solved(PkCalibrationEngine.evaluate(input).result, input.originEpochMillis),
+                    ),
+                ),
+            )
+        }
+        val cache = MutableStateFlow<HomeCacheState?>(inputs(generation = 0L, metadata = emptyList()))
+        val generation = MutableStateFlow(0L)
+        val snapshots = mockk<HomeSnapshotRepository>(relaxed = true) {
+            every { this@mockk.cache } returns cache
+            every { this@mockk.generation } returns generation
+        }
+        val estimates = E2EstimateRepository(
+            homeSnapshotRepository = snapshots,
+            store = mockk { coEvery { read() } returns null },
+            clock = Clock.fixed(now.atZone(zoneId).toInstant(), zoneId),
+            appScope = backgroundScope,
+            defaultDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        val viewModel = CalibrationViewModel(
+            bloodTestRepository = repository,
+            settingsRepository = settingsRepository,
+            e2EstimateRepository = estimates,
+            homeSnapshotRepository = snapshots,
+            processLifecycleState = processLifecycleState,
+            appTimeSource = FakeAppTimeSource(now),
+        )
+        val sections = collectSections(viewModel)
+        val pages = collectPages(viewModel)
+        // The estimator works in backgroundScope: runCurrent runs it, where
+        // advanceUntilIdle stops once only background work is left.
+        runCurrent()
+        assertEquals(emptySet<UUID>(), viewModel.pkCalibrationState.value?.acceptedResultIds)
+
+        processLifecycleState.value = Lifecycle.State.CREATED
+        val review = listOf(E2CalibrationMetadata(labs.first().resultId, E2CalibrationDisposition.REVIEWED, Instant.EPOCH))
+        generation.value = 1L
+        cache.value = inputs(generation = 1L, metadata = review)
+        val editor = mutableListOf<E2State<CalibrationEstimate>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            estimates.observeCalibration(MutableStateFlow(now)).collect { state -> editor += state }
+        }
+        runCurrent()
+        val reviewed = setOf(labs.first().resultId)
+        assertEquals(reviewed, editor.last().value?.acceptedLabIds)
+        val returnedAt = sections.size
+        val pageReturnedAt = pages.size
+        processLifecycleState.value = Lifecycle.State.STARTED
+
+        // In the state the return built, before anything else runs: the new
+        // section, with no loading state before it.
+        assertEquals(reviewed, viewModel.pkCalibrationState.value?.acceptedResultIds)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(sections.drop(returnedAt).isNotEmpty())
+        assertTrue(sections.drop(returnedAt).all { section -> section?.acceptedResultIds == reviewed })
+        assertTrue(pages.drop(pageReturnedAt).none { page -> page.isLoading })
+    }
+
+    @Test
+    fun theSectionsFlags_comeFromTheEstimate_beforeRoomHasReadTheLabs() = runTest {
+        // Room isn't open yet: no cached panels and no emission. The estimate
+        // carries the flags stored with the fit.
+        every { repository.observePanels() } returns MutableSharedFlow<List<BloodTestPanel>>()
+        val excluded = UUID(0L, 1L)
+        val accepted = UUID(0L, 2L)
+        val nonPositive = UUID(0L, 3L)
+        calibrationEstimates.value = E2State(
+            estimate().copy(
+                acceptedLabIds = setOf(accepted),
+                excludedLabIds = setOf(excluded, nonPositive),
+                nonPositiveLabIds = setOf(nonPositive),
+            )
+        )
+        val viewModel = viewModel()
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+
+        val state = checkNotNull(viewModel.pkCalibrationState.value)
+        assertEquals(PkCalibrationLabRowFlag.Excluded(excluded), pkCalibrationLabFlag(state, excluded))
+        assertEquals(PkCalibrationLabRowFlag.Accepted(accepted), pkCalibrationLabFlag(state, accepted))
+        assertEquals(
+            PkCalibrationLabRowFlag.Excluded(nonPositive, dismissed = true),
+            pkCalibrationLabFlag(state, nonPositive),
+        )
+        // The page itself waits for the lab list.
+        assertTrue(viewModel.uiState.value.isLoading)
+        collector.cancel()
+    }
+
+    @Test
+    fun aReturnToTheForeground_restartsTheObservation_whichStopsInTheBackground() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        viewModel()
+        advanceUntilIdle()
+        assertEquals(1, calibrationEstimates.subscriptionCount.value)
+
+        processLifecycleState.value = Lifecycle.State.CREATED
+        advanceUntilIdle()
+        assertEquals(0, calibrationEstimates.subscriptionCount.value)
+
+        processLifecycleState.value = Lifecycle.State.STARTED
+        advanceUntilIdle()
+        assertEquals(1, calibrationEstimates.subscriptionCount.value)
+        verify(exactly = 2) { e2EstimateRepository.observeCalibration(any()) }
+    }
+
+    @Test
+    fun aReturn_afterTheKeyMoved_showsTheLoadingState_neverTheStaleSection() = runTest {
+        // Unconfined Main: the lifecycle event and everything it resumes on
+        // Main run inline, as on the main thread before the next frame.
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        val viewModel = viewModel()
+        val sections = collectSections(viewModel)
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, sections.last()?.ui?.globalState)
+
+        // Midnight passed while away and nothing derived the new key: the
+        // restarted observation has no value.
+        processLifecycleState.value = Lifecycle.State.CREATED
+        calibrationEstimates.value = E2State(null, E2Pending.SYSTEM)
+        processLifecycleState.value = Lifecycle.State.STARTED
+        assertNull(viewModel.pkCalibrationState.value)
+        assertTrue(viewModel.uiState.value.isLoading)
+
+        calibrationEstimates.value = E2State(estimate(PkCalibrationResult(PkCalibrationGlobalState.NO_DOSE_HISTORY)))
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, viewModel.pkCalibrationState.value?.ui?.globalState)
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun aReturn_toAMovedKeyAlreadyDerived_showsItInTheFirstSynchronousState() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        val viewModel = viewModel()
+        val sections = collectSections(viewModel)
+        val pages = collectPages(viewModel)
+
+        processLifecycleState.value = Lifecycle.State.CREATED
+        // Home's estimate sheet derived it while the page was away.
+        calibrationEstimates.value = E2State(estimate(PkCalibrationResult(PkCalibrationGlobalState.NO_DOSE_HISTORY)))
+        val returnedAt = sections.size
+        val pageReturnedAt = pages.size
+        processLifecycleState.value = Lifecycle.State.STARTED
+
+        // In the state the return built, before anything else runs: no
+        // loading frame, and the old section never comes back.
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, viewModel.pkCalibrationState.value?.ui?.globalState)
+        assertTrue(sections.drop(returnedAt).isNotEmpty())
+        assertTrue(
+            sections.drop(returnedAt).all { section ->
+                section?.ui?.globalState == PkCalibrationGlobalState.NO_DOSE_HISTORY
+            }
+        )
+        assertTrue(pages.drop(pageReturnedAt).none { page -> page.isLoading })
+    }
+
+    @Test
+    fun aReturn_withAMatchingKey_neverShowsALoadingFrame() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        val viewModel = viewModel()
+        val sections = collectSections(viewModel)
+        val pages = collectPages(viewModel)
+
+        processLifecycleState.value = Lifecycle.State.CREATED
+        processLifecycleState.value = Lifecycle.State.STARTED
+        advanceUntilIdle()
+
+        assertTrue(sections.all { section -> section?.ui?.globalState == PkCalibrationGlobalState.NO_USABLE_LABS })
+        assertTrue(pages.none { page -> page.isLoading })
+    }
+
+    @Test
+    fun aUserChange_holdsTheSectionWithTheIndicator_forTheMinimumHoldCountedFromVisibility() = runTest {
+        val initialPanel = testBloodTestPanel()
+        val addedPanel = testBloodTestPanel(uuid = UUID.fromString("5d802712-bfc0-4af9-96f9-ae9c050b6af8"))
+        val panels = MutableStateFlow(listOf(initialPanel))
+        every { repository.observePanels() } returns panels
+        val viewModel = viewModel()
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+
+        // A lab saved from the editor covering the page: the hold starts,
+        // but its minimum waits for the page to be visible. The lab list
+        // shows the new lab at once.
+        calibrationEstimates.value = calibrationEstimates.value.copy(pending = E2Pending.USER)
+        panels.value = listOf(initialPanel, addedPanel)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isUpdating)
+        assertEquals(listOf(initialPanel, addedPanel), viewModel.uiState.value.panels)
+        advanceTimeBy(1_000L)
+        viewModel.setScreenVisible(true)
+        runCurrent()
+        advanceTimeBy(100L)
+        calibrationEstimates.value = E2State(estimate(PkCalibrationResult(PkCalibrationGlobalState.NO_DOSE_HISTORY)))
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isUpdating)
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, viewModel.pkCalibrationState.value?.ui?.globalState)
+
+        advanceTimeBy(250L)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isUpdating)
+        advanceTimeBy(100L)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isUpdating)
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, viewModel.pkCalibrationState.value?.ui?.globalState)
+        collector.cancel()
+    }
+
+    @Test
+    fun theClockOrTheSystemMovingTheEstimate_swapsItSilently() = runTest {
+        every { repository.observePanels() } returns flowOf(listOf(testBloodTestPanel()))
+        val viewModel = viewModel()
+        viewModel.setScreenVisible(true)
+        val collector = backgroundScope.launch { viewModel.pkCalibrationState.collect() }
+        advanceUntilIdle()
+        val pages = collectPages(viewModel)
+
+        calibrationEstimates.value = calibrationEstimates.value.copy(pending = E2Pending.SYSTEM)
+        advanceUntilIdle()
+        assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, viewModel.pkCalibrationState.value?.ui?.globalState)
+        calibrationEstimates.value = E2State(estimate(PkCalibrationResult(PkCalibrationGlobalState.NO_DOSE_HISTORY)))
+        advanceUntilIdle()
+
+        assertEquals(PkCalibrationGlobalState.NO_DOSE_HISTORY, viewModel.pkCalibrationState.value?.ui?.globalState)
+        assertTrue(pages.none { page -> page.isUpdating || page.isLoading })
+        collector.cancel()
+    }
+
+    @Test
+    fun tryAgain_retriesTheCalibrationThroughTheGate() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.retryPkCalibration()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { homeSnapshotRepository.retryCalibration() }
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    private fun viewModel() = CalibrationViewModel(
+        bloodTestRepository = repository,
+        settingsRepository = settingsRepository,
+        e2EstimateRepository = e2EstimateRepository,
+        homeSnapshotRepository = homeSnapshotRepository,
+        processLifecycleState = processLifecycleState,
+        appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 5, 20, 10, 0)),
+    )
+
+    private fun TestScope.collectSections(viewModel: CalibrationViewModel): List<PkCalibrationScreenState?> {
+        val sections = mutableListOf<PkCalibrationScreenState?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.pkCalibrationState.collect { section -> sections += section }
+        }
+        return sections
+    }
+
+    private fun TestScope.collectPages(viewModel: CalibrationViewModel): List<CalibrationUiState> {
+        val pages = mutableListOf<CalibrationUiState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { page -> pages += page }
+        }
+        return pages
+    }
+
+    private fun estimate(
+        result: PkCalibrationResult? = PkCalibrationResult(PkCalibrationGlobalState.NO_USABLE_LABS),
+    ) = CalibrationEstimate(
+        result = result,
+        render = null,
+        acceptedLabIds = emptySet(),
+        excludedLabIds = emptySet(),
+        nonPositiveLabIds = emptySet(),
+    )
 
     @Test
     fun parseCalibrationNumericInput_accepts_comma_decimal() {
@@ -134,7 +543,7 @@ class CalibrationViewModelTest {
         val panel = testBloodTestPanel()
         every { repository.observePanels() } returns flowOf(listOf(panel))
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        val viewModel = viewModel()
         advanceUntilIdle()
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
@@ -143,13 +552,16 @@ class CalibrationViewModelTest {
 
     @Test
     fun init_seedsUiStateFromCachedPanelsBeforeRepositoryEmits() = runTest {
+        // Main.immediate on the main thread: the eager collections run in the
+        // constructor, so an estimate already in memory is in the first state.
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val cachedPanel = testBloodTestPanel(
             uuid = UUID.fromString("3f2e761b-9bfd-4dbf-8a12-a6016e8a60be")
         )
         every { repository.getCachedPanels() } returns listOf(cachedPanel)
         every { repository.observePanels() } returns MutableSharedFlow<List<BloodTestPanel>>()
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        val viewModel = viewModel()
 
         assertEquals(listOf(cachedPanel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
@@ -166,7 +578,7 @@ class CalibrationViewModelTest {
         val flow = MutableStateFlow(listOf(initialPanel))
         every { repository.observePanels() } returns flow
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        val viewModel = viewModel()
         advanceUntilIdle()
         assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
 
@@ -182,7 +594,7 @@ class CalibrationViewModelTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { repository.deleteAllPanels() } returns Unit
 
-        val viewModel = CalibrationViewModel(repository, settingsRepository, pkCalibrationLiveRepository)
+        val viewModel = viewModel()
         advanceUntilIdle()
 
         viewModel.deleteAllCalibrationEntries()

@@ -1,8 +1,23 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationInput
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
+import com.mkx.hrttracker.model.pk.PkCalibrationPromotedCovariance
+import com.mkx.hrttracker.model.pk.PkCalibrationReason
+import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkPersonalParams
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkDoseEvent
+import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
+import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
+import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -39,11 +54,8 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
-import com.mkx.hrttracker.model.pk.DenseSamplePolicy
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.ByteArrayInputStream
@@ -66,10 +78,36 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToLong
 
-private val Context.homeSnapshotDataStore: DataStore<HomeSnapshotState> by dataStore(
+private val Context.homeSnapshotDataStore: DataStore<EncryptedRecordState<HomeSnapshotRecord>> by dataStore(
     fileName = "home_snapshot.pb",
-    serializer = HomeSnapshotSerializer(AndroidHomeSnapshotCrypto()),
+    serializer = EncryptedRecordSerializer(
+        crypto = AndroidHomeSnapshotCrypto,
+        name = "home_snapshot",
+        encode = HomeSnapshotCodec::encode,
+        decode = HomeSnapshotCodec::decode,
+    ),
+)
+
+private val Context.homeE2InputsDataStore: DataStore<EncryptedRecordState<E2InputsRecord>> by dataStore(
+    fileName = "home_e2_inputs.pb",
+    serializer = EncryptedRecordSerializer(
+        crypto = AndroidHomeSnapshotCrypto,
+        name = "home_e2_inputs",
+        encode = HomeSnapshotCodec::encodeE2Inputs,
+        decode = HomeSnapshotCodec::decodeE2Inputs,
+    ),
+)
+
+private val Context.homeE2EstimateDataStore: DataStore<EncryptedRecordState<HomeE2EstimateRecord>> by dataStore(
+    fileName = "home_e2_estimate.pb",
+    serializer = EncryptedRecordSerializer(
+        crypto = AndroidHomeSnapshotCrypto,
+        name = "home_e2_estimate",
+        encode = HomeSnapshotCodec::encodeHomeEstimate,
+        decode = HomeSnapshotCodec::decodeHomeEstimate,
+    ),
 )
 
 private val Context.homeSnapshotGenerationDataStore by preferencesDataStore(
@@ -81,25 +119,39 @@ private val Context.homeSnapshotGenerationDataStore by preferencesDataStore(
 class HomeSnapshotStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
-    fun observeSnapshot(): Flow<HomeSnapshotRecord?> {
-        return context.homeSnapshotDataStore.data
-            .map { state -> state.record }
-            .distinctUntilChanged()
-    }
-
     suspend fun readSnapshot(): HomeSnapshotRecord? {
         return context.homeSnapshotDataStore.data.first().record
     }
 
     suspend fun writeSnapshot(record: HomeSnapshotRecord) {
         context.homeSnapshotDataStore.updateData {
-            HomeSnapshotState(record = record)
+            EncryptedRecordState(record = record)
         }
     }
 
-    suspend fun clearSnapshot() {
-        context.homeSnapshotDataStore.updateData {
-            HomeSnapshotState.Empty
+    suspend fun readE2Inputs(): E2InputsRecord? {
+        return context.homeE2InputsDataStore.data.first().record
+    }
+
+    suspend fun writeE2Inputs(record: E2InputsRecord) {
+        context.homeE2InputsDataStore.updateData {
+            EncryptedRecordState(record = record)
+        }
+    }
+}
+
+/** The last Home E2 estimate and the key it was derived for. */
+@Singleton
+class HomeE2EstimateStore @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+) {
+    suspend fun read(): HomeE2EstimateRecord? {
+        return context.homeE2EstimateDataStore.data.first().record
+    }
+
+    suspend fun write(record: HomeE2EstimateRecord) {
+        context.homeE2EstimateDataStore.updateData {
+            EncryptedRecordState(record = record)
         }
     }
 }
@@ -108,12 +160,6 @@ class HomeSnapshotStore @Inject constructor(
 class HomeSnapshotGenerationStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
-    fun observeGeneration(): Flow<Long> {
-        return context.homeSnapshotGenerationDataStore.data
-            .map { preferences -> preferences[HOME_SNAPSHOT_GENERATION_KEY] ?: 0L }
-            .distinctUntilChanged()
-    }
-
     suspend fun readGeneration(): Long {
         return context.homeSnapshotGenerationDataStore.data
             .map { preferences -> preferences[HOME_SNAPSHOT_GENERATION_KEY] ?: 0L }
@@ -130,19 +176,13 @@ class HomeSnapshotGenerationStore @Inject constructor(
     }
 }
 
+/** Home data: what Home, the widget, stock, reminders and the weight seed paint from before Room opens. */
 data class HomeSnapshotRecord(
     val schemaVersion: Int,
     val generation: Long = 0L,
     val generatedAtEpochMillis: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
-    val pkProjection: HomePkProjectionRecord?,
-    // Sibling of pkProjection simulated with plannedEntries=emptyList(). The
-    // widget reads this to display the current body-state estimate from logged
-    // doses only — without it, a planned dose 30 min from now would distort the
-    // widget's "current" reading. Nullable so test fixtures don't have to fill
-    // it; refresh always populates both projections in the same pass.
-    val widgetPkProjection: HomePkProjectionRecord? = null,
     val activeGroups: List<MedicationGroup>,
     /** Archived groups, carried so Home/widget can mirror the Plan page. Defaulted for old fixtures/caches. */
     val archivedGroups: List<MedicationGroup> = emptyList(),
@@ -157,27 +197,41 @@ data class HomeSnapshotRecord(
     val stockMedicines: List<Medicine> = emptyList(),
     /** Log entries whose `scheduledFor` falls inside the stock simulation window. */
     val stockFulfillmentEntries: List<MedicationLogEntry> = emptyList(),
-    // Real estradiol log entries over the PK input window. Embedded so the
-    // snapshot path can re-run the simulation locally — without waiting for
-    // Room — when the cached projection expires (e.g. the user missed a
-    // future planned dose). Encoded with medicine dedup since a daily doser
-    // repeats the same one or two medicines across the whole window.
-    val pkEntries: List<MedicationLogEntry> = emptyList(),
-    /**
-     * Route log-scales from the lab calibration evaluated at refresh time,
-     * keyed by [com.mkx.hrttracker.model.pk.PkCalibrationRoute.stableId].
-     * Both projections above are simulated with them, so Home and the widget
-     * show the calibrated curve on first frame and after every mutation.
-     */
-    val pkRouteLogScale: Map<String, Double> = emptyMap(),
-    /** Predictive band over the Home projection window (logged + planned doses). */
-    val pkBandKnots: List<HomePkBandKnotRecord> = emptyList(),
-    /** Hero/status summary of the calibration this snapshot was built with; null when none ran. */
-    val pkCalibration: HomePkCalibrationRecord? = null,
     // First pinned tracked date (the Home hero anchor), cached so cold start can
     // render the hero on the first frame instead of waiting on Room. Null when no
     // date is pinned. Defaulted for forward-compat with pre-field snapshots.
     val homeAnchor: TrackedDate? = null,
+    /** The latest estradiol dose at build time, for Home's hero; null when none is logged. */
+    val latestEstradiolEntry: MedicationLogEntry? = null,
+)
+
+/**
+ * What every E2 estimate is derived from, and the fit, as one run read them.
+ * Valid under the same rule as Home data, and only from this engine.
+ */
+data class E2InputsRecord(
+    /** [PK_ENGINE_VERSION] of the run that solved [fit]; another engine's is rebuilt. */
+    val engineVersion: Int = PK_ENGINE_VERSION,
+    val generation: Long,
+    val anchorDateEpochDay: Long,
+    val zoneId: String,
+    /** Home's chart window when the run read it: the one its estimates cover. */
+    val option: HomeE2ChartWindowOption,
+    /** Current Weight; unset falls back to the app default. */
+    val weightKg: Double?,
+    // Logged estradiol from every estimate's PK lookback on, with no upper
+    // bound (E2Derivation.loggedEntriesStart): one read serves every option
+    // and the calibration page. Encoded with medicine dedup since a daily
+    // doser repeats the same one or two medicines across the whole window.
+    val estradiolEntries: List<MedicationLogEntry>,
+    /** Active groups with an estradiol item: their slots after now are Home's planned doses. */
+    val plannedSources: List<MedicationGroup>,
+    /** Every built-in E2 result, from the same run as [fit]. */
+    val labs: List<PkCalibrationLab> = emptyList(),
+    /** The results' review metadata, from the same run as [fit]. */
+    val labMetadata: List<E2CalibrationMetadata> = emptyList(),
+    /** The run's calibration solve, or the published one it reused; null when none ran. */
+    val fit: E2FitRecord? = null,
 )
 
 data class HomePkBandKnotRecord(
@@ -202,111 +256,54 @@ data class HomePkCalibrationRecord(
     val effectiveRoutes: List<String>,
 )
 
-fun HomeSnapshotRecord.pkBandKnots(): List<PkPredictiveBandKnot> = pkBandKnots.map { knot ->
-    PkPredictiveBandKnot(
-        epochMillis = knot.epochMillis,
-        p025Pgml = knot.p025Pgml,
-        p158655254Pgml = knot.p158655254Pgml,
-        p50Pgml = knot.p50Pgml,
-        p841344746Pgml = knot.p841344746Pgml,
-        p975Pgml = knot.p975Pgml,
-        segment = knot.segment,
-    )
-}
-
-/** Personal params the snapshot's projections were simulated with. */
-fun HomeSnapshotRecord.pkPersonalParams(): PkPersonalParams {
-    return PkPersonalParams.create(
-        pkRouteLogScale.entries.mapNotNull { (stableId, beta) ->
-            PkCalibrationRoute.fromStableId(stableId)?.let { route -> route to beta }
-        }.toMap()
-    ) ?: PkPersonalParams.population()
-}
-
-data class HomePkProjectionRecord(
-    val generatedAtEpochMillis: Long,
-    val windowStartEpochMillis: Long,
-    val windowEndEpochMillis: Long,
-    // Wall-clock instant past which the projection is considered stale —
-    // typically the soonest planned dose time strictly after generatedAt.
-    // Once now crosses this, consumers should treat the projection as
-    // missing and request a refresh, because the cached curve still shows
-    // doses the user may have missed.
-    val pkProjectionExpiresAtEpochMillis: Long,
-    val concentrationUnit: String,
-    val timeH: List<Double>,
-    val concentrations: List<Double>,
-    val doseMarkers: List<HomePkProjectionDoseMarkerRecord>,
-    val latestEstradiolEntry: MedicationLogEntry?,
-    // Sampling fingerprint: validator compares these against the resolved
-    // HomeE2ChartWindowOption rather than the enum name, so option renames
-    // do not invalidate caches whose sampling recipe is unchanged.
-    val chartWindowHours: Int,
-    val densePolicy: HomePkDenseSamplePolicyRecord,
-    val includesPostDoseOffsets: Boolean,
+fun HomePkBandKnotRecord.toBandKnot(): PkPredictiveBandKnot = PkPredictiveBandKnot(
+    epochMillis = epochMillis,
+    p025Pgml = p025Pgml,
+    p158655254Pgml = p158655254Pgml,
+    p50Pgml = p50Pgml,
+    p841344746Pgml = p841344746Pgml,
+    p975Pgml = p975Pgml,
+    segment = segment,
 )
 
-data class HomePkProjectionDoseMarkerRecord(
-    val timeH: Double,
-    val concentration: Double,
-    val isPlanned: Boolean = false,
+/** One file's encrypted record; null when the file is empty or unreadable. */
+internal data class EncryptedRecordState<T : Any>(
+    val record: T?,
 )
 
-sealed interface HomePkDenseSamplePolicyRecord {
-    data class Interval(val hours: Double) : HomePkDenseSamplePolicyRecord
-    data class Budget(val segmentCount: Int) : HomePkDenseSamplePolicyRecord
-}
-
-fun DenseSamplePolicy.toRecord(): HomePkDenseSamplePolicyRecord = when (this) {
-    is DenseSamplePolicy.Interval -> HomePkDenseSamplePolicyRecord.Interval(hours = hours)
-    is DenseSamplePolicy.Budget -> HomePkDenseSamplePolicyRecord.Budget(segmentCount = segmentCount)
-}
-
-internal data class HomeSnapshotState(
-    val record: HomeSnapshotRecord?,
-) {
-    companion object {
-        val Empty = HomeSnapshotState(record = null)
-    }
-}
-
-internal class HomeSnapshotSerializer(
+internal class EncryptedRecordSerializer<T : Any>(
     private val crypto: HomeSnapshotCrypto,
+    /** Names the file in the read-failure diagnostic. */
+    private val name: String,
+    private val encode: (T) -> ByteArray,
+    private val decode: (ByteArray) -> T,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
-) : Serializer<HomeSnapshotState> {
-    override val defaultValue: HomeSnapshotState = HomeSnapshotState.Empty
+) : Serializer<EncryptedRecordState<T>> {
+    override val defaultValue: EncryptedRecordState<T> = EncryptedRecordState(record = null)
 
-    override suspend fun readFrom(input: InputStream): HomeSnapshotState {
+    override suspend fun readFrom(input: InputStream): EncryptedRecordState<T> {
         val encryptedBytes = input.readBytes()
         if (encryptedBytes.isEmpty()) {
-            return HomeSnapshotState.Empty
+            return defaultValue
         }
         return runCatching {
-            HomeSnapshotState(
-                record = HomeSnapshotCodec.decode(
-                    crypto.decrypt(encryptedBytes)
-                )
-            )
+            EncryptedRecordState(record = decode(crypto.decrypt(encryptedBytes)))
         }.getOrElse { throwable ->
             diagnosticsLogger.warning(
                 TAG,
-                "home_snapshot_read_failed bytes=${encryptedBytes.size}",
+                "${name}_read_failed bytes=${encryptedBytes.size}",
                 throwable,
             )
-            HomeSnapshotState.Empty
+            defaultValue
         }
     }
 
     override suspend fun writeTo(
-        t: HomeSnapshotState,
+        t: EncryptedRecordState<T>,
         output: OutputStream,
     ) {
         val record = t.record ?: return
-        output.write(
-            crypto.encrypt(
-                HomeSnapshotCodec.encode(record)
-            )
-        )
+        output.write(crypto.encrypt(encode(record)))
     }
 }
 
@@ -320,8 +317,6 @@ internal object HomeSnapshotCodec {
             stream.writeLong(record.generatedAtEpochMillis)
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeString(record.zoneId)
-            stream.writeHomePkProjectionRecord(record.pkProjection)
-            stream.writeHomePkProjectionRecord(record.widgetPkProjection)
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.archivedGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
@@ -337,29 +332,8 @@ internal object HomeSnapshotCodec {
                     entry
                 )
             }
-            stream.writePooledMedicationLogEntries(record.pkEntries)
             stream.writeTrackedDate(record.homeAnchor)
-            stream.writeList(record.pkRouteLogScale.entries.toList()) { (route, beta) ->
-                writeString(route)
-                writeDouble(beta)
-            }
-            stream.writeList(record.pkBandKnots) { knot ->
-                writeLong(knot.epochMillis)
-                writeDouble(knot.p025Pgml)
-                writeDouble(knot.p158655254Pgml)
-                writeDouble(knot.p50Pgml)
-                writeDouble(knot.p841344746Pgml)
-                writeDouble(knot.p975Pgml)
-                writeInt(knot.segment)
-            }
-            stream.writeBoolean(record.pkCalibration != null)
-            record.pkCalibration?.let { calibration ->
-                stream.writeBoolean(calibration.adjusted)
-                stream.writeBoolean(calibration.limitedConfidence)
-                stream.writeBoolean(calibration.renderUnavailable)
-                stream.writeBoolean(calibration.bandUnavailable)
-                stream.writeList(calibration.effectiveRoutes) { route -> writeString(route) }
-            }
+            stream.writeMedicationLogEntry(record.latestEstradiolEntry)
         }
         return output.toByteArray()
     }
@@ -376,8 +350,6 @@ internal object HomeSnapshotCodec {
                 generatedAtEpochMillis = stream.readLong(),
                 anchorDateEpochDay = stream.readLong(),
                 zoneId = stream.readString(),
-                pkProjection = stream.readHomePkProjectionRecord(),
-                widgetPkProjection = stream.readHomePkProjectionRecord(),
                 activeGroups = stream.readList { readMedicationGroup() },
                 archivedGroups = stream.readList { readMedicationGroup() },
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
@@ -385,102 +357,336 @@ internal object HomeSnapshotCodec {
                 userProfile = stream.readUserProfile(),
                 stockMedicines = stream.readList { readMedicine() },
                 stockFulfillmentEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
-                pkEntries = stream.readPooledMedicationLogEntries(),
                 homeAnchor = stream.readTrackedDate(),
-                pkRouteLogScale = stream.readList { readString() to readDouble() }.toMap(),
-                pkBandKnots = stream.readList {
-                    HomePkBandKnotRecord(
-                        epochMillis = readLong(),
-                        p025Pgml = readDouble(),
-                        p158655254Pgml = readDouble(),
-                        p50Pgml = readDouble(),
-                        p841344746Pgml = readDouble(),
-                        p975Pgml = readDouble(),
-                        segment = readInt(),
-                    )
-                },
-                pkCalibration = if (stream.readBoolean()) {
-                    HomePkCalibrationRecord(
-                        adjusted = stream.readBoolean(),
-                        limitedConfidence = stream.readBoolean(),
-                        renderUnavailable = stream.readBoolean(),
-                        bandUnavailable = stream.readBoolean(),
-                        effectiveRoutes = stream.readList { readString() },
-                    )
-                } else {
-                    null
-                },
+                latestEstradiolEntry = stream.readMedicationLogEntry(),
             )
         }
     }
 
-    private fun DataOutputStream.writeHomePkProjectionRecord(record: HomePkProjectionRecord?) {
+    fun encodeE2Inputs(record: E2InputsRecord): ByteArray = encodeWith {
+        writeInt(E2_INPUTS_CODEC_VERSION)
+        writeInt(record.engineVersion)
+        writeLong(record.generation)
+        writeLong(record.anchorDateEpochDay)
+        writeString(record.zoneId)
+        writeString(record.option.name)
+        writeNullableDouble(record.weightKg)
+        writePooledMedicationLogEntries(record.estradiolEntries)
+        writeList(record.plannedSources) { group -> writeMedicationGroup(group) }
+        writeList(record.labs) { lab -> writePkCalibrationLab(lab) }
+        writeList(record.labMetadata) { metadata ->
+            writeString(metadata.resultId.toString())
+            writeString(metadata.disposition.name)
+            writeLong(metadata.updatedAt.toEpochMilli())
+        }
+        writeBoolean(record.fit != null)
+        record.fit?.let { fit -> writeE2FitRecord(fit) }
+    }
+
+    fun decodeE2Inputs(bytes: ByteArray): E2InputsRecord = decodeWith(bytes) {
+        val version = readInt()
+        require(version == E2_INPUTS_CODEC_VERSION) {
+            "Unsupported Home E2 inputs version: $version."
+        }
+        E2InputsRecord(
+            engineVersion = readInt(),
+            generation = readLong(),
+            anchorDateEpochDay = readLong(),
+            zoneId = readString(),
+            option = HomeE2ChartWindowOption.valueOf(readString()),
+            weightKg = readNullableDouble(),
+            estradiolEntries = readPooledMedicationLogEntries(),
+            plannedSources = readList { readMedicationGroup() },
+            labs = readList { readPkCalibrationLab() },
+            labMetadata = readList {
+                E2CalibrationMetadata(
+                    resultId = UUID.fromString(readString()),
+                    disposition = E2CalibrationDisposition.valueOf(readString()),
+                    updatedAt = Instant.ofEpochMilli(readLong()),
+                )
+            },
+            fit = if (readBoolean()) readE2FitRecord() else null,
+        )
+    }
+
+    /** The fit as it is stored; [E2Derivation.fitKey] digests exactly these bytes. */
+    fun encodeFit(record: E2FitRecord): ByteArray = encodeWith { writeE2FitRecord(record) }
+
+    fun decodeFit(bytes: ByteArray): E2FitRecord = decodeWith(bytes) { readE2FitRecord() }
+
+    fun encodeHomeEstimate(record: HomeE2EstimateRecord): ByteArray = encodeWith {
+        writeInt(HOME_E2_ESTIMATE_CODEC_VERSION)
+        writeHomeEstimateKey(record.key)
+        writePkProjection(record.estimate.projection)
+        writeList(record.estimate.bandKnots) { knot -> writeHomePkBandKnotRecord(knot) }
+        writeHomePkCalibrationRecord(record.estimate.calibration)
+    }
+
+    fun decodeHomeEstimate(bytes: ByteArray): HomeE2EstimateRecord = decodeWith(bytes) {
+        val version = readInt()
+        require(version == HOME_E2_ESTIMATE_CODEC_VERSION) {
+            "Unsupported Home E2 estimate version: $version."
+        }
+        val key = readHomeEstimateKey()
+        HomeE2EstimateRecord(
+            key = key,
+            estimate = HomeE2Estimate(
+                option = key.option,
+                projection = readPkProjection(),
+                bandKnots = readList { readHomePkBandKnotRecord() },
+                calibration = readHomePkCalibrationRecord(),
+            ),
+        )
+    }
+
+    /**
+     * Canonical bytes of what a solve reads, for [E2Derivation.fitId]. Labs
+     * and the review sets are sorted (the solve sorts them too); dose events
+     * keep their order and are written in absolute time, so the origin drops
+     * out.
+     */
+    fun encodeFitInput(input: PkCalibrationInput): ByteArray = encodeWith {
+        writeInt(PK_ENGINE_VERSION)
+        writeList(input.labs.sortedBy { lab -> lab.resultId.toString() }) { lab -> writePkCalibrationLab(lab) }
+        writePkDoseEvents(input.doseEvents, input.originEpochMillis)
+        writeList(input.acceptedLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
+        writeList(input.excludedLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
+        writeDouble(input.weightKg)
+        writeDouble(input.config.drugMinInformativePgml)
+        writeDouble(input.config.rLog)
+    }
+
+    /** Canonical bytes of [events], whose `timeH` is relative to [anchorEpochMillis], for the estimate keys. */
+    fun encodeDoseEvents(events: List<PkDoseEvent>, anchorEpochMillis: Long): ByteArray =
+        encodeWith { writePkDoseEvents(events, anchorEpochMillis) }
+
+    private inline fun encodeWith(writeRecord: DataOutputStream.() -> Unit): ByteArray {
+        val output = ByteArrayOutputStream()
+        DataOutputStream(output).use { stream -> stream.writeRecord() }
+        return output.toByteArray()
+    }
+
+    private inline fun <T> decodeWith(bytes: ByteArray, readRecord: DataInputStream.() -> T): T =
+        DataInputStream(ByteArrayInputStream(bytes)).use { stream -> stream.readRecord() }
+
+    private fun DataOutputStream.writePkCalibrationLab(lab: PkCalibrationLab) {
+        writeString(lab.resultId.toString())
+        writeLong(lab.collectedAtEpochMillis)
+        writeDouble(lab.valuePgml)
+    }
+
+    private fun DataInputStream.readPkCalibrationLab(): PkCalibrationLab {
+        return PkCalibrationLab(
+            resultId = UUID.fromString(readString()),
+            collectedAtEpochMillis = readLong(),
+            valuePgml = readDouble(),
+        )
+    }
+
+    private fun DataOutputStream.writeHomePkBandKnotRecord(knot: HomePkBandKnotRecord) {
+        writeLong(knot.epochMillis)
+        writeDouble(knot.p025Pgml)
+        writeDouble(knot.p158655254Pgml)
+        writeDouble(knot.p50Pgml)
+        writeDouble(knot.p841344746Pgml)
+        writeDouble(knot.p975Pgml)
+        writeInt(knot.segment)
+    }
+
+    private fun DataInputStream.readHomePkBandKnotRecord(): HomePkBandKnotRecord {
+        return HomePkBandKnotRecord(
+            epochMillis = readLong(),
+            p025Pgml = readDouble(),
+            p158655254Pgml = readDouble(),
+            p50Pgml = readDouble(),
+            p841344746Pgml = readDouble(),
+            p975Pgml = readDouble(),
+            segment = readInt(),
+        )
+    }
+
+    private fun DataOutputStream.writeHomePkCalibrationRecord(record: HomePkCalibrationRecord?) {
         writeBoolean(record != null)
         record ?: return
-        writeLong(record.generatedAtEpochMillis)
-        writeLong(record.windowStartEpochMillis)
-        writeLong(record.windowEndEpochMillis)
-        writeLong(record.pkProjectionExpiresAtEpochMillis)
-        writeString(record.concentrationUnit)
-        writeList(record.timeH) { value -> writeDouble(value) }
-        writeList(record.concentrations) { value -> writeDouble(value) }
-        writeList(record.doseMarkers) { marker ->
+        writeBoolean(record.adjusted)
+        writeBoolean(record.limitedConfidence)
+        writeBoolean(record.renderUnavailable)
+        writeBoolean(record.bandUnavailable)
+        writeList(record.effectiveRoutes) { route -> writeString(route) }
+    }
+
+    private fun DataInputStream.readHomePkCalibrationRecord(): HomePkCalibrationRecord? {
+        if (!readBoolean()) return null
+        return HomePkCalibrationRecord(
+            adjusted = readBoolean(),
+            limitedConfidence = readBoolean(),
+            renderUnavailable = readBoolean(),
+            bandUnavailable = readBoolean(),
+            effectiveRoutes = readList { readString() },
+        )
+    }
+
+    // A derived projection: its window, unit and samples.
+    private fun DataOutputStream.writePkProjection(projection: PkProjectionResult) {
+        writeLong(projection.windowStart.toEpochMilli())
+        writeLong(projection.windowEnd.toEpochMilli())
+        writeString(projection.concentrationUnit.name)
+        writeList(projection.timeH) { value -> writeDouble(value) }
+        writeList(projection.concentrations) { value -> writeDouble(value) }
+        writeList(projection.doseMarkers) { marker ->
             writeDouble(marker.timeH)
             writeDouble(marker.concentration)
             writeBoolean(marker.isPlanned)
         }
-        writeMedicationLogEntry(record.latestEstradiolEntry)
-        writeInt(record.chartWindowHours)
-        writeDenseSamplePolicy(record.densePolicy)
-        writeBoolean(record.includesPostDoseOffsets)
     }
 
-    private fun DataOutputStream.writeDenseSamplePolicy(policy: HomePkDenseSamplePolicyRecord) {
-        when (policy) {
-            is HomePkDenseSamplePolicyRecord.Interval -> {
-                writeByte(POLICY_DISCRIMINATOR_INTERVAL)
-                writeDouble(policy.hours)
-            }
-
-            is HomePkDenseSamplePolicyRecord.Budget -> {
-                writeByte(POLICY_DISCRIMINATOR_BUDGET)
-                writeInt(policy.segmentCount)
-            }
-        }
-    }
-
-    private fun DataInputStream.readDenseSamplePolicy(): HomePkDenseSamplePolicyRecord {
-        return when (val discriminator = readByte().toInt()) {
-            POLICY_DISCRIMINATOR_INTERVAL -> HomePkDenseSamplePolicyRecord.Interval(hours = readDouble())
-            POLICY_DISCRIMINATOR_BUDGET -> HomePkDenseSamplePolicyRecord.Budget(segmentCount = readInt())
-            else -> error("Unknown dense sample policy discriminator: $discriminator")
-        }
-    }
-
-    private fun DataInputStream.readHomePkProjectionRecord(): HomePkProjectionRecord? {
-        if (!readBoolean()) {
-            return null
-        }
-        return HomePkProjectionRecord(
-            generatedAtEpochMillis = readLong(),
-            windowStartEpochMillis = readLong(),
-            windowEndEpochMillis = readLong(),
-            pkProjectionExpiresAtEpochMillis = readLong(),
-            concentrationUnit = readString(),
+    private fun DataInputStream.readPkProjection(): PkProjectionResult {
+        return PkProjectionResult(
+            windowStart = Instant.ofEpochMilli(readLong()),
+            windowEnd = Instant.ofEpochMilli(readLong()),
+            concentrationUnit = PkConcentrationUnit.valueOf(readString()),
             timeH = readList { readDouble() },
             concentrations = readList { readDouble() },
             doseMarkers = readList {
-                HomePkProjectionDoseMarkerRecord(
+                PkDoseMarker(
                     timeH = readDouble(),
                     concentration = readDouble(),
                     isPlanned = readBoolean(),
                 )
             },
-            latestEstradiolEntry = readMedicationLogEntry(),
-            chartWindowHours = readInt(),
-            densePolicy = readDenseSamplePolicy(),
-            includesPostDoseOffsets = readBoolean(),
         )
+    }
+
+    private fun DataOutputStream.writeHomeEstimateKey(key: HomeEstimateKey) {
+        writeInt(key.engine)
+        writeNullableString(key.fitKey?.hex)
+        writeDouble(key.weightKg)
+        writeString(key.logged.hex)
+        writeString(key.planned.hex)
+        writeString(key.option.name)
+        writeLong(key.windowDate.toEpochDay())
+        writeString(key.zoneId)
+    }
+
+    private fun DataInputStream.readHomeEstimateKey(): HomeEstimateKey {
+        return HomeEstimateKey(
+            engine = readInt(),
+            fitKey = readNullableString()?.let(::Digest),
+            weightKg = readDouble(),
+            logged = Digest(readString()),
+            planned = Digest(readString()),
+            option = HomeE2ChartWindowOption.valueOf(readString()),
+            windowDate = LocalDate.ofEpochDay(readLong()),
+            zoneId = readString(),
+        )
+    }
+
+    private fun DataOutputStream.writeE2FitRecord(record: E2FitRecord) {
+        writeString(record.fitId.hex)
+        writeInt(record.epoch)
+        when (val outcome = record.outcome) {
+            is FitOutcome.Solved -> {
+                writeByte(FIT_OUTCOME_SOLVED)
+                writeLong(outcome.originEpochMillis)
+                writePkCalibrationResult(outcome.result)
+            }
+
+            FitOutcome.Failed -> writeByte(FIT_OUTCOME_FAILED)
+        }
+    }
+
+    private fun DataInputStream.readE2FitRecord(): E2FitRecord {
+        return E2FitRecord(
+            fitId = Digest(readString()),
+            epoch = readInt(),
+            outcome = when (val discriminator = readByte().toInt()) {
+                FIT_OUTCOME_SOLVED -> FitOutcome.Solved(
+                    originEpochMillis = readLong(),
+                    result = readPkCalibrationResult(),
+                )
+
+                FIT_OUTCOME_FAILED -> FitOutcome.Failed
+                else -> error("Unknown fit outcome discriminator: $discriminator")
+            },
+        )
+    }
+
+    // Sets and maps are written sorted, so equal results encode identically.
+    private fun DataOutputStream.writePkCalibrationResult(result: PkCalibrationResult) {
+        writeString(result.globalState.name)
+        writeList(result.routeResults) { row ->
+            writeString(row.route.stableId)
+            writeString(row.displayState.name)
+            writeList(row.reasons.sorted()) { reason -> writeString(reason.name) }
+            writeNullableDouble(row.fittedBeta)
+            writeNullableDouble(row.betaPosteriorSd)
+            writeInt(row.supportingLabCount)
+            writeNullableDouble(row.minStudentTWeight)
+            writeList(row.unreviewedOutlierLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
+        }
+        writeBoolean(result.promotedBetaCovariance != null)
+        result.promotedBetaCovariance?.let { covariance ->
+            writeList(covariance.routes) { route -> writeString(route.stableId) }
+            writeList(covariance.values) { row -> writeList(row) { value -> writeDouble(value) } }
+        }
+        writeList(result.ignoredLabs.entries.sortedBy { (id, _) -> id.toString() }) { (id, reason) ->
+            writeString(id.toString())
+            writeString(reason.name)
+        }
+    }
+
+    private fun DataInputStream.readPkCalibrationResult(): PkCalibrationResult {
+        return PkCalibrationResult(
+            globalState = PkCalibrationGlobalState.valueOf(readString()),
+            routeResults = readList {
+                PkRouteCalibrationResult(
+                    route = readPkCalibrationRoute(),
+                    displayState = PkRouteCalibrationDisplayState.valueOf(readString()),
+                    reasons = readList { PkCalibrationReason.valueOf(readString()) }.toSet(),
+                    fittedBeta = readNullableDouble(),
+                    betaPosteriorSd = readNullableDouble(),
+                    supportingLabCount = readInt(),
+                    minStudentTWeight = readNullableDouble(),
+                    unreviewedOutlierLabIds = readList { UUID.fromString(readString()) }.toSet(),
+                )
+            },
+            promotedBetaCovariance = if (readBoolean()) {
+                PkCalibrationPromotedCovariance(
+                    routes = readList { readPkCalibrationRoute() },
+                    values = readList { readList { readDouble() } },
+                )
+            } else {
+                null
+            },
+            ignoredLabs = readList {
+                UUID.fromString(readString()) to PkCalibrationLabIgnoreReason.valueOf(readString())
+            }.toMap(),
+        )
+    }
+
+    private fun DataInputStream.readPkCalibrationRoute(): PkCalibrationRoute {
+        val stableId = readString()
+        return checkNotNull(PkCalibrationRoute.fromStableId(stableId)) {
+            "Unknown calibration route: $stableId"
+        }
+    }
+
+    // Every field of the event the simulator is handed, with its time as
+    // absolute epoch millis.
+    private fun DataOutputStream.writePkDoseEvents(events: List<PkDoseEvent>, anchorEpochMillis: Long) {
+        writeList(events) { event ->
+            writeString(event.id.toString())
+            writeNullableString(event.sourceGroupUuid?.toString())
+            writeString(event.hormone.name)
+            writeString(event.route.name)
+            writeLong(anchorEpochMillis + (event.timeH * 3_600_000.0).roundToLong())
+            writeDouble(event.doseMg)
+            writeString(event.compound.name)
+            writeNullableDouble(event.releaseRateMcgPerDay)
+            writeNullableDouble(event.areaCm2)
+            writeNullableDouble(event.sublingualTheta)
+            writeBoolean(event.isPlanned)
+        }
     }
 
     private fun DataOutputStream.writeMedicationGroup(group: MedicationGroup) {
@@ -1047,10 +1253,16 @@ internal interface HomeSnapshotCrypto {
     fun decrypt(ciphertext: ByteArray): ByteArray
 }
 
-private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
+// One instance for all three files: they share one Keystore alias and their
+// first writes and reads run concurrently on separate DataStore threads. Two
+// racing generateKey() calls would rebind the alias and orphan whichever file
+// was sealed first, so the key is fetched or generated once, under lazy's lock.
+private object AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
+    private val masterKey: SecretKey by lazy { getOrCreateMasterKey() }
+
     override fun encrypt(plaintext: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateMasterKey())
+        cipher.init(Cipher.ENCRYPT_MODE, masterKey)
         val encryptedBytes = cipher.doFinal(plaintext)
         val iv = cipher.iv
         return ByteBuffer
@@ -1086,7 +1298,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
         val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,
-            getOrCreateMasterKey(),
+            masterKey,
             GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
         )
         return cipher.doFinal(encryptedBytes)
@@ -1121,8 +1333,8 @@ private const val TAG = "HomeSnapshotStore"
 
 // v15 carries MedicineStock inside cached Medicine values; older caches are
 // rejected by codec-version mismatch so tracked stock is never defaulted away.
-// v17 appends the deduped pkEntries pool so the snapshot path can re-simulate
-// the E2 curve locally when the cached projection expires.
+// v17 appends the deduped pkEntries pool, so the snapshot path could re-simulate
+// the E2 curve locally (v29 moves the entries to the E2 inputs).
 // v18 appends archivedGroups (after activeGroups) so Home/widget mirror Plan.
 // v19 appends doseAmountDelta to medication log entries for stock deltas.
 // v20 appends importedFromExternalTracker to cached Medicine and adds imported
@@ -1130,9 +1342,22 @@ private const val TAG = "HomeSnapshotStore"
 // v21 appends medication log import provenance.
 // v22 appends the cached Home hero anchor tracked date.
 // v23-v26 append the calibration route log-scales, predictive band and hero summary.
-private const val SNAPSHOT_CODEC_VERSION = 27
-private const val POLICY_DISCRIMINATOR_INTERVAL = 0
-private const val POLICY_DISCRIMINATOR_BUDGET = 1
+// v28 drops Home's projection, band and calibration status (the E2 estimate
+// is derived and stored on its own) and carries what it is derived from: the
+// engine version, the option, the fit and the labs it was solved from. The
+// latest estradiol entry moves up from the projection.
+// v29 holds Home data only: the E2 inputs, the fit and the engine version
+// move to home_e2_inputs.pb, and the widget's projection goes.
+// A bump drops Home data only: the next run reuses the fit published in the
+// still-valid E2 inputs part.
+private const val SNAPSHOT_CODEC_VERSION = 29
+// The E2 inputs record's own version, separate from the snapshot's. A bump
+// drops the inputs part, fit included, so the next run re-solves.
+private const val E2_INPUTS_CODEC_VERSION = 1
+// The Home E2 estimate record's own version, separate from the snapshot's.
+private const val HOME_E2_ESTIMATE_CODEC_VERSION = 1
+private const val FIT_OUTCOME_SOLVED = 0
+private const val FIT_OUTCOME_FAILED = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
 private const val PATCH_SPECIFICATION_RELEASE_RATE = 1
 

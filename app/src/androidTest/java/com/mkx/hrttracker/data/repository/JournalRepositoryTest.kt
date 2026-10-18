@@ -391,14 +391,14 @@ class JournalRepositoryTest {
         // after the add above.
         repo.updateTrackedDate(id, "__warmup2__", icon, LocalDate.of(2000, 1, 1), null)
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
         clearMocks(homeSnapshotRepository, answers = false)
         // Empty the table; the delete is the last change, so waiting for its refresh drains
         // any earlier in-flight one (the single collector processes emissions in order).
         repo.deleteTrackedDate(id)
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
         clearMocks(homeSnapshotRepository, answers = false)
     }
@@ -418,7 +418,7 @@ class JournalRepositoryTest {
         // The refresh is reactive (off the pinned-dates flow), so it lands shortly after the
         // write commits rather than inline.
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
     }
 
@@ -430,7 +430,7 @@ class JournalRepositoryTest {
         repo.addTrackedDate("Other", icon, LocalDate.of(2021, 1, 1), null, pinned = false)
         // Let the pin-driven refresh from adding the hero settle, then reset.
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
         clearMocks(homeSnapshotRepository, answers = false)
 
@@ -448,10 +448,10 @@ class JournalRepositoryTest {
         repo.updateTrackedDate(heroId, "Hero renamed", icon, LocalDate.of(2020, 1, 1), null)
 
         coVerify(timeout = 5_000L, atLeast = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
         coVerify(exactly = 1) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
     }
 
@@ -552,7 +552,7 @@ class JournalRepositoryTest {
         resetToEmptyWithLiveObserver()
         val icon = AnchorIcon.entries.first().storageKey
         var invalidateCalls = 0
-        coEvery { homeSnapshotRepository.invalidateAndRebuildHomeSnapshot() } coAnswers {
+        coEvery { homeSnapshotRepository.invalidate() } coAnswers {
             invalidateCalls += 1
             if (invalidateCalls == 1) throw IOException("simulated DataStore failure")
         }
@@ -566,7 +566,7 @@ class JournalRepositoryTest {
         // Second hero change: only fires a second call if the collector survived the failure.
         repo.updateTrackedDate(id, "Hero renamed", icon, LocalDate.of(2024, 1, 1), null)
         coVerify(timeout = 5_000L, atLeast = 2) {
-            homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+            homeSnapshotRepository.invalidate()
         }
     }
 

@@ -17,6 +17,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.Runs
 import io.mockk.every
@@ -66,12 +67,17 @@ class ReminderNotificationManagerTest {
         // so here it resolves to the same mock context.
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         every { context.withAppLanguage() } returns context
+        // Reads the device's 12/24-hour setting through Resources.getSystem(),
+        // which is null on the JVM.
+        mockkStatic("com.mkx.hrttracker.util.AppDateTimeFormattersKt")
+        every { any<Context>().uses24HourTimeFormat() } returns false
         every { Toast.makeText(any(), any<String>(), Toast.LENGTH_SHORT) } returns toast
 
         // Builder fluent chain — all mutators return self so chaining is preserved
         every { anyConstructed<NotificationCompat.Builder>().setSmallIcon(any<Int>()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setContentTitle(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setContentText(any()) } answers { self as NotificationCompat.Builder }
+        every { anyConstructed<NotificationCompat.Builder>().setSubText(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setPriority(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setContentIntent(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) } answers { self as NotificationCompat.Builder }

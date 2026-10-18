@@ -55,8 +55,8 @@ import java.time.ZoneId
 
 /**
  * Snapshot-sourced calibration presentation for Home; nothing here waits for
- * the live evaluation. Carries display flags and display-unit band geometry
- * only, never raw fit parameters.
+ * the calibration page's render. Carries display flags and display-unit band
+ * geometry only, never raw fit parameters.
  */
 data class MainPkCalibrationUiState(
     val adjusted: Boolean,

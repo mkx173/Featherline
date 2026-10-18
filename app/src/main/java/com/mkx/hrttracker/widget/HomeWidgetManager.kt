@@ -79,11 +79,11 @@ class HomeWidgetManager @Inject constructor(
         publishGeneratedWidgetPreviewsIfNeeded()
 
         appScope.launch {
-            // Skip transient nulls that observeHomeSnapshot emits during runHomeDataMutation
-            // (clearSnapshotBestEffort -> async rebuild). Clearing the widget snapshot on each
-            // gap causes a visible "no medications" flash after every quick-log tap. The
-            // rebuild emits a fresh non-null snapshot shortly after, which we propagate.
-            homeSnapshotRepository.observeHomeSnapshot()
+            // Current states only, written only with both parts: from a mutation until its
+            // run publishes, and while a part is missing, the widget keeps its last snapshot,
+            // estimate included, rather than blanking. Each publish rewrites it from its Home
+            // data and the inputs published with them.
+            homeSnapshotRepository.currentCache
                 .filterNotNull()
                 // Terminal guard: appScope is a handler-less SupervisorJob, so an
                 // upstream failure reaching this collector crashes the process. Log and
@@ -92,9 +92,9 @@ class HomeWidgetManager @Inject constructor(
                 .catch { throwable ->
                     diagnosticsLogger.warning(TAG, "widget_snapshot_home_stream_failed", throwable)
                 }
-                .collect { snapshot ->
+                .collect { state ->
                     runCatching {
-                        widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
+                        widgetSnapshotRepository.writeWidgetSnapshot(state)
                     }.onFailure { throwable ->
                         // Don't let runCatching swallow cancellation of this app-scoped
                         // collector; rethrow so the coroutine stops cleanly.

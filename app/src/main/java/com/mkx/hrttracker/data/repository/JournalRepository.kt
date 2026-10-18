@@ -221,13 +221,13 @@ class JournalRepository @Inject constructor(
 
     init {
         // Keep the cold-start Home snapshot in step with the journal hero (the first pinned
-        // date), reactively — mirroring HomeSnapshotRepository's home-E2-settings observer.
-        // Running on appScope decouples this from the journal write, so a snapshot/DataStore
-        // failure can never fail (or crash) the committed mutation, and we avoid the expensive
-        // full runHomeDataMutation. The warm cache's null = not-yet-loaded; the first loaded
-        // value is the process-start baseline (the normal Home build already covers startup),
-        // so only later hero changes force a rebuild. Best-effort: appScope has no exception
-        // handler, so a DataStore failure must not tear down this long-lived collector.
+        // date), reactively. Running on appScope decouples this from the journal write, so a
+        // snapshot/DataStore failure can never fail (or crash) the committed mutation. The
+        // warm cache's null = not-yet-loaded; the first loaded value is the process-start
+        // baseline, so only later hero changes ask for a run. A change an earlier process
+        // saw bumped the generation then, so its run, if it never landed, happens at the
+        // next startup. Best-effort: appScope has no exception handler, so a DataStore
+        // failure must not tear down this long-lived collector.
         appScope.launch {
             var baselined = false
             var previousHero: TrackedDate? = null
@@ -242,7 +242,7 @@ class JournalRepository @Inject constructor(
                 if (hero == previousHero) return@collect
                 previousHero = hero
                 runCatching {
-                    homeSnapshotRepository.invalidateAndRebuildHomeSnapshot()
+                    homeSnapshotRepository.invalidate()
                 }.onFailure { if (it is CancellationException) throw it }
             }
         }

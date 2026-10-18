@@ -84,7 +84,7 @@ class MainContentSkeletonTest {
                 MainContent(
                     uiState = buildMainContentPreviewUiState().copy(
                         homeDataReady = true,
-                        e2TrendReady = true,
+                        hasE2Estimate = true,
                     ),
                     scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },
@@ -110,7 +110,7 @@ class MainContentSkeletonTest {
                 MainContent(
                     uiState = buildMainContentPreviewUiState().copy(
                         pkCalibration = null,
-                        e2TrendReady = true,
+                        hasE2Estimate = true,
                     ),
                     scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },

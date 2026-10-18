@@ -95,16 +95,23 @@ class AnchorSurfaceRefreshSourceTest {
     }
 
     @Test
-    fun widgetDateReceiver_guardsHomeRefreshIndependentlyOfAnchorRefreshes() {
+    fun widgetDateReceiver_waitsForItsRunInsideItsBudget_guardedIndependentlyOfAnchorRefreshes() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt"
         )
+        val budget = source.substringAfter("withTimeoutOrNull(HANDLE_BUDGET_MS) {")
         assertTrue(
-            "The home snapshot refresh must be guarded like the anchor refreshes: an " +
+            "The receiver must wait for the run, and its warm-up of the new day's " +
+                "estimate, inside its goAsync budget: out of budget only the wait ends, " +
+                "and the run carries on in the app scope.",
+            budget.substringBefore("updateAllAnchorWidgets").contains("rebuildNow()"),
+        )
+        assertTrue(
+            "The home rebuild must be guarded like the anchor refreshes: an " +
                 "unguarded throw from this root coroutine crashes the process on every " +
                 "midnight/boot/timezone broadcast while the failure holds, and skips the " +
                 "anchor widget/shortcut refreshes behind it.",
-            Regex("""runCatching\s*\{[^}]*refreshHomeSnapshotIfNeeded""").containsMatchIn(source),
+            budget.substringAfter("runCatching {").substringBefore("}").contains("rebuildNow()"),
         )
     }
 

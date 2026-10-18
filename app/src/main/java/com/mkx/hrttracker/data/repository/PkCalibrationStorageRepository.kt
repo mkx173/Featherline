@@ -22,7 +22,7 @@ class PkCalibrationStorageRepository @Inject constructor(
 
     /**
      * Writes review metadata through Home's mutation sequence so the Home
-     * generation bumps and the live evaluation re-runs. The target is checked
+     * generation bumps and the fit is solved again. The target is checked
      * inside the write transaction: only a built-in E2 result may carry
      * calibration metadata. AUTO is "no choice", so it deletes the row; the
      * table holds explicit choices only.

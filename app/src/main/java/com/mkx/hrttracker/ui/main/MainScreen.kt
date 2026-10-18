@@ -264,9 +264,9 @@ fun MainScreen(
         )
     }
     // The hero icon's sheet is the calibration page's routes sheet over the
-    // live evaluation, titled for the estimate and carrying its disclaimer;
-    // null (before the first evaluation) is its loading state. The "small
-    // share" rows come from the hero's own snapshot, not the live render: the
+    // page's own estimate, titled for the estimate and carrying its
+    // disclaimer; null (before it is derived) is its loading state. The "small
+    // share" rows come from the hero's own estimate, not the page's render: the
     // two are judged over different ranges and the sheet explains the icon.
     if (showCalibrationRoutesSheet) {
         val home = uiState.pkCalibration

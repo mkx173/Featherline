@@ -723,7 +723,6 @@ class PkCalibrationSolverTest {
         )
         return PkCalibrationEvidencePool(
             input = input,
-            forwardModel = requireNotNull(PkE2ForwardModel.create(emptyList(), 70.0)),
             included = included,
             ignored = emptyMap(),
         )

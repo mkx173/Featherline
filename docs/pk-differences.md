@@ -88,33 +88,34 @@ should read the upstream README and its `pk_research/` workspace.
   paths share the strategy but differ in which "exact" instants they
   pin.
 - **Option-aware chart-window rounding contract.**
-  `simulateMainEstradiolProjection` rounds the projection-cache window
+  `simulateMainEstradiolProjection` rounds the projection window
   to local midnight in `zoneId`: start = today minus `option.pastDays`
   at 00:00, end = today plus `option.projectionFutureDays()` at
   00:00. `projectionFutureDays()` adds a 10-day forward buffer beyond
   the visible future span, so the 30-day chart stores a 40-day
   projection while rendering only the 30-day visible window.
-  `HomeSnapshotRepository.snapshotUsabilityFailure` independently
-  recomputes the visible window and rejects cached snapshots whose
-  coverage or sampling fingerprint (`chartWindowHours`, dense policy,
-  post-dose-offset flag) does not match the selected option. Upstream
-  has no such contract because it has no cache.
-- **Projection cache bundled into home snapshot.** Two projection
-  records are bundled into `HomeSnapshotRecord` alongside the
-  plan-and-fulfillment cache: `pkProjection` (the chart's
-  option-sized projection — 7-day or 30-day visible window with the
-  forward buffer) and `widgetPkProjection` (a smaller projection
-  sized for the widget's E2 estimate, which has its own validity
-  window). Every home-data mutation re-simulates both, even when no
-  PK input changed. The leaky seam and its fallback path
-  (`MainViewModel` re-simulates the chart projection directly when
-  the cached expiry is on-or-before the live `now`) are documented
-  in
-  [`architecture.md#home-snapshot-and-pk-projection-cache`](architecture.md#home-snapshot-and-pk-projection-cache);
-  the widget consumes `widgetPkProjection` via
+  `PkProjectionResult.toMainEstradiolTrend` independently recomputes
+  the visible window and slices the chart only out of a projection
+  that covers it; the buffer is what lets an estimate held across
+  midnight still cover the next day's chart. Upstream has no such
+  contract because it has no cache.
+- **Home's estimate derived by key.** Home's curve, band and
+  calibration status are not cached with an expiry. `E2Derivation`
+  derives them from the E2 inputs the rebuild worker publishes beside
+  Home data (logged doses, planned-dose sources, weight, chart option
+  and the calibration fit), and `E2EstimateRepository` reuses an estimate
+  only under the exact key it was derived for, deriving it again
+  whenever the key moves: a planned dose passing, midnight, or a data
+  change. There is no fallback simulation; see
+  [`architecture.md#home-snapshot-and-e2-estimate`](architecture.md#home-snapshot-and-e2-estimate).
+  The widget's smaller seven-day projection is derived the same way
+  (`E2EstimateRepository.widgetEstimate`, keyed by `WidgetEstimateKey`,
+  logged doses only), from the E2 inputs published with the Home data
+  the widget's rows come from.
   [`WidgetSnapshotBuilder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
-  with its own expiry check on the widget render path. Upstream has
-  no equivalent because it has no persistent home snapshot.
+  stores it in the widget's own record, whose render path shows a value
+  only while the stored window covers the widget's seven-day chart.
+  Upstream has no equivalent because it has no persistent home snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
   events directly inside its simulator. Featherline computes the
   per-event active-mg-as-E2 upstream of the simulator in
@@ -268,11 +269,12 @@ should read the upstream README and its `pk_research/` workspace.
   by Aedo 1985's measured peak (fits 0.062) below and Düsterberg &
   Nishino 1982's 4 mg curve (needs 0.09–0.10, and integrates to more E2
   than the dose) above. Estrannaise and TFS give 0.68–0.94; GAHT Plotter
-  gives 0.81–1.55 and is not a valid exposure vote. The cypionate depot
-  is refit to Zhou 1998 and Rahimy 1999 (`fracFast 0.15`, `k1Fast 0.08`,
-  `k1Slow 0.0035`): upstream's two rates differed by 12%, so the depot
-  could not peak on day 1–2 as every study that sampled day 1 found. The
-  valerate and enanthate depots are unchanged; the two primary valerate
+  gives 0.81–1.55 and is not a valid exposure vote. The cypionate,
+  valerate and enanthate depots are upstream's. Cypionate's peaks on day
+  3.8, as Oriowo 1980 found for cypionate in oil; Zhou 1998 and Rahimy
+  1999 peak on day 1–2 but used the aqueous suspension in Cyclofem and
+  Lunelle, which releases differently, so they set only the exposure. The
+  two primary valerate
   curves disagree in opposite directions on its tail, and enanthate peaks
   within 7% of Schiavon's 6.3 days.
 - **Gel bioavailability is the 0.06% product on its label area, and gel
@@ -412,9 +414,12 @@ dose at this clearance, an upper bound; its 5 mg-scaled peak of 492–534
 needs 0.090–0.097 at 70 kg. The reference calculators give shares of
 0.695–0.926 (Estrannaise) and 0.680–0.936 (TFS); GAHT Plotter's EB
 (1.55) and EC (1.06) exceed 1 and are not used. Cypionate depot
-(`0.15 / 0.08 / 0.0035`): RMS residual against Zhou's trough-subtracted
-curve is 61 pg/mL for the old depot, 44 at k1Fast 0.04, 31 at 0.08.
-Enanthate's depot peaks at 5.9 d against Schiavon's 6.3 d. Valerate's
+(upstream's): 5 mg at 70 kg peaks at 154 pg/mL on day 3.8, against
+Oriowo's day 3.9 (2.4–6.2) in arachis oil and Aly's four-study oil fit of
+155 pg/mL at day 4.3. Zhou and Rahimy used the microcrystalline aqueous
+suspension (with MPA), which peaks on day 1–2; a refit to them
+(`0.15 / 0.08 / 0.0035`) was reverted because it modelled the wrong
+product. Enanthate's depot peaks at 5.9 d against Schiavon's 6.3 d. Valerate's
 two primaries disagree on its tail (Oriowo: baseline by day 7–8;
 Düsterberg & Nishino: 148 pg/mL at day 10), so its depot is unchanged.
 
@@ -662,8 +667,9 @@ multiplies that route's population contribution by `e^{beta_r}`.
   `e2_calibration_metadata`, `AUTO` as no row; see [data-model.md](data-model.md).
   `REVIEWED` only hides the review tip and never changes the fit.
 
-The fit runs entirely on device, inside the Home snapshot build, so the
-Home chart, the band, and the widgets all draw from the same adjusted
+The fit runs entirely on device, in the Home rebuild worker, which solves
+only when the published fit can't stand in, so the Home chart and band,
+the calibration page and the widgets all draw from the same adjusted
 parameters. Hipparchus supplies the bisection and Brent root solvers,
 Cholesky decomposition, Gauss-Hermite integration, and the Student-t
 distribution (the band uses the closed-form t4 CDF, falling back to the
@@ -675,7 +681,7 @@ dense multi-route chart costs a few hundred solves at most.
 
 ## What Featherline plans to change
 
-The PK engine swap gates three deferred refactors, all enumerated in
+The PK engine swap gates one deferred refactor, listed in
 [`architecture.md#known-limitations-and-planned-refactors`](architecture.md#known-limitations-and-planned-refactors):
 
 - Consolidate the fragmented PK math (constants, three-compartment
@@ -683,8 +689,6 @@ The PK engine swap gates three deferred refactors, all enumerated in
   [`DoseInstructionCalculator`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/model/medication/DoseInstructionCalculator.kt)'s
   overlapping molecular-weight constants collapse into one source of
   truth.
-- Untangle the projection cache from `HomeSnapshotRepository` so PK
-  re-simulation isn't triggered by unrelated home mutations.
 
 ## Out of scope
 

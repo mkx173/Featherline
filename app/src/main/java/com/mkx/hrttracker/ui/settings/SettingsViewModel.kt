@@ -13,7 +13,7 @@ import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
-import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -38,7 +38,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.runningReduce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.SharedFlow
@@ -68,7 +67,7 @@ class SettingsViewModel @Inject constructor(
     private val externalImportService: ExternalImportService,
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
-    homeSnapshotRepository: HomeSnapshotRepository,
+    e2EstimateRepository: E2EstimateRepository,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -118,14 +117,12 @@ class SettingsViewModel @Inject constructor(
         isBackupRestoreInProgress,
         isExternalImportInProgress,
         isWeightMutationInProgress,
-        // The same basis Home's hero title names, from the snapshot it is
-        // built with, so the calibration row never lags the hero. The first
-        // value is the current one (no start-with-null: that would reach the
-        // combine after the seed and blank the row for a frame); a mutation
-        // clears the snapshot until its rebuild lands, so the last record holds.
-        homeSnapshotRepository.latestObservedSnapshot
-            .runningReduce { held, snapshot -> snapshot ?: held }
-            .map { snapshot -> snapshot?.pkCalibration?.adjusted }
+        // The basis Home's hero title names: the status of the newest Home
+        // estimate, kept until the next one lands and updated in place. The
+        // first value is the current one (no start-with-null: that would
+        // reach the combine after the seed and blank the row for a frame).
+        e2EstimateRepository.latestHome
+            .map { estimate -> estimate?.calibration?.adjusted }
             .distinctUntilChanged(),
     ) { values ->
         val settingsState = values[0] as SettingsState
@@ -157,12 +154,11 @@ class SettingsViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        // Seeded from the snapshot Home already observed so the calibration
-        // row has its support text on the first frame; the combine above
-        // waits on a Room read before its first value.
+        // Seeded from the estimate Home already has (stored or derived) so
+        // the calibration row has its support text on the first frame; the
+        // combine above waits on a Room read before its first value.
         initialValue = SettingsUiState(
-            calibrationAdjusted = homeSnapshotRepository.latestObservedSnapshot.value
-                ?.pkCalibration?.adjusted,
+            calibrationAdjusted = e2EstimateRepository.latestHome.value?.calibration?.adjusted,
         ),
     )
 
@@ -694,7 +690,7 @@ data class SettingsUiState(
     val isBackupRestoreInProgress: Boolean = false,
     val isExternalImportInProgress: Boolean = false,
     val isWeightMutationInProgress: Boolean = false,
-    /** The basis Home's hero title names: null until a snapshot with a calibration record exists. */
+    /** The basis Home's hero title names: null until a Home estimate with a calibration status exists. */
     val calibrationAdjusted: Boolean? = null,
 )
 

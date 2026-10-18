@@ -162,8 +162,8 @@ class SettingsRepository internal constructor(
     // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
     // eager `initialValue` so consumers can distinguish the persisted option
     // from the SEVEN_DAYS placeholder used while DataStore is still loading.
-    // Required by HomeSnapshotRepository's invalidation observer and by
-    // HomeRepository's snapshot/fallback flows.
+    // Required by HomeSnapshotRepository's worker, which publishes the option
+    // with the E2 inputs, and by HomeRepository's snapshot and Room paths.
     val homeE2ChartWindowOptionFlow: Flow<HomeE2ChartWindowOption> = storedPreferences
         .map { preferences ->
             HomeE2ChartWindowOption.fromStorageValue(preferences[homeE2ChartWindowKey])

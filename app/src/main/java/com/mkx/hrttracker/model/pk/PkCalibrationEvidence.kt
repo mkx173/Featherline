@@ -20,16 +20,10 @@ data class PkCalibrationInput(
     val config: PkCalibrationConfig = PkCalibrationConfig.Default,
 ) {
     val acceptedLabIds: Set<UUID>
-        get() = metadata
-            .filter { it.disposition == E2CalibrationDisposition.REVIEWED }
-            .map { it.resultId }
-            .toSet()
+        get() = metadata.resultIdsWith(E2CalibrationDisposition.REVIEWED)
 
     val excludedLabIds: Set<UUID>
-        get() = metadata
-            .filter { it.disposition == E2CalibrationDisposition.EXCLUDED }
-            .map { it.resultId }
-            .toSet()
+        get() = metadata.resultIdsWith(E2CalibrationDisposition.EXCLUDED)
 }
 
 /**
@@ -44,7 +38,6 @@ data class PkCalibrationIncludedLab(
 
 class PkCalibrationEvidencePool internal constructor(
     val input: PkCalibrationInput,
-    internal val forwardModel: PkE2ForwardModel,
     /** Sorted by result id for deterministic accumulation. */
     val included: List<PkCalibrationIncludedLab>,
     val ignored: Map<UUID, PkCalibrationLabIgnoreReason>,
@@ -74,7 +67,7 @@ object PkCalibrationEvidenceAdapter {
                 included += PkCalibrationIncludedLab(lab.resultId, lab.valuePgml, breakdown!!)
             }
         }
-        return PkCalibrationEvidencePool(input, forwardModel, included, ignored)
+        return PkCalibrationEvidencePool(input, included, ignored)
     }
 
     /** Null means the lab joins the fit. */

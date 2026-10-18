@@ -62,10 +62,10 @@ class MedicationReminderSchedulerTest {
         every { context.getSystemService(AlarmManager::class.java) } returns alarmManager
         every { context.packageName } returns "com.mkx.hrttracker.test"
         every { alarmManager.canScheduleExactAlarms() } returns true
-        coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns emptySet()
-        coEvery { reminderScheduleStore.addScheduledGroupUuid(any()) } just Runs
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns emptyMap()
+        coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } just Runs
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
-        coEvery { reminderScheduleStore.replaceScheduledGroupUuids(any()) } just Runs
+        coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } just Runs
         coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
 
         scheduler = MedicationReminderScheduler(
@@ -97,7 +97,7 @@ class MedicationReminderSchedulerTest {
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 0))
 
         verify { alarmManager.cancel(any<PendingIntent>()) }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(emptySet()) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(emptyMap()) }
         verify(exactly = 0) {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
@@ -143,7 +143,7 @@ class MedicationReminderSchedulerTest {
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(setOf(group.uuid)) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(match { reminders -> reminders.keys == setOf(group.uuid) }) }
         verify {
             diagnosticsLogger.info(
                 "MedicationReminderScheduler",
@@ -174,7 +174,6 @@ class MedicationReminderSchedulerTest {
                 generatedAtEpochMillis = Instant.parse("2026-04-20T00:00:00Z").toEpochMilli(),
                 anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                 zoneId = "Asia/Tokyo",
-                pkProjection = null,
                 activeGroups = listOf(group),
                 scheduleEntries = emptyList(),
                 antiandrogenHistoryEntries = emptyList(),
@@ -186,7 +185,7 @@ class MedicationReminderSchedulerTest {
             alarmManager.cancel(any<PendingIntent>())
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(setOf(group.uuid)) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(match { reminders -> reminders.keys == setOf(group.uuid) }) }
         coVerify(exactly = 0) { groupRepository.getGroups() }
         coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
     }
@@ -202,12 +201,12 @@ class MedicationReminderSchedulerTest {
         coEvery { settingsRepository.getCurrentSettings() } returns
                 SettingsState(remindersEnabled = true)
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
-        coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(staleGroupUuid to null)
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(setOf(activeGroup.uuid)) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(match { reminders -> reminders.keys == setOf(activeGroup.uuid) }) }
     }
 
     @Test
@@ -220,12 +219,12 @@ class MedicationReminderSchedulerTest {
         coEvery { groupRepository.getGroups() } returns listOf(activeGroup)
         coEvery { settingsRepository.getCurrentSettings() } returns
                 SettingsState(remindersEnabled = false)
-        coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(staleGroupUuid to null)
 
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 8, 0))
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(emptySet()) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(emptyMap()) }
     }
 
     @Test
@@ -238,7 +237,7 @@ class MedicationReminderSchedulerTest {
         val staleGroupUuid = UUID.fromString("a5b3593c-dfb6-4a9b-8de6-b4b4950c9113")
         coEvery { settingsRepository.getCurrentSettings() } returns
                 SettingsState(remindersEnabled = true)
-        coEvery { reminderScheduleStore.getScheduledGroupUuids() } returns setOf(staleGroupUuid)
+        coEvery { reminderScheduleStore.getScheduledReminders() } returns mapOf(staleGroupUuid to null)
 
         scheduler.rescheduleFromHomeSnapshot(
             snapshot = HomeSnapshotRecord(
@@ -247,7 +246,6 @@ class MedicationReminderSchedulerTest {
                 generatedAtEpochMillis = Instant.parse("2026-04-20T00:00:00Z").toEpochMilli(),
                 anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                 zoneId = "Asia/Tokyo",
-                pkProjection = null,
                 activeGroups = listOf(activeGroup),
                 scheduleEntries = emptyList(),
                 antiandrogenHistoryEntries = emptyList(),
@@ -256,7 +254,7 @@ class MedicationReminderSchedulerTest {
         )
 
         verify(exactly = 2) { alarmManager.cancel(any<PendingIntent>()) }
-        coVerify { reminderScheduleStore.replaceScheduledGroupUuids(setOf(activeGroup.uuid)) }
+        coVerify { reminderScheduleStore.replaceScheduledReminders(match { reminders -> reminders.keys == setOf(activeGroup.uuid) }) }
     }
 
     @Test
@@ -307,7 +305,7 @@ class MedicationReminderSchedulerTest {
         )
 
         coVerify { reminderScheduleStore.removeScheduledGroupUuid(group.uuid) }
-        coVerify(exactly = 0) { reminderScheduleStore.addScheduledGroupUuid(group.uuid) }
+        coVerify(exactly = 0) { reminderScheduleStore.addScheduledReminder(group.uuid, any()) }
         verify(exactly = 0) {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
@@ -330,7 +328,7 @@ class MedicationReminderSchedulerTest {
         )
 
         coVerify { reminderScheduleStore.removeScheduledGroupUuid(group.uuid) }
-        coVerify { reminderScheduleStore.addScheduledGroupUuid(group.uuid) }
+        coVerify { reminderScheduleStore.addScheduledReminder(group.uuid, any()) }
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }

@@ -16,3 +16,9 @@ data class E2CalibrationMetadata(
     val disposition: E2CalibrationDisposition,
     val updatedAt: Instant,
 )
+
+/** The results reviewed with [disposition]. */
+fun List<E2CalibrationMetadata>.resultIdsWith(disposition: E2CalibrationDisposition): Set<UUID> =
+    filter { it.disposition == disposition }
+        .map { it.resultId }
+        .toSet()

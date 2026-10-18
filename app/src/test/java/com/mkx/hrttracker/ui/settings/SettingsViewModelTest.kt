@@ -12,12 +12,15 @@ import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
+import com.mkx.hrttracker.data.repository.HomeE2Estimate
 import com.mkx.hrttracker.data.repository.HomePkCalibrationRecord
-import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
-import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -43,6 +46,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -66,8 +70,9 @@ class SettingsViewModelTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
-    private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
-        every { latestObservedSnapshot } returns MutableStateFlow(null)
+    private val latestHomeEstimate = MutableStateFlow<HomeE2Estimate?>(null)
+    private val e2EstimateRepository: E2EstimateRepository = mockk {
+        every { latestHome } returns latestHomeEstimate
     }
     private val appLockSecurityManager: AppLockSecurityManager = mockk(relaxed = true)
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
@@ -546,31 +551,32 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun uiState_seedsCalibrationFromTheObservedSnapshotBeforeCombineRuns() {
-        every { homeSnapshotRepository.latestObservedSnapshot } returns MutableStateFlow(
-            HomeSnapshotRecord(
-                schemaVersion = 1,
-                generatedAtEpochMillis = 0L,
-                anchorDateEpochDay = 0L,
-                zoneId = "UTC",
-                pkProjection = null,
-                activeGroups = emptyList(),
-                scheduleEntries = emptyList(),
-                antiandrogenHistoryEntries = emptyList(),
-                pkCalibration = HomePkCalibrationRecord(
-                    adjusted = true,
-                    limitedConfidence = false,
-                    renderUnavailable = false,
-                    bandUnavailable = false,
-                    effectiveRoutes = emptyList(),
-                ),
-            )
-        )
+    fun uiState_seedsCalibrationFromTheLatestHomeEstimateBeforeCombineRuns() {
+        latestHomeEstimate.value = homeEstimate(adjusted = true)
 
         val viewModel = createViewModel()
 
         // Synchronous: the row must not flash empty on the first frame.
         assertEquals(true, viewModel.uiState.value.calibrationAdjusted)
+    }
+
+    @Test
+    fun calibrationRow_keepsItsValue_andUpdatesInPlaceFromTheHomeEstimate() = runTest {
+        latestHomeEstimate.value = homeEstimate(adjusted = true)
+        val viewModel = createViewModel()
+        val rows = mutableListOf<Boolean?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { state -> rows += state.calibrationAdjusted }
+        }
+        advanceUntilIdle()
+
+        // A newer Home estimate replaces the status in place; the row never
+        // empties while one is derived.
+        latestHomeEstimate.value = homeEstimate(adjusted = false)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.calibrationAdjusted)
+        assertEquals(listOf(true, false), rows.distinct())
     }
 
     @Test
@@ -597,7 +603,7 @@ class SettingsViewModelTest {
             externalImportService = externalImportService,
             diagnosticsExportService = diagnosticsExportService,
             widgetAppearanceRepository = widgetAppearanceRepository,
-            homeSnapshotRepository = homeSnapshotRepository,
+            e2EstimateRepository = e2EstimateRepository,
         )
     }
 
@@ -639,4 +645,24 @@ class SettingsViewModelTest {
             warnings = emptyList(),
         )
     }
+
+    private fun homeEstimate(adjusted: Boolean) = HomeE2Estimate(
+        option = HomeE2ChartWindowOption.SEVEN_DAYS,
+        projection = PkProjectionResult(
+            windowStart = java.time.Instant.EPOCH,
+            windowEnd = java.time.Instant.EPOCH,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+        ),
+        bandKnots = emptyList(),
+        calibration = HomePkCalibrationRecord(
+            adjusted = adjusted,
+            limitedConfidence = false,
+            renderUnavailable = false,
+            bandUnavailable = false,
+            effectiveRoutes = emptyList(),
+        ),
+    )
 }

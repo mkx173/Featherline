@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.data.local.UserProfileEntity
+import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -11,11 +12,16 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -112,6 +118,43 @@ class UserProfileRepositoryTest {
         assertEquals(42L, captured.captured.updatedAtEpochMillis)
         coVerify(exactly = 1) { dao.upsertProfile(any()) }
         coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeProfile_seedsFromCurrentHomeData_beforeRoomIsOpen() = runTest {
+        // Home data alone: the profile seed waits for the load, but the E2
+        // parts no longer reject it.
+        val seeded = UserProfile(
+            weightKg = 61.0,
+            weightOriginalValue = 61.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS,
+            updatedAt = Instant.ofEpochMilli(5L),
+        )
+        coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(
+            generation = 0L,
+            homeData = HomeSnapshotRecord(
+                schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+                generatedAtEpochMillis = 0L,
+                anchorDateEpochDay = 0L,
+                zoneId = "UTC",
+                activeGroups = emptyList(),
+                scheduleEntries = emptyList(),
+                antiandrogenHistoryEntries = emptyList(),
+                userProfile = seeded,
+            ),
+            e2Inputs = null,
+        )
+        val repository = UserProfileRepository(databaseHolder, homeSnapshotRepository, backgroundScope)
+        val profiles = mutableListOf<UserProfile?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeProfile().collect { profile -> profiles += profile }
+        }
+
+        runCurrent()
+
+        assertTrue(seeded in profiles)
+        coVerify(exactly = 1) { homeSnapshotRepository.currentState() }
     }
 
     @Test

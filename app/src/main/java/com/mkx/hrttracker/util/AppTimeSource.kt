@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.flow.shareIn
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -62,16 +64,19 @@ class DefaultAppTimeSource(
     // a background clock jump would correct the displayed minute but leave the
     // old pending delay running, so the next minute boundary could be missed by
     // up to the original remaining sleep. onStart drives the initial run.
+    // Shared with replay = 0: the ticker stops stopTimeoutMillis after the last
+    // collector leaves, and nothing keeps its last minute for the next one.
     @OptIn(ExperimentalCoroutinesApi::class)
-    override val currentSnapshot: StateFlow<AppTimeSnapshot> = refreshSignals
+    private val ticks: SharedFlow<AppTimeSnapshot> = refreshSignals
         .onStart { emit(Unit) }
         .flatMapLatest { appTimeSnapshotTicker(clock) }
-        .distinctUntilChanged()
-        .stateIn(
-            scope = appScope,
-            started = SharingStarted.WhileSubscribed(stopTimeoutMillis),
-            initialValue = currentAppTimeSnapshot(clock)
-        )
+        .shareIn(appScope, SharingStarted.WhileSubscribed(stopTimeoutMillis), replay = 0)
+
+    // value and every collector's first emission are a fresh clock read, never
+    // the minute the ticker last saw before it stopped: on a return from the
+    // background the first frame would otherwise be built a minute (or more)
+    // behind, then rebuilt once the restarted ticker catches up.
+    override val currentSnapshot: StateFlow<AppTimeSnapshot> = FreshSnapshotStateFlow(clock, ticks)
 
     override val currentMinute: StateFlow<LocalDateTime> = currentSnapshot
         .project { it.minute }
@@ -83,6 +88,28 @@ class DefaultAppTimeSource(
 
     override fun refresh() {
         refreshSignals.tryEmit(Unit)
+    }
+}
+
+@OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+private class FreshSnapshotStateFlow(
+    private val clock: Clock,
+    private val ticks: SharedFlow<AppTimeSnapshot>,
+) : StateFlow<AppTimeSnapshot> {
+    override val value: AppTimeSnapshot
+        get() = currentAppTimeSnapshot(clock)
+
+    override val replayCache: List<AppTimeSnapshot>
+        get() = listOf(value)
+
+    override suspend fun collect(collector: FlowCollector<AppTimeSnapshot>): Nothing {
+        // onSubscription (not onStart) reads the clock once already
+        // subscribed, so a tick landing in between can't be missed.
+        ticks
+            .onSubscription { emit(value) }
+            .distinctUntilChanged()
+            .collect(collector)
+        error("StateFlow collection completed unexpectedly")
     }
 }
 
@@ -151,7 +178,8 @@ private class AppTimeSnapshotProjectionStateFlow<T>(
  * subscriptionCount stops that treadmill, while the [backgroundKey]
  * pass-through (date/zone) keeps the midnight and timezone re-anchors riding
  * through so the first frame after re-entry across a date boundary is
- * anchored to the right day. [value] always reads the live upstream so
+ * anchored to the right day. [value] always reads the upstream's [value]
+ * (for [AppTimeSource.currentSnapshot], a fresh clock read) so
  * subscription-time anchors (e.g. nowFlow.value) never see a stale value.
  */
 fun <T> StateFlow<T>.tickWhileSubscribed(

@@ -154,20 +154,6 @@ interface HomeDao {
         ORDER BY appliedAtEpochMillis DESC
         """
     )
-    fun observeEstradiolPkEntries(
-        startEpochMillis: Long,
-        endEpochMillis: Long,
-    ): Flow<List<MedicationLogEntryEntity>>
-
-    @Query(
-        """
-        SELECT * FROM medication_log_entries
-        WHERE category = 'ESTRADIOL'
-          AND appliedAtEpochMillis >= :startEpochMillis
-          AND appliedAtEpochMillis <= :endEpochMillis
-        ORDER BY appliedAtEpochMillis DESC
-        """
-    )
     suspend fun getEstradiolPkEntries(
         startEpochMillis: Long,
         endEpochMillis: Long,
@@ -198,13 +184,4 @@ interface HomeDao {
     suspend fun getLatestEstradiolEntryOnOrBefore(
         onOrBeforeEpochMillis: Long,
     ): MedicationLogEntryEntity?
-
-    @Query(
-        """
-        SELECT * FROM user_profile
-        WHERE id = :id
-        LIMIT 1
-        """
-    )
-    fun observeProfile(id: String = UserProfileEntity.SINGLETON_ID): Flow<UserProfileEntity?>
 }

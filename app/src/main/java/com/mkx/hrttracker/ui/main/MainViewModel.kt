@@ -1,16 +1,22 @@
 package com.mkx.hrttracker.ui.main
 
-import com.mkx.hrttracker.ui.calibration.pkCalibrationUnavailableScreenState
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveResult
-import com.mkx.hrttracker.data.repository.PkCalibrationLiveRepository
+import com.mkx.hrttracker.ui.calibration.pkCalibrationScreenState
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.data.repository.CalibrationEstimate
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
+import com.mkx.hrttracker.data.repository.E2Pending
+import com.mkx.hrttracker.data.repository.E2State
+import com.mkx.hrttracker.data.repository.HomeE2Estimate
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.toBandKnot
 import com.mkx.hrttracker.di.DefaultDispatcher
+import com.mkx.hrttracker.di.ProcessLifecycleState
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -22,13 +28,10 @@ import com.mkx.hrttracker.model.medication.lowStockSeverityRank
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkPredictiveBandKnot
-import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.ui.calibration.pkCalibrationUiState
 import com.mkx.hrttracker.ui.journal.toAnchorRowUiState
-import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSnapshot
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.Held
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.holdWhileUpdating
@@ -45,12 +48,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -63,22 +70,28 @@ class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
-    pkCalibrationLiveRepository: PkCalibrationLiveRepository,
-    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    private val e2EstimateRepository: E2EstimateRepository,
+    @ProcessLifecycleState processLifecycleState: StateFlow<@JvmSuppressWildcards Lifecycle.State>,
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val currentSnapshot = appTimeSource.currentSnapshot
-    private var lastHomeSnapshotRefreshKey: HomeSnapshotRefreshKey? = null
+
+    /** The app is in the foreground: the process lifecycle is at least STARTED. */
+    private val foreground: Flow<Boolean> = processLifecycleState
+        .map { state -> state.isAtLeast(Lifecycle.State.STARTED) }
+        .distinctUntilChanged()
+
+    /** The estimate the E2 cards in [uiState] show; null while they show the skeleton. */
+    private var shownE2Estimate: HomeE2Estimate? = null
 
     /**
-     * The routes sheet the hero's calibration icon opens: the calibration
-     * page's own evaluation, so both screens show the same route rows. Null
-     * until the first live evaluation finishes.
+     * A return to the foreground's first estimate, when its key moved while
+     * away but a background job already derived it: the state carrying it is
+     * built on Main, in the pass that hid the old one, so no skeleton frame
+     * comes between them.
      */
-    val pkCalibrationSheetState: StateFlow<PkCalibrationUiState?> = pkCalibrationLiveRepository.liveState
-        .map(::pkCalibrationSheetUiState)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private var inlineE2Estimate: HomeE2Estimate? = null
 
     // Home's own visibility: the activity collects uiState too, so its
     // subscriber count does not say whether Home is on screen.
@@ -96,10 +109,10 @@ class MainViewModel @Inject constructor(
     // away (e.g. a backup restore) flash one stale frame on re-entry, so data
     // emissions must keep rebuilding the retained value in the background.
     // The time inputs, however, are gated on this state's own subscriber
-    // count: a live minute tick would otherwise rebuild the ui state — PK
-    // simulation fallbacks included — every minute for the activity's whole
-    // lifetime, including backgrounded. While unsubscribed only date/zone
-    // changes pass through, keeping the midnight/timezone re-anchor.
+    // count: a live minute tick would otherwise rebuild the ui state every
+    // minute for the activity's whole lifetime, including backgrounded.
+    // While unsubscribed only date/zone changes pass through, keeping the
+    // midnight/timezone re-anchor.
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
@@ -110,6 +123,16 @@ class MainViewModel @Inject constructor(
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
             minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayStartMinutes)
         }
+
+    /**
+     * The routes sheet the hero's calibration icon opens: the calibration
+     * page's own estimate, so both screens show the same route rows. Null
+     * until it is derived.
+     */
+    val pkCalibrationSheetState: StateFlow<PkCalibrationUiState?> = e2EstimateRepository
+        .observeCalibration(gatedMinute)
+        .map { state -> pkCalibrationSheetUiState(state.value) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         viewModelScope.launch {
@@ -126,14 +149,12 @@ class MainViewModel @Inject constructor(
         val keyedInputsFlow = gatedSnapshot
             .map { snapshot ->
                 HomeTimeKey(
-                    now = snapshot.minute,
                     date = snapshot.minute.toLocalDate(),
                     zoneId = snapshot.zone,
                 )
             }
             .distinctUntilChangedBy { key -> key.date to key.zoneId }
             .flatMapLatest { key ->
-                refreshHomeSnapshotForDateIfNeeded(key.now, key.zoneId)
                 homeRepository.observeHomeInputs(
                     date = key.date,
                     nowFlow = gatedMinute,
@@ -142,72 +163,28 @@ class MainViewModel @Inject constructor(
                     .map { inputs -> KeyedHomeInputs(key = key, inputs = inputs) }
             }
 
-        // Only the E2 hero and chart are held while a data change's rebuild
-        // lands: curve, band and hero change together. They are held as
-        // inputs, so the live time and display unit still render them; the
-        // dose lists and the rest of Home show the change at once.
+        // The E2 hero, chart, band and notes come from the estimate, held
+        // while a change the user made is derived: curve, band and status
+        // change together. The estimate is held, not its cards, so the live
+        // time and display unit still render it; the dose lists and the rest
+        // of Home show the change at once.
         val heldInputsFlow = combine(
-            keyedInputsFlow.holdWhileUpdating(screenVisible) { keyed -> keyed.inputs.isRebuilding },
+            keyedInputsFlow,
+            observeHomeEstimate(),
             settingsRepository.settingsState,
-        ) { held, settings -> held to settings.homeE2DisplayUnit }
-        // The Home calibration presentation comes from the snapshot, so it is
-        // on the first frame with the curve.
+        ) { keyed, estimate, settings -> HeldHomeInputs(keyed, estimate, settings.homeE2DisplayUnit) }
         val homeStateFlow = combine(
             heldInputsFlow,
             gatedSnapshot,
             timeZoneChangeNoticeController.notice,
             settingsRepository.homeLowStockSectionExpandedFlow,
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
-        ) { (held, homeE2DisplayUnit), timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates ->
-            val keyedInputs = held.latest
-            if (!keyedInputs.key.matches(timeSnapshot)) {
-                return@combine null
-            }
-            val inputs = keyedInputs.inputs
-            if (
-                inputs.source == HomeInputSource.ROOM &&
-                inputs.stockWarnings.isEmpty() &&
-                acknowledgedWarningStates.isNotEmpty()
-            ) {
-                // Swallow DataStore failures: letting them propagate would tear
-                // down this combine -> stateIn home flow. A dropped clear is
-                // self-correcting on the next empty-ROOM emission.
-                try {
-                    settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
-                    // Best-effort cleanup; see comment above.
-                }
-            }
-            withContext(defaultDispatcher) {
-                fun build(from: HomeInputs) = buildHomeUiState(
-                    inputs = from,
-                    now = timeSnapshot.minute,
-                    zoneId = timeSnapshot.zone,
-                    timeZoneNotice = timeZoneNotice,
-                    lowStockSectionExpanded = shouldExpandLowStockSection(
-                        storedExpanded = storedLowStockSectionExpanded,
-                        stockWarnings = inputs.stockWarnings,
-                        acknowledgedWarningStates = acknowledgedWarningStates,
-                    ),
-                    homeE2DisplayUnit = homeE2DisplayUnit,
-                    isUpdating = held.isUpdating,
-                )
-                val state = build(inputs)
-                // At the live time a held projection is re-sliced, or
-                // re-simulated from the held doses once its window no longer
-                // covers the chart (a hold across midnight).
-                val e2 = if (held.isUpdating) build(held.value.inputs) else state
-                state.copy(
-                    e2TrendReady = e2.e2TrendReady,
-                    homeE2ChartWindowOption = e2.homeE2ChartWindowOption,
-                    pkCalibration = e2.pkCalibration,
-                    e2Hero = e2.e2Hero,
-                    e2Chart = e2.e2Chart,
-                )
-            }
-        }
+            ::HomeStateSources,
+        )
+            // Latest wins: a build still running for an older combination,
+            // such as an estimate a return to the foreground dropped, never
+            // lands after a newer one.
+            .mapLatest { sources -> buildHomeState(sources) }
             .filterNotNull()
 
         return combine(
@@ -216,6 +193,83 @@ class MainViewModel @Inject constructor(
         ) { state, layout ->
             state.copy(homeCardLayout = layout)
         }
+    }
+
+    /**
+     * Home's estimate, held while a change the user made is derived. The
+     * observation restarts each time the app comes to the foreground, so a
+     * return follows the cold-start rule, and nothing observes it in the
+     * background.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeHomeEstimate(): Flow<Held<E2State<HomeE2Estimate>>> = foreground
+        .flatMapLatest { inForeground ->
+            if (!inForeground) return@flatMapLatest emptyFlow()
+            e2EstimateRepository.observeHome(gatedMinute)
+                .withIndex()
+                .onEach { (index, state) ->
+                    // The restarted observation's first state is in before
+                    // the first frame; a state rebuilt on Default may not be.
+                    // An estimate whose key moved while away leaves the screen
+                    // now, not a frame later, and one already derived replaces
+                    // it in the same pass.
+                    if (index == 0 && state.value != shownE2Estimate) {
+                        hideE2Estimate()
+                        inlineE2Estimate = state.value
+                    }
+                }
+                .map { (_, state) -> state }
+        }
+        .holdWhileUpdating(screenVisible) { state -> state.pending == E2Pending.USER }
+        .onEach { held -> shownE2Estimate = held.value.value }
+
+    private fun hideE2Estimate() {
+        shownE2Estimate = null
+        _uiState.update { state -> state.copy(hasE2Estimate = false, pkCalibration = null) }
+    }
+
+    private suspend fun buildHomeState(sources: HomeStateSources): MainUiState? {
+        val (held, timeSnapshot, timeZoneNotice, storedLowStockSectionExpanded, acknowledgedWarningStates) = sources
+        if (!held.keyed.key.matches(timeSnapshot)) {
+            return null
+        }
+        val inputs = held.keyed.inputs
+        if (
+            inputs.source == HomeInputSource.ROOM &&
+            inputs.stockWarnings.isEmpty() &&
+            acknowledgedWarningStates.isNotEmpty()
+        ) {
+            // Swallow DataStore failures: letting them propagate would tear
+            // down this combine -> stateIn home flow. A dropped clear is
+            // self-correcting on the next empty-ROOM emission.
+            try {
+                settingsRepository.clearHomeLowStockAcknowledgedWarningStates()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Best-effort cleanup; see comment above.
+            }
+        }
+        val estimate = held.estimate.value.value
+        fun build() = buildHomeUiState(
+            inputs = inputs,
+            estimate = estimate,
+            now = timeSnapshot.minute,
+            zoneId = timeSnapshot.zone,
+            timeZoneNotice = timeZoneNotice,
+            lowStockSectionExpanded = shouldExpandLowStockSection(
+                storedExpanded = storedLowStockSectionExpanded,
+                stockWarnings = inputs.stockWarnings,
+                acknowledgedWarningStates = acknowledgedWarningStates,
+            ),
+            homeE2DisplayUnit = held.displayUnit,
+            isUpdating = held.estimate.isUpdating,
+        )
+        if (estimate != null && estimate === inlineE2Estimate) {
+            inlineE2Estimate = null
+            return build()
+        }
+        return withContext(defaultDispatcher) { build() }
     }
 
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
@@ -337,23 +391,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun refreshHomeSnapshotForDateIfNeeded(
-        now: LocalDateTime,
-        zoneId: ZoneId,
-    ) {
-        val key = HomeSnapshotRefreshKey(
-            date = now.toLocalDate(),
-            zoneId = zoneId.id,
-        )
-        if (lastHomeSnapshotRefreshKey == key) {
-            return
-        }
-        lastHomeSnapshotRefreshKey = key
-        homeRepository.refreshHomeSnapshotAsync(now = now, force = false, zoneId = zoneId)
-    }
-
     private fun buildHomeUiState(
         inputs: HomeInputs,
+        /** Null for the skeleton. */
+        estimate: HomeE2Estimate?,
         now: LocalDateTime,
         zoneId: ZoneId,
         timeZoneNotice: TimeZoneChangeNotice?,
@@ -361,7 +402,9 @@ class MainViewModel @Inject constructor(
         homeE2DisplayUnit: BloodUnitKey,
         isUpdating: Boolean,
     ): MainUiState {
-        val chartWindowOption = inputs.settings.homeE2ChartWindowOption
+        // The E2 cards show the window their estimate covers; the skeleton
+        // shows the selected one.
+        val chartWindowOption = estimate?.option ?: inputs.settings.homeE2ChartWindowOption
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
             .distinctBy { entry -> entry.uuid }
             .sortedByDescending { entry -> entry.appliedAt }
@@ -373,83 +416,31 @@ class MainViewModel @Inject constructor(
         )
         val scheduleGroups =
             if (inputs.settings.showArchivedGroupRecords) allGroups else inputs.activeGroups
-        // HomeInputs was constructed against the date-scoped anchor `now` at
-        // flow subscription time. The live `now` ticks per minute and may
-        // cross a planned-slot expiry without a fresh upstream emission, so
-        // re-validate against the live `now` here:
-        //   - pkProjection: drop if the cached expiry is on or before now.
-        //   - estradiolPkPlannedEntries: drop synthetic doses whose slot has
-        //     already passed (the user didn't take them — don't keep them on
-        //     the curve as if they did).
-        val nowInstant = now.atZone(zoneId).toInstant()
-        // The cached projection was simulated with the snapshot's calibration,
-        // so it is the calibrated curve from the first frame; a local
-        // re-simulation (expired projection) uses the same params. The live
-        // evaluation only contributes the band and the hero/status.
-        val freshProjection = inputs.pkProjection?.takeIf {
-            inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
-        }
-        val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
-            entry.scheduledFor?.isAfter(now) ?: false
-        }
-        val simulationPersonalParams = inputs.pkPersonalParams
-        val trendResult = freshProjection?.toMainEstradiolTrend(
+        // Sliced at the live time. The projection runs past the chart by its
+        // forecast buffer, so a held estimate still covers it across midnight.
+        val trendResult = estimate?.projection?.toMainEstradiolTrend(
             now = now,
             zoneId = zoneId,
             option = chartWindowOption,
         )
-            ?: PkMedicationSimulation.simulateMainEstradiolTrend(
-                entries = inputs.estradiolPkEntries,
-                plannedEntries = freshPlannedEntries,
-                bodyWeightKg = inputs.profile.weightKg,
-                now = now,
-                zoneId = zoneId,
-                option = chartWindowOption,
-                personalParams = simulationPersonalParams,
-            )
-
-        // When the cached projection is invalid the trend falls back to
-        // simulating over `estradiolPkEntries`. The SNAPSHOT path now embeds
-        // those entries, so it can recompute a real curve without waiting for
-        // Room; mark it ready whenever a usable projection or PK entries are
-        // present. Only a SNAPSHOT with neither (no dose history) stays gated
-        // on the ROOM emission.
-        val e2TrendReady = freshProjection != null ||
-                inputs.estradiolPkEntries.isNotEmpty() ||
-                inputs.source == HomeInputSource.ROOM
-
-        // Local re-simulation only happens when no usable cached projection
-        // remains but embedded PK entries do — log just that case, not every
-        // per-minute tick.
-        if (freshProjection == null && inputs.estradiolPkEntries.isNotEmpty()) {
-            diagnosticsLogger.info(
-                TAG,
-                "home_pk_trend_resimulated source=${inputs.source} " +
-                        "projectionExpired=${inputs.pkProjection != null} " +
-                        "pkEntries=${inputs.estradiolPkEntries.size} " +
-                        "plannedEntries=${freshPlannedEntries.size}",
-            )
-        }
 
         return MainUiState(
             homeDataReady = true,
             isUpdating = isUpdating,
-            e2TrendReady = e2TrendReady,
+            hasE2Estimate = trendResult != null,
             homeSource = inputs.source,
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
             homeE2ChartWindowOption = chartWindowOption,
-            // Hero, notes and band all come from the snapshot (same doses, same
-            // calibration as the cached curve); the band is dropped with the
-            // projection on expiry until the snapshot rebuilds.
-            pkCalibration = buildMainPkCalibration(
-                inputs = inputs,
-                bandKnots = if (freshProjection != null) inputs.pkBandKnots else emptyList(),
-                now = now,
-                zoneId = zoneId,
-                chartWindowOption = chartWindowOption,
-                displayUnit = homeE2DisplayUnit,
-            ),
+            // Hero, notes and band come with the curve, from one estimate.
+            pkCalibration = estimate?.let {
+                buildMainPkCalibration(
+                    estimate = it,
+                    now = now,
+                    zoneId = zoneId,
+                    displayUnit = homeE2DisplayUnit,
+                )
+            },
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             stockWarnings = inputs.stockWarnings,
             lowStockSectionExpanded = lowStockSectionExpanded,
@@ -550,41 +541,46 @@ class MainViewModel @Inject constructor(
     }
 
     private data class HomeTimeKey(
-        val now: LocalDateTime,
         val date: LocalDate,
         val zoneId: ZoneId,
     )
 
-    private data class HomeSnapshotRefreshKey(
-        val date: LocalDate,
-        val zoneId: String,
-    )
-
     private data class KeyedHomeInputs(val key: HomeTimeKey, val inputs: HomeInputs)
 
+    private data class HeldHomeInputs(
+        val keyed: KeyedHomeInputs,
+        val estimate: Held<E2State<HomeE2Estimate>>,
+        val displayUnit: BloodUnitKey,
+    )
+
+    private data class HomeStateSources(
+        val held: HeldHomeInputs,
+        val timeSnapshot: AppTimeSnapshot,
+        val timeZoneNotice: TimeZoneChangeNotice?,
+        val storedLowStockSectionExpanded: Boolean,
+        val acknowledgedWarningStates: Map<String, MedicineStockState>,
+    )
+
     private fun buildMainPkCalibration(
-        inputs: HomeInputs,
-        bandKnots: List<PkPredictiveBandKnot>,
+        estimate: HomeE2Estimate,
         now: LocalDateTime,
         zoneId: ZoneId,
-        chartWindowOption: HomeE2ChartWindowOption,
         displayUnit: BloodUnitKey,
     ): MainPkCalibrationUiState? {
-        fun band(knots: List<PkPredictiveBandKnot>) = buildMainE2CalibrationBand(
-            bandKnots = knots,
-            now = now,
-            zoneId = zoneId,
-            pastDays = chartWindowOption.pastDays,
-            windowHours = chartWindowOption.chartWindowHours,
-            displayUnit = displayUnit,
-        )
-        val record = inputs.pkCalibration ?: return null
+        val record = estimate.calibration ?: return null
         return MainPkCalibrationUiState(
             adjusted = record.adjusted,
             limitedConfidence = record.limitedConfidence,
             renderUnavailable = record.renderUnavailable,
             bandUnavailable = record.bandUnavailable,
-            band = band(bandKnots),
+            band = buildMainE2CalibrationBand(
+                bandKnots = estimate.bandKnots.map { knot -> knot.toBandKnot() },
+                now = now,
+                zoneId = zoneId,
+                pastDays = estimate.option.pastDays,
+                windowHours = estimate.option.chartWindowHours,
+                displayUnit = displayUnit,
+            ),
             effectivePromotedRoutes = record.effectiveRoutes.mapNotNull(PkCalibrationRoute::fromStableId),
         )
     }
@@ -593,15 +589,8 @@ class MainViewModel @Inject constructor(
         return date == snapshot.minute.toLocalDate() &&
                 zoneId == snapshot.zone
     }
-
-    private companion object {
-        const val TAG = "MainViewModel"
-    }
 }
 
-/** Null while the first live evaluation loads; a failed one shows the numeric-failure sheet. */
-internal fun pkCalibrationSheetUiState(live: PkCalibrationLiveResult?): PkCalibrationUiState? = when {
-    live == null -> null
-    else -> live.live?.let { pkCalibrationUiState(it.evaluation.result, it.render) }
-        ?: pkCalibrationUnavailableScreenState().ui
-}
+/** Null while the estimate loads; a failed fit or render shows the numeric-failure sheet. */
+internal fun pkCalibrationSheetUiState(estimate: CalibrationEstimate?): PkCalibrationUiState? =
+    estimate?.let { pkCalibrationScreenState(it).ui }

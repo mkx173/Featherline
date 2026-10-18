@@ -285,8 +285,7 @@ suspend fun updateAllHrtWidgets(context: Context) {
 // size rather than Glance's automatic portrait/landscape variants. Content scale is the
 // user-selected appearance value and stays unchanged across launcher resizes.
 //
-// A null record renders the empty-setup state, so clearWidgetSnapshot can reuse the same
-// widget update path.
+// A null record renders the empty-setup state.
 @OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
 suspend fun pushHrtWidgets(context: Context, record: WidgetSnapshotRecord?) {
     val appWidgetManager = AppWidgetManager.getInstance(context)

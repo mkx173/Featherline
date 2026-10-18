@@ -1,307 +1,258 @@
 package com.mkx.hrttracker.data.repository
 
-import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
-import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
-import com.mkx.hrttracker.model.pk.PkCalibrationBandState
-import com.mkx.hrttracker.model.pk.PkCalibrationEngine
-import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
-import com.mkx.hrttracker.model.pk.PkCalibrationInput
-import com.mkx.hrttracker.model.pk.PkCalibrationRenderState
-import com.mkx.hrttracker.model.pk.PkCalibrationRoute
-import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
-import com.mkx.hrttracker.model.pk.PkChartDomain
-import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvents
-import com.mkx.hrttracker.model.pk.PkCalibrationLab
-import com.mkx.hrttracker.model.pk.PkPersonalParams
-import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.roundToLong
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.personalization.UserProfile
-import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.PkProjectionResult
-import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
-import com.mkx.hrttracker.model.pk.projectionFutureDays
+import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
+import com.mkx.hrttracker.model.pk.PkCalibrationEngine
+import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppTimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.time.Duration
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
+/**
+ * Home data and E2 inputs as one run published them, or as the disk load
+ * found them. A part is null only when the load found its file invalid; a
+ * run always publishes both.
+ */
+data class HomeCacheState(
+    val generation: Long,
+    val homeData: HomeSnapshotRecord?,
+    val e2Inputs: E2InputsRecord?,
+)
+
+/**
+ * The mutation gate, the rebuild worker, and the two parts the worker keeps
+ * in step with Room: Home data and the E2 inputs. Only the worker reads Room
+ * to build them, one run at a time.
+ */
 @Singleton
 class HomeSnapshotRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotStore: HomeSnapshotStore,
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
     private val settingsRepository: SettingsRepository,
+    // A provider: the estimator reads its inputs from this repository.
+    private val e2EstimateRepository: Provider<E2EstimateRepository>,
+    private val appTimeSource: AppTimeSource,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    private val refreshMutex = Mutex()
-    private val snapshotMutationMutex = Mutex()
+    private val mutationMutex = Mutex()
+
+    /** The durable generation, held in memory; each gated mutation bumps it under the gate's lock. */
+    val generation: StateFlow<Long>
+        get() = generationState
+    private val generationState = MutableStateFlow(0L)
 
     /**
-     * The calibration solve of the newest snapshot build, published before the
-     * snapshot write so the live calibration surface reuses it instead of
-     * solving again. Null until the first build of this process.
+     * Home data and E2 inputs: loaded from disk at startup, then replaced by
+     * each run's publish; null until the load. A state is current while its
+     * generation equals [generation]. After a mutation the old state stays,
+     * for the screens already showing it, until the mutation's run publishes.
+     * Nothing checks the date or the zone again in memory: a part goes
+     * invalid by date only after ten days, and the date and zone broadcasts
+     * (WidgetDateReceiver, MedicationReminderRescheduleReceiver) ask for a
+     * run at every date and zone change.
      */
-    val calibrationBuilds: StateFlow<HomeCalibrationBuild?>
-        get() = calibrationBuildState
-    private val calibrationBuildState = MutableStateFlow<HomeCalibrationBuild?>(null)
+    val cache: StateFlow<HomeCacheState?>
+        get() = cacheState
+    private val cacheState = MutableStateFlow<HomeCacheState?>(null)
 
-    /** Rebuilds the snapshot when its projection expires; replaced on every write. */
-    private var expiryRefreshJob: Job? = null
+    /** [cache] while it is current: null before the load, and from a mutation until its run publishes. */
+    val currentCache: Flow<HomeCacheState?> = combine(cacheState, generationState) { state, current ->
+        state?.takeIf { it.generation == current }
+    }.distinctUntilChanged()
 
     /**
-     * True while a refresh is pending or building, from a mutation's clear (or
-     * an async request) until its build has written or been skipped. Home
-     * holds the E2 skeleton instead of re-simulating locally, so the user
-     * never sees the population curve flash before the rebuilt one.
+     * The fit epoch Try again asks for. Every run reads it when it starts,
+     * re-solves while the published fit's epoch is below it, and gives a fit
+     * it solves that epoch. It is state, not part of a request, so a retry
+     * outlives conflated requests and discarded or failed runs until a
+     * publish carries it, and its new epoch changes every estimate key built
+     * on the fit. Starts at the loaded fit's. Guarded by [mutationMutex].
      */
-    val rebuildInFlight: Flow<Boolean>
-        get() = activeRefreshes.map { count -> count > 0 }.distinctUntilChanged()
-    private val activeRefreshes = MutableStateFlow(0)
+    private var requestedFitEpoch = 0
+
+    // Conflated: every request made before a run starts becomes that run.
+    // Requests carry nothing; a run reads everything it needs itself.
+    private val requests = Channel<Unit>(Channel.CONFLATED)
+    private val runsStarted = AtomicLong(0L)
+    private val runsFinished = MutableStateFlow(0L)
 
     /**
-     * [rebuildInFlight] for mutations and forced requests only: the rebuilds
-     * that change what Home and the calibration page show. Their updating
-     * indicator follows this, so Home's launch request, which usually ends
-     * at the skip-check, does not flash it.
+     * True while a run is pending or going, its retries' backoff included;
+     * false while the worker waits for a request, including after it gave
+     * up. A mutation sets it under the gate's lock before it bumps the
+     * generation, and the worker clears it under the same lock only when no
+     * request waits, so a mutation's run, or the one following a discarded
+     * run, never shows as idle: false behind a mutation means the worker
+     * gave up on it.
      */
-    val forcedRebuildInFlight: Flow<Boolean>
-        get() = activeForcedRefreshes.map { count -> count > 0 }.distinctUntilChanged()
-    private val activeForcedRefreshes = MutableStateFlow(0)
+    val rebuilding: StateFlow<Boolean>
+        get() = rebuildingState
+    private val rebuildingState = MutableStateFlow(false)
 
-    /**
-     * The snapshot this process wrote last, while it is still the stored one.
-     * The counters drop when a write returns, which can be before the record
-     * reaches a consumer, so a consumer whose observed record is not this
-     * write is still waiting on the rebuild. Null once a generation bump makes
-     * it obsolete: a failed rebuild then releases instead of waiting on a
-     * record that never comes.
-     */
-    val lastWrite: StateFlow<HomeSnapshotWrite?>
-        get() = lastWriteState
-    private val lastWriteState = MutableStateFlow<HomeSnapshotWrite?>(null)
-
-    /**
-     * The record [observeHomeSnapshot] delivered last. Home and the widget
-     * observer collect from launch, so a screen opened later (Settings) can
-     * seed its first frame from this instead of waiting on its own collection.
-     */
-    val latestObservedSnapshot: StateFlow<HomeSnapshotRecord?>
-        get() = latestObservedSnapshotState
-    private val latestObservedSnapshotState = MutableStateFlow<HomeSnapshotRecord?>(null)
-
-    fun observeHomeSnapshot(): Flow<HomeSnapshotRecord?> {
-        return combine(
-            homeSnapshotStore.observeSnapshot(),
-            homeSnapshotGenerationStore.observeGeneration(),
-        ) { snapshot, generation ->
-            when {
-                snapshot == null -> {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_observed_missing durableGeneration=$generation"
-                    )
-                    null
+    init {
+        // Undispatched, so the load holds the gate's lock before anything can
+        // call the gate: no mutation lands before it reads the durable
+        // generation and the fit's epoch. The disk reads themselves suspend,
+        // and decode on DataStore's own thread.
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            load()
+            while (true) {
+                // Idle only with no request waiting, checked under the lock a
+                // mutation marks its run pending under (see [rebuilding]).
+                val waiting = mutationMutex.withLock {
+                    requests.tryReceive().isSuccess.also { waiting -> if (!waiting) rebuildingState.value = false }
                 }
-
-                snapshot.generation < generation -> {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_observed_rejected reason=generation " +
-                                "snapshotGeneration=${snapshot.generation} durableGeneration=$generation"
-                    )
-                    null
-                }
-
-                else -> {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_observed_loaded ${snapshot.diagnosticSummary()} " +
-                                "durableGeneration=$generation"
-                    )
-                    snapshot
+                if (!waiting) requests.receive()
+                rebuildingState.value = true
+                // A failed run is retried after each backoff, or at once on a
+                // newer request, and then waits for the next request.
+                var retries = 0
+                while (!run() && retries < RETRY_BACKOFF_MILLIS.size) {
+                    withTimeoutOrNull(RETRY_BACKOFF_MILLIS[retries++]) { requests.receive() }
                 }
             }
         }
-            .distinctUntilChanged()
-            .onEach { snapshot ->
-                latestObservedSnapshotState.value = snapshot
-                StartupTiming.mark(
-                    if (snapshot == null) {
-                        "home_snapshot_missing"
-                    } else {
-                        "home_snapshot_loaded"
-                    }
-                )
-            }
     }
 
     // All medication group, medication log, and profile writes that affect Home data
-    // must go through this gate so stale snapshots are rejected before the DB changes.
+    // must go through this gate, so the cached parts stop being current before the DB
+    // changes.
     //
-    // The work inside the lock runs in NonCancellable: once we bump the generation
-    // and clear the snapshot, the new snapshot MUST be rewritten — otherwise a
-    // caller whose scope dies mid-mutation (e.g. an OnboardingViewModel's
-    // viewModelScope when the user finishes onboarding right after saving weight)
-    // leaves the snapshot store empty and the next launch reads no profile until
-    // Room finishes opening. Lock acquisition stays cancellable so callers blocked
-    // on a long-running peer can still be cancelled cleanly.
+    // The work inside the lock runs in NonCancellable: once the generation is bumped,
+    // the mutation must finish and its run must be asked for, or a caller whose scope
+    // dies mid-mutation (e.g. an OnboardingViewModel's viewModelScope when the user
+    // finishes onboarding right after saving weight) leaves the cache behind Room until
+    // something else asks for a run. Lock acquisition stays cancellable so callers
+    // blocked on a long-running peer can still be cancelled cleanly.
     //
-    // The rebuild itself runs in the app scope after the lock is released: the
-    // caller returns as soon as the DB commit lands instead of waiting through
-    // the PK simulation, calibration solve, band render and encrypted write,
-    // and other mutations are not queued behind that build. Observers see the
-    // cleared snapshot briefly and fall back to Room until the rebuild writes.
+    // The run itself is the worker's: the caller returns as soon as the DB commit lands
+    // instead of waiting through the calibration solve and the encrypted writes, and
+    // other mutations are not queued behind them. Nothing is cleared: the old state
+    // stays for the screens already showing it, but it is no longer current, so a
+    // screen that starts its observation waits for the run's publish.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
-        var generation = 0L
-        var mutationResult: Result<T>? = null
-        refreshMutex.withLock {
+        val result = mutationMutex.withLock {
             withContext(NonCancellable) {
                 diagnosticsLogger.info(TAG, "home_data_mutation_start")
-                // Counted as in flight before the generation bump: the bump
-                // alone makes observers reject the stored snapshot, and Home
-                // must already know a rebuild is coming when that happens, or
-                // it draws the population fallback for a frame before the
-                // skeleton.
-                activeRefreshes.update { count -> count + 1 }
-                activeForcedRefreshes.update { count -> count + 1 }
-                generation = try {
+                val generation = try {
                     homeSnapshotGenerationStore.incrementGeneration()
                 } catch (throwable: Throwable) {
-                    // No block ran and no refresh will be launched to drop
-                    // these, so Home would show updating forever.
-                    activeRefreshes.update { count -> count - 1 }
-                    activeForcedRefreshes.update { count -> count - 1 }
+                    // The only trace of a write, or a Try again, that never ran.
+                    diagnosticsLogger.warning(TAG, "home_data_mutation_generation_failed", throwable)
                     throw throwable
                 }
-                // Obsolete with the bump, whether or not the clear below
-                // succeeds: observers reject its record from here on.
-                lastWriteState.value = null
+                // Before the bump: an observation that sees the new
+                // generation sees its run pending, not a worker that gave up.
+                rebuildingState.value = true
+                generationState.value = generation
                 diagnosticsLogger.info(
                     TAG,
                     "home_data_mutation_generation_incremented generation=$generation"
                 )
-                val result = runCatching { block() }
-                mutationResult = result
-                result.onSuccess {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_data_mutation_committed generation=$generation"
-                    )
+                runCatching { block() }.also { result ->
+                    result.onSuccess {
+                        diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+                    }
+                    requestRebuild()
                 }
-                // The generation has already been bumped, so observers will reject any
-                // stale snapshot. Clear while still serialized with other mutations.
-                clearSnapshotBestEffort()
             }
         }
-        launchCountedRefresh(now = LocalDateTime.now(), force = true, zoneId = ZoneId.systemDefault())
-        diagnosticsLogger.info(
-            TAG,
-            "home_data_mutation_snapshot_refresh_enqueued generation=$generation"
-        )
-        return checkNotNull(mutationResult).getOrThrow()
+        return result.getOrThrow()
     }
 
-    /** Home's visible chart window for the current option: the range the calibration badge describes. */
-    suspend fun visibleChartRange(now: LocalDateTime, zoneId: ZoneId): LongRange {
-        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
-        return HomePkChartWindow.forNow(now = now, zoneId = zoneId, option = option).range
+    /**
+     * A change Home data reads that no gated write makes: the journal's first
+     * pinned date. It bumps the generation and asks for a run; the E2 keys
+     * don't move, so nothing holds.
+     */
+    suspend fun invalidate() {
+        runHomeDataMutation {}
     }
 
-    fun isSnapshotUsable(
-        snapshot: HomeSnapshotRecord,
-        now: LocalDateTime,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-        option: HomeE2ChartWindowOption,
-    ): Boolean {
-        return snapshotUsabilityFailure(
-            snapshot = snapshot,
-            now = now,
-            zoneId = zoneId,
-            option = option,
-        ) == null
+    /**
+     * Calibration's Try again: a gated change like any other, so screens hold
+     * on it as a user change, that also raises [requestedFitEpoch]. Runs
+     * re-solve until one publishes its fit with the new epoch, so every
+     * estimate built on the fit is derived again, even from unchanged inputs.
+     */
+    suspend fun retryCalibration() {
+        runHomeDataMutation { requestedFitEpoch += 1 }
     }
 
-    suspend fun readUsableHomeSnapshot(
-        now: LocalDateTime = LocalDateTime.now(),
-    ): HomeSnapshotRecord? {
-        val snapshot = homeSnapshotStore.readSnapshot()
-            ?: return null.also {
-                diagnosticsLogger.info(TAG, "home_snapshot_read_missing now=$now")
-            }
-        val generation = homeSnapshotGenerationStore.readGeneration()
-        if (snapshot.generation < generation) {
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_read_rejected reason=generation " +
-                        "snapshotGeneration=${snapshot.generation} durableGeneration=$generation now=$now"
-            )
-            return null
-        }
-        val zoneId = ZoneId.systemDefault()
-        // Self-resolving so startup and reminder callers (which don't have the
-        // option in hand) still validate against the user's persisted choice
-        // rather than the eager SEVEN_DAYS default.
-        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
-        val usabilityFailure = snapshotUsabilityFailure(
-            snapshot = snapshot,
-            now = now,
-            zoneId = zoneId,
-            option = option,
-        )
-        if (usabilityFailure != null) {
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_read_rejected reason=$usabilityFailure " +
-                        "${snapshot.diagnosticSummary()} now=$now"
-            )
-            return null
-        }
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_read_usable ${snapshot.diagnosticSummary()} " +
-                    "durableGeneration=$generation now=$now"
-        )
-        return snapshot
+    /** Asks the worker for a run; every request made before a run starts becomes that run. */
+    fun requestRebuild() {
+        requests.trySend(Unit)
+    }
+
+    /**
+     * Asks for a run unless one is pending or going, retries included: for
+     * observations, which ask again at each minute while their inputs aren't
+     * current, so one whose run failed for good gets another. A request
+     * racing the worker's give-up is lost; the next minute asks again.
+     */
+    fun requestRebuildIfIdle() {
+        if (!rebuildingState.value) requestRebuild()
+    }
+
+    /**
+     * Asks for a run, and waits until one that started after the call has
+     * published, its warm-up included, or failed. A run that a newer mutation
+     * discarded doesn't count: that mutation's own run follows it. Cancelling
+     * the wait leaves the run going in the app scope.
+     */
+    suspend fun rebuildNow() {
+        val started = runsStarted.get()
+        requestRebuild()
+        runsFinished.first { finished -> finished > started }
+    }
+
+    /** [cache] once the disk load is done, while it is current; null otherwise. */
+    suspend fun currentState(): HomeCacheState? {
+        val state = cacheState.filterNotNull().first()
+        return state.takeIf { state.generation == generationState.value }
     }
 
     fun scheduleEntriesForHome(
@@ -323,418 +274,98 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
-    fun decodeProjection(
-        projectionRecord: HomePkProjectionRecord?,
-        now: LocalDateTime,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ): PkProjectionResult? {
-        projectionRecord ?: return null
-        if (isPkProjectionExpired(projectionRecord, now, zoneId)) {
+    /**
+     * Seeds [generation] and [cache] from disk before the worker's first run:
+     * each part only when its own file is valid at the durable generation.
+     * The three files are read at once, and each part is marked as it lands.
+     */
+    private suspend fun load() {
+        mutationMutex.withLock {
+            val zoneId = ZoneId.systemDefault()
+            val today = LocalDate.ofInstant(appTimeSource.now(), zoneId)
+            val (durable, homeData, e2Inputs) = coroutineScope {
+                // Unreadable, it can't vouch for either file: both wait for a run.
+                val durable = async {
+                    readOrNull("home_snapshot_generation") { homeSnapshotGenerationStore.readGeneration() }
+                }
+                val homeData = async {
+                    val record = readOrNull("home_snapshot") { homeSnapshotStore.readSnapshot() }
+                    val generation = durable.await()
+                    record
+                        ?.takeIf { generation != null && isValid("home_snapshot", it.validityFailure(generation, today, zoneId)) }
+                        .also { part -> StartupTiming.mark(if (part == null) "home_snapshot_missing" else "home_snapshot_loaded") }
+                }
+                val e2Inputs = async {
+                    val record = readOrNull("home_e2_inputs") { homeSnapshotStore.readE2Inputs() }
+                    val generation = durable.await()
+                    record
+                        ?.takeIf { generation != null && isValid("home_e2_inputs", it.validityFailure(generation, today, zoneId)) }
+                        .also { part -> StartupTiming.mark(if (part == null) "home_e2_inputs_missing" else "home_e2_inputs_loaded") }
+                }
+                Triple(durable.await(), homeData.await(), e2Inputs.await())
+            }
+            durable?.let { generationState.value = it }
+            requestedFitEpoch = e2Inputs?.fit?.epoch ?: 0
+            cacheState.value = HomeCacheState(generationState.value, homeData, e2Inputs)
             diagnosticsLogger.info(
                 TAG,
-                "home_snapshot_pk_projection_expired now=$now " +
-                        "expiresAt=${projectionRecord.pkProjectionExpiresAtEpochMillis}"
+                "home_cache_loaded generation=${generationState.value} " +
+                        "homeData=[${homeData?.diagnosticSummary() ?: "none"}] " +
+                        "e2Inputs=[${e2Inputs?.diagnosticSummary() ?: "none"}]"
             )
-            return null
-        }
-        return runCatching {
-            val unit = runCatching {
-                com.mkx.hrttracker.model.pk.PkConcentrationUnit.valueOf(projectionRecord.concentrationUnit)
-            }.getOrNull() ?: return null
-
-            PkProjectionResult(
-                generatedAt = java.time.Instant.ofEpochMilli(projectionRecord.generatedAtEpochMillis),
-                windowStart = java.time.Instant.ofEpochMilli(projectionRecord.windowStartEpochMillis),
-                windowEnd = java.time.Instant.ofEpochMilli(projectionRecord.windowEndEpochMillis),
-                concentrationUnit = unit,
-                timeH = projectionRecord.timeH,
-                concentrations = projectionRecord.concentrations,
-                doseMarkers = projectionRecord.doseMarkers.map { marker ->
-                    com.mkx.hrttracker.model.pk.PkDoseMarker(
-                        timeH = marker.timeH,
-                        concentration = marker.concentration,
-                        isPlanned = marker.isPlanned,
-                    )
-                },
-            )
-        }.getOrNull()
-    }
-
-    fun isPkProjectionExpired(
-        projectionRecord: HomePkProjectionRecord,
-        now: LocalDateTime,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ): Boolean {
-        val nowEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli()
-        return nowEpochMillis >= projectionRecord.pkProjectionExpiresAtEpochMillis
-    }
-
-    private fun snapshotUsabilityFailure(
-        snapshot: HomeSnapshotRecord,
-        now: LocalDateTime,
-        zoneId: ZoneId,
-        option: HomeE2ChartWindowOption,
-    ): String? {
-        if (snapshot.schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
-            return "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=${snapshot.schemaVersion}"
-        }
-        if (snapshot.zoneId != zoneId.id) {
-            return "zone_id expected=${zoneId.id} actual=${snapshot.zoneId}"
-        }
-        val anchorDate = LocalDate.ofEpochDay(snapshot.anchorDateEpochDay)
-        val today = now.toLocalDate()
-        val validUntil = anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS)
-        if (today.isBefore(anchorDate) || today.isAfter(validUntil)) {
-            return "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"
-        }
-        val pkProjection = snapshot.pkProjection ?: return "missing_pk_projection"
-        val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId, option = option)
-        if (
-            pkProjection.windowStartEpochMillis > chartWindow.windowStartEpochMillis ||
-            pkProjection.windowEndEpochMillis < chartWindow.windowEndEpochMillis
-        ) {
-            return "pk_projection_window " +
-                    "projectionStart=${pkProjection.windowStartEpochMillis} " +
-                    "projectionEnd=${pkProjection.windowEndEpochMillis} " +
-                    "requiredStart=${chartWindow.windowStartEpochMillis} " +
-                    "requiredEnd=${chartWindow.windowEndEpochMillis}"
-        }
-        val expectedChartWindowHours = option.chartWindowHours.toInt()
-        if (pkProjection.chartWindowHours != expectedChartWindowHours) {
-            return "pk_projection_chart_window_hours " +
-                    "expected=$expectedChartWindowHours " +
-                    "actual=${pkProjection.chartWindowHours}"
-        }
-        val expectedDensePolicy = option.densePolicy.toRecord()
-        if (pkProjection.densePolicy != expectedDensePolicy) {
-            return "pk_projection_dense_policy " +
-                    "expected=$expectedDensePolicy " +
-                    "actual=${pkProjection.densePolicy}"
-        }
-        if (pkProjection.includesPostDoseOffsets != option.includesPostDoseOffsets) {
-            return "pk_projection_post_dose_offsets " +
-                    "expected=${option.includesPostDoseOffsets} " +
-                    "actual=${pkProjection.includesPostDoseOffsets}"
-        }
-        return null
-    }
-
-    /**
-     * [force] bypasses the skip-check so the snapshot is rebuilt even when the
-     * stored one looks usable. [silent] keeps a forced rebuild out of
-     * [forcedRebuildInFlight] and off the builds' forced flag: system events
-     * (boot, clock / zone change, package update, the midnight alarm) rebuild
-     * in the background and must not show the updating indicator the way a
-     * mutation does.
-     */
-    fun refreshHomeSnapshotAsync(
-        now: LocalDateTime = LocalDateTime.now(),
-        force: Boolean = false,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-        silent: Boolean = false,
-    ) {
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_refresh_async_enqueued force=$force silent=$silent now=$now"
-        )
-        val indicated = force && !silent
-        activeRefreshes.update { count -> count + 1 }
-        if (indicated) activeForcedRefreshes.update { count -> count + 1 }
-        launchCountedRefresh(now = now, force = force, zoneId = zoneId, indicated = indicated)
-    }
-
-    /**
-     * Runs a refresh in the app scope; the caller has already counted it in
-     * [activeRefreshes] (and, when [indicated], in [activeForcedRefreshes]).
-     */
-    private fun launchCountedRefresh(
-        now: LocalDateTime,
-        force: Boolean,
-        zoneId: ZoneId,
-        indicated: Boolean = force,
-    ) {
-        // Reserve the request's place in line synchronously: the launched
-        // coroutine may reach the refresh mutex after a later request's.
-        val sequence = refreshRequestSequence.incrementAndGet()
-        appScope.launch {
-            try {
-                refreshHomeSnapshotIfNeeded(
-                    now = now,
-                    force = force,
-                    zoneId = zoneId,
-                    sequence = sequence,
-                    indicated = indicated,
-                )
-            } catch (throwable: Throwable) {
-                if (throwable is CancellationException) {
-                    throw throwable
-                }
-                diagnosticsLogger.warning(
-                    TAG,
-                    "home_snapshot_refresh_failed force=$force now=$now",
-                    throwable
-                )
-            } finally {
-                activeRefreshes.update { count -> count - 1 }
-                if (indicated) activeForcedRefreshes.update { count -> count - 1 }
-            }
+            // The only date and zone check: at startup. A part missing then,
+            // for its generation, schema or engine, or its zone or ten-day
+            // window, is rebuilt now; later date and zone changes reach the
+            // repository as the broadcasts' runs (see [cache]).
+            if (homeData == null || e2Inputs == null) requestRebuild()
         }
     }
 
-    /**
-     * [invalidateHomeSnapshot] followed by a forced rebuild, counted before
-     * the generation bump like a mutation, so Home never sees the cleared
-     * snapshot without knowing a rebuild is coming.
-     */
-    suspend fun invalidateAndRebuildHomeSnapshot() {
-        activeRefreshes.update { count -> count + 1 }
-        activeForcedRefreshes.update { count -> count + 1 }
-        try {
-            invalidateHomeSnapshot()
+    /** One run; false when it failed, so the worker retries it. */
+    private suspend fun run(): Boolean {
+        // A request made before the run reads anything is answered by it, so
+        // a mutation followed by rebuildNow() costs one run, not two. Before
+        // the count: rebuildNow() waits for a run counted after its request.
+        // Under the gate's lock: an observation asks at a mutation's bump,
+        // while it holds the lock, and the mutation's own request follows;
+        // both are answered by the run that reads its commit.
+        mutationMutex.withLock { requests.tryReceive() }
+        val number = runsStarted.incrementAndGet()
+        val published = try {
+            build()
         } catch (throwable: Throwable) {
-            activeRefreshes.update { count -> count - 1 }
-            activeForcedRefreshes.update { count -> count - 1 }
-            throw throwable
+            // Only the worker's own cancellation ends it. Anything else, an
+            // Error or a stray cancellation from inside the run included, is a
+            // failed run: escaping into the handler-less app scope would crash
+            // the process, and then every start through its startup run.
+            currentCoroutineContext().ensureActive()
+            // Nothing was published: screens keep what they show, and one that
+            // starts its observation shows the skeleton until a run succeeds.
+            diagnosticsLogger.warning(TAG, "home_snapshot_run_failed run=$number", throwable)
+            runsFinished.value = number
+            return false
         }
-        launchCountedRefresh(now = LocalDateTime.now(), force = true, zoneId = ZoneId.systemDefault())
+        // A discarded run doesn't count for rebuildNow(): the mutation that
+        // discarded it asked for a run after this one read the generation,
+        // so another always follows.
+        if (published) runsFinished.value = number
+        return true
     }
 
-    suspend fun invalidateHomeSnapshot() {
-        diagnosticsLogger.info(TAG, "home_snapshot_invalidate_start")
-        val generation = homeSnapshotGenerationStore.incrementGeneration()
-        lastWriteState.value = null
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_invalidate_generation_incremented generation=$generation"
-        )
-        snapshotMutationMutex.withLock {
-            homeSnapshotStore.clearSnapshot()
-            diagnosticsLogger.info(TAG, "home_snapshot_invalidated generation=$generation")
-        }
-    }
-
-    /** See [refreshHomeSnapshotAsync] for [force] and [silent]. */
-    suspend fun refreshHomeSnapshotIfNeeded(
-        now: LocalDateTime = LocalDateTime.now(),
-        force: Boolean = false,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-        silent: Boolean = false,
-    ) {
-        // Reserved before the first suspension so the sequence is request order.
-        refreshHomeSnapshotIfNeeded(
-            now = now,
-            force = force,
-            zoneId = zoneId,
-            sequence = refreshRequestSequence.incrementAndGet(),
-            indicated = force && !silent,
-        )
-    }
-
-    private suspend fun refreshHomeSnapshotIfNeeded(
-        now: LocalDateTime,
-        force: Boolean,
-        zoneId: ZoneId,
-        sequence: Long,
-        /** Whether this request's build shows the updating indicator. */
-        indicated: Boolean,
-    ) {
-        diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
-        // Suspends on first call until the observer has captured the raw
-        // DataStore value; subsequent calls return immediately.
+    /** One run's work; false when a mutation committed meanwhile and it published nothing. */
+    private suspend fun build(): Boolean {
+        // Under the lock, so no mutation is half done.
+        val (generation, fitEpoch) = mutationMutex.withLock { generationState.value to requestedFitEpoch }
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.ofInstant(appTimeSource.now(), zoneId)
+        diagnosticsLogger.info(TAG, "home_snapshot_run_start generation=$generation now=$now")
+        // The persisted option, never settingsState's placeholder.
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
-        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
         val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
 
-        // refreshMutex is held only across the skip-check. The simulation and
-        // write phases run outside the lock so mutations never stall behind a
-        // PK simulation + JSON encode + encrypted DataStore write; correctness
-        // relies on the generation recheck inside snapshotMutationMutex below —
-        // any racing mutation bumps the durable generation and the writeSnapshot
-        // call is dropped. A build in flight for the same generation, minute,
-        // zone and chart option is shared: a second request (forced or not)
-        // joins it instead of running its own. The boot / time-set / timezone
-        // broadcasts reach two receivers that each force a refresh, which used
-        // to run two full builds. A request whose context differs (the
-        // midnight alarm arriving during a build started before midnight, a
-        // zone change, an option change) runs its own build so the only
-        // corrective request is never consumed by a stale one. Requests are
-        // sequenced in creation order; a request that reaches this point after
-        // a newer one has already started a build is superseded (it joins that
-        // build, or returns if it has finished), and the write guard drops a
-        // build once a newer request has started, so a slow older-context
-        // build can never overwrite the newer snapshot.
-        val minute = now.truncatedTo(ChronoUnit.MINUTES)
-        val build = refreshMutex.withLock {
-            val generation = homeSnapshotGenerationStore.readGeneration()
-            val inFlight = inFlightRefresh
-            val superseded = sequence < latestStartedRefreshSequence
-            if (inFlight != null && inFlight.build.isActive && (
-                        superseded || (
-                                inFlight.generation == generation &&
-                                        inFlight.minute == minute &&
-                                        inFlight.zoneId == zoneId &&
-                                        inFlight.option == option
-                                )
-                        )
-            ) {
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_snapshot_refresh_joined_in_flight generation=$generation " +
-                            "force=$force now=$now superseded=$superseded"
-                )
-                // A forced joiner's hold waits on this build's write, so the
-                // write must count as forced for its record to be awaited.
-                if (indicated) inFlight.forced.value = true
-                return@withLock inFlight.build
-            }
-            if (superseded) {
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_snapshot_refresh_skipped reason=superseded sequence=$sequence " +
-                            "latestStartedSequence=$latestStartedRefreshSequence now=$now"
-                )
-                return@withLock null
-            }
-            val refreshGeneration = refreshGenerationAfterSkipCheckLocked(
-                generation = generation,
-                now = now,
-                zoneId = zoneId,
-                option = option,
-                force = force,
-            ) ?: return@withLock null
-            latestStartedRefreshSequence = sequence
-            // Observable: a joiner's promotion must reach the calibration
-            // page's readiness even if it misses the counter transition.
-            val forced = MutableStateFlow(indicated)
-            // The build deliberately outlives its requester: a receiver's
-            // timeout cancels only its await, and later requests join the
-            // still-running build instead of starting another.
-            appScope.async {
-                // Logged here, not by the awaiter: a receiver's timeout cancels
-                // only its await, leaving nobody to observe a later failure.
-                try {
-                    buildAndWriteHomeSnapshot(
-                        refreshGeneration = refreshGeneration,
-                        refreshSequence = sequence,
-                        forced = forced,
-                        now = now,
-                        zoneId = zoneId,
-                        option = option,
-                        cacheWindow = cacheWindow,
-                        snapshotWindow = snapshotWindow,
-                    )
-                } catch (throwable: Throwable) {
-                    if (throwable is CancellationException) throw throwable
-                    diagnosticsLogger.warning(
-                        TAG,
-                        "home_snapshot_refresh_failed force=$force now=$now",
-                        throwable
-                    )
-                }
-            }.also { started ->
-                inFlightRefresh = InFlightRefresh(
-                    generation = refreshGeneration,
-                    minute = minute,
-                    zoneId = zoneId,
-                    option = option,
-                    build = started,
-                    forced = forced,
-                )
-            }
-        } ?: return
-        build.await()
-    }
-
-    /** The build owned by the last refresh to pass the skip-check; guarded by [refreshMutex]. */
-    private var inFlightRefresh: InFlightRefresh? = null
-
-    /** Request-order sequence, reserved synchronously when a refresh is requested. */
-    private val refreshRequestSequence = AtomicLong(0L)
-
-    /** Highest sequence whose build has started; set under [refreshMutex], read at write time. */
-    @Volatile
-    private var latestStartedRefreshSequence: Long = 0L
-
-    private class InFlightRefresh(
-        val generation: Long,
-        val minute: LocalDateTime,
-        val zoneId: ZoneId,
-        val option: HomeE2ChartWindowOption,
-        val build: Deferred<Unit>,
-        val forced: MutableStateFlow<Boolean>,
-    )
-
-    private suspend fun refreshGenerationAfterSkipCheckLocked(
-        generation: Long,
-        now: LocalDateTime,
-        zoneId: ZoneId,
-        option: HomeE2ChartWindowOption,
-        force: Boolean,
-    ): Long? {
-        val gen = generation
-        val existingSnapshot = homeSnapshotStore.readSnapshot()
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_refresh_verify_existing force=$force " +
-                    "generation=$gen " +
-                    "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
-        )
-        val pkExpired = existingSnapshot?.pkProjection?.let { record ->
-            isPkProjectionExpired(record, now, zoneId)
-        } == true
-        // The calibration badge describes the build day's visible window. A
-        // later day's chart has moved on (the snapshot stays usable for days),
-        // so rebuild; the old one stays on screen until the new one lands.
-        val calibrationWindowMoved = existingSnapshot?.pkCalibration != null &&
-            existingSnapshot.anchorDateEpochDay != now.toLocalDate().toEpochDay()
-        if (
-            !force &&
-            existingSnapshot != null &&
-            existingSnapshot.generation >= gen &&
-            isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
-            !pkExpired &&
-            !calibrationWindowMoved
-        ) {
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_refresh_skipped reason=existing_usable " +
-                        "${existingSnapshot.diagnosticSummary()} now=$now"
-            )
-            // A kept snapshot needs its expiry timer too: after a process
-            // restart nothing else rebuilds when its planned slot passes. An
-            // expiry before the window end is a planned slot.
-            existingSnapshot.pkProjection
-                ?.takeIf { it.pkProjectionExpiresAtEpochMillis < it.windowEndEpochMillis }
-                ?.let { scheduleExpiryRefresh(Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis), now, zoneId) }
-            return null
-        }
-        if (pkExpired || calibrationWindowMoved) {
-            val reason = if (pkExpired) "pk_projection_expired" else "calibration_window_moved"
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_refresh_continuing reason=$reason " +
-                        "${existingSnapshot.diagnosticSummary()} now=$now"
-            )
-        }
-        return gen
-    }
-
-    private suspend fun buildAndWriteHomeSnapshot(
-        refreshGeneration: Long,
-        /** Request-order sequence; a build is dropped once a newer request has started one. */
-        refreshSequence: Long,
-        /** Shared with joiners: a forced request joining this build raises it. */
-        forced: StateFlow<Boolean>,
-        now: LocalDateTime,
-        zoneId: ZoneId,
-        option: HomeE2ChartWindowOption,
-        cacheWindow: HomePkProjectionWindow,
-        snapshotWindow: HomeSnapshotWindow,
-    ) {
         val inputs = withContext(Dispatchers.IO) {
-            // awaitOpen, not get(): this runs inside WidgetDateReceiver's bounded goAsync
-            // window, and the blocking get() is uncancellable — a stalled SQLCipher open
-            // would hold the broadcast past its budget with no way to time out.
+            // awaitOpen, not get(): the blocking get() is uncancellable, and a
+            // stalled SQLCipher open would hold the worker with it.
             val database = databaseHolder.awaitOpen()
             val homeDao = database.homeDao()
             val medicineDao = database.medicineDao()
@@ -750,12 +381,8 @@ class HomeSnapshotRepository @Inject constructor(
             val antiandrogenHistoryEntities = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
                 onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
             )
-            val pkEntries = homeDao.getEstradiolPkEntries(
-                startEpochMillis = cacheWindow.inputStartEpochMillis,
-                endEpochMillis = cacheWindow.windowEndEpochMillis,
-            )
             val latestEstradiolEntryEntity = homeDao.getLatestEstradiolEntryOnOrBefore(
-                onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
+                onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
             )
             val stockMedicineEntities = medicineDao.getAllActiveTrackedEntities()
             val stockWindowStartIso = now.toLocalDate()
@@ -773,7 +400,8 @@ class HomeSnapshotRepository @Inject constructor(
             val homeAnchor = database.journalDao().getFirstPinnedTrackedDate()?.toModel()
             // Calibration inputs: every E2 lab, the estradiol doses that can
             // still shape a lab (see calibrationDoseWindowStartEpochMillis),
-            // and the user's review metadata.
+            // and the user's review metadata. None of the reads follows the
+            // clock, so neither does the fit's identity.
             val calibrationLabs = database.bloodTestDao().getPanels().flatMap { panel ->
                 panel.results
                     .filter { result ->
@@ -787,12 +415,31 @@ class HomeSnapshotRepository @Inject constructor(
                         )
                     }
             }
-            val calibrationEntryEntities = homeDao.getEstradiolPkEntries(
-                startEpochMillis = calibrationDoseWindowStartEpochMillis(
-                    labs = calibrationLabs,
-                    fallbackStartEpochMillis = cacheWindow.inputStartEpochMillis,
+            // The estimates read from every estimate's PK lookback, the
+            // calibration page's included, whatever the option, with no
+            // upper bound: one read serves every option, so a 7/30 switch
+            // needs no other query. The calibration reads from its dose
+            // window. Both come from one read from the earlier start; newest
+            // first, so each is a prefix of it.
+            val pkEntriesStartEpochMillis = E2Derivation.loggedEntriesStart(now, zoneId).toEpochMilli()
+            val calibrationEntriesStartEpochMillis = calibrationDoseWindowStartEpochMillis(calibrationLabs)
+            val estradiolEntities = homeDao.getEstradiolPkEntries(
+                startEpochMillis = minOf(
+                    pkEntriesStartEpochMillis,
+                    calibrationEntriesStartEpochMillis ?: pkEntriesStartEpochMillis,
                 ),
                 endEpochMillis = Long.MAX_VALUE,
+            )
+            fun estradiolEntitiesFrom(startEpochMillis: Long) =
+                estradiolEntities.takeWhile { entry -> entry.appliedAtEpochMillis >= startEpochMillis }
+            val pkEntries = estradiolEntitiesFrom(pkEntriesStartEpochMillis)
+            val calibrationEntryEntities = calibrationEntriesStartEpochMillis?.let(::estradiolEntitiesFrom).orEmpty()
+            // Whenever it is logged for: buildPkCalibrationInput keeps it when
+            // every dose predates the lab window. Without labs it is the only
+            // dose read, since the solve then only tells no dose history from
+            // no labs; a latest dose the model can't place reads as none.
+            val latestCalibrationEntryEntity = homeDao.getLatestEstradiolEntryOnOrBefore(
+                onOrBeforeEpochMillis = Long.MAX_VALUE,
             )
             val calibrationMetadata = database.pkCalibrationDao().getAllMetadata()
                 .map { entity -> entity.toModel() }
@@ -801,9 +448,9 @@ class HomeSnapshotRepository @Inject constructor(
                 activeGroupEntities + archivedGroupEntities
             )
             val entryMedicinesByUuid = database.resolveMedicinesForEntries(
-                scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
+                scheduleEntryEntities + antiandrogenHistoryEntities + estradiolEntities +
                         listOfNotNull(latestEstradiolEntryEntity) + stockFulfillmentEntities +
-                        calibrationEntryEntities
+                        listOfNotNull(latestCalibrationEntryEntity)
             )
             val activeGroups = activeGroupEntities.map { group ->
                 group.toMedicationGroupModel(groupMedicinesByUuid)
@@ -817,7 +464,7 @@ class HomeSnapshotRepository @Inject constructor(
             val antiandrogenHistoryEntries = antiandrogenHistoryEntities.map { entry ->
                 entry.toMedicationLogEntryModel(entryMedicinesByUuid)
             }
-            val pkEntryModels = pkEntries.map { entry ->
+            val estradiolEntries = estradiolEntities.map { entry ->
                 entry.toMedicationLogEntryModel(entryMedicinesByUuid)
             }
             val latestEstradiolEntry = latestEstradiolEntryEntity?.toMedicationLogEntryModel(
@@ -829,17 +476,17 @@ class HomeSnapshotRepository @Inject constructor(
             }
             HomeSnapshotBuildInputs(
                 calibrationLabs = calibrationLabs,
-                // Plus the latest dose: buildPkCalibrationInput keeps it when
-                // every dose predates the lab window.
-                calibrationEntries = (calibrationEntryEntities + listOfNotNull(latestEstradiolEntryEntity))
-                    .distinctBy { entry -> entry.uuid }
-                    .map { entry -> entry.toMedicationLogEntryModel(entryMedicinesByUuid) },
+                // Plus the latest dose.
+                calibrationEntries = (
+                    estradiolEntries.take(calibrationEntryEntities.size) +
+                        listOfNotNull(latestCalibrationEntryEntity?.toMedicationLogEntryModel(entryMedicinesByUuid))
+                    ).distinctBy { entry -> entry.uuid },
                 calibrationMetadata = calibrationMetadata,
                 activeGroups = activeGroups,
                 archivedGroups = archivedGroups,
                 scheduleEntries = scheduleEntries,
                 antiandrogenHistoryEntries = antiandrogenHistoryEntries,
-                pkEntries = pkEntryModels,
+                pkEntries = estradiolEntries.take(pkEntries.size),
                 latestEstradiolEntry = latestEstradiolEntry,
                 profile = database.userProfileDao()
                     .getProfile()
@@ -852,7 +499,7 @@ class HomeSnapshotRepository @Inject constructor(
         }
         diagnosticsLogger.info(
             TAG,
-            "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
+            "home_snapshot_run_inputs_loaded generation=$generation " +
                     "activeGroups=${inputs.activeGroups.size} " +
                     "archivedGroups=${inputs.archivedGroups.size} " +
                     "scheduleEntries=${inputs.scheduleEntries.size} " +
@@ -861,9 +508,9 @@ class HomeSnapshotRepository @Inject constructor(
                     "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
         )
 
-        // Lab calibration is part of the snapshot so the calibrated curve is
-        // what Home and the widget show first, not a population curve that a
-        // later live evaluation swaps out.
+        // Lab calibration is part of the E2 inputs so the calibrated curve is
+        // what Home and the widget show first, not a population curve swapped
+        // out later.
         val phaseStartNanos = System.nanoTime()
         fun phaseMillis(): Long = (System.nanoTime() - phaseStartNanos) / 1_000_000L
         val calibrationInput = buildPkCalibrationInput(
@@ -871,242 +518,53 @@ class HomeSnapshotRepository @Inject constructor(
             entries = inputs.calibrationEntries,
             weightKg = inputs.profile.weightKg,
             metadata = inputs.calibrationMetadata,
-            fallbackOriginEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
+        val fitId = E2Derivation.fitId(calibrationInput)
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_phase calibration_input_built ms=${phaseMillis()} " +
                     "labs=${calibrationInput.labs.size} doseEvents=${calibrationInput.doseEvents.size}"
         )
-        // A throwing solve must not drop the snapshot write: Home would fall
-        // back to population and the live surface would keep the pre-mutation
-        // fit. Treat it as no calibration and still write the snapshot.
-        val calibration = calibrationInput.let { input ->
-            runCatching {
-                withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(input) }
+        // The solve reads only what fitId digests, so the published fit stands
+        // in for it: a stock edit, an antiandrogen dose, midnight or a 7/30
+        // switch never re-solves. Not a failed one, which the next run tries
+        // again, nor one older than a pending Try again; nor the solve of a
+        // discarded run, which was never published. The labs and review
+        // metadata published beside it then flag what it was solved from:
+        // fitId digests every value the calibration page's flags read.
+        val reused = cacheState.value?.e2Inputs?.fit?.takeIf { published ->
+            published.fitId == fitId && published.outcome != FitOutcome.Failed && published.epoch >= fitEpoch
+        }
+        val fit = reused ?: E2FitRecord(
+            fitId = fitId,
+            epoch = fitEpoch,
+            // A throwing solve must not fail the run: Home would have no
+            // estimate. Treat it as no calibration and still publish.
+            outcome = runCatching {
+                withContext(defaultDispatcher) { PkCalibrationEngine.evaluate(calibrationInput) }
             }.onFailure { throwable ->
                 if (throwable is CancellationException) throw throwable
                 diagnosticsLogger.warning(
                     TAG,
-                    "home_snapshot_calibration_failed generation=$refreshGeneration",
+                    "home_snapshot_calibration_failed generation=$generation",
                     throwable,
                 )
             }.getOrNull()
-        }
-        // The badge (Home and the calibration page alike) describes the
-        // visible chart, not the cached forecast buffer past it.
-        val visibleChartRange = HomePkChartWindow.forNow(now = now, zoneId = zoneId, option = option).range
-        publishCalibrationBuild(
-            HomeCalibrationBuild(
-                generation = refreshGeneration,
-                generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
-                input = calibrationInput,
-                evaluation = calibration,
-                statusRange = visibleChartRange,
-                forcedChanges = forced,
-            )
+                ?.let { evaluation -> FitOutcome.Solved(evaluation.result, calibrationInput.originEpochMillis) }
+                ?: FitOutcome.Failed,
         )
+        val result = (fit.outcome as? FitOutcome.Solved)?.result
         diagnosticsLogger.info(
             TAG,
-            "home_snapshot_phase calibration_solved ms=${phaseMillis()} " +
-                    "state=${calibration?.result?.globalState} promoted=${calibration?.result?.promotedRoutes}"
+            "home_snapshot_phase calibration_${if (reused != null) "reused" else "solved"} ms=${phaseMillis()} " +
+                    "epoch=${fit.epoch} state=${result?.globalState} promoted=${result?.promotedRoutes}"
         )
-        val personalParams = calibration?.result?.displayParams ?: PkPersonalParams.population()
-        val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
-        val simulationEntries = buildEstradiolPkSimulationEntries(
-            realEntries = inputs.pkEntries,
-            activeGroups = inputs.activeGroups,
-            now = now,
-            horizon = horizon,
-            zoneId = zoneId,
-        )
-        // Home chart includes planned future doses; the widget shows the current
-        // body state from already-logged doses only, so its projection must
-        // exclude `plannedEntries`. Otherwise a planned dose 30 min from now
-        // would inflate the widget's "current" reading.
-        val (projection, widgetProjection) = coroutineScope {
-            val homeAsync = async(defaultDispatcher) {
-                PkMedicationSimulation.simulateMainEstradiolProjection(
-                    entries = simulationEntries.real,
-                    plannedEntries = simulationEntries.planned,
-                    bodyWeightKg = inputs.profile.weightKg,
-                    generatedAt = now,
-                    zoneId = zoneId,
-                    option = option,
-                    personalParams = personalParams,
-                )
-            }
-            val widgetAsync = async(defaultDispatcher) {
-                PkMedicationSimulation.simulateMainEstradiolProjection(
-                    entries = simulationEntries.real,
-                    plannedEntries = emptyList(),
-                    bodyWeightKg = inputs.profile.weightKg,
-                    generatedAt = now,
-                    zoneId = zoneId,
-                    option = option,
-                    personalParams = personalParams,
-                )
-            }
-            homeAsync.await() to widgetAsync.await()
-        }
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_phase projections_simulated ms=${phaseMillis()} " +
-                    "real=${simulationEntries.real.size} planned=${simulationEntries.planned.size} " +
-                    "samples=${projection.timeH.size}"
-        )
-        // The band follows the same projected curve as the chart: the same
-        // logged (lookback-limited) plus planned doses, over the projection
-        // window. The fit itself used the full dose history.
-        val homeRender = if (calibration == null) {
-            null
-        } else {
-            runCatching {
-                withContext(defaultDispatcher) {
-                    val bandEvents = buildEstradiolPkDoseEvents(
-                        anchor = Instant.ofEpochMilli(calibrationInput.originEpochMillis),
-                        realEntries = simulationEntries.real,
-                        plannedEntries = simulationEntries.planned,
-                    )
-                    // Sample the band exactly where the curve is sampled (dense
-                    // around doses), so its edges follow the peaks instead of
-                    // cutting chords across them.
-                    val windowStartMillis = projection.windowStart.toEpochMilli()
-                    val windowEndMillis = projection.windowEnd.toEpochMilli()
-                    PkChartDomain.create(
-                        rangeStartEpochMillis = windowStartMillis,
-                        rangeEndEpochMillis = windowEndMillis,
-                        samplingIntervalMillis = BAND_SAMPLING_INTERVAL_MILLIS,
-                        protectedKnotEpochMillis = projection.timeH
-                            .map { hours -> windowStartMillis + (hours * 3_600_000.0).roundToLong() }
-                            .filter { millis -> millis in windowStartMillis..windowEndMillis },
-                    )?.let { domain ->
-                        calibration.renderFor(
-                            domain = domain,
-                            doseEvents = bandEvents,
-                            statusRange = visibleChartRange,
-                        )
-                    }
-                }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                diagnosticsLogger.warning(
-                    TAG,
-                    "home_snapshot_calibration_render_failed generation=$refreshGeneration",
-                    throwable,
-                )
-            }.getOrNull()
-        }
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_phase band_rendered ms=${phaseMillis()} " +
-                    "render=${homeRender?.renderState} band=${homeRender?.bandState}"
-        )
-        val bandKnots = homeRender
-            ?.takeIf { render -> render.bandState == PkCalibrationBandState.READY }
-            ?.bandKnots
-            ?.map { knot ->
-                HomePkBandKnotRecord(
-                    epochMillis = knot.epochMillis,
-                    p025Pgml = knot.p025Pgml,
-                    p158655254Pgml = knot.p158655254Pgml,
-                    p50Pgml = knot.p50Pgml,
-                    p841344746Pgml = knot.p841344746Pgml,
-                    p975Pgml = knot.p975Pgml,
-                    segment = knot.segment,
-                )
-            }
-            .orEmpty()
-        // Hero/status summary, so Home never waits for the live evaluation.
-        val calibrationRecord = calibration?.let { evaluation ->
-            // The render narrows the supported routes to those shaping the
-            // estimate somewhere in the chart range. When it failed (null) the
-            // curve still carries displayParams, so name the supported routes
-            // rather than call a personalized curve "population".
-            val effective = homeRender?.effectivePromotedRoutes
-                ?: evaluation.result.supportedPromotedRoutes
-            val provisional = evaluation.result.routeResults
-                .filter { row ->
-                    row.displayState == PkRouteCalibrationDisplayState.LAB_ADJUSTED_PROVISIONAL
-                }
-                .map { row -> row.route }
-            HomePkCalibrationRecord(
-                adjusted = effective.isNotEmpty(),
-                limitedConfidence = effective.any(provisional::contains),
-                renderUnavailable = evaluation.isReady &&
-                        homeRender?.renderState == PkCalibrationRenderState.NUMERIC_UNAVAILABLE,
-                // Any adjusted curve without a READY band gets the note: a
-                // numeric failure, a thrown render, or an unbuildable domain.
-                bandUnavailable = effective.isNotEmpty() &&
-                        homeRender?.bandState != PkCalibrationBandState.READY,
-                effectiveRoutes = effective.map(PkCalibrationRoute::stableId),
-            )
-        }
-        // Expire at the soonest planned dose after generation time — the
-        // moment a slot transitions from "future" to "should be logged by now"
-        // is exactly when a cached projection starts overstating the curve.
-        // Fall back to the projection's window end when there are no future
-        // planned slots (nothing to go stale).
-        val nextPlannedAt = simulationEntries.planned.asSequence()
-            .map { entry -> entry.appliedAt }
-            .filter { instant -> instant.isAfter(projection.generatedAt) }
-            .minOrNull()
-        val expiresAtInstant = nextPlannedAt ?: projection.windowEnd
-        diagnosticsLogger.info(
-            TAG,
-            "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
-                    "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
-                    "expiresAt=$expiresAtInstant"
-        )
-        val pkProjectionRecord = HomePkProjectionRecord(
-            generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
-            windowStartEpochMillis = projection.windowStart.toEpochMilli(),
-            windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
-            pkProjectionExpiresAtEpochMillis = expiresAtInstant.toEpochMilli(),
-            concentrationUnit = projection.concentrationUnit.name,
-            timeH = projection.timeH,
-            concentrations = projection.concentrations,
-            doseMarkers = projection.doseMarkers.map { marker ->
-                HomePkProjectionDoseMarkerRecord(
-                    timeH = marker.timeH,
-                    concentration = marker.concentration,
-                    isPlanned = marker.isPlanned,
-                )
-            },
-            latestEstradiolEntry = inputs.latestEstradiolEntry,
-            chartWindowHours = option.chartWindowHours.toInt(),
-            densePolicy = option.densePolicy.toRecord(),
-            includesPostDoseOffsets = option.includesPostDoseOffsets,
-        )
-        // No planned doses → nothing to "go stale" mid-window; expire at windowEnd.
-        val widgetPkProjectionRecord = HomePkProjectionRecord(
-            generatedAtEpochMillis = widgetProjection.generatedAt.toEpochMilli(),
-            windowStartEpochMillis = widgetProjection.windowStart.toEpochMilli(),
-            windowEndEpochMillis = widgetProjection.windowEnd.toEpochMilli(),
-            pkProjectionExpiresAtEpochMillis = widgetProjection.windowEnd.toEpochMilli(),
-            concentrationUnit = widgetProjection.concentrationUnit.name,
-            timeH = widgetProjection.timeH,
-            concentrations = widgetProjection.concentrations,
-            doseMarkers = widgetProjection.doseMarkers.map { marker ->
-                HomePkProjectionDoseMarkerRecord(
-                    timeH = marker.timeH,
-                    concentration = marker.concentration,
-                    isPlanned = marker.isPlanned,
-                )
-            },
-            latestEstradiolEntry = inputs.latestEstradiolEntry,
-            chartWindowHours = option.chartWindowHours.toInt(),
-            densePolicy = option.densePolicy.toRecord(),
-            includesPostDoseOffsets = option.includesPostDoseOffsets,
-        )
-        val snapshotRecord = HomeSnapshotRecord(
+        val homeData = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
-            generation = refreshGeneration,
+            generation = generation,
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
-            pkProjection = pkProjectionRecord,
-            widgetPkProjection = widgetPkProjectionRecord,
             activeGroups = inputs.activeGroups,
             archivedGroups = inputs.archivedGroups,
             scheduleEntries = inputs.scheduleEntries,
@@ -1114,87 +572,68 @@ class HomeSnapshotRepository @Inject constructor(
             userProfile = inputs.profile,
             stockMedicines = inputs.stockMedicines,
             stockFulfillmentEntries = inputs.stockFulfillmentEntries,
-            pkEntries = inputs.pkEntries,
             homeAnchor = inputs.homeAnchor,
-            pkRouteLogScale = personalParams.routeLogScale
-                .mapKeys { (route, _) -> route.stableId },
-            pkBandKnots = bandKnots,
-            pkCalibration = calibrationRecord,
+            latestEstradiolEntry = inputs.latestEstradiolEntry,
+        )
+        val e2Inputs = E2InputsRecord(
+            generation = generation,
+            anchorDateEpochDay = homeData.anchorDateEpochDay,
+            zoneId = homeData.zoneId,
+            option = option,
+            weightKg = inputs.profile.weightKg,
+            estradiolEntries = inputs.pkEntries,
+            plannedSources = inputs.activeGroups.filter { group ->
+                group.medications.any { medication -> medication.category == MedicationCategory.ESTRADIOL }
+            },
+            labs = inputs.calibrationLabs,
+            labMetadata = inputs.calibrationMetadata,
+            fit = fit,
         )
 
-        withContext(Dispatchers.IO) {
-            // Avoid restoring stale snapshot data from a refresh that raced with a write.
-            snapshotMutationMutex.withLock {
-                if (refreshSequence < latestStartedRefreshSequence) {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_write_skipped reason=newer_refresh_started " +
-                                "refreshSequence=$refreshSequence " +
-                                "latestStartedSequence=$latestStartedRefreshSequence"
-                    )
-                } else if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()} " +
-                                "bandKnots=${bandKnots.size} pkEntries=${inputs.pkEntries.size}"
-                    )
-                    homeSnapshotStore.writeSnapshot(snapshotRecord)
-                    lastWriteState.value = HomeSnapshotWrite(
-                        generation = refreshGeneration,
-                        generatedAtEpochMillis = snapshotRecord.generatedAtEpochMillis,
-                        forced = forced.value,
-                    )
-                    StartupTiming.mark("home_snapshot_rebuilt")
-                    // Only a planned slot needs a timer; a window-end expiry is
-                    // days out and the date-change refresh gets there first.
-                    nextPlannedAt?.let { scheduleExpiryRefresh(it, now, zoneId) }
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_refreshed ${snapshotRecord.diagnosticSummary()}"
-                    )
-                } else {
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_write_skipped reason=generation_changed " +
-                                "refreshGeneration=$refreshGeneration " +
-                                "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
-                    )
-                }
+        // The check and the publish share the gate's lock, so no mutation can
+        // commit between them: a publish never carries data older than a
+        // committed mutation.
+        val published = mutationMutex.withLock {
+            (generationState.value == generation).also { current ->
+                if (current) cacheState.value = HomeCacheState(generation, homeData, e2Inputs)
             }
         }
+        if (!published) {
+            // A mutation committed during the run; its own run is queued.
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_run_discarded generation=$generation current=${generationState.value}"
+            )
+            return false
+        }
+        StartupTiming.mark("home_snapshot_rebuilt")
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_published ${homeData.diagnosticSummary()} ${e2Inputs.diagnosticSummary()}"
+        )
+        // Outside the lock: a mutation that commits meanwhile leaves the files
+        // behind the durable generation, and the next start rejects them.
+        homeSnapshotStore.writeSnapshot(homeData)
+        homeSnapshotStore.writeE2Inputs(e2Inputs)
+        // Home's estimate for what was just published, so the next open finds
+        // it stored. Part of the run, so whoever waits for the run waits for it.
+        e2EstimateRepository.get().warmHome()
+        return true
     }
 
-    private fun publishCalibrationBuild(build: HomeCalibrationBuild) {
-        calibrationBuildState.update { current ->
-            if (current == null ||
-                current.generation < build.generation ||
-                (current.generation == build.generation &&
-                        current.generatedAtEpochMillis <= build.generatedAtEpochMillis)
-            ) build else current
-        }
+    /** [read], or null when it throws: an unreadable part is a missing one. */
+    private suspend fun <T : Any> readOrNull(name: String, read: suspend () -> T?): T? = try {
+        read()
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (exception: Exception) {
+        diagnosticsLogger.warning(TAG, "${name}_read_failed", exception)
+        null
     }
 
-    /**
-     * A planned slot passing expires the cached projection and nothing else
-     * rebuilds the snapshot until the next mutation or date change, so the
-     * band (snapshot-only) would stay gone. Rebuild (non-forced: the
-     * skip-check continues only while expired) once the expiry passes.
-     */
-    private fun scheduleExpiryRefresh(expiresAt: Instant, now: LocalDateTime, zoneId: ZoneId) {
-        expiryRefreshJob?.cancel()
-        val delayMillis = expiresAt.toEpochMilli() - now.atZone(zoneId).toInstant().toEpochMilli()
-        expiryRefreshJob = appScope.launch {
-            delay(delayMillis.coerceAtLeast(0L))
-            runCatching { refreshHomeSnapshotIfNeeded(force = false, zoneId = zoneId) }
-                .onFailure { throwable ->
-                    if (throwable is CancellationException) throw throwable
-                    diagnosticsLogger.warning(
-                        TAG,
-                        "home_snapshot_expiry_refresh_failed expiresAt=$expiresAt",
-                        throwable
-                    )
-                }
-        }
+    private fun isValid(name: String, failure: String?): Boolean {
+        if (failure != null) diagnosticsLogger.info(TAG, "${name}_rejected reason=$failure")
+        return failure == null
     }
 
     private data class HomeSnapshotBuildInputs(
@@ -1212,79 +651,6 @@ class HomeSnapshotRepository @Inject constructor(
         val stockFulfillmentEntries: List<MedicationLogEntry>,
         val homeAnchor: TrackedDate? = null,
     )
-
-    // Full projection-cache window: past-days back from today's midnight, plus
-    // option.futureDays + MainChartProjectionFutureBufferDays of forward span.
-    // Used by the refresh path to size simulator bounds and Room input queries.
-    private data class HomePkProjectionWindow(
-        val generatedAtEpochMillis: Long,
-        val windowStartEpochMillis: Long,
-        val windowEndEpochMillis: Long,
-        val inputStartEpochMillis: Long,
-    ) {
-        companion object {
-            fun forNow(
-                now: LocalDateTime,
-                zoneId: ZoneId,
-                option: HomeE2ChartWindowOption,
-            ): HomePkProjectionWindow {
-                val generatedAt = now.atZone(zoneId).toInstant()
-                val windowStart = now
-                    .toLocalDate()
-                    .atStartOfDay()
-                    .minusDays(option.pastDays)
-                    .atZone(zoneId)
-                    .toInstant()
-                val windowEnd = now
-                    .toLocalDate()
-                    .plusDays(option.projectionFutureDays())
-                    .atStartOfDay()
-                    .atZone(zoneId)
-                    .toInstant()
-                return HomePkProjectionWindow(
-                    generatedAtEpochMillis = generatedAt.toEpochMilli(),
-                    windowStartEpochMillis = windowStart.toEpochMilli(),
-                    windowEndEpochMillis = windowEnd.toEpochMilli(),
-                    inputStartEpochMillis = windowStart
-                        .minus(Duration.ofDays(HOME_PK_PROJECTION_LOOKBACK_DAYS))
-                        .toEpochMilli(),
-                )
-            }
-        }
-    }
-
-    // Visible chart window the projection must cover for the selected option.
-    // Used by validation; intentionally narrower than HomePkProjectionWindow so
-    // a snapshot whose end is past the chart end (but inside the cache buffer)
-    // is still usable.
-    private data class HomePkChartWindow(
-        val windowStartEpochMillis: Long,
-        val windowEndEpochMillis: Long,
-    ) {
-        val range: LongRange get() = windowStartEpochMillis..windowEndEpochMillis
-
-        companion object {
-            fun forNow(
-                now: LocalDateTime,
-                zoneId: ZoneId,
-                option: HomeE2ChartWindowOption,
-            ): HomePkChartWindow {
-                val windowStart = now
-                    .toLocalDate()
-                    .atStartOfDay()
-                    .minusDays(option.pastDays)
-                    .atZone(zoneId)
-                    .toInstant()
-                val windowEnd = windowStart.plus(
-                    Duration.ofHours(option.chartWindowHours)
-                )
-                return HomePkChartWindow(
-                    windowStartEpochMillis = windowStart.toEpochMilli(),
-                    windowEndEpochMillis = windowEnd.toEpochMilli(),
-                )
-            }
-        }
-    }
 
     private data class HomeSnapshotWindow(
         val homeScheduledStart: LocalDateTime,
@@ -1335,39 +701,49 @@ class HomeSnapshotRepository @Inject constructor(
             }
         }
     }
+}
 
-    private suspend fun clearSnapshotBestEffort() {
-        snapshotMutationMutex.withLock {
-            clearSnapshotBestEffortLocked()
-        }
+/**
+ * Why Home data can't stand in for Room at the durable [generation], [today]
+ * and [zoneId]; null when it can. Its one validity rule: readers take Home
+ * data only from [HomeSnapshotRepository.cache], which the load seeds with
+ * it only when this passes, and each run's publish replaces.
+ */
+internal fun HomeSnapshotRecord.validityFailure(generation: Long, today: LocalDate, zoneId: ZoneId): String? =
+    if (schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
+        "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=$schemaVersion"
+    } else {
+        generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
     }
 
-    private suspend fun clearSnapshotBestEffortLocked() {
-        runCatching {
-            homeSnapshotStore.clearSnapshot()
-            diagnosticsLogger.info(TAG, "home_snapshot_cleared_best_effort")
-        }.onFailure { throwable ->
-            diagnosticsLogger.warning(TAG, "home_snapshot_clear_failed", throwable)
-        }
+/**
+ * The E2 inputs' one validity rule: Home data's, apart from the schema, and
+ * only from this engine, which solved the fit and keys every estimate.
+ */
+internal fun E2InputsRecord.validityFailure(generation: Long, today: LocalDate, zoneId: ZoneId): String? =
+    if (engineVersion != PK_ENGINE_VERSION) {
+        "engine_version expected=$PK_ENGINE_VERSION actual=$engineVersion"
+    } else {
+        generationZoneOrDateFailure(this.generation, this.zoneId, anchorDateEpochDay, generation, today, zoneId)
     }
 
-    private suspend fun refreshHomeSnapshotBestEffort(
-        now: LocalDateTime = LocalDateTime.now(),
-        force: Boolean = false,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ) {
-        runCatching {
-            refreshHomeSnapshotIfNeeded(now = now, force = force, zoneId = zoneId)
-        }.onFailure { throwable ->
-            if (throwable is CancellationException) {
-                throw throwable
-            }
-            diagnosticsLogger.warning(
-                TAG,
-                "home_snapshot_refresh_failed force=$force now=$now",
-                throwable
-            )
-        }
+private fun generationZoneOrDateFailure(
+    recordGeneration: Long,
+    recordZoneId: String,
+    anchorDateEpochDay: Long,
+    generation: Long,
+    today: LocalDate,
+    zoneId: ZoneId,
+): String? {
+    val anchorDate = LocalDate.ofEpochDay(anchorDateEpochDay)
+    val validUntil = anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS)
+    return when {
+        recordGeneration != generation -> "generation expected=$generation actual=$recordGeneration"
+        recordZoneId != zoneId.id -> "zone_id expected=${zoneId.id} actual=$recordZoneId"
+        today.isBefore(anchorDate) || today.isAfter(validUntil) ->
+            "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"
+
+        else -> null
     }
 }
 
@@ -1379,50 +755,29 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
             "groups=${activeGroups.size} " +
             "archivedGroups=${archivedGroups.size} " +
             "scheduleEntries=${scheduleEntries.size} " +
-            "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
-            "hasPkProjection=${pkProjection != null}"
+            "antiandrogenEntries=${antiandrogenHistoryEntries.size}"
 }
 
-/** One snapshot build's calibration solve. [evaluation] is null when the solve threw. */
-/** Identity of a written snapshot; [matches] tells a consumer whether it has observed it yet. */
-data class HomeSnapshotWrite(
-    val generation: Long,
-    val generatedAtEpochMillis: Long,
-    /** From a mutation or forced request: the rebuilds that show the updating indicator. */
-    val forced: Boolean,
-) {
-    fun matches(record: HomeSnapshotRecord?): Boolean =
-        record != null &&
-            record.generation == generation &&
-            record.generatedAtEpochMillis == generatedAtEpochMillis
+private fun E2InputsRecord.diagnosticSummary(): String {
+    return "engine=$engineVersion " +
+            "option=$option " +
+            "estradiolEntries=${estradiolEntries.size} " +
+            "plannedSources=${plannedSources.size} " +
+            "labs=${labs.size} " +
+            "fitEpoch=${fit?.epoch}"
 }
 
-class HomeCalibrationBuild(
-    val generation: Long,
-    val generatedAtEpochMillis: Long,
-    val input: PkCalibrationInput,
-    val evaluation: PkCalibrationEvaluation?,
-    /** Home's visible chart window at build time: the range the badge describes. */
-    val statusRange: LongRange,
-    /** Shared with the build's write: a forced request joining after publication raises it. */
-    val forcedChanges: StateFlow<Boolean> = MutableStateFlow(false),
-) {
-    /** From a mutation or forced request: the builds whose landing shows the updating indicator. */
-    val forced: Boolean
-        get() = forcedChanges.value
-}
-
-// Bumped to 9 with the Oct 2026 estradiol PK refit so every install rebuilds its cached
-// projections and calibration on the first open after the update.
+// Bumped to 9 with the Oct 2026 estradiol PK refit so every install rebuilt its cached
+// projections and calibration on the first open after the update. A PK or calibration
+// change now bumps PK_ENGINE_VERSION instead, which drops the E2 inputs part, so the next
+// run re-solves. A bump here, like a Home data codec bump, drops Home data only: the run
+// reuses the fit published in the still-valid E2 inputs part.
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 9
 
-// Cache-input lookback past the visible chart window. 180 d is enough for
-// steady-state PK history regardless of option; the forward span is owned
-// by HomeE2ChartWindowOption.projectionFutureDays() and dropped its own
-// constant.
 private const val TAG = "HomeSnapshotRepository"
-private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
-private const val BAND_SAMPLING_INTERVAL_MILLIS = 6L * 60L * 60L * 1_000L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
 private const val HOME_SNAPSHOT_VALIDITY_DAYS = 10L
 private const val HOME_SNAPSHOT_PAST_BUFFER_DAYS = 1L
+
+// A failed run's retries; after the last, the worker waits for the next request.
+private val RETRY_BACKOFF_MILLIS = listOf(1_000L, 5_000L, 30_000L)

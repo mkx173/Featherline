@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- After a planned dose's time passes, opening the app no longer shows an estradiol curve that looks like the population estimate, or the calibrated curve without its prediction interval. Home now works the estimate out again whenever the time, your data or the chart window moves it, usually in the background before you open the app.
+- The home-screen widget no longer goes blank when you change a widget setting, such as its appearance or the estradiol unit, while the app's saved copy of your data is out of date, for example right after an app update or a time zone change. It keeps showing your doses while the app brings them up to date.
+- When the device's clock moves ahead, for example when you set it forward, the app no longer sends a reminder for every dose time it skipped. Each group reminds you once, of its latest dose time if you haven't logged that dose yet, and its next reminder comes at the usual time.
+- A dose reminder whose time passes while the phone is off, or while the system holds its alarm back, is no longer skipped. It comes as soon as the phone is back, once, for the group's latest dose that's due.
+
+### Changed
+
+- Estradiol cypionate injection estimates peak around day 4 again instead of day 2, matching cypionate in oil such as Depo-Estradiol. The day-2 peak came from studies of a different product, the cypionate suspension in monthly contraceptive injections. Total exposure is unchanged, and existing calibrations are refit on the first open after the update.
+- Dose reminders now show the date and time of the dose they're for, so two reminders for the same group are easy to tell apart.
+- When you come back to the app after the estimate has moved, for example after a planned dose's time passed with reminders off, the estradiol card and chart can show a loading placeholder for a moment before the new estimate appears. The calibration page can show its loading indicator for a moment the same way, for example when you come back to it after midnight.
+- The app no longer works out your estimate calibration again each time it starts or you change something. It does so only when something the calibration uses changes (your estradiol results or how you reviewed them, your estradiol doses or your weight), after an app update that changes how estimates are worked out, or when you tap Try again.
+- The Estimate calibration section and the estimate sheet on Home now use the same estradiol doses as the Home chart, with days that start at midnight like it, so where they overlap they show the same band. Near the ends of the calibration page's range, its estimate can differ very slightly from before.
+- The first time you open the app after this update, Home's lists take a moment longer to appear, and the estradiol card shows a loading placeholder until the estimate is worked out. This happens once.
+
 ## [1.4.2] - 2026-10-14
 
 ### Fixed

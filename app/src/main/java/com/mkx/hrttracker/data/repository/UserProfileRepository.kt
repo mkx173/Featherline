@@ -76,15 +76,15 @@ class UserProfileRepository @Inject constructor(
                         }
                 }
             }
-            // Seed the flow from the home snapshot cache so screens that bind the
+            // Seed the flow from the cached Home data so screens that bind the
             // profile (Settings) render the real weight on first frame instead of
             // flashing the empty default while Room cold-init completes. Failures
             // are swallowed — the Room flow follows immediately and is authoritative.
             .onStart {
                 runCatching {
-                    homeSnapshotRepository.readUsableHomeSnapshot()?.userProfile
+                    homeSnapshotRepository.currentState()?.homeData?.userProfile
                 }.getOrElse { error ->
-                    // readUsableHomeSnapshot() suspends; don't let runCatching swallow
+                    // currentState() suspends; don't let runCatching swallow
                     // cancellation of the collecting scope. Any other failure is
                     // non-fatal here — the authoritative Room flow follows immediately.
                     if (error is CancellationException) throw error

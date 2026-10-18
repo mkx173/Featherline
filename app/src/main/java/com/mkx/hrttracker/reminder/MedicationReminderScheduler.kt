@@ -78,7 +78,8 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(TAG, "reminder_reschedule_all_start now=$now")
         val groups = medicationGroupRepository.getGroups()
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
-        val storedGroupUuids = reminderScheduleStore.getScheduledGroupUuids()
+        val stored = reminderScheduleStore.getScheduledReminders()
+        val storedGroupUuids = stored.keys
         val uuidsToCancel = storedGroupUuids + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
@@ -88,7 +89,7 @@ class MedicationReminderScheduler private constructor(
                         "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
             )
             uuidsToCancel.forEach(::cancelReminderAlarm)
-            reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
+            reminderScheduleStore.replaceScheduledReminders(emptyMap())
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_all_complete groups=${groups.size} entries=0 plans=0 stored=0"
@@ -100,15 +101,16 @@ class MedicationReminderScheduler private constructor(
         val plans = buildNextMedicationReminderPlans(
             groups = groups,
             entries = entries,
-            now = now
+            now = now,
+            armed = stored.armedTimes(),
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
-        reminderScheduleStore.replaceScheduledGroupUuids(
-            plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
+        reminderScheduleStore.replaceScheduledReminders(
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
         )
         diagnosticsLogger.info(
             TAG,
@@ -136,7 +138,8 @@ class MedicationReminderScheduler private constructor(
         )
         val groups = snapshot.activeGroups
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
-        val storedGroupUuids = reminderScheduleStore.getScheduledGroupUuids()
+        val stored = reminderScheduleStore.getScheduledReminders()
+        val storedGroupUuids = stored.keys
         val uuidsToCancel = storedGroupUuids + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
@@ -146,7 +149,7 @@ class MedicationReminderScheduler private constructor(
                         "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
             )
             uuidsToCancel.forEach(::cancelReminderAlarm)
-            reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
+            reminderScheduleStore.replaceScheduledReminders(emptyMap())
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_from_snapshot_complete groups=${groups.size} entries=0 plans=0 stored=0"
@@ -164,14 +167,15 @@ class MedicationReminderScheduler private constructor(
             groups = groups,
             entries = entries,
             now = now,
+            armed = stored.armedTimes(),
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
-        reminderScheduleStore.replaceScheduledGroupUuids(
-            plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
+        reminderScheduleStore.replaceScheduledReminders(
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
         )
         diagnosticsLogger.info(
             TAG,
@@ -232,7 +236,7 @@ class MedicationReminderScheduler private constructor(
         )
 
         scheduleReminder(plan)
-        reminderScheduleStore.addScheduledGroupUuid(plan.groupUuid)
+        reminderScheduleStore.addScheduledReminder(plan.groupUuid, plan.scheduledAt)
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_complete groupUuid=${plan.groupUuid} " +
@@ -341,6 +345,10 @@ class MedicationReminderScheduler private constructor(
 
 internal fun reminderIntentData(groupUuid: UUID): Uri {
     return "$REMINDER_INTENT_URI_PREFIX/$groupUuid".toUri()
+}
+
+private fun Map<UUID, LocalDateTime?>.armedTimes(): Map<UUID, LocalDateTime> {
+    return mapNotNull { (uuid, scheduledAt) -> scheduledAt?.let { uuid to it } }.toMap()
 }
 
 private const val REMINDER_REQUEST_CODE = 0

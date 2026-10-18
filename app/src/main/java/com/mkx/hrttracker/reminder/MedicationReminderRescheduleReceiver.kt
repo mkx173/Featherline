@@ -88,18 +88,17 @@ internal fun handleReminderRescheduleBroadcast(
                 reason = "receiver_$action",
                 forceReschedule = true,
             )
-            // Force a full refresh for events that leave the snapshot stale or invalid:
-            // - TZ/time change: stored zoneId mismatches the new wall clock
-            // - Boot: projection may have expired while the device was off
-            // - Package replaced: schema version bump silently rejects the old snapshot
+            // Ask for a run for events that leave the cached parts stale or invalid:
+            // - TZ/time change: the stored zone mismatches the new wall clock
+            // - Boot: the date may have moved while the device was off
+            // - Package replaced: a codec, schema or engine bump rejects the old files
             if (
                 action == Intent.ACTION_TIMEZONE_CHANGED ||
                 action == Intent.ACTION_TIME_CHANGED ||
                 action == Intent.ACTION_BOOT_COMPLETED ||
                 action == Intent.ACTION_MY_PACKAGE_REPLACED
             ) {
-                // Silent: a system event, not a data change, so no updating indicator.
-                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true, silent = true)
+                homeSnapshotRepository.requestRebuild()
             }
             diagnosticsLogger.info(
                 REMINDER_RESCHEDULE_RECEIVER_TAG,
