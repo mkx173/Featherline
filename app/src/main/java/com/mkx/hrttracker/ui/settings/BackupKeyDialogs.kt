@@ -19,15 +19,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -50,8 +54,10 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.contentType
@@ -74,6 +80,8 @@ import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.view.WindowCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.RecoveryKey
+import com.mkx.hrttracker.ui.components.HazeBasicAlertDialog
+import com.mkx.hrttracker.ui.components.HazeDialogSurface
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.rememberModalWindowAllowed
 
@@ -307,8 +315,185 @@ private fun BackupKeyNote(
     }
 }
 
+/** Flow C1: opens a v4 file with its recovery key. Nothing secret is shown. */
+@Composable
+internal fun BackupUnlockDialog(
+    displayName: String?,
+    state: BackupRestoreKeyUiState,
+    onInputChange: (String) -> Unit,
+    onUnlock: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val canUnlock = RecoveryKey.parse(state.input) != null && !state.isUnlocking
+    BackupRestoreKeyDialog(
+        title = stringResource(R.string.settings_backup_unlock_title),
+        confirmLabel = stringResource(R.string.settings_backup_unlock),
+        isConfirmEnabled = canUnlock,
+        isInProgress = state.isUnlocking,
+        // A cancel mid-unwrap is safe: the ViewModel drops the late result.
+        onConfirm = onUnlock,
+        onCancel = onCancel,
+    ) {
+        displayName?.let { name ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Description,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            text = stringResource(R.string.settings_backup_unlock_message),
+            style = MaterialTheme.typography.bodyMedium,
+            color = AlertDialogDefaults.textContentColor,
+        )
+        RecoveryKeyField(
+            value = state.input,
+            onValueChange = onInputChange,
+            errorMessage = stringResource(R.string.settings_backup_unlock_wrong_key)
+                .takeIf { state.isWrongKey },
+            onDone = { if (canUnlock) onUnlock() },
+        )
+    }
+}
+
 /**
- * The recovery key input for enter-back (A2) and, from 1.4, unlock (C1). Not
+ * Flow C2: the v4 confirm, with no password field. On a No-key phone it
+ * offers to keep the file's recovery key ([BackupRestoreKeyUiState.canAdopt]).
+ */
+@Composable
+internal fun BackupRestoreConfirmDialog(
+    displayName: String?,
+    state: BackupRestoreKeyUiState,
+    isInProgress: Boolean,
+    onAdoptChange: (Boolean) -> Unit,
+    onRestore: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    BackupRestoreKeyDialog(
+        title = stringResource(R.string.settings_backup_restore_confirm_title),
+        confirmLabel = stringResource(R.string.settings_backup_restore_confirm),
+        isConfirmEnabled = true,
+        isInProgress = isInProgress,
+        // Locked while restoring: cancelling would wipe the bytes and MK the
+        // restore is still reading.
+        onConfirm = { if (!isInProgress) onRestore() },
+        onCancel = { if (!isInProgress) onCancel() },
+    ) {
+        Text(
+            text = if (displayName != null) {
+                stringResource(R.string.settings_backup_restore_key_message_with_name, displayName)
+            } else {
+                stringResource(R.string.settings_backup_restore_key_message)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = AlertDialogDefaults.textContentColor,
+        )
+        if (state.canAdopt) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.toggleable(
+                    value = state.adopt,
+                    enabled = !isInProgress,
+                    role = Role.Checkbox,
+                    onValueChange = onAdoptChange,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Checkbox(checked = state.adopt, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+                    Column(
+                        modifier = Modifier.padding(top = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_backup_restore_adopt_key),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            text = stringResource(
+                                if (state.adopt) {
+                                    R.string.settings_backup_restore_adopt_key_on
+                                } else {
+                                    R.string.settings_backup_restore_adopt_key_off
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupRestoreKeyDialog(
+    title: String,
+    confirmLabel: String,
+    isConfirmEnabled: Boolean,
+    isInProgress: Boolean,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    HazeBasicAlertDialog(onDismissRequest = onCancel) {
+        HazeDialogSurface {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(dimensionResource(R.dimen.padding_large)),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium)),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = AlertDialogDefaults.titleContentColor,
+                )
+                content()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) {
+                    TextButton(onClick = onCancel) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(onClick = onConfirm, enabled = isConfirmEnabled) {
+                        if (isInProgress) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = LocalContentColor.current,
+                            )
+                        } else {
+                            Text(text = confirmLabel)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The recovery key input for enter-back (A2) and unlock (C1). Not
  * masked, since typos have to be visible. The value is the bare symbols
  * ([RecoveryKey.symbols]); [RecoveryKeyVisualTransformation] shows the groups.
  * [trailingActions] sits before Paste (C1's Scan).

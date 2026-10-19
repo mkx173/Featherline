@@ -107,6 +107,12 @@ class BackupCrypto internal constructor(
         }
     }
 
+    // The header's version byte, for a container that already passed
+    // [validateEncryptedBackupContainer].
+    fun peekContainerVersion(
+        encryptedBytes: ByteArray,
+    ): Int = encryptedBytes[MAGIC_BYTES.size].toInt() and BYTE_MASK
+
     // Reads the embedded keyring before any tag check, so the result is
     // untrusted until the keyring decoder has bounded and parsed it. Null for
     // v2/v3 files and for v4 files without a keyring (cloud snapshots).

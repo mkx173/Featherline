@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.backup.BackupCrypto
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupKeyStore
 import com.mkx.hrttracker.data.backup.BackupRestoreService
+import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.KeyringCrypto
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.backup.RecoveryKey
@@ -20,6 +21,7 @@ import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -68,6 +70,7 @@ class BackupSettingsViewModelTest {
         Dispatchers.setMain(dispatcher)
         every { applicationContext.contentResolver } returns contentResolver
         every { backupKeyStore.keyState } returns MutableStateFlow(null)
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns null
     }
 
     @After
@@ -392,6 +395,267 @@ class BackupSettingsViewModelTest {
 
         assertNull(viewModel.uiState.value.keySetup)
         coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV2V3_showsThePasswordDialog() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setPendingRestoreRequest(mockk(), "old.hrtbackup", byteArrayOf(1))
+        advanceUntilIdle()
+
+        assertNotNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertNull(viewModel.uiState.value.restoreKey)
+        assertNull(viewModel.restoreMasterKey)
+    }
+
+    @Test
+    fun restoreV4_onThePhoneThatMadeIt_goesStraightToPlainConfirmAndNeverAdopts() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val restoredWith = stubKeyRestore()
+
+        val state = openV4Restore(viewModel, phoneMk = fileMk)
+        assertTrue(state.isUnlocked)
+        assertFalse(state.canAdopt)
+        val heldMk = checkNotNull(viewModel.restoreMasterKey)
+        assertArrayEquals(fileMk, heldMk)
+
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        assertArrayEquals(fileMk, restoredWith.single())
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.restoreMasterKey)
+        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertNull(viewModel.uiState.value.restoreKey)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV4_withADifferentKey_unlocksThenConfirmsWithoutTheBoxAndNeverAdopts() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        stubKeyRestore()
+
+        val state = openV4Restore(viewModel, phoneMk = ByteArray(32) { 9 })
+        assertFalse(state.isUnlocked)
+        assertFalse(state.canAdopt)
+        assertNull(viewModel.restoreMasterKey)
+
+        val unlocked = unlock(viewModel, fileRecoveryKey)
+        assertTrue(unlocked.isUnlocked)
+        assertFalse(unlocked.canAdopt)
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) }
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV4_onANoKeyPhone_unlocksAndAdoptsTheVerbatimKeyringAfterTheRestore() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val restoredWith = stubKeyRestore()
+        lateinit var installedMk: ByteArray
+        coEvery { backupKeyStore.install(any(), any(), any()) } coAnswers {
+            installedMk = firstArg<ByteArray>().copyOf()
+        }
+
+        val state = openV4Restore(viewModel, phoneMk = null)
+        assertFalse(state.isUnlocked)
+        assertTrue(state.canAdopt)
+        // Typed the lenient way.
+        val unlocked = unlock(viewModel, RecoveryKey.format(fileRecoveryKey).lowercase())
+        assertTrue(unlocked.isUnlocked)
+        assertTrue(unlocked.canAdopt)
+        assertTrue(unlocked.adopt)
+        val heldMk = checkNotNull(viewModel.restoreMasterKey)
+        assertArrayEquals(fileMk, heldMk)
+
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        assertArrayEquals(fileMk, restoredWith.single())
+        coVerifyOrder {
+            backupRestoreService.restoreBackupBytes(any(), any<ByteArray>())
+            backupKeyStore.install(any(), fileRecoveryKey, fileKeyringJson)
+        }
+        assertArrayEquals(fileMk, installedMk)
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.restoreMasterKey)
+    }
+
+    @Test
+    fun restoreV4_whenTheKeystoreReadThrows_offersToAdopt() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
+        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+
+        val state = checkNotNull(viewModel.uiState.value.restoreKey)
+        assertFalse(state.isUnlocked)
+        assertTrue(state.canAdopt)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        coVerify(exactly = 0) { backupKeyStore.clear() }
+    }
+
+    @Test
+    fun restoreV4_whenTheKeystoreThrowOnlyAtOpen_doesNotReplaceThePhonesKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        stubKeyRestore()
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
+        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+        unlock(viewModel, fileRecoveryKey)
+        // The Keystore recovers before Restore: the phone has its own key.
+        coEvery { backupKeyStore.masterKey() } returns ByteArray(32) { 7 }
+
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) }
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV4_unticked_restoresWithoutAdopting() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        stubKeyRestore()
+        openV4Restore(viewModel, phoneMk = null)
+        unlock(viewModel, fileRecoveryKey)
+
+        viewModel.onAdoptRestoreKeyChanged(false)
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) }
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        assertNull(viewModel.restoreMasterKey)
+    }
+
+    @Test
+    fun restoreV4_wrongKey_keepsUnlockOpenAndHoldsNoKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        openV4Restore(viewModel, phoneMk = null)
+        val wrongKey = if (fileRecoveryKey.startsWith("0")) "1" + fileRecoveryKey.drop(1)
+        else "0" + fileRecoveryKey.drop(1)
+
+        val state = unlock(viewModel, wrongKey)
+
+        assertFalse(state.isUnlocked)
+        assertTrue(state.isWrongKey)
+        assertNull(viewModel.restoreMasterKey)
+        assertNotNull(viewModel.uiState.value.pendingRestoreRequest)
+        // No attempt limit: the right key still opens it.
+        assertTrue(unlock(viewModel, fileRecoveryKey).isUnlocked)
+    }
+
+    @Test
+    fun restoreV4_failedRestore_installsNothingAndZeroesTheKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) } throws IOException("damaged")
+        openV4Restore(viewModel, phoneMk = null)
+        unlock(viewModel, fileRecoveryKey)
+        val heldMk = checkNotNull(viewModel.restoreMasterKey)
+        val event = backgroundScope.async { viewModel.backupRestoreEvents.first() }
+
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        assertTrue(event.await() is BackupRestoreEvent.Failure)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.restoreMasterKey)
+        assertNull(viewModel.uiState.value.restoreKey)
+    }
+
+    @Test
+    fun restoreV4_cancelAtUnlockOrConfirm_installsNothingAndZeroesTheKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        openV4Restore(viewModel, phoneMk = null)
+        viewModel.clearPendingRestoreRequest()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.restoreKey)
+
+        openV4Restore(viewModel, phoneMk = null)
+        unlock(viewModel, fileRecoveryKey)
+        val heldMk = checkNotNull(viewModel.restoreMasterKey)
+        viewModel.clearPendingRestoreRequest()
+        advanceUntilIdle()
+
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.restoreMasterKey)
+        assertNull(viewModel.uiState.value.restoreKey)
+        coVerify(exactly = 0) { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) }
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV4_withoutAKeyring_isIncompatibleAndHoldsNothing() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } throws
+                IncompatibleBackupFileException("Backup file has no keyring.")
+
+        val error = runCatching {
+            viewModel.setPendingRestoreRequest(mockk(), "cloud.hrtbackup", byteArrayOf(4))
+        }.exceptionOrNull()
+        advanceUntilIdle()
+
+        assertTrue(error is IncompatibleBackupFileException)
+        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertNull(viewModel.uiState.value.restoreKey)
+    }
+
+    private val fileMk = ByteArray(32) { 3 }
+    private val fileRecoveryKey = RecoveryKey.generate()
+
+    // A field this build doesn't model, to prove the adopt is verbatim.
+    private val fileKeyringJson = keyringCrypto.encode(
+        keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+    ).replaceFirst("{", "{\"recoveryKeyWrapped\":\"x\",")
+
+    // Records the MK each v4 restore saw: the ViewModel zeroes it right after.
+    private fun stubKeyRestore(): MutableList<ByteArray> {
+        val calls = mutableListOf<ByteArray>()
+        coEvery { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) } coAnswers {
+            calls += secondArg<ByteArray>().copyOf()
+        }
+        return calls
+    }
+
+    private suspend fun TestScope.openV4Restore(
+        viewModel: BackupSettingsViewModel,
+        phoneMk: ByteArray?,
+    ): BackupRestoreKeyUiState {
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
+        coEvery { backupKeyStore.masterKey() } answers { phoneMk?.copyOf() }
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+        return checkNotNull(viewModel.uiState.value.restoreKey)
+    }
+
+    // The unwrap runs on Dispatchers.Default, so wait for its result.
+    private suspend fun TestScope.unlock(
+        viewModel: BackupSettingsViewModel,
+        input: String,
+    ): BackupRestoreKeyUiState {
+        viewModel.onUnlockInputChanged(RecoveryKey.symbols(input))
+        viewModel.unlockBackupRestore()
+        advanceUntilIdle()
+        return checkNotNull(viewModel.uiState.first { it.restoreKey?.isUnlocking != true }.restoreKey)
     }
 
     private fun createViewModel(): BackupSettingsViewModel {

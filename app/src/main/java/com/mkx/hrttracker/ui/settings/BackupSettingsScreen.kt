@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupKeyState
+import com.mkx.hrttracker.data.backup.DamagedBackupFileException
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -121,6 +122,8 @@ fun BackupSettingsScreen(
             val messageRes = when (event) {
                 BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
                 is BackupRestoreEvent.Failure -> when (event.error) {
+                    is DamagedBackupFileException -> R.string.settings_backup_restore_damaged
+
                     is IncompatibleBackupFileException,
                     is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
 
@@ -373,7 +376,29 @@ fun BackupSettingsScreen(
         )
     }
 
+    val restoreKey = uiState.restoreKey
     pendingRestoreRequest?.takeUnless { isAppLocked }?.let { restoreRequest ->
+        if (restoreKey != null) {
+            if (restoreKey.isUnlocked) {
+                BackupRestoreConfirmDialog(
+                    displayName = restoreRequest.displayName,
+                    state = restoreKey,
+                    isInProgress = isBackupRestoreInProgress,
+                    onAdoptChange = viewModel::onAdoptRestoreKeyChanged,
+                    onRestore = { viewModel.requestBackupRestore() },
+                    onCancel = viewModel::clearPendingRestoreRequest,
+                )
+            } else {
+                BackupUnlockDialog(
+                    displayName = restoreRequest.displayName,
+                    state = restoreKey,
+                    onInputChange = viewModel::onUnlockInputChanged,
+                    onUnlock = viewModel::unlockBackupRestore,
+                    onCancel = viewModel::clearPendingRestoreRequest,
+                )
+            }
+            return@let
+        }
         val restorePasswordMessage = if (restoreRequest.displayName != null) {
             stringResource(
                 R.string.settings_backup_restore_password_message_with_name,

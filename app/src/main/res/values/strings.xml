@@ -762,6 +762,16 @@
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_confirm">Restore</string>
+    <string name="settings_backup_unlock_title">Unlock backup</string>
+    <string name="settings_backup_unlock_message">Enter the recovery key for this backup. On the phone that made it, open Settings → Backup &amp; restore → Recovery key and scan the code shown there.</string>
+    <string name="settings_backup_unlock">Unlock</string>
+    <string name="settings_backup_unlock_wrong_key">That key doesn’t open this backup.</string>
+    <string name="settings_backup_restore_key_message">This will replace current local data with the selected backup.</string>
+    <string name="settings_backup_restore_key_message_with_name">This will replace current local data with %1$s.</string>
+    <string name="settings_backup_restore_adopt_key">Use the same recovery key on this phone</string>
+    <string name="settings_backup_restore_adopt_key_on">Recommended when moving to a new phone. Backups from both phones open with one key.</string>
+    <string name="settings_backup_restore_adopt_key_off">This phone gets its own recovery key with your next backup.</string>
+    <string name="settings_backup_restore_damaged">This backup file is damaged.</string>
     <string name="external_import_review_title">Confirm import</string>
     <string name="external_import_detected_source">Source</string>
     <string name="external_import_summary_new">%1$d new</string>

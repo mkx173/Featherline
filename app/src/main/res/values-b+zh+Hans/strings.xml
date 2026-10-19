@@ -733,6 +733,16 @@
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_password_message_with_name">这会用 %1$s 替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_confirm">恢复</string>
+    <string name="settings_backup_unlock_title">解锁备份</string>
+    <string name="settings_backup_unlock_message">输入这份备份的恢复密钥。在创建它的手机上，打开「设置 → 备份与恢复 → 恢复密钥」，扫描那里显示的二维码</string>
+    <string name="settings_backup_unlock">解锁</string>
+    <string name="settings_backup_unlock_wrong_key">这个密钥无法打开此备份</string>
+    <string name="settings_backup_restore_key_message">这会用所选备份替换当前本地数据</string>
+    <string name="settings_backup_restore_key_message_with_name">这会用 %1$s 替换当前本地数据</string>
+    <string name="settings_backup_restore_adopt_key">在这台手机上使用同一个恢复密钥</string>
+    <string name="settings_backup_restore_adopt_key_on">换新手机时推荐。两台手机的备份都能用同一个密钥打开</string>
+    <string name="settings_backup_restore_adopt_key_off">这台手机会在下次备份时创建自己的恢复密钥</string>
+    <string name="settings_backup_restore_damaged">此备份文件已损坏</string>
     <string name="external_import_review_title">确认导入</string>
     <string name="external_import_detected_source">来源</string>
     <string name="external_import_summary_new">新增 %1$d</string>

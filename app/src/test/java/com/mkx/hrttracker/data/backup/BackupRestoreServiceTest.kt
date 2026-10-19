@@ -277,6 +277,75 @@ class BackupRestoreServiceTest {
         coVerify(exactly = 0) { pkCalibrationDao.insertMetadata(any()) }
     }
 
+    @Test
+    fun restoreBackupBytes_withTheMasterKey_restoresAV4File() = runTest {
+        val mk = ByteArray(32) { 5 }
+        val encrypted = backupCrypto.encryptWithKey(
+            plaintext = BackupSnapshotJsonCodec.encode(emptySnapshot()).toByteArray(),
+            key = mk,
+            keyringJson = "{}",
+        )
+
+        service.restoreBackupBytes(encryptedBytes = encrypted, mk = mk)
+
+        coVerify(exactly = 1) { userProfileDao.upsertProfile(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_v4WithACorruptedPayload_isDamagedAndWritesNothing() = runTest {
+        val mk = ByteArray(32) { 5 }
+        val encrypted = backupCrypto.encryptWithKey(
+            plaintext = BackupSnapshotJsonCodec.encode(emptySnapshot()).toByteArray(),
+            key = mk,
+            keyringJson = "{}",
+        )
+        encrypted[encrypted.size - 1] = (encrypted[encrypted.size - 1].toInt() xor 1).toByte()
+
+        try {
+            service.restoreBackupBytes(encryptedBytes = encrypted, mk = mk)
+            fail("Expected DamagedBackupFileException")
+        } catch (_: DamagedBackupFileException) {
+        }
+
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_v4WithAPassword_isIncompatible() = runTest {
+        val encrypted = backupCrypto.encryptWithKey(
+            plaintext = BackupSnapshotJsonCodec.encode(emptySnapshot()).toByteArray(),
+            key = ByteArray(32),
+            keyringJson = "{}",
+        )
+
+        // IllegalArgumentException is what the restore toast maps to incompatible.
+        try {
+            service.restoreBackupBytes(encryptedBytes = encrypted, password = "password")
+            fail("Expected IllegalArgumentException")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test
+    fun peekRestoreKeyring_isNullForV3_verbatimForV4_andIncompatibleWithoutAKeyring() = runTest {
+        val json = BackupSnapshotJsonCodec.encode(emptySnapshot())
+        val keyringJson = """{"version":1, "extra":true}"""
+
+        assertNull(
+            service.peekRestoreKeyring(backupCrypto.encryptSnapshotJson(json, "password".toCharArray()))
+        )
+        assertEquals(
+            keyringJson,
+            service.peekRestoreKeyring(backupCrypto.encryptWithKey(json.toByteArray(), ByteArray(32), keyringJson)),
+        )
+        try {
+            service.peekRestoreKeyring(backupCrypto.encryptWithKey(json.toByteArray(), ByteArray(32), null))
+            fail("Expected IncompatibleBackupFileException")
+        } catch (_: IncompatibleBackupFileException) {
+        }
+    }
+
     private fun calibrationMetadataPanel(
         panelUuid: String,
         resultUuid: String,

@@ -82,6 +82,11 @@ class IncompatibleBackupFileException(
     cause: Throwable? = null,
 ) : IOException(message, cause)
 
+// A v4 payload failed its tag under the right key: the file itself is damaged.
+class DamagedBackupFileException(
+    cause: Throwable,
+) : IOException("The backup file is damaged.", cause)
+
 @Singleton
 class BackupRestoreService @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -174,15 +179,27 @@ class BackupRestoreService @Inject constructor(
         }
     }
 
+    /**
+     * The keyring JSON of a container v4 file, exactly as peeked: untrusted
+     * until [restoreBackupBytes] with its MK passes the payload tag. Null for a
+     * v2/v3 file, which restores with a password instead.
+     */
+    suspend fun peekRestoreKeyring(
+        encryptedBytes: ByteArray,
+    ): String? = withContext(Dispatchers.IO) {
+        if (backupCrypto.peekContainerVersion(encryptedBytes) != BackupCrypto.KEY_BACKUP_CONTAINER_VERSION) {
+            return@withContext null
+        }
+        // A v4 file without a keyring is a cloud snapshot (phase 2).
+        backupCrypto.peekKeyring(encryptedBytes)
+            ?: throw IncompatibleBackupFileException("Backup file has no keyring.")
+    }
+
     suspend fun restoreBackupBytes(
         encryptedBytes: ByteArray,
         password: String,
     ) = withContext(Dispatchers.IO) {
-        diagnosticsLogger.info(
-            TAG,
-            "restore_backup_start bytes=${encryptedBytes.size} " +
-                    "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
-        )
+        logRestoreStart(encryptedBytes)
         val passwordChars = password.toCharArray()
         val json = try {
             backupCrypto.decryptSnapshotJson(
@@ -192,6 +209,39 @@ class BackupRestoreService @Inject constructor(
         } finally {
             passwordChars.fill(' ')
         }
+        restoreSnapshotJson(json)
+    }
+
+    /** Container v4, under the backup master key [mk]; the caller zeroes it. */
+    suspend fun restoreBackupBytes(
+        encryptedBytes: ByteArray,
+        mk: ByteArray,
+    ) = withContext(Dispatchers.IO) {
+        logRestoreStart(encryptedBytes)
+        // The MK is known right (mkCheck or the recovery slot passed), so a
+        // payload that fails its tag or decompression is a damaged file.
+        val plaintext = try {
+            backupCrypto.decryptWithKey(encryptedBytes = encryptedBytes, key = mk)
+        } catch (error: IOException) {
+            throw DamagedBackupFileException(error)
+        }
+        val json = try {
+            plaintext.toString(Charsets.UTF_8)
+        } finally {
+            plaintext.fill(0)
+        }
+        restoreSnapshotJson(json)
+    }
+
+    private fun logRestoreStart(encryptedBytes: ByteArray) {
+        diagnosticsLogger.info(
+            TAG,
+            "restore_backup_start bytes=${encryptedBytes.size} " +
+                    "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
+        )
+    }
+
+    private suspend fun restoreSnapshotJson(json: String) {
         // The snapshot decode + structural validation below throws
         // IllegalArgumentException (via require) for anything it considers
         // malformed; the UI maps every such failure to the generic

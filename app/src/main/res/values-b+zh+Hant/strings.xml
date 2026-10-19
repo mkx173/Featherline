@@ -733,6 +733,16 @@
     <string name="settings_backup_restore_password_message">這會用所選備份替換目前本機資料，輸入備份密碼以繼續</string>
     <string name="settings_backup_restore_password_message_with_name">這會用 %1$s 替換目前本機資料，輸入備份密碼以繼續</string>
     <string name="settings_backup_restore_confirm">還原</string>
+    <string name="settings_backup_unlock_title">解鎖備份</string>
+    <string name="settings_backup_unlock_message">輸入這份備份的復原金鑰。在建立它的手機上，開啟「設定 → 備份與還原 → 復原金鑰」，掃描那裡顯示的 QR 碼</string>
+    <string name="settings_backup_unlock">解鎖</string>
+    <string name="settings_backup_unlock_wrong_key">這組金鑰無法開啟此備份</string>
+    <string name="settings_backup_restore_key_message">這會用所選備份替換目前本機資料</string>
+    <string name="settings_backup_restore_key_message_with_name">這會用 %1$s 替換目前本機資料</string>
+    <string name="settings_backup_restore_adopt_key">在這支手機上使用同一組復原金鑰</string>
+    <string name="settings_backup_restore_adopt_key_on">換新手機時建議使用。兩支手機的備份都能用同一組金鑰開啟</string>
+    <string name="settings_backup_restore_adopt_key_off">這支手機會在下次備份時建立自己的復原金鑰</string>
+    <string name="settings_backup_restore_damaged">此備份檔案已損壞</string>
     <string name="external_import_review_title">確認匯入</string>
     <string name="external_import_detected_source">來源</string>
     <string name="external_import_summary_new">新增 %1$d</string>
