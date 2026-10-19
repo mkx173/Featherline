@@ -13,7 +13,6 @@ class BackupPasswordDialogValidationTest {
             BackupPasswordValidationError.REQUIRED,
             validateBackupPasswordInput(
                 password = "",
-                confirmPassword = "",
                 minimumPasswordLength = 6,
             )
         )
@@ -25,19 +24,6 @@ class BackupPasswordDialogValidationTest {
             BackupPasswordValidationError.TOO_SHORT,
             validateBackupPasswordInput(
                 password = "12345",
-                confirmPassword = "12345",
-                minimumPasswordLength = 6,
-            )
-        )
-    }
-
-    @Test
-    fun validateBackupPasswordInput_requires_matching_confirmation() {
-        assertEquals(
-            BackupPasswordValidationError.MISMATCH,
-            validateBackupPasswordInput(
-                password = "123456",
-                confirmPassword = "654321",
                 minimumPasswordLength = 6,
             )
         )
@@ -48,7 +34,6 @@ class BackupPasswordDialogValidationTest {
         assertNull(
             validateBackupPasswordInput(
                 password = "123456",
-                confirmPassword = "123456",
                 minimumPasswordLength = 6,
             )
         )

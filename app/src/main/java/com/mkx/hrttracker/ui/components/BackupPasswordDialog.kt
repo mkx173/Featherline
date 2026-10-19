@@ -28,8 +28,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -49,21 +47,14 @@ fun BackupPasswordDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    warningMessage: String? = null,
-    confirmPasswordLabel: String? = null,
     isInProgress: Boolean = false,
     minimumPasswordLength: Int = 0,
 ) {
     var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
     var showValidationErrors by remember { mutableStateOf(false) }
-    val requireConfirmation = confirmPasswordLabel != null
-    val confirmPasswordFocusRequester = remember { FocusRequester() }
     val validationError = validateBackupPasswordInput(
         password = password,
-        confirmPassword = confirmPassword.takeIf { requireConfirmation },
         minimumPasswordLength = minimumPasswordLength,
     )
     val submit = {
@@ -86,18 +77,8 @@ fun BackupPasswordDialog(
                     minimumPasswordLength,
                 )
 
-            BackupPasswordValidationError.MISMATCH,
-            null,
-                -> null
+            null -> null
         }
-    }
-    val confirmPasswordValidationMessage = if (
-        showValidationErrors &&
-        validationError == BackupPasswordValidationError.MISMATCH
-    ) {
-        stringResource(R.string.settings_backup_password_mismatch)
-    } else {
-        null
     }
 
     HazeBasicAlertDialog(
@@ -135,13 +116,6 @@ fun BackupPasswordDialog(
                         color = AlertDialogDefaults.textContentColor,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    warningMessage?.let { warningText ->
-                        Text(
-                            text = warningText,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
                     BackupPasswordField(
                         value = password,
                         onValueChange = {
@@ -160,45 +134,12 @@ fun BackupPasswordDialog(
                             }
                         },
                         isError = passwordValidationMessage != null,
-                        imeAction = if (requireConfirmation) ImeAction.Next else ImeAction.Done,
                         onImeAction = {
-                            if (requireConfirmation) {
-                                confirmPasswordFocusRequester.requestFocus()
-                            } else if (!isInProgress) {
+                            if (!isInProgress) {
                                 submit()
                             }
                         },
                     )
-                    confirmPasswordLabel?.let { label ->
-                        BackupPasswordField(
-                            value = confirmPassword,
-                            onValueChange = {
-                                confirmPassword = it
-                                showValidationErrors = false
-                            },
-                            label = label,
-                            passwordVisible = confirmPasswordVisible,
-                            onToggleVisibility = {
-                                confirmPasswordVisible = !confirmPasswordVisible
-                            },
-                            supportingText = confirmPasswordValidationMessage?.let { message ->
-                                {
-                                    Text(
-                                        text = message,
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            },
-                            isError = confirmPasswordValidationMessage != null,
-                            imeAction = ImeAction.Done,
-                            onImeAction = {
-                                if (!isInProgress) {
-                                    submit()
-                                }
-                            },
-                            modifier = Modifier.focusRequester(confirmPasswordFocusRequester),
-                        )
-                    }
                 }
                 // Buttons stay visually enabled while a restore/backup is in
                 // flight; the click handlers no-op so a double-tap can't fire
@@ -225,7 +166,6 @@ fun BackupPasswordDialog(
 
 internal fun validateBackupPasswordInput(
     password: String,
-    confirmPassword: String?,
     minimumPasswordLength: Int,
 ): BackupPasswordValidationError? {
     if (password.isEmpty()) {
@@ -234,16 +174,12 @@ internal fun validateBackupPasswordInput(
     if (password.length < minimumPasswordLength) {
         return BackupPasswordValidationError.TOO_SHORT
     }
-    if (confirmPassword != null && password != confirmPassword) {
-        return BackupPasswordValidationError.MISMATCH
-    }
     return null
 }
 
 internal enum class BackupPasswordValidationError {
     REQUIRED,
     TOO_SHORT,
-    MISMATCH,
 }
 
 @Composable

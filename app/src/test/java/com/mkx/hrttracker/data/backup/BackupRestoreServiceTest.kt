@@ -427,9 +427,9 @@ class BackupRestoreServiceTest {
         )
         val logsSlot = slot<List<MedicationLogEntryEntity>>()
 
-        val encryptedBytes = exportService.buildEncryptedBackupBytes(
-            password = "password",
-            exportedAt = Instant.parse("2026-04-26T03:04:05Z"),
+        val encryptedBytes = backupCrypto.encryptSnapshotJson(
+            json = exportService.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z")),
+            password = "password".toCharArray(),
         )
         service.restoreBackupBytes(encryptedBytes = encryptedBytes, password = "password")
 

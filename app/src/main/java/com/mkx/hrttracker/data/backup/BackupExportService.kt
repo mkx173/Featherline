@@ -62,30 +62,19 @@ class BackupExportService @Inject constructor(
         BackupSnapshotJsonCodec.encode(buildSnapshot(exportedAt))
     }
 
-    internal suspend fun buildEncryptedBackupBytes(
-        password: String,
-        exportedAt: Instant = Instant.now(),
-    ): ByteArray = withContext(Dispatchers.IO) {
-        val passwordChars = password.toCharArray()
-        try {
-            backupCrypto.encryptSnapshotJson(
-                json = buildBackupSnapshotJson(exportedAt),
-                password = passwordChars,
-            )
-        } finally {
-            passwordChars.fill(Char.MIN_VALUE)
-        }
-    }
-
+    /** Encrypts with the backup master key [mk] (container v4) and embeds [keyringJson]. */
     suspend fun prepareBackupExport(
-        password: String,
+        mk: ByteArray,
+        keyringJson: String,
         exportedAt: Instant = Instant.now(),
     ): PreparedBackupExport = withContext(Dispatchers.IO) {
         val displayName = buildBackupFileName(exportedAt)
-        val payload = buildEncryptedBackupBytes(
-            password = password,
-            exportedAt = exportedAt,
-        )
+        val json = buildBackupSnapshotJson(exportedAt).toByteArray(Charsets.UTF_8)
+        val payload = try {
+            backupCrypto.encryptWithKey(json, mk, keyringJson)
+        } finally {
+            json.fill(0)
+        }
         val tempFile = File.createTempFile(
             PREPARED_BACKUP_FILE_PREFIX,
             PREPARED_BACKUP_FILE_SUFFIX,

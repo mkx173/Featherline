@@ -55,6 +55,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -976,48 +977,45 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun buildEncryptedBackupBytes_wraps_snapshot_json_in_binary_container() = runTest {
-        every { settingsRepository.onboardingCompleted } returns flowOf(false)
-        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
-        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
-        coEvery { medicineRepository.getAll() } returns emptyList()
-        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
-        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+    fun prepareBackupExport_writes_container_v4_whose_keyring_opens_with_the_recovery_key() = runTest {
+        stubEmptyData()
+        val keyringCrypto = KeyringCrypto(backupCrypto)
+        val mk = ByteArray(32) { index -> (index + 1).toByte() }
+        val recoveryKey = "K7QM3XRT9F2BHW4D"
+        val keyringJson = keyringCrypto.encode(keyringCrypto.newKeyring(mk, recoveryKey, now = 1L))
 
-        val encryptedBytes = service.buildEncryptedBackupBytes(
-            password = "secret",
+        val preparedBackupExport = service.prepareBackupExport(
+            mk = mk,
+            keyringJson = keyringJson,
             exportedAt = Instant.parse("2026-04-26T03:04:05Z"),
         )
-        val decryptedJson = backupCrypto.decryptSnapshotJson(
-            encryptedBytes = encryptedBytes,
-            password = "secret".toCharArray(),
-        )
+        val encryptedBytes = File(preparedBackupExport.tempFilePath).readBytes()
 
-        assertTrue(encryptedBytes.isNotEmpty())
         assertTrue(
             encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size)
                 .contentEquals(BackupCrypto.MAGIC_BYTES)
         )
-        assertTrue(!encryptedBytes.toString(Charsets.UTF_8).contains("\"packageName\""))
+        assertEquals(
+            BackupCrypto.KEY_BACKUP_CONTAINER_VERSION,
+            encryptedBytes[BackupCrypto.MAGIC_BYTES.size].toInt(),
+        )
+        assertFalse(encryptedBytes.toString(Charsets.UTF_8).contains("\"packageName\""))
+        val peekedKeyring = keyringCrypto.decode(checkNotNull(backupCrypto.peekKeyring(encryptedBytes)))
+        assertArrayEquals(mk, keyringCrypto.unwrapRecovery(peekedKeyring, recoveryKey))
+        val decryptedJson = backupCrypto.decryptWithKey(encryptedBytes, mk).toString(Charsets.UTF_8)
         assertNotNull(BackupSnapshotJsonCodec.decode(decryptedJson))
     }
 
     @Test
     fun prepareBackupExport_creates_temp_payload_and_discardPreparedBackup_removes_it() = runTest {
-        every { settingsRepository.onboardingCompleted } returns flowOf(false)
-        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
-        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
-        coEvery { medicineRepository.getAll() } returns emptyList()
-        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
-        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+        stubEmptyData()
+        val keyringCrypto = KeyringCrypto(backupCrypto)
+        val mk = ByteArray(32)
 
-        val preparedBackupExport = service.prepareBackupExport(password = "secret123")
+        val preparedBackupExport = service.prepareBackupExport(
+            mk = mk,
+            keyringJson = keyringCrypto.encode(keyringCrypto.newKeyring(mk, "0000000000000000", now = 1L)),
+        )
         val tempFile = File(preparedBackupExport.tempFilePath)
 
         assertTrue(tempFile.exists())
@@ -1026,6 +1024,18 @@ class BackupExportServiceTest {
         service.discardPreparedBackup(preparedBackupExport)
 
         assertFalse(tempFile.exists())
+    }
+
+    private fun stubEmptyData() {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
     }
 
     @Test

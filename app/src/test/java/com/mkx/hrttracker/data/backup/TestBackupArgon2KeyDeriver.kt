@@ -23,3 +23,17 @@ internal class TestBackupArgon2KeyDeriver : BackupArgon2KeyDeriver {
         return digest.digest().copyOf(parameters.hashLengthBytes)
     }
 }
+
+// Writes a v3 (password) container. Export now writes v4, so this survives
+// only as the fixture builder for the v2/v3 restore tests.
+internal fun BackupCrypto.encryptSnapshotJson(
+    json: String,
+    password: CharArray,
+): ByteArray {
+    val plaintextBytes = json.toByteArray(Charsets.UTF_8)
+    return try {
+        encrypt(plaintext = plaintextBytes, password = password)
+    } finally {
+        plaintextBytes.fill(0)
+    }
+}

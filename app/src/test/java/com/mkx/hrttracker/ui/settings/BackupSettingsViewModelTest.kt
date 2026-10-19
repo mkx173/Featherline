@@ -3,8 +3,14 @@ package com.mkx.hrttracker.ui.settings
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import com.mkx.hrttracker.data.backup.BackupCrypto
 import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupKeyStore
 import com.mkx.hrttracker.data.backup.BackupRestoreService
+import com.mkx.hrttracker.data.backup.KeyringCrypto
+import com.mkx.hrttracker.data.backup.PreparedBackupExport
+import com.mkx.hrttracker.data.backup.RecoveryKey
+import com.mkx.hrttracker.data.backup.TestBackupArgon2KeyDeriver
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportFatalException
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
@@ -21,13 +27,16 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -37,6 +46,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BackupSettingsViewModelTest {
@@ -45,12 +55,19 @@ class BackupSettingsViewModelTest {
     private val backupExportService: BackupExportService = mockk()
     private val backupRestoreService: BackupRestoreService = mockk()
     private val externalImportService: ExternalImportService = mockk()
+    private val backupKeyStore: BackupKeyStore = mockk()
+    private val keyringCrypto = KeyringCrypto(BackupCrypto(TestBackupArgon2KeyDeriver()))
+    private val preparedBackupExport = PreparedBackupExport(
+        displayName = "featherline-backup.hrtbackup",
+        tempFilePath = "/cache/prepared-backup.tmp",
+    )
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { applicationContext.contentResolver } returns contentResolver
+        every { backupKeyStore.keyState } returns MutableStateFlow(null)
     }
 
     @After
@@ -247,13 +264,162 @@ class BackupSettingsViewModelTest {
         assertFalse(viewModel.uiState.value.isBackupRestoreInProgress)
     }
 
+    @Test
+    fun backupToFile_atKey_preparesWithStoredKeyAndShowsNoDialog() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val mk = ByteArray(32) { 7 }
+        coEvery { backupKeyStore.masterKey() } returns mk
+        coEvery { backupKeyStore.keyringJson() } returns "keyring"
+        val prepareCalls = stubPrepare()
+
+        val result = viewModel.onBackupToFileClick()
+        advanceUntilIdle()
+
+        assertSame(preparedBackupExport, result)
+        assertArrayEquals(ByteArray(32) { 7 }, prepareCalls.single().first)
+        assertEquals("keyring", prepareCalls.single().second)
+        assertArrayEquals(ByteArray(32), mk)
+        assertNull(viewModel.uiState.value.keySetup)
+        assertEquals(
+            preparedBackupExport.tempFilePath,
+            viewModel.uiState.value.pendingPreparedBackupExport?.tempFilePath,
+        )
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun backupToFile_atNoKey_setsUpKeyThenInstallsAndPrepares() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prepareCalls = stubPrepare()
+        lateinit var installedMk: ByteArray
+        lateinit var installedKeyring: String
+        coEvery { backupKeyStore.install(any(), any(), any()) } coAnswers {
+            installedMk = firstArg<ByteArray>().copyOf()
+            installedKeyring = thirdArg()
+        }
+
+        val setup = startKeySetup(viewModel)
+        assertEquals(BackupKeySetupStep.REVEAL, setup.step)
+        assertEquals(setup.recoveryKey, RecoveryKey.parse(setup.recoveryKey))
+        viewModel.onRecoveryKeySaved()
+        advanceUntilIdle()
+        assertEquals(BackupKeySetupStep.ENTER_BACK, viewModel.uiState.value.keySetup?.step)
+        // Typed the lenient way: lower case with dashes.
+        viewModel.onEnterBackInputChanged(RecoveryKey.format(setup.recoveryKey).lowercase())
+        val result = viewModel.onEnterBackSubmit()
+        advanceUntilIdle()
+
+        assertSame(preparedBackupExport, result)
+        coVerify(exactly = 1) { backupKeyStore.install(any(), setup.recoveryKey, any()) }
+        val keyring = keyringCrypto.decode(installedKeyring)
+        assertEquals(keyringCrypto.mkCheck(installedMk), keyring.mkCheck)
+        assertArrayEquals(installedMk, keyringCrypto.unwrapRecovery(keyring, setup.recoveryKey))
+        assertArrayEquals(installedMk, prepareCalls.single().first)
+        assertEquals(installedKeyring, prepareCalls.single().second)
+        assertNull(viewModel.uiState.value.keySetup)
+        assertNotNull(viewModel.uiState.value.pendingPreparedBackupExport)
+    }
+
+    @Test
+    fun enterBackMismatch_installsNothingAndShowsError() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val setup = startKeySetup(viewModel)
+        viewModel.onRecoveryKeySaved()
+        val wrongKey = if (setup.recoveryKey.startsWith("0")) "1" + setup.recoveryKey.drop(1)
+        else "0" + setup.recoveryKey.drop(1)
+
+        viewModel.onEnterBackInputChanged(wrongKey)
+        assertNull(viewModel.onEnterBackSubmit())
+        advanceUntilIdle()
+
+        val state = checkNotNull(viewModel.uiState.value.keySetup)
+        assertTrue(state.isMismatch)
+        assertEquals(setup.recoveryKey, state.recoveryKey)
+        // Back returns to A1 with the same key.
+        viewModel.onEnterBackBack()
+        advanceUntilIdle()
+        assertEquals(BackupKeySetupStep.REVEAL, viewModel.uiState.value.keySetup?.step)
+        assertEquals(setup.recoveryKey, viewModel.uiState.value.keySetup?.recoveryKey)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
+    @Test
+    fun cancelKeySetup_installsNothingAndZeroesTheMasterKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        startKeySetup(viewModel)
+        val mk = checkNotNull(viewModel.keySetupMasterKey)
+
+        viewModel.cancelKeySetup()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.keySetup)
+        assertArrayEquals(ByteArray(32), mk)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+        // The next tap makes a new key.
+        assertNotNull(startKeySetup(viewModel))
+    }
+
+    @Test
+    fun backupToFile_whenKeystoreReadThrows_startsKeySetup() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+
+        assertNull(viewModel.onBackupToFileClick())
+        advanceUntilIdle()
+
+        assertEquals(BackupKeySetupStep.REVEAL, viewModel.uiState.value.keySetup?.step)
+        coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
+    @Test
+    fun backupToFile_whenKeyringReadThrows_failsWithoutKeySetup() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupKeyStore.masterKey() } returns ByteArray(32)
+        coEvery { backupKeyStore.keyringJson() } throws IOException("keyring.json")
+
+        val error = runCatching { viewModel.onBackupToFileClick() }.exceptionOrNull()
+        advanceUntilIdle()
+
+        assertTrue(error is IOException)
+
+        assertNull(viewModel.uiState.value.keySetup)
+        coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
     private fun createViewModel(): BackupSettingsViewModel {
         return BackupSettingsViewModel(
             applicationContext = applicationContext,
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
             externalImportService = externalImportService,
+            backupKeyStore = backupKeyStore,
+            keyringCrypto = keyringCrypto,
         )
+    }
+
+    // Records what prepareBackupExport saw: the caller zeroes its MK right after.
+    private fun stubPrepare(): MutableList<Pair<ByteArray, String>> {
+        val calls = mutableListOf<Pair<ByteArray, String>>()
+        coEvery { backupExportService.prepareBackupExport(any(), any(), any()) } coAnswers {
+            calls += firstArg<ByteArray>().copyOf() to secondArg<String>()
+            preparedBackupExport
+        }
+        return calls
+    }
+
+    private suspend fun TestScope.startKeySetup(viewModel: BackupSettingsViewModel): BackupKeySetupUiState {
+        coEvery { backupKeyStore.masterKey() } returns null
+        assertNull(viewModel.onBackupToFileClick())
+        advanceUntilIdle()
+        return checkNotNull(viewModel.uiState.value.keySetup)
     }
 
     private fun sampleExternalImportPreview(): ExternalImportPreview {

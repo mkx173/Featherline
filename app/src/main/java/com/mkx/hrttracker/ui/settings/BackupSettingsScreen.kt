@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -26,12 +27,9 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -44,7 +42,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.backup.BackupKeyState
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
+import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
@@ -67,6 +67,7 @@ fun BackupSettingsScreen(
     viewModel: BackupSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val backupKeyState by viewModel.backupKeyState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The long-lived LaunchedEffect(viewModel) toast collectors below never
     // restart, so they read the latest localized context at emit time (see
@@ -82,7 +83,6 @@ fun BackupSettingsScreen(
     val pickerResultScope = remember(activity, coroutineScope) {
         (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
     }
-    var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     val isBackupExportInProgress = uiState.isBackupExportInProgress
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
@@ -94,7 +94,8 @@ fun BackupSettingsScreen(
                 tempFilePath = preparedBackupExport.tempFilePath,
             )
         }
-    val isBackupFlowPending = pendingPreparedBackupExport != null
+    val keySetup = uiState.keySetup
+    val isBackupFlowPending = pendingPreparedBackupExport != null || keySetup != null
     val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
     val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
         stringResource(
@@ -199,6 +200,35 @@ fun BackupSettingsScreen(
             }
         }
     }
+    // Prepares the export through [prepare] (null: nothing to export yet, a
+    // key-setup step is showing) and opens the folder picker.
+    fun launchBackupExport(prepare: suspend () -> PreparedBackupExport?) {
+        coroutineScope.launch {
+            val preparedBackupExport = try {
+                prepare() ?: return@launch
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                Toast.makeText(
+                    context,
+                    backupExportFailedMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+            try {
+                backupDirectoryLauncher.launch(null)
+            } catch (_: Exception) {
+                viewModel.discardPreparedBackup(preparedBackupExport)
+                viewModel.clearPendingPreparedBackupExport()
+                Toast.makeText(
+                    context,
+                    backupExportFailedMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
     val restoreBackupFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { fileUri ->
@@ -277,10 +307,11 @@ fun BackupSettingsScreen(
     }
 
     BackupSettingsScreenContent(
+        showNoKeyFooter = backupKeyState == BackupKeyState.NoKey,
         onNavigateBack = onNavigateBack,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
-                showBackupPasswordDialog = true
+                launchBackupExport { viewModel.onBackupToFileClick() }
             }
         },
         onRestoreFromFileClick = {
@@ -328,50 +359,16 @@ fun BackupSettingsScreen(
         )
     }
 
-    if (showBackupPasswordDialog && !isAppLocked) {
-        BackupPasswordDialog(
-            title = stringResource(R.string.settings_backup_password_title),
-            message = stringResource(R.string.settings_backup_password_message),
-            warningMessage = stringResource(R.string.settings_backup_password_warning),
-            confirmLabel = stringResource(R.string.settings_backup_password_confirm),
-            passwordLabel = stringResource(R.string.settings_backup_password_label),
-            confirmPasswordLabel = stringResource(R.string.settings_backup_confirm_password_label),
+    keySetup?.takeUnless { isAppLocked }?.let { setup ->
+        BackupKeySetupDialog(
+            state = setup,
             isInProgress = isBackupExportInProgress,
-            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
-            onDismiss = { showBackupPasswordDialog = false },
-            onConfirm = { password ->
-                coroutineScope.launch {
-                    viewModel.setBackupExportInProgress(true)
-                    val preparedBackupExport = try {
-                        viewModel.prepareBackupExport(password)
-                    } catch (_: Exception) {
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return@launch
-                    } finally {
-                        viewModel.setBackupExportInProgress(false)
-                    }
-
-                    viewModel.setPendingPreparedBackupExport(
-                        displayName = preparedBackupExport.displayName,
-                        tempFilePath = preparedBackupExport.tempFilePath,
-                    )
-                    showBackupPasswordDialog = false
-                    try {
-                        backupDirectoryLauncher.launch(null)
-                    } catch (_: Exception) {
-                        viewModel.discardPreparedBackup(preparedBackupExport)
-                        viewModel.clearPendingPreparedBackupExport()
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+            onCancel = viewModel::cancelKeySetup,
+            onSaved = viewModel::onRecoveryKeySaved,
+            onBack = viewModel::onEnterBackBack,
+            onInputChange = viewModel::onEnterBackInputChanged,
+            onContinue = {
+                launchBackupExport { viewModel.onEnterBackSubmit() }
             },
         )
     }
@@ -413,6 +410,8 @@ internal fun BackupSettingsScreenContent(
     onRestoreFromFileClick: () -> Unit,
     onImportExternalTrackerClick: () -> Unit,
     modifier: Modifier = Modifier,
+    // Null key state (not read yet) hides it, so it never flashes at Key.
+    showNoKeyFooter: Boolean = false,
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(
@@ -479,6 +478,18 @@ internal fun BackupSettingsScreenContent(
                         )
                     }
                 }
+                if (showNoKeyFooter) {
+                    Text(
+                        text = stringResource(R.string.settings_backup_file_no_key_footer),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            start = dimensionResource(R.dimen.padding_medium),
+                            end = dimensionResource(R.dimen.padding_medium),
+                            top = 10.dp,
+                        ),
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
@@ -514,6 +525,7 @@ internal fun BackupSettingsScreenContent(
 private fun BackupSettingsScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         BackupSettingsScreenContent(
+            showNoKeyFooter = true,
             onNavigateBack = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },

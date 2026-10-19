@@ -2,12 +2,17 @@ package com.mkx.hrttracker.ui.settings
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
+import com.mkx.hrttracker.data.backup.BackupKeyState
+import com.mkx.hrttracker.data.backup.BackupKeyStore
+import com.mkx.hrttracker.data.backup.KeyringCrypto
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
+import com.mkx.hrttracker.data.backup.RecoveryKey
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
@@ -24,11 +29,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.security.SecureRandom
 import javax.inject.Inject
 
 @HiltViewModel
@@ -37,6 +44,8 @@ class BackupSettingsViewModel @Inject constructor(
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
     private val externalImportService: ExternalImportService,
+    private val backupKeyStore: BackupKeyStore,
+    private val keyringCrypto: KeyringCrypto,
 ) : ViewModel() {
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
@@ -44,6 +53,14 @@ class BackupSettingsViewModel @Inject constructor(
     private val isBackupExportInProgress = MutableStateFlow(false)
     private val isBackupRestoreInProgress = MutableStateFlow(false)
     private val isExternalImportInProgress = MutableStateFlow(false)
+    private val keySetup = MutableStateFlow<BackupKeySetupUiState?>(null)
+
+    // Key setup's MK, generated with [keySetup]'s recovery key. Kept out of
+    // the UI state; zeroed by [endKeySetup] on every exit, onCleared() is
+    // only a backstop.
+    @VisibleForTesting
+    internal var keySetupMasterKey: ByteArray? = null
+        private set
     private val externalImportEventsInternal = MutableSharedFlow<ExternalImportEvent>(
         replay = 1,
         extraBufferCapacity = 4,
@@ -65,6 +82,7 @@ class BackupSettingsViewModel @Inject constructor(
         isBackupExportInProgress,
         isBackupRestoreInProgress,
         isExternalImportInProgress,
+        keySetup,
     ) { values ->
         BackupSettingsUiState(
             pendingPreparedBackupExport = values[0] as PendingPreparedBackupExport?,
@@ -73,6 +91,7 @@ class BackupSettingsViewModel @Inject constructor(
             isBackupExportInProgress = values[3] as Boolean,
             isBackupRestoreInProgress = values[4] as Boolean,
             isExternalImportInProgress = values[5] as Boolean,
+            keySetup = values[6] as BackupKeySetupUiState?,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -80,12 +99,118 @@ class BackupSettingsViewModel @Inject constructor(
         initialValue = BackupSettingsUiState(),
     )
 
-    suspend fun prepareBackupExport(
-        password: String,
+    // Null until the store's first read; the footer treats that as unknown.
+    val backupKeyState: StateFlow<BackupKeyState?> = backupKeyStore.keyState
+
+    /**
+     * Backup to file. With a key on this phone, prepares the export and
+     * returns it for the folder picker (Flow B). Without one, starts key setup
+     * (Flow A) and returns null; [onEnterBackSubmit] then finishes the export.
+     */
+    suspend fun onBackupToFileClick(): PreparedBackupExport? {
+        if (isBackupExportInProgress.value || keySetup.value != null) return null
+        setBackupExportInProgress(true)
+        try {
+            var mk: ByteArray? = null
+            try {
+                // Asked on every tap: keyState may still be null (not read yet).
+                mk = try {
+                    backupKeyStore.masterKey()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // ponytail: the Keystore can't decrypt the MK blob, and it
+                    // won't for the rest of this process. Set up a new key:
+                    // install overwrites both halves.
+                    null
+                }
+                // Outside that catch: a failed keyring read is an export
+                // failure, never a reason to replace a key this phone holds.
+                val keyringJson = mk?.let { backupKeyStore.keyringJson() }
+                if (mk != null && keyringJson != null) {
+                    return prepareBackupExport(mk, keyringJson)
+                }
+            } finally {
+                mk?.fill(0)
+            }
+            val secureRandom = SecureRandom()
+            keySetupMasterKey = ByteArray(MASTER_KEY_LENGTH_BYTES).also(secureRandom::nextBytes)
+            keySetup.value = BackupKeySetupUiState(recoveryKey = RecoveryKey.generate(secureRandom))
+            return null
+        } finally {
+            setBackupExportInProgress(false)
+        }
+    }
+
+    fun onRecoveryKeySaved() {
+        keySetup.update { it?.copy(step = BackupKeySetupStep.ENTER_BACK, isMismatch = false) }
+    }
+
+    fun onEnterBackBack() {
+        keySetup.update { it?.copy(step = BackupKeySetupStep.REVEAL, isMismatch = false) }
+    }
+
+    fun onEnterBackInputChanged(input: String) {
+        keySetup.update { it?.copy(input = input, isMismatch = false) }
+    }
+
+    /** Cancel or system back anywhere in key setup: nothing is written. */
+    fun cancelKeySetup() {
+        if (isBackupExportInProgress.value) return
+        endKeySetup()
+    }
+
+    /**
+     * On a match, installs the key and prepares the export for the folder
+     * picker. Returns null on a mismatch, which A2 shows.
+     */
+    suspend fun onEnterBackSubmit(): PreparedBackupExport? {
+        if (isBackupExportInProgress.value) return null
+        val setup = keySetup.value ?: return null
+        val mk = keySetupMasterKey ?: return null
+        if (RecoveryKey.parse(setup.input) != setup.recoveryKey) {
+            keySetup.value = setup.copy(isMismatch = true)
+            return null
+        }
+        setBackupExportInProgress(true)
+        try {
+            val keyringJson = keyringCrypto.encode(
+                keyringCrypto.newKeyring(mk, setup.recoveryKey, now = System.currentTimeMillis())
+            )
+            backupKeyStore.install(mk, setup.recoveryKey, keyringJson)
+            return prepareBackupExport(mk, keyringJson)
+        } finally {
+            // Installed or failed, this setup is over: a retry makes a new key,
+            // and after an install the next tap is Flow B.
+            endKeySetup()
+            setBackupExportInProgress(false)
+        }
+    }
+
+    private suspend fun prepareBackupExport(
+        mk: ByteArray,
+        keyringJson: String,
     ): PreparedBackupExport {
-        return backupExportService.prepareBackupExport(
-            password = password,
+        val preparedBackupExport = backupExportService.prepareBackupExport(
+            mk = mk,
+            keyringJson = keyringJson,
         )
+        setPendingPreparedBackupExport(
+            displayName = preparedBackupExport.displayName,
+            tempFilePath = preparedBackupExport.tempFilePath,
+        )
+        return preparedBackupExport
+    }
+
+    private fun endKeySetup() {
+        keySetupMasterKey?.fill(0)
+        keySetupMasterKey = null
+        keySetup.value = null
+    }
+
+    override fun onCleared() {
+        endKeySetup()
+        super.onCleared()
     }
 
     suspend fun exportPreparedBackup(
@@ -328,6 +453,17 @@ data class BackupSettingsUiState(
     val isBackupExportInProgress: Boolean = false,
     val isBackupRestoreInProgress: Boolean = false,
     val isExternalImportInProgress: Boolean = false,
+    val keySetup: BackupKeySetupUiState? = null,
+)
+
+enum class BackupKeySetupStep { REVEAL, ENTER_BACK }
+
+data class BackupKeySetupUiState(
+    val recoveryKey: String,
+    val step: BackupKeySetupStep = BackupKeySetupStep.REVEAL,
+    // The A2 field, held here rather than in saved instance state.
+    val input: String = "",
+    val isMismatch: Boolean = false,
 )
 
 data class PendingPreparedBackupExport(
@@ -375,4 +511,5 @@ private fun readBoundedExternalImportBytes(inputStream: InputStream): ByteArray 
     return buffer.toByteArray()
 }
 
+private const val MASTER_KEY_LENGTH_BYTES = 32
 private const val MAX_EXTERNAL_IMPORT_JSON_BYTES = 32L * 1024L * 1024L

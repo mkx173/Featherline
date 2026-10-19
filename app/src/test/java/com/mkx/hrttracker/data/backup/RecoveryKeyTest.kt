@@ -61,4 +61,28 @@ class RecoveryKeyTest {
         assertNull(RecoveryKey.parse("ı7QM-3XRT-9F2B-HW4D"))
         assertNull(RecoveryKey.parse(""))
     }
+
+    @Test
+    fun parse_folds_full_width_symbols_and_skips_unicode_dashes_and_format_characters() {
+        // Full-width letters and digits from a CJK keyboard.
+        assertEquals("K7QM3XRT9F2BHW4D", RecoveryKey.parse("\uFF2B\uFF17\uFF31\uFF2D-3XRT-9F2B-HW4D"))
+        assertEquals("K7QM3XRT9F2BHW4D", RecoveryKey.parse("ｋ７ｑｍ－３ｘｒｔ－９ｆ２ｂ－ｈｗ４ｄ"))
+        // En dash, em dash, hyphen, non-breaking hyphen and the minus sign.
+        assertEquals("K7QM3XRT9F2BHW4D", RecoveryKey.parse("K7QM\u20133XRT\u20149F2B\u2010HW4D\u2011\u2212"))
+        // Zero-width space, zero-width joiner, BOM and a no-break space.
+        assertEquals("K7QM3XRT9F2BHW4D", RecoveryKey.parse("\uFEFFK7QM\u200B3XRT\u200D9F2B\u00A0HW4D"))
+    }
+
+    @Test
+    fun parse_still_rejects_u_and_wrong_lengths_after_folding() {
+        assertNull(RecoveryKey.parse("\uFF35" + "7QM-3XRT-9F2B-HW4D"))
+        assertNull(RecoveryKey.parse("K7QM\u20133XRT\u20149F2B\u2010HW4"))
+        assertNull(RecoveryKey.parse("K7QM\u200B3XRT\u200B9F2B\u200BHW4DX"))
+    }
+
+    @Test
+    fun symbols_keeps_invalid_characters_for_parse_to_reject() {
+        assertEquals("K7QMU", RecoveryKey.symbols("k7qm-u"))
+        assertEquals("K7QM!", RecoveryKey.symbols("k7qm !"))
+    }
 }

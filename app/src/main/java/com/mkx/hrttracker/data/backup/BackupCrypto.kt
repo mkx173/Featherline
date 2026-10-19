@@ -25,21 +25,6 @@ class BackupCrypto internal constructor(
     @Inject
     constructor() : this(Argon2KtBackupArgon2KeyDeriver())
 
-    fun encryptSnapshotJson(
-        json: String,
-        password: CharArray,
-    ): ByteArray {
-        val plaintextBytes = json.toByteArray(Charsets.UTF_8)
-        return try {
-            encrypt(
-                plaintext = plaintextBytes,
-                password = password,
-            )
-        } finally {
-            plaintextBytes.fill(0)
-        }
-    }
-
     fun decryptSnapshotJson(
         encryptedBytes: ByteArray,
         password: CharArray,
