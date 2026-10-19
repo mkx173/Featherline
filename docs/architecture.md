@@ -363,11 +363,11 @@ stores are `@Singleton` and constructor-injected.
 Navigation is single-Activity, single-NavHost. The entry point is
 [`HrtTrackerNavHost`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
 which routes between Compose destinations declared via a `Screen`
-sealed class. At time of writing the app exposes 15 `Screen`
+sealed class. At time of writing the app exposes 16 `Screen`
 destinations, grouped by feature area: `Main`, `Plan` (plus
 `PlanBatchAdd`, `PlanArchivedGroups`), `Journal` (plus
 `JournalMilestones`, `JournalAllNotes`), `History`, `Settings` (plus
-`SettingsCalibration`, `SettingsCalibrationUnits`,
+`SettingsBackup`, `SettingsCalibration`, `SettingsCalibrationUnits`,
 `SettingsCalibrationEntry`), `EditMedicationGroup`, and the catalog
 pair `Medicines` and `MedicineDetail` (the medicine manager opens
 its "Create medicine" form as a bottom sheet rather than its own

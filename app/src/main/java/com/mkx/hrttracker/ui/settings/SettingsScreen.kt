@@ -12,10 +12,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
-import android.provider.OpenableColumns
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,7 +47,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -85,10 +82,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -102,7 +97,6 @@ import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
-import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
@@ -119,9 +113,7 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
-import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
@@ -130,7 +122,6 @@ import com.mkx.hrttracker.widget.WidgetHueSpectrumTrack
 import com.mkx.hrttracker.widget.centeredOffsetReadout
 import com.mkx.hrttracker.widget.defaultSeedHue
 import com.mkx.hrttracker.widget.hueSwatchColor
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -140,6 +131,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
+    onBackupRestoreClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -154,16 +146,8 @@ fun SettingsScreen(
     // pre-resolved string from the composition that first launched them.
     val latestContext by rememberUpdatedState(context)
     val activity = LocalActivity.current
-    val appLockViewModel: AppLockViewModel = hiltViewModel(
-        viewModelStoreOwner = activity as ComponentActivity,
-    )
-    val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
-    val isAppLocked = appLockUiState.shouldShowLockScreen
     val configuration = LocalConfiguration.current
     val coroutineScope = rememberCoroutineScope()
-    val pickerResultScope = remember(activity, coroutineScope) {
-        (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
-    }
     val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
@@ -176,60 +160,8 @@ fun SettingsScreen(
     )
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
-    var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    val isBackupExportInProgress = uiState.isBackupExportInProgress
-    val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
-    val pendingRestoreRequest = uiState.pendingRestoreRequest
-    val pendingPreparedBackupExportState = uiState.pendingPreparedBackupExport
-    val pendingPreparedBackupExport =
-        pendingPreparedBackupExportState?.let { preparedBackupExport ->
-            viewModel.restorePreparedBackupExport(
-                displayName = preparedBackupExport.displayName,
-                tempFilePath = preparedBackupExport.tempFilePath,
-            )
-        }
-    val isBackupFlowPending = pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
-    val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
-    val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
-        stringResource(
-            R.string.settings_backup_export_success,
-            preparedBackupExport.displayName,
-        )
-    }
-    val backupRestoreIncompatibleFileMessage =
-        stringResource(R.string.settings_backup_restore_incompatible_file)
-    val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
-    val externalImportFailedMessage = stringResource(R.string.external_import_failed)
-    val isBackupActionBlocked =
-        isBackupExportInProgress || isBackupRestoreInProgress || isBackupFlowPending
-    val externalImportReviewSheetState =
-        rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // Restore runs in viewModelScope so it survives the activity recreate
-    // that the restored app-locale setting triggers. Results come back
-    // through this replaying SharedFlow so the new composition still
-    // shows the toast.
-    LaunchedEffect(viewModel) {
-        viewModel.backupRestoreEvents.collect { event ->
-            val messageRes = when (event) {
-                BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
-                is BackupRestoreEvent.Failure -> when (event.error) {
-                    is IncompatibleBackupFileException,
-                    is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
-
-                    else -> R.string.settings_backup_restore_failed
-                }
-            }
-            Toast.makeText(
-                latestContext,
-                latestContext.getString(messageRes),
-                Toast.LENGTH_SHORT,
-            ).show()
-            viewModel.consumeBackupRestoreEvent()
-        }
-    }
     LaunchedEffect(uiState.securityErrorMessageRes) {
         val messageRes = uiState.securityErrorMessageRes ?: return@LaunchedEffect
         Toast.makeText(latestContext, latestContext.getString(messageRes), Toast.LENGTH_LONG).show()
@@ -266,20 +198,6 @@ fun SettingsScreen(
             viewModel.consumeSettingsMutationEvent()
         }
     }
-    LaunchedEffect(viewModel) {
-        viewModel.externalImportEvents.collect { event ->
-            val messageRes = when (event) {
-                is ExternalImportEvent.Success -> R.string.external_import_success
-                is ExternalImportEvent.Failure -> R.string.external_import_failed
-            }
-            Toast.makeText(
-                latestContext,
-                latestContext.getString(messageRes),
-                Toast.LENGTH_SHORT,
-            ).show()
-            viewModel.consumeExternalImportEvent()
-        }
-    }
     val diagnosticsExportSuccessMessage =
         stringResource(R.string.settings_diagnostics_export_success)
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
@@ -306,133 +224,6 @@ fun SettingsScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         reminderCapabilityReconciler.requestReconcile("settings_exact_alarm_result")
-    }
-    val backupDirectoryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { directoryUri ->
-        val preparedBackupExport = pendingPreparedBackupExport
-        if (directoryUri == null) {
-            if (preparedBackupExport != null) {
-                pickerResultScope.launch {
-                    viewModel.discardPreparedBackup(preparedBackupExport)
-                    viewModel.clearPendingPreparedBackupExport()
-                }
-            }
-            return@rememberLauncherForActivityResult
-        }
-        if (
-            preparedBackupExport == null ||
-            isBackupExportInProgress ||
-            isBackupRestoreInProgress
-        ) {
-            viewModel.clearPendingPreparedBackupExport()
-            Toast.makeText(
-                context,
-                backupExportFailedMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-            return@rememberLauncherForActivityResult
-        }
-
-        pickerResultScope.launch {
-            viewModel.setBackupExportInProgress(true)
-            try {
-                viewModel.exportPreparedBackup(
-                    directoryUri = directoryUri,
-                    preparedBackupExport = preparedBackupExport,
-                )
-                Toast.makeText(
-                    context,
-                    backupExportSuccessMessage ?: backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } catch (_: Exception) {
-                Toast.makeText(
-                    context,
-                    backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                viewModel.setBackupExportInProgress(false)
-                viewModel.clearPendingPreparedBackupExport()
-            }
-        }
-    }
-    val restoreBackupFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { fileUri ->
-        if (fileUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
-            return@rememberLauncherForActivityResult
-        }
-        pickerResultScope.launch {
-            viewModel.setBackupRestoreInProgress(true)
-            try {
-                // Load the file bytes once here (while the picker's read
-                // grant is still fresh) and stash them in the pending
-                // request. The password dialog can then decrypt from
-                // memory without re-opening the URI — that re-open used
-                // to fail intermittently on the first attempt after a
-                // fresh install because the temporary SAF grant could
-                // lapse before the user finished typing.
-                //
-                // Resolve the display name before we load the bytes so a
-                // failure in that lookup can't strand the encrypted bytes
-                // outside the ViewModel's ownership.
-                val displayName = resolveDocumentDisplayName(context, fileUri)
-                val encryptedBytes = viewModel.loadAndValidateBackupBytes(fileUri)
-                var transferredOwnership = false
-                try {
-                    viewModel.setPendingRestoreRequest(
-                        fileUri = fileUri,
-                        displayName = displayName,
-                        encryptedBytes = encryptedBytes,
-                    )
-                    transferredOwnership = true
-                } finally {
-                    if (!transferredOwnership) {
-                        encryptedBytes.fill(0)
-                    }
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                Toast.makeText(
-                    context,
-                    if (error is IncompatibleBackupFileException) {
-                        backupRestoreIncompatibleFileMessage
-                    } else {
-                        backupRestoreFailedMessage
-                    },
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                viewModel.setBackupRestoreInProgress(false)
-            }
-        }
-    }
-    val externalImportFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { fileUri ->
-        if (
-            fileUri == null ||
-            isBackupActionBlocked ||
-            uiState.isExternalImportInProgress
-        ) {
-            return@rememberLauncherForActivityResult
-        }
-        pickerResultScope.launch {
-            viewModel.setExternalImportInProgress(true)
-            try {
-                viewModel.loadExternalImportPreview(fileUri)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                // loadExternalImportPreview emits the failure event consumed above,
-                // keeping all external-import result toasts in one replaying flow.
-            } finally {
-                viewModel.setExternalImportInProgress(false)
-            }
-        }
     }
     val diagnosticsExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(DIAGNOSTICS_EXPORT_MIME_TYPE)
@@ -557,37 +348,7 @@ fun SettingsScreen(
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
         onWidgetAppearanceChange = viewModel::setWidgetAppearance,
-        onBackupToFileClick = {
-            if (!isBackupActionBlocked) {
-                showBackupPasswordDialog = true
-            }
-        },
-        onRestoreFromFileClick = {
-            if (!isBackupActionBlocked) {
-                try {
-                    restoreBackupFileLauncher.launch(arrayOf("*/*"))
-                } catch (_: Exception) {
-                    Toast.makeText(
-                        context,
-                        backupRestoreFailedMessage,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        },
-        onImportExternalTrackerClick = {
-            if (!isBackupActionBlocked && !uiState.isExternalImportInProgress) {
-                try {
-                    externalImportFileLauncher.launch(EXTERNAL_IMPORT_MIME_TYPES)
-                } catch (_: Exception) {
-                    Toast.makeText(
-                        context,
-                        externalImportFailedMessage,
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
-        },
+        onBackupRestoreClick = onBackupRestoreClick,
         showDiagnosticsExport = BuildConfig.DEBUG,
         onExportDiagnosticLogsClick = {
             if (!isDiagnosticsExportInProgress && BuildConfig.DEBUG) {
@@ -606,98 +367,6 @@ fun SettingsScreen(
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
-
-    uiState.pendingExternalImportPreview?.takeUnless { isAppLocked }?.let { preview ->
-        ExternalImportReviewSheet(
-            preview = preview,
-            isImporting = uiState.isExternalImportInProgress,
-            sheetState = externalImportReviewSheetState,
-            onDismissRequest = {
-                hideBottomSheet(coroutineScope, externalImportReviewSheetState) {
-                    viewModel.clearPendingExternalImportPreview()
-                }
-            },
-            onImportClick = {
-                viewModel.requestExternalImport()
-            },
-        )
-    }
-
-    if (showBackupPasswordDialog && !isAppLocked) {
-        BackupPasswordDialog(
-            title = stringResource(R.string.settings_backup_password_title),
-            message = stringResource(R.string.settings_backup_password_message),
-            warningMessage = stringResource(R.string.settings_backup_password_warning),
-            confirmLabel = stringResource(R.string.settings_backup_password_confirm),
-            passwordLabel = stringResource(R.string.settings_backup_password_label),
-            confirmPasswordLabel = stringResource(R.string.settings_backup_confirm_password_label),
-            isInProgress = isBackupExportInProgress,
-            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
-            onDismiss = { showBackupPasswordDialog = false },
-            onConfirm = { password ->
-                coroutineScope.launch {
-                    viewModel.setBackupExportInProgress(true)
-                    val preparedBackupExport = try {
-                        viewModel.prepareBackupExport(password)
-                    } catch (_: Exception) {
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return@launch
-                    } finally {
-                        viewModel.setBackupExportInProgress(false)
-                    }
-
-                    viewModel.setPendingPreparedBackupExport(
-                        displayName = preparedBackupExport.displayName,
-                        tempFilePath = preparedBackupExport.tempFilePath,
-                    )
-                    showBackupPasswordDialog = false
-                    try {
-                        backupDirectoryLauncher.launch(null)
-                    } catch (_: Exception) {
-                        viewModel.discardPreparedBackup(preparedBackupExport)
-                        viewModel.clearPendingPreparedBackupExport()
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            },
-        )
-    }
-
-    pendingRestoreRequest?.takeUnless { isAppLocked }?.let { restoreRequest ->
-        val restorePasswordMessage = if (restoreRequest.displayName != null) {
-            stringResource(
-                R.string.settings_backup_restore_password_message_with_name,
-                restoreRequest.displayName,
-            )
-        } else {
-            stringResource(R.string.settings_backup_restore_password_message)
-        }
-        BackupPasswordDialog(
-            title = stringResource(R.string.settings_backup_restore_confirm_title),
-            message = restorePasswordMessage,
-            confirmLabel = stringResource(R.string.settings_backup_restore_confirm),
-            passwordLabel = stringResource(R.string.settings_backup_password_label),
-            isInProgress = isBackupRestoreInProgress,
-            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
-            onDismiss = {
-                viewModel.clearPendingRestoreRequest()
-            },
-            onConfirm = { password ->
-                // Routed through the ViewModel so the restore + result toast
-                // outlive the activity recreate that the restored app-locale
-                // setting triggers. See backupRestoreEvents collector above.
-                viewModel.requestBackupRestore(password)
-            },
-        )
-    }
 }
 
 // Snap a slider value to whole-percent steps so the value that gets saved matches the
@@ -983,9 +652,7 @@ internal fun SettingsScreenContent(
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
     onWidgetAppearanceChange: (WidgetAppearance) -> Unit,
-    onBackupToFileClick: () -> Unit,
-    onRestoreFromFileClick: () -> Unit,
-    onImportExternalTrackerClick: () -> Unit,
+    onBackupRestoreClick: () -> Unit,
     showDiagnosticsExport: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
@@ -1546,45 +1213,15 @@ internal fun SettingsScreenContent(
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
-                HrtSection(title = stringResource(R.string.settings_backup_restore)) {
+                HrtSection(title = stringResource(R.string.settings_data)) {
                     item {
                         SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_backup_to_file),
-                            onClick = onBackupToFileClick,
-                            leadingContent = {
-                                SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_file_export)
-                                )
-                            },
-                            trailingContent = {
-                                SettingsChevronTrailingIcon()
-                            }
-                        )
-                    }
-
-                    item {
-                        SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_restore_from_file),
-                            onClick = onRestoreFromFileClick,
+                            title = stringResource(R.string.settings_backup_restore),
+                            supportingText = stringResource(R.string.settings_backup_restore_summary),
+                            onClick = onBackupRestoreClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(
                                     painter = painterResource(R.drawable.ic_settings_backup_restore)
-                                )
-                            },
-                            trailingContent = {
-                                SettingsChevronTrailingIcon()
-                            }
-                        )
-                    }
-
-                    item {
-                        SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_import_external_tracker_json),
-                            onClick = onImportExternalTrackerClick,
-                            leadingContent = {
-                                SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_download),
-                                    iconSize = 20.dp
                                 )
                             },
                             trailingContent = {
@@ -1911,7 +1548,7 @@ internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boole
     sdkInt >= Build.VERSION_CODES.S
 
 @Composable
-private fun SettingsLeadingIconSlot(
+internal fun SettingsLeadingIconSlot(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     painter: Painter? = null,
@@ -1955,7 +1592,7 @@ private fun SettingsLeadingIconSlot(
 }
 
 @Composable
-private fun SettingsChevronTrailingIcon() {
+internal fun SettingsChevronTrailingIcon() {
     Icon(
         imageVector = Icons.Rounded.ChevronRight,
         contentDescription = null,
@@ -1979,7 +1616,7 @@ private fun SettingsLinkTrailingIcon() {
 }
 
 @Composable
-private fun SettingsSegmentedListItem(
+internal fun SettingsSegmentedListItem(
     title: String,
     index: Int? = null,
     count: Int? = null,
@@ -2200,9 +1837,7 @@ private fun SettingsScreenPreview() {
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
             onWidgetAppearanceChange = { },
-            onBackupToFileClick = { },
-            onRestoreFromFileClick = { },
-            onImportExternalTrackerClick = { },
+            onBackupRestoreClick = { },
             showDiagnosticsExport = true,
             onExportDiagnosticLogsClick = { },
             onCalibrationClick = { },
@@ -2210,31 +1845,4 @@ private fun SettingsScreenPreview() {
     }
 }
 
-private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6
 private const val DIAGNOSTICS_EXPORT_MIME_TYPE = "text/plain"
-private val EXTERNAL_IMPORT_MIME_TYPES = arrayOf(
-    "application/json",
-    "text/json",
-    "text/plain",
-    "*/*",
-)
-
-private fun resolveDocumentDisplayName(
-    context: Context,
-    uri: Uri,
-): String? {
-    return context.contentResolver.query(
-        uri,
-        arrayOf(OpenableColumns.DISPLAY_NAME),
-        null,
-        null,
-        null,
-    )?.use { cursor ->
-        val nameColumnIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-        if (nameColumnIndex >= 0 && cursor.moveToFirst()) {
-            cursor.getString(nameColumnIndex)
-        } else {
-            null
-        }
-    }
-}

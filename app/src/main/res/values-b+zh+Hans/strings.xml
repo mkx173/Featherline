@@ -697,6 +697,10 @@
     <string name="settings_calibration_target_ranges_title">目标范围</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
     <string name="settings_backup_restore">备份与恢复</string>
+    <string name="settings_backup_restore_summary">备份文件、加密密钥</string>
+    <string name="settings_data">数据</string>
+    <string name="settings_backup_file">备份文件</string>
+    <string name="settings_backup_import">导入</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>
     <string name="settings_import_external_tracker_json">导入外部数据</string>

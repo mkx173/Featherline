@@ -726,6 +726,10 @@
     <string name="settings_calibration_target_ranges_title">Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
+    <string name="settings_backup_restore_summary">Backup files, encryption key</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_backup_file">Backup file</string>
+    <string name="settings_backup_import">Import</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
     <string name="settings_import_external_tracker_json">Import external data</string>

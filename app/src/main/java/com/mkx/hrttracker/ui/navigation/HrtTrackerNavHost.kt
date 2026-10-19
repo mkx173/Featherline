@@ -101,6 +101,7 @@ import com.mkx.hrttracker.ui.plan.toDraftGroupReferences
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
+import com.mkx.hrttracker.ui.settings.BackupSettingsScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
 import kotlinx.coroutines.flow.first
@@ -176,6 +177,19 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.settings_personalization_calibration
     ) {
         const val baseRoute = "settings_calibration"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+        ): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
+    data object SettingsBackup : Screen(
+        "settings_backup?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_backup_restore
+    ) {
+        const val baseRoute = "settings_backup"
 
         fun createRoute(
             topLevelParentRoute: String,
@@ -1068,7 +1082,37 @@ fun HrtTrackerNavHost(
                                 navController.navigate(
                                     Screen.SettingsCalibration.createRoute(Screen.Settings.route)
                                 )
+                            },
+                            onBackupRestoreClick = {
+                                navController.navigate(
+                                    Screen.SettingsBackup.createRoute(Screen.Settings.route)
+                                )
                             }
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.SettingsBackup.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    )
+                ) { backStackEntry ->
+                    // Scope the ViewModel to the Settings entry, as when this state
+                    // lived in SettingsViewModel: popping this page (back, a Settings
+                    // tab re-tap, back behind the app-lock screen) must not cancel an
+                    // in-flight restore or import running in its viewModelScope.
+                    val settingsEntry = remember(backStackEntry) {
+                        runCatching { navController.getBackStackEntry(Screen.Settings.route) }
+                            .getOrNull() ?: backStackEntry
+                    }
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                        BackupSettingsScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            viewModel = hiltViewModel(settingsEntry),
                         )
                     }
                 }

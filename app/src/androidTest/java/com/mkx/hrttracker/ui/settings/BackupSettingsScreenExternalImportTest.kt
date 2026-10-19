@@ -21,51 +21,27 @@ import com.mkx.hrttracker.data.importer.ExternalImportWarningMessageKey
 import com.mkx.hrttracker.data.importer.ExternalImportWarningReason
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.widget.WidgetAppearance
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalMaterial3Api::class)
-class SettingsScreenExternalImportTest {
+class BackupSettingsScreenExternalImportTest {
     @get:Rule
     val composeRule = createComposeRule()
 
     @Test
-    fun settingsContentShowsExternalImportRowInBackupRestoreSection() {
+    fun backupSettingsContentShowsExternalImportRow() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         var importClicked = false
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
-                SettingsScreenContent(
-                    uiState = SettingsUiState(),
-                    widgetAppearance = WidgetAppearance.Default,
-                    hasNotificationAccess = true,
-                    reminderSupportState = SettingsReminderSupportState.NONE,
-                    onWeightSave = { _, _ -> },
-                    onWeightClear = {},
-                    onRemindersEnabledChange = {},
-                    onRequestExactAlarmAccess = {},
-                    onScreenLockProtectionToggle = {},
-                    onAppLockGracePeriodOptionChange = {},
-                    onHideScreenContentEnabledChange = {},
-                    onAppLanguageOptionChange = {},
-                    onFirstDayOfWeekOptionChange = {},
-                    onDarkModeOptionChange = {},
-                    onAdaptiveColorEnabledChange = {},
-                    onPureBlackEnabledChange = {},
-                    onHazeBlurEnabledChange = {},
-                    onShowArchivedGroupRecordsChange = {},
-                    onHideReferenceRangesChange = {},
-                    onHideMedicationDetailsChange = {},
-                    onWidgetAppearanceChange = {},
+                BackupSettingsScreenContent(
+                    onNavigateBack = {},
                     onBackupToFileClick = {},
                     onRestoreFromFileClick = {},
                     onImportExternalTrackerClick = { importClicked = true },
-                    showDiagnosticsExport = false,
-                    onExportDiagnosticLogsClick = {},
-                    onCalibrationClick = {},
                 )
             }
         }
