@@ -164,6 +164,36 @@ class BackupKeyStoreTest {
         assertTrue(recoveryKeySecret.value != null)
     }
 
+    @Test
+    fun replace_old_exports_open_with_the_old_recovery_key_only_new_ones_with_the_new_only() = runTest {
+        val backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
+        val store = newStore()
+        store.install(mk, RECOVERY_KEY, keyringJson)
+        suspend fun export(): ByteArray = backupCrypto.encryptWithKey(
+            PLAINTEXT,
+            checkNotNull(store.masterKey()),
+            store.keyringJson(),
+        )
+        // Opening a file on another phone: the recovery slot, then the payload.
+        fun open(file: ByteArray, recoveryKey: String): ByteArray? = try {
+            val keyring = keyringCrypto.decode(checkNotNull(backupCrypto.peekKeyring(file)))
+            backupCrypto.decryptWithKey(file, keyringCrypto.unwrapRecovery(keyring, recoveryKey))
+        } catch (_: WrongRecoveryKeyException) {
+            null
+        }
+        val before = export()
+
+        val newMk = ByteArray(32) { 9 }
+        val newRecoveryKey = "GHJKMNPQRSTVWXYZ"
+        store.install(newMk, newRecoveryKey, keyringCrypto.encode(keyringCrypto.newKeyring(newMk, newRecoveryKey, now = 2L)))
+        val after = export()
+
+        assertArrayEquals(PLAINTEXT, open(before, RECOVERY_KEY))
+        assertNull(open(before, newRecoveryKey))
+        assertArrayEquals(PLAINTEXT, open(after, newRecoveryKey))
+        assertNull(open(after, RECOVERY_KEY))
+    }
+
     private suspend fun assertNoKey(store: BackupKeyStore) {
         assertNull(store.masterKey())
         assertNull(store.recoveryKey())
@@ -174,5 +204,6 @@ class BackupKeyStoreTest {
     private companion object {
         private const val RECOVERY_KEY = "0123456789ABCDEF"
         private const val CREATED_AT = 1_760_140_000_000L
+        private val PLAINTEXT = "{\"version\":4}".toByteArray()
     }
 }

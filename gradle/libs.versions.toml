@@ -37,6 +37,7 @@ kmp-wheel-picker = "0.3.0"
 benchmarkMacroJunit4 = "1.4.1"
 uiautomator = "2.3.0"
 reorderable = "2.5.1"
+zxingAndroidEmbedded = "4.3.0"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -95,6 +96,7 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

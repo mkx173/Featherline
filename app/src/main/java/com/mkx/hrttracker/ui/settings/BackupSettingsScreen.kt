@@ -16,6 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,9 +29,12 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -41,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupKeyState
 import com.mkx.hrttracker.data.backup.DamagedBackupFileException
@@ -55,8 +62,14 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -151,6 +164,26 @@ fun BackupSettingsScreen(
             ).show()
             viewModel.consumeExternalImportEvent()
         }
+    }
+    val keyMessageRes = uiState.encryptionKey.messageRes
+    LaunchedEffect(keyMessageRes) {
+        keyMessageRes ?: return@LaunchedEffect
+        Toast.makeText(latestContext, latestContext.getString(keyMessageRes), Toast.LENGTH_LONG).show()
+        viewModel.consumeEncryptionKeyMessage()
+    }
+    AppAuthenticationPromptEffect(
+        request = uiState.encryptionKey.pendingPrompt,
+        onAuthenticated = viewModel::onKeyCredentialAuthenticated,
+        onError = viewModel::onKeyCredentialError,
+    )
+    var isReplaceKeyDialogShown by rememberSaveable { mutableStateOf(false) }
+    val appLocale = rememberAppLocale()
+    val keyCreatedLabel = (backupKeyState as? BackupKeyState.Key)?.recoveryCreatedAt?.let { createdAt ->
+        val createdDate = Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+        stringResource(
+            R.string.settings_backup_recovery_key_created,
+            dateLabelFormatter(appLocale, LocalDate.now())(createdDate),
+        )
     }
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -284,6 +317,12 @@ fun BackupSettingsScreen(
             }
         }
     }
+    // C1 Scan. The library asks for the camera; a denial or back returns no
+    // contents, which leaves C1 as it was.
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        viewModel.onUnlockScanned(result.contents)
+    }
+    val scanPrompt = stringResource(R.string.settings_backup_key_scan_prompt)
     val externalImportFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { fileUri ->
@@ -311,6 +350,14 @@ fun BackupSettingsScreen(
 
     BackupSettingsScreenContent(
         showNoKeyFooter = backupKeyState == BackupKeyState.NoKey,
+        showEncryptionKeyGroup = backupKeyState is BackupKeyState.Key,
+        keyCreatedLabel = keyCreatedLabel,
+        onRecoveryKeyClick = {
+            if (!isBackupActionBlocked) viewModel.onShowRecoveryKeyClick()
+        },
+        onReplaceKeyClick = {
+            if (!isBackupActionBlocked) isReplaceKeyDialogShown = true
+        },
         onNavigateBack = onNavigateBack,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
@@ -368,8 +415,40 @@ fun BackupSettingsScreen(
             isInProgress = isBackupExportInProgress,
             onCancel = viewModel::cancelKeySetup,
             onSaved = {
-                launchBackupExport { viewModel.confirmKeySetup() }
+                if (setup.isReplace) {
+                    viewModel.confirmReplaceKey()
+                } else {
+                    launchBackupExport { viewModel.confirmKeySetup() }
+                }
             },
+        )
+    }
+
+    if (isReplaceKeyDialogShown && !isAppLocked) {
+        BackupReplaceKeyDialog(
+            onReplace = {
+                isReplaceKeyDialogShown = false
+                viewModel.onReplaceKeyClick()
+            },
+            onCancel = { isReplaceKeyDialogShown = false },
+        )
+    }
+
+    uiState.encryptionKey.shownRecoveryKey?.takeUnless { isAppLocked }?.let { recoveryKey ->
+        BackupRecoveryKeyDialog(
+            recoveryKey = recoveryKey,
+            createdLabel = keyCreatedLabel,
+            onDone = viewModel::dismissShownRecoveryKey,
+        )
+    }
+
+    if (uiState.encryptionKey.isNewKeyActive && !isAppLocked) {
+        BackupNewKeyActiveDialog(
+            onBackUpNow = {
+                viewModel.dismissNewKeyActive()
+                launchBackupExport { viewModel.onBackupToFileClick() }
+            },
+            onDone = viewModel::dismissNewKeyActive,
         )
     }
 
@@ -391,6 +470,19 @@ fun BackupSettingsScreen(
                     state = restoreKey,
                     onInputChange = viewModel::onUnlockInputChanged,
                     onUnlock = viewModel::unlockBackupRestore,
+                    onScan = {
+                        try {
+                            scanLauncher.launch(
+                                ScanOptions()
+                                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                    .setOrientationLocked(false)
+                                    .setBeepEnabled(false)
+                                    .setPrompt(scanPrompt)
+                            )
+                        } catch (_: Exception) {
+                            // ponytail: no scanner activity; Paste and typing remain.
+                        }
+                    },
                     onCancel = viewModel::clearPendingRestoreRequest,
                 )
             }
@@ -434,6 +526,11 @@ internal fun BackupSettingsScreenContent(
     modifier: Modifier = Modifier,
     // Null key state (not read yet) hides it, so it never flashes at Key.
     showNoKeyFooter: Boolean = false,
+    // Key state only; null (not read yet) hides it too.
+    showEncryptionKeyGroup: Boolean = false,
+    keyCreatedLabel: String? = null,
+    onRecoveryKeyClick: () -> Unit = {},
+    onReplaceKeyClick: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(
@@ -514,6 +611,43 @@ internal fun BackupSettingsScreenContent(
                 }
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                if (showEncryptionKeyGroup) {
+                    HrtSection(title = stringResource(R.string.settings_backup_encryption_key)) {
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_backup_recovery_key),
+                                supportingText = keyCreatedLabel,
+                                onClick = onRecoveryKeyClick,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        icon = Icons.Outlined.Key
+                                    )
+                                },
+                                trailingContent = {
+                                    SettingsChevronTrailingIcon()
+                                }
+                            )
+                        }
+
+                        item {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_backup_replace_key),
+                                onClick = onReplaceKeyClick,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        icon = Icons.Rounded.Autorenew
+                                    )
+                                },
+                                trailingContent = {
+                                    SettingsChevronTrailingIcon()
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                }
 
                 HrtSection(title = stringResource(R.string.settings_backup_import)) {
                     item {

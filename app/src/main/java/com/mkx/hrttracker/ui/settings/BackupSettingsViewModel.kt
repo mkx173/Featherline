@@ -2,9 +2,11 @@ package com.mkx.hrttracker.ui.settings
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupKeyState
@@ -19,6 +21,8 @@ import com.mkx.hrttracker.data.backup.RecoveryKey
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
+import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
+import com.mkx.hrttracker.util.AppLockSecurityManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -50,6 +54,7 @@ class BackupSettingsViewModel @Inject constructor(
     private val externalImportService: ExternalImportService,
     private val backupKeyStore: BackupKeyStore,
     private val keyringCrypto: KeyringCrypto,
+    private val appLockSecurityManager: AppLockSecurityManager,
 ) : ViewModel() {
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
@@ -59,6 +64,11 @@ class BackupSettingsViewModel @Inject constructor(
     private val isExternalImportInProgress = MutableStateFlow(false)
     private val keySetup = MutableStateFlow<BackupKeySetupUiState?>(null)
     private val restoreKey = MutableStateFlow<BackupRestoreKeyUiState?>(null)
+    private val encryptionKey = MutableStateFlow(BackupEncryptionKeyUiState())
+    private var nextPromptId = 0L
+
+    // What the device credential in [encryptionKey]'s prompt unlocks.
+    private var pendingKeyAction: KeyAction? = null
 
     // Flow C's MK, from this phone's store (C2 directly) or the file's
     // recovery slot (C1), with the recovery key typed at C1. Kept out of the
@@ -98,6 +108,7 @@ class BackupSettingsViewModel @Inject constructor(
         isExternalImportInProgress,
         keySetup,
         restoreKey,
+        encryptionKey,
     ) { values ->
         BackupSettingsUiState(
             pendingPreparedBackupExport = values[0] as PendingPreparedBackupExport?,
@@ -108,6 +119,7 @@ class BackupSettingsViewModel @Inject constructor(
             isExternalImportInProgress = values[5] as Boolean,
             keySetup = values[6] as BackupKeySetupUiState?,
             restoreKey = values[7] as BackupRestoreKeyUiState?,
+            encryptionKey = values[8] as BackupEncryptionKeyUiState,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -165,7 +177,7 @@ class BackupSettingsViewModel @Inject constructor(
     /** I saved it: installs the key and prepares the export for the folder picker. */
     suspend fun confirmKeySetup(): PreparedBackupExport? {
         if (isBackupExportInProgress.value) return null
-        val setup = keySetup.value ?: return null
+        val setup = keySetup.value?.takeUnless { it.isReplace } ?: return null
         val mk = keySetupMasterKey ?: return null
         setBackupExportInProgress(true)
         try {
@@ -184,6 +196,140 @@ class BackupSettingsViewModel @Inject constructor(
             setBackupExportInProgress(false)
         }
     }
+
+    /** E1 Recovery key: the device credential, then Show. */
+    fun onShowRecoveryKeyClick() = requestKeyCredential(KeyAction.SHOW)
+
+    /** E2, after the explain dialog: the device credential, then the new key. */
+    fun onReplaceKeyClick() {
+        if (isBackupExportInProgress.value || keySetup.value != null) return
+        requestKeyCredential(KeyAction.REPLACE)
+    }
+
+    // No screen lock: go ahead without a prompt, as the threat model allows.
+    private fun requestKeyCredential(action: KeyAction) {
+        if (appLockSecurityManager.isScreenLockMissing()) {
+            runKeyAction(action)
+            return
+        }
+        appLockSecurityManager.availabilityErrorMessageRes()?.let { messageRes ->
+            encryptionKey.update { it.copy(messageRes = messageRes) }
+            return
+        }
+        pendingKeyAction = action
+        encryptionKey.update {
+            it.copy(
+                pendingPrompt = AuthenticationPromptRequest(
+                    id = ++nextPromptId,
+                    titleRes = when (action) {
+                        KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_title
+                        KeyAction.REPLACE -> R.string.settings_backup_replace_key
+                    },
+                    subtitleRes = when (action) {
+                        KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_subtitle
+                        KeyAction.REPLACE -> R.string.settings_backup_replace_key_prompt_subtitle
+                    },
+                ),
+            )
+        }
+    }
+
+    fun onKeyCredentialAuthenticated() {
+        val action = pendingKeyAction ?: return
+        pendingKeyAction = null
+        encryptionKey.update { it.copy(pendingPrompt = null) }
+        runKeyAction(action)
+    }
+
+    // Cancel maps to no message, so it stops silently.
+    fun onKeyCredentialError(errorCode: Int) {
+        pendingKeyAction = null
+        encryptionKey.update {
+            it.copy(
+                pendingPrompt = null,
+                messageRes = appLockSecurityManager.promptErrorMessageRes(errorCode),
+            )
+        }
+    }
+
+    private fun runKeyAction(action: KeyAction) {
+        when (action) {
+            KeyAction.SHOW -> viewModelScope.launch {
+                // Any failure, the Keystore's included, ends Show: there is
+                // nothing to show and nothing here to repair.
+                val recoveryKey = try {
+                    backupKeyStore.recoveryKey()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                }
+                encryptionKey.update {
+                    if (recoveryKey == null) {
+                        it.copy(messageRes = R.string.settings_backup_key_read_failed)
+                    } else {
+                        it.copy(shownRecoveryKey = recoveryKey)
+                    }
+                }
+            }
+
+            KeyAction.REPLACE -> {
+                if (isBackupExportInProgress.value || keySetup.value != null) return
+                val secureRandom = SecureRandom()
+                keySetupMasterKey = ByteArray(MASTER_KEY_LENGTH_BYTES).also(secureRandom::nextBytes)
+                keySetup.value = BackupKeySetupUiState(
+                    recoveryKey = RecoveryKey.generate(secureRandom),
+                    isReplace = true,
+                )
+            }
+        }
+    }
+
+    fun dismissShownRecoveryKey() {
+        encryptionKey.update { it.copy(shownRecoveryKey = null) }
+    }
+
+    /**
+     * E2's I saved it: installs the new key over the old one. No export; the
+     * "New key active" dialog offers one. Runs in viewModelScope so a
+     * recreate mid-install still reaches that dialog.
+     */
+    fun confirmReplaceKey() {
+        if (isBackupExportInProgress.value) return
+        val setup = keySetup.value?.takeIf { it.isReplace } ?: return
+        val mk = keySetupMasterKey ?: return
+        setBackupExportInProgress(true)
+        viewModelScope.launch {
+            try {
+                val keyringJson = withContext(Dispatchers.Default) {
+                    keyringCrypto.encode(
+                        keyringCrypto.newKeyring(mk, setup.recoveryKey, now = System.currentTimeMillis())
+                    )
+                }
+                // ponytail: keyring before MK, so a crash in between reads as
+                // No key: the old key is gone and the next backup runs Flow A.
+                backupKeyStore.install(mk, setup.recoveryKey, keyringJson)
+                encryptionKey.update { it.copy(isNewKeyActive = true) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                encryptionKey.update { it.copy(messageRes = R.string.settings_backup_replace_key_failed) }
+            } finally {
+                endKeySetup()
+                setBackupExportInProgress(false)
+            }
+        }
+    }
+
+    fun dismissNewKeyActive() {
+        encryptionKey.update { it.copy(isNewKeyActive = false) }
+    }
+
+    fun consumeEncryptionKeyMessage() {
+        encryptionKey.update { it.copy(messageRes = null) }
+    }
+
+    private enum class KeyAction { SHOW, REPLACE }
 
     private suspend fun prepareBackupExport(
         mk: ByteArray,
@@ -471,7 +617,20 @@ class BackupSettingsViewModel @Inject constructor(
     }
 
     fun onUnlockInputChanged(input: String) {
-        restoreKey.update { it?.copy(input = input, isWrongKey = false) }
+        restoreKey.update { it?.copy(input = input, isWrongKey = false, isNotAKey = false) }
+    }
+
+    /** C1 Scan: a recovery key unlocks at once. Null (cancelled, no camera) does nothing. */
+    fun onUnlockScanned(contents: String?) {
+        contents ?: return
+        if (restoreKey.value?.let { it.isUnlocked || it.isUnlocking } != false) return
+        val recoveryKey = RecoveryKey.parse(contents)
+        if (recoveryKey == null) {
+            restoreKey.update { it?.copy(isWrongKey = false, isNotAKey = true) }
+            return
+        }
+        restoreKey.update { it?.copy(input = recoveryKey, isWrongKey = false, isNotAKey = false) }
+        unlockBackupRestore()
     }
 
     /** C1 Unlock: opens the file's recovery slot, then C2. */
@@ -481,7 +640,7 @@ class BackupSettingsViewModel @Inject constructor(
         val state = restoreKey.value ?: return
         if (state.isUnlocked || state.isUnlocking) return
         val recoveryKey = RecoveryKey.parse(state.input) ?: return
-        restoreKey.value = state.copy(isUnlocking = true, isWrongKey = false)
+        restoreKey.value = state.copy(isUnlocking = true, isWrongKey = false, isNotAKey = false)
         viewModelScope.launch {
             var mk: ByteArray? = null
             try {
@@ -596,6 +755,18 @@ data class BackupSettingsUiState(
     val keySetup: BackupKeySetupUiState? = null,
     // Flow C, for a v4 file in [pendingRestoreRequest]; null for v2/v3.
     val restoreKey: BackupRestoreKeyUiState? = null,
+    val encryptionKey: BackupEncryptionKeyUiState = BackupEncryptionKeyUiState(),
+)
+
+// The Encryption key group (E1, E2).
+data class BackupEncryptionKeyUiState(
+    val pendingPrompt: AuthenticationPromptRequest? = null,
+    // E1 Show: the recovery key on screen.
+    val shownRecoveryKey: String? = null,
+    // E2 done: "New key active".
+    val isNewKeyActive: Boolean = false,
+    // A one-shot toast.
+    @param:StringRes val messageRes: Int? = null,
 )
 
 data class BackupRestoreKeyUiState(
@@ -606,11 +777,15 @@ data class BackupRestoreKeyUiState(
     val adopt: Boolean = true,
     val input: String = "",
     val isWrongKey: Boolean = false,
+    // A scanned code that isn't a recovery key; cleared like [isWrongKey].
+    val isNotAKey: Boolean = false,
     val isUnlocking: Boolean = false,
 )
 
 data class BackupKeySetupUiState(
     val recoveryKey: String,
+    // E2 Replace rather than Flow A: no export follows.
+    val isReplace: Boolean = false,
 )
 
 data class PendingPreparedBackupExport(

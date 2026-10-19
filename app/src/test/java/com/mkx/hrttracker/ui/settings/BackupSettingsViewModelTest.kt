@@ -19,6 +19,8 @@ import com.mkx.hrttracker.data.importer.ExternalImportParseResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.importer.ExternalTrackerSourceApp
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.util.AppLockSecurityManager
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -42,6 +44,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -60,6 +63,7 @@ class BackupSettingsViewModelTest {
     private val externalImportService: ExternalImportService = mockk()
     private val backupKeyStore: BackupKeyStore = mockk()
     private val keyringCrypto = KeyringCrypto(BackupCrypto(TestBackupArgon2KeyDeriver()))
+    private val appLockSecurityManager: AppLockSecurityManager = mockk()
     private val preparedBackupExport = PreparedBackupExport(
         displayName = "featherline-backup.hrtbackup",
         tempFilePath = "/cache/prepared-backup.tmp",
@@ -72,6 +76,8 @@ class BackupSettingsViewModelTest {
         every { applicationContext.contentResolver } returns contentResolver
         every { backupKeyStore.keyState } returns MutableStateFlow(null)
         coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns null
+        every { appLockSecurityManager.isScreenLockMissing() } returns false
+        every { appLockSecurityManager.availabilityErrorMessageRes() } returns null
     }
 
     @After
@@ -662,6 +668,152 @@ class BackupSettingsViewModelTest {
         assertNull(viewModel.uiState.value.restoreKey)
     }
 
+    @Test
+    fun showRecoveryKey_needsTheCredentialUnlessThereIsNoScreenLock() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupKeyStore.recoveryKey() } returns fileRecoveryKey
+
+        viewModel.onShowRecoveryKeyClick()
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertNull(viewModel.uiState.value.encryptionKey.shownRecoveryKey)
+        coVerify(exactly = 0) { backupKeyStore.recoveryKey() }
+        viewModel.onKeyCredentialAuthenticated()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertEquals(fileRecoveryKey, viewModel.uiState.value.encryptionKey.shownRecoveryKey)
+        viewModel.dismissShownRecoveryKey()
+
+        every { appLockSecurityManager.isScreenLockMissing() } returns true
+        viewModel.onShowRecoveryKeyClick()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertEquals(fileRecoveryKey, viewModel.uiState.value.encryptionKey.shownRecoveryKey)
+    }
+
+    @Test
+    fun showRecoveryKey_whenTheReadThrows_showsTheErrorAndNothingElse() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        every { appLockSecurityManager.isScreenLockMissing() } returns true
+        coEvery { backupKeyStore.recoveryKey() } throws BackupKeyUnreadableException(IllegalStateException())
+
+        viewModel.onShowRecoveryKeyClick()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value.encryptionKey
+        assertEquals(R.string.settings_backup_key_read_failed, state.messageRes)
+        assertNull(state.shownRecoveryKey)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        coVerify(exactly = 0) { backupKeyStore.clear() }
+    }
+
+    @Test
+    fun replaceKey_afterTheCredential_installsANewKeyOnceWithoutAnExport() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        lateinit var installedMk: ByteArray
+        lateinit var installedKeyring: String
+        coEvery { backupKeyStore.install(any(), any(), any()) } coAnswers {
+            installedMk = firstArg<ByteArray>().copyOf()
+            installedKeyring = thirdArg()
+        }
+
+        viewModel.onReplaceKeyClick()
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertNull(viewModel.uiState.value.keySetup)
+        viewModel.onKeyCredentialAuthenticated()
+        advanceUntilIdle()
+        val setup = checkNotNull(viewModel.uiState.value.keySetup)
+        assertTrue(setup.isReplace)
+        assertNotEquals(fileRecoveryKey, setup.recoveryKey)
+        assertEquals(setup.recoveryKey, RecoveryKey.parse(setup.recoveryKey))
+        val mk = checkNotNull(viewModel.keySetupMasterKey).copyOf()
+        val heldMk = checkNotNull(viewModel.keySetupMasterKey)
+        // Flow A's confirm doesn't take a Replace setup.
+        assertNull(viewModel.confirmKeySetup())
+
+        viewModel.confirmReplaceKey()
+        advanceUntilIdle()
+        viewModel.uiState.first { it.encryptionKey.isNewKeyActive }
+
+        coVerify(exactly = 1) { backupKeyStore.install(any(), setup.recoveryKey, any()) }
+        assertArrayEquals(mk, installedMk)
+        val keyring = keyringCrypto.decode(installedKeyring)
+        assertEquals(keyringCrypto.mkCheck(mk), keyring.mkCheck)
+        assertArrayEquals(mk, keyringCrypto.unwrapRecovery(keyring, setup.recoveryKey))
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.keySetupMasterKey)
+        assertNull(viewModel.uiState.value.keySetup)
+        coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+
+        // Back up now is Flow B, under the new key.
+        coEvery { backupKeyStore.masterKey() } answers { installedMk.copyOf() }
+        coEvery { backupKeyStore.keyringJson() } answers { installedKeyring }
+        val prepareCalls = stubPrepare()
+        viewModel.dismissNewKeyActive()
+        assertSame(preparedBackupExport, viewModel.onBackupToFileClick())
+        assertArrayEquals(mk, prepareCalls.single().first)
+        assertEquals(installedKeyring, prepareCalls.single().second)
+    }
+
+    @Test
+    fun replaceKey_cancelledAtThePromptOrBeforeISavedIt_changesNothing() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        every { appLockSecurityManager.promptErrorMessageRes(any()) } returns null
+
+        viewModel.onReplaceKeyClick()
+        viewModel.onKeyCredentialError(10)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertNull(viewModel.uiState.value.encryptionKey.messageRes)
+        assertNull(viewModel.uiState.value.keySetup)
+        // A late success after the cancel does nothing.
+        viewModel.onKeyCredentialAuthenticated()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.keySetup)
+
+        every { appLockSecurityManager.isScreenLockMissing() } returns true
+        viewModel.onReplaceKeyClick()
+        val mk = checkNotNull(viewModel.keySetupMasterKey)
+        viewModel.cancelKeySetup()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.keySetup)
+        assertArrayEquals(ByteArray(32), mk)
+        assertFalse(viewModel.uiState.value.encryptionKey.isNewKeyActive)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun scanAtUnlock_aRecoveryKeyUnlocksAtOnce_anythingElseIsNotAKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        openV4Restore(viewModel, phoneMk = null)
+
+        viewModel.onUnlockScanned(null)
+        advanceUntilIdle()
+        assertEquals("", viewModel.uiState.value.restoreKey?.input)
+        viewModel.onUnlockScanned("https://example.com")
+        advanceUntilIdle()
+        var state = checkNotNull(viewModel.uiState.value.restoreKey)
+        assertTrue(state.isNotAKey)
+        assertFalse(state.isUnlocking)
+        viewModel.onUnlockInputChanged("A")
+        advanceUntilIdle()
+        assertFalse(checkNotNull(viewModel.uiState.value.restoreKey).isNotAKey)
+
+        viewModel.onUnlockScanned(fileRecoveryKey)
+        advanceUntilIdle()
+        state = checkNotNull(viewModel.uiState.first { it.restoreKey?.isUnlocking != true }.restoreKey)
+        assertEquals(fileRecoveryKey, state.input)
+        assertTrue(state.isUnlocked)
+        assertNotNull(viewModel.restoreMasterKey)
+    }
+
     private val fileMk = ByteArray(32) { 3 }
     private val fileRecoveryKey = RecoveryKey.generate()
 
@@ -709,6 +861,7 @@ class BackupSettingsViewModelTest {
             externalImportService = externalImportService,
             backupKeyStore = backupKeyStore,
             keyringCrypto = keyringCrypto,
+            appLockSecurityManager = appLockSecurityManager,
         )
     }
 

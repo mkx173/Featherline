@@ -6,8 +6,11 @@ import android.content.ClipboardManager
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +33,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -44,9 +50,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -78,15 +89,21 @@ import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.view.WindowCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.RecoveryKey
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeBasicAlertDialog
 import com.mkx.hrttracker.ui.components.HazeDialogSurface
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.rememberModalWindowAllowed
+import kotlin.math.floor
 
 /**
- * Flow A: shows the new recovery key. A secure full-screen dialog, so
- * screenshots, recording and the recents thumbnail are blocked on this window
- * only; the activity's own "hide screen content" setting is untouched.
+ * Flow A: shows the new recovery key; E2 Replace reuses it titled "Your new
+ * recovery key" ([BackupKeySetupUiState.isReplace]).
  */
 @Composable
 internal fun BackupKeySetupDialog(
@@ -95,12 +112,159 @@ internal fun BackupKeySetupDialog(
     onCancel: () -> Unit,
     onSaved: () -> Unit,
 ) {
-    if (!rememberModalWindowAllowed(onDismissRequest = onCancel)) {
+    val cancel = { if (!isInProgress) onCancel() }
+    SecureKeyDialog(
+        onClose = cancel,
+        closeLabel = stringResource(R.string.cancel),
+        actions = {
+            TextButton(onClick = cancel) {
+                Text(text = stringResource(R.string.cancel))
+            }
+            Button(onClick = onSaved, enabled = !isInProgress) {
+                if (isInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current,
+                    )
+                } else {
+                    Text(text = stringResource(R.string.settings_backup_key_saved))
+                }
+            }
+        },
+    ) {
+        Text(
+            text = stringResource(
+                if (state.isReplace) {
+                    R.string.settings_backup_key_replace_reveal_title
+                } else {
+                    R.string.settings_backup_key_reveal_title
+                }
+            ),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            text = stringResource(
+                if (state.isReplace) {
+                    R.string.settings_backup_key_replace_reveal_message
+                } else {
+                    R.string.settings_backup_key_reveal_message
+                }
+            ),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RecoveryKeyReveal(
+            recoveryKey = state.recoveryKey,
+            hint = stringResource(R.string.settings_backup_key_reveal_save_hint),
+        )
+    }
+}
+
+/** E1 Show: the recovery key with its QR, for adding a phone (Flow D). */
+@Composable
+internal fun BackupRecoveryKeyDialog(
+    recoveryKey: String,
+    createdLabel: String?,
+    onDone: () -> Unit,
+) {
+    SecureKeyDialog(
+        onClose = onDone,
+        closeLabel = stringResource(R.string.settings_backup_key_done),
+        actions = {
+            Spacer(modifier = Modifier.weight(1f))
+            Button(onClick = onDone) {
+                Text(text = stringResource(R.string.settings_backup_key_done))
+            }
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = stringResource(R.string.settings_backup_recovery_key),
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            createdLabel?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        RecoveryKeyQrCode(
+            recoveryKey = recoveryKey,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+        RecoveryKeyReveal(
+            recoveryKey = recoveryKey,
+            hint = stringResource(R.string.settings_backup_key_show_hint),
+        )
+    }
+}
+
+/** E2: what Replace does, before the device credential. */
+@Composable
+internal fun BackupReplaceKeyDialog(
+    onReplace: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = stringResource(R.string.settings_backup_replace_key_title)) },
+        text = { Text(text = stringResource(R.string.settings_backup_replace_key_message)) },
+        confirmButton = {
+            TextButton(onClick = onReplace) {
+                Text(text = stringResource(R.string.settings_backup_replace_key_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+/** E2 done: the new key is installed. Back up now runs Flow B. */
+@Composable
+internal fun BackupNewKeyActiveDialog(
+    onBackUpNow: () -> Unit,
+    onDone: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(text = stringResource(R.string.settings_backup_new_key_active_title)) },
+        text = { Text(text = stringResource(R.string.settings_backup_new_key_active_message)) },
+        confirmButton = {
+            TextButton(onClick = onBackUpNow) {
+                Text(text = stringResource(R.string.settings_backup_new_key_back_up_now))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDone) {
+                Text(text = stringResource(R.string.settings_backup_key_done))
+            }
+        },
+    )
+}
+
+/**
+ * A secure full-screen dialog: screenshots, recording and the recents
+ * thumbnail are blocked on this window only; the activity's own "hide screen
+ * content" setting is untouched.
+ */
+@Composable
+private fun SecureKeyDialog(
+    onClose: () -> Unit,
+    closeLabel: String,
+    actions: @Composable RowScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (!rememberModalWindowAllowed(onDismissRequest = onClose)) {
         return
     }
     NavigationLockEffect(active = true)
-    val cancel = { if (!isInProgress) onCancel() }
-    Dialog(onDismissRequest = cancel, properties = SecureFullScreenDialogProperties) {
+    Dialog(onDismissRequest = onClose, properties = SecureFullScreenDialogProperties) {
         // The dialog window draws behind the bars with its own appearance,
         // which defaults to light icons; match the surface instead.
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
@@ -115,10 +279,10 @@ internal fun BackupKeySetupDialog(
         }
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.systemBarsPadding()) {
-                IconButton(onClick = cancel, modifier = Modifier.padding(4.dp)) {
+                IconButton(onClick = onClose, modifier = Modifier.padding(4.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        contentDescription = stringResource(R.string.cancel),
+                        contentDescription = closeLabel,
                     )
                 }
                 Column(
@@ -127,47 +291,77 @@ internal fun BackupKeySetupDialog(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_backup_key_reveal_title),
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_backup_key_reveal_message),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    RecoveryKeyReveal(recoveryKey = state.recoveryKey)
-                }
+                    content = content,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = cancel) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    Button(onClick = onSaved, enabled = !isInProgress) {
-                        if (isInProgress) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = LocalContentColor.current,
-                            )
-                        } else {
-                            Text(text = stringResource(R.string.settings_backup_key_saved))
-                        }
-                    }
+                    content = actions,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Black on white in both themes with the quiet zone inside the white, since
+ * some scanners fail on inverted codes. Fills the dialog width up to a cap.
+ */
+@Composable
+private fun RecoveryKeyQrCode(
+    recoveryKey: String,
+    modifier: Modifier = Modifier,
+) {
+    val matrix = remember(recoveryKey) { recoveryKeyQrMatrix(recoveryKey) }
+    val description = stringResource(R.string.settings_backup_key_qr_description)
+    Canvas(
+        modifier = modifier
+            .widthIn(max = 320.dp)
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .semantics { contentDescription = description },
+    ) {
+        // Whole pixels per module, centered, so modules don't blur or seam.
+        val module = floor(size.width / matrix.width)
+        val origin = (size.width - module * matrix.width) / 2f
+        for (y in 0 until matrix.height) {
+            for (x in 0 until matrix.width) {
+                if (matrix[x, y]) {
+                    drawRect(
+                        color = Color.Black,
+                        topLeft = Offset(origin + x * module, origin + y * module),
+                        size = Size(module, module),
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * The QR for E1: only the 16 canonical characters, which alphanumeric mode
+ * fits in version 1 (21x21) at error correction M, plus a 4-module quiet zone.
+ */
+internal fun recoveryKeyQrMatrix(recoveryKey: String): BitMatrix = QRCodeWriter().encode(
+    recoveryKey,
+    BarcodeFormat.QR_CODE,
+    0,
+    0,
+    mapOf(
+        EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+        EncodeHintType.MARGIN to QR_QUIET_ZONE_MODULES,
+    ),
+)
+
+private const val QR_QUIET_ZONE_MODULES = 4
+
 @Composable
-private fun RecoveryKeyReveal(recoveryKey: String) {
+private fun RecoveryKeyReveal(recoveryKey: String, hint: String) {
     val context = LocalContext.current
     val clipboard = context.getSystemService(ClipboardManager::class.java)
     val formattedKey = RecoveryKey.format(recoveryKey)
@@ -226,7 +420,7 @@ private fun RecoveryKeyReveal(recoveryKey: String) {
     }
     BackupKeyNote(
         painter = rememberVectorPainter(Icons.Outlined.Shield),
-        text = stringResource(R.string.settings_backup_key_reveal_save_hint),
+        text = hint,
     )
     BackupKeyNote(
         painter = painterResource(R.drawable.ic_lock),
@@ -266,6 +460,7 @@ internal fun BackupUnlockDialog(
     state: BackupRestoreKeyUiState,
     onInputChange: (String) -> Unit,
     onUnlock: () -> Unit,
+    onScan: () -> Unit,
     onCancel: () -> Unit,
 ) {
     val canUnlock = RecoveryKey.parse(state.input) != null && !state.isUnlocking
@@ -304,9 +499,20 @@ internal fun BackupUnlockDialog(
         RecoveryKeyField(
             value = state.input,
             onValueChange = onInputChange,
-            errorMessage = stringResource(R.string.settings_backup_unlock_wrong_key)
-                .takeIf { state.isWrongKey },
+            errorMessage = when {
+                state.isNotAKey -> stringResource(R.string.settings_backup_key_not_a_key)
+                state.isWrongKey -> stringResource(R.string.settings_backup_unlock_wrong_key)
+                else -> null
+            },
             onDone = { if (canUnlock) onUnlock() },
+            trailingActions = {
+                IconButton(onClick = onScan, enabled = !state.isUnlocking) {
+                    Icon(
+                        imageVector = Icons.Rounded.QrCodeScanner,
+                        contentDescription = stringResource(R.string.settings_backup_key_scan),
+                    )
+                }
+            },
         )
     }
 }
