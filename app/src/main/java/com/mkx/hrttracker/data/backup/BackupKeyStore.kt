@@ -37,7 +37,9 @@ sealed interface BackupKeyState {
  * The two stores can't be written atomically, so [install] writes the keyring
  * first and MK last, and every read applies one rule: Key only when MK and the
  * keyring both exist and `mkCheck(MK)` matches. Anything else is NoKey and the
- * leftovers are deleted, so a crash mid-write lands at NoKey.
+ * leftovers are deleted, so a crash mid-write lands at NoKey. The one
+ * exception is a keyring this build can't decode: it is left in place for the
+ * newer build that may have written it.
  */
 @Singleton
 class BackupKeyStore internal constructor(
@@ -151,15 +153,22 @@ class BackupKeyStore internal constructor(
         // Keyring first, so a failed file read never strands an unzeroed MK copy.
         val keyringJson = if (keyringFile.isFile) keyringFile.readText(Charsets.UTF_8) else null
         val mk = masterKeySecret.read()
-        val keyring = keyringJson?.let { runCatching { keyringCrypto.decode(it) }.getOrNull() }
-
-        if (mk != null && keyringJson != null && keyring != null && mkCheckMatches(mk, keyring)) {
-            return Stored(mk, keyringJson, keyring)
+        if (mk != null && keyringJson != null) {
+            val keyring = runCatching { keyringCrypto.decode(keyringJson) }.getOrNull()
+            if (keyring == null) {
+                // ponytail: a keyring this build can't decode may be a newer
+                // build's (downgrade). Leave both halves for it; the next
+                // install here overwrites them anyway.
+                mk.fill(0)
+                return null
+            }
+            if (mkCheckMatches(mk, keyring)) return Stored(mk, keyringJson, keyring)
         }
-        if (mk != null || keyringJson != null) {
-            mk?.fill(0)
-            clearLocked()
-        }
+        // A stray half (crash between the two writes, or an interrupted
+        // Replace's mkCheck mismatch) and any leftover recovery key go.
+        // Clearing nothing is a no-op, so this is cheap at NoKey.
+        mk?.fill(0)
+        clearLocked()
         return null
     }
 

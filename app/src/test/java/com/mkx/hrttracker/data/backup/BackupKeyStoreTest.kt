@@ -89,14 +89,42 @@ class BackupKeyStoreTest {
         assertNull(masterKeySecret.value)
     }
 
+    // A keyring this build can't decode may be a newer build's (downgrade), so
+    // both halves stay on disk for it. Install still overwrites them.
     @Test
-    fun corrupt_keyring_is_no_key() = runTest {
+    fun undecodable_keyring_is_no_key_but_is_left_in_place() = runTest {
+        newStore().install(mk, RECOVERY_KEY, keyringJson)
+        val newerKeyring = keyringJson.replace("\"version\":1", "\"version\":2")
+        keyringFile.writeText(newerKeyring)
+
+        val store = newStore()
+        assertNoKey(store)
+        assertEquals(newerKeyring, keyringFile.readText())
+        assertArrayEquals(mk, masterKeySecret.value)
+        assertEquals(RECOVERY_KEY.toByteArray().toList(), recoveryKeySecret.value?.toList())
+
+        store.install(mk, RECOVERY_KEY, keyringJson)
+        assertEquals(keyringJson, store.keyringJson())
+    }
+
+    @Test
+    fun undecodable_keyring_without_mk_is_deleted() = runTest {
         newStore().install(mk, RECOVERY_KEY, keyringJson)
         keyringFile.writeText("{not json")
+        masterKeySecret.clear()
 
         assertNoKey(newStore())
         assertFalse(keyringFile.exists())
-        assertNull(masterKeySecret.value)
+    }
+
+    @Test
+    fun lone_recovery_key_is_swept() = runTest {
+        newStore().install(mk, RECOVERY_KEY, keyringJson)
+        masterKeySecret.clear()
+        keyringFile.delete()
+
+        assertNoKey(newStore())
+        assertNull(recoveryKeySecret.value)
     }
 
     @Test
