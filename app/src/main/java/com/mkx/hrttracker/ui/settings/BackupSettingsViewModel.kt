@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupKeyState
 import com.mkx.hrttracker.data.backup.BackupKeyStore
+import com.mkx.hrttracker.data.backup.BackupKeyUnreadableException
 import com.mkx.hrttracker.data.backup.KeyringCrypto
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
@@ -131,15 +132,13 @@ class BackupSettingsViewModel @Inject constructor(
                 // Asked on every tap: keyState may still be null (not read yet).
                 mk = try {
                     backupKeyStore.masterKey()
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
+                } catch (_: BackupKeyUnreadableException) {
                     // ponytail: the Keystore can't decrypt the MK blob, and it
                     // won't for the rest of this process. Set up a new key:
                     // install overwrites both halves.
                     null
                 }
-                // Outside that catch: a failed keyring read is an export
+                // Any other failure (the keyring file, say) is an export
                 // failure, never a reason to replace a key this phone holds.
                 val keyringJson = mk?.let { backupKeyStore.keyringJson() }
                 if (mk != null && keyringJson != null) {
@@ -454,11 +453,10 @@ class BackupSettingsViewModel @Inject constructor(
             }
             mk = try {
                 backupKeyStore.masterKey()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
+            } catch (_: BackupKeyUnreadableException) {
                 // As at backup: a Keystore failure reads as No key. Nothing is
-                // cleared or written here; only an adopt would install.
+                // cleared or written here; only an adopt would install. Any
+                // other failure is a restore failure.
                 null
             }
             val hasKey = mk != null
@@ -547,16 +545,19 @@ class BackupSettingsViewModel @Inject constructor(
         restoreKey.value = null
     }
 
-    // A throw reads as No key here too: install overwrites both halves.
+    // The Keystore failure reads as No key here too: install overwrites both
+    // halves. Any other failure counts as a key, so nothing is overwritten.
     private suspend fun hasOwnKey(): Boolean = try {
         backupKeyStore.masterKey()?.let { mk ->
             mk.fill(0)
             true
         } ?: false
+    } catch (_: BackupKeyUnreadableException) {
+        false
     } catch (error: CancellationException) {
         throw error
     } catch (_: Exception) {
-        false
+        true
     }
 
     private fun mkCheckMatches(mk: ByteArray, mkCheck: String): Boolean = MessageDigest.isEqual(

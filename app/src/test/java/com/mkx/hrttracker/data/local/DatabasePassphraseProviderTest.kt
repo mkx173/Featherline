@@ -40,7 +40,12 @@ class FakeWrappedSecret(var value: ByteArray? = null) : WrappedSecret {
     var writes = 0
         private set
 
-    override fun read(): ByteArray? = value?.copyOf()
+    var readError: Throwable? = null
+
+    override fun read(): ByteArray? {
+        readError?.let { throw it }
+        return value?.copyOf()
+    }
 
     override fun write(clearBytes: ByteArray) {
         writes++

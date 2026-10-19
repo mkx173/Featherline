@@ -30,6 +30,13 @@ sealed interface BackupKeyState {
 }
 
 /**
+ * The Keystore can't decrypt the MK blob. Not NoKey, and it won't recover in
+ * this process; callers tell it apart from a plain file read failure.
+ */
+class BackupKeyUnreadableException(cause: Throwable) :
+    IOException("The backup key can't be read.", cause)
+
+/**
  * The device's backup key: MK and recovery key Keystore-wrapped in prefs, and
  * the keyring as raw JSON in `files/keyring.json` (kept verbatim so fields this
  * build doesn't model survive). Both stores are excluded from Auto Backup.
@@ -152,7 +159,11 @@ class BackupKeyStore internal constructor(
     private fun readLocked(): Stored? {
         // Keyring first, so a failed file read never strands an unzeroed MK copy.
         val keyringJson = if (keyringFile.isFile) keyringFile.readText(Charsets.UTF_8) else null
-        val mk = masterKeySecret.read()
+        val mk = try {
+            masterKeySecret.read()
+        } catch (error: Exception) {
+            throw BackupKeyUnreadableException(error)
+        }
         if (mk != null && keyringJson != null) {
             val keyring = runCatching { keyringCrypto.decode(keyringJson) }.getOrNull()
             if (keyring == null) {

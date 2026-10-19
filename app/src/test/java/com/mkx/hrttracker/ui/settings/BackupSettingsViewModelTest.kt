@@ -6,6 +6,7 @@ import android.net.Uri
 import com.mkx.hrttracker.data.backup.BackupCrypto
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupKeyStore
+import com.mkx.hrttracker.data.backup.BackupKeyUnreadableException
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.KeyringCrypto
@@ -372,13 +373,28 @@ class BackupSettingsViewModelTest {
     fun backupToFile_whenKeystoreReadThrows_startsKeySetup() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
-        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+        coEvery { backupKeyStore.masterKey() } throws BackupKeyUnreadableException(IOException("Keystore"))
 
         assertNull(viewModel.onBackupToFileClick())
         advanceUntilIdle()
 
         assertEquals(BackupKeySetupStep.REVEAL, viewModel.uiState.value.keySetup?.step)
         coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
+    @Test
+    fun backupToFile_whenTheKeyringFileReadThrows_failsWithoutKeySetup() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        // A plain file error out of masterKey() is not the Keystore case.
+        coEvery { backupKeyStore.masterKey() } throws IOException("keyring.json")
+
+        val error = runCatching { viewModel.onBackupToFileClick() }.exceptionOrNull()
+        advanceUntilIdle()
+
+        assertTrue(error is IOException)
+        assertNull(viewModel.uiState.value.keySetup)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
     }
 
     @Test
@@ -493,7 +509,7 @@ class BackupSettingsViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
         coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
-        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+        coEvery { backupKeyStore.masterKey() } throws BackupKeyUnreadableException(IOException("Keystore"))
 
         viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
         advanceUntilIdle()
@@ -506,12 +522,49 @@ class BackupSettingsViewModelTest {
     }
 
     @Test
+    fun restoreV4_whenTheKeyringFileReadThrowsAtOpen_isARestoreFailureNotNoKey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
+        coEvery { backupKeyStore.masterKey() } throws IOException("keyring.json")
+
+        val error = runCatching {
+            viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        }.exceptionOrNull()
+        advanceUntilIdle()
+
+        assertTrue(error is IOException)
+        assertNull(viewModel.uiState.value.restoreKey)
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
+    fun restoreV4_whenTheKeyCheckBeforeAdoptFails_restoresWithoutInstalling() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        stubKeyRestore()
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
+        coEvery { backupKeyStore.masterKey() } throws BackupKeyUnreadableException(IOException("Keystore"))
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+        unlock(viewModel, fileRecoveryKey)
+        // A file error at the re-check: the phone may hold a key, so no install.
+        coEvery { backupKeyStore.masterKey() } throws IOException("keyring.json")
+
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupRestoreService.restoreBackupBytes(any(), any<ByteArray>()) }
+        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+    }
+
+    @Test
     fun restoreV4_whenTheKeystoreThrowOnlyAtOpen_doesNotReplaceThePhonesKey() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
         stubKeyRestore()
         coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns fileKeyringJson
-        coEvery { backupKeyStore.masterKey() } throws IOException("Keystore")
+        coEvery { backupKeyStore.masterKey() } throws BackupKeyUnreadableException(IOException("Keystore"))
         viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
         advanceUntilIdle()
         unlock(viewModel, fileRecoveryKey)

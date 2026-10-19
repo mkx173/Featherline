@@ -151,6 +151,19 @@ class BackupKeyStoreTest {
         assertEquals(RECOVERY_KEY, store.recoveryKey())
     }
 
+    @Test
+    fun keystore_failure_is_unreadable_not_no_key_and_clears_nothing() = runTest {
+        val store = newStore()
+        store.install(mk, RECOVERY_KEY, keyringJson)
+        masterKeySecret.readError = IllegalStateException("Keystore")
+
+        val error = runCatching { store.masterKey() }.exceptionOrNull()
+
+        assertTrue(error is BackupKeyUnreadableException)
+        assertTrue(keyringFile.isFile)
+        assertTrue(recoveryKeySecret.value != null)
+    }
+
     private suspend fun assertNoKey(store: BackupKeyStore) {
         assertNull(store.masterKey())
         assertNull(store.recoveryKey())
