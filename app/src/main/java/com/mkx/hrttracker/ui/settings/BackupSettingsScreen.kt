@@ -203,8 +203,8 @@ fun BackupSettingsScreen(
             }
         }
     }
-    // Prepares the export through [prepare] (null: nothing to export yet, a
-    // key-setup step is showing) and opens the folder picker.
+    // Prepares the export through [prepare] (null: nothing to export yet, key
+    // setup is showing) and opens the folder picker.
     fun launchBackupExport(prepare: suspend () -> PreparedBackupExport?) {
         coroutineScope.launch {
             val preparedBackupExport = try {
@@ -367,11 +367,8 @@ fun BackupSettingsScreen(
             state = setup,
             isInProgress = isBackupExportInProgress,
             onCancel = viewModel::cancelKeySetup,
-            onSaved = viewModel::onRecoveryKeySaved,
-            onBack = viewModel::onEnterBackBack,
-            onInputChange = viewModel::onEnterBackInputChanged,
-            onContinue = {
-                launchBackupExport { viewModel.onEnterBackSubmit() }
+            onSaved = {
+                launchBackupExport { viewModel.confirmKeySetup() }
             },
         )
     }

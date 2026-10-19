@@ -121,7 +121,7 @@ class BackupSettingsViewModel @Inject constructor(
     /**
      * Backup to file. With a key on this phone, prepares the export and
      * returns it for the folder picker (Flow B). Without one, starts key setup
-     * (Flow A) and returns null; [onEnterBackSubmit] then finishes the export.
+     * (Flow A) and returns null; [confirmKeySetup] then finishes the export.
      */
     suspend fun onBackupToFileClick(): PreparedBackupExport? {
         if (isBackupExportInProgress.value || keySetup.value != null) return null
@@ -156,36 +156,17 @@ class BackupSettingsViewModel @Inject constructor(
         }
     }
 
-    fun onRecoveryKeySaved() {
-        keySetup.update { it?.copy(step = BackupKeySetupStep.ENTER_BACK, isMismatch = false) }
-    }
-
-    fun onEnterBackBack() {
-        keySetup.update { it?.copy(step = BackupKeySetupStep.REVEAL, isMismatch = false) }
-    }
-
-    fun onEnterBackInputChanged(input: String) {
-        keySetup.update { it?.copy(input = input, isMismatch = false) }
-    }
-
-    /** Cancel or system back anywhere in key setup: nothing is written. */
+    /** Cancel or system back in key setup: nothing is written. */
     fun cancelKeySetup() {
         if (isBackupExportInProgress.value) return
         endKeySetup()
     }
 
-    /**
-     * On a match, installs the key and prepares the export for the folder
-     * picker. Returns null on a mismatch, which A2 shows.
-     */
-    suspend fun onEnterBackSubmit(): PreparedBackupExport? {
+    /** I saved it: installs the key and prepares the export for the folder picker. */
+    suspend fun confirmKeySetup(): PreparedBackupExport? {
         if (isBackupExportInProgress.value) return null
         val setup = keySetup.value ?: return null
         val mk = keySetupMasterKey ?: return null
-        if (RecoveryKey.parse(setup.input) != setup.recoveryKey) {
-            keySetup.value = setup.copy(isMismatch = true)
-            return null
-        }
         setBackupExportInProgress(true)
         try {
             // Argon2id (64 MiB, t=3): off the main thread, as at unlock.
@@ -628,14 +609,8 @@ data class BackupRestoreKeyUiState(
     val isUnlocking: Boolean = false,
 )
 
-enum class BackupKeySetupStep { REVEAL, ENTER_BACK }
-
 data class BackupKeySetupUiState(
     val recoveryKey: String,
-    val step: BackupKeySetupStep = BackupKeySetupStep.REVEAL,
-    // The A2 field, held here rather than in saved instance state.
-    val input: String = "",
-    val isMismatch: Boolean = false,
 )
 
 data class PendingPreparedBackupExport(

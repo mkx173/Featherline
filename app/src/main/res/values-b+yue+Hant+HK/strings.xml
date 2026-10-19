@@ -707,7 +707,6 @@
     <string name="settings_backup_export_success">備份已儲存為 %1$s</string>
     <string name="settings_backup_export_failed">未能儲存備份</string>
     <string name="settings_backup_file_no_key_footer">備份全部已經加密。第一次備份嗰陣會建立你嘅復原密鑰</string>
-    <string name="settings_backup_key_step">第 %1$d 步，共 %2$d 步</string>
     <string name="settings_backup_key_reveal_title">你嘅復原密鑰</string>
     <string name="settings_backup_key_reveal_message">備份而家用儲存喺呢部手機嘅密鑰加密，之後唔使每次輸入密碼。要喺其他手機開啟備份，或者呢部手機唔見咗，你就需要呢條復原密鑰</string>
     <string name="settings_backup_key_reveal_save_hint">將佢儲存落密碼管理工具，或者抄低佢。任何人有呢條密鑰同你嘅備份檔案，都可以睇到入面嘅內容</string>
@@ -715,14 +714,9 @@
     <string name="settings_backup_key_copy">複製</string>
     <string name="settings_backup_key_copied">已複製復原密鑰</string>
     <string name="settings_backup_key_saved">我已經儲存咗</string>
-    <string name="settings_backup_key_enter_title">輸入你嘅復原密鑰</string>
-    <string name="settings_backup_key_enter_message">由密碼管理工具貼上，或者跟住你嘅記錄輸入。呢一步係確認你之後攞得返佢</string>
     <string name="settings_backup_key_field_label">復原密鑰</string>
     <string name="settings_backup_key_field_helper">16 個字母同數字，唔分大細楷，空格同連字號可以忽略</string>
     <string name="settings_backup_key_paste">貼上</string>
-    <string name="settings_backup_key_mismatch">密鑰唔相符。請檢查你儲存咗嘅內容，或者返回睇返條密鑰</string>
-    <string name="settings_backup_key_back">返回</string>
-    <string name="settings_backup_key_continue">繼續</string>
     <string name="settings_backup_password_label">密碼</string>
     <string name="settings_backup_password_required">請輸入密碼</string>
     <string name="settings_backup_password_min_length">至少使用 %1$d 個字元</string>

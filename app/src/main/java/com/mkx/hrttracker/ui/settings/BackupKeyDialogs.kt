@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -44,7 +43,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,10 +84,9 @@ import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.rememberModalWindowAllowed
 
 /**
- * Flow A: A1 shows the new recovery key, A2 asks for it back. One secure
- * full-screen dialog, so screenshots, recording and the recents thumbnail are
- * blocked on this window only; the activity's own "hide screen content"
- * setting is untouched.
+ * Flow A: shows the new recovery key. A secure full-screen dialog, so
+ * screenshots, recording and the recents thumbnail are blocked on this window
+ * only; the activity's own "hide screen content" setting is untouched.
  */
 @Composable
 internal fun BackupKeySetupDialog(
@@ -97,16 +94,11 @@ internal fun BackupKeySetupDialog(
     isInProgress: Boolean,
     onCancel: () -> Unit,
     onSaved: () -> Unit,
-    onBack: () -> Unit,
-    onInputChange: (String) -> Unit,
-    onContinue: () -> Unit,
 ) {
     if (!rememberModalWindowAllowed(onDismissRequest = onCancel)) {
         return
     }
     NavigationLockEffect(active = true)
-    val isReveal = state.step == BackupKeySetupStep.REVEAL
-    val canContinue = RecoveryKey.parse(state.input) != null
     val cancel = { if (!isInProgress) onCancel() }
     Dialog(onDismissRequest = cancel, properties = SecureFullScreenDialogProperties) {
         // The dialog window draws behind the bars with its own appearance,
@@ -122,7 +114,7 @@ internal fun BackupKeySetupDialog(
             }
         }
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(modifier = Modifier.systemBarsPadding().imePadding()) {
+            Column(modifier = Modifier.systemBarsPadding()) {
                 IconButton(onClick = cancel, modifier = Modifier.padding(4.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
@@ -137,43 +129,15 @@ internal fun BackupKeySetupDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.settings_backup_key_step, if (isReveal) 1 else 2, 2),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = stringResource(
-                            if (isReveal) {
-                                R.string.settings_backup_key_reveal_title
-                            } else {
-                                R.string.settings_backup_key_enter_title
-                            }
-                        ),
+                        text = stringResource(R.string.settings_backup_key_reveal_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
                     Text(
-                        text = stringResource(
-                            if (isReveal) {
-                                R.string.settings_backup_key_reveal_message
-                            } else {
-                                R.string.settings_backup_key_enter_message
-                            }
-                        ),
+                        text = stringResource(R.string.settings_backup_key_reveal_message),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (isReveal) {
-                        RecoveryKeyReveal(recoveryKey = state.recoveryKey)
-                    } else {
-                        RecoveryKeyField(
-                            value = state.input,
-                            onValueChange = onInputChange,
-                            errorMessage = stringResource(R.string.settings_backup_key_mismatch)
-                                .takeIf { state.isMismatch },
-                            onDone = { if (canContinue && !isInProgress) onContinue() },
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
+                    RecoveryKeyReveal(recoveryKey = state.recoveryKey)
                 }
                 Row(
                     modifier = Modifier
@@ -182,17 +146,10 @@ internal fun BackupKeySetupDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = if (isReveal) cancel else ({ if (!isInProgress) onBack() })) {
-                        Text(
-                            text = stringResource(
-                                if (isReveal) R.string.cancel else R.string.settings_backup_key_back
-                            )
-                        )
+                    TextButton(onClick = cancel) {
+                        Text(text = stringResource(R.string.cancel))
                     }
-                    Button(
-                        onClick = if (isReveal) onSaved else onContinue,
-                        enabled = isReveal || (canContinue && !isInProgress),
-                    ) {
+                    Button(onClick = onSaved, enabled = !isInProgress) {
                         if (isInProgress) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
@@ -200,15 +157,7 @@ internal fun BackupKeySetupDialog(
                                 color = LocalContentColor.current,
                             )
                         } else {
-                            Text(
-                                text = stringResource(
-                                    if (isReveal) {
-                                        R.string.settings_backup_key_saved
-                                    } else {
-                                        R.string.settings_backup_key_continue
-                                    }
-                                )
-                            )
+                            Text(text = stringResource(R.string.settings_backup_key_saved))
                         }
                     }
                 }
@@ -221,11 +170,6 @@ internal fun BackupKeySetupDialog(
 private fun RecoveryKeyReveal(recoveryKey: String) {
     val context = LocalContext.current
     val clipboard = context.getSystemService(ClipboardManager::class.java)
-    // Leaving A1 any way (I saved it, Cancel, back, the dialog closing)
-    // drops a copy we left on the clipboard.
-    DisposableEffect(clipboard) {
-        onDispose { clipboard?.clearRecoveryKeyClip() }
-    }
     val formattedKey = RecoveryKey.format(recoveryKey)
     val copiedMessage = stringResource(R.string.settings_backup_key_copied)
     Surface(
@@ -493,7 +437,7 @@ private fun BackupRestoreKeyDialog(
 }
 
 /**
- * The recovery key input for enter-back (A2) and unlock (C1). Not
+ * The recovery key input for unlock (C1). Not
  * masked, since typos have to be visible. The value is the bare symbols
  * ([RecoveryKey.symbols]); [RecoveryKeyVisualTransformation] shows the groups.
  * [trailingActions] sits before Paste (C1's Scan).
@@ -597,20 +541,9 @@ private fun recoveryKeyClip(text: String): ClipData =
         }
     }
 
-// Reading the description doesn't trigger Android 12's paste toast, and only
-// our own clip is cleared.
-private fun ClipboardManager.clearRecoveryKeyClip() {
-    if (primaryClipDescription?.label?.toString() != RECOVERY_KEY_CLIP_LABEL) return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        clearPrimaryClip()
-    } else {
-        setPrimaryClip(ClipData.newPlainText("", ""))
-    }
-}
-
 private val SecureFullScreenDialogProperties = DialogProperties(
     securePolicy = SecureFlagPolicy.SecureOn,
     usePlatformDefaultWidth = false,
-    // Edge to edge like the activity; the content pads for the bars and IME.
+    // Edge to edge like the activity; the content pads for the bars.
     decorFitsSystemWindows = false,
 )

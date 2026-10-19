@@ -305,14 +305,8 @@ class BackupSettingsViewModelTest {
         }
 
         val setup = startKeySetup(viewModel)
-        assertEquals(BackupKeySetupStep.REVEAL, setup.step)
         assertEquals(setup.recoveryKey, RecoveryKey.parse(setup.recoveryKey))
-        viewModel.onRecoveryKeySaved()
-        advanceUntilIdle()
-        assertEquals(BackupKeySetupStep.ENTER_BACK, viewModel.uiState.value.keySetup?.step)
-        // Typed the lenient way: lower case with dashes.
-        viewModel.onEnterBackInputChanged(RecoveryKey.format(setup.recoveryKey).lowercase())
-        val result = viewModel.onEnterBackSubmit()
+        val result = viewModel.confirmKeySetup()
         advanceUntilIdle()
 
         assertSame(preparedBackupExport, result)
@@ -327,27 +321,23 @@ class BackupSettingsViewModelTest {
     }
 
     @Test
-    fun enterBackMismatch_installsNothingAndShowsError() = runTest {
+    fun confirmKeySetup_whenInstallFails_endsSetupAndInstallsNothingFurther() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
-        val setup = startKeySetup(viewModel)
-        viewModel.onRecoveryKeySaved()
-        val wrongKey = if (setup.recoveryKey.startsWith("0")) "1" + setup.recoveryKey.drop(1)
-        else "0" + setup.recoveryKey.drop(1)
+        coEvery { backupKeyStore.install(any(), any(), any()) } throws IOException("keyring.json")
+        startKeySetup(viewModel)
+        val mk = checkNotNull(viewModel.keySetupMasterKey)
 
-        viewModel.onEnterBackInputChanged(wrongKey)
-        assertNull(viewModel.onEnterBackSubmit())
+        val error = runCatching { viewModel.confirmKeySetup() }.exceptionOrNull()
         advanceUntilIdle()
 
-        val state = checkNotNull(viewModel.uiState.value.keySetup)
-        assertTrue(state.isMismatch)
-        assertEquals(setup.recoveryKey, state.recoveryKey)
-        // Back returns to A1 with the same key.
-        viewModel.onEnterBackBack()
-        advanceUntilIdle()
-        assertEquals(BackupKeySetupStep.REVEAL, viewModel.uiState.value.keySetup?.step)
-        assertEquals(setup.recoveryKey, viewModel.uiState.value.keySetup?.recoveryKey)
-        coVerify(exactly = 0) { backupKeyStore.install(any(), any(), any()) }
+        assertTrue(error is IOException)
+        assertNull(viewModel.uiState.value.keySetup)
+        assertArrayEquals(ByteArray(32), mk)
+        assertFalse(viewModel.uiState.value.isBackupExportInProgress)
+        // A second confirm has no setup left to install.
+        assertNull(viewModel.confirmKeySetup())
+        coVerify(exactly = 1) { backupKeyStore.install(any(), any(), any()) }
         coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
     }
 
@@ -378,7 +368,7 @@ class BackupSettingsViewModelTest {
         assertNull(viewModel.onBackupToFileClick())
         advanceUntilIdle()
 
-        assertEquals(BackupKeySetupStep.REVEAL, viewModel.uiState.value.keySetup?.step)
+        assertNotNull(viewModel.uiState.value.keySetup)
         coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
     }
 

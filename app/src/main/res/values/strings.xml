@@ -736,7 +736,6 @@
     <string name="settings_backup_export_success">Backup saved as %1$s</string>
     <string name="settings_backup_export_failed">Unable to save backup</string>
     <string name="settings_backup_file_no_key_footer">Backups are encrypted. Your recovery key is created with your first backup.</string>
-    <string name="settings_backup_key_step">Step %1$d of %2$d</string>
     <string name="settings_backup_key_reveal_title">Your recovery key</string>
     <string name="settings_backup_key_reveal_message">Backups are now locked with a key kept on this phone, so you won’t type a password each time. To open a backup on another phone, or if this one is lost, you need this recovery key.</string>
     <string name="settings_backup_key_reveal_save_hint">Save it in your password manager or write it down. Anyone with this key and your backup files can read them.</string>
@@ -744,14 +743,9 @@
     <string name="settings_backup_key_copy">Copy</string>
     <string name="settings_backup_key_copied">Recovery key copied</string>
     <string name="settings_backup_key_saved">I saved it</string>
-    <string name="settings_backup_key_enter_title">Enter your recovery key</string>
-    <string name="settings_backup_key_enter_message">Paste it from your password manager or type it from your note. This checks that you can get it back.</string>
     <string name="settings_backup_key_field_label">Recovery key</string>
     <string name="settings_backup_key_field_helper">16 letters and numbers. Case, spaces and dashes don’t matter.</string>
     <string name="settings_backup_key_paste">Paste</string>
-    <string name="settings_backup_key_mismatch">That doesn’t match. Check what you saved, or go back to see the key.</string>
-    <string name="settings_backup_key_back">Back</string>
-    <string name="settings_backup_key_continue">Continue</string>
     <string name="settings_backup_password_label">Password</string>
     <string name="settings_backup_password_required">Enter a password</string>
     <string name="settings_backup_password_min_length">Use at least %1$d characters</string>
