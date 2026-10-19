@@ -26,7 +26,7 @@ class BackupKeyStoreTest {
     // A newer build's field must survive: the store keeps the JSON verbatim.
     private val keyringJson by lazy {
         keyringCrypto.encode(keyringCrypto.newKeyring(mk, RECOVERY_KEY, now = CREATED_AT))
-            .replaceFirst("{", "{\"recoveryKeyWrapped\":\"future\",")
+            .replaceFirst("{", "{\"futureField\":\"future\",")
     }
 
     private fun TestScope.newStore(): BackupKeyStore {
@@ -192,6 +192,37 @@ class BackupKeyStoreTest {
         assertNull(open(before, newRecoveryKey))
         assertArrayEquals(PLAINTEXT, open(after, newRecoveryKey))
         assertNull(open(after, RECOVERY_KEY))
+    }
+
+    @Test
+    fun replace_keyring_keeps_mk_and_recovery_key_and_rejects_another_mk() = runTest {
+        val store = newStore()
+        store.install(mk, RECOVERY_KEY, keyringJson)
+        val keyring = keyringCrypto.decode(keyringJson)
+        val slot = keyringCrypto.wrapPasskeySlot(mk, ByteArray(32) { 1 }, "asterismlabs.io", "aWQ", "c2FsdA==", now = 9L)
+        val withPasskey = keyringCrypto.encode(keyring.copy(slots = keyring.slots + slot))
+
+        store.replaceKeyring(withPasskey)
+
+        assertEquals(withPasskey, store.keyringJson())
+        assertEquals(withPasskey, keyringFile.readText())
+        assertFalse(tempFolder.root.resolve("no_backup/keyring.json.tmp").exists())
+        assertArrayEquals(mk, store.masterKey())
+        assertEquals(RECOVERY_KEY, store.recoveryKey())
+        assertEquals(listOf(slot), (store.keyState.value as BackupKeyState.Key).passkeySlots)
+
+        val otherMk = ByteArray(32) { 7 }
+        val foreign = keyringCrypto.encode(keyringCrypto.newKeyring(otherMk, RECOVERY_KEY, now = 3L))
+        assertTrue(runCatching { store.replaceKeyring(foreign) }.exceptionOrNull() is IllegalArgumentException)
+        assertEquals(withPasskey, keyringFile.readText())
+    }
+
+    @Test
+    fun replace_keyring_at_no_key_writes_nothing() = runTest {
+        val store = newStore()
+
+        assertTrue(runCatching { store.replaceKeyring(keyringJson) }.isFailure)
+        assertFalse(keyringFile.exists())
     }
 
     private suspend fun assertNoKey(store: BackupKeyStore) {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +41,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -77,6 +79,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun BackupSettingsScreen(
     onNavigateBack: () -> Unit,
+    onPasskeysClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BackupSettingsViewModel = hiltViewModel(),
 ) {
@@ -177,13 +180,14 @@ fun BackupSettingsScreen(
         onError = viewModel::onKeyCredentialError,
     )
     var isReplaceKeyDialogShown by rememberSaveable { mutableStateOf(false) }
-    val appLocale = rememberAppLocale()
     val keyCreatedLabel = (backupKeyState as? BackupKeyState.Key)?.recoveryCreatedAt?.let { createdAt ->
-        val createdDate = Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
-        stringResource(
-            R.string.settings_backup_recovery_key_created,
-            dateLabelFormatter(appLocale, LocalDate.now())(createdDate),
-        )
+        stringResource(R.string.settings_backup_recovery_key_created, backupKeyDateLabel(createdAt))
+    }
+    val passkeyCount = (backupKeyState as? BackupKeyState.Key)?.passkeySlots?.size ?: 0
+    val passkeysLabel = if (passkeyCount == 0) {
+        stringResource(R.string.settings_backup_passkeys_none)
+    } else {
+        pluralStringResource(R.plurals.settings_backup_passkeys_count, passkeyCount, passkeyCount)
     }
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -352,6 +356,10 @@ fun BackupSettingsScreen(
         showNoKeyFooter = backupKeyState == BackupKeyState.NoKey,
         showEncryptionKeyGroup = backupKeyState is BackupKeyState.Key,
         keyCreatedLabel = keyCreatedLabel,
+        passkeysLabel = passkeysLabel,
+        onPasskeysClick = {
+            if (!isBackupActionBlocked) onPasskeysClick()
+        },
         onRecoveryKeyClick = {
             if (!isBackupActionBlocked) viewModel.onShowRecoveryKeyClick()
         },
@@ -442,6 +450,15 @@ fun BackupSettingsScreen(
         )
     }
 
+    uiState.encryptionKey.relinkSlot?.takeUnless { isAppLocked }?.let { slot ->
+        BackupRelinkPasskeyDialog(
+            addedLabel = backupKeyDateLabel(slot.createdAt),
+            isInProgress = uiState.encryptionKey.isPasskeyInProgress,
+            onLink = { activity?.let(viewModel::linkPasskey) },
+            onSkip = viewModel::skipPasskeyLink,
+        )
+    }
+
     if (uiState.encryptionKey.isNewKeyActive && !isAppLocked) {
         BackupNewKeyActiveDialog(
             onBackUpNow = {
@@ -484,6 +501,7 @@ fun BackupSettingsScreen(
                         }
                     },
                     onCancel = viewModel::clearPendingRestoreRequest,
+                    onUsePasskey = { activity?.let(viewModel::unlockBackupRestoreWithPasskey) },
                 )
             }
             return@let
@@ -529,6 +547,8 @@ internal fun BackupSettingsScreenContent(
     // Key state only; null (not read yet) hides it too.
     showEncryptionKeyGroup: Boolean = false,
     keyCreatedLabel: String? = null,
+    passkeysLabel: String? = null,
+    onPasskeysClick: () -> Unit = {},
     onRecoveryKeyClick: () -> Unit = {},
     onReplaceKeyClick: () -> Unit = {},
 ) {
@@ -632,6 +652,22 @@ internal fun BackupSettingsScreenContent(
 
                         item {
                             SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_backup_passkeys),
+                                supportingText = passkeysLabel,
+                                onClick = onPasskeysClick,
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        icon = Icons.Outlined.Fingerprint
+                                    )
+                                },
+                                trailingContent = {
+                                    SettingsChevronTrailingIcon()
+                                }
+                            )
+                        }
+
+                        item {
+                            SettingsSegmentedListItem(
                                 title = stringResource(R.string.settings_backup_replace_key),
                                 onClick = onReplaceKeyClick,
                                 leadingContent = {
@@ -688,6 +724,13 @@ private fun BackupSettingsScreenPreview() {
             onImportExternalTrackerClick = { },
         )
     }
+}
+
+/** A key or slot creation date, as the Encryption key rows show it. */
+@Composable
+internal fun backupKeyDateLabel(createdAt: Long): String {
+    val createdDate = Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+    return dateLabelFormatter(rememberAppLocale(), LocalDate.now())(createdDate)
 }
 
 private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6

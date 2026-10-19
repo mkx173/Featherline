@@ -257,6 +257,10 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.zxing.android.embedded)
+    implementation(libs.androidx.credentials)
+    // Play Services bridge for passkeys on Android 9-13. Not in arm64/x64
+    // (F-Droid): there Android 14+ is the bridge, and below it there is none.
+    "playImplementation"(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.glance.appwidget.preview)
     implementation(libs.androidx.glance.preview)
 

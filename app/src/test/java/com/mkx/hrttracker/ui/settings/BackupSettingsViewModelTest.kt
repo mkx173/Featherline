@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.app.Activity
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
@@ -10,6 +11,10 @@ import com.mkx.hrttracker.data.backup.BackupKeyUnreadableException
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.KeyringCrypto
+import com.mkx.hrttracker.data.backup.PasskeyCancelledException
+import com.mkx.hrttracker.data.backup.PasskeyPrfUnsupportedException
+import com.mkx.hrttracker.data.backup.PasskeyProviderUnavailableException
+import com.mkx.hrttracker.data.backup.PasskeySlots
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.backup.RecoveryKey
 import com.mkx.hrttracker.data.backup.TestBackupArgon2KeyDeriver
@@ -63,6 +68,7 @@ class BackupSettingsViewModelTest {
     private val externalImportService: ExternalImportService = mockk()
     private val backupKeyStore: BackupKeyStore = mockk()
     private val keyringCrypto = KeyringCrypto(BackupCrypto(TestBackupArgon2KeyDeriver()))
+    private val passkeySlots: PasskeySlots = mockk()
     private val appLockSecurityManager: AppLockSecurityManager = mockk()
     private val preparedBackupExport = PreparedBackupExport(
         displayName = "featherline-backup.hrtbackup",
@@ -814,13 +820,200 @@ class BackupSettingsViewModelTest {
         assertNotNull(viewModel.restoreMasterKey)
     }
 
+    @Test
+    fun addPasskey_credentialThenNoticeThenAppendsTheSlot() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val phoneKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+        coEvery { backupKeyStore.masterKey() } answers { fileMk.copyOf() }
+        coEvery { backupKeyStore.keyringJson() } returns keyringCrypto.encode(phoneKeyring)
+        lateinit var addedWith: ByteArray
+        val added = passkeySlot(fileMk)
+        coEvery { passkeySlots.add(activity, any()) } coAnswers {
+            addedWith = secondArg<ByteArray>().copyOf()
+            added
+        }
+        val written = stubReplaceKeyring()
+
+        viewModel.onAddPasskeyClick()
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
+        assertFalse(viewModel.uiState.value.encryptionKey.isAddPasskeyNoticeShown)
+        viewModel.onKeyCredentialAuthenticated()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.encryptionKey.isAddPasskeyNoticeShown)
+        viewModel.confirmAddPasskey(activity)
+        advanceUntilIdle()
+
+        assertArrayEquals(fileMk, addedWith)
+        val keyring = keyringCrypto.decode(written.single())
+        assertEquals(phoneKeyring.slots + added, keyring.slots)
+        assertEquals(phoneKeyring.recoveryKeyWrapped, keyring.recoveryKeyWrapped)
+        val state = viewModel.uiState.value.encryptionKey
+        assertFalse(state.isAddPasskeyNoticeShown)
+        assertFalse(state.isPasskeyInProgress)
+        assertNull(state.messageRes)
+    }
+
+    @Test
+    fun addPasskey_failuresShowTheirMessageAndWriteNothing() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        every { appLockSecurityManager.isScreenLockMissing() } returns true
+        coEvery { backupKeyStore.masterKey() } answers { fileMk.copyOf() }
+        coEvery { backupKeyStore.keyringJson() } returns fileKeyringJson
+        listOf(
+            PasskeyProviderUnavailableException(IOException()) to R.string.settings_backup_passkey_no_provider,
+            PasskeyPrfUnsupportedException() to R.string.settings_backup_passkey_no_prf,
+            PasskeyCancelledException(IOException()) to null,
+            IOException("other") to R.string.settings_backup_passkey_failed,
+        ).forEach { (error, messageRes) ->
+            coEvery { passkeySlots.add(any(), any()) } throws error
+            viewModel.onAddPasskeyClick()
+            viewModel.confirmAddPasskey(activity)
+            advanceUntilIdle()
+            assertEquals(messageRes, viewModel.uiState.value.encryptionKey.messageRes)
+            assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyInProgress)
+            viewModel.consumeEncryptionKeyMessage()
+        }
+        coVerify(exactly = 0) { backupKeyStore.replaceKeyring(any()) }
+    }
+
+    @Test
+    fun removePasskey_credentialThenConfirmRewritesWithoutTheSlot() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val phoneKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+        val slot = passkeySlot(fileMk)
+        coEvery { backupKeyStore.keyringJson() } returns
+                keyringCrypto.encode(phoneKeyring.copy(slots = phoneKeyring.slots + slot))
+        val written = stubReplaceKeyring()
+
+        viewModel.onRemovePasskeyClick(slot.id)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.encryptionKey.removePasskeySlotId)
+        viewModel.onKeyCredentialAuthenticated()
+        advanceUntilIdle()
+        assertEquals(slot.id, viewModel.uiState.value.encryptionKey.removePasskeySlotId)
+        viewModel.confirmRemovePasskey()
+        advanceUntilIdle()
+
+        assertEquals(phoneKeyring.slots, keyringCrypto.decode(written.single()).slots)
+        assertNull(viewModel.uiState.value.encryptionKey.removePasskeySlotId)
+    }
+
+    @Test
+    fun usePasskeyAtUnlock_holdsTheMkAndDerivesTheRecoveryKeyForTheAdopt() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val slot = passkeySlot(fileMk)
+        val baseKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+        val keyringJson = keyringCrypto.encode(baseKeyring.copy(slots = baseKeyring.slots + slot))
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns keyringJson
+        coEvery { backupKeyStore.masterKey() } returns null
+        coEvery { backupKeyStore.install(any(), any(), any()) } just Runs
+        stubKeyRestore()
+        coEvery { passkeySlots.unlock(activity, listOf(slot)) } coAnswers {
+            slot to keyringCrypto.unwrapPasskeySlot(slot, prfOutput)
+        }
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+        assertEquals(listOf(slot), viewModel.uiState.value.restoreKey?.passkeySlots)
+
+        viewModel.unlockBackupRestoreWithPasskey(activity)
+        advanceUntilIdle()
+
+        assertTrue(checkNotNull(viewModel.uiState.value.restoreKey).isUnlocked)
+        assertArrayEquals(fileMk, viewModel.restoreMasterKey)
+        viewModel.requestBackupRestore()
+        advanceUntilIdle()
+        coVerify { backupKeyStore.install(any(), fileRecoveryKey, keyringJson) }
+    }
+
+    @Test
+    fun usePasskeyAtUnlock_cancelOrNoProviderStaysAtC1() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val baseKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+        coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns
+                keyringCrypto.encode(baseKeyring.copy(slots = baseKeyring.slots + passkeySlot(fileMk)))
+        coEvery { backupKeyStore.masterKey() } returns null
+        coEvery { passkeySlots.unlock(any(), any()) } throws PasskeyProviderUnavailableException(IOException())
+        viewModel.setPendingRestoreRequest(mockk(), "backup.hrtbackup", byteArrayOf(4))
+        advanceUntilIdle()
+
+        viewModel.unlockBackupRestoreWithPasskey(activity)
+        advanceUntilIdle()
+
+        val state = checkNotNull(viewModel.uiState.value.restoreKey)
+        assertFalse(state.isUnlocked)
+        assertFalse(state.isUnlocking)
+        assertNull(viewModel.restoreMasterKey)
+        assertEquals(R.string.settings_backup_passkey_no_provider, viewModel.uiState.value.encryptionKey.messageRes)
+    }
+
+    @Test
+    fun replaceKey_relinkLinksOrSkipsEachOldPasskeyThenZeroesTheNewMk() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        every { appLockSecurityManager.isScreenLockMissing() } returns true
+        val oldKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
+        val linked = passkeySlot(fileMk)
+        val skipped = passkeySlot(fileMk, credentialId = "c2tpcA")
+        var currentKeyring = keyringCrypto.encode(oldKeyring.copy(slots = oldKeyring.slots + linked + skipped))
+        coEvery { backupKeyStore.keyringJson() } answers { currentKeyring }
+        coEvery { backupKeyStore.install(any(), any(), any()) } coAnswers { currentKeyring = thirdArg() }
+        coEvery { backupKeyStore.replaceKeyring(any()) } coAnswers { currentKeyring = firstArg() }
+        lateinit var rewrapMk: ByteArray
+        coEvery { passkeySlots.rewrap(activity, linked, any()) } coAnswers {
+            rewrapMk = thirdArg<ByteArray>().copyOf()
+            passkeySlot(rewrapMk)
+        }
+
+        viewModel.onReplaceKeyClick()
+        val newMk = checkNotNull(viewModel.keySetupMasterKey).copyOf()
+        viewModel.confirmReplaceKey()
+        viewModel.uiState.first { it.encryptionKey.relinkSlot != null }
+        assertEquals(linked, viewModel.uiState.value.encryptionKey.relinkSlot)
+        assertFalse(viewModel.uiState.value.encryptionKey.isNewKeyActive)
+        val heldMk = checkNotNull(viewModel.relinkMasterKey)
+
+        viewModel.linkPasskey(activity)
+        advanceUntilIdle()
+        assertArrayEquals(newMk, rewrapMk)
+        assertEquals(skipped, viewModel.uiState.value.encryptionKey.relinkSlot)
+        viewModel.skipPasskeyLink()
+        advanceUntilIdle()
+
+        val keyring = keyringCrypto.decode(currentKeyring)
+        assertEquals(keyringCrypto.mkCheck(newMk), keyring.mkCheck)
+        assertEquals(listOf("recovery", "passkey"), keyring.slots.map { it.type })
+        assertArrayEquals(newMk, keyringCrypto.unwrapPasskeySlot(keyring.slots.last(), prfOutput))
+        assertNull(viewModel.uiState.value.encryptionKey.relinkSlot)
+        assertTrue(viewModel.uiState.value.encryptionKey.isNewKeyActive)
+        assertArrayEquals(ByteArray(32), heldMk)
+        assertNull(viewModel.relinkMasterKey)
+    }
+
+    private val activity: Activity = mockk()
+    private val prfOutput = ByteArray(32) { 5 }
+
+    private fun passkeySlot(mk: ByteArray, credentialId: String = "Y3JlZA") =
+        keyringCrypto.wrapPasskeySlot(mk, prfOutput, "asterismlabs.io", credentialId, "c2FsdA==", now = 2L)
+
+    private fun stubReplaceKeyring(): MutableList<String> {
+        val calls = mutableListOf<String>()
+        coEvery { backupKeyStore.replaceKeyring(any()) } coAnswers { calls += firstArg<String>() }
+        return calls
+    }
+
     private val fileMk = ByteArray(32) { 3 }
     private val fileRecoveryKey = RecoveryKey.generate()
 
     // A field this build doesn't model, to prove the adopt is verbatim.
     private val fileKeyringJson = keyringCrypto.encode(
         keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
-    ).replaceFirst("{", "{\"recoveryKeyWrapped\":\"x\",")
+    ).replaceFirst("{", "{\"futureField\":\"x\",")
 
     // Records the MK each v4 restore saw: the ViewModel zeroes it right after.
     private fun stubKeyRestore(): MutableList<ByteArray> {
@@ -861,6 +1054,7 @@ class BackupSettingsViewModelTest {
             externalImportService = externalImportService,
             backupKeyStore = backupKeyStore,
             keyringCrypto = keyringCrypto,
+            passkeySlots = passkeySlots,
             appLockSecurityManager = appLockSecurityManager,
         )
     }

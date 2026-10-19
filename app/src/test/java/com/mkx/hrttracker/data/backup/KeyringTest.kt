@@ -3,9 +3,11 @@ package com.mkx.hrttracker.data.backup
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
 import java.util.Base64
+import javax.crypto.AEADBadTagException
 
 class KeyringTest {
     private val keyringCrypto = KeyringCrypto(BackupCrypto(TestBackupArgon2KeyDeriver()))
@@ -150,6 +152,60 @@ class KeyringTest {
             }
         }
     }
+
+    @Test
+    fun recovery_key_wrapped_round_trips_under_the_master_key_only() {
+        val keyring = keyringCrypto.newKeyring(mk, RECOVERY_KEY, now = 0L)
+
+        assertEquals(RECOVERY_KEY, keyringCrypto.unwrapRecoveryKey(keyring, mk))
+        assertNull(keyringCrypto.unwrapRecoveryKey(keyring.copy(recoveryKeyWrapped = null), mk))
+        try {
+            keyringCrypto.unwrapRecoveryKey(keyring, ByteArray(32) { 7 })
+            fail("Expected another master key to fail the tag.")
+        } catch (_: AEADBadTagException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun passkey_slot_unwraps_with_its_prf_output_only() {
+        val slot = keyringCrypto.wrapPasskeySlot(mk, prfOutput, "asterismlabs.io", "Y3JlZA", "c2FsdA==", now = 5L)
+
+        assertEquals("passkey", slot.type)
+        assertEquals(5L, slot.createdAt)
+        assertEquals("asterismlabs.io", slot.rpId)
+        assertEquals("Y3JlZA", slot.credentialId)
+        assertEquals("c2FsdA==", slot.prfSalt)
+        assertEquals(12, Base64.getDecoder().decode(slot.nonce).size)
+        assertArrayEquals(mk, keyringCrypto.unwrapPasskeySlot(slot, prfOutput))
+        listOf(
+            { keyringCrypto.unwrapPasskeySlot(slot, ByteArray(32) { 1 }) },
+            // aad = slot id: a slot moved under another id fails too.
+            { keyringCrypto.unwrapPasskeySlot(slot.copy(id = "other"), prfOutput) },
+        ).forEach { unwrap ->
+            try {
+                unwrap()
+                fail("Expected the GCM tag to fail.")
+            } catch (_: AEADBadTagException) {
+                // Expected.
+            }
+        }
+    }
+
+    @Test
+    fun keyring_with_a_passkey_slot_round_trips_and_still_opens_with_the_recovery_key() {
+        val keyring = keyringCrypto.newKeyring(mk, RECOVERY_KEY, now = 0L)
+        val slot = keyringCrypto.wrapPasskeySlot(mk, prfOutput, "asterismlabs.io", "Y3JlZA", "c2FsdA==", now = 5L)
+        val withPasskey = keyring.copy(slots = keyring.slots + slot)
+
+        val decoded = keyringCrypto.decode(keyringCrypto.encode(withPasskey))
+
+        assertEquals(withPasskey, decoded)
+        assertArrayEquals(mk, keyringCrypto.unwrapRecovery(decoded, RECOVERY_KEY))
+        assertArrayEquals(mk, keyringCrypto.unwrapPasskeySlot(decoded.slots.last(), prfOutput))
+    }
+
+    private val prfOutput = ByteArray(32) { index -> (index * 3).toByte() }
 
     private companion object {
         private const val RECOVERY_KEY = "K7QM3XRT9F2BHW4D"

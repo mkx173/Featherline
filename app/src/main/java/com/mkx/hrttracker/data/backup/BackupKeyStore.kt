@@ -26,7 +26,10 @@ sealed interface BackupKeyState {
     data object NoKey : BackupKeyState
 
     // Null only if the keyring has no recovery slot, which this build never writes.
-    data class Key(val recoveryCreatedAt: Long?) : BackupKeyState
+    data class Key(
+        val recoveryCreatedAt: Long?,
+        val passkeySlots: List<KeyringSlot> = emptyList(),
+    ) : BackupKeyState
 }
 
 /**
@@ -136,6 +139,27 @@ class BackupKeyStore internal constructor(
         }
     }
 
+    /**
+     * Swaps the keyring for one of the same MK (a slot added or removed),
+     * keeping MK and the recovery key. Throws when [keyringJson] belongs to
+     * another MK or the phone has no key.
+     */
+    suspend fun replaceKeyring(keyringJson: String) {
+        val keyring = keyringCrypto.decode(keyringJson)
+        withContext(ioDispatcher) {
+            mutex.withLock {
+                val stored = readLocked() ?: throw IOException("No backup key to update.")
+                try {
+                    require(mkCheckMatches(stored.mk, keyring)) { "The keyring does not belong to this master key." }
+                } finally {
+                    stored.mk.fill(0)
+                }
+                writeKeyringFile(keyringJson)
+                state.value = keyStateOf(keyring)
+            }
+        }
+    }
+
     suspend fun clear() {
         withContext(ioDispatcher) {
             mutex.withLock { clearLocked() }
@@ -210,6 +234,7 @@ class BackupKeyStore internal constructor(
 
     private fun keyStateOf(keyring: Keyring) = BackupKeyState.Key(
         recoveryCreatedAt = keyring.slots.firstOrNull { it.type == RECOVERY_SLOT_TYPE }?.createdAt,
+        passkeySlots = keyring.slots.filter { it.type == KeyringCrypto.SLOT_TYPE_PASSKEY },
     )
 
     private class Stored(val mk: ByteArray, val keyringJson: String, val keyring: Keyring)

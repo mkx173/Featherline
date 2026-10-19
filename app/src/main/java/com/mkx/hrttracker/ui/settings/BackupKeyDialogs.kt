@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -220,6 +221,91 @@ internal fun BackupReplaceKeyDialog(
         dismissButton = {
             TextButton(onClick = onCancel) {
                 Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+/** E3 Add passkey, after the credential: who else can open the backups. */
+@Composable
+internal fun BackupAddPasskeyNoticeDialog(
+    onContinue: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = stringResource(R.string.settings_backup_add_passkey)) },
+        text = { Text(text = stringResource(R.string.settings_backup_add_passkey_notice)) },
+        confirmButton = {
+            TextButton(onClick = onContinue) {
+                Text(text = stringResource(R.string.settings_backup_add_passkey_continue))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+/** E3 Remove passkey, after the credential. */
+@Composable
+internal fun BackupRemovePasskeyDialog(
+    onRemove: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    HazeAlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = stringResource(R.string.settings_backup_remove_passkey_title)) },
+        text = { Text(text = stringResource(R.string.settings_backup_remove_passkey_message)) },
+        confirmButton = {
+            TextButton(onClick = onRemove) {
+                Text(text = stringResource(R.string.remove))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+/** E2 re-link, per old passkey slot: Link wraps the new key, Skip drops the slot. */
+@Composable
+internal fun BackupRelinkPasskeyDialog(
+    addedLabel: String,
+    isInProgress: Boolean,
+    onLink: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    HazeAlertDialog(
+        // Not dismissable: the sequence ends only through Link or Skip.
+        onDismissRequest = {},
+        title = { Text(text = stringResource(R.string.settings_backup_relink_passkey_title)) },
+        text = {
+            Text(
+                text = stringResource(R.string.settings_backup_relink_passkey_message, addedLabel) +
+                        "\n\n" + stringResource(R.string.settings_backup_relink_passkey_skip_note)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onLink, enabled = !isInProgress) {
+                if (isInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current,
+                    )
+                } else {
+                    Text(text = stringResource(R.string.settings_backup_link_passkey))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onSkip, enabled = !isInProgress) {
+                Text(text = stringResource(R.string.settings_backup_relink_skip))
             }
         },
     )
@@ -462,6 +548,7 @@ internal fun BackupUnlockDialog(
     onUnlock: () -> Unit,
     onScan: () -> Unit,
     onCancel: () -> Unit,
+    onUsePasskey: () -> Unit = {},
 ) {
     val canUnlock = RecoveryKey.parse(state.input) != null && !state.isUnlocking
     BackupRestoreKeyDialog(
@@ -491,11 +578,36 @@ internal fun BackupUnlockDialog(
                 )
             }
         }
+        val hasPasskey = state.passkeySlots.isNotEmpty()
         Text(
-            text = stringResource(R.string.settings_backup_unlock_message),
+            text = stringResource(
+                if (hasPasskey) R.string.settings_backup_unlock_passkey_message else R.string.settings_backup_unlock_message
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = AlertDialogDefaults.textContentColor,
         )
+        if (hasPasskey) {
+            Button(
+                onClick = onUsePasskey,
+                enabled = !state.isUnlocking,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Fingerprint,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.settings_backup_use_passkey))
+            }
+            Text(
+                text = stringResource(R.string.settings_backup_unlock_or_recovery_key),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         RecoveryKeyField(
             value = state.input,
             onValueChange = onInputChange,

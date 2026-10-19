@@ -101,6 +101,7 @@ import com.mkx.hrttracker.ui.plan.toDraftGroupReferences
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
+import com.mkx.hrttracker.ui.settings.BackupKeysScreen
 import com.mkx.hrttracker.ui.settings.BackupSettingsScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
@@ -190,6 +191,19 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.settings_backup_restore
     ) {
         const val baseRoute = "settings_backup"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+        ): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
+    data object SettingsBackupKeys : Screen(
+        "settings_backup_keys?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_backup_passkeys
+    ) {
+        const val baseRoute = "settings_backup_keys"
 
         fun createRoute(
             topLevelParentRoute: String,
@@ -1110,6 +1124,33 @@ fun HrtTrackerNavHost(
                     }
                     RoutedTopChromeHazeProvider(navController, backStackEntry) {
                         BackupSettingsScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
+                            onPasskeysClick = {
+                                navController.navigate(
+                                    Screen.SettingsBackupKeys.createRoute(Screen.Settings.route)
+                                )
+                            },
+                            viewModel = hiltViewModel(settingsEntry),
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.SettingsBackupKeys.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    )
+                ) { backStackEntry ->
+                    // The Backup page's ViewModel, scoped as there.
+                    val settingsEntry = remember(backStackEntry) {
+                        runCatching { navController.getBackStackEntry(Screen.Settings.route) }
+                            .getOrNull() ?: backStackEntry
+                    }
+                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                        BackupKeysScreen(
                             modifier = modifier,
                             onNavigateBack = { navController.popBackStackSafely() },
                             viewModel = hiltViewModel(settingsEntry),
