@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.data.backup
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -241,6 +243,144 @@ class BackupCryptoTest {
         assertRejectsArgon2Params(v3ContainerWithArgon2Params(hashLength = 16))
     }
 
+    @Test
+    fun encrypt_with_key_writes_v4_and_round_trips_with_embedded_keyring() {
+        val plaintext = """{"snapshotVersion":1}""".toByteArray()
+        val keyringJson = """{"version":1,"slots":[]}"""
+        val encryptedBytes = backupCrypto.encryptWithKey(plaintext, MASTER_KEY, keyringJson)
+
+        assertEquals(4.toByte(), encryptedBytes[BackupCrypto.MAGIC_BYTES.size])
+        assertEquals(0.toByte(), encryptedBytes[V4_KDF_OFFSET])
+        assertEquals(keyringJson.length, ByteBuffer.wrap(encryptedBytes, V4_KEYRING_LENGTH_OFFSET, 4).int)
+        assertEquals(keyringJson, backupCrypto.peekKeyring(encryptedBytes))
+        backupCrypto.validateEncryptedBackupContainer(encryptedBytes)
+        assertArrayEquals(plaintext, backupCrypto.decryptWithKey(encryptedBytes, MASTER_KEY))
+    }
+
+    @Test
+    fun encrypt_with_key_round_trips_without_keyring() {
+        val plaintext = """{"snapshotVersion":1}""".toByteArray()
+        val encryptedBytes = backupCrypto.encryptWithKey(plaintext, MASTER_KEY, keyringJson = null)
+
+        assertEquals(0, ByteBuffer.wrap(encryptedBytes, V4_KEYRING_LENGTH_OFFSET, 4).int)
+        assertNull(backupCrypto.peekKeyring(encryptedBytes))
+        assertArrayEquals(plaintext, backupCrypto.decryptWithKey(encryptedBytes, MASTER_KEY))
+    }
+
+    @Test
+    fun peek_keyring_returns_null_for_password_containers() {
+        val encryptedBytes = backupCrypto.encrypt(
+            plaintext = """{"snapshotVersion":1}""".toByteArray(),
+            password = charArrayOf(),
+        )
+
+        assertNull(backupCrypto.peekKeyring(encryptedBytes))
+    }
+
+    @Test
+    fun decrypt_with_key_rejects_wrong_key() {
+        val encryptedBytes = backupCrypto.encryptWithKey(byteArrayOf(1, 2, 3), MASTER_KEY, "{}")
+
+        assertDecryptWithKeyFails(encryptedBytes, key = ByteArray(32))
+    }
+
+    @Test
+    fun decrypt_with_key_rejects_any_flipped_byte_in_keyring_length_keyring_or_ciphertext() {
+        val keyringJson = """{"version":1,"slots":[]}"""
+        val encryptedBytes = backupCrypto.encryptWithKey(byteArrayOf(1, 2, 3), MASTER_KEY, keyringJson)
+        val keyringStart = V4_KEYRING_LENGTH_OFFSET + 4
+        val indices = (V4_KEYRING_LENGTH_OFFSET until keyringStart) +
+                listOf(keyringStart, keyringStart + keyringJson.length - 1) +
+                listOf(keyringStart + keyringJson.length, encryptedBytes.lastIndex)
+
+        indices.forEach { index ->
+            val tampered = encryptedBytes.copyOf()
+            tampered[index] = (tampered[index].toInt() xor 0x01).toByte()
+            assertDecryptWithKeyFails(tampered, MASTER_KEY)
+        }
+    }
+
+    @Test
+    fun v4_rejects_non_zero_kdf_argon2_fields_and_salt_length() {
+        val encryptedBytes = backupCrypto.encryptWithKey(byteArrayOf(1, 2, 3), MASTER_KEY, "{}")
+        listOf(
+            V4_KDF_OFFSET to 2,
+            V4_ARGON2_OFFSET + 3 to 1,
+            V4_SALT_LENGTH_OFFSET to 16,
+            V4_SALT_LENGTH_OFFSET + 1 to 16,
+        ).forEach { (offset, value) ->
+            val tampered = encryptedBytes.copyOf()
+            tampered[offset] = value.toByte()
+            try {
+                backupCrypto.validateEncryptedBackupContainer(tampered)
+                fail("Expected v4 header with byte $offset = $value to be rejected.")
+            } catch (_: IllegalArgumentException) {
+                // Expected.
+            }
+        }
+    }
+
+    @Test
+    fun v4_rejects_oversize_or_negative_keyring_length_before_reading_it() {
+        // Enough trailing bytes that only the length cap can reject the header.
+        val encryptedBytes = backupCrypto.encryptWithKey(byteArrayOf(1, 2, 3), MASTER_KEY, null) +
+                ByteArray(BackupCrypto.MAX_KEYRING_JSON_BYTES + 32)
+        listOf(BackupCrypto.MAX_KEYRING_JSON_BYTES + 1, -1, Int.MAX_VALUE).forEach { length ->
+            val tampered = encryptedBytes.copyOf()
+            ByteBuffer.wrap(tampered).putInt(V4_KEYRING_LENGTH_OFFSET, length)
+            try {
+                backupCrypto.validateEncryptedBackupContainer(tampered)
+                fail("Expected keyring length $length to be rejected.")
+            } catch (error: IllegalArgumentException) {
+                assertTrue(error.message, error.message?.contains("keyring length") == true)
+            }
+        }
+    }
+
+    @Test
+    fun encrypt_with_key_rejects_oversize_keyring() {
+        try {
+            backupCrypto.encryptWithKey(
+                byteArrayOf(1),
+                MASTER_KEY,
+                " ".repeat(BackupCrypto.MAX_KEYRING_JSON_BYTES + 1),
+            )
+            fail("Expected an oversize keyring to be rejected.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun password_and_key_paths_reject_each_others_containers() {
+        val v4 = backupCrypto.encryptWithKey(byteArrayOf(1, 2, 3), MASTER_KEY, "{}")
+        val v3 = backupCrypto.encrypt(plaintext = byteArrayOf(1, 2, 3), password = charArrayOf())
+
+        try {
+            backupCrypto.decrypt(v4, charArrayOf())
+            fail("Expected the password path to reject a v4 container.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        try {
+            backupCrypto.decryptWithKey(v3, MASTER_KEY)
+            fail("Expected the key path to reject a v3 container.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    private fun assertDecryptWithKeyFails(encryptedBytes: ByteArray, key: ByteArray) {
+        try {
+            backupCrypto.decryptWithKey(encryptedBytes, key)
+            fail("Expected v4 decryption to fail.")
+        } catch (_: IOException) {
+            // Expected: tag failure.
+        } catch (_: IllegalArgumentException) {
+            // Expected: a changed keyring length no longer parses.
+        }
+    }
+
     private fun assertRejectsArgon2Params(encryptedBytes: ByteArray) {
         try {
             backupCrypto.decrypt(encryptedBytes = encryptedBytes, password = charArrayOf())
@@ -385,5 +525,10 @@ class BackupCryptoTest {
         private const val V2_NONCE_LENGTH_BYTES = 12
         private const val V3_UNCOMPRESSED_LENGTH_OFFSET_AFTER_MAGIC = 4
         private const val MAX_BACKUP_JSON_BYTES = 128L * 1024L * 1024L
+        private const val V4_KDF_OFFSET = 8
+        private const val V4_ARGON2_OFFSET = 19
+        private const val V4_SALT_LENGTH_OFFSET = 35
+        private const val V4_KEYRING_LENGTH_OFFSET = 49
+        private val MASTER_KEY = ByteArray(32) { index -> (index * 7).toByte() }
     }
 }

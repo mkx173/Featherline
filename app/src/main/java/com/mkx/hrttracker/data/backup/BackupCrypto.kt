@@ -58,11 +58,92 @@ class BackupCrypto internal constructor(
     fun validateEncryptedBackupContainer(
         encryptedBytes: ByteArray,
     ) {
+        parseContainer(encryptedBytes).wipe()
+    }
+
+    // Container v4: the key is supplied directly (the backup master key), and
+    // the optional keyring rides in the header so the AES-GCM tag covers it.
+    fun encryptWithKey(
+        plaintext: ByteArray,
+        key: ByteArray,
+        keyringJson: String?,
+    ): ByteArray {
+        require(key.size == AES_KEY_LENGTH_BYTES) {
+            "Backup key is ${key.size} bytes, expected $AES_KEY_LENGTH_BYTES."
+        }
+        val keyringBytes = keyringJson?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
+        require(keyringBytes.size <= MAX_KEYRING_JSON_BYTES) {
+            "Keyring exceeds the maximum supported size."
+        }
+        val nonce = ByteArray(NONCE_LENGTH_BYTES)
+        SecureRandom().nextBytes(nonce)
+
+        val compressedPlaintext = gzip(plaintext)
+        return try {
+            val header = buildKeyHeader(
+                nonce = nonce,
+                keyringBytes = keyringBytes,
+                uncompressedLengthBytes = plaintext.size.toLong(),
+            )
+            try {
+                encryptWithAesGcm(
+                    plaintext = compressedPlaintext,
+                    nonce = nonce,
+                    header = header,
+                    key = SecretKeySpec(key, AES_KEY_ALGORITHM),
+                )
+            } finally {
+                header.fill(0)
+            }
+        } finally {
+            compressedPlaintext.fill(0)
+            nonce.fill(0)
+        }
+    }
+
+    fun decryptWithKey(
+        encryptedBytes: ByteArray,
+        key: ByteArray,
+    ): ByteArray {
+        require(key.size == AES_KEY_LENGTH_BYTES) {
+            "Backup key is ${key.size} bytes, expected $AES_KEY_LENGTH_BYTES."
+        }
         val parsedContainer = parseContainer(encryptedBytes)
-        parsedContainer.header.fill(0)
-        parsedContainer.salt.fill(0)
-        parsedContainer.nonce.fill(0)
-        parsedContainer.ciphertext.fill(0)
+        return try {
+            require(parsedContainer.argon2Parameters == null) {
+                "Backup file is password-protected."
+            }
+            decryptParsedContainer(
+                parsedContainer = parsedContainer,
+                key = SecretKeySpec(key, AES_KEY_ALGORITHM),
+            )
+        } finally {
+            parsedContainer.wipe()
+        }
+    }
+
+    // Reads the embedded keyring before any tag check, so the result is
+    // untrusted until the keyring decoder has bounded and parsed it. Null for
+    // v2/v3 files and for v4 files without a keyring (cloud snapshots).
+    fun peekKeyring(
+        encryptedBytes: ByteArray,
+    ): String? {
+        val parsedContainer = parseContainer(encryptedBytes)
+        return try {
+            val keyringLength = parsedContainer.keyringLength
+            if (keyringLength == 0) {
+                null
+            } else {
+                String(
+                    parsedContainer.header,
+                    parsedContainer.header.size - keyringLength,
+                    keyringLength,
+                    Charsets.UTF_8,
+                )
+            }
+        } finally {
+            parsedContainer.wipe()
+        }
     }
 
     internal fun encrypt(
@@ -111,11 +192,28 @@ class BackupCrypto internal constructor(
         password: CharArray,
     ): ByteArray {
         val parsedContainer = parseContainer(encryptedBytes)
-        val key = deriveSecretKey(
-            password = password,
-            salt = parsedContainer.salt,
-            argon2Parameters = parsedContainer.argon2Parameters,
-        )
+        return try {
+            val argon2Parameters = requireNotNull(parsedContainer.argon2Parameters) {
+                "Backup file is not password-protected."
+            }
+            val key = deriveSecretKey(
+                password = password,
+                salt = parsedContainer.salt,
+                argon2Parameters = argon2Parameters,
+            )
+            decryptParsedContainer(
+                parsedContainer = parsedContainer,
+                key = key,
+            )
+        } finally {
+            parsedContainer.wipe()
+        }
+    }
+
+    private fun decryptParsedContainer(
+        parsedContainer: ParsedBackupContainer,
+        key: SecretKeySpec,
+    ): ByteArray {
         return try {
             val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
             cipher.init(
@@ -144,11 +242,6 @@ class BackupCrypto internal constructor(
             }
         } catch (error: GeneralSecurityException) {
             throw IOException("Unable to decrypt the selected backup file.", error)
-        } finally {
-            parsedContainer.header.fill(0)
-            parsedContainer.salt.fill(0)
-            parsedContainer.nonce.fill(0)
-            parsedContainer.ciphertext.fill(0)
         }
     }
 
@@ -224,6 +317,27 @@ class BackupCrypto internal constructor(
             .array()
     }
 
+    private fun buildKeyHeader(
+        nonce: ByteArray,
+        keyringBytes: ByteArray,
+        uncompressedLengthBytes: Long,
+    ): ByteArray {
+        return ByteBuffer.allocate(FIXED_HEADER_LENGTH_V4 + keyringBytes.size)
+            .put(MAGIC_BYTES)
+            .put(KEY_BACKUP_CONTAINER_VERSION.toByte())
+            .put(KDF_NONE.toByte())
+            .put(CIPHER_AES_256_GCM.toByte())
+            .put(COMPRESSION_GZIP.toByte())
+            .putLong(uncompressedLengthBytes)
+            .put(ByteArray(ARGON2_PARAMETER_COUNT * Int.SIZE_BYTES))
+            .put(0.toByte())
+            .put(nonce.size.toByte())
+            .put(nonce)
+            .putInt(keyringBytes.size)
+            .put(keyringBytes)
+            .array()
+    }
+
     private fun parseContainer(
         encryptedBytes: ByteArray,
     ): ParsedBackupContainer {
@@ -242,10 +356,17 @@ class BackupCrypto internal constructor(
         val fixedHeaderLength = when (backupVersion) {
             LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V2
             CURRENT_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V3
+            KEY_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V4
             else -> throw IllegalArgumentException("Unsupported backup file version: $backupVersion.")
         }
         require(encryptedBytes.size >= fixedHeaderLength) {
             "Backup file header is truncated."
+        }
+        if (backupVersion == KEY_BACKUP_CONTAINER_VERSION) {
+            return parseKeyContainer(
+                encryptedBytes = encryptedBytes,
+                buffer = buffer,
+            )
         }
         return parseArgon2Container(
             encryptedBytes = encryptedBytes,
@@ -281,12 +402,7 @@ class BackupCrypto internal constructor(
             else -> error("Unexpected backup file version: $backupVersion.")
         }
         if (uncompressedLengthBytes != null) {
-            require(uncompressedLengthBytes >= 0L) {
-                "Backup file declares an invalid uncompressed payload length."
-            }
-            require(uncompressedLengthBytes <= MAX_BACKUP_JSON_BYTES) {
-                "Backup file exceeds the maximum supported restore size."
-            }
+            requireSupportedUncompressedLength(uncompressedLengthBytes)
         }
 
         val argon2Parameters = BackupArgon2Parameters(
@@ -321,6 +437,72 @@ class BackupCrypto internal constructor(
             compressionType = compressionType,
             uncompressedLengthBytes = uncompressedLengthBytes,
         )
+    }
+
+    // v4 keeps the v3 field layout, but the KDF is NONE, the Argon2 fields and
+    // salt are empty, and a length-prefixed keyring follows the nonce. The
+    // keyring length is capped before anything is sized from it.
+    private fun parseKeyContainer(
+        encryptedBytes: ByteArray,
+        buffer: ByteBuffer,
+    ): ParsedBackupContainer {
+        val kdfType = buffer.get().toInt() and BYTE_MASK
+        require(kdfType == KDF_NONE) {
+            "Unsupported backup KDF: $kdfType."
+        }
+        val cipherType = buffer.get().toInt() and BYTE_MASK
+        require(cipherType == CIPHER_AES_256_GCM) {
+            "Unsupported backup cipher: $cipherType."
+        }
+        val compressionType = buffer.get().toInt() and BYTE_MASK
+        require(compressionType == COMPRESSION_GZIP) {
+            "Unsupported backup compression: $compressionType."
+        }
+        val uncompressedLengthBytes = buffer.long
+        requireSupportedUncompressedLength(uncompressedLengthBytes)
+        repeat(ARGON2_PARAMETER_COUNT) {
+            require(buffer.int == 0) {
+                "Backup file declares unexpected Argon2 parameters."
+            }
+        }
+        val saltLength = buffer.get().toInt() and BYTE_MASK
+        val nonceLength = buffer.get().toInt() and BYTE_MASK
+        require(saltLength == 0) {
+            "Backup file declares an invalid salt length."
+        }
+        require(nonceLength == NONCE_LENGTH_BYTES) {
+            "Backup file declares an invalid nonce length."
+        }
+        val nonce = ByteArray(nonceLength)
+        buffer.get(nonce)
+        val keyringLength = buffer.int
+        require(keyringLength in 0..MAX_KEYRING_JSON_BYTES) {
+            "Backup file declares an invalid keyring length."
+        }
+        require(buffer.remaining() > keyringLength) {
+            "Backup file payload is truncated."
+        }
+        val headerLength = buffer.position() + keyringLength
+
+        return ParsedBackupContainer(
+            header = encryptedBytes.copyOfRange(0, headerLength),
+            argon2Parameters = null,
+            compressionType = compressionType,
+            uncompressedLengthBytes = uncompressedLengthBytes,
+            salt = ByteArray(0),
+            nonce = nonce,
+            ciphertext = encryptedBytes.copyOfRange(headerLength, encryptedBytes.size),
+            keyringLength = keyringLength,
+        )
+    }
+
+    private fun requireSupportedUncompressedLength(uncompressedLengthBytes: Long) {
+        require(uncompressedLengthBytes >= 0L) {
+            "Backup file declares an invalid uncompressed payload length."
+        }
+        require(uncompressedLengthBytes <= MAX_BACKUP_JSON_BYTES) {
+            "Backup file exceeds the maximum supported restore size."
+        }
     }
 
     private fun finishParsingContainer(
@@ -404,6 +586,8 @@ class BackupCrypto internal constructor(
 
     companion object {
         internal const val CURRENT_BACKUP_CONTAINER_VERSION = 3
+        internal const val KEY_BACKUP_CONTAINER_VERSION = 4
+        internal const val MAX_KEYRING_JSON_BYTES = 64 * 1024
         internal val DEFAULT_ARGON2_PARAMETERS = BackupArgon2Parameters(
             timeCostInIterations = 3,
             memoryCostInKibibyte = 65_536,
@@ -413,6 +597,7 @@ class BackupCrypto internal constructor(
         internal val MAGIC_BYTES: ByteArray = "HRTBKP1".encodeToByteArray()
 
         private const val LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION = 2
+        private const val KDF_NONE = 0
         private const val KDF_ARGON2_ID = 2
         private const val CIPHER_AES_256_GCM = 1
         private const val COMPRESSION_NONE = 0
@@ -420,6 +605,9 @@ class BackupCrypto internal constructor(
         private val SUPPORTED_COMPRESSION_TYPES = setOf(COMPRESSION_NONE, COMPRESSION_GZIP)
         private const val FIXED_HEADER_LENGTH_V2 = 28
         private const val FIXED_HEADER_LENGTH_V3 = 37
+        // v3 fixed fields, a 12-byte nonce, then the 4-byte keyring length.
+        private const val FIXED_HEADER_LENGTH_V4 = 53
+        private const val ARGON2_PARAMETER_COUNT = 4
         private const val MAX_BACKUP_JSON_BYTES = 128L * 1024L * 1024L
         private const val MAX_ARGON2_TIME_COST = 10
         private const val MAX_ARGON2_MEMORY_KIB = 256 * 1024
@@ -451,13 +639,23 @@ internal data class BackupArgon2Parameters(
 
 private data class ParsedBackupContainer(
     val header: ByteArray,
-    val argon2Parameters: BackupArgon2Parameters,
+    // Null for v4, whose key is supplied directly instead of derived.
+    val argon2Parameters: BackupArgon2Parameters?,
     val compressionType: Int,
     val uncompressedLengthBytes: Long?,
     val salt: ByteArray,
     val nonce: ByteArray,
     val ciphertext: ByteArray,
-)
+    // v4 only: the keyring is the last [keyringLength] bytes of [header].
+    val keyringLength: Int = 0,
+) {
+    fun wipe() {
+        header.fill(0)
+        salt.fill(0)
+        nonce.fill(0)
+        ciphertext.fill(0)
+    }
+}
 
 private class Argon2KtBackupArgon2KeyDeriver : BackupArgon2KeyDeriver {
     private val argon2Kt by lazy(LazyThreadSafetyMode.NONE) { Argon2Kt() }
