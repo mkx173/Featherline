@@ -19,6 +19,7 @@
         <exclude domain="file" path="datastore/reminder_schedule.preferences_pb" />
         <exclude domain="file" path="datastore/medication_reminder_snoozes.preferences_pb" />
         <exclude domain="file" path="diagnostics" />
+        <exclude domain="file" path="keyring.json" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" path="hrt_tracker.db" />
@@ -35,5 +36,6 @@
         <exclude domain="file" path="datastore/reminder_schedule.preferences_pb" />
         <exclude domain="file" path="datastore/medication_reminder_snoozes.preferences_pb" />
         <exclude domain="file" path="diagnostics" />
+        <exclude domain="file" path="keyring.json" />
     </device-transfer>
 </data-extraction-rules>

@@ -37,6 +37,11 @@ class AppLockSecurityManager @Inject constructor(
         }
     }
 
+    /** No screen lock is set, so a credential prompt can be skipped rather than failed. */
+    fun isScreenLockMissing(): Boolean =
+        BiometricManager.from(context).canAuthenticate(ALLOWED_AUTHENTICATORS) ==
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED
+
     fun promptErrorMessageRes(errorCode: Int): Int? {
         return when (errorCode) {
             BiometricPrompt.ERROR_NEGATIVE_BUTTON,

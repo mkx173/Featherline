@@ -41,6 +41,7 @@ class BackupExclusionRulesTest {
         Exclusion("file", "datastore/reminder_schedule.preferences_pb"),
         Exclusion("file", "datastore/medication_reminder_snoozes.preferences_pb"),
         Exclusion("file", "diagnostics"),
+        Exclusion("file", "keyring.json"),
     )
 
     @Test
