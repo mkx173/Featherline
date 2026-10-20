@@ -21,12 +21,13 @@ fun medicationDayTimeText(
     val time = dateTime.format(timeFormatter)
     val dayOffset = ChronoUnit.DAYS.between(dayDate, dateTime.toLocalDate())
     if (dayOffset == 0L) return time
-    if (dayOffset > 0) {
-        val offsetText = context.getString(
-            R.string.plan_schedule_entry_logged_day_offset_later,
-            dayOffset.absoluteValue.toInt(),
-        )
-        return "$time ($offsetText)"
-    }
-    return dateTime.toString()
+    val offsetText = context.getString(
+        if (dayOffset > 0) {
+            R.string.plan_schedule_entry_logged_day_offset_later
+        } else {
+            R.string.plan_schedule_entry_logged_day_offset_earlier
+        },
+        dayOffset.absoluteValue.toInt(),
+    )
+    return "$time ($offsetText)"
 }
