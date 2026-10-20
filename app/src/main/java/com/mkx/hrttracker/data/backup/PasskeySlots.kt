@@ -17,6 +17,7 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.NoCredentialException
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -43,6 +44,7 @@ class PasskeyPrfUnsupportedException : IOException("The passkey provider does no
 @Singleton
 class PasskeySlots @Inject constructor(
     private val keyringCrypto: KeyringCrypto,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     /** Creates a passkey, asserts it once for its PRF output, and wraps [mk]. */
     suspend fun add(activity: Activity, mk: ByteArray): KeyringSlot {
@@ -79,14 +81,35 @@ class PasskeySlots @Inject constructor(
             CredentialManager.create(activity)
                 .createCredential(activity, CreatePublicKeyCredentialRequest(createJson))
         } catch (error: CreateCredentialException) {
+            diagnosticsLogger.warning(
+                TAG,
+                "passkey_create_failed type=${error.type} message=${error.errorMessage}",
+                error,
+            )
             throw mapCreateError(error)
         }
         val registrationJson = (response as? CreatePublicKeyCredentialResponse)?.registrationResponseJson
             ?: throw IOException("Credential Manager returned no passkey.")
         val credentialId = JSONObject(registrationJson).getString("id")
-        // Creation may omit the PRF result even when the assertion returns it,
-        // so the assertion is the one runtime check.
-        val (_, prfOutput) = assert(activity, listOf(credentialId), prfSalt)
+        val registrationExtensions = JSONObject(registrationJson).optJSONObject("clientExtensionResults")
+        // Key names only: the values would include the PRF output.
+        diagnosticsLogger.info(
+            TAG,
+            "passkey_created prfKeys=${registrationExtensions?.optJSONObject("prf")?.keys()?.asSequence()?.toList()}",
+        )
+        // Google Password Manager returns the PRF result at creation. A
+        // provider that doesn't gets one assertion as the runtime check.
+        val prfOutput = registrationExtensions
+            ?.optJSONObject("prf")
+            ?.optJSONObject("results")
+            ?.optString("first")
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { first ->
+                val bytes = decodeBase64Url(first)
+                if (bytes.size == PRF_OUTPUT_LENGTH_BYTES) bytes else null.also { bytes.fill(0) }
+            }
+            ?.also { diagnosticsLogger.info(TAG, "passkey_prf_from_creation") }
+            ?: assertCreated(activity, credentialId, prfSalt)
         return try {
             keyringCrypto.wrapPasskeySlot(
                 mk = mk,
@@ -146,6 +169,23 @@ class PasskeySlots @Inject constructor(
         }
     }
 
+    // The PRF output of the passkey just created, by assertion.
+    private suspend fun assertCreated(
+        activity: Activity,
+        credentialId: String,
+        prfSalt: ByteArray,
+    ): ByteArray {
+        // Google Password Manager doesn't list a passkey for an allow list
+        // until minutes after creating it, which is why Add prefers the
+        // creation result above.
+        val (assertedId, prfOutput) = assert(activity, listOf(credentialId), prfSalt)
+        if (!sameId(assertedId, credentialId)) {
+            prfOutput.fill(0)
+            throw IOException("The passkey returned is not the one just created.")
+        }
+        return prfOutput
+    }
+
     private fun unwrap(slot: KeyringSlot, prfOutput: ByteArray): ByteArray = try {
         keyringCrypto.unwrapPasskeySlot(slot, prfOutput)
     } catch (error: Exception) {
@@ -165,16 +205,22 @@ class PasskeySlots @Inject constructor(
         val getJson = JSONObject()
             .put("rpId", RP_ID)
             .put("challenge", base64Url(ByteArray(32).also(SecureRandom()::nextBytes)))
-            .put("allowCredentials", allowCredentials)
+            .apply { if (credentialIds.isNotEmpty()) put("allowCredentials", allowCredentials) }
             .put("userVerification", "required")
             .put("extensions", prfExtension(prfSalt))
             .toString()
+        diagnosticsLogger.info(TAG, "passkey_assert_start allow=${credentialIds.size}")
         val credential = try {
             CredentialManager.create(activity).getCredential(
                 activity,
                 GetCredentialRequest(listOf(GetPublicKeyCredentialOption(getJson))),
             ).credential
         } catch (error: GetCredentialException) {
+            diagnosticsLogger.warning(
+                TAG,
+                "passkey_assert_failed type=${error.type} message=${error.errorMessage}",
+                error,
+            )
             throw when (error) {
                 is GetCredentialCancellationException -> PasskeyCancelledException(error)
                 is NoCredentialException,
@@ -185,12 +231,20 @@ class PasskeySlots @Inject constructor(
         val assertionJson = (credential as? PublicKeyCredential)?.authenticationResponseJson
             ?: throw IOException("Credential Manager returned no passkey.")
         val assertion = JSONObject(assertionJson)
-        val first = assertion.optJSONObject("clientExtensionResults")
+        val extensionResults = assertion.optJSONObject("clientExtensionResults")
+        val first = extensionResults
             ?.optJSONObject("prf")
             ?.optJSONObject("results")
             ?.optString("first")
             ?.takeIf { it.isNotEmpty() }
-            ?: throw PasskeyPrfUnsupportedException()
+            ?: run {
+                // Key names only: the values would be the PRF output.
+                diagnosticsLogger.warning(
+                    TAG,
+                    "passkey_prf_missing extensionKeys=${extensionResults?.keys()?.asSequence()?.toList()}",
+                )
+                throw PasskeyPrfUnsupportedException()
+            }
         val prfOutput = decodeBase64Url(first)
         if (prfOutput.size != PRF_OUTPUT_LENGTH_BYTES) {
             prfOutput.fill(0)
@@ -222,6 +276,7 @@ class PasskeySlots @Inject constructor(
         Base64.getUrlDecoder().decode(value.trimEnd('=').replace('+', '-').replace('/', '_'))
 
     companion object {
+        private const val TAG = "PasskeySlots"
         const val RP_ID = "asterismlabs.io"
         private const val RP_NAME = "Featherline"
         private const val USER_NAME = "Featherline backup"
