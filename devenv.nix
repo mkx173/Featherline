@@ -19,7 +19,7 @@ in
   packages = [
     pkgs.git
     pkgs.jq
-  ];
+  ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.util-linux ];
 
   languages.java = {
     enable = true;
@@ -89,7 +89,12 @@ in
 
       emulator="$ANDROID_HOME/emulator/emulator"
       # The build tools bundle an older libc++; prefer the emulator's own copy.
-      export LD_LIBRARY_PATH="$ANDROID_HOME/emulator/lib64''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      # macOS uses DYLD_LIBRARY_PATH instead of LD_LIBRARY_PATH.
+      if [[ "$(uname)" == "Darwin" ]]; then
+        export DYLD_LIBRARY_PATH="$ANDROID_HOME/emulator/lib64''${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+      else
+        export LD_LIBRARY_PATH="$ANDROID_HOME/emulator/lib64''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      fi
       avd_name="featherline-api${emulatorApi}-${emulatorAbi}-8g"
       port="''${ANDROID_EMULATOR_PORT:-5554}"
       serial="emulator-$port"
@@ -116,7 +121,8 @@ in
       avd_config="$ANDROID_AVD_HOME/$avd_name.avd/config.ini"
       ${pkgs.lib.concatStringsSep "\n" (
         pkgs.lib.mapAttrsToList (key: value: ''
-          sed -i ${pkgs.lib.escapeShellArg "/^${pkgs.lib.escapeRegex key}=/d"} "$avd_config"
+          sed -i.bak ${pkgs.lib.escapeShellArg "/^${pkgs.lib.escapeRegex key}=/d"} "$avd_config"
+          rm -f "$avd_config.bak"
           printf '%s\n' ${pkgs.lib.escapeShellArg "${key}=${value}"} >> "$avd_config"
         '') avdConfig
       )}
@@ -132,10 +138,17 @@ in
         echo "Using $avd_name on $serial."
       else
         echo "Starting $avd_name on $serial (log: $log)."
-        # Keep the emulator in its own session after the task returns.
-        nohup ${pkgs.util-linux}/bin/setsid "$emulator" \
-          -avd "$avd_name" -port "$port" -no-boot-anim -no-snapshot-load \
-          > "$log" 2>&1 < /dev/null &
+        # Keep the emulator running after the task returns. Linux gets its own
+        # session; macOS has no setsid, and nohup is enough there.
+        if command -v setsid >/dev/null 2>&1; then
+          nohup setsid "$emulator" \
+            -avd "$avd_name" -port "$port" -no-boot-anim -no-snapshot-load \
+            > "$log" 2>&1 < /dev/null &
+        else
+          nohup "$emulator" \
+            -avd "$avd_name" -port "$port" -no-boot-anim -no-snapshot-load \
+            > "$log" 2>&1 < /dev/null &
+        fi
         emulator_pid=$!
       fi
 

@@ -64,27 +64,16 @@ class SettingsRepositoryTest {
             produceFile = { tmpFolder.newFile("settings_test.preferences_pb") },
         )
 
-        settingsRepository = SettingsRepository(context, dataStore)
+        settingsRepository = SettingsRepository(dataStore)
     }
 
     @Test
-    fun `medication day start persists minutes and defaults to midnight`() = runTest(testDispatcher) {
-        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
-        settingsRepository.setMedicationDayStartMinutes(270)
-        assertEquals(270, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
-        settingsRepository.setMedicationDayStartMinutes(0)
-        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
-    }
-
-    @Test
-    fun `invalid stored medication day start falls back to midnight`() = runTest(testDispatcher) {
-        dataStore.edit { it[androidx.datastore.preferences.core.intPreferencesKey("medication_day_start_minutes")] = 1440 }
-        assertEquals(0, settingsRepository.getCurrentSettings().medicationDayStartMinutes)
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun `medication day start rejects invalid minutes`() = runTest(testDispatcher) {
-        settingsRepository.setMedicationDayStartMinutes(-1)
+    fun `four am day ending persists and defaults to midnight`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
+        settingsRepository.setMedicationDayEndsAtFourAm(true)
+        assertEquals(true, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
+        settingsRepository.setMedicationDayEndsAtFourAm(false)
+        assertEquals(false, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
     }
 
     @Test

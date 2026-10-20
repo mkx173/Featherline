@@ -20,14 +20,14 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class SettingsMedicationDayStartTest {
+class SettingsMedicationDayEndsAtFourAmTest {
     @get:Rule
     val composeRule = createComposeRule()
 
     @Test
-    fun timePickerConfirmsMinutePrecisionAndCancelKeepsSetting() {
+    fun switchTogglesMedicationDayEnding() {
         val context = RuntimeEnvironment.getApplication()
-        val changes = mutableListOf<Int>()
+        val changes = mutableListOf<Boolean>()
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
@@ -38,7 +38,7 @@ class SettingsMedicationDayStartTest {
                             weightOriginalValue = 72.0,
                             weightOriginalUnit = WeightUnit.KILOGRAMS,
                         ),
-                        settingsState = SettingsState(medicationDayStartMinutes = 270),
+                        settingsState = SettingsState(medicationDayEndsAtFourAm = false),
                     ),
                     widgetAppearance = WidgetAppearance.Default,
                     hasNotificationAccess = true,
@@ -52,7 +52,7 @@ class SettingsMedicationDayStartTest {
                     onHideScreenContentEnabledChange = {},
                     onAppLanguageOptionChange = {},
                     onFirstDayOfWeekOptionChange = {},
-                    onMedicationDayStartChange = { changes += it },
+                    onMedicationDayEndsAtFourAmChange = { changes += it },
                     onDarkModeOptionChange = {},
                     onAdaptiveColorEnabledChange = {},
                     onPureBlackEnabledChange = {},
@@ -71,13 +71,8 @@ class SettingsMedicationDayStartTest {
             }
         }
 
-        val title = context.getString(R.string.settings_medication_day_start)
+        val title = context.getString(R.string.settings_medication_day_ends_at_four_am)
         composeRule.onNodeWithText(title).performScrollTo().performClick()
-        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
-        assertEquals(emptyList<Int>(), changes)
-        composeRule.onNodeWithText(title).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.confirm)).performClick()
-        assertEquals(listOf(270), changes)
-        composeRule.onNodeWithText(context.getString(R.string.confirm)).assertDoesNotExist()
+        assertEquals(listOf(true), changes)
     }
 }

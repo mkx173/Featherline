@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Settings now has a medication-day start time, midnight by default. Records and planned doses before that time count toward the previous day on Home, Plan and History, so a dose taken after midnight stays with the evening it belongs to. Existing records regroup on the next open without changing their stored times, and reminders and Journal keep their actual times and dates.
+- Settings now has a "Day ends at 04:00" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan and History, so a dose taken after midnight stays with the evening it belongs to. Existing records regroup on the next open without changing their stored times, and reminders and Journal keep their actual times and dates.
 
 ### Fixed
 

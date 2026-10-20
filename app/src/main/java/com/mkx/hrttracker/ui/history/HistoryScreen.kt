@@ -500,7 +500,7 @@ private fun HistoryScreenContent(
         uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
-        uiState.medicationDayStartMinutes,
+        uiState.medicationDayBoundary,
     ) {
         dayStateMonthRanges.fold(linkedMapOf<LocalDate, HistoryCalendarDayUiState>()) { dayStates, range ->
             dayStates.apply {
@@ -510,32 +510,32 @@ private fun HistoryScreenContent(
                         entries = uiState.entries,
                         startDate = range.startMonth.atDay(1),
                         endDate = range.endMonth.atEndOfMonth(),
-                        dayStartMinutes = uiState.medicationDayStartMinutes,
+                        boundary = uiState.medicationDayBoundary,
                     )
                 )
             }
         }
     }
-    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayStartMinutes) {
+    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayBoundary) {
         buildHistoryMonthSummary(
             entries = uiState.entries,
             displayedMonth = displayedMonth.yearMonth,
             dayStates = monthDayStates,
             today = today,
-            dayStartMinutes = uiState.medicationDayStartMinutes,
+            boundary = uiState.medicationDayBoundary,
         )
     }
     val visibleEntries =
-        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.medicationDayStartMinutes) {
+        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.medicationDayBoundary) {
             buildHistoryVisibleEntries(
                 entries = uiState.entries,
                 displayedMonth = displayedMonth.yearMonth,
                 selectedDate = effectiveSelectedDate,
-                dayStartMinutes = uiState.medicationDayStartMinutes,
+                boundary = uiState.medicationDayBoundary,
             )
         }
-    val groupedEntries = remember(visibleEntries, uiState.medicationDayStartMinutes) {
-        groupHistoryEntriesByDate(visibleEntries, dayStartMinutes = uiState.medicationDayStartMinutes)
+    val groupedEntries = remember(visibleEntries, uiState.medicationDayBoundary) {
+        groupHistoryEntriesByDate(visibleEntries, boundary = uiState.medicationDayBoundary)
     }
     val visibleEntryIds = remember(visibleEntries) {
         visibleEntries.mapTo(linkedSetOf()) { entry -> entry.uuid }

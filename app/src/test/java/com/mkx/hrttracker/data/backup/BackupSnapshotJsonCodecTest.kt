@@ -14,11 +14,19 @@ class BackupSnapshotJsonCodecTest {
     // the intended unsupported-version error.
     @Test
     fun roundTrip_preservesMedicationDayBoundaryAndOldBackupsDefaultToMidnight() {
-        val snapshot = baselineSnapshot().let { it.copy(settings = it.settings.copy(medicationDayStartMinutes = 270)) }
+        val snapshot = baselineSnapshot().let {
+            it.copy(settings = it.settings.copy(medicationDayEndsAtFourAm = true))
+        }
         val json = BackupSnapshotJsonCodec.encode(snapshot)
-        assertEquals(270, BackupSnapshotJsonCodec.decode(json)!!.settings.medicationDayStartMinutes)
-        val legacyJson = json.replace("\"medicationDayStartMinutes\":270,", "")
-        assertEquals(0, BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayStartMinutes)
+        assertEquals(
+            true,
+            BackupSnapshotJsonCodec.decode(json)!!.settings.medicationDayEndsAtFourAm,
+        )
+        val legacyJson = json.replace("\"medicationDayEndsAtFourAm\":true,", "")
+        assertEquals(
+            false,
+            BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayEndsAtFourAm,
+        )
     }
 
     @Test

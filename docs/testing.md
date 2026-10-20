@@ -67,13 +67,13 @@ Coverage includes:
 
 | Area | Scenarios |
 | --- | --- |
-| Settings | Confirm, cancel, minute precision, recreation and activity relaunch |
-| Boundaries | Default midnight, 04:30, 05:00, 23:59, exact boundary and the preceding second |
-| Home and plans | Next-day labels and ordering, no duplicated context rows, quick-log confirmation, completion counts, weekly recurrence |
+| Settings | Switch persistence, recreation and activity relaunch |
+| Boundaries | Default midnight, 04:00 switch, exact boundary and the preceding second |
+| Home and plans | Midnight-last ordering, plain times, no duplicated context rows, quick-log confirmation, completion counts, weekly recurrence |
 | History | Manual versus linked records, regrouping existing records, edit/delete, archive visibility, month/year transitions and stored entry timezone |
 | Lifecycle | Natural foreground tick across the boundary, background clock change and relaunch |
 | System integration | Actual 01:00 notification delivery; real Android widget host, rendered counts and boundary refresh |
-| Persistence | Encrypted backup restore and a legacy backup without the boundary field |
+| Persistence | Encrypted backup restore and a legacy backup without the switch field |
 | Other date features | Journal notes retain their civil day |
 
 Backup tests invoke the real export/encryption/restore services with generated

@@ -24,18 +24,17 @@ import java.util.UUID
 class BackupRestoreValidationTest {
 
     @Test
-    fun toValidatedSnapshot_preservesMedicationBoundaryAndRejectsInvalidTime() {
+    fun toValidatedSnapshot_preservesMedicationBoundarySwitch() {
         val snapshot = BackupSnapshot(
             exportedAtEpochMillis = 1L, app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = baselineSettings().copy(medicationDayStartMinutes = 270),
+            settings = baselineSettings().copy(medicationDayEndsAtFourAm = true),
             userProfile = baselineUserProfile(), medicines = emptyList(), medicationGroups = emptyList(),
             medicationLogs = emptyList(), customBloodAnalytes = emptyList(), bloodTestPanels = emptyList(),
         )
-        assertEquals(270, snapshot.toValidatedSnapshot("com.mkx.hrttracker").settings.medicationDayStartMinutes)
-        for (minutes in listOf(-1, 1440)) {
-            val invalid = snapshot.copy(settings = snapshot.settings.copy(medicationDayStartMinutes = minutes))
-            assertEquals(true, runCatching { invalid.toValidatedSnapshot("com.mkx.hrttracker") }.isFailure)
-        }
+        assertEquals(
+            true,
+            snapshot.toValidatedSnapshot("com.mkx.hrttracker").settings.medicationDayEndsAtFourAm,
+        )
     }
 
     @Test

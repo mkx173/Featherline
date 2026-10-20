@@ -22,7 +22,7 @@
     <string name="main_today_empty_state">Nothing scheduled today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_quick_log">Quick log</string>
-    <string name="main_today_range_night">Night</string>
+    <string name="main_today_range_midnight">Midnight</string>
     <string name="main_today_range_morning">Morning</string>
     <string name="main_today_range_afternoon">Afternoon</string>
     <string name="main_today_range_evening">Evening</string>
@@ -1105,10 +1105,9 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
-    <string name="settings_medication_day_start">Medication day starts at</string>
-    <string name="settings_medication_day_start_summary">%1$s · Groups medication records and daily progress by this time.</string>
-    <string name="medication_next_day_time">Next day %1$s</string>
-    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+    <string name="settings_medication_day_ends_at_four_am">Day ends at 04:00</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count toward the previous day.</string>
+        <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>
     <string name="calibration_pk_global_no_dose_history_body">The population estimate is shown until you add an estradiol dose.</string>
     <string name="calibration_pk_global_no_usable_labs_title">Add a test result</string>

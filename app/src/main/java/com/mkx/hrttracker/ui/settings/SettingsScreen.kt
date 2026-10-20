@@ -118,14 +118,11 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationDayStartTime
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
 import com.mkx.hrttracker.widget.WidgetHueSpectrumTrack
@@ -135,7 +132,6 @@ import com.mkx.hrttracker.widget.hueSwatchColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import android.text.format.DateFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -543,7 +539,7 @@ fun SettingsScreen(
         onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
-        onMedicationDayStartChange = viewModel::setMedicationDayStartMinutes,
+        onMedicationDayEndsAtFourAmChange = viewModel::setMedicationDayEndsAtFourAm,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
@@ -964,7 +960,7 @@ internal fun SettingsScreenContent(
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
-    onMedicationDayStartChange: (Int) -> Unit = {},
+    onMedicationDayEndsAtFourAmChange: (Boolean) -> Unit = {},
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
@@ -983,7 +979,6 @@ internal fun SettingsScreenContent(
 ) {
     val settingsState = uiState.settingsState
     val context = LocalContext.current
-    var showMedicationDayStartPicker by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1269,14 +1264,22 @@ internal fun SettingsScreenContent(
 
                 HrtSection(title = stringResource(R.string.settings_display)) {
                     item {
-                        val timeLabel = medicationDayStartTime(settingsState.medicationDayStartMinutes)
-                            .format(localizedShortTimeFormatter(rememberAppLocale(), DateFormat.is24HourFormat(context)))
                         SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_medication_day_start),
-                            supportingText = stringResource(R.string.settings_medication_day_start_summary, timeLabel),
-                            onClick = { showMedicationDayStartPicker = true },
+                            title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                            supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
+                            onClick = {
+                                onMedicationDayEndsAtFourAmChange(
+                                    !settingsState.medicationDayEndsAtFourAm
+                                )
+                            },
                             leadingContent = {
                                 SettingsLeadingIconSlot(painter = painterResource(R.drawable.ic_lock_clock))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.medicationDayEndsAtFourAm,
+                                    onCheckedChange = onMedicationDayEndsAtFourAmChange
+                                )
                             },
                         )
                     }
@@ -1773,18 +1776,6 @@ internal fun SettingsScreenContent(
                 }
             }
         }
-    }
-
-    if (showMedicationDayStartPicker) {
-        TimePickerModal(
-            initialTime = medicationDayStartTime(settingsState.medicationDayStartMinutes),
-            is24Hour = DateFormat.is24HourFormat(context),
-            onTimeSelected = { time ->
-                onMedicationDayStartChange(time.hour * 60 + time.minute)
-                true
-            },
-            onDismiss = { showMedicationDayStartPicker = false },
-        )
     }
 
     if (showExactAlarmRecoveryDialog) {
