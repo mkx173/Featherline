@@ -19,6 +19,14 @@ import com.mkx.hrttracker.data.backup.PasskeyCancelledException
 import com.mkx.hrttracker.data.backup.PasskeyPrfUnsupportedException
 import com.mkx.hrttracker.data.backup.PasskeyProviderUnavailableException
 import com.mkx.hrttracker.data.backup.PasskeySlots
+import com.mkx.hrttracker.data.backup.SecurityKeyException
+import com.mkx.hrttracker.data.backup.SecurityKeyNotLinkedException
+import com.mkx.hrttracker.data.backup.SecurityKeyPinRequiredException
+import com.mkx.hrttracker.data.backup.SecurityKeySlots
+import com.mkx.hrttracker.data.backup.SecurityKeyStatus
+import com.mkx.hrttracker.data.backup.SecurityKeyUnavailableException
+import com.mkx.hrttracker.data.backup.SecurityKeyUnsupportedException
+import com.mkx.hrttracker.data.backup.SecurityKeyWrongPinException
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.WrongRecoveryKeyException
@@ -34,6 +42,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -61,6 +71,7 @@ class BackupSettingsViewModel @Inject constructor(
     private val backupKeyStore: BackupKeyStore,
     private val keyringCrypto: KeyringCrypto,
     private val passkeySlots: PasskeySlots,
+    private val securityKeySlots: SecurityKeySlots,
     private val appLockSecurityManager: AppLockSecurityManager,
 ) : ViewModel() {
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
@@ -76,10 +87,13 @@ class BackupSettingsViewModel @Inject constructor(
 
     // What the device credential in [encryptionKey]'s prompt unlocks.
     private var pendingKeyAction: KeyAction? = null
-    private var pendingRemovePasskeyId: String? = null
+    private var pendingRemoveSlot: KeyringSlot? = null
+
+    // The running E4 operation (Add, C1, re-link); the sheet's Cancel cancels it.
+    private var securityKeyJob: Job? = null
 
     // E2 re-link: the new MK, held from the install until the last old
-    // passkey slot is linked or skipped, then zeroed by [endRelink].
+    // passkey or security-key slot is linked or skipped, then zeroed by [endRelink].
     @VisibleForTesting
     internal var relinkMasterKey: ByteArray? = null
         private set
@@ -144,6 +158,18 @@ class BackupSettingsViewModel @Inject constructor(
 
     // Null until the store's first read; the footer treats that as unknown.
     val backupKeyState: StateFlow<BackupKeyState?> = backupKeyStore.keyState
+
+    // E4's status line, while the sheet is open.
+    val securityKeyStatus: StateFlow<SecurityKeyStatus?> = securityKeySlots.status
+
+    /** E3 Add: the two-choice sheet when both can work, else the one that can. */
+    val addKeyChoice: AddKeyChoice by lazy {
+        when {
+            !securityKeySlots.isAvailable() -> AddKeyChoice.PASSKEY
+            passkeySlots.canOffer() -> AddKeyChoice.BOTH
+            else -> AddKeyChoice.SECURITY_KEY
+        }
+    }
 
     /**
      * Backup to file. With a key on this phone, prepares the export and
@@ -231,9 +257,10 @@ class BackupSettingsViewModel @Inject constructor(
     }
 
     // No screen lock: go ahead without a prompt, as the threat model allows.
-    private fun requestKeyCredential(action: KeyAction) {
+    // [activity] only for Add security key, which needs it next; never kept.
+    private fun requestKeyCredential(action: KeyAction, activity: Activity? = null) {
         if (appLockSecurityManager.isScreenLockMissing()) {
-            runKeyAction(action)
+            runKeyAction(action, activity)
             return
         }
         appLockSecurityManager.availabilityErrorMessageRes()?.let { messageRes ->
@@ -248,23 +275,34 @@ class BackupSettingsViewModel @Inject constructor(
                     titleRes = when (action) {
                         KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_title
                         KeyAction.REPLACE -> R.string.settings_backup_replace_key
-                        KeyAction.REMOVE_PASSKEY -> R.string.settings_backup_remove_passkey
+                        KeyAction.REMOVE_SLOT -> if (pendingRemoveSlot?.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY) {
+                            R.string.settings_backup_remove_security_key
+                        } else {
+                            R.string.settings_backup_remove_passkey
+                        }
+                        KeyAction.ADD_SECURITY_KEY -> R.string.settings_backup_add_security_key
                     },
                     subtitleRes = when (action) {
                         KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_subtitle
                         KeyAction.REPLACE -> R.string.settings_backup_replace_key_prompt_subtitle
-                        KeyAction.REMOVE_PASSKEY -> R.string.settings_backup_remove_passkey_prompt_subtitle
+                        KeyAction.REMOVE_SLOT -> if (pendingRemoveSlot?.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY) {
+                            R.string.settings_backup_remove_security_key_prompt_subtitle
+                        } else {
+                            R.string.settings_backup_remove_passkey_prompt_subtitle
+                        }
+                        KeyAction.ADD_SECURITY_KEY -> R.string.settings_backup_add_security_key_prompt_subtitle
                     },
                 ),
             )
         }
     }
 
-    fun onKeyCredentialAuthenticated() {
+    // [activity]: the screen's, for Add security key.
+    fun onKeyCredentialAuthenticated(activity: Activity? = null) {
         val action = pendingKeyAction ?: return
         pendingKeyAction = null
         encryptionKey.update { it.copy(pendingPrompt = null) }
-        runKeyAction(action)
+        runKeyAction(action, activity)
     }
 
     // Cancel maps to no message, so it stops silently.
@@ -278,7 +316,7 @@ class BackupSettingsViewModel @Inject constructor(
         }
     }
 
-    private fun runKeyAction(action: KeyAction) {
+    private fun runKeyAction(action: KeyAction, activity: Activity? = null) {
         when (action) {
             KeyAction.SHOW -> viewModelScope.launch {
                 // Any failure, the Keystore's included, ends Show: there is
@@ -309,11 +347,13 @@ class BackupSettingsViewModel @Inject constructor(
                 )
             }
 
-            KeyAction.REMOVE_PASSKEY -> {
-                val slotId = pendingRemovePasskeyId ?: return
-                pendingRemovePasskeyId = null
-                encryptionKey.update { it.copy(removePasskeySlotId = slotId) }
+            KeyAction.REMOVE_SLOT -> {
+                val slot = pendingRemoveSlot ?: return
+                pendingRemoveSlot = null
+                encryptionKey.update { it.copy(removeSlot = slot) }
             }
+
+            KeyAction.ADD_SECURITY_KEY -> addSecurityKey(activity ?: return, pin = null)
         }
     }
 
@@ -333,7 +373,7 @@ class BackupSettingsViewModel @Inject constructor(
             encryptionKey.update { it.copy(isPasskeyInProgress = false) }
             throw error
         } catch (error: Exception) {
-            passkeyErrorMessageRes(error)
+            slotErrorMessageRes(error)
         }
         encryptionKey.update {
             it.copy(isPasskeyOfferShown = false, isPasskeyInProgress = false, messageRes = messageRes)
@@ -349,13 +389,111 @@ class BackupSettingsViewModel @Inject constructor(
         return onBackupToFileClick()
     }
 
+    /** E3 Add: the two-choice sheet, or straight to the one kind this phone can add. */
+    fun onAddKeyClick(activity: Activity) {
+        if (encryptionKey.value.isPasskeyInProgress) return
+        when (addKeyChoice) {
+            AddKeyChoice.BOTH -> encryptionKey.update { it.copy(isKeyChoiceShown = true) }
+            AddKeyChoice.SECURITY_KEY -> onAddSecurityKeyClick(activity)
+            AddKeyChoice.PASSKEY -> onAddPasskeyClick()
+        }
+    }
+
+    /** C1 Use passkey or security key: the same two-choice sheet. */
+    fun onUseKeyClick() {
+        encryptionKey.update { it.copy(isKeyChoiceShown = true) }
+    }
+
+    fun dismissKeyChoice() {
+        encryptionKey.update { it.copy(isKeyChoiceShown = false) }
+    }
+
     /**
      * E3 Add passkey: the account notice, with no device credential first;
      * creating the passkey already verifies the user.
      */
     fun onAddPasskeyClick() {
         if (encryptionKey.value.isPasskeyInProgress) return
-        encryptionKey.update { it.copy(isAddPasskeyNoticeShown = true) }
+        encryptionKey.update { it.copy(isKeyChoiceShown = false, isAddPasskeyNoticeShown = true) }
+    }
+
+    /**
+     * E3 Add security key: the device credential first (the key verifies no
+     * one at a touch), then E4.
+     */
+    fun onAddSecurityKeyClick(activity: Activity) {
+        if (encryptionKey.value.isPasskeyInProgress) return
+        encryptionKey.update { it.copy(isKeyChoiceShown = false) }
+        requestKeyCredential(KeyAction.ADD_SECURITY_KEY, activity)
+    }
+
+    /** E4's PIN step: tries Add again with the key's PIN. */
+    fun submitSecurityKeyPin(activity: Activity, pin: String) {
+        if (encryptionKey.value.securityKeyPrompt?.needsPin != true || pin.isEmpty()) return
+        addSecurityKey(activity, pin.toCharArray())
+    }
+
+    /** E4 Cancel: stops discovery; nothing is written. */
+    fun cancelSecurityKey() {
+        securityKeyJob?.cancel()
+        securityKeyJob = null
+        restoreKey.update { it?.copy(isUnlocking = false) }
+        encryptionKey.update { it.copy(securityKeyPrompt = null, isPasskeyInProgress = false) }
+    }
+
+    // E4, then the key's PIN only if it asks, then the slot is appended.
+    private fun addSecurityKey(activity: Activity, pin: CharArray?) {
+        encryptionKey.update {
+            it.copy(securityKeyPrompt = SecurityKeyPromptUiState(), isPasskeyInProgress = true)
+        }
+        securityKeyJob = viewModelScope.launch {
+            var mk: ByteArray? = null
+            try {
+                mk = checkNotNull(backupKeyStore.masterKey()) { "No backup key." }
+                val keyring = keyringCrypto.decode(checkNotNull(backupKeyStore.keyringJson()))
+                val slot = securityKeySlots.add(activity, mk, pin)
+                // A Cancel now is too late: the key holds the credential.
+                withContext(NonCancellable) {
+                    backupKeyStore.replaceKeyring(keyringCrypto.encode(keyring.copy(slots = keyring.slots + slot)))
+                }
+                endSecurityKeyAction(null)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: SecurityKeyPinRequiredException) {
+                showPinStep(isWrongPin = false, retries = null)
+            } catch (error: SecurityKeyWrongPinException) {
+                showPinStep(isWrongPin = true, retries = error.retries)
+            } catch (error: Exception) {
+                endSecurityKeyAction(slotErrorMessageRes(error))
+            } finally {
+                mk?.fill(0)
+                pin?.fill(' ')
+            }
+        }
+    }
+
+    private fun showPinStep(isWrongPin: Boolean, retries: Int?) {
+        encryptionKey.update {
+            it.copy(
+                securityKeyPrompt = SecurityKeyPromptUiState(needsPin = true, isWrongPin = isWrongPin, pinRetries = retries),
+                isPasskeyInProgress = false,
+            )
+        }
+    }
+
+    private fun endSecurityKeyAction(@StringRes messageRes: Int?) {
+        securityKeyJob = null
+        encryptionKey.update { it.copy(securityKeyPrompt = null, isPasskeyInProgress = false, messageRes = messageRes) }
+    }
+
+    // E4 open while [block] talks to the key (C1, re-link).
+    private suspend fun <T> withSecurityKeyPrompt(block: suspend () -> T): T {
+        encryptionKey.update { it.copy(securityKeyPrompt = SecurityKeyPromptUiState()) }
+        return try {
+            block()
+        } finally {
+            encryptionKey.update { it.copy(securityKeyPrompt = null) }
+        }
     }
 
     fun dismissAddPasskeyNotice() {
@@ -373,7 +511,7 @@ class BackupSettingsViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                endPasskeyAction(passkeyErrorMessageRes(error))
+                endPasskeyAction(slotErrorMessageRes(error))
             }
         }
     }
@@ -391,22 +529,26 @@ class BackupSettingsViewModel @Inject constructor(
         }
     }
 
-    /** E3 Remove: the device credential, then the confirm. */
-    fun onRemovePasskeyClick(slotId: String) {
+    /** E3 Remove (passkey or security key): the device credential, then the confirm. */
+    fun onRemoveSlotClick(slot: KeyringSlot) {
         if (encryptionKey.value.isPasskeyInProgress) return
-        pendingRemovePasskeyId = slotId
-        requestKeyCredential(KeyAction.REMOVE_PASSKEY)
+        pendingRemoveSlot = slot
+        requestKeyCredential(KeyAction.REMOVE_SLOT)
     }
 
-    fun dismissRemovePasskey() {
-        encryptionKey.update { it.copy(removePasskeySlotId = null) }
+    fun dismissRemoveSlot() {
+        encryptionKey.update { it.copy(removeSlot = null) }
     }
 
-    /** Rewrites the keyring without the slot. The passkey itself stays in its provider. */
-    fun confirmRemovePasskey() {
-        val slotId = encryptionKey.value.removePasskeySlotId ?: return
+    /**
+     * Rewrites the keyring without the slot. A passkey stays in its provider;
+     * a security key stores nothing to delete.
+     */
+    fun confirmRemoveSlot() {
+        val slot = encryptionKey.value.removeSlot ?: return
+        val slotId = slot.id
         if (encryptionKey.value.isPasskeyInProgress) return
-        encryptionKey.update { it.copy(removePasskeySlotId = null, isPasskeyInProgress = true) }
+        encryptionKey.update { it.copy(removeSlot = null, isPasskeyInProgress = true) }
         viewModelScope.launch {
             try {
                 val keyring = keyringCrypto.decode(checkNotNull(backupKeyStore.keyringJson()))
@@ -417,20 +559,30 @@ class BackupSettingsViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                endPasskeyAction(R.string.settings_backup_passkeys_update_failed)
+                endPasskeyAction(
+                    if (slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY) {
+                        R.string.settings_backup_security_keys_update_failed
+                    } else {
+                        R.string.settings_backup_passkeys_update_failed
+                    }
+                )
             }
         }
     }
 
-    /** E2 re-link: wraps the new MK under the current old passkey slot. */
-    fun linkPasskey(activity: Activity) {
+    /** E2 re-link: wraps the new MK under the current old passkey or security-key slot. */
+    fun linkSlot(activity: Activity) {
         val slot = encryptionKey.value.relinkSlot ?: return
         val mk = relinkMasterKey ?: return
         if (encryptionKey.value.isPasskeyInProgress) return
         encryptionKey.update { it.copy(isPasskeyInProgress = true) }
-        viewModelScope.launch {
+        val job = viewModelScope.launch {
             try {
-                val newSlot = passkeySlots.rewrap(activity, slot, mk)
+                val newSlot = if (slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY) {
+                    withSecurityKeyPrompt { securityKeySlots.rewrap(activity, slot, mk) }
+                } else {
+                    passkeySlots.rewrap(activity, slot, mk)
+                }
                 val keyring = keyringCrypto.decode(checkNotNull(backupKeyStore.keyringJson()))
                 backupKeyStore.replaceKeyring(keyringCrypto.encode(keyring.copy(slots = keyring.slots + newSlot)))
                 encryptionKey.update { it.copy(isPasskeyInProgress = false) }
@@ -439,13 +591,14 @@ class BackupSettingsViewModel @Inject constructor(
                 throw error
             } catch (error: Exception) {
                 // The dialog stays: try again or Skip.
-                endPasskeyAction(passkeyErrorMessageRes(error))
+                endPasskeyAction(slotErrorMessageRes(error))
             }
         }
+        if (slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY) securityKeyJob = job
     }
 
     /** E2 re-link Skip: the old slot is left out of the new keyring. */
-    fun skipPasskeyLink() {
+    fun skipSlotLink() {
         if (encryptionKey.value.isPasskeyInProgress) return
         nextRelink()
     }
@@ -471,12 +624,18 @@ class BackupSettingsViewModel @Inject constructor(
         encryptionKey.update { it.copy(isPasskeyInProgress = false, messageRes = messageRes) }
     }
 
-    // Cancel is silent.
+    // Cancel is silent. [error] from a passkey or a security-key call.
     @StringRes
-    private fun passkeyErrorMessageRes(error: Exception): Int? = when (error) {
+    private fun slotErrorMessageRes(error: Exception): Int? = when (error) {
         is PasskeyCancelledException -> null
         is PasskeyProviderUnavailableException -> R.string.settings_backup_passkey_no_provider
         is PasskeyPrfUnsupportedException -> R.string.settings_backup_passkey_no_prf
+        is SecurityKeyUnavailableException -> R.string.settings_backup_security_key_unavailable
+        is SecurityKeyUnsupportedException -> R.string.settings_backup_security_key_unsupported
+        is SecurityKeyNotLinkedException -> R.string.settings_backup_security_key_not_linked
+        is SecurityKeyPinRequiredException,
+        is SecurityKeyWrongPinException -> R.string.settings_backup_security_key_pin_failed
+        is SecurityKeyException -> R.string.settings_backup_security_key_failed
         else -> R.string.settings_backup_passkey_failed
     }
 
@@ -496,10 +655,16 @@ class BackupSettingsViewModel @Inject constructor(
         setBackupExportInProgress(true)
         viewModelScope.launch {
             try {
-                // The old passkey slots, offered for re-link once the new key is in.
-                val oldPasskeySlots = runCatching {
+                // The old passkey and security-key slots, offered for re-link
+                // once the new key is in. Security keys only where one can
+                // talk to this phone; elsewhere their slots are dropped.
+                val canUseSecurityKeys = securityKeySlots.isAvailable()
+                val oldSlots = runCatching {
                     backupKeyStore.keyringJson()?.let { json ->
-                        keyringCrypto.decode(json).slots.filter { it.type == KeyringCrypto.SLOT_TYPE_PASSKEY }
+                        keyringCrypto.decode(json).slots.filter {
+                            it.type == KeyringCrypto.SLOT_TYPE_PASSKEY ||
+                                    (canUseSecurityKeys && it.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY)
+                        }
                     }
                 }.getOrNull().orEmpty()
                 val keyringJson = withContext(Dispatchers.Default) {
@@ -512,7 +677,7 @@ class BackupSettingsViewModel @Inject constructor(
                 backupKeyStore.install(mk, setup.recoveryKey, keyringJson)
                 endRelink()
                 relinkMasterKey = mk.copyOf()
-                relinkQueue = oldPasskeySlots
+                relinkQueue = oldSlots
                 nextRelink()
             } catch (error: CancellationException) {
                 throw error
@@ -533,7 +698,7 @@ class BackupSettingsViewModel @Inject constructor(
         encryptionKey.update { it.copy(messageRes = null) }
     }
 
-    private enum class KeyAction { SHOW, REPLACE, REMOVE_PASSKEY }
+    private enum class KeyAction { SHOW, REPLACE, REMOVE_SLOT, ADD_SECURITY_KEY }
 
     private suspend fun prepareBackupExport(
         mk: ByteArray,
@@ -800,6 +965,12 @@ class BackupSettingsViewModel @Inject constructor(
                 isUnlocked = mk != null,
                 canAdopt = !hasKey,
                 passkeySlots = keyring.slots.filter { it.type == KeyringCrypto.SLOT_TYPE_PASSKEY },
+                // Hidden where no key can talk to this phone; the recovery key still opens it.
+                securityKeySlots = if (securityKeySlots.isAvailable()) {
+                    keyring.slots.filter { it.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY }
+                } else {
+                    emptyList()
+                },
             )
         }
         val previous = pendingRestoreRequest.value
@@ -886,15 +1057,34 @@ class BackupSettingsViewModel @Inject constructor(
      * and Show recovery key works on this phone later.
      */
     fun unlockBackupRestoreWithPasskey(activity: Activity) {
-        val request = pendingRestoreRequest.value ?: return
-        val keyringJson = request.keyringJson ?: return
-        val state = restoreKey.value ?: return
-        if (state.isUnlocked || state.isUnlocking || state.passkeySlots.isEmpty()) return
+        encryptionKey.update { it.copy(isKeyChoiceShown = false) }
+        unlockBackupRestoreWithSlot(BackupRestoreKeyUiState::passkeySlots) { slots ->
+            passkeySlots.unlock(activity, slots).second
+        }
+    }
+
+    /** C1 Use security key: E4, one touch, as Use passkey. */
+    fun unlockBackupRestoreWithSecurityKey(activity: Activity) {
+        encryptionKey.update { it.copy(isKeyChoiceShown = false) }
+        securityKeyJob = unlockBackupRestoreWithSlot(BackupRestoreKeyUiState::securityKeySlots) { slots ->
+            withSecurityKeyPrompt { securityKeySlots.unlock(activity, slots).second }
+        }
+    }
+
+    private fun unlockBackupRestoreWithSlot(
+        slotsOf: (BackupRestoreKeyUiState) -> List<KeyringSlot>,
+        unlock: suspend (List<KeyringSlot>) -> ByteArray,
+    ): Job? {
+        val request = pendingRestoreRequest.value ?: return null
+        val keyringJson = request.keyringJson ?: return null
+        val state = restoreKey.value ?: return null
+        val slots = slotsOf(state)
+        if (state.isUnlocked || state.isUnlocking || slots.isEmpty()) return null
         restoreKey.value = state.copy(isUnlocking = true, isWrongKey = false, isNotAKey = false)
-        viewModelScope.launch {
+        return viewModelScope.launch {
             var mk: ByteArray? = null
             try {
-                mk = passkeySlots.unlock(activity, state.passkeySlots).second
+                mk = unlock(slots)
                 val recoveryKey = runCatching {
                     keyringCrypto.unwrapRecoveryKey(keyringCrypto.decode(keyringJson), mk)
                 }.getOrNull()
@@ -909,7 +1099,7 @@ class BackupSettingsViewModel @Inject constructor(
                 // C1 stays with the field: the recovery key still works.
                 if (pendingRestoreRequest.value === request) {
                     restoreKey.update { it?.copy(isUnlocking = false) }
-                    encryptionKey.update { it.copy(messageRes = passkeyErrorMessageRes(error)) }
+                    encryptionKey.update { it.copy(messageRes = slotErrorMessageRes(error)) }
                 }
             } finally {
                 mk?.fill(0)
@@ -1013,14 +1203,27 @@ data class BackupEncryptionKeyUiState(
     // Flow A, after the install: Add a passkey? (Not now / Add passkey).
     val isPasskeyOfferShown: Boolean = false,
     // E3 Remove, after the credential: the confirm for this slot.
-    val removePasskeySlotId: String? = null,
-    // E2 re-link: the old passkey slot being offered (Link / Skip).
+    val removeSlot: KeyringSlot? = null,
+    // E2 re-link: the old passkey or security-key slot being offered (Link / Skip).
     val relinkSlot: KeyringSlot? = null,
-    // A Credential Manager call or a keyring write is running.
+    // E3 Add or C1: "Passkey" / "Security key".
+    val isKeyChoiceShown: Boolean = false,
+    // E4, the security key sheet.
+    val securityKeyPrompt: SecurityKeyPromptUiState? = null,
+    // A Credential Manager or security-key call, or a keyring write, is running.
     val isPasskeyInProgress: Boolean = false,
     // A one-shot toast.
     @param:StringRes val messageRes: Int? = null,
 )
+
+data class SecurityKeyPromptUiState(
+    // Add only: the key has a PIN; the sheet asks for it, then the touch again.
+    val needsPin: Boolean = false,
+    val isWrongPin: Boolean = false,
+    val pinRetries: Int? = null,
+)
+
+enum class AddKeyChoice { PASSKEY, SECURITY_KEY, BOTH }
 
 data class BackupRestoreKeyUiState(
     // False: C1 (unlock). True: C2 (confirm), with the MK held.
@@ -1035,6 +1238,8 @@ data class BackupRestoreKeyUiState(
     val isUnlocking: Boolean = false,
     // The file's passkey slots: C1 offers Use passkey when there are any.
     val passkeySlots: List<KeyringSlot> = emptyList(),
+    // Its security-key slots, empty on a phone with neither NFC nor USB host.
+    val securityKeySlots: List<KeyringSlot> = emptyList(),
 )
 
 data class BackupKeySetupUiState(

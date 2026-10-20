@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -89,6 +90,26 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.view.WindowCompat
 import com.mkx.hrttracker.R
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.mkx.hrttracker.data.backup.SecurityKeyStatus
+import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.data.backup.RecoveryKey
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -298,16 +319,29 @@ internal fun BackupAddPasskeyNoticeDialog(
     )
 }
 
-/** E3 Remove passkey, after the credential. */
+/** E3 Remove passkey or security key, after the credential. */
 @Composable
-internal fun BackupRemovePasskeyDialog(
+internal fun BackupRemoveSlotDialog(
+    isSecurityKey: Boolean,
     onRemove: () -> Unit,
     onCancel: () -> Unit,
 ) {
     HazeAlertDialog(
         onDismissRequest = onCancel,
-        title = { Text(text = stringResource(R.string.settings_backup_remove_passkey_title)) },
-        text = { Text(text = stringResource(R.string.settings_backup_remove_passkey_message)) },
+        title = {
+            Text(
+                text = stringResource(
+                    if (isSecurityKey) R.string.settings_backup_remove_security_key_title else R.string.settings_backup_remove_passkey_title
+                )
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(
+                    if (isSecurityKey) R.string.settings_backup_remove_security_key_message else R.string.settings_backup_remove_passkey_message
+                )
+            )
+        },
         confirmButton = {
             TextButton(onClick = onRemove) {
                 Text(text = stringResource(R.string.remove))
@@ -321,10 +355,11 @@ internal fun BackupRemovePasskeyDialog(
     )
 }
 
-/** E2 re-link, per old passkey slot: Link wraps the new key, Skip drops the slot. */
+/** E2 re-link, per old passkey or security-key slot: Link wraps the new key, Skip drops the slot. */
 @Composable
-internal fun BackupRelinkPasskeyDialog(
+internal fun BackupRelinkSlotDialog(
     addedLabel: String,
+    isSecurityKey: Boolean,
     isInProgress: Boolean,
     onLink: () -> Unit,
     onSkip: () -> Unit,
@@ -332,11 +367,19 @@ internal fun BackupRelinkPasskeyDialog(
     HazeAlertDialog(
         // Not dismissable: the sequence ends only through Link or Skip.
         onDismissRequest = {},
-        title = { Text(text = stringResource(R.string.settings_backup_relink_passkey_title)) },
+        title = {
+            Text(
+                text = stringResource(
+                    if (isSecurityKey) R.string.settings_backup_relink_security_key_title else R.string.settings_backup_relink_passkey_title
+                )
+            )
+        },
         text = {
             Text(
-                text = stringResource(R.string.settings_backup_relink_passkey_message, addedLabel) +
-                        "\n\n" + stringResource(R.string.settings_backup_relink_passkey_skip_note)
+                text = stringResource(
+                    if (isSecurityKey) R.string.settings_backup_relink_security_key_message else R.string.settings_backup_relink_passkey_message,
+                    addedLabel,
+                ) + "\n\n" + stringResource(R.string.settings_backup_relink_passkey_skip_note)
             )
         },
         confirmButton = {
@@ -348,7 +391,11 @@ internal fun BackupRelinkPasskeyDialog(
                         color = LocalContentColor.current,
                     )
                 } else {
-                    Text(text = stringResource(R.string.settings_backup_link_passkey))
+                    Text(
+                        text = stringResource(
+                            if (isSecurityKey) R.string.settings_backup_link_security_key else R.string.settings_backup_link_passkey
+                        )
+                    )
                 }
             }
         },
@@ -598,6 +645,9 @@ internal fun BackupUnlockDialog(
     onScan: () -> Unit,
     onCancel: () -> Unit,
     onUsePasskey: () -> Unit = {},
+    onUseSecurityKey: () -> Unit = {},
+    // Both kinds in the keyring: the two-choice sheet.
+    onUseKeyChoice: () -> Unit = {},
 ) {
     val canUnlock = RecoveryKey.parse(state.input) != null && !state.isUnlocking
     BackupRestoreKeyDialog(
@@ -628,26 +678,45 @@ internal fun BackupUnlockDialog(
             }
         }
         val hasPasskey = state.passkeySlots.isNotEmpty()
+        val hasSecurityKey = state.securityKeySlots.isNotEmpty()
         Text(
             text = stringResource(
-                if (hasPasskey) R.string.settings_backup_unlock_passkey_message else R.string.settings_backup_unlock_message
+                when {
+                    hasPasskey && hasSecurityKey -> R.string.settings_backup_unlock_passkey_or_security_key_message
+                    hasSecurityKey -> R.string.settings_backup_unlock_security_key_message
+                    hasPasskey -> R.string.settings_backup_unlock_passkey_message
+                    else -> R.string.settings_backup_unlock_message
+                }
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = AlertDialogDefaults.textContentColor,
         )
-        if (hasPasskey) {
+        if (hasPasskey || hasSecurityKey) {
+            // One button names what the keyring has.
             Button(
-                onClick = onUsePasskey,
+                onClick = when {
+                    hasPasskey && hasSecurityKey -> onUseKeyChoice
+                    hasSecurityKey -> onUseSecurityKey
+                    else -> onUsePasskey
+                },
                 enabled = !state.isUnlocking,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Fingerprint,
+                    imageVector = if (hasPasskey) Icons.Outlined.Fingerprint else Icons.Outlined.Key,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.settings_backup_use_passkey))
+                Text(
+                    text = stringResource(
+                        when {
+                            hasPasskey && hasSecurityKey -> R.string.settings_backup_use_passkey_or_security_key
+                            hasSecurityKey -> R.string.settings_backup_use_security_key
+                            else -> R.string.settings_backup_use_passkey
+                        }
+                    )
+                )
             }
             Text(
                 text = stringResource(R.string.settings_backup_unlock_or_recovery_key),
@@ -914,3 +983,160 @@ private val SecureFullScreenDialogProperties = DialogProperties(
     // Edge to edge like the activity; the content pads for the bars.
     decorFitsSystemWindows = false,
 )
+
+/** E3 Add or C1, when both kinds can work: Passkey or Security key. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BackupKeyChoiceSheet(
+    title: String,
+    onPasskey: () -> Unit,
+    onSecurityKey: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    BackupSheet(sheetState = sheetState, onDismiss = onDismiss) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_large), vertical = 8.dp),
+        )
+        listOf(
+            Triple(Icons.Outlined.Fingerprint, R.string.settings_backup_passkey to R.string.settings_backup_choice_passkey_detail, onPasskey),
+            Triple(Icons.Outlined.Key, R.string.settings_backup_security_key to R.string.settings_backup_choice_security_key_detail, onSecurityKey),
+        ).forEach { (icon, labels, onClick) ->
+            ListItem(
+                headlineContent = { Text(text = stringResource(labels.first)) },
+                supportingContent = { Text(text = stringResource(labels.second)) },
+                leadingContent = { Icon(imageVector = icon, contentDescription = null) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier
+                    .clickable { hideBottomSheet(scope, sheetState, onClick) }
+                    .padding(horizontal = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * E4: discovery runs while this is open (Add, C1, re-link). [status] is the
+ * key operation's; [prompt] adds Add's PIN step. Back and Cancel cancel.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BackupSecurityKeySheet(
+    status: SecurityKeyStatus?,
+    prompt: SecurityKeyPromptUiState,
+    onSubmitPin: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val padding = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_large))
+    BackupSheet(sheetState = sheetState, onDismiss = onCancel) {
+        Column(
+            modifier = padding,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_backup_security_key_prompt_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = stringResource(R.string.settings_backup_security_key_prompt_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Not saveable: a PIN never goes into the saved-state bundle.
+            var pin by remember { mutableStateOf("") }
+            if (prompt.needsPin) {
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { pin = it },
+                    label = { Text(text = stringResource(R.string.settings_backup_security_key_pin_label)) },
+                    singleLine = true,
+                    isError = prompt.isWrongPin,
+                    supportingText = if (prompt.isWrongPin) {
+                        {
+                            Text(
+                                text = prompt.pinRetries?.let { retries ->
+                                    pluralStringResource(R.plurals.settings_backup_security_key_wrong_pin, retries, retries)
+                                } ?: stringResource(R.string.settings_backup_security_key_pin_failed)
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (pin.isNotEmpty()) onSubmitPin(pin) }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                ) {
+                    if (status == SecurityKeyStatus.DONE) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = stringResource(R.string.settings_backup_key_done),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = stringResource(
+                                when (status) {
+                                    SecurityKeyStatus.TOUCH -> R.string.settings_backup_security_key_touch
+                                    SecurityKeyStatus.KEEP_HOLDING -> R.string.settings_backup_security_key_keep_holding
+                                    SecurityKeyStatus.NFC_OFF -> R.string.settings_backup_security_key_nfc_off
+                                    else -> R.string.settings_backup_security_key_waiting
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+                if (prompt.needsPin) {
+                    Button(onClick = { onSubmitPin(pin) }, enabled = pin.isNotEmpty()) {
+                        Text(text = stringResource(R.string.settings_backup_add_passkey_continue))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BackupSheet(
+    sheetState: SheetState,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val navigationBarBottomPadding = with(LocalDensity.current) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
+    HazeModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding),
+            content = content,
+        )
+    }
+}

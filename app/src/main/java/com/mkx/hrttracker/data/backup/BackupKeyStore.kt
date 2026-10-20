@@ -29,6 +29,7 @@ sealed interface BackupKeyState {
     data class Key(
         val recoveryCreatedAt: Long?,
         val passkeySlots: List<KeyringSlot> = emptyList(),
+        val securityKeySlots: List<KeyringSlot> = emptyList(),
     ) : BackupKeyState
 }
 
@@ -235,6 +236,7 @@ class BackupKeyStore internal constructor(
     private fun keyStateOf(keyring: Keyring) = BackupKeyState.Key(
         recoveryCreatedAt = keyring.slots.firstOrNull { it.type == RECOVERY_SLOT_TYPE }?.createdAt,
         passkeySlots = keyring.slots.filter { it.type == KeyringCrypto.SLOT_TYPE_PASSKEY },
+        securityKeySlots = keyring.slots.filter { it.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY },
     )
 
     private class Stored(val mk: ByteArray, val keyringJson: String, val keyring: Keyring)

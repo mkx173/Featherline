@@ -39,6 +39,7 @@ uiautomator = "2.3.0"
 reorderable = "2.5.1"
 zxingAndroidEmbedded = "4.3.0"
 credentials = "1.6.0"
+yubikit = "3.2.1"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -100,6 +101,8 @@ reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reo
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+yubikit-android = { module = "com.yubico.yubikit:android", version.ref = "yubikit" }
+yubikit-fido = { module = "com.yubico.yubikit:fido", version.ref = "yubikit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

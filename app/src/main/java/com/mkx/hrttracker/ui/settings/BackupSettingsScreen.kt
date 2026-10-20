@@ -52,6 +52,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupKeyState
+import com.mkx.hrttracker.data.backup.KeyringCrypto
 import com.mkx.hrttracker.data.backup.DamagedBackupFileException
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
@@ -177,7 +178,7 @@ fun BackupSettingsScreen(
     }
     AppAuthenticationPromptEffect(
         request = uiState.encryptionKey.pendingPrompt,
-        onAuthenticated = viewModel::onKeyCredentialAuthenticated,
+        onAuthenticated = { viewModel.onKeyCredentialAuthenticated(activity) },
         onError = viewModel::onKeyCredentialError,
     )
     var isReplaceKeyDialogShown by rememberSaveable { mutableStateOf(false) }
@@ -185,11 +186,16 @@ fun BackupSettingsScreen(
         stringResource(R.string.settings_backup_recovery_key_created, backupKeyDateLabel(createdAt))
     }
     val passkeyCount = (backupKeyState as? BackupKeyState.Key)?.passkeySlots?.size ?: 0
-    val passkeysLabel = if (passkeyCount == 0) {
-        stringResource(R.string.settings_backup_passkeys_none)
-    } else {
-        pluralStringResource(R.plurals.settings_backup_passkeys_count, passkeyCount, passkeyCount)
-    }
+    val securityKeyCount = (backupKeyState as? BackupKeyState.Key)?.securityKeySlots?.size ?: 0
+    val passkeysLabel = listOfNotNull(
+        passkeyCount.takeIf { it > 0 }?.let {
+            pluralStringResource(R.plurals.settings_backup_passkeys_count, it, it)
+        },
+        securityKeyCount.takeIf { it > 0 }?.let {
+            pluralStringResource(R.plurals.settings_backup_security_keys_count, it, it)
+        },
+    ).joinToString(" · ").ifEmpty { stringResource(R.string.settings_backup_passkeys_none) }
+    val securityKeyStatus by viewModel.securityKeyStatus.collectAsStateWithLifecycle()
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
@@ -460,11 +466,12 @@ fun BackupSettingsScreen(
     }
 
     uiState.encryptionKey.relinkSlot?.takeUnless { isAppLocked }?.let { slot ->
-        BackupRelinkPasskeyDialog(
+        BackupRelinkSlotDialog(
             addedLabel = backupKeyDateLabel(slot.createdAt),
+            isSecurityKey = slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY,
             isInProgress = uiState.encryptionKey.isPasskeyInProgress,
-            onLink = { activity?.let(viewModel::linkPasskey) },
-            onSkip = viewModel::skipPasskeyLink,
+            onLink = { activity?.let(viewModel::linkSlot) },
+            onSkip = viewModel::skipSlotLink,
         )
     }
 
@@ -475,6 +482,16 @@ fun BackupSettingsScreen(
                 launchBackupExport { viewModel.onBackupToFileClick() }
             },
             onDone = viewModel::dismissNewKeyActive,
+        )
+    }
+
+    // E4, for C1 and re-link.
+    uiState.encryptionKey.securityKeyPrompt?.takeUnless { isAppLocked }?.let { prompt ->
+        BackupSecurityKeySheet(
+            status = securityKeyStatus,
+            prompt = prompt,
+            onSubmitPin = { pin -> activity?.let { viewModel.submitSecurityKeyPin(it, pin) } },
+            onCancel = viewModel::cancelSecurityKey,
         )
     }
 
@@ -511,7 +528,17 @@ fun BackupSettingsScreen(
                     },
                     onCancel = viewModel::clearPendingRestoreRequest,
                     onUsePasskey = { activity?.let(viewModel::unlockBackupRestoreWithPasskey) },
+                    onUseSecurityKey = { activity?.let(viewModel::unlockBackupRestoreWithSecurityKey) },
+                    onUseKeyChoice = viewModel::onUseKeyClick,
                 )
+                if (uiState.encryptionKey.isKeyChoiceShown) {
+                    BackupKeyChoiceSheet(
+                        title = stringResource(R.string.settings_backup_use_passkey_or_security_key),
+                        onPasskey = { activity?.let(viewModel::unlockBackupRestoreWithPasskey) },
+                        onSecurityKey = { activity?.let(viewModel::unlockBackupRestoreWithSecurityKey) },
+                        onDismiss = viewModel::dismissKeyChoice,
+                    )
+                }
             }
             return@let
         }

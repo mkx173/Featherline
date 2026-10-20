@@ -205,7 +205,63 @@ class KeyringTest {
         assertArrayEquals(mk, keyringCrypto.unwrapPasskeySlot(decoded.slots.last(), prfOutput))
     }
 
+    @Test
+    fun security_key_slot_unwraps_with_its_hmac_output_only() {
+        val slot = keyringCrypto.wrapSecurityKeySlot(mk, hmacOutput, "featherline-backup", "a2V5", "c2FsdA==", now = 6L)
+
+        assertEquals(KeyringCrypto.SLOT_TYPE_SECURITY_KEY, slot.type)
+        assertEquals(6L, slot.createdAt)
+        assertEquals("featherline-backup", slot.rpId)
+        assertEquals("a2V5", slot.credentialId)
+        assertEquals("c2FsdA==", slot.hmacSalt)
+        assertNull(slot.prfSalt)
+        assertEquals(12, Base64.getDecoder().decode(slot.nonce).size)
+        assertArrayEquals(mk, keyringCrypto.unwrapSecurityKeySlot(slot, hmacOutput))
+        listOf(
+            { keyringCrypto.unwrapSecurityKeySlot(slot, ByteArray(32) { 1 }) },
+            { keyringCrypto.unwrapSecurityKeySlot(slot.copy(id = "other"), hmacOutput) },
+        ).forEach { unwrap ->
+            try {
+                unwrap()
+                fail("Expected the GCM tag to fail.")
+            } catch (_: AEADBadTagException) {
+                // Expected.
+            }
+        }
+        // A passkey slot is not a security-key slot, and vice versa.
+        try {
+            keyringCrypto.unwrapPasskeySlot(slot, hmacOutput)
+            fail("Expected a type check.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun slot_type_constants_match_the_keyring_format() {
+        assertEquals("passkey", KeyringCrypto.SLOT_TYPE_PASSKEY)
+        assertEquals("securityKey", KeyringCrypto.SLOT_TYPE_SECURITY_KEY)
+    }
+
+    @Test
+    fun hmac_salt_survives_a_round_trip_and_a_slot_rewrite() {
+        val keyring = keyringCrypto.newKeyring(mk, RECOVERY_KEY, now = 0L)
+        val securityKey = keyringCrypto.wrapSecurityKeySlot(mk, hmacOutput, "featherline-backup", "a2V5", "c2FsdA==", now = 6L)
+        val stored = keyringCrypto.encode(keyring.copy(slots = keyring.slots + securityKey))
+        // What 1.6's Add passkey does: decode, append, encode.
+        val passkey = keyringCrypto.wrapPasskeySlot(mk, prfOutput, "asterismlabs.io", "Y3JlZA", "c2FsdA==", now = 7L)
+        val decoded = keyringCrypto.decode(stored)
+        val rewritten = keyringCrypto.decode(keyringCrypto.encode(decoded.copy(slots = decoded.slots + passkey)))
+
+        val kept = rewritten.slots.single { it.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY }
+        assertEquals(securityKey, kept)
+        assertEquals("c2FsdA==", kept.hmacSalt)
+        assertArrayEquals(mk, keyringCrypto.unwrapSecurityKeySlot(kept, hmacOutput))
+        assertArrayEquals(mk, keyringCrypto.unwrapRecovery(rewritten, RECOVERY_KEY))
+    }
+
     private val prfOutput = ByteArray(32) { index -> (index * 3).toByte() }
+    private val hmacOutput = ByteArray(32) { index -> (index * 7).toByte() }
 
     private companion object {
         private const val RECOVERY_KEY = "K7QM3XRT9F2BHW4D"

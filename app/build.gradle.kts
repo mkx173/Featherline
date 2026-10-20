@@ -261,6 +261,9 @@ dependencies {
     // Play Services bridge for passkeys on Android 9-13. Not in arm64/x64
     // (F-Droid): there Android 14+ is the bridge, and below it there is none.
     "playImplementation"(libs.androidx.credentials.play.services.auth)
+    // Security keys (CTAP2 over NFC and USB), every flavor: Apache-2, no Play Services.
+    implementation(libs.yubikit.android)
+    implementation(libs.yubikit.fido)
     implementation(libs.androidx.glance.appwidget.preview)
     implementation(libs.androidx.glance.preview)
 

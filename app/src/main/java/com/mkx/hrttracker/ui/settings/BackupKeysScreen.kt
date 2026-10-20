@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +34,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupKeyState
+import com.mkx.hrttracker.data.backup.KeyringCrypto
 import com.mkx.hrttracker.data.backup.KeyringSlot
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeTopAppBar
@@ -44,7 +46,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 
-/** E3: the keyring's passkey slots, Add passkey and Remove. Shares the Backup page's ViewModel. */
+/** E3: the keyring's passkey and security-key slots, Add and Remove. Shares the Backup page's ViewModel. */
 @Composable
 fun BackupKeysScreen(
     onNavigateBack: () -> Unit,
@@ -60,6 +62,7 @@ fun BackupKeysScreen(
     )
     val isAppLocked = appLockViewModel.uiState.collectAsStateWithLifecycle().value.shouldShowLockScreen
     val encryptionKey = uiState.encryptionKey
+    val securityKeyStatus by viewModel.securityKeyStatus.collectAsStateWithLifecycle()
 
     val messageRes = encryptionKey.messageRes
     LaunchedEffect(messageRes) {
@@ -69,18 +72,37 @@ fun BackupKeysScreen(
     }
     AppAuthenticationPromptEffect(
         request = encryptionKey.pendingPrompt,
-        onAuthenticated = viewModel::onKeyCredentialAuthenticated,
+        onAuthenticated = { viewModel.onKeyCredentialAuthenticated(activity) },
         onError = viewModel::onKeyCredentialError,
     )
 
+    val key = backupKeyState as? BackupKeyState.Key
     BackupKeysScreenContent(
-        slots = (backupKeyState as? BackupKeyState.Key)?.passkeySlots.orEmpty(),
+        slots = (key?.passkeySlots.orEmpty() + key?.securityKeySlots.orEmpty()).sortedBy { it.createdAt },
+        addKeyChoice = viewModel.addKeyChoice,
         isInProgress = encryptionKey.isPasskeyInProgress,
         onNavigateBack = onNavigateBack,
-        onAddPasskeyClick = viewModel::onAddPasskeyClick,
-        onRemovePasskeyClick = viewModel::onRemovePasskeyClick,
+        onAddClick = { viewModel.onAddKeyClick(activity) },
+        onRemoveSlotClick = viewModel::onRemoveSlotClick,
         modifier = modifier,
     )
+
+    if (encryptionKey.isKeyChoiceShown && !isAppLocked) {
+        BackupKeyChoiceSheet(
+            title = stringResource(R.string.settings_backup_add_passkey_or_security_key),
+            onPasskey = viewModel::onAddPasskeyClick,
+            onSecurityKey = { viewModel.onAddSecurityKeyClick(activity) },
+            onDismiss = viewModel::dismissKeyChoice,
+        )
+    }
+    encryptionKey.securityKeyPrompt?.takeUnless { isAppLocked }?.let { prompt ->
+        BackupSecurityKeySheet(
+            status = securityKeyStatus,
+            prompt = prompt,
+            onSubmitPin = { pin -> viewModel.submitSecurityKeyPin(activity, pin) },
+            onCancel = viewModel::cancelSecurityKey,
+        )
+    }
 
     if (encryptionKey.isAddPasskeyNoticeShown && !isAppLocked) {
         BackupAddPasskeyNoticeDialog(
@@ -88,10 +110,11 @@ fun BackupKeysScreen(
             onCancel = viewModel::dismissAddPasskeyNotice,
         )
     }
-    if (encryptionKey.removePasskeySlotId != null && !isAppLocked) {
-        BackupRemovePasskeyDialog(
-            onRemove = viewModel::confirmRemovePasskey,
-            onCancel = viewModel::dismissRemovePasskey,
+    encryptionKey.removeSlot?.takeUnless { isAppLocked }?.let { slot ->
+        BackupRemoveSlotDialog(
+            isSecurityKey = slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY,
+            onRemove = viewModel::confirmRemoveSlot,
+            onCancel = viewModel::dismissRemoveSlot,
         )
     }
 }
@@ -100,10 +123,11 @@ fun BackupKeysScreen(
 @Composable
 private fun BackupKeysScreenContent(
     slots: List<KeyringSlot>,
+    addKeyChoice: AddKeyChoice,
     isInProgress: Boolean,
     onNavigateBack: () -> Unit,
-    onAddPasskeyClick: () -> Unit,
-    onRemovePasskeyClick: (String) -> Unit,
+    onAddClick: () -> Unit,
+    onRemoveSlotClick: (KeyringSlot) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
@@ -144,25 +168,32 @@ private fun BackupKeysScreenContent(
                 )
                 HrtSection(title = null, topPadding = false) {
                     slots.forEach { slot ->
+                        val isSecurityKey = slot.type == KeyringCrypto.SLOT_TYPE_SECURITY_KEY
                         item {
                             SettingsSegmentedListItem(
-                                title = stringResource(R.string.settings_backup_passkey),
+                                title = stringResource(
+                                    if (isSecurityKey) R.string.settings_backup_security_key else R.string.settings_backup_passkey
+                                ),
                                 supportingText = stringResource(
                                     R.string.settings_backup_passkey_added,
                                     backupKeyDateLabel(slot.createdAt),
                                 ),
-                                onClick = { if (!isInProgress) onRemovePasskeyClick(slot.id) },
+                                onClick = { if (!isInProgress) onRemoveSlotClick(slot) },
                                 leadingContent = {
-                                    SettingsLeadingIconSlot(icon = Icons.Outlined.Fingerprint)
+                                    SettingsLeadingIconSlot(
+                                        icon = if (isSecurityKey) Icons.Outlined.Key else Icons.Outlined.Fingerprint
+                                    )
                                 },
                                 trailingContent = {
                                     IconButton(
-                                        onClick = { onRemovePasskeyClick(slot.id) },
+                                        onClick = { onRemoveSlotClick(slot) },
                                         enabled = !isInProgress,
                                     ) {
                                         Icon(
                                             imageVector = Icons.Outlined.Delete,
-                                            contentDescription = stringResource(R.string.settings_backup_remove_passkey),
+                                            contentDescription = stringResource(
+                                                if (isSecurityKey) R.string.settings_backup_remove_security_key else R.string.settings_backup_remove_passkey
+                                            ),
                                         )
                                     }
                                 }
@@ -171,9 +202,15 @@ private fun BackupKeysScreenContent(
                     }
                     item {
                         SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_backup_add_passkey),
+                            title = stringResource(
+                                when (addKeyChoice) {
+                                    AddKeyChoice.BOTH -> R.string.settings_backup_add_passkey_or_security_key
+                                    AddKeyChoice.SECURITY_KEY -> R.string.settings_backup_add_security_key
+                                    AddKeyChoice.PASSKEY -> R.string.settings_backup_add_passkey
+                                }
+                            ),
                             enabled = !isInProgress,
-                            onClick = onAddPasskeyClick,
+                            onClick = onAddClick,
                             leadingContent = {
                                 SettingsLeadingIconSlot(icon = Icons.Rounded.Add)
                             },
@@ -186,6 +223,15 @@ private fun BackupKeysScreenContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = textPadding.padding(top = 10.dp),
                 )
+                // Hidden with the option on a phone with neither NFC nor USB host.
+                if (addKeyChoice != AddKeyChoice.PASSKEY) {
+                    Text(
+                        text = stringResource(R.string.settings_backup_security_keys_footer),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = textPadding.padding(top = 10.dp),
+                    )
+                }
             }
         }
     }
