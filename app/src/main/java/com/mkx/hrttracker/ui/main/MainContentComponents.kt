@@ -3451,11 +3451,10 @@ internal fun MainTodaySection(
                     val timeRange = group.timeRange
                     val rows = group.rows
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
-                    MainTodayTimeRangeHeader(
+                    MedicationDayTimeRangeHeader(
                         timeRange = timeRange,
-                        dateLabel = dateFormatter(group.date).takeIf { group.date != section.date },
                         isCurrent = rows.first().scheduledAt.toLocalDate() == now.toLocalDate() &&
-                            timeRange == mainTodayTimeRange(now.toLocalTime()),
+                            timeRange == MedicationDayTimeRange.of(now.toLocalTime()),
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
                         totalCount = scheduledRows.size,
                         manualCount = rows.count { row -> row.isManualRecord },
@@ -3476,7 +3475,6 @@ internal fun MainTodaySection(
                             key(rowKey) {
                                 MainTodayDoseRow(
                                     row = row,
-                                    dayDate = section.date,
                                     index = index,
                                     itemCount = rows.size,
                                     now = now,
@@ -3541,7 +3539,6 @@ internal fun MainLastNightSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
-                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3603,7 +3600,6 @@ internal fun MainComingUpSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
-                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3708,7 +3704,6 @@ private fun MainTodayDoseRow(
     itemCount: Int,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
-    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     isHighlighted: Boolean = false,
@@ -3745,21 +3740,9 @@ private fun MainTodayDoseRow(
             doseAmountDelta = row.doseAmountDelta,
         )
     }
-    // The trailing side already prints the scheduled time for an
-    // unlogged row in the grace window. Only repeat the next-day label there
-    // when the trailing text is an offset or absent instead.
-    val trailingShowsScheduledTime = !row.isManualRecord &&
-        row.loggedAt == null &&
-        row.outsideScheduleWindowLoggedAt == null &&
-        mainTodayIsBeforeOrInGracePeriod(row.scheduledAt, now)
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
-        row.scheduledAt.takeIf {
-            !trailingShowsScheduledTime && it.toLocalDate() != dayDate
-        }?.let {
-            medicationDayTimeText(LocalContext.current, it, dayDate, timeFormatter)
-        },
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
     val hasOnlyOutsideScheduleWindowLog = row.loggedAt == null &&
@@ -3872,7 +3855,6 @@ private fun MainTodayDoseRow(
 
                 MainTodayTrailingContent(
                     row = row,
-                    dayDate = dayDate,
                     now = now,
                     timeFormatter = timeFormatter,
                     onStatusClick = onStatusClick
@@ -3997,7 +3979,6 @@ private fun MainTodayTrailingContent(
     row: MainTodayDoseRowUiState,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
-    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     onStatusClick: () -> Unit,
 ) {
     val loggedAt = row.loggedAt ?: row.outsideScheduleWindowLoggedAt
@@ -4016,7 +3997,7 @@ private fun MainTodayTrailingContent(
                     scheduledFor = row.scheduledAt,
                     now = now
                 ) -> MainTodayTrailingText(
-                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter),
+                    text = row.scheduledAt.toLocalTime().format(timeFormatter),
                     isDelta = false
                 )
 
@@ -4322,20 +4303,16 @@ private fun MainSectionHeader(
 }
 
 @Composable
-private fun MainTodayTimeRangeHeader(
-    timeRange: MainTodayTimeRange,
+private fun MedicationDayTimeRangeHeader(
+    timeRange: MedicationDayTimeRange,
     isCurrent: Boolean,
     doneCount: Int,
     totalCount: Int,
     manualCount: Int,
     timeFormatter: DateTimeFormatter,
-    dateLabel: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val timeRangeLabel = listOfNotNull(
-        dateLabel,
-        stringResource(timeRange.labelRes),
-    ).joinToString(separator = " · ")
+    val timeRangeLabel = stringResource(timeRange.labelRes)
     val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
         timeRange = timeRange,
         timeFormatter = timeFormatter
