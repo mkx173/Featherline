@@ -57,11 +57,10 @@ private val Context.dataStore by preferencesDataStore(
 
 @Singleton
 class SettingsRepository internal constructor(
-    context: Context,
     private val preferencesDataStore: DataStore<Preferences>,
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(context, context.dataStore)
+    constructor(@ApplicationContext context: Context) : this(context.dataStore)
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
