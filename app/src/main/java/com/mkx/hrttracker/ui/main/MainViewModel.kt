@@ -424,6 +424,17 @@ class MainViewModel @Inject constructor(
             option = chartWindowOption,
         )
 
+        val boundary = inputs.settings.medicationDayBoundary
+        val doseSections = buildMainDoseSections(
+            groups = scheduleGroups,
+            entries = visibleEntries,
+            now = now,
+            zoneId = zoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+            boundary = boundary,
+        )
+
         return MainUiState(
             homeDataReady = true,
             isUpdating = isUpdating,
@@ -474,39 +485,16 @@ class MainViewModel @Inject constructor(
                     now = now,
                     zoneId = zoneId,
                     category = category,
+                    boundary = inputs.settings.medicationDayBoundary,
                 )
                 cards.takeIf { it.isNotEmpty() }
                     ?.let { MainMedicationCategorySection(category = category, cards = it) }
             },
-            todaySection = buildMainTodaySection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-                boundary = inputs.settings.medicationDayBoundary,
-            ),
-            lastNightSection = buildMainLastNightSection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-                boundary = inputs.settings.medicationDayBoundary,
-            ),
-            comingUpSection = buildMainComingUpSection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-                boundary = inputs.settings.medicationDayBoundary,
-            ),
+            todaySection = doseSections.today,
+            lastNightSection = doseSections.lastNight,
+            comingUpSection = doseSections.comingUp,
             upcomingSection = buildMainUpcomingSection(
-                boundary = inputs.settings.medicationDayBoundary,
+                boundary = boundary,
                 groups = inputs.activeGroups,
                 entries = homeEntries,
                 now = now,

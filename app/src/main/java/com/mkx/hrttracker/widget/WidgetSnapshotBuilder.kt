@@ -3,16 +3,11 @@ package com.mkx.hrttracker.widget
 import android.content.Context
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
-import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
-import com.mkx.hrttracker.model.medication.includesInLastNight
-import com.mkx.hrttracker.model.medication.isLastNightVisible
-import com.mkx.hrttracker.model.medication.isTonightVisible
-import com.mkx.hrttracker.model.medication.lastNightMedicationDay
-import com.mkx.hrttracker.model.medication.tonightMedicationDay
+import com.mkx.hrttracker.model.medication.MedicationDaySectionSource
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
-import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
+import com.mkx.hrttracker.model.medication.buildMedicationDaySections
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.PkProjectionResult
@@ -22,7 +17,6 @@ import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
-import com.mkx.hrttracker.util.medicationDay
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -47,7 +41,6 @@ internal fun buildWidgetSnapshotRecord(
     ),
 ): WidgetSnapshotRecord {
     val boundary = settings.medicationDayBoundary
-    val today = medicationDay(now, boundary)
     val activeGroups = homeSnapshot.activeGroups
     val allGroups = activeGroups + homeSnapshot.archivedGroups
     val scheduleEntries = homeSnapshot.scheduleEntries
@@ -61,20 +54,24 @@ internal fun buildWidgetSnapshotRecord(
     val archivedGroupUuids = allGroups.filter(MedicationGroup::isArchived)
         .mapTo(mutableSetOf()) { group -> group.uuid }
 
-    val lastNightRows = if (boundary.isLastNightVisible(now)) {
-        val previousDay = boundary.lastNightMedicationDay(now)
-        val previousSchedule = buildPlanDaySchedule(
-            date = previousDay,
-            boundary = boundary,
+    val sections = buildMedicationDaySections(
+        source = MedicationDaySectionSource(
             groups = scheduleGroups,
             entries = visibleEntries,
-            now = now,
-            zoneId = zoneId,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-        )
+        ),
+        now = now,
+        boundary = boundary,
+        zoneId = zoneId,
+        comingUpSource = MedicationDaySectionSource(
+            groups = activeGroups,
+            entries = scheduleEntries,
+        ),
+    )
+
+    val lastNightRows = sections.lastNight?.let { previousSchedule ->
         val scheduledLastNight = previousSchedule.scheduledEntries
-            .filter { entry -> boundary.includesInLastNight(entry.scheduledFor) }
             .map { entry ->
                 entry.toWidgetDoseRow(
                     context = context,
@@ -84,7 +81,6 @@ internal fun buildWidgetSnapshotRecord(
                 )
             }
         val manualLastNight = previousSchedule.unplannedEntries
-            .filter { entry -> boundary.includesInLastNight(appliedAtAsLocalDateTime(entry, zoneId)) }
             .map { entry ->
                 entry.toManualWidgetDoseRow(
                     context = context,
@@ -96,21 +92,9 @@ internal fun buildWidgetSnapshotRecord(
                 )
             }
         (scheduledLastNight + manualLastNight).sortedBy { row -> row.scheduledAt }
-    } else {
-        emptyList()
-    }
+    }.orEmpty()
 
-    val todaySchedule = buildPlanDaySchedule(
-        date = today,
-        boundary = boundary,
-        groups = scheduleGroups,
-        entries = visibleEntries,
-        now = now,
-        zoneId = zoneId,
-        includeUnloggedArchivedSlots = false,
-        unloggedArchivedSlotCutoff = now,
-    )
-    val todayScheduledRows = todaySchedule.scheduledEntries
+    val todayScheduledRows = sections.todaySchedule.scheduledEntries
         .map { entry ->
             entry.toWidgetDoseRow(
                 context = context,
@@ -119,7 +103,7 @@ internal fun buildWidgetSnapshotRecord(
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
         }
-    val manualRows = todaySchedule.unplannedEntries
+    val manualRows = sections.todaySchedule.unplannedEntries
         .map { entry ->
             entry.toManualWidgetDoseRow(
                 context = context,
@@ -131,37 +115,21 @@ internal fun buildWidgetSnapshotRecord(
             )
         }
 
-    val comingUpRows = if (boundary.isTonightVisible(now)) {
-        val tomorrow = boundary.tonightMedicationDay(now)
-        val tomorrowSchedule = buildPlanDaySchedule(
-            date = tomorrow,
-            boundary = boundary,
-            groups = activeGroups,
-            entries = scheduleEntries,
-            now = now,
-            zoneId = zoneId,
-        )
-        tomorrowSchedule.scheduledEntries
-            .filter { entry ->
-                MedicationDayTimeRange.of(entry.scheduledFor.toLocalTime()) ==
-                    MedicationDayTimeRange.MIDNIGHT
-            }
-            .map { entry ->
-                entry.toWidgetDoseRow(
-                    context = context,
-                    timeFormatter = timeFormatter,
-                    contextChip = WidgetDoseChip.COMING_UP,
-                    isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
-                )
-            }
-    } else {
-        emptyList()
-    }
+    val comingUpRows = sections.comingUp?.scheduledEntries
+        ?.map { entry ->
+            entry.toWidgetDoseRow(
+                context = context,
+                timeFormatter = timeFormatter,
+                contextChip = WidgetDoseChip.COMING_UP,
+                isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
+            )
+        }
+        .orEmpty()
 
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = zoneId.id,
-        anchorDateEpochDay = today.toEpochDay(),
+        anchorDateEpochDay = sections.today.toEpochDay(),
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,
