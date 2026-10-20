@@ -90,8 +90,8 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -115,6 +115,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -137,9 +138,9 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationDayTimeText
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationDayTimeText
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
@@ -280,7 +281,7 @@ internal fun mainE2ChartMaxZoomXRangeHours(
 
 internal data class MainTodayDoseRowGroup(
     val date: LocalDate,
-    val timeRange: MainTodayTimeRange,
+    val timeRange: MedicationDayTimeRange,
     val rows: List<MainTodayDoseRowUiState>,
 )
 
@@ -288,7 +289,9 @@ internal fun mainTodayDoseRowGroups(
     rows: List<MainTodayDoseRowUiState>,
 ): List<MainTodayDoseRowGroup> =
     rows
-        .groupBy { row -> row.scheduledAt.toLocalDate() to mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
+        .groupBy { row ->
+            row.scheduledAt.toLocalDate() to MedicationDayTimeRange.of(row.scheduledAt.toLocalTime())
+        }
         .entries
         .sortedWith(compareBy({ it.key.first }, { it.key.second.ordinal }))
         .map { (key, dayRows) ->
@@ -375,32 +378,13 @@ internal fun mainE2ChartMinimapDateLabelXs(
 }
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
-internal enum class MainTodayTimeRange(
-    val labelRes: Int,
-    val startHour: Int,
-    val endHour: Int,
-) {
-    NIGHT(
-        labelRes = R.string.main_today_range_night,
-        startHour = 0,
-        endHour = 6
-    ),
-    MORNING(
-        labelRes = R.string.main_today_range_morning,
-        startHour = 6,
-        endHour = 12
-    ),
-    AFTERNOON(
-        labelRes = R.string.main_today_range_afternoon,
-        startHour = 12,
-        endHour = 18
-    ),
-    EVENING(
-        labelRes = R.string.main_today_range_evening,
-        startHour = 18,
-        endHour = 24
-    );
-}
+private val MedicationDayTimeRange.labelRes: Int
+    get() = when (this) {
+        MedicationDayTimeRange.MIDNIGHT -> R.string.main_today_range_midnight
+        MedicationDayTimeRange.MORNING -> R.string.main_today_range_morning
+        MedicationDayTimeRange.AFTERNOON -> R.string.main_today_range_afternoon
+        MedicationDayTimeRange.EVENING -> R.string.main_today_range_evening
+    }
 
 internal const val MainE2ChartContentTestTag = "main-e2-chart-content"
 internal const val MainE2ChartSkeletonTestTag = "main-e2-chart-skeleton"
@@ -4193,7 +4177,7 @@ private fun mainTodayIsInGracePeriod(
 }
 
 private fun mainTodayTimeRangeTimeLabel(
-    timeRange: MainTodayTimeRange,
+    timeRange: MedicationDayTimeRange,
     timeFormatter: DateTimeFormatter,
 ): String {
     return listOf(
@@ -4432,15 +4416,6 @@ internal fun mainTodayCompactCountLabel(
     return listOfNotNull(planLabel, manualPart)
         .joinToString(separator = " ")
         .takeIf { it.isNotEmpty() }
-}
-
-private fun mainTodayTimeRange(time: LocalTime): MainTodayTimeRange {
-    return when (time.hour) {
-        in 0 until 6 -> MainTodayTimeRange.NIGHT
-        in 6 until 12 -> MainTodayTimeRange.MORNING
-        in 12 until 18 -> MainTodayTimeRange.AFTERNOON
-        else -> MainTodayTimeRange.EVENING
-    }
 }
 
 private fun mainTodayEntryEditorIds(row: MainTodayDoseRowUiState): Set<UUID> {
@@ -4725,7 +4700,6 @@ private fun MainTodayTrailingContentPreview() {
             uiState.todaySection.rows.forEach { row ->
                 MainTodayTrailingContent(
                     row = row,
-                    dayDate = uiState.todaySection.date,
                     now = uiState.now,
                     timeFormatter = timeFormatter,
                     onStatusClick = { }
@@ -4776,12 +4750,12 @@ private fun MainSectionHeaderPreview() {
 
 @Preview(name = "Main Today Time Range Header", showBackground = true, widthDp = 420)
 @Composable
-private fun MainTodayTimeRangeHeaderPreview() {
+private fun MedicationDayTimeRangeHeaderPreview() {
     val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
 
     MainContentComponentPreviewContainer {
-        MainTodayTimeRangeHeader(
-            timeRange = MainTodayTimeRange.MORNING,
+        MedicationDayTimeRangeHeader(
+            timeRange = MedicationDayTimeRange.MORNING,
             isCurrent = true,
             doneCount = 1,
             totalCount = 2,

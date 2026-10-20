@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.history
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import androidx.compose.ui.unit.dp
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
@@ -231,8 +232,8 @@ class HistoryUiModelsTest {
         val visibleEntries = buildHistoryVisibleEntries(
             entries = entries,
             displayedMonth = YearMonth.of(2026, 4),
-            selectedDate = LocalDate.of(2026, 4, 11)
-        )
+            selectedDate = LocalDate.of(2026, 4, 11),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, visibleEntries.size)
         assertEquals(
@@ -251,8 +252,8 @@ class HistoryUiModelsTest {
         val visibleEntries = buildHistoryVisibleEntries(
             entries = entries,
             displayedMonth = YearMonth.of(2026, 4),
-            selectedDate = LocalDate.of(2026, 3, 30)
-        )
+            selectedDate = LocalDate.of(2026, 3, 30),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, visibleEntries.size)
         assertEquals(
@@ -668,8 +669,8 @@ class HistoryUiModelsTest {
                 LocalDate.of(2026, 4, 13) to stateFor(PlanCalendarDayStatus.OFFPLAN),
                 LocalDate.of(2026, 4, 25) to stateFor(PlanCalendarDayStatus.MISSED)
             ),
-            today = LocalDate.of(2026, 4, 20)
-        )
+            today = LocalDate.of(2026, 4, 20),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(3, summary.logged)
         assertEquals(1, summary.onTrack)
@@ -689,8 +690,8 @@ class HistoryUiModelsTest {
                     hasOffPlanRecord = true
                 )
             ),
-            today = LocalDate.of(2026, 4, 20)
-        )
+            today = LocalDate.of(2026, 4, 20),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, summary.onTrack)
         assertEquals(1, summary.offPlan)
@@ -743,8 +744,8 @@ class HistoryUiModelsTest {
                 entryAt(LocalDateTime.of(2026, 4, 10, 20, 0))
             ),
             startDate = LocalDate.of(2026, 4, 10),
-            endDate = LocalDate.of(2026, 4, 10)
-        )
+            endDate = LocalDate.of(2026, 4, 10),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -799,8 +800,8 @@ class HistoryUiModelsTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 17)
-        )
+            endDate = LocalDate.of(2026, 4, 17),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -863,8 +864,8 @@ class HistoryUiModelsTest {
                 )
             ),
             startDate = appliedDate,
-            endDate = scheduledDate
-        )
+            endDate = scheduledDate,
+            boundary = MedicationDayBoundary.Midnight)
 
         // With planCalendarDate, scheduledFor wins for bucketing: entry lands on scheduledDate.
         assertEquals(
@@ -927,8 +928,8 @@ class HistoryUiModelsTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 10),
-            endDate = LocalDate.of(2026, 4, 11)
-        )
+            endDate = LocalDate.of(2026, 4, 11),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -990,8 +991,8 @@ class HistoryUiModelsTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 10),
-            endDate = LocalDate.of(2026, 4, 11)
-        )
+            endDate = LocalDate.of(2026, 4, 11),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -1052,8 +1053,8 @@ class HistoryUiModelsTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 17),
-            endDate = LocalDate.of(2026, 4, 17)
-        )
+            endDate = LocalDate.of(2026, 4, 17),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -1086,8 +1087,8 @@ class HistoryUiModelsTest {
             ),
             displayedMonth = YearMonth.of(2026, 4),
             dayStates = emptyMap(),
-            today = LocalDate.of(2026, 4, 20)
-        )
+            today = LocalDate.of(2026, 4, 20),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(2, summary.logged)
         assertEquals(0, summary.offPlan)
@@ -1100,8 +1101,8 @@ class HistoryUiModelsTest {
                 entryAt(LocalDateTime.of(2026, 4, 11, 22, 0)),
                 entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
                 entryAt(LocalDateTime.of(2026, 4, 10, 20, 0)),
-            )
-        )
+            ),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(LocalDate.of(2026, 4, 11), LocalDate.of(2026, 4, 10)),

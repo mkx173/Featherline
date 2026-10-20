@@ -47,8 +47,8 @@ class WidgetSnapshotBuilderTest {
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
-    fun medicationBoundaryKeepsNightRowsInTodayAndLabelsNextDayTimes() {
-        val now = LocalDateTime.of(2026, 10, 2, 1, 0)
+    fun fourAmKeepsMissedDawnInLastNightAndPrintsPlainTimes() {
+        val now = LocalDateTime.of(2026, 10, 2, 4, 30)
         val group = widgetTestGroup(
             groupName = "Night", medicationKey = MedicationKey.ESTRADIOL,
             since = now.toLocalDate().minusDays(2), time = LocalTime.of(1, 0),
@@ -66,13 +66,17 @@ class WidgetSnapshotBuilderTest {
             context = realContext,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(configuredGroup)).copy(scheduleEntries = listOf(entry)),
             widgetEstimate = null,
-            settings = SettingsState(medicationDayStartMinutes = 300), now = now, zoneId = zoneId,
+            settings = SettingsState(medicationDayEndsAtFourAm = true), now = now, zoneId = zoneId,
         )
-        assertEquals(now.toLocalDate().minusDays(1).toEpochDay(), snapshot.anchorDateEpochDay)
+        assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
         assertEquals(2, snapshot.totalCount)
         assertEquals(1, snapshot.manualCount)
-        assertTrue(snapshot.doseRows.all { it.contextChip == null })
-        assertTrue(snapshot.doseRows.first { it.scheduledAt == now && !it.isManualRecord }.trailingText!!.contains("Next day"))
+        val missedDawn = snapshot.doseRows.first { row ->
+            row.contextChip == WidgetDoseChip.LAST_NIGHT &&
+                row.scheduledAt == now.toLocalDate().atTime(1, 0)
+        }
+        assertEquals("01:00", missedDawn.trailingText)
+        assertTrue(snapshot.doseRows.all { row -> row.trailingText?.contains("Next day") != true })
     }
 
     @Test

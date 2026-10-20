@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -234,7 +235,7 @@ class MainContentComponentsTest {
             listOf(LocalDate.of(2026, 5, 20), LocalDate.of(2026, 5, 21)),
             groups.map { group -> group.date },
         )
-        assertTrue(groups.all { group -> group.timeRange == MainTodayTimeRange.EVENING })
+        assertTrue(groups.all { group -> group.timeRange == MedicationDayTimeRange.EVENING })
     }
 
     @Test

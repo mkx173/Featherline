@@ -368,10 +368,10 @@ graph TD
   `settingsRepository.settingsState`, projects it to the tuple
   (`hideMedicationDetails`, `adaptiveColorEnabled`,
   `homeE2DisplayUnit`, `appLanguageOption`,
-  `showArchivedGroupRecords`, `medicationDayStartMinutes`),
-  `distinctUntilChanged().drop(1)`, and calls
-  `refreshWidgetSnapshot()`. It also re-arms the date alarm, since the
-  medication-day boundary can move the next refresh. This re-derives the
+  `showArchivedGroupRecords`, `medicationDayEndsAtFourAm`), then
+  `distinctUntilChangedBy` and `drop(1)`, and calls
+  `refreshWidgetSnapshot()`. It also re-arms the date alarm when the
+  loaded switch disagrees with the cached value used at startup. This re-derives the
   widget snapshot from the current state without a home rebuild — Home
   data itself is unchanged when only widget-only inputs change. Unless
   the current state has both parts, it asks the worker for a run and
@@ -414,8 +414,8 @@ graph TD
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the earlier of the next local midnight and the next medication-day
-  boundary. A reboot clears that exact alarm, so the
+  for the earlier of the next local midnight and 04:00 when the
+  medication day ends at 04:00. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and, under `goAsync()`, waits for `rebuildNow()` within its budget,
   again leaning on the cache observer to fan out; out of budget, the

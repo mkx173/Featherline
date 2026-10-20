@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -103,8 +104,8 @@ class WidgetSnapshotCodecTest {
     fun staleDateCheckUsesMedicationBoundary() {
         val now = LocalDateTime.of(2026, 10, 2, 1, 0)
         val record = baseRecord.copy(anchorDateEpochDay = now.toLocalDate().minusDays(1).toEpochDay())
-        assertFalse(record.isAnchoredBefore(now, 300))
-        assertTrue(record.isAnchoredBefore(now.withHour(5), 300))
+        assertFalse(record.isAnchoredBefore(now, MedicationDayBoundary.FourAm))
+        assertTrue(record.isAnchoredBefore(now.withHour(5), MedicationDayBoundary.FourAm))
     }
 
     @Test
@@ -192,10 +193,10 @@ class WidgetSnapshotCodecTest {
     fun staleDateCheck_marksOlderAnchorDateStale() {
         val now = LocalDateTime.of(2026, 5, 19, 0, 1)
 
-        assertTrue(baseRecord.isAnchoredBefore(now))
+        assertTrue(baseRecord.isAnchoredBefore(now, MedicationDayBoundary.Midnight))
         assertFalse(
             baseRecord.copy(anchorDateEpochDay = now.toLocalDate().toEpochDay())
-                .isAnchoredBefore(now)
+                .isAnchoredBefore(now, MedicationDayBoundary.Midnight)
         )
     }
 

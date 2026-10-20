@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.data.repository.E2Derivation
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.E2InputsRecord
@@ -207,7 +208,7 @@ class WidgetDailyRefreshWorkerTest {
         widgetSnapshotRepository = widgetSnapshotRepository,
         e2EstimateRepository = e2EstimateRepository,
         rerender = { rerenders++ },
-    )
+        boundary = MedicationDayBoundary.Midnight)
 
     private val clock = MutableClock(now.atZone(zoneId).toInstant())
     private var stored: HomeE2EstimateRecord? = null

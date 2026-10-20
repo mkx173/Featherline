@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.content.Context
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.E2InputsRecord
@@ -243,7 +244,7 @@ class WidgetSnapshotRepositoryTest {
         widgetSnapshotRepository = repository,
         e2EstimateRepository = mockk(relaxed = true),
         rerender = {},
-    )
+        boundary = MedicationDayBoundary.Midnight)
 
     // What the builder stub writes for a derived estimate, and an older one.
     private val derivedProjection = projection(windowEndEpochMillis = 2_000L)

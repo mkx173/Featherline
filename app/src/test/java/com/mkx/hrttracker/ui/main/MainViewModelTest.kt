@@ -118,9 +118,9 @@ class MainViewModelTest {
 
     @Test
     fun medicationBoundaryUpdatesRetainedHomeDayWhileUnsubscribed() = runTest {
-        val firstMinute = LocalDateTime.of(2026, 10, 2, 4, 59)
+        val firstMinute = LocalDateTime.of(2026, 10, 2, 3, 59)
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        val settings = SettingsState(medicationDayStartMinutes = 300)
+        val settings = SettingsState(medicationDayEndsAtFourAm = true)
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
         every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
             homeInputs(now = firstMinute).copy(settings = settings)

@@ -10,6 +10,12 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
+import com.mkx.hrttracker.model.medication.includesInLastNight
+import com.mkx.hrttracker.model.medication.isLastNightVisible
+import com.mkx.hrttracker.model.medication.isTonightVisible
+import com.mkx.hrttracker.model.medication.lastNightMedicationDay
+import com.mkx.hrttracker.model.medication.tonightMedicationDay
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
@@ -27,6 +33,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.journal.AnchorRowUiState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -641,16 +648,16 @@ internal fun buildMainTodaySection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
 ): MainTodaySectionUiState {
-    val today = medicationDay(now, dayStartMinutes)
+    val today = medicationDay(now, boundary)
     val entriesByUuid = entries.associateBy { it.uuid }
     val todayRows = buildMainTodayRowsForDate(
         date = today,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
         groups = groups,
         entries = entries,
         entriesByUuid = entriesByUuid,
@@ -712,25 +719,21 @@ internal fun buildMainComingUpSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
 ): MainComingUpSectionUiState {
-    if (!mainIsEveningComingUpWindow(now.toLocalTime())) {
+    // With the 04:00 boundary, tomorrow's Midnight doses are already the last
+    // group in Today, so there is no separate Tonight block.
+    if (!boundary.isTonightVisible(now)) {
         return MainComingUpSectionUiState()
     }
-    // Only a boundary at or before the end of the overnight window makes the
-    // next calendar morning the start of the next medication day. For a later
-    // boundary those early rows belong to the upcoming day (or to today), and
-    // buildMainUpcomingSection keeps them in chronological order instead.
-    if (dayStartMinutes >= MainOvernightEndMinuteOfDay) {
-        return MainComingUpSectionUiState()
-    }
-    val tomorrow = now.toLocalDate().plusDays(1)
+    val tomorrow = boundary.tonightMedicationDay(now)
     val entriesByUuid = entries.associateBy { it.uuid }
     val comingUpRows = buildMainTodayRowsForDate(
         date = tomorrow,
+        boundary = boundary,
         groups = groups,
         entries = entries,
         entriesByUuid = entriesByUuid,
@@ -739,8 +742,7 @@ internal fun buildMainComingUpSection(
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     ).filter { row ->
-        mainIsOvernightTime(row.scheduledAt.toLocalTime()) &&
-            medicationDay(row.scheduledAt, dayStartMinutes) != medicationDay(now, dayStartMinutes)
+        MedicationDayTimeRange.of(row.scheduledAt.toLocalTime()) == MedicationDayTimeRange.MIDNIGHT
     }
     val rows = (comingUpRows.scheduledRows + comingUpRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -845,11 +847,11 @@ private fun buildMainTodayRowsForDate(
     zoneId: ZoneId,
     includeUnloggedArchivedSlots: Boolean,
     unloggedArchivedSlotCutoff: LocalDateTime?,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): MainTodayRowsForDate {
     val daySchedule = buildPlanDaySchedule(
         date = date,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
         groups = groups,
         entries = entries,
         now = now,
@@ -943,18 +945,6 @@ private fun buildMainTodayRowsForDate(
     )
 }
 
-private fun mainIsOvernightTime(time: LocalTime): Boolean {
-    return time.isBefore(MainOvernightEndTime)
-}
-
-private fun mainIsLastNightTime(time: LocalTime): Boolean {
-    return !time.isBefore(MainLastNightStartTime)
-}
-
-private fun mainIsEveningComingUpWindow(time: LocalTime): Boolean {
-    return !time.isBefore(MainLastNightStartTime)
-}
-
 private val mainTodayDoseRowComparator =
     compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
         .thenBy { row -> if (row.isManualRecord) 1 else 0 }
@@ -966,26 +956,23 @@ internal fun buildMainUpcomingSection(
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
     lookaheadDays: Long = MainUpcomingLookaheadDays,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
 ): MainUpcomingSectionUiState {
-    val tomorrow = medicationDay(now, dayStartMinutes).plusDays(1)
-    // Coming up owns the next calendar morning only for an early boundary
-    // (see buildMainComingUpSection). With a later boundary those rows are
-    // part of this upcoming day, so keep them here to preserve time order.
-    val shouldExcludeTomorrowOvernightRows =
-        mainIsEveningComingUpWindow(now.toLocalTime()) &&
-            dayStartMinutes < MainOvernightEndMinuteOfDay
+    val tomorrow = medicationDay(now, boundary).plusDays(1)
+    // Tonight owns tomorrow's Midnight doses only with the midnight boundary.
+    val shouldExcludeTonightRows = boundary.isTonightVisible(now)
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
         entries = entries,
+        boundary = boundary,
         zoneId = zoneId,
-        dayStartMinutes = dayStartMinutes,
     ).filterNot { row ->
-        shouldExcludeTomorrowOvernightRows &&
-            row.scheduledAt.toLocalDate() == now.toLocalDate().plusDays(1) &&
-            mainIsOvernightTime(row.scheduledAt.toLocalTime())
+        shouldExcludeTonightRows &&
+            row.scheduledAt.toLocalDate() == tomorrow &&
+            MedicationDayTimeRange.of(row.scheduledAt.toLocalTime()) ==
+            MedicationDayTimeRange.MIDNIGHT
     }
 
     if (tomorrowRows.isNotEmpty()) {
@@ -1003,8 +990,8 @@ internal fun buildMainUpcomingSection(
             date = date,
             groups = groups,
             entries = entries,
+            boundary = boundary,
             zoneId = zoneId,
-            dayStartMinutes = dayStartMinutes,
         )
         if (upcomingRows.isNotEmpty()) {
             return MainUpcomingSectionUiState(
@@ -1027,12 +1014,12 @@ internal fun buildMainPreviewRowsForDate(
     date: LocalDate,
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
 ): List<MainUpcomingDoseRowUiState> {
     return buildPlanDaySchedule(
         date = date,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
         groups = groups,
         entries = entries,
         now = date.atStartOfDay(),
@@ -1171,9 +1158,6 @@ private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
 private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
-private val MainOvernightEndTime = LocalTime.of(6, 0)
-private const val MainOvernightEndMinuteOfDay = 6 * 60
-private val MainLastNightStartTime = LocalTime.of(18, 0)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L
 private const val MainE2YAxisMaxTickIntervals = 5

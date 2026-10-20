@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.plan
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -19,6 +20,43 @@ import java.util.Locale
 import java.util.UUID
 
 class PlanScreenComponentsTest {
+
+    @Test
+    fun selectedDayRows_sortAfterMidnightSlotLast() {
+        val dawn = PlanDayScheduleEntry(
+            groupUuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+            groupName = "Night",
+            groupColorKey = MedicationGroupColorKey.ROSE,
+            scheduledTime = LocalTime.of(2, 0),
+            scheduledFor = LocalDateTime.of(2026, 5, 19, 2, 0),
+            medication = testMedicationGroupMedication(),
+            fulfillingEntryUuids = emptyList(),
+            isFulfilled = false,
+            isDueSoon = false,
+            isPastDue = false,
+        )
+        val evening = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 18, 23, 0)),
+        )
+
+        val rows = selectedDayRows(
+            PlanDaySchedule(
+                date = LocalDate.of(2026, 5, 18),
+                scheduledEntries = listOf(dawn),
+                unplannedEntries = listOf(evening),
+            )
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 5, 18, 23, 0),
+                LocalDateTime.of(2026, 5, 19, 2, 0),
+            ),
+            rows.map { row -> row.sortTime },
+        )
+    }
+
     @Test
     fun selectedDayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
         assertEquals(14.dp, SelectedDayRowIndicatorSlotSize)
@@ -38,7 +76,7 @@ class PlanScreenComponentsTest {
         )
         val row = SelectedDayRowModel.Unplanned(
             entry = entry,
-            sortTime = LocalTime.of(9, 0),
+            sortTime = LocalDateTime.of(2026, 5, 20, 9, 0),
         )
 
         assertEquals(R.drawable.ic_download, selectedDayRowImportedIndicatorIconRes(row))
@@ -71,7 +109,7 @@ class PlanScreenComponentsTest {
         )
         val row = SelectedDayRowModel.Unplanned(
             entry = entry,
-            sortTime = LocalTime.of(9, 0),
+            sortTime = LocalDateTime.of(2026, 5, 20, 9, 0),
         )
 
         assertNull(selectedDayRowImportedIndicatorIconRes(row))

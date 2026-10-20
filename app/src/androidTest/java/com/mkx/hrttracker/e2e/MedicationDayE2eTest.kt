@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.e2e
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.app.NotificationManager
 import android.content.Context
 import android.content.res.Configuration
@@ -92,7 +93,7 @@ class MedicationDayE2eTest {
                 setScreenLockProtectionEnabled(false)
                 setHideScreenContentEnabled(false)
                 setHideMedicationDetails(false)
-                setMedicationDayStartMinutes(0)
+                setMedicationDayEndsAtFourAm(false)
                 setRemindersEnabled(false)
                 setShowArchivedGroupRecords(true)
                 setHazeBlurEnabled(false)
@@ -126,19 +127,15 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun settingConfirmCancelAndActivityRelaunchPersistToDataStore() {
-        chooseBoundary(4, 30)
-        assertEquals(270, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes })
-        openBoundaryPicker()
-        pickTime(5, 0)
-        compose.onNodeWithText(text(R.string.cancel)).performClick()
-        assertEquals(270, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes })
+    fun switchAndActivityRelaunchPersistToDataStore() {
+        setBoundary(true)
+        assertEquals(true, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
         scenario!!.recreate()
-        awaitText(text(R.string.settings_medication_day_start_summary, "04:30"))
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary))
         scenario!!.close()
         launch()
         tab(R.string.tab_settings)
-        compose.onNodeWithText(text(R.string.settings_medication_day_start_summary, "04:30"))
+        compose.onNodeWithText(text(R.string.settings_medication_day_ends_at_four_am_summary))
             .performScrollTo().assertExists()
     }
 
@@ -155,11 +152,11 @@ class MedicationDayE2eTest {
 
     @Test
     fun minuteBoundaryRegroupsManualHistoryAcrossMonths() {
-        chooseBoundary(4, 30)
+        setBoundary(true)
         val before = medicine("Before boundary")
         val exact = medicine("At boundary")
-        log(before, day.plusDays(1).atTime(4, 29, 59))
-        log(exact, day.plusDays(1).atTime(4, 30))
+        log(before, day.plusDays(1).atTime(3, 59, 59))
+        log(exact, day.plusDays(1).atTime(4, 0))
         tab(R.string.tab_main)
         assertTodayMedicine(exact)
         todayNode(hasText("Before boundary")).assertDoesNotExist()
@@ -173,49 +170,54 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun fiveOClockIncludesMidnightAndDawnButExcludesExactBoundary() {
-        boundary(300)
-        listOf(0, 1, 4).forEach { hour -> log(medicine("Dawn $hour"), day.plusDays(1).atTime(hour, if (hour == 4) 59 else 0)) }
-        val exact = medicine("Five o'clock")
-        log(exact, day.plusDays(1).atTime(5, 0))
+    fun fourAmIncludesMidnightAndDawnButExcludesExactBoundary() {
+        boundary(true)
+        listOf(0, 1, 3).forEach { hour ->
+            log(medicine("Dawn $hour"), day.plusDays(1).atTime(hour, if (hour == 3) 59 else 0))
+        }
+        val exact = medicine("Four o'clock")
+        log(exact, day.plusDays(1).atTime(4, 0))
         assertTodayMedicine(exact)
-        listOf(0, 1, 4).forEach { todayNode(hasText("Dawn $it")).assertDoesNotExist() }
+        listOf(0, 1, 3).forEach { todayNode(hasText("Dawn $it")).assertDoesNotExist() }
         history()
         selectHistoryDate(day)
-        listOf(0, 1, 4).forEach { awaitText("Dawn $it") }
-        compose.onNodeWithText("Five o'clock").assertDoesNotExist()
+        listOf(0, 1, 3).forEach { awaitText("Dawn $it") }
+        compose.onNodeWithText("Four o'clock").assertDoesNotExist()
     }
 
     @Test
-    fun lastMinuteOfDayIsAValidBoundary() {
-        boundary(1439)
-        device.setTime(day.plusDays(1).atTime(23, 59, 10))
-        val before = medicine("23:58 dose")
-        val exact = medicine("23:59 dose")
-        log(before, day.plusDays(1).atTime(23, 58))
-        log(exact, day.plusDays(1).atTime(23, 59))
+    fun switchOffKeepsFourthHourInTheCivilDay() {
+        boundary(false)
+        device.setTime(day.plusDays(1).atTime(4, 0))
+        val before = medicine("03:59 dose")
+        val after = medicine("04:00 dose")
+        log(before, day.plusDays(1).atTime(3, 59))
+        log(after, day.plusDays(1).atTime(4, 0))
         assertTodayDate(day.plusDays(1))
-        assertTodayMedicine(exact)
-        todayNode(hasText("23:58 dose")).assertDoesNotExist()
+        assertTodayMedicine(before)
+        assertTodayMedicine(after)
+        history()
+        selectHistoryDate(day.plusDays(1))
+        awaitText("03:59 dose")
+        awaitText("04:00 dose")
     }
 
     @Test
     fun dailyPlanOrdersNextDayDawnLastAndDoesNotDuplicateContextRows() {
-        boundary(300)
+        boundary(true)
         device.setTime(day.atTime(20, 0))
         group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)))
         assertTodayDate(day)
         assertTodayCount("0/3")
-        compose.onAllNodes(hasText("Next day 01:00", substring = true) and hasAnyAncestor(hasTestTag("main_today_section"))).assertCountEquals(1)
         val morning = todayNode(hasText(text(R.string.main_today_range_morning), substring = true)).fetchSemanticsNode().boundsInRoot.top
-        val night = todayNode(hasText(text(R.string.main_today_range_night), substring = true)).fetchSemanticsNode().boundsInRoot.top
-        assertTrue("Dawn should follow daytime doses", night > morning)
+        val midnight = todayNode(hasText(text(R.string.main_today_range_midnight), substring = true)).fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Midnight should follow daytime doses", midnight > morning)
         compose.onAllNodes(hasContentDescription(text(R.string.main_today_quick_log)) and hasAnyAncestor(hasTestTag("main_today_section"))).assertCountEquals(3)
     }
 
     @Test
     fun quickLogThreeSlotsUpdatesHomeCalendarAndStoredOccurrenceTimes() {
-        boundary(300)
+        boundary(true)
         device.setTime(day.atTime(8, 0))
         group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)))
         listOf(day.atTime(8, 0), day.atTime(16, 0), day.plusDays(1).atTime(1, 0)).forEachIndexed { index, time ->
@@ -246,7 +248,7 @@ class MedicationDayE2eTest {
 
     @Test
     fun manualDoseDoesNotFulfillPlanAndLinkedSupplementKeepsScheduledDay() {
-        boundary(300)
+        boundary(true)
         val medicine = medicine("Evening dose")
         val group = group(medicine, listOf(LocalTime.of(23, 0)))
         device.setTime(day.plusDays(1).atTime(1, 0))
@@ -264,7 +266,7 @@ class MedicationDayE2eTest {
 
     @Test
     fun tuesdayDawnAppearsOnMondayWithoutChangingWeeklySchedule() {
-        boundary(300)
+        boundary(true)
         val monday = LocalDate.of(2026, 11, 2)
         device.setTime(monday.atTime(20, 0))
         val group = group(medicine("Weekly dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.TUESDAY))
@@ -283,13 +285,13 @@ class MedicationDayE2eTest {
         val medicine = medicine("Existing dawn dose")
         val record = log(medicine, day.plusDays(1).atTime(1, 0))
         assertTodayMedicine(medicine)
-        chooseBoundary(5, 0)
+        setBoundary(true)
         tab(R.string.tab_main)
         await { !todayExists(hasText("Existing dawn dose")) }
         history()
         selectHistoryDate(day)
         awaitText("Existing dawn dose")
-        chooseBoundary(0, 0)
+        setBoundary(false)
         tab(R.string.tab_main)
         assertTodayMedicine(medicine)
         assertEquals(record, io { entryPoint.medicationLogRepository().getEntry(record.uuid) })
@@ -297,19 +299,19 @@ class MedicationDayE2eTest {
 
     @Test
     fun foregroundTickerChangesDayAtBoundaryWithoutNavigationOrDataWrites() {
-        boundary(300)
-        device.setTime(day.plusDays(1).atTime(4, 59, 50))
+        boundary(true)
+        device.setTime(day.plusDays(1).atTime(3, 59, 50))
         assertTodayDate(day)
         await(timeout = 25_000) { todayExists(hasText(dateText(day.plusDays(1)), substring = true, ignoreCase = true)) }
     }
 
     @Test
     fun backgroundAndActivityRelaunchReadNewDayAfterClockChange() {
-        boundary(300)
-        device.setTime(day.plusDays(1).atTime(4, 59))
+        boundary(true)
+        device.setTime(day.plusDays(1).atTime(3, 59))
         assertTodayDate(day)
         scenario!!.moveToState(Lifecycle.State.CREATED)
-        device.setTime(day.plusDays(1).atTime(5, 0))
+        device.setTime(day.plusDays(1).atTime(4, 0))
         scenario!!.moveToState(Lifecycle.State.RESUMED)
         assertTodayDate(day.plusDays(1))
         scenario!!.close()
@@ -319,7 +321,7 @@ class MedicationDayE2eTest {
 
     @Test
     fun yearBoundaryPlacesJanuaryDawnInDecemberHistory() {
-        boundary(300)
+        boundary(true)
         val december = LocalDate.of(2026, 12, 31)
         device.setTime(december.plusDays(1).atTime(6, 0))
         log(medicine("New year dawn dose"), december.plusDays(1).atTime(1, 0))
@@ -330,7 +332,7 @@ class MedicationDayE2eTest {
 
     @Test
     fun storedEntryZoneStillControlsManualDayAfterDeviceZoneChanges() {
-        boundary(300)
+        boundary(true)
         val medicine = medicine("Tokyo dose")
         log(medicine, day.plusDays(1).atTime(6, 0), zone = ZoneId.of("Asia/Tokyo"))
         assertTodayMedicine(medicine)
@@ -345,9 +347,9 @@ class MedicationDayE2eTest {
 
     @Test
     fun editingAndDeletingManualRecordUpdatesBothDays() {
-        boundary(300)
+        boundary(true)
         val medicine = medicine("Editable dose")
-        val record = log(medicine, day.plusDays(1).atTime(4, 59))
+        val record = log(medicine, day.plusDays(1).atTime(3, 59))
         history()
         selectHistoryDate(day)
         awaitText("Editable dose")
@@ -355,10 +357,10 @@ class MedicationDayE2eTest {
         awaitText(text(R.string.save))
         await { compose.onAllNodes(hasContentDescription(text(R.string.select_time)), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription(text(R.string.select_time), useUnmergedTree = true).performScrollTo().performClick()
-        pickTime(5, 0)
+        pickTime(4, 0)
         compose.onNodeWithText(text(R.string.confirm)).performClick()
         compose.onNodeWithText(text(R.string.save)).performClick()
-        await { io { entryPoint.medicationLogRepository().getEntry(record.uuid)!!.appliedAt } == day.plusDays(1).atTime(5, 0).atZone(ZoneId.systemDefault()).toInstant() }
+        await { io { entryPoint.medicationLogRepository().getEntry(record.uuid)!!.appliedAt } == day.plusDays(1).atTime(4, 0).atZone(ZoneId.systemDefault()).toInstant() }
         await { compose.onAllNodes(hasText(text(R.string.save))).fetchSemanticsNodes().isEmpty() }
         tab(R.string.tab_main)
         assertTodayMedicine(medicine)
@@ -378,11 +380,16 @@ class MedicationDayE2eTest {
 
     @Test
     fun archiveVisibilitySettingHidesAndRestoresHistoryWithoutDeletingRecords() {
-        boundary(300)
+        boundary(true)
         val medicine = medicine("Archived dawn dose")
         val group = group(medicine, listOf(LocalTime.of(1, 0)))
         val record = log(medicine, day.plusDays(1).atTime(1, 0), group, day.plusDays(1).atTime(1, 0))
-        io { entryPoint.medicationGroupRepository().archiveGroup(group.uuid) }
+        io {
+            entryPoint.medicationGroupRepository().archiveGroup(
+                uuid = group.uuid,
+                boundary = MedicationDayBoundary.FourAm,
+            )
+        }
         history()
         selectHistoryDate(day)
         awaitText("Archived dawn dose")
@@ -404,39 +411,39 @@ class MedicationDayE2eTest {
 
     @Test
     fun encryptedBackupRestoresBoundaryAndLegacyBackupDefaultsToMidnight() {
-        chooseBoundary(4, 30)
+        setBoundary(true)
         val medicine = medicine("Backed up dawn dose")
         log(medicine, day.plusDays(1).atTime(1, 0))
         val json = io { entryPoint.backupExportService().buildBackupSnapshotJson() }
         val encrypted = io { entryPoint.backupExportService().buildEncryptedBackupBytes("e2e-password") }
-        boundary(0)
+        boundary(false)
         io { entryPoint.medicationLogRepository().deleteAllEntries() }
         io { entryPoint.backupRestoreService().restoreBackupBytes(encrypted, "e2e-password") }
-        assertEquals(270, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes })
+        assertEquals(true, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
         history()
         selectHistoryDate(day)
         awaitText("Backed up dawn dose")
-        val legacy = JSONObject(json).apply { getJSONObject("settings").remove("medicationDayStartMinutes") }.toString()
+        val legacy = JSONObject(json).apply { getJSONObject("settings").remove("medicationDayEndsAtFourAm") }.toString()
         val oldEncrypted = io { entryPoint.backupCrypto().encryptSnapshotJson(legacy, "e2e-password".toCharArray()) }
         io { entryPoint.backupRestoreService().restoreBackupBytes(oldEncrypted, "e2e-password") }
-        assertEquals(0, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes })
+        assertEquals(false, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
         tab(R.string.tab_main)
         assertTodayMedicine(medicine)
     }
 
     @Test
     fun realWidgetUpdatesCountsAndRefreshesAtMedicationDayBoundary() {
-        boundary(300)
+        boundary(true)
         val medicine = medicine("Widget dose")
         val group = group(medicine, listOf(LocalTime.of(1, 0)))
         log(medicine, day.plusDays(1).atTime(1, 0), group, day.plusDays(1).atTime(1, 0))
-        device.setTime(day.plusDays(1).atTime(4, 58))
+        device.setTime(day.plusDays(1).atTime(3, 58))
         assertTodayCount("1/1")
         E2eWidgetHost(context).use { host ->
             host.attach(scenario!!)
             awaitWidgetCount(host, "1/1")
             assertEquals(day.toEpochDay(), io { entryPoint.widgetSnapshotStore().readSnapshot()!! }.anchorDateEpochDay)
-            device.setTime(day.plusDays(1).atTime(4, 59, 50))
+            device.setTime(day.plusDays(1).atTime(3, 59, 50))
             EmulatorDeviceState.waitFor("widget date alarm", 25_000) {
                 val snapshot = io { entryPoint.widgetSnapshotStore().readSnapshot() }
                 snapshot?.anchorDateEpochDay == day.plusDays(1).toEpochDay() && snapshot.doneCount == 0 && snapshot.totalCount == 1
@@ -457,7 +464,7 @@ class MedicationDayE2eTest {
             entryPoint.settingsRepository().setRemindersEnabled(true)
             entryPoint.reminderScheduler().rescheduleAll()
         }
-        chooseBoundary(5, 0)
+        setBoundary(true)
         assertTrue(manager.activeNotifications.none { it.notification.channelId == REMINDER_CHANNEL_ID })
         device.setTime(day.plusDays(1).atTime(0, 59, 50))
         EmulatorDeviceState.waitFor("real 01:00 reminder", 25_000) {
@@ -469,13 +476,14 @@ class MedicationDayE2eTest {
 
     @Test
     fun journalStillUsesCivilDayWhenMedicationDayIsYesterday() {
-        boundary(1439)
+        boundary(true)
+        device.setTime(day.plusDays(1).atTime(1, 32))
         assertTodayDate(day)
         io { entryPoint.journalRepository().saveNoteForDate(day.plusDays(1), "Civil-day note") }
         tab(R.string.tab_journal)
         awaitText("Civil-day note")
         await { compose.onAllNodes(hasText("Nov 1", substring = true)).fetchSemanticsNodes().isNotEmpty() }
-        boundary(0)
+        boundary(false)
         awaitText("Civil-day note")
         assertEquals(day.plusDays(1).toString(), io { entryPoint.journalRepository().getNoteEntities().single().dateIso })
     }
@@ -515,19 +523,18 @@ class MedicationDayE2eTest {
         compose.waitForIdle()
     }
 
-    private fun openBoundaryPicker() {
+    private fun setBoundary(enabled: Boolean) {
+        if (io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm } == enabled) {
+            return
+        }
         tab(R.string.tab_settings)
-        compose.onNode(hasText(text(R.string.settings_medication_day_start)) and hasClickAction())
-            .performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
-        awaitText(text(R.string.confirm))
-    }
-
-    private fun chooseBoundary(hour: Int, minute: Int) {
-        openBoundaryPicker()
-        pickTime(hour, minute)
-        compose.onNodeWithText(text(R.string.confirm)).performClick()
-        await { io { entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes } == hour * 60 + minute }
-        awaitText(text(R.string.settings_medication_day_start_summary, "%02d:%02d".format(hour, minute)))
+        compose.onNode(
+            hasText(text(R.string.settings_medication_day_ends_at_four_am)) and hasClickAction()
+        ).performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        await {
+            io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm } == enabled
+        }
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary))
     }
 
     private fun pickTime(hour: Int, minute: Int) {
@@ -538,7 +545,7 @@ class MedicationDayE2eTest {
         }
     }
 
-    private fun boundary(minutes: Int) = io { entryPoint.settingsRepository().setMedicationDayStartMinutes(minutes) }
+    private fun boundary(enabled: Boolean) = io { entryPoint.settingsRepository().setMedicationDayEndsAtFourAm(enabled) }
 
     private fun medicine(name: String): Medicine = io {
         entryPoint.medicineRepository().findOrCreateForCustom(name, null, MedicationCategory.CUSTOM, MedicinePreparation.Pill(1.0))

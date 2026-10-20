@@ -46,10 +46,8 @@ internal fun buildWidgetSnapshotRecord(
         uses24HourFormat = true
     ),
 ): WidgetSnapshotRecord {
-    val calendarToday = now.toLocalDate()
-    val today = medicationDay(now, settings.medicationDayStartMinutes)
-    val yesterday = calendarToday.minusDays(1)
-    val comingUpEnd = calendarToday.plusDays(1).atTime(6, 0)
+    val boundary = settings.medicationDayBoundary
+    val today = medicationDay(now, boundary)
     val activeGroups = homeSnapshot.activeGroups
     val allGroups = activeGroups + homeSnapshot.archivedGroups
     val scheduleEntries = homeSnapshot.scheduleEntries
@@ -104,7 +102,7 @@ internal fun buildWidgetSnapshotRecord(
 
     val todaySchedule = buildPlanDaySchedule(
         date = today,
-        dayStartMinutes = settings.medicationDayStartMinutes,
+        boundary = boundary,
         groups = scheduleGroups,
         entries = visibleEntries,
         now = now,
@@ -115,10 +113,9 @@ internal fun buildWidgetSnapshotRecord(
     val todayScheduledRows = todaySchedule.scheduledEntries
         .map { entry ->
             entry.toWidgetDoseRow(
-                context,
-                timeFormatter,
-                null,
-                dayDate = today,
+                context = context,
+                timeFormatter = timeFormatter,
+                contextChip = null,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
         }
@@ -129,17 +126,16 @@ internal fun buildWidgetSnapshotRecord(
                 zoneId = zoneId,
                 colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
                 contextChip = null,
-                dayDate = today,
-                timeFormatter = timeFormatter,
                 isFromArchivedGroup = entry.sourceGroupUuid != null &&
                         entry.sourceGroupUuid in archivedGroupUuids,
             )
         }
 
-    val isEvening = now.toLocalTime() >= LocalTime.of(18, 0)
-    val comingUpRows = if (isEvening) {
+    val comingUpRows = if (boundary.isTonightVisible(now)) {
+        val tomorrow = boundary.tonightMedicationDay(now)
         val tomorrowSchedule = buildPlanDaySchedule(
-            date = calendarToday.plusDays(1),
+            date = tomorrow,
+            boundary = boundary,
             groups = activeGroups,
             entries = scheduleEntries,
             now = now,
@@ -147,14 +143,14 @@ internal fun buildWidgetSnapshotRecord(
         )
         tomorrowSchedule.scheduledEntries
             .filter { entry ->
-                entry.scheduledFor.isBefore(comingUpEnd) &&
-                    medicationDay(entry.scheduledFor, settings.medicationDayStartMinutes) != today
+                MedicationDayTimeRange.of(entry.scheduledFor.toLocalTime()) ==
+                    MedicationDayTimeRange.MIDNIGHT
             }
             .map { entry ->
                 entry.toWidgetDoseRow(
-                    context,
-                    timeFormatter,
-                    WidgetDoseChip.COMING_UP,
+                    context = context,
+                    timeFormatter = timeFormatter,
+                    contextChip = WidgetDoseChip.COMING_UP,
                     isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
                 )
             }
@@ -185,28 +181,19 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
     colorKey: com.mkx.hrttracker.model.medication.MedicationGroupColorKey?,
     contextChip: WidgetDoseChip?,
     isFromArchivedGroup: Boolean,
-    dayDate: java.time.LocalDate = appliedAtAsLocalDateTime(this, zoneId).toLocalDate(),
-    timeFormatter: DateTimeFormatter? = null,
 ): WidgetDoseRow {
     return WidgetDoseRow(
         medicationName = medicationEntryTitle(medicine, applicationType, context),
         groupName = "",
         colorKey = colorKey,
         routeLabel = medicationRouteLabel(medicine, applicationType, context),
-        doseText = listOfNotNull(
-            doseInstructionText(
-                context = context,
-                medicine = medicine,
-                doseInstruction = doseInstruction,
-                count = count,
-                doseAmountDelta = doseAmountDelta,
-            ),
-            timeFormatter?.let { formatter ->
-                appliedAtAsLocalDateTime(this, zoneId).takeIf { it.toLocalDate() != dayDate }?.let { at ->
-                    medicationDayTimeText(context, at, dayDate, formatter)
-                }
-            },
-        ).joinToString(separator = " · "),
+        doseText = doseInstructionText(
+            context = context,
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            count = count,
+            doseAmountDelta = doseAmountDelta,
+        ).orEmpty(),
         status = WidgetDoseStatus.DONE,
         scheduledAt = appliedAtAsLocalDateTime(this, zoneId),
         trailingText = context.getString(R.string.plan_entry_label_manual),
@@ -225,7 +212,6 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
     timeFormatter: DateTimeFormatter,
     contextChip: WidgetDoseChip?,
     isFromArchivedGroup: Boolean,
-    dayDate: java.time.LocalDate = scheduledFor.toLocalDate(),
 ): WidgetDoseRow {
     val status = when {
         isFulfilled -> WidgetDoseStatus.DONE
@@ -239,7 +225,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW,
             -> null
 
-        else -> medicationDayTimeText(context, scheduledFor, dayDate, timeFormatter)
+        else -> scheduledFor.toLocalTime().format(timeFormatter)
     }
     return WidgetDoseRow(
         medicationName = medicationEntryTitle(
@@ -252,22 +238,13 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
             medication.applicationType,
             context,
         ),
-        doseText = listOfNotNull(
-            doseInstructionText(
-                context = context,
-                medicine = medication.medicine,
-                doseInstruction = medication.doseInstruction,
-                count = medication.count,
-                doseAmountDelta = doseAmountDelta,
-            ),
-            // The trailing side carries the same text for an actionable row;
-            // repeat it here only when the trailing text is absent.
-            scheduledFor.takeIf {
-                displayTime == null && it.toLocalDate() != dayDate
-            }?.let {
-                medicationDayTimeText(context, it, dayDate, timeFormatter)
-            },
-        ).joinToString(separator = " · "),
+        doseText = doseInstructionText(
+            context = context,
+            medicine = medication.medicine,
+            doseInstruction = medication.doseInstruction,
+            count = medication.count,
+            doseAmountDelta = doseAmountDelta,
+        ).orEmpty(),
         status = status,
         scheduledAt = scheduledFor,
         trailingText = displayTime,
