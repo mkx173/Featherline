@@ -112,7 +112,8 @@ fun BackupSettingsScreen(
             )
         }
     val keySetup = uiState.keySetup
-    val isBackupFlowPending = pendingPreparedBackupExport != null || keySetup != null
+    val isBackupFlowPending = pendingPreparedBackupExport != null || keySetup != null ||
+            uiState.encryptionKey.isPasskeyOfferShown
     val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
     val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
         stringResource(
@@ -429,6 +430,14 @@ fun BackupSettingsScreen(
                     launchBackupExport { viewModel.confirmKeySetup() }
                 }
             },
+        )
+    }
+
+    if (uiState.encryptionKey.isPasskeyOfferShown && !isAppLocked) {
+        BackupPasskeyOfferDialog(
+            isInProgress = uiState.encryptionKey.isPasskeyInProgress,
+            onNotNow = { launchBackupExport { viewModel.declinePasskeyOffer() } },
+            onAdd = { activity?.let { launchBackupExport { viewModel.acceptPasskeyOffer(it) } } },
         )
     }
 

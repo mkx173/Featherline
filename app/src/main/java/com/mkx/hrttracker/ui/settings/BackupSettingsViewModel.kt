@@ -148,7 +148,8 @@ class BackupSettingsViewModel @Inject constructor(
     /**
      * Backup to file. With a key on this phone, prepares the export and
      * returns it for the folder picker (Flow B). Without one, starts key setup
-     * (Flow A) and returns null; [confirmKeySetup] then finishes the export.
+     * (Flow A) and returns null; [confirmKeySetup] then finishes the export,
+     * or shows the passkey offer first where one can work.
      */
     suspend fun onBackupToFileClick(): PreparedBackupExport? {
         if (isBackupExportInProgress.value || keySetup.value != null) return null
@@ -189,7 +190,11 @@ class BackupSettingsViewModel @Inject constructor(
         endKeySetup()
     }
 
-    /** I saved it: installs the key and prepares the export for the folder picker. */
+    /**
+     * I saved it: installs the key and prepares the export for the folder
+     * picker, or, where a passkey can work, shows the passkey offer first
+     * and returns null.
+     */
     suspend fun confirmKeySetup(): PreparedBackupExport? {
         if (isBackupExportInProgress.value) return null
         val setup = keySetup.value?.takeUnless { it.isReplace } ?: return null
@@ -203,6 +208,10 @@ class BackupSettingsViewModel @Inject constructor(
                 )
             }
             backupKeyStore.install(mk, setup.recoveryKey, keyringJson)
+            if (passkeySlots.canOffer()) {
+                encryptionKey.update { it.copy(isPasskeyOfferShown = true) }
+                return null
+            }
             return prepareBackupExport(mk, keyringJson)
         } finally {
             // Installed or failed, this setup is over: a retry makes a new key,
@@ -239,13 +248,11 @@ class BackupSettingsViewModel @Inject constructor(
                     titleRes = when (action) {
                         KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_title
                         KeyAction.REPLACE -> R.string.settings_backup_replace_key
-                        KeyAction.ADD_PASSKEY -> R.string.settings_backup_add_passkey
                         KeyAction.REMOVE_PASSKEY -> R.string.settings_backup_remove_passkey
                     },
                     subtitleRes = when (action) {
                         KeyAction.SHOW -> R.string.settings_backup_show_key_prompt_subtitle
                         KeyAction.REPLACE -> R.string.settings_backup_replace_key_prompt_subtitle
-                        KeyAction.ADD_PASSKEY -> R.string.settings_backup_add_passkey_prompt_subtitle
                         KeyAction.REMOVE_PASSKEY -> R.string.settings_backup_remove_passkey_prompt_subtitle
                     },
                 ),
@@ -302,8 +309,6 @@ class BackupSettingsViewModel @Inject constructor(
                 )
             }
 
-            KeyAction.ADD_PASSKEY -> encryptionKey.update { it.copy(isAddPasskeyNoticeShown = true) }
-
             KeyAction.REMOVE_PASSKEY -> {
                 val slotId = pendingRemovePasskeyId ?: return
                 pendingRemovePasskeyId = null
@@ -312,10 +317,45 @@ class BackupSettingsViewModel @Inject constructor(
         }
     }
 
-    /** E3 Add passkey: the device credential, then the account notice. */
+    /**
+     * Flow A's offer, Add passkey: adds a passkey slot as E3 does, then the
+     * export (Flow B). A failure only toasts: the key is already installed.
+     */
+    suspend fun acceptPasskeyOffer(activity: Activity): PreparedBackupExport? {
+        val state = encryptionKey.value
+        if (!state.isPasskeyOfferShown || state.isPasskeyInProgress) return null
+        encryptionKey.update { it.copy(isPasskeyInProgress = true) }
+        val messageRes = try {
+            addPasskeySlot(activity)
+            null
+        } catch (error: CancellationException) {
+            // The screen went away mid-sheet; the offer stays for another try.
+            encryptionKey.update { it.copy(isPasskeyInProgress = false) }
+            throw error
+        } catch (error: Exception) {
+            passkeyErrorMessageRes(error)
+        }
+        encryptionKey.update {
+            it.copy(isPasskeyOfferShown = false, isPasskeyInProgress = false, messageRes = messageRes)
+        }
+        return onBackupToFileClick()
+    }
+
+    /** Flow A's offer, Not now or back: the export (Flow B). */
+    suspend fun declinePasskeyOffer(): PreparedBackupExport? {
+        val state = encryptionKey.value
+        if (!state.isPasskeyOfferShown || state.isPasskeyInProgress) return null
+        encryptionKey.update { it.copy(isPasskeyOfferShown = false) }
+        return onBackupToFileClick()
+    }
+
+    /**
+     * E3 Add passkey: the account notice, with no device credential first;
+     * creating the passkey already verifies the user.
+     */
     fun onAddPasskeyClick() {
         if (encryptionKey.value.isPasskeyInProgress) return
-        requestKeyCredential(KeyAction.ADD_PASSKEY)
+        encryptionKey.update { it.copy(isAddPasskeyNoticeShown = true) }
     }
 
     fun dismissAddPasskeyNotice() {
@@ -327,20 +367,27 @@ class BackupSettingsViewModel @Inject constructor(
         if (encryptionKey.value.isPasskeyInProgress) return
         encryptionKey.update { it.copy(isAddPasskeyNoticeShown = false, isPasskeyInProgress = true) }
         viewModelScope.launch {
-            var mk: ByteArray? = null
             try {
-                mk = checkNotNull(backupKeyStore.masterKey()) { "No backup key." }
-                val keyring = keyringCrypto.decode(checkNotNull(backupKeyStore.keyringJson()))
-                val slot = passkeySlots.add(activity, mk)
-                backupKeyStore.replaceKeyring(keyringCrypto.encode(keyring.copy(slots = keyring.slots + slot)))
+                addPasskeySlot(activity)
                 endPasskeyAction(null)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 endPasskeyAction(passkeyErrorMessageRes(error))
-            } finally {
-                mk?.fill(0)
             }
+        }
+    }
+
+    // Creates a passkey for this phone's MK and appends its slot to the keyring.
+    private suspend fun addPasskeySlot(activity: Activity) {
+        var mk: ByteArray? = null
+        try {
+            mk = checkNotNull(backupKeyStore.masterKey()) { "No backup key." }
+            val keyring = keyringCrypto.decode(checkNotNull(backupKeyStore.keyringJson()))
+            val slot = passkeySlots.add(activity, mk)
+            backupKeyStore.replaceKeyring(keyringCrypto.encode(keyring.copy(slots = keyring.slots + slot)))
+        } finally {
+            mk?.fill(0)
         }
     }
 
@@ -486,7 +533,7 @@ class BackupSettingsViewModel @Inject constructor(
         encryptionKey.update { it.copy(messageRes = null) }
     }
 
-    private enum class KeyAction { SHOW, REPLACE, ADD_PASSKEY, REMOVE_PASSKEY }
+    private enum class KeyAction { SHOW, REPLACE, REMOVE_PASSKEY }
 
     private suspend fun prepareBackupExport(
         mk: ByteArray,
@@ -961,8 +1008,10 @@ data class BackupEncryptionKeyUiState(
     val shownRecoveryKey: String? = null,
     // E2 done: "New key active".
     val isNewKeyActive: Boolean = false,
-    // E3 Add, after the credential: "Anyone who can sign in…".
+    // E3 Add: "Anyone who can sign in…".
     val isAddPasskeyNoticeShown: Boolean = false,
+    // Flow A, after the install: Add a passkey? (Not now / Add passkey).
+    val isPasskeyOfferShown: Boolean = false,
     // E3 Remove, after the credential: the confirm for this slot.
     val removePasskeySlotId: String? = null,
     // E2 re-link: the old passkey slot being offered (Link / Skip).

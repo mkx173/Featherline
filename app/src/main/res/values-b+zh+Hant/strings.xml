@@ -771,10 +771,13 @@
     <string name="settings_backup_add_passkey">新增密碼金鑰</string>
     <string name="settings_backup_remove_passkey">移除密碼金鑰</string>
     <string name="settings_backup_passkeys_footer">密碼金鑰儲存在你的密碼管理工具中，可在它同步到的任何裝置上開啟你的備份。在這裡移除後，先前的備份仍能用它開啟；如要徹底停用，請使用「更換加密金鑰」</string>
-    <string name="settings_backup_add_passkey_prompt_subtitle">驗證身份以新增密碼金鑰</string>
     <string name="settings_backup_remove_passkey_prompt_subtitle">驗證身份以移除密碼金鑰</string>
     <string name="settings_backup_add_passkey_notice">任何能登入儲存此密碼金鑰的帳戶的人，都能開啟你的備份</string>
     <string name="settings_backup_add_passkey_continue">繼續</string>
+    <string name="settings_backup_passkey_offer_title">新增密碼金鑰？</string>
+    <string name="settings_backup_passkey_offer_message">透過儲存此密碼金鑰的帳戶，在任何手機上用指紋開啟你的備份</string>
+    <string name="settings_backup_passkey_offer_later">之後也可以在「設定 → 備份與還原」中新增</string>
+    <string name="settings_backup_passkey_offer_not_now">暫時不要</string>
     <string name="settings_backup_remove_passkey_title">移除密碼金鑰？</string>
     <string name="settings_backup_remove_passkey_message">先前儲存的備份仍能用它開啟。如要徹底停用，請使用「更換加密金鑰」。密碼金鑰仍保留在你的密碼管理工具中，請在那裡一併刪除</string>
     <string name="settings_backup_passkey_no_provider">這支手機上沒有可用的密碼金鑰提供者</string>

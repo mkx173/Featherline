@@ -17,6 +17,7 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.NoCredentialException
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import org.json.JSONArray
 import org.json.JSONObject
@@ -46,6 +47,14 @@ class PasskeySlots @Inject constructor(
     private val keyringCrypto: KeyringCrypto,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
+    /**
+     * Whether key setup offers a passkey: Android 14 has Credential Manager
+     * built in; Android 9–13 only through the Play Services bridge, which only
+     * the play flavor carries.
+     */
+    fun canOffer(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && BuildConfig.FLAVOR == "play")
+
     /** Creates a passkey, asserts it once for its PRF output, and wraps [mk]. */
     suspend fun add(activity: Activity, mk: ByteArray): KeyringSlot {
         // Credential Manager has no passkeys below Android 9.

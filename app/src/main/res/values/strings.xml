@@ -801,10 +801,13 @@
     <string name="settings_backup_add_passkey">Add passkey</string>
     <string name="settings_backup_remove_passkey">Remove passkey</string>
     <string name="settings_backup_passkeys_footer">Passkeys are saved in your password manager and open your backups on any device the passkey is synced to. Removing one here leaves older backups still open with it; to lock it out, use Replace encryption key.</string>
-    <string name="settings_backup_add_passkey_prompt_subtitle">Verify your identity to add a passkey.</string>
     <string name="settings_backup_remove_passkey_prompt_subtitle">Verify your identity to remove a passkey.</string>
     <string name="settings_backup_add_passkey_notice">Anyone who can sign in to the account that stores this passkey can open your backups.</string>
     <string name="settings_backup_add_passkey_continue">Continue</string>
+    <string name="settings_backup_passkey_offer_title">Add a passkey?</string>
+    <string name="settings_backup_passkey_offer_message">Open your backups on any phone with your fingerprint, through the account that stores the passkey.</string>
+    <string name="settings_backup_passkey_offer_later">You can add one later in Settings → Backup &amp; restore.</string>
+    <string name="settings_backup_passkey_offer_not_now">Not now</string>
     <string name="settings_backup_remove_passkey_title">Remove passkey?</string>
     <string name="settings_backup_remove_passkey_message">Backups saved before now still open with it. To lock it out, use Replace encryption key. The passkey stays in your password manager; delete it there too.</string>
     <string name="settings_backup_passkey_no_provider">No passkey provider is available on this phone.</string>

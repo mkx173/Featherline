@@ -84,6 +84,7 @@ class BackupSettingsViewModelTest {
         coEvery { backupRestoreService.peekRestoreKeyring(any()) } returns null
         every { appLockSecurityManager.isScreenLockMissing() } returns false
         every { appLockSecurityManager.availabilityErrorMessageRes() } returns null
+        every { passkeySlots.canOffer() } returns false
     }
 
     @After
@@ -330,6 +331,8 @@ class BackupSettingsViewModelTest {
         assertEquals(installedKeyring, prepareCalls.single().second)
         assertNull(viewModel.uiState.value.keySetup)
         assertNotNull(viewModel.uiState.value.pendingPreparedBackupExport)
+        // Not eligible for a passkey: no offer.
+        assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyOfferShown)
     }
 
     @Test
@@ -351,6 +354,105 @@ class BackupSettingsViewModelTest {
         assertNull(viewModel.confirmKeySetup())
         coVerify(exactly = 1) { backupKeyStore.install(any(), any(), any()) }
         coVerify(exactly = 0) { backupExportService.prepareBackupExport(any(), any(), any()) }
+    }
+
+    // Installs Flow A's key with the offer eligible; the store then answers
+    // with what was installed, as the real one would.
+    private suspend fun TestScope.installWithOffer(
+        viewModel: BackupSettingsViewModel,
+        prepareCalls: List<Pair<ByteArray, String>>,
+    ): Pair<ByteArray, String> {
+        every { passkeySlots.canOffer() } returns true
+        lateinit var installedMk: ByteArray
+        lateinit var installedKeyring: String
+        coEvery { backupKeyStore.install(any(), any(), any()) } coAnswers {
+            installedMk = firstArg<ByteArray>().copyOf()
+            installedKeyring = thirdArg()
+        }
+        startKeySetup(viewModel)
+        assertNull(viewModel.confirmKeySetup())
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.encryptionKey.isPasskeyOfferShown)
+        assertNull(viewModel.uiState.value.keySetup)
+        assertNull(viewModel.uiState.value.pendingPreparedBackupExport)
+        assertTrue(prepareCalls.isEmpty())
+        coEvery { backupKeyStore.masterKey() } answers { installedMk.copyOf() }
+        coEvery { backupKeyStore.keyringJson() } answers { installedKeyring }
+        return installedMk to installedKeyring
+    }
+
+    @Test
+    fun passkeyOffer_addAppendsTheSlotThenPrepares() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prepareCalls = stubPrepare()
+        val (mk, keyringJson) = installWithOffer(viewModel, prepareCalls)
+        val added = passkeySlot(mk)
+        lateinit var addedWith: ByteArray
+        coEvery { passkeySlots.add(activity, any()) } coAnswers {
+            addedWith = secondArg<ByteArray>().copyOf()
+            added
+        }
+        val written = stubReplaceKeyring()
+        coEvery { backupKeyStore.keyringJson() } answers { written.lastOrNull() ?: keyringJson }
+
+        val result = viewModel.acceptPasskeyOffer(activity)
+        advanceUntilIdle()
+
+        assertSame(preparedBackupExport, result)
+        assertArrayEquals(mk, addedWith)
+        val original = keyringCrypto.decode(keyringJson)
+        assertEquals(original.slots + added, keyringCrypto.decode(written.single()).slots)
+        assertArrayEquals(mk, prepareCalls.single().first)
+        assertEquals(written.single(), prepareCalls.single().second)
+        val state = viewModel.uiState.value.encryptionKey
+        assertFalse(state.isPasskeyOfferShown)
+        assertFalse(state.isPasskeyInProgress)
+        assertNull(state.messageRes)
+    }
+
+    @Test
+    fun passkeyOffer_notNowPreparesWithoutAPasskey() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prepareCalls = stubPrepare()
+        val (mk, keyringJson) = installWithOffer(viewModel, prepareCalls)
+
+        assertSame(preparedBackupExport, viewModel.declinePasskeyOffer())
+        advanceUntilIdle()
+
+        assertArrayEquals(mk, prepareCalls.single().first)
+        assertEquals(keyringJson, prepareCalls.single().second)
+        assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyOfferShown)
+        coVerify(exactly = 0) { passkeySlots.add(any(), any()) }
+        // The offer is gone: a second tap does nothing.
+        assertNull(viewModel.declinePasskeyOffer())
+    }
+
+    @Test
+    fun passkeyOffer_addFailuresToastAndStillPrepare() = runTest {
+        listOf(
+            PasskeyProviderUnavailableException(IOException()) to R.string.settings_backup_passkey_no_provider,
+            PasskeyPrfUnsupportedException() to R.string.settings_backup_passkey_no_prf,
+            PasskeyCancelledException(IOException()) to null,
+            IOException("other") to R.string.settings_backup_passkey_failed,
+        ).forEach { (error, messageRes) ->
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            val prepareCalls = stubPrepare()
+            val (mk, keyringJson) = installWithOffer(viewModel, prepareCalls)
+            coEvery { passkeySlots.add(any(), any()) } throws error
+
+            assertSame(preparedBackupExport, viewModel.acceptPasskeyOffer(activity))
+            advanceUntilIdle()
+
+            assertEquals(messageRes, viewModel.uiState.value.encryptionKey.messageRes)
+            assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyOfferShown)
+            assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyInProgress)
+            assertArrayEquals(mk, prepareCalls.single().first)
+            assertEquals(keyringJson, prepareCalls.single().second)
+        }
+        coVerify(exactly = 0) { backupKeyStore.replaceKeyring(any()) }
     }
 
     @Test
@@ -739,11 +841,14 @@ class BackupSettingsViewModelTest {
         val mk = checkNotNull(viewModel.keySetupMasterKey).copyOf()
         val heldMk = checkNotNull(viewModel.keySetupMasterKey)
         // Flow A's confirm doesn't take a Replace setup.
+        every { passkeySlots.canOffer() } returns true
         assertNull(viewModel.confirmKeySetup())
 
         viewModel.confirmReplaceKey()
         advanceUntilIdle()
         viewModel.uiState.first { it.encryptionKey.isNewKeyActive }
+        // Replace never offers a passkey.
+        assertFalse(viewModel.uiState.value.encryptionKey.isPasskeyOfferShown)
 
         coVerify(exactly = 1) { backupKeyStore.install(any(), setup.recoveryKey, any()) }
         assertArrayEquals(mk, installedMk)
@@ -821,7 +926,7 @@ class BackupSettingsViewModelTest {
     }
 
     @Test
-    fun addPasskey_credentialThenNoticeThenAppendsTheSlot() = runTest {
+    fun addPasskey_noticeWithoutCredentialThenAppendsTheSlot() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
         val phoneKeyring = keyringCrypto.newKeyring(fileMk, fileRecoveryKey, now = 1L)
@@ -837,10 +942,7 @@ class BackupSettingsViewModelTest {
 
         viewModel.onAddPasskeyClick()
         advanceUntilIdle()
-        assertNotNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
-        assertFalse(viewModel.uiState.value.encryptionKey.isAddPasskeyNoticeShown)
-        viewModel.onKeyCredentialAuthenticated()
-        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
         assertTrue(viewModel.uiState.value.encryptionKey.isAddPasskeyNoticeShown)
         viewModel.confirmAddPasskey(activity)
         advanceUntilIdle()
@@ -859,7 +961,6 @@ class BackupSettingsViewModelTest {
     fun addPasskey_failuresShowTheirMessageAndWriteNothing() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
-        every { appLockSecurityManager.isScreenLockMissing() } returns true
         coEvery { backupKeyStore.masterKey() } answers { fileMk.copyOf() }
         coEvery { backupKeyStore.keyringJson() } returns fileKeyringJson
         listOf(
@@ -891,6 +992,7 @@ class BackupSettingsViewModelTest {
 
         viewModel.onRemovePasskeyClick(slot.id)
         advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.encryptionKey.pendingPrompt)
         assertNull(viewModel.uiState.value.encryptionKey.removePasskeySlotId)
         viewModel.onKeyCredentialAuthenticated()
         advanceUntilIdle()

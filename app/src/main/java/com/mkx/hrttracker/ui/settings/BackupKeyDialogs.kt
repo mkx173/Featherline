@@ -162,6 +162,55 @@ internal fun BackupKeySetupDialog(
     }
 }
 
+/** Flow A, after I saved it: offers a passkey before the folder picker. Back is Not now. */
+@Composable
+internal fun BackupPasskeyOfferDialog(
+    isInProgress: Boolean,
+    onNotNow: () -> Unit,
+    onAdd: () -> Unit,
+) {
+    val notNow = { if (!isInProgress) onNotNow() }
+    SecureKeyDialog(
+        onClose = notNow,
+        closeLabel = stringResource(R.string.settings_backup_passkey_offer_not_now),
+        actions = {
+            TextButton(onClick = notNow, enabled = !isInProgress) {
+                Text(text = stringResource(R.string.settings_backup_passkey_offer_not_now))
+            }
+            Button(onClick = onAdd, enabled = !isInProgress) {
+                if (isInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current,
+                    )
+                } else {
+                    Text(text = stringResource(R.string.settings_backup_add_passkey))
+                }
+            }
+        },
+    ) {
+        Text(
+            text = stringResource(R.string.settings_backup_passkey_offer_title),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            text = stringResource(R.string.settings_backup_passkey_offer_message),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        BackupKeyNote(
+            painter = rememberVectorPainter(Icons.Outlined.Shield),
+            text = stringResource(R.string.settings_backup_add_passkey_notice),
+        )
+        Text(
+            text = stringResource(R.string.settings_backup_passkey_offer_later),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 /** E1 Show: the recovery key with its QR, for adding a phone (Flow D). */
 @Composable
 internal fun BackupRecoveryKeyDialog(
@@ -226,7 +275,7 @@ internal fun BackupReplaceKeyDialog(
     )
 }
 
-/** E3 Add passkey, after the credential: who else can open the backups. */
+/** E3 Add passkey: who else can open the backups. */
 @Composable
 internal fun BackupAddPasskeyNoticeDialog(
     onContinue: () -> Unit,

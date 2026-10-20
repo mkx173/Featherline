@@ -771,10 +771,13 @@
     <string name="settings_backup_add_passkey">加入通行密鑰</string>
     <string name="settings_backup_remove_passkey">移除通行密鑰</string>
     <string name="settings_backup_passkeys_footer">通行密鑰儲存喺你嘅密碼管理工具度，可以喺佢同步到嘅任何裝置度打開你嘅備份。喺呢度移除之後，之前嘅備份仍然可以用佢打開；如果要徹底停用，請用「更換加密密鑰」</string>
-    <string name="settings_backup_add_passkey_prompt_subtitle">驗證身份以加入通行密鑰</string>
     <string name="settings_backup_remove_passkey_prompt_subtitle">驗證身份以移除通行密鑰</string>
     <string name="settings_backup_add_passkey_notice">任何登入到儲存呢個通行密鑰嘅帳戶嘅人，都可以打開你嘅備份</string>
     <string name="settings_backup_add_passkey_continue">繼續</string>
+    <string name="settings_backup_passkey_offer_title">加入通行密鑰？</string>
+    <string name="settings_backup_passkey_offer_message">透過儲存呢個通行密鑰嘅帳戶，喺任何手機度用指紋打開你嘅備份</string>
+    <string name="settings_backup_passkey_offer_later">之後都可以喺「設定 → 備份同還原」度加入</string>
+    <string name="settings_backup_passkey_offer_not_now">暫時唔使</string>
     <string name="settings_backup_remove_passkey_title">移除通行密鑰？</string>
     <string name="settings_backup_remove_passkey_message">之前儲存嘅備份仍然可以用佢打開。如果要徹底停用，請用「更換加密密鑰」。通行密鑰仍然留喺你嘅密碼管理工具度，記得喺嗰度一齊刪除</string>
     <string name="settings_backup_passkey_no_provider">呢部手機冇可用嘅通行密鑰提供者</string>
