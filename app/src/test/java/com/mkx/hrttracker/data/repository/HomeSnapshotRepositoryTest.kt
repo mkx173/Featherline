@@ -40,9 +40,11 @@ import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationResult
 import com.mkx.hrttracker.model.pk.resultIdsWith
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -144,6 +146,7 @@ class HomeSnapshotRepositoryTest {
             writtenInputs += firstArg<E2InputsRecord>()
         }
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns chartWindowOptionState
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         coEvery { databaseHolder.awaitOpen() } returns database
         every { database.homeDao() } returns homeDao
         every { database.medicineDao() } returns medicineDao
@@ -812,7 +815,7 @@ class HomeSnapshotRepositoryTest {
         assertEquals(anchorDate.minusDays(1).atStartOfDay().toString(), scheduledStartIso.single())
         assertEquals(anchorDate.plusDays(100).atTime(23, 59, 59).toString(), scheduledEndIso.single())
         assertEquals(anchorDate.minusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(), manualStart.single())
-        assertEquals(anchorDate.plusDays(11).atStartOfDay(zoneId).toInstant().toEpochMilli(), manualEnd.single())
+        assertEquals(anchorDate.plusDays(12).atStartOfDay(zoneId).toInstant().toEpochMilli(), manualEnd.single())
     }
 
     @Test
@@ -832,7 +835,7 @@ class HomeSnapshotRepositoryTest {
             repository.rebuildNow()
 
             assertEquals(anchorDate.minusDays(1).atStartOfDay(newYork).toInstant().toEpochMilli(), manualStart.last())
-            assertEquals(anchorDate.plusDays(11).atStartOfDay(newYork).toInstant().toEpochMilli(), manualEnd.last())
+            assertEquals(anchorDate.plusDays(12).atStartOfDay(newYork).toInstant().toEpochMilli(), manualEnd.last())
             assertEquals(newYork.id, repository.cache.value?.homeData?.zoneId)
             assertEquals(newYork.id, repository.cache.value?.e2Inputs?.zoneId)
         } finally {
@@ -1430,6 +1433,7 @@ class HomeSnapshotRepositoryTest {
         generation = generation,
         anchorDateEpochDay = at.toLocalDate().toEpochDay(),
         zoneId = zoneId.id,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         option = HomeE2ChartWindowOption.SEVEN_DAYS,
         weightKg = null,
         estradiolEntries = emptyList(),

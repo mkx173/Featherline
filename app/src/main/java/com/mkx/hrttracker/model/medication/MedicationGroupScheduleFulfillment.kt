@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -8,11 +9,13 @@ fun MedicationGroup.previousScheduledForBefore(
     scheduledFor: LocalDateTime,
     lookbackDays: Long = MaxLookbackForAdjacentDoseDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    boundary: MedicationDayBoundary,
 ): LocalDateTime? {
     return occurrencesBetweenInPlanWindow(
         startDate = scheduledFor.toLocalDate().minusDays(lookbackDays),
         endDate = scheduledFor.toLocalDate(),
         zoneId = zoneId,
+        boundary = boundary,
     )
         .asSequence()
         .map(MedicationGroupSlotOccurrence::scheduledFor)
@@ -23,11 +26,13 @@ fun MedicationGroup.previousScheduledForBefore(
 fun MedicationGroup.nextScheduledForAfter(
     scheduledFor: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    boundary: MedicationDayBoundary,
 ): LocalDateTime? {
     return nextOccurrencesInPlanWindowFrom(
         start = scheduledFor.plusNanos(1),
         limit = 1,
         zoneId = zoneId,
+        boundary = boundary,
     ).firstOrNull()?.scheduledFor
 }
 

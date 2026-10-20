@@ -12,6 +12,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.e2Inputs
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
@@ -62,6 +63,7 @@ class WidgetDailyRefreshWorkerTest {
             generation = 0L,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = zoneId.id,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),
@@ -207,7 +209,7 @@ class WidgetDailyRefreshWorkerTest {
         widgetSnapshotRepository = widgetSnapshotRepository,
         e2EstimateRepository = e2EstimateRepository,
         rerender = { rerenders++ },
-    )
+        boundary = MedicationDayBoundary.Midnight)
 
     private val clock = MutableClock(now.atZone(zoneId).toInstant())
     private var stored: HomeE2EstimateRecord? = null

@@ -48,6 +48,7 @@ import com.mkx.hrttracker.util.CalibrationPanelDateTimeFormatters
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -238,6 +239,7 @@ class CalibrationViewModelTest {
                     generation = generation,
                     anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                     zoneId = zoneId.id,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                     option = HomeE2ChartWindowOption.SEVEN_DAYS,
                     weightKg = 62.0,
                     estradiolEntries = logged,

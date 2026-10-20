@@ -22,6 +22,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -209,7 +210,7 @@ fun TimePickerModal(
         // clock digits are Latin-only, so stock displayLarge metrics lose nothing here.
         val current = MaterialTheme.typography
         MaterialTheme(typography = current.copy(displayLarge = Typography().displayLarge)) {
-            TimePicker(state = timePickerState)
+            TimePicker(state = timePickerState, modifier = Modifier.testTag("time_picker"))
         }
     }
 }

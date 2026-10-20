@@ -1,4 +1,5 @@
 package com.mkx.hrttracker.ui.plan
+import com.mkx.hrttracker.util.MedicationDayBoundary
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,7 +13,8 @@ class MedicationGroupEditorNotificationsTest {
             currentState = MedicationGroupEditorUiState(
                 remindersEnabled = false,
                 notificationsEnabled = false,
-                hasResolvedNotificationDefault = false
+                hasResolvedNotificationDefault = false,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             remindersEnabled = true
         )
@@ -29,7 +31,8 @@ class MedicationGroupEditorNotificationsTest {
                 editingGroupId = "group-id",
                 remindersEnabled = false,
                 notificationsEnabled = false,
-                hasResolvedNotificationDefault = true
+                hasResolvedNotificationDefault = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             remindersEnabled = true
         )
@@ -44,7 +47,8 @@ class MedicationGroupEditorNotificationsTest {
             currentState = MedicationGroupEditorUiState(
                 remindersEnabled = true,
                 notificationsEnabled = false,
-                hasResolvedNotificationDefault = true
+                hasResolvedNotificationDefault = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             remindersEnabled = true
         )
@@ -59,7 +63,8 @@ class MedicationGroupEditorNotificationsTest {
                 editingGroupId = "group-id",
                 remindersEnabled = true,
                 notificationsEnabled = true,
-                hasResolvedNotificationDefault = true
+                hasResolvedNotificationDefault = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             remindersEnabled = false
         )

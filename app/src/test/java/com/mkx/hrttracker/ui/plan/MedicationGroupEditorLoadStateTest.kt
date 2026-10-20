@@ -23,6 +23,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.withAppLanguage
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -1033,6 +1034,7 @@ class MedicationGroupEditorLoadStateTest {
     fun newGroupPastScheduleOption_resolvesDoNotShowWhenBackfillDisabled() {
         val newGroupState = MedicationGroupEditorUiState(
             includePastScheduledSlots = false,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(newGroupState.canCreatePastScheduledSlotRecords)
@@ -1051,6 +1053,7 @@ class MedicationGroupEditorLoadStateTest {
         val editingGroupState = MedicationGroupEditorUiState(
             editingGroupId = "a0438203-d2d6-45ac-8d55-b31040588cca",
             includePastScheduledSlots = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(editingGroupState.canEditBackfillOption)
@@ -1070,6 +1073,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "a0438203-d2d6-45ac-8d55-b31040588cca",
             includePastScheduledSlots = true,
             relatedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(editingGroupState.canEditBackfillOption)
@@ -1090,6 +1094,7 @@ class MedicationGroupEditorLoadStateTest {
             includePastScheduledSlots = true,
             createPastScheduledSlotRecords = true,
             isSaving = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val selectorState = resolvePastScheduleSelectorState(
@@ -1109,6 +1114,7 @@ class MedicationGroupEditorLoadStateTest {
             includePastScheduledSlots = true,
             createPastScheduledSlotRecords = true,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val selectorState = resolvePastScheduleSelectorState(
@@ -1142,6 +1148,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             includePastScheduledSlots = true,
             createPastScheduledSlotRecords = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val selectorState = resolvePastScheduleSelectorState(
@@ -1164,6 +1171,7 @@ class MedicationGroupEditorLoadStateTest {
             createPastScheduledSlotRecords = true,
             isDeleted = false,
             isFinishingAfterDeleteOrArchive = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val selectorState = resolvePastScheduleSelectorState(
@@ -1211,6 +1219,7 @@ class MedicationGroupEditorLoadStateTest {
             plannedEntryCount = 2,
             isArchived = false,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val nextState = previousState.copy(
             isDeleting = false,
@@ -1243,6 +1252,7 @@ class MedicationGroupEditorLoadStateTest {
             plannedEntryCount = 2,
             isArchived = false,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val nextState = previousState.copy(
             relatedEntryCount = 0,
@@ -1270,6 +1280,7 @@ class MedicationGroupEditorLoadStateTest {
             relatedEntryCount = 4,
             plannedEntryCount = 2,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val nextState = previousState.copy(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
@@ -1300,6 +1311,7 @@ class MedicationGroupEditorLoadStateTest {
             relatedEntryCount = 3,
             plannedEntryCount = 1,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val consumedDeletedGroupState = previousState.copy(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
@@ -1330,6 +1342,7 @@ class MedicationGroupEditorLoadStateTest {
             plannedEntryCount = 1,
             isArchived = false,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val liveEditingState = previousState.copy(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
@@ -1358,6 +1371,7 @@ class MedicationGroupEditorLoadStateTest {
             plannedEntryCount = 1,
             isArchived = false,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val savedGroupState = previousState.copy(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
@@ -1388,6 +1402,7 @@ class MedicationGroupEditorLoadStateTest {
             plannedEntryCount = 2,
             isArchived = false,
             scheduleTimeOrderError = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val liveActionState = previousState.copy(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
@@ -1418,6 +1433,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
             includePastScheduledSlots = true,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(savedNewGroupState.canCreatePastScheduledSlotRecords)
@@ -1442,6 +1458,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
             includePastScheduledSlots = true,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(
@@ -1458,6 +1475,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             includePastScheduledSlots = true,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1483,6 +1501,7 @@ class MedicationGroupEditorLoadStateTest {
             createPastScheduledSlotRecords = true,
             isSaved = true,
             plannedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1504,6 +1523,7 @@ class MedicationGroupEditorLoadStateTest {
         val duplicatedDraftState = MedicationGroupEditorUiState(
             editingGroupId = null,
             isArchived = false,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(
@@ -1519,6 +1539,7 @@ class MedicationGroupEditorLoadStateTest {
         val archivedGroupState = MedicationGroupEditorUiState(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             isArchived = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1535,6 +1556,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
             isArchived = false,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
         val isNewGroupCreationFlow = resolveMedicationGroupEditorIsNewGroupCreationFlow(
             uiState = savedDuplicatedDraftState,
@@ -1557,6 +1579,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
             isArchived = false,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -1574,6 +1597,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
             isArchived = false,
             isSaved = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -1593,6 +1617,7 @@ class MedicationGroupEditorLoadStateTest {
             createPastScheduledSlotRecords = true,
             isSaved = true,
             plannedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1611,6 +1636,7 @@ class MedicationGroupEditorLoadStateTest {
             createPastScheduledSlotRecords = true,
             isSaving = true,
             plannedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1635,6 +1661,7 @@ class MedicationGroupEditorLoadStateTest {
             createPastScheduledSlotRecords = true,
             isSaving = true,
             relatedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(
@@ -1651,6 +1678,7 @@ class MedicationGroupEditorLoadStateTest {
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             includePastScheduledSlots = true,
             relatedEntryCount = 1,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(
@@ -1678,6 +1706,7 @@ class MedicationGroupEditorLoadStateTest {
                             )
                         )
                     ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1694,6 +1723,7 @@ class MedicationGroupEditorLoadStateTest {
                             )
                         )
                     ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1710,6 +1740,7 @@ class MedicationGroupEditorLoadStateTest {
                             )
                         )
                     ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1726,6 +1757,7 @@ class MedicationGroupEditorLoadStateTest {
                             )
                         )
                     ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1742,6 +1774,7 @@ class MedicationGroupEditorLoadStateTest {
                             )
                         )
                     ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1758,6 +1791,7 @@ class MedicationGroupEditorLoadStateTest {
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     sinceDate = LocalDate.of(2026, 4, 30),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1767,6 +1801,7 @@ class MedicationGroupEditorLoadStateTest {
                 MedicationGroupEditorUiState(
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -1776,6 +1811,7 @@ class MedicationGroupEditorLoadStateTest {
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     isArchived = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,
             )
@@ -1790,6 +1826,7 @@ class MedicationGroupEditorLoadStateTest {
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     relatedEntryCount = 0,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -1799,6 +1836,7 @@ class MedicationGroupEditorLoadStateTest {
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     relatedEntryCount = 1,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -1807,6 +1845,7 @@ class MedicationGroupEditorLoadStateTest {
                 MedicationGroupEditorUiState(
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     relatedEntryCount = 0,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -1817,6 +1856,7 @@ class MedicationGroupEditorLoadStateTest {
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     relatedEntryCount = 0,
                     isArchived = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -1901,5 +1941,6 @@ private fun saveableMedicationGroupEditorState(
         ),
         isSaved = isSaved,
         isDeleted = isDeleted,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
     )
 }

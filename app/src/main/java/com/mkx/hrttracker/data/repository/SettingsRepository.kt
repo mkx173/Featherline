@@ -56,20 +56,11 @@ private val Context.dataStore by preferencesDataStore(
 )
 
 @Singleton
-class SettingsRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class SettingsRepository internal constructor(
+    private val preferencesDataStore: DataStore<Preferences>,
 ) {
-    internal constructor(
-        context: Context,
-        dataStore: DataStore<Preferences>,
-    ) : this(context) {
-        storedPreferencesOverride = dataStore
-    }
-
-    // Null in production (activeDataStore() is used); set by the internal test constructor before
-    // storedPreferences is accessed.  Must be assigned before any flow property is first collected.
-    @Volatile
-    private var storedPreferencesOverride: DataStore<Preferences>? = null
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(context.dataStore)
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
@@ -106,11 +97,11 @@ class SettingsRepository @Inject constructor(
     private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
+    private val medicationDayEndsAtFourAmKey = booleanPreferencesKey("medication_day_ends_at_four_am")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
-    private fun activeDataStore(): DataStore<Preferences> =
-        storedPreferencesOverride ?: context.dataStore
+    private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
     // down the upstream combine. SupervisorJob protects sibling jobs but not the
@@ -360,6 +351,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[medicationDayEndsAtFourAmKey] = enabled
+        }
+    }
+
     suspend fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
         activeDataStore().edit { preferences ->
             if (option == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
@@ -466,6 +463,7 @@ class SettingsRepository @Inject constructor(
         stockNudgeEnabled: Boolean = true,
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
+        medicationDayEndsAtFourAm: Boolean = false,
         pkCalibrationIntroSeen: Boolean = false,
         healthConnectWeightSyncEnabled: Boolean = false,
     ) {
@@ -514,6 +512,7 @@ class SettingsRepository @Inject constructor(
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
             preferences[groupNameCounterKey] = groupNameCounter
+            preferences[medicationDayEndsAtFourAmKey] = medicationDayEndsAtFourAm
 
             if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
                 preferences.remove(firstDayOfWeekKey)
@@ -573,6 +572,7 @@ class SettingsRepository @Inject constructor(
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
+            medicationDayEndsAtFourAm = preferences[medicationDayEndsAtFourAmKey] ?: false,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
     }

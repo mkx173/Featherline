@@ -3,6 +3,7 @@ package com.mkx.hrttracker.widget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,10 +31,14 @@ class WidgetDateReceiver : BroadcastReceiver() {
         )
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
         diagnosticsLogger.info(TAG, "widget_date_receiver_received action=$action")
-        scheduleNextWidgetDateRefresh(
+        // Arm a fallback before the timed block: if the settings read is slow on
+        // BOOT_COMPLETED, the next midnight still gets an alarm.
+        armWidgetDateRefreshFromSettings(
             context = context.applicationContext,
             diagnosticsLogger = diagnosticsLogger,
-        )
+            logTag = TAG,
+            scheduleFailedMessage = "widget_date_refresh_fallback_failed",
+        ) { MedicationDayBoundary.Midnight }
         // One overall bound for every DB-touching step: the home refresh blocks unbounded
         // on the database open, and the anchor steps each run their own 5s await — on a
         // hung SQLCipher open the sequence exceeds the ~10s goAsync allowance (system kills
@@ -41,6 +46,12 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // blocking open can't be interrupted, but cancelling here lets the receiver finish
         // inside its budget while the open resolves on its own thread.
         val completed = kotlinx.coroutines.withTimeoutOrNull(HANDLE_BUDGET_MS) {
+            armWidgetDateRefreshFromSettings(
+                context = context.applicationContext,
+                diagnosticsLogger = diagnosticsLogger,
+                logTag = TAG,
+                scheduleFailedMessage = "widget_date_refresh_schedule_failed",
+            ) { entryPoint.settingsRepository().getCurrentSettings().medicationDayBoundary }
             // A run for the new date or zone, which ends by warming Home's estimate for it;
             // HomeWidgetManager's cache observer rebuilds the widget from its publish. Out of
             // budget, only this wait ends: the run carries on in the app scope.
@@ -82,8 +93,8 @@ class WidgetDateReceiver : BroadcastReceiver() {
         private const val TAG = "WidgetDateReceiver"
 
         // Inside the ~10s background-broadcast goAsync allowance, with headroom for the
-        // scheduling/logging outside the bound. Skipped steps heal on the next broadcast
-        // or on AnchorWidgetManager's on-change collectors.
+        // logging and the pendingResult finish outside the bound. Skipped steps heal on
+        // the next broadcast or on AnchorWidgetManager's on-change collectors.
         private const val HANDLE_BUDGET_MS = 8_000L
         private val HANDLED_ACTIONS = setOf(
             ACTION_WIDGET_DATE_REFRESH,

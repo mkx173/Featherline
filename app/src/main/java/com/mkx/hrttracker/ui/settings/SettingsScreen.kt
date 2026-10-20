@@ -549,6 +549,7 @@ fun SettingsScreen(
         onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
+        onMedicationDayEndsAtFourAmChange = viewModel::setMedicationDayEndsAtFourAm,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
@@ -975,6 +976,7 @@ internal fun SettingsScreenContent(
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
+    onMedicationDayEndsAtFourAmChange: (Boolean) -> Unit = {},
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
@@ -1294,6 +1296,27 @@ internal fun SettingsScreenContent(
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
                 HrtSection(title = stringResource(R.string.settings_display)) {
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                            supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
+                            onClick = {
+                                onMedicationDayEndsAtFourAmChange(
+                                    !settingsState.medicationDayEndsAtFourAm
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(painter = painterResource(R.drawable.ic_lock_clock))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.medicationDayEndsAtFourAm,
+                                    onCheckedChange = onMedicationDayEndsAtFourAmChange
+                                )
+                            },
+                        )
+                    }
+
                     item {
                         Box {
                             SettingsSegmentedListItem(

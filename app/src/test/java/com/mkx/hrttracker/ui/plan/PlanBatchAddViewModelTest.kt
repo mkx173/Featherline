@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
@@ -257,7 +258,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 9),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(2, entries.size)
         assertNull(entries[0].sourceGroupUuid)
@@ -266,6 +267,34 @@ class PlanBatchAddViewModelTest {
         assertEquals(Instant.parse("2026-04-09T09:00:00Z"), entries[0].appliedAt)
         assertEquals(groupUuid, entries[1].sourceGroupUuid)
         assertEquals(LocalDateTime.of(2026, 4, 10, 9, 0), entries[1].scheduledFor)
+    }
+
+    @Test
+    fun buildPlanBatchAddEntries_iteratesMedicationDaysAtFourAm() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("8f0d5c3c-8f31-4a0a-9d4b-0d1b8f1c2a11"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+
+        val entries = buildPlanBatchAddEntries(
+            group = group,
+            startDate = LocalDate.of(2026, 10, 1),
+            endDate = LocalDate.of(2026, 10, 31),
+            boundary = MedicationDayBoundary.FourAm,
+            now = LocalDateTime.of(2026, 11, 1, 6, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(31, entries.size)
+        assertEquals(LocalDateTime.of(2026, 10, 2, 1, 0), entries.first().scheduledFor)
+        assertEquals(LocalDateTime.of(2026, 11, 1, 1, 0), entries.last().scheduledFor)
     }
 
     @Test
@@ -305,7 +334,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, entries.size)
         assertEquals(groupUuid, entries.single().sourceGroupUuid)
@@ -332,7 +361,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 1),
             endDate = LocalDate.of(2026, 4, 15),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(2, entries.size)
         assertNull(entries[0].sourceGroupUuid)
@@ -368,7 +397,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 1),
             endDate = LocalDate.of(2026, 4, 14),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, entries.size)
         assertEquals(Instant.parse("2026-04-06T10:30:00Z"), entries.single().appliedAt)
@@ -395,7 +424,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(2, entries.size)
         assertEquals(listOf(3, 1), entries.map { entry -> entry.count })
@@ -433,7 +462,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         val entries = plan.entries
         assertEquals(2, entries.size)
@@ -466,7 +495,7 @@ class PlanBatchAddViewModelTest {
             endDate = LocalDate.of(2026, 4, 10),
             now = LocalDateTime.of(2026, 4, 10, 0, 30),
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, entries.size)
         assertEquals(pastSlot, entries.single().scheduledFor)
@@ -493,7 +522,7 @@ class PlanBatchAddViewModelTest {
             endDate = now.toLocalDate(),
             now = now,
             zoneId = ZoneId.of("UTC"),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, entries.size)
         assertEquals(now, entries.single().scheduledFor)
@@ -516,7 +545,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-        ).single()
+            boundary = MedicationDayBoundary.Midnight).single()
 
         assertEquals(
             false,

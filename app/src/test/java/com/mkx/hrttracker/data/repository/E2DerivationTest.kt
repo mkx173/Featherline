@@ -42,6 +42,7 @@ import com.mkx.hrttracker.model.pk.PkSimulationResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvents
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -140,6 +141,7 @@ class E2DerivationTest {
                 activeGroups = listOf(group),
                 now = now,
                 horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay(),
+                boundary = MedicationDayBoundary.Midnight,
                 zoneId = zoneId,
             ).planned
             assertTrue(planned.isNotEmpty())
@@ -710,6 +712,7 @@ class E2DerivationTest {
         plannedSources = listOf(group),
         weightKg = weightKg,
         option = option,
+        boundary = MedicationDayBoundary.Midnight,
         fit = fit,
     )
 

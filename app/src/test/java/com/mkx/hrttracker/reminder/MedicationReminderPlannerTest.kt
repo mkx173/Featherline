@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,7 +46,8 @@ class MedicationReminderPlannerTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(secondGroup, firstGroup),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 20, 8, 0)
+            now = LocalDateTime.of(2026, 4, 20, 8, 0),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -77,6 +79,7 @@ class MedicationReminderPlannerTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
             armed = mapOf(group.uuid to missed),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf(missed), plans.map { it.scheduledAt })
@@ -97,6 +100,7 @@ class MedicationReminderPlannerTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
             armed = mapOf(group.uuid to LocalDateTime.of(2026, 4, 20, 20, 0)),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf(LocalDateTime.of(2026, 4, 20, 20, 0)), plans.map { it.scheduledAt })
@@ -115,7 +119,8 @@ class MedicationReminderPlannerTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 20, 8, 0)
+            now = LocalDateTime.of(2026, 4, 20, 8, 0),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
@@ -139,7 +144,8 @@ class MedicationReminderPlannerTest {
                     scheduledFor = LocalDateTime.of(2026, 4, 20, 9, 0)
                 )
             ),
-            now = LocalDateTime.of(2026, 4, 20, 8, 30)
+            now = LocalDateTime.of(2026, 4, 20, 8, 30),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -164,7 +170,8 @@ class MedicationReminderPlannerTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 20, 9, 0)
+            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -197,7 +204,8 @@ class MedicationReminderPlannerTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = fulfilledEntries,
-            now = now
+            now = now,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -219,7 +227,8 @@ class MedicationReminderPlannerTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 10, 0),
-            lookaheadDays = 0
+            lookaheadDays = 0,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
@@ -256,7 +265,8 @@ class MedicationReminderPlannerTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 21, 8, 0)
+            now = LocalDateTime.of(2026, 4, 21, 8, 0),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(

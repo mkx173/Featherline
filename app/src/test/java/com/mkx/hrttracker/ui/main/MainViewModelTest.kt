@@ -117,6 +117,30 @@ class MainViewModelTest {
     }
 
     @Test
+    fun medicationBoundaryUpdatesRetainedHomeDayWhileUnsubscribed() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 10, 2, 3, 59)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        val settings = SettingsState(medicationDayEndsAtFourAm = true)
+        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
+            homeInputs(now = firstMinute).copy(settings = settings)
+        )
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository, settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            e2EstimateRepository = e2EstimateRepository,
+            processLifecycleState = processLifecycleState,
+            appTimeSource = appTimeSource, defaultDispatcher = dispatcher,
+        )
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.todaySection.date)
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.todaySection.date)
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
+    }
+
+    @Test
     fun clockTickWithinSameDay_doesNotResubscribe() = runTest {
         val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
         val appTimeSource = FakeAppTimeSource(firstMinute)

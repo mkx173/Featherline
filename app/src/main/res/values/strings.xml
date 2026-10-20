@@ -22,7 +22,7 @@
     <string name="main_today_empty_state">Nothing scheduled today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_quick_log">Quick log</string>
-    <string name="main_today_range_night">Night</string>
+    <string name="main_today_range_midnight">Midnight</string>
     <string name="main_today_range_morning">Morning</string>
     <string name="main_today_range_afternoon">Afternoon</string>
     <string name="main_today_range_evening">Evening</string>
@@ -1123,6 +1123,9 @@
     <string name="stock_disable_confirm">Turn off</string>
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
+
+    <string name="settings_medication_day_ends_at_four_am">Day ends at 04:00</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count toward the previous day.</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>

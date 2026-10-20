@@ -36,6 +36,7 @@ import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.holdWhileUpdating
 import com.mkx.hrttracker.util.tickWhileSubscribed
+import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -116,11 +117,11 @@ class MainViewModel @Inject constructor(
 
     private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
         currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
-            snapshot.minute.toLocalDate() to snapshot.zone
+            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, settingsRepository.settingsState.value.medicationDayBoundary), snapshot.zone)
         }
     private val gatedMinute: StateFlow<LocalDateTime> =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate()
+            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayBoundary)
         }
 
     /**
@@ -423,6 +424,17 @@ class MainViewModel @Inject constructor(
             option = chartWindowOption,
         )
 
+        val boundary = inputs.settings.medicationDayBoundary
+        val doseSections = buildMainDoseSections(
+            groups = scheduleGroups,
+            entries = visibleEntries,
+            now = now,
+            zoneId = zoneId,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
+            boundary = boundary,
+        )
+
         return MainUiState(
             homeDataReady = true,
             isUpdating = isUpdating,
@@ -473,35 +485,16 @@ class MainViewModel @Inject constructor(
                     now = now,
                     zoneId = zoneId,
                     category = category,
+                    boundary = inputs.settings.medicationDayBoundary,
                 )
                 cards.takeIf { it.isNotEmpty() }
                     ?.let { MainMedicationCategorySection(category = category, cards = it) }
             },
-            todaySection = buildMainTodaySection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-            ),
-            lastNightSection = buildMainLastNightSection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-            ),
-            comingUpSection = buildMainComingUpSection(
-                groups = scheduleGroups,
-                entries = visibleEntries,
-                now = now,
-                zoneId = zoneId,
-                includeUnloggedArchivedSlots = false,
-                unloggedArchivedSlotCutoff = now,
-            ),
+            todaySection = doseSections.today,
+            lastNightSection = doseSections.lastNight,
+            comingUpSection = doseSections.comingUp,
             upcomingSection = buildMainUpcomingSection(
+                boundary = boundary,
                 groups = inputs.activeGroups,
                 entries = homeEntries,
                 now = now,

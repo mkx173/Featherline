@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration
@@ -52,10 +53,14 @@ fun buildPlanDaySchedule(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
+    boundary: MedicationDayBoundary,
 ): PlanDaySchedule {
+    val dayEntries = entries.filter { entry -> entry.planCalendarDate(boundary, zoneId) == date }
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
-        entries = entries.filter { entry -> entry.planCalendarDate(zoneId) == date },
+        entries = dayEntries,
+        boundary = boundary,
+        zoneId = zoneId,
     )
     val scheduledEntries = scheduledGroups
         .flatMap { group ->
@@ -70,6 +75,7 @@ fun buildPlanDaySchedule(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+                boundary = boundary,
             ).flatMap { slot ->
                 val slotDateTime = slot.scheduledFor
                 val matchingSlotLogs = entries.filter { entry ->
@@ -85,6 +91,7 @@ fun buildPlanDaySchedule(
                         slot = slot,
                         entry = entry,
                         zoneId = zoneId,
+                        boundary = boundary,
                     )
                 }
                 val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
@@ -94,6 +101,7 @@ fun buildPlanDaySchedule(
                             group = group,
                             entry = entry,
                             zoneId = zoneId,
+                            boundary = boundary,
                         )
                     }
                     .groupBy(MedicationSignature::fromLogEntry)
@@ -162,15 +170,15 @@ fun buildPlanDaySchedule(
                 .thenBy { entry -> entry.medicationSortOrder }
         )
 
-    val unplannedEntries = entries
+    val unplannedEntries = dayEntries
         .filter { entry ->
-            entry.planCalendarDate(zoneId) == date &&
-                    isPlanOffPlanEntry(
-                        entry = entry,
-                        scheduledGroups = scheduledGroups,
-                        date = date,
-                        zoneId = zoneId,
-                    )
+            isPlanOffPlanEntry(
+                entry = entry,
+                scheduledGroups = scheduledGroups,
+                date = date,
+                boundary = boundary,
+                zoneId = zoneId,
+            )
         }
         .sortedBy { it.appliedAt }
 

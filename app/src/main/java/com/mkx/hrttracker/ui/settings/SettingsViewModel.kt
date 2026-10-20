@@ -308,6 +308,10 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.setAppLanguageOption(option)
     }
 
+    fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
+        launchSettingsMutation { settingsRepository.setMedicationDayEndsAtFourAm(enabled) }
+    }
+
     fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
         launchSettingsMutation {
             settingsRepository.setFirstDayOfWeekOption(option)

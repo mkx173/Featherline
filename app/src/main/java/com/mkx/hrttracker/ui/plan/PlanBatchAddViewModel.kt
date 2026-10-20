@@ -22,12 +22,15 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.isScheduledAt
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -45,7 +48,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 
@@ -55,7 +57,7 @@ class PlanBatchAddViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     appTimeSource: AppTimeSource,
 ) : ViewModel() {
     private val selectionState = MutableStateFlow(PlanBatchAddSelectionState())
@@ -93,7 +95,7 @@ class PlanBatchAddViewModel @Inject constructor(
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
             groups.firstOrNull { group -> group.uuid == groupUuid }
         }
-        val today = now.toLocalDate()
+        val today = medicationDay(now, settingsState.medicationDayBoundary)
         // A not-yet-started plan (future `since`) has no past occurrences to
         // backfill, and defaulting startDate to `since` would invert the range
         // (start after end). Flag it so the UI shows a prompt instead.
@@ -116,6 +118,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 startDate = startDate,
                 endDate = endDate,
                 now = now,
+                boundary = settingsState.medicationDayBoundary,
             )
         } else {
             PlanBatchAddEntryPlan()
@@ -150,7 +153,8 @@ class PlanBatchAddViewModel @Inject constructor(
                 groups = groups,
                 entries = entries,
                 start = now,
-                limit = PLAN_BATCH_ADD_UPCOMING_OCCURRENCE_LIMIT
+                limit = PLAN_BATCH_ADD_UPCOMING_OCCURRENCE_LIMIT,
+                boundary = settingsState.medicationDayBoundary,
             ),
             entriesToAdd = entryPlan.entries,
             manualEntryCount = entryPlan.entries.count { entry -> entry.sourceGroupUuid == null },
@@ -168,7 +172,12 @@ class PlanBatchAddViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = PlanBatchAddUiState(today = currentDateTime.value.toLocalDate()),
+        initialValue = PlanBatchAddUiState(
+            today = medicationDay(
+                currentDateTime.value,
+                settingsRepository.settingsState.value.medicationDayBoundary,
+            )
+        ),
     )
 
     init {
@@ -187,7 +196,14 @@ class PlanBatchAddViewModel @Inject constructor(
                 selectionState,
                 currentDateTime,
             ) { groupsOrNull, selection, now ->
-                Triple(groupsOrNull, selection, now.toLocalDate())
+                Triple(
+                    groupsOrNull,
+                    selection,
+                    medicationDay(
+                        now,
+                        settingsRepository.settingsState.value.medicationDayBoundary,
+                    ),
+                )
             }.collect { (groupsOrNull, selection, today) ->
                 if (selection.startDate != null || selection.endDate != null) {
                     return@collect
@@ -529,6 +545,7 @@ internal fun buildPlanBatchAddEntries(
     existingEntries: List<MedicationLogEntry> = emptyList(),
     startDate: LocalDate,
     endDate: LocalDate,
+    boundary: MedicationDayBoundary,
     now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MedicationLogEntryInput> {
@@ -537,6 +554,7 @@ internal fun buildPlanBatchAddEntries(
         existingEntries = existingEntries,
         startDate = startDate,
         endDate = endDate,
+        boundary = boundary,
         now = now,
         zoneId = zoneId,
     ).entries
@@ -552,6 +570,7 @@ internal fun buildPlanBatchAddEntryPlan(
     existingEntries: List<MedicationLogEntry> = emptyList(),
     startDate: LocalDate,
     endDate: LocalDate,
+    boundary: MedicationDayBoundary,
     now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): PlanBatchAddEntryPlan {
@@ -572,6 +591,7 @@ internal fun buildPlanBatchAddEntryPlan(
         schedule = group.schedule,
         startDate = startDate,
         endDate = endDate,
+        boundary = boundary,
     ).forEach { occurrence ->
         if (occurrence.isAfter(now)) {
             return@forEach
@@ -579,7 +599,7 @@ internal fun buildPlanBatchAddEntryPlan(
         val scheduleTime = group.schedule.timeSlots.firstOrNull { slot ->
             slot.time == occurrence.toLocalTime()
         } ?: return@forEach
-        val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
+        val isBeforePlanStart = medicationDay(occurrence, boundary).isBefore(group.schedule.since)
         if (!isBeforePlanStart && !group.ownsUnloggedOccurrence(scheduleTime, occurrence)) {
             return@forEach
         }
@@ -614,6 +634,7 @@ internal fun buildPlanBatchAddOccurrences(
     schedule: MedicationGroupSchedule,
     startDate: LocalDate,
     endDate: LocalDate,
+    boundary: MedicationDayBoundary,
 ): List<LocalDateTime> {
     if (startDate.isAfter(endDate) || schedule.times.isEmpty()) {
         return emptyList()
@@ -621,40 +642,23 @@ internal fun buildPlanBatchAddOccurrences(
 
     val sortedTimes = schedule.times.sorted()
     val result = mutableListOf<LocalDateTime>()
+    // The 04:00 boundary can move the next civil day's early occurrence into endDate.
+    val lastCalendarDate = if (boundary.endsAtFourAm) endDate.plusDays(1) else endDate
     var currentDate = startDate
-    while (!currentDate.isAfter(endDate)) {
-        if (schedule.isScheduledOnForBatchAdd(currentDate)) {
-            sortedTimes.forEach { time ->
-                result += LocalDateTime.of(currentDate, time)
+    while (!currentDate.isAfter(lastCalendarDate)) {
+        sortedTimes.forEach { time ->
+            val occurrence = LocalDateTime.of(currentDate, time)
+            if (!schedule.isScheduledAt(occurrence, boundary, allowBeforeSince = true)) {
+                return@forEach
+            }
+            val day = medicationDay(occurrence, boundary)
+            if (!day.isBefore(startDate) && !day.isAfter(endDate)) {
+                result += occurrence
             }
         }
         currentDate = currentDate.plusDays(1)
     }
     return result
-}
-
-private fun MedicationGroupSchedule.isScheduledOnForBatchAdd(date: LocalDate): Boolean {
-    val normalizedInterval = interval.coerceAtLeast(1)
-
-    return when (type) {
-        MedicationGroupScheduleType.DAILY ->
-            ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
-
-        MedicationGroupScheduleType.WEEKLY -> {
-            if (weeklyDaysOfWeek.isEmpty() || date.dayOfWeek !in weeklyDaysOfWeek) {
-                return false
-            }
-            // Mirrors MedicationGroupSchedule.isScheduledOn's since-anchored
-            // cadence. Diverges in that batch-add allows dates before `since`
-            // (for backfill), so the date.isBefore(since) guard is dropped
-            // and we use Math.floorDiv — JVM `/` truncates toward zero, which
-            // for negative deltas would lump dates in the 6 days before
-            // `since` into week 0 and push dates 7–13 days before into
-            // week -1, breaking every-N-weeks parity around the boundary.
-            val weekIndex = Math.floorDiv(ChronoUnit.DAYS.between(since, date), 7L)
-            weekIndex % normalizedInterval.toLong() == 0L
-        }
-    }
 }
 
 private const val PLAN_BATCH_ADD_UPCOMING_OCCURRENCE_LIMIT = 3

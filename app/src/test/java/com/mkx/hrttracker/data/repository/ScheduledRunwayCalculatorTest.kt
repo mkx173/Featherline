@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.DayOfWeek
@@ -191,6 +192,7 @@ class ScheduledRunwayCalculatorTest {
                 scheduleTimeUuid = slotUuid,
                 scheduledFor = scheduledFor,
             ),
+            boundary = MedicationDayBoundary.Midnight,
         )
         // The pre-logged slot is gone, so the first remaining demand is tomorrow.
         assertEquals(scheduledFor.plusDays(1), withSuppression.first().scheduledFor)
@@ -223,6 +225,7 @@ class ScheduledRunwayCalculatorTest {
                 scheduleTimeUuid = slotUuid,
                 scheduledFor = scheduledFor,
             ),
+            boundary = MedicationDayBoundary.Midnight,
         )
         assertEquals(
             RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)),
@@ -349,6 +352,39 @@ class ScheduledRunwayCalculatorTest {
         assertEquals(normalOrder, reversedInputOrder)
     }
 
+    @Test
+    fun fourAmIntervalCadenceUsesMedicationDayParity() {
+        val medicine = pill(unitsRemaining = 1.0)
+        val group = dailyGroup(medicine).copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 2,
+                since = LocalDate.of(2026, 10, 29),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+            ),
+        )
+
+        val occurrences = ScheduledRunwayCalculator.enumerateUnfulfilledOccurrencesForMedicine(
+            medicine = medicine,
+            activeGroups = listOf(group),
+            logEntries = emptyList(),
+            nowLocal = LocalDateTime.of(2026, 11, 1, 6, 0),
+            horizonEnd = LocalDate.of(2026, 11, 6),
+            boundary = MedicationDayBoundary.FourAm,
+            zoneId = zoneId,
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 11, 1, 1, 0),
+                LocalDateTime.of(2026, 11, 3, 1, 0),
+                LocalDateTime.of(2026, 11, 5, 1, 0),
+            ),
+            occurrences.map { occurrence -> occurrence.scheduledFor },
+        )
+    }
+
     private fun compute(
         medicine: Medicine,
         activeGroups: List<MedicationGroup>,
@@ -361,6 +397,7 @@ class ScheduledRunwayCalculatorTest {
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
     }
 
@@ -376,6 +413,7 @@ class ScheduledRunwayCalculatorTest {
             nowLocal = LocalDateTime.of(today, LocalTime.of(7, 0)),
             horizonEnd = today.plusDays(ScheduledRunwayCalculator.HORIZON_DAYS),
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
     }
 

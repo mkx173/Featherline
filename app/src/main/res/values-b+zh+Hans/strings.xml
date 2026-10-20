@@ -22,7 +22,7 @@
     <string name="main_today_empty_state">今天没有计划</string>
     <string name="main_upcoming_empty_state">接下来 90 天内没有计划</string>
     <string name="main_today_quick_log">快速记录</string>
-    <string name="main_today_range_night">夜间</string>
+    <string name="main_today_range_midnight">午夜</string>
     <string name="main_today_range_morning">上午</string>
     <string name="main_today_range_afternoon">下午</string>
     <string name="main_today_range_evening">晚上</string>
@@ -1049,6 +1049,9 @@
     <string name="stock_disable_confirm">关闭</string>
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">此日期已删除</string>
+
+    <string name="settings_medication_day_ends_at_four_am">用药日在 04:00 结束</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">04:00 前的用药记录计入前一天。</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">请添加用药记录</string>

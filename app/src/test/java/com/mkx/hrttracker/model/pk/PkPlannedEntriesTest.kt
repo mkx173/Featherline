@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,6 +34,7 @@ class PkPlannedEntriesTest {
             now = LocalDateTime.of(2026, 5, 6, 10, 0),
             horizon = LocalDateTime.of(2026, 5, 20, 0, 0),
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -50,6 +52,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -71,6 +74,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         // Expected future slots: May 7 8am, May 8 8am, May 9 8am. May 6 8am is
@@ -101,6 +105,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -141,6 +146,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         // Real entry stays, virtual for May 7 8am is suppressed, May 8 8am virtual
@@ -181,6 +187,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -214,6 +221,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -253,6 +261,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -298,6 +307,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -363,6 +373,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -385,6 +396,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
         val second = buildEstradiolPkSimulationEntries(
             realEntries = emptyList(),
@@ -392,6 +404,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(first.planned.map { it.uuid }, second.planned.map { it.uuid })
@@ -414,6 +427,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now.toLocalDate().plusDays(14).atStartOfDay(),
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
             entries = simulationEntries.real,
@@ -470,6 +484,7 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now.toLocalDate().plusDays(3).atStartOfDay(),
             zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
             entries = simulationEntries.real,
@@ -532,6 +547,37 @@ class PkPlannedEntriesTest {
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
         )
+
+    @Test
+    fun build_fourAmIntervalCadenceUsesMedicationDayParity() {
+        val now = LocalDateTime.of(2026, 11, 1, 6, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 10, 29),
+            time = LocalTime.of(1, 0),
+        ).copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 2,
+                since = LocalDate.of(2026, 10, 29),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+            ),
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = LocalDateTime.of(2026, 11, 5, 0, 0),
+            boundary = MedicationDayBoundary.FourAm,
+            zoneId = zoneId,
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 11, 3, 1, 0)),
+            result.planned.map { entry -> entry.scheduledFor },
+        )
+    }
 
     private fun dailyEstradiolGroup(
         since: LocalDate = LocalDate.of(2026, 5, 1),

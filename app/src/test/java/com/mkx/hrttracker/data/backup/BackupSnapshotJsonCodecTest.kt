@@ -26,6 +26,23 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
+    fun roundTrip_preservesMedicationDayBoundaryAndOldBackupsDefaultToMidnight() {
+        val snapshot = baselineSnapshot().let {
+            it.copy(settings = it.settings.copy(medicationDayEndsAtFourAm = true))
+        }
+        val json = BackupSnapshotJsonCodec.encode(snapshot)
+        assertEquals(
+            true,
+            BackupSnapshotJsonCodec.decode(json)!!.settings.medicationDayEndsAtFourAm,
+        )
+        val legacyJson = json.replace("\"medicationDayEndsAtFourAm\":true,", "")
+        assertEquals(
+            false,
+            BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayEndsAtFourAm,
+        )
+    }
+
+    @Test
     fun peekSnapshotVersion_returnsZeroWhenFieldAbsent() {
         assertEquals(
             0,

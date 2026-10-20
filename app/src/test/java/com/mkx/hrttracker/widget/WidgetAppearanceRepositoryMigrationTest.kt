@@ -68,7 +68,7 @@ class WidgetAppearanceRepositoryMigrationTest {
             scope = testScope,
             produceFile = { tmpFolder.newFile("migration_settings_test.preferences_pb") },
         )
-        settingsRepository = SettingsRepository(context, settingsDataStore)
+        settingsRepository = SettingsRepository(settingsDataStore)
 
         store = WidgetAppearanceStore(widgetContext)
         repository = WidgetAppearanceRepository(store, settingsRepository, mockk(relaxed = true))

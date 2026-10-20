@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.log
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -20,9 +21,11 @@ import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.MedicationLogRecordIndicator
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -60,6 +63,9 @@ class MedicationLogEntryViewModelTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicineStockRepository: MedicineStockRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
+    private val settingsRepository: SettingsRepository = mockk {
+        every { settingsState } returns MutableStateFlow(SettingsState())
+    }
     private val dispatcher = StandardTestDispatcher()
 
     // Shared estradiol medicine with a fixed UUID so logged entries and the
@@ -131,7 +137,9 @@ class MedicationLogEntryViewModelTest {
             )
         )
 
-        val uiState = buildEditingUiState(entries)
+        val uiState = buildEditingUiState(entries,
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(listOf(firstId.toString(), secondId.toString()), uiState.editingEntryIds)
@@ -158,7 +166,9 @@ class MedicationLogEntryViewModelTest {
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
         ).copy(doseAmountDelta = 0.1)
 
-        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        ))
 
         // Editing surfaces the frozen delta read-only; the interactive stepper
         // stays off (deltas are not re-editable after logging).
@@ -201,7 +211,9 @@ class MedicationLogEntryViewModelTest {
             ).copy(doseAmountDelta = 0.2),
         )
 
-        val uiState = requireNotNull(buildEditingUiState(entries))
+        val uiState = requireNotNull(buildEditingUiState(entries,
+            boundary = MedicationDayBoundary.Midnight,
+        ))
 
         // Bulk edits may span differing deltas, so neither the value nor the
         // read-only line is shown.
@@ -229,7 +241,8 @@ class MedicationLogEntryViewModelTest {
 
         val uiState = buildEditingUiState(
             entries = listOf(entry),
-            sourceGroup = sourceGroup
+            sourceGroup = sourceGroup,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         requireNotNull(uiState)
@@ -249,7 +262,9 @@ class MedicationLogEntryViewModelTest {
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
         )
 
-        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        ))
 
         assertEquals(MedicationLogRecordIndicator.MANUAL, uiState.recordIndicator)
     }
@@ -265,7 +280,9 @@ class MedicationLogEntryViewModelTest {
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
         ).copy(importSourceApp = "ExternalTracker", importExternalId = "abc-123")
 
-        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        ))
 
         assertEquals(MedicationLogRecordIndicator.IMPORTED, uiState.recordIndicator)
     }
@@ -283,7 +300,9 @@ class MedicationLogEntryViewModelTest {
             scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
         )
 
-        val uiState = requireNotNull(buildEditingUiState(listOf(entry)))
+        val uiState = requireNotNull(buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        ))
 
         assertNull(uiState.recordIndicator)
     }
@@ -309,7 +328,8 @@ class MedicationLogEntryViewModelTest {
 
         val uiState = buildEditingUiState(
             entries = listOf(entry),
-            sourceGroup = archivedGroup
+            sourceGroup = archivedGroup,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         requireNotNull(uiState)
@@ -338,6 +358,7 @@ class MedicationLogEntryViewModelTest {
             sourceGroupIsArchived = true,
             sourceGroupPreviousScheduledFor = scheduledFor.minusDays(1),
             sourceGroupNextScheduledFor = scheduledFor.plusDays(1),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         requireNotNull(uiState)
@@ -374,7 +395,9 @@ class MedicationLogEntryViewModelTest {
             )
         )
 
-        val uiState = buildEditingUiState(entries)
+        val uiState = buildEditingUiState(entries,
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(listOf(firstId.toString()), uiState.editingEntryIds)
@@ -394,7 +417,9 @@ class MedicationLogEntryViewModelTest {
             count = 2
         )
 
-        val uiState = buildEditingUiState(listOf(entry))
+        val uiState = buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(listOf(entry.uuid.toString()), uiState.editingEntryIds)
@@ -414,7 +439,9 @@ class MedicationLogEntryViewModelTest {
             count = 2
         )
 
-        val uiState = buildEditingUiState(listOf(entry))
+        val uiState = buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(2, uiState.count)
@@ -442,7 +469,9 @@ class MedicationLogEntryViewModelTest {
             count = 3
         )
 
-        val uiState = buildEditingUiState(listOf(entry))
+        val uiState = buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(1, uiState.count)
@@ -470,7 +499,9 @@ class MedicationLogEntryViewModelTest {
             count = 3
         )
 
-        val uiState = buildEditingUiState(listOf(entry))
+        val uiState = buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertEquals(3, uiState.count)
@@ -509,7 +540,8 @@ class MedicationLogEntryViewModelTest {
             applicationType = MedicationApplicationType.ORAL,
             doseInstruction = doseInstruction,
             medicationCount = 2,
-            appliedAt = appliedAt
+            appliedAt = appliedAt,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(groupId, uiState.sourceGroupUuid)
@@ -535,6 +567,7 @@ class MedicationLogEntryViewModelTest {
             doseInstruction = DoseInstruction.Noop,
             medicationCount = 1,
             appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -559,6 +592,7 @@ class MedicationLogEntryViewModelTest {
             doseInstruction = DoseInstruction.VolumeMl(0.2),
             medicationCount = 1,
             appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(uiState.allowsActualDoseDelta)
@@ -585,7 +619,9 @@ class MedicationLogEntryViewModelTest {
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
         )
 
-        val uiState = buildEditingUiState(listOf(entry))
+        val uiState = buildEditingUiState(listOf(entry),
+            boundary = MedicationDayBoundary.Midnight,
+        )
 
         requireNotNull(uiState)
         assertFalse(uiState.allowsActualDoseDelta)
@@ -608,6 +644,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -658,6 +695,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -714,6 +752,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -801,6 +840,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(entryIds = listOf(entryId.toString()))
@@ -869,6 +909,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1040,6 +1081,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1078,6 +1120,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
@@ -1121,6 +1164,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1191,6 +1235,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
@@ -1264,6 +1309,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(
@@ -1327,6 +1373,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1408,6 +1455,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1483,6 +1531,7 @@ class MedicationLogEntryViewModelTest {
                 medicationLogRepository = medicationLogRepository,
                 medicationGroupRepository = medicationGroupRepository,
                 medicationReminderScheduler = medicationReminderScheduler,
+                settingsRepository = settingsRepository,
                 medicineStockRepository = medicineStockRepository,
             )
             viewModel.initializeQuickLog(
@@ -1545,6 +1594,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1601,6 +1651,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -1666,6 +1717,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(firstEntryId.toString(), secondEntryId.toString()))
@@ -1710,6 +1762,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1764,6 +1817,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1815,6 +1869,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1865,6 +1920,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -1930,6 +1986,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initializeQuickLog(
@@ -2011,6 +2068,7 @@ class MedicationLogEntryViewModelTest {
                 medicationLogRepository = medicationLogRepository,
                 medicationGroupRepository = medicationGroupRepository,
                 medicationReminderScheduler = medicationReminderScheduler,
+                settingsRepository = settingsRepository,
                 medicineStockRepository = medicineStockRepository,
             )
             viewModel.initialize(listOf(entryId.toString()))
@@ -2068,6 +2126,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -2126,6 +2185,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -2169,6 +2229,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -2224,6 +2285,7 @@ class MedicationLogEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -2292,6 +2354,7 @@ class MedicationLogEntryViewModelTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicineStockRepository = medicineStockRepository,
                 medicationReminderScheduler = medicationReminderScheduler,
+                settingsRepository = settingsRepository,
             )
             viewModel.initialize(listOf(entryId.toString()))
             advanceUntilIdle()
@@ -2341,6 +2404,7 @@ class MedicationLogEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -2368,6 +2432,7 @@ class MedicationLogEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            settingsRepository = settingsRepository,
             medicineStockRepository = medicineStockRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))

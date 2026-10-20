@@ -133,7 +133,9 @@ flattened into the parent's JSON.
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
   intro sheet), language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
-  last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
+  last-seen time-zone, `hideMedicationDetails`, the medication-day
+  switch `medicationDayEndsAtFourAm` (false, midnight, when a backup
+  predates it), `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags

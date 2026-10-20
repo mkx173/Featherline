@@ -122,7 +122,7 @@ internal fun handleDoseReminder(
             // Delivered late, or after the clock moved ahead: the dose due now,
             // the group's latest past time, and not each time in between.
             val slotAt = groups.firstOrNull { group -> group.uuid == groupUuid }
-                ?.previousScheduledForBefore(now)
+                ?.previousScheduledForBefore(now, boundary = settings.medicationDayBoundary)
                 ?.takeIf { latest -> latest.isAfter(scheduledAt) }
                 ?: scheduledAt
             val entries = medicationLogRepository.getScheduledGroupEntriesSince(slotAt)
@@ -130,9 +130,13 @@ internal fun handleDoseReminder(
                 scheduledAt = slotAt,
                 // A group due again since slotAt gets its own, later reminder.
                 groups = groups.filterNot { group ->
-                    group.previousScheduledForBefore(now)?.isAfter(slotAt) == true
+                    group.previousScheduledForBefore(
+                        now,
+                        boundary = settings.medicationDayBoundary,
+                    )?.isAfter(slotAt) == true
                 },
                 entries = entries,
+                boundary = settings.medicationDayBoundary,
             )
             if (bundle != null) {
                 reminderNotificationManager.showDoseReminderNotification(

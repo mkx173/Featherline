@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,6 +54,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 sinceDate = LocalDate.of(2026, 4, 20),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             date = LocalDate.of(2026, 4, 22)
         )
@@ -68,6 +70,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 sinceDate = LocalDate.of(2026, 4, 20),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             date = LocalDate.of(2026, 4, 20)
         )
@@ -84,6 +87,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 sinceDate = LocalDate.of(2026, 4, 22),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
                 hasUserCustomizedWeeklyDays = false,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             scheduleType = MedicationGroupScheduleType.WEEKLY,
         )
@@ -100,6 +104,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 sinceDate = LocalDate.of(2026, 4, 22),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY),
                 hasUserCustomizedWeeklyDays = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             scheduleType = MedicationGroupScheduleType.WEEKLY,
         )
@@ -120,6 +125,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 sinceDate = LocalDate.of(2026, 4, 22),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY),
                 hasUserCustomizedWeeklyDays = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             )
         )
 
@@ -134,6 +140,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 sinceDate = LocalDate.of(2026, 4, 22),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             scheduleType = MedicationGroupScheduleType.WEEKLY,
         )
@@ -151,6 +158,7 @@ class MedicationGroupEditorWeeklySelectionTest {
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 sinceDate = LocalDate.of(2026, 4, 22),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             scheduleType = MedicationGroupScheduleType.DAILY,
         )
@@ -169,7 +177,8 @@ class MedicationGroupEditorWeeklySelectionTest {
                 groupName = "Morning meds",
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 weeklyDaysOfWeek = emptySet(),
-                medications = listOf(validMedication())
+                medications = listOf(validMedication()),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             )
         )
 
@@ -183,7 +192,8 @@ class MedicationGroupEditorWeeklySelectionTest {
                 groupName = "Morning meds",
                 scheduleType = MedicationGroupScheduleType.DAILY,
                 weeklyDaysOfWeek = emptySet(),
-                medications = listOf(validMedication())
+                medications = listOf(validMedication()),
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             )
         )
 

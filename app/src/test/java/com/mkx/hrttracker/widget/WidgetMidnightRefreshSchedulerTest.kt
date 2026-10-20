@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -43,10 +44,51 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
+    fun nextRefreshIncludesMedicationBoundaryAndCivilMidnight() {
+        val midnight = LocalDateTime.of(2026, 10, 2, 0, 0)
+        assertEquals(
+            midnight.withHour(4),
+            nextWidgetDateRefreshAt(midnight, MedicationDayBoundary.FourAm),
+        )
+        assertEquals(
+            midnight.withHour(4),
+            nextWidgetDateRefreshAt(midnight.withHour(1), MedicationDayBoundary.FourAm),
+        )
+        assertEquals(
+            midnight.withHour(12),
+            nextWidgetDateRefreshAt(midnight.withHour(5), MedicationDayBoundary.FourAm),
+        )
+        assertEquals(
+            midnight.withHour(12),
+            nextWidgetDateRefreshAt(midnight, MedicationDayBoundary.Midnight),
+        )
+    }
+
+    @Test
+    fun nextRefreshIncludesNoonForLastNightVisibility() {
+        val now = LocalDateTime.of(2026, 10, 1, 11, 55)
+        assertEquals(
+            now.toLocalDate().atTime(12, 0),
+            nextWidgetDateRefreshAt(now, MedicationDayBoundary.FourAm),
+        )
+        assertEquals(
+            now.toLocalDate().atTime(12, 0),
+            nextWidgetDateRefreshAt(now, MedicationDayBoundary.Midnight),
+        )
+        assertEquals(
+            now.toLocalDate().plusDays(1).atStartOfDay(),
+            nextWidgetDateRefreshAt(now.withHour(13), MedicationDayBoundary.Midnight),
+        )
+    }
+
+    @Test
     fun nextWidgetDateRefreshAt_returnsNextLocalMidnight() {
         assertEquals(
             LocalDateTime.of(2026, 5, 23, 0, 0),
-            nextWidgetDateRefreshAt(LocalDateTime.of(2026, 5, 22, 16, 45)),
+            nextWidgetDateRefreshAt(
+                LocalDateTime.of(2026, 5, 22, 16, 45),
+                MedicationDayBoundary.Midnight,
+            ),
         )
     }
 
@@ -59,8 +101,8 @@ class WidgetMidnightRefreshSchedulerTest {
             context = context,
             now = now,
             diagnosticsLogger = diagnosticsLogger,
+            boundary = MedicationDayBoundary.Midnight,
         )
-
         verify(exactly = 1) {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
@@ -86,8 +128,8 @@ class WidgetMidnightRefreshSchedulerTest {
             now = LocalDateTime.of(2026, 5, 22, 16, 45),
             diagnosticsLogger = diagnosticsLogger,
             sdkInt = Build.VERSION_CODES.S,
+            boundary = MedicationDayBoundary.Midnight,
         )
-
         verify(exactly = 0) {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
