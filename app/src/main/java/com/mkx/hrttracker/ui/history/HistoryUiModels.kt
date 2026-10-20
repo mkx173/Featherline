@@ -4,9 +4,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isEntryWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.isPlanOffPlanEntry
-import com.mkx.hrttracker.model.medication.isScheduledOn
 import com.mkx.hrttracker.model.medication.planCalendarDate
-import com.mkx.hrttracker.model.medication.scheduledSlotsInPlanWindow
+import com.mkx.hrttracker.model.medication.scheduledGroupsForPlanDay
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
@@ -15,6 +14,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 
 data class HistoryCalendarDayUiState(
@@ -48,11 +48,11 @@ internal fun buildHistoryVisibleEntries(
     displayedMonth: YearMonth,
     selectedDate: LocalDate?,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): List<MedicationLogEntry> {
     return entries
         .filter { entry ->
-            val entryDate = entry.planCalendarDate(zoneId, dayStartMinutes)
+            val entryDate = entry.planCalendarDate(boundary, zoneId)
             if (selectedDate != null) {
                 entryDate == selectedDate
             } else {
@@ -283,10 +283,10 @@ internal fun buildHistoryMonthSummary(
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
     today: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): HistoryMonthSummary {
     val logged = entries.count { entry ->
-        YearMonth.from(entry.planCalendarDate(zoneId, dayStartMinutes)) == displayedMonth
+        YearMonth.from(entry.planCalendarDate(boundary, zoneId)) == displayedMonth
     }
 
     var onTrack = 0
@@ -333,11 +333,11 @@ internal fun buildHistoryCalendarDayUiState(
     startDate: LocalDate,
     endDate: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): Map<LocalDate, HistoryCalendarDayUiState> {
     val rangeEntries = entries.filter { entry ->
-        val entryDate = entry.planCalendarDate(zoneId, dayStartMinutes)
-        val appliedDate = medicationDay(entry.appliedAt.atZone(zoneId).toLocalDateTime(), dayStartMinutes)
+        val entryDate = entry.planCalendarDate(boundary, zoneId)
+        val appliedDate = medicationDay(entry.appliedAt.atZone(zoneId).toLocalDateTime(), boundary)
         (!entryDate.isBefore(startDate) && !entryDate.isAfter(endDate)) ||
                 (!appliedDate.isBefore(startDate) && !appliedDate.isAfter(endDate))
     }
@@ -347,21 +347,23 @@ internal fun buildHistoryCalendarDayUiState(
         startDate = startDate,
         endDate = endDate,
         zoneId = zoneId,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
     )
     val entriesByPlanDate = rangeEntries.groupBy { entry ->
-        entry.planCalendarDate(zoneId, dayStartMinutes)
+        entry.planCalendarDate(boundary, zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, HistoryCalendarDayUiState>()
     var currentDate = startDate
 
     while (!currentDate.isAfter(endDate)) {
-        val scheduledGroups = groups.filter { group ->
-            if (dayStartMinutes == 0) group.schedule.isScheduledOn(currentDate)
-            else group.scheduledSlotsInPlanWindow(currentDate, zoneId, dayStartMinutes).isNotEmpty()
-        }
         val planDateEntries = entriesByPlanDate[currentDate].orEmpty()
+        val scheduledGroups = groups.scheduledGroupsForPlanDay(
+            date = currentDate,
+            entries = planDateEntries,
+            boundary = boundary,
+            zoneId = zoneId,
+        )
         val primaryState = planDayStates[currentDate] ?: PlanCalendarDayUiState()
         val hasOffPlanRecord = planDateEntries.any { entry ->
             isPlanOffPlanEntry(
@@ -369,7 +371,7 @@ internal fun buildHistoryCalendarDayUiState(
                 scheduledGroups = scheduledGroups,
                 date = currentDate,
                 zoneId = zoneId,
-                dayStartMinutes = dayStartMinutes,
+                boundary = boundary,
             )
         } || planDateEntries.any { entry ->
             isHistoryAppliedDateOffPlanRecord(
@@ -377,7 +379,7 @@ internal fun buildHistoryCalendarDayUiState(
                 groups = groups,
                 date = currentDate,
                 zoneId = zoneId,
-                dayStartMinutes = dayStartMinutes,
+                boundary = boundary,
             )
         }
         dayStates[currentDate] = HistoryCalendarDayUiState(
@@ -399,9 +401,9 @@ private fun isHistoryAppliedDateOffPlanRecord(
     groups: List<MedicationGroup>,
     date: LocalDate,
     zoneId: ZoneId,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): Boolean {
-    if (entry.planCalendarDate(zoneId, dayStartMinutes) != date) {
+    if (entry.planCalendarDate(boundary, zoneId) != date) {
         return false
     }
     val sourceGroupUuid = entry.sourceGroupUuid ?: return false
@@ -419,10 +421,10 @@ private fun isHistoryAppliedDateOffPlanRecord(
 internal fun groupHistoryEntriesByDate(
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): Map<LocalDate, List<MedicationLogEntry>> {
     return entries
-        .groupBy { entry -> entry.planCalendarDate(zoneId, dayStartMinutes) }
+        .groupBy { entry -> entry.planCalendarDate(boundary, zoneId) }
         .mapValues { (_, dateEntries) ->
             dateEntries.sortedBy { entry -> entry.appliedAt }
         }

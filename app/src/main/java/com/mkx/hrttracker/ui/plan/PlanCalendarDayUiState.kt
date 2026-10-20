@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.scheduledGroupsForPlanDay
 import com.mkx.hrttracker.model.medication.scheduledSlotsForPlanDay
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -44,10 +45,10 @@ fun buildPlanCalendarDayUiState(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val entriesByDate = entries.groupBy { entry ->
-        entry.planCalendarDate(zoneId, dayStartMinutes)
+        entry.planCalendarDate(boundary, zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, PlanCalendarDayUiState>()
@@ -58,7 +59,7 @@ fun buildPlanCalendarDayUiState(
         val scheduledGroups = groups.scheduledGroupsForPlanDay(
             date = currentDate,
             entries = dayEntries,
-            dayStartMinutes = dayStartMinutes,
+            boundary = boundary,
             zoneId = zoneId,
         )
         val hasOffPlanRecord = dayEntries.any { entry ->
@@ -67,7 +68,7 @@ fun buildPlanCalendarDayUiState(
                 scheduledGroups = scheduledGroups,
                 date = currentDate,
                 zoneId = zoneId,
-                dayStartMinutes = dayStartMinutes,
+                boundary = boundary,
             )
         }
         val scheduledSlotsByGroup = scheduledGroups.associateWith { group ->
@@ -77,7 +78,7 @@ fun buildPlanCalendarDayUiState(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-                dayStartMinutes = dayStartMinutes,
+                boundary = boundary,
             )
         }
         val expectedOccurrenceCount = scheduledSlotsByGroup.values.sumOf { slots -> slots.size }

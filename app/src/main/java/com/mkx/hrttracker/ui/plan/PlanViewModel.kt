@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.tickWhileSubscribed
@@ -69,7 +70,7 @@ class PlanViewModel @Inject constructor(
 
     private val currentDateTime =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayStartMinutes)
+            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayBoundary)
         }
 
     init {
@@ -108,7 +109,7 @@ class PlanViewModel @Inject constructor(
             showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
         )
         val scheduleGroups = if (settingsState.showArchivedGroupRecords) allGroups else activeGroups
-        val today = medicationDay(now, settingsState.medicationDayStartMinutes)
+        val today = medicationDay(now, settingsState.medicationDayBoundary)
         val calendarRange = buildPlanCalendarRange(
             today = today,
             firstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale())
@@ -121,7 +122,7 @@ class PlanViewModel @Inject constructor(
             now = now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-            dayStartMinutes = settingsState.medicationDayStartMinutes,
+            boundary = settingsState.medicationDayBoundary,
         )
         val nextOccurrencesByGroup = buildNextOccurrencesByGroup(
             groups = activeGroups,
@@ -134,7 +135,7 @@ class PlanViewModel @Inject constructor(
             isLoading = isLoading,
             now = now,
             today = today,
-            medicationDayStartMinutes = settingsState.medicationDayStartMinutes,
+            medicationDayBoundary = settingsState.medicationDayBoundary,
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
             calendarEndDate = calendarRange.endDate,
@@ -151,7 +152,7 @@ class PlanViewModel @Inject constructor(
                 displayedDate = displayedDate,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
-                dayStartMinutes = settingsState.medicationDayStartMinutes,
+                boundary = settingsState.medicationDayBoundary,
             ),
             daySchedule = daySchedule,
             nextOccurrencesByGroup = nextOccurrencesByGroup
@@ -192,7 +193,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
     displayedDate: LocalDate,
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val calendarDays = buildPlanCalendarDayUiState(
         groups = groups,
@@ -201,7 +202,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
         endDate = endDate,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
     )
 
     if (displayedDate in calendarDays) {
@@ -215,7 +216,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
         endDate = displayedDate,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-        dayStartMinutes = dayStartMinutes,
+        boundary = boundary,
     )
 }
 
@@ -254,7 +255,7 @@ data class PlanUiState(
     val isLoading: Boolean = true,
     val now: LocalDateTime = LocalDate.now().atStartOfDay(),
     val today: LocalDate = LocalDate.now(),
-    val medicationDayStartMinutes: Int = 0,
+    val medicationDayBoundary: MedicationDayBoundary,
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartDate: LocalDate = buildPlanCalendarRange(
         today = today,

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.atStoredZone
 import com.mkx.hrttracker.util.medicationDay
 import java.time.Instant
@@ -12,43 +13,43 @@ internal fun planCalendarDate(
     scheduledForIso: String?,
     appliedAtEpochMillis: Long,
     appliedAtTimeZoneId: String,
-    zoneId: ZoneId,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): LocalDate {
     val dateTime = scheduledForIso?.let(LocalDateTime::parse) ?: atStoredZone(
         instant = Instant.ofEpochMilli(appliedAtEpochMillis),
         storedTimeZoneId = appliedAtTimeZoneId,
         deviceZone = zoneId,
     )
-    return medicationDay(dateTime, dayStartMinutes)
+    return medicationDay(dateTime, boundary)
 }
 
-internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId, dayStartMinutes: Int = 0): LocalDate {
+internal fun MedicationLogEntry.planCalendarDate(
+    boundary: MedicationDayBoundary,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): LocalDate {
     return planCalendarDate(
         scheduledForIso = scheduledFor?.toString(),
         appliedAtEpochMillis = appliedAt.toEpochMilli(),
         appliedAtTimeZoneId = appliedAtTimeZoneId,
+        boundary = boundary,
         zoneId = zoneId,
-        dayStartMinutes = dayStartMinutes,
     )
 }
 
 internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(
     date: LocalDate,
     entries: List<MedicationLogEntry>,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MedicationGroup> {
     return filter { group ->
-        val hasScheduledSlots = if (dayStartMinutes == 0) {
-            group.schedule.isScheduledOn(date)
-        } else {
-            group.scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).isNotEmpty()
-        }
+        val hasScheduledSlots =
+            group.scheduledSlotsInPlanWindow(date, boundary, zoneId).isNotEmpty()
         hasScheduledSlots ||
                 entries.any { entry ->
                     entry.sourceGroupUuid == group.uuid &&
-                            entry.scheduledFor?.let { medicationDay(it, dayStartMinutes) } == date &&
+                            entry.scheduledFor?.let { medicationDay(it, boundary) } == date &&
                             group.hasMedicationSignatureFor(entry)
                 }
     }
@@ -58,12 +59,12 @@ internal fun isPlanOffPlanEntry(
     entry: MedicationLogEntry,
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return true
     val scheduledFor = entry.scheduledFor ?: return true
-    if (medicationDay(scheduledFor, dayStartMinutes) != date) {
+    if (medicationDay(scheduledFor, boundary) != date) {
         return true
     }
 
@@ -75,50 +76,52 @@ internal fun isPlanOffPlanEntry(
 
 internal fun MedicationGroup.scheduledTimesInPlanWindow(
     date: LocalDate,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
 ): List<LocalTime> {
-    return scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).map(MedicationGroupSlotKey::time)
+    return scheduledSlotsInPlanWindow(date, boundary, zoneId).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledTimesForPlanDay(
     date: LocalDate,
     entries: List<MedicationLogEntry>,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
 ): List<LocalTime> {
     return scheduledSlotsForPlanDay(
         date = date,
         entries = entries,
+        boundary = boundary,
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-        dayStartMinutes = dayStartMinutes,
     ).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledSlotsInPlanWindow(
     date: LocalDate,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    dayStartMinutes: Int = 0,
 ): List<MedicationGroupSlotKey> {
-    val endDate = if (dayStartMinutes == 0) date else date.plusDays(1)
-    return occurrencesBetweenInPlanWindow(date, endDate, zoneId)
-        .filter { occurrence -> medicationDay(occurrence.scheduledFor, dayStartMinutes) == date }
+    if (date.isBefore(schedule.since)) {
+        return emptyList()
+    }
+    return occurrencesBetweenInPlanWindow(date, date.plusDays(1), zoneId)
+        .filter { occurrence -> medicationDay(occurrence.scheduledFor, boundary) == date }
         .map { occurrence -> occurrence.toMedicationGroupSlotKey() }
 }
 
 internal fun MedicationGroup.scheduledSlotsForPlanDay(
     date: LocalDate,
     entries: List<MedicationLogEntry>,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
 ): List<MedicationGroupSlotKey> {
-    val visibleSlots = scheduledSlotsInPlanWindow(date, zoneId, dayStartMinutes).filter { slot ->
+    val visibleSlots = scheduledSlotsInPlanWindow(date, boundary, zoneId).filter { slot ->
         isArchivedUnloggedPlanSlotVisible(
             slotDateTime = slot.scheduledFor,
             includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
@@ -129,7 +132,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
         val scheduledFor = entry.scheduledFor ?: return@mapNotNull null
         if (
             entry.sourceGroupUuid == uuid &&
-            medicationDay(scheduledFor, dayStartMinutes) == date &&
+            medicationDay(scheduledFor, boundary) == date &&
             hasMedicationSignatureFor(entry)
         ) {
             if (

@@ -103,6 +103,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.planUpcomingDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -248,7 +249,7 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
-            dayStartMinutes = uiState.medicationDayStartMinutes,
+            boundary = uiState.medicationDayBoundary,
         )
     } else {
         uiState.daySchedule
@@ -1248,6 +1249,7 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         date = today,
         groups = groups,
         entries = entries,
+        boundary = MedicationDayBoundary.Midnight,
         now = now,
         zoneId = zoneId
     )
@@ -1255,12 +1257,14 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         groups = groups,
         entries = entries,
         startDate = range.startDate,
-        endDate = range.endDate
+        endDate = range.endDate,
+        boundary = MedicationDayBoundary.Midnight,
     )
 
     return PlanUiState(
         isLoading = false,
         today = today,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,
         calendarStartDate = range.startDate,
         calendarEndDate = range.endDate,

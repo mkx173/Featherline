@@ -117,11 +117,11 @@ class MainViewModel @Inject constructor(
 
     private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
         currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
-            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, settingsRepository.settingsState.value.medicationDayStartMinutes), snapshot.zone)
+            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, settingsRepository.settingsState.value.medicationDayBoundary), snapshot.zone)
         }
     private val gatedMinute: StateFlow<LocalDateTime> =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayStartMinutes)
+            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayBoundary)
         }
 
     /**
@@ -485,7 +485,7 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
-                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
+                boundary = inputs.settings.medicationDayBoundary,
             ),
             lastNightSection = buildMainLastNightSection(
                 groups = scheduleGroups,
@@ -494,7 +494,7 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
-                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
+                boundary = inputs.settings.medicationDayBoundary,
             ),
             comingUpSection = buildMainComingUpSection(
                 groups = scheduleGroups,
@@ -503,10 +503,10 @@ class MainViewModel @Inject constructor(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
-                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
+                boundary = inputs.settings.medicationDayBoundary,
             ),
             upcomingSection = buildMainUpcomingSection(
-                dayStartMinutes = inputs.settings.medicationDayStartMinutes,
+                boundary = inputs.settings.medicationDayBoundary,
                 groups = inputs.activeGroups,
                 entries = homeEntries,
                 now = now,

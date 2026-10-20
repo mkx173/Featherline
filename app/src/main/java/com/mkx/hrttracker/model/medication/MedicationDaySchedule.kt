@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration
@@ -52,12 +53,12 @@ fun buildPlanDaySchedule(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ): PlanDaySchedule {
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
-        entries = entries.filter { entry -> entry.planCalendarDate(zoneId, dayStartMinutes) == date },
-        dayStartMinutes = dayStartMinutes,
+        entries = entries.filter { entry -> entry.planCalendarDate(boundary, zoneId) == date },
+        boundary = boundary,
         zoneId = zoneId,
     )
     val scheduledEntries = scheduledGroups
@@ -73,7 +74,7 @@ fun buildPlanDaySchedule(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-                dayStartMinutes = dayStartMinutes,
+                boundary = boundary,
             ).flatMap { slot ->
                 val slotDateTime = slot.scheduledFor
                 val matchingSlotLogs = entries.filter { entry ->
@@ -168,12 +169,12 @@ fun buildPlanDaySchedule(
 
     val unplannedEntries = entries
         .filter { entry ->
-            entry.planCalendarDate(zoneId, dayStartMinutes) == date &&
+            entry.planCalendarDate(boundary, zoneId) == date &&
                     isPlanOffPlanEntry(
                         entry = entry,
                         scheduledGroups = scheduledGroups,
                         date = date,
-                        dayStartMinutes = dayStartMinutes,
+                        boundary = boundary,
                         zoneId = zoneId,
                     )
         }
