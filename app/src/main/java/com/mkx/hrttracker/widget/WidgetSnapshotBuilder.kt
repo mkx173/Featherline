@@ -3,6 +3,12 @@ package com.mkx.hrttracker.widget
 import android.content.Context
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
+import com.mkx.hrttracker.model.medication.includesInLastNight
+import com.mkx.hrttracker.model.medication.isLastNightVisible
+import com.mkx.hrttracker.model.medication.isTonightVisible
+import com.mkx.hrttracker.model.medication.lastNightMedicationDay
+import com.mkx.hrttracker.model.medication.tonightMedicationDay
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
@@ -17,10 +23,8 @@ import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.medicationDayTimeText
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -59,10 +63,11 @@ internal fun buildWidgetSnapshotRecord(
     val archivedGroupUuids = allGroups.filter(MedicationGroup::isArchived)
         .mapTo(mutableSetOf()) { group -> group.uuid }
 
-    val isOvernight = now.toLocalTime().isBefore(LocalTime.of(6, 0))
-    val lastNightRows = if (isOvernight) {
-        val yesterdaySchedule = buildPlanDaySchedule(
-            date = yesterday,
+    val lastNightRows = if (boundary.isLastNightVisible(now)) {
+        val previousDay = boundary.lastNightMedicationDay(now)
+        val previousSchedule = buildPlanDaySchedule(
+            date = previousDay,
+            boundary = boundary,
             groups = scheduleGroups,
             entries = visibleEntries,
             now = now,
@@ -70,21 +75,18 @@ internal fun buildWidgetSnapshotRecord(
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
         )
-        val eveningCutoff = LocalTime.of(18, 0)
-        val scheduledLastNight = yesterdaySchedule.scheduledEntries
-            .filter { entry ->
-                !entry.scheduledFor.toLocalTime().isBefore(eveningCutoff) &&
-                    medicationDay(entry.scheduledFor, settings.medicationDayStartMinutes) != today
-            }
+        val scheduledLastNight = previousSchedule.scheduledEntries
+            .filter { entry -> boundary.includesInLastNight(entry.scheduledFor) }
             .map { entry ->
                 entry.toWidgetDoseRow(
-                    context,
-                    timeFormatter,
-                    WidgetDoseChip.LAST_NIGHT,
+                    context = context,
+                    timeFormatter = timeFormatter,
+                    contextChip = WidgetDoseChip.LAST_NIGHT,
                     isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
                 )
             }
-        val manualLastNight = yesterdaySchedule.unplannedEntries
+        val manualLastNight = previousSchedule.unplannedEntries
+            .filter { entry -> boundary.includesInLastNight(appliedAtAsLocalDateTime(entry, zoneId)) }
             .map { entry ->
                 entry.toManualWidgetDoseRow(
                     context = context,
@@ -94,10 +96,6 @@ internal fun buildWidgetSnapshotRecord(
                     isFromArchivedGroup = entry.sourceGroupUuid != null &&
                             entry.sourceGroupUuid in archivedGroupUuids,
                 )
-            }
-            .filter { row ->
-                !row.scheduledAt.toLocalTime().isBefore(eveningCutoff) &&
-                    medicationDay(row.scheduledAt, settings.medicationDayStartMinutes) != today
             }
         (scheduledLastNight + manualLastNight).sortedBy { row -> row.scheduledAt }
     } else {
