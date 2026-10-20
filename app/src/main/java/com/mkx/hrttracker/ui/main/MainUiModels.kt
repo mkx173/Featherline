@@ -675,19 +675,19 @@ internal fun buildMainLastNightSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    dayStartMinutes: Int = 0,
 ): MainLastNightSectionUiState {
-    if (!mainIsOvernightTime(now.toLocalTime())) {
+    if (!boundary.isLastNightVisible(now)) {
         return MainLastNightSectionUiState()
     }
-    val today = now.toLocalDate()
-    val previousDate = today.minusDays(1)
+    val previousDate = boundary.lastNightMedicationDay(now)
     val entriesByUuid = entries.associateBy { it.uuid }
     val lastNightRows = buildMainTodayRowsForDate(
         date = previousDate,
+        boundary = boundary,
         groups = groups,
         entries = entries,
         entriesByUuid = entriesByUuid,
@@ -695,10 +695,7 @@ internal fun buildMainLastNightSection(
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    ).filter { row ->
-        mainIsLastNightTime(row.scheduledAt.toLocalTime()) &&
-            medicationDay(row.scheduledAt, dayStartMinutes) != medicationDay(now, dayStartMinutes)
-    }
+    ).filter { row -> boundary.includesInLastNight(row.scheduledAt) }
     val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
 
