@@ -830,7 +830,7 @@
     <string name="settings_backup_remove_security_key_prompt_subtitle">Verify your identity to remove a security key.</string>
     <string name="settings_backup_remove_security_key_title">Remove security key?</string>
     <string name="settings_backup_remove_security_key_message">Backups saved before now still open with it. To lock it out, use Replace encryption key.</string>
-    <string name="settings_backup_security_keys_footer">A security key opens your backups on any phone with one touch. Works with FIDO2 keys such as YubiKey, Nitrokey, Google Titan and Feitian. Anyone holding this key and your backup files can open them, so keep them apart.</string>
+    <string name="settings_backup_security_keys_footer">A security key with its PIN opens your backups on any phone with NFC or USB. Works with FIDO2 keys such as YubiKey, Nitrokey, Google Titan and Feitian. Anyone holding this key, its PIN and your backup files can open them, so keep them apart.</string>
     <plurals name="settings_backup_security_keys_count">
         <item quantity="one">%1$d security key</item>
         <item quantity="other">%1$d security keys</item>
@@ -841,6 +841,7 @@
     <string name="settings_backup_security_key_prompt_message">Hold it flat against the back of your phone, or plug it in. Touch it if it blinks.</string>
     <string name="settings_backup_security_key_waiting">Waiting for your key…</string>
     <string name="settings_backup_security_key_touch">Touch your key</string>
+    <string name="settings_backup_security_key_touch_again">Touch your key again</string>
     <string name="settings_backup_security_key_keep_holding">Keep holding it…</string>
     <string name="settings_backup_security_key_nfc_off">NFC is off. Turn it on, or plug in your key.</string>
     <string name="settings_backup_security_key_pin_label">Enter your security key’s PIN</string>
@@ -849,6 +850,8 @@
         <item quantity="other">Wrong PIN. %1$d tries left.</item>
     </plurals>
     <string name="settings_backup_security_key_pin_failed">Wrong PIN</string>
+    <string name="settings_backup_security_key_pin_not_set">Set a PIN on your security key first (for example in Yubico Authenticator).</string>
+    <string name="settings_backup_security_key_pin_blocked">Your security key’s PIN is blocked. Remove the key and try again, or reset it.</string>
     <string name="settings_backup_security_key_unavailable">This phone can’t use security keys.</string>
     <string name="settings_backup_security_key_unsupported">This key can’t unlock backups.</string>
     <string name="settings_backup_security_key_not_linked">This security key isn’t linked to these backups.</string>
@@ -859,7 +862,7 @@
     <string name="settings_backup_use_security_key">Use security key</string>
     <string name="settings_backup_use_passkey_or_security_key">Use passkey or security key</string>
     <string name="settings_backup_relink_security_key_title">Link your security key?</string>
-    <string name="settings_backup_relink_security_key_message">Your security key added %1$s only unlocks backups made with the old key. Link it to the new key with one touch.</string>
+    <string name="settings_backup_relink_security_key_message">Your security key added %1$s only unlocks backups made with the old key. Link it to the new key with its PIN and a touch.</string>
     <string name="settings_backup_link_security_key">Link security key</string>
     <string name="external_import_review_title">Confirm import</string>
     <string name="external_import_detected_source">Source</string>

@@ -39,7 +39,7 @@
             android:windowSoftInputMode="adjustResize"
             android:exported="true"
             android:launchMode="singleTop"
-            android:configChanges="uiMode|locale|layoutDirection|orientation|screenSize|smallestScreenSize|screenLayout|density"
+            android:configChanges="uiMode|locale|layoutDirection|orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

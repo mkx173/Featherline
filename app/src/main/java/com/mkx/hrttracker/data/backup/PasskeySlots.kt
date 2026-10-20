@@ -80,6 +80,10 @@ class PasskeySlots @Inject constructor(
             .put(
                 "authenticatorSelection",
                 JSONObject()
+                    // Platform passkeys only: GPM's "save to a security key"
+                    // route can't deliver PRF on Android (security keys have
+                    // their own slots).
+                    .put("authenticatorAttachment", "platform")
                     .put("residentKey", "required")
                     .put("requireResidentKey", true)
                     .put("userVerification", "required"),

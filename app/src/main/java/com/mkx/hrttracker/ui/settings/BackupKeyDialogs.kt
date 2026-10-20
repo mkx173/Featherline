@@ -1019,8 +1019,8 @@ internal fun BackupKeyChoiceSheet(
 }
 
 /**
- * E4: discovery runs while this is open (Add, C1, re-link). [status] is the
- * key operation's; [prompt] adds Add's PIN step. Back and Cancel cancel.
+ * E4 (Add, C1, re-link): the key's PIN first ([prompt]'s PIN step), then
+ * discovery with [status]'s line. Back and Cancel cancel.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1041,13 +1041,16 @@ internal fun BackupSecurityKeySheet(
                 text = stringResource(R.string.settings_backup_security_key_prompt_title),
                 style = MaterialTheme.typography.titleLarge,
             )
-            Text(
-                text = stringResource(R.string.settings_backup_security_key_prompt_message),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!prompt.needsPin) {
+                Text(
+                    text = stringResource(R.string.settings_backup_security_key_prompt_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             // Not saveable: a PIN never goes into the saved-state bundle.
-            var pin by remember { mutableStateOf("") }
+            // Cleared each time the PIN step comes back (a wrong PIN).
+            var pin by remember(prompt.needsPin) { mutableStateOf("") }
             if (prompt.needsPin) {
                 OutlinedTextField(
                     value = pin,
@@ -1090,6 +1093,7 @@ internal fun BackupSecurityKeySheet(
                             text = stringResource(
                                 when (status) {
                                     SecurityKeyStatus.TOUCH -> R.string.settings_backup_security_key_touch
+                                    SecurityKeyStatus.TOUCH_AGAIN -> R.string.settings_backup_security_key_touch_again
                                     SecurityKeyStatus.KEEP_HOLDING -> R.string.settings_backup_security_key_keep_holding
                                     SecurityKeyStatus.NFC_OFF -> R.string.settings_backup_security_key_nfc_off
                                     else -> R.string.settings_backup_security_key_waiting

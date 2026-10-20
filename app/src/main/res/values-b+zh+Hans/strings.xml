@@ -800,7 +800,7 @@
     <string name="settings_backup_remove_security_key_prompt_subtitle">验证身份以移除安全密钥</string>
     <string name="settings_backup_remove_security_key_title">移除安全密钥？</string>
     <string name="settings_backup_remove_security_key_message">之前保存的备份仍能用它打开。如要彻底停用，请使用「更换加密密钥」</string>
-    <string name="settings_backup_security_keys_footer">安全密钥轻触一下即可在任何手机上打开你的备份。支持 YubiKey、Nitrokey、Google Titan、Feitian 等 FIDO2 密钥。任何人同时拿到这把密钥和你的备份文件都能打开备份，所以请分开存放</string>
+    <string name="settings_backup_security_keys_footer">安全密钥配合它的 PIN，即可在任何支持 NFC 或 USB 的手机上打开你的备份。支持 YubiKey、Nitrokey、Google Titan、Feitian 等 FIDO2 密钥。任何人同时拿到这把密钥、它的 PIN 和你的备份文件都能打开备份，所以请分开存放</string>
     <plurals name="settings_backup_security_keys_count">
         <item quantity="other">%1$d 个安全密钥</item>
     </plurals>
@@ -810,6 +810,7 @@
     <string name="settings_backup_security_key_prompt_message">将它平贴在手机背面，或插入手机。如果它在闪烁，请触摸它</string>
     <string name="settings_backup_security_key_waiting">正在等待你的密钥…</string>
     <string name="settings_backup_security_key_touch">请触摸你的密钥</string>
+    <string name="settings_backup_security_key_touch_again">请再次触摸你的密钥</string>
     <string name="settings_backup_security_key_keep_holding">请保持贴住…</string>
     <string name="settings_backup_security_key_nfc_off">NFC 已关闭。请打开 NFC，或插入你的密钥</string>
     <string name="settings_backup_security_key_pin_label">输入安全密钥的 PIN</string>
@@ -817,6 +818,8 @@
         <item quantity="other">PIN 错误，还可尝试 %1$d 次</item>
     </plurals>
     <string name="settings_backup_security_key_pin_failed">PIN 错误</string>
+    <string name="settings_backup_security_key_pin_not_set">请先为安全密钥设置 PIN（例如在 Yubico Authenticator 中）</string>
+    <string name="settings_backup_security_key_pin_blocked">安全密钥的 PIN 已被锁定。请移开密钥后重试，或重置它</string>
     <string name="settings_backup_security_key_unavailable">这部手机无法使用安全密钥</string>
     <string name="settings_backup_security_key_unsupported">这把密钥无法解锁备份</string>
     <string name="settings_backup_security_key_not_linked">这把安全密钥没有关联到这些备份</string>
@@ -827,7 +830,7 @@
     <string name="settings_backup_use_security_key">使用安全密钥</string>
     <string name="settings_backup_use_passkey_or_security_key">使用通行密钥或安全密钥</string>
     <string name="settings_backup_relink_security_key_title">关联你的安全密钥？</string>
-    <string name="settings_backup_relink_security_key_message">你于 %1$s 添加的安全密钥只能解锁用旧密钥创建的备份。触摸一下即可将它关联到新密钥</string>
+    <string name="settings_backup_relink_security_key_message">你于 %1$s 添加的安全密钥只能解锁用旧密钥创建的备份。输入它的 PIN 并触摸一下，即可将它关联到新密钥</string>
     <string name="settings_backup_link_security_key">关联安全密钥</string>
     <string name="external_import_review_title">确认导入</string>
     <string name="external_import_detected_source">来源</string>

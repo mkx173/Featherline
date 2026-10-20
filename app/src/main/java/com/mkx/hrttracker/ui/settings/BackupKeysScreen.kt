@@ -72,7 +72,7 @@ fun BackupKeysScreen(
     }
     AppAuthenticationPromptEffect(
         request = encryptionKey.pendingPrompt,
-        onAuthenticated = { viewModel.onKeyCredentialAuthenticated(activity) },
+        onAuthenticated = { viewModel.onKeyCredentialAuthenticated() },
         onError = viewModel::onKeyCredentialError,
     )
 
@@ -82,7 +82,7 @@ fun BackupKeysScreen(
         addKeyChoice = viewModel.addKeyChoice,
         isInProgress = encryptionKey.isPasskeyInProgress,
         onNavigateBack = onNavigateBack,
-        onAddClick = { viewModel.onAddKeyClick(activity) },
+        onAddClick = { viewModel.onAddKeyClick() },
         onRemoveSlotClick = viewModel::onRemoveSlotClick,
         modifier = modifier,
     )
@@ -91,7 +91,7 @@ fun BackupKeysScreen(
         BackupKeyChoiceSheet(
             title = stringResource(R.string.settings_backup_add_passkey_or_security_key),
             onPasskey = viewModel::onAddPasskeyClick,
-            onSecurityKey = { viewModel.onAddSecurityKeyClick(activity) },
+            onSecurityKey = { viewModel.onAddSecurityKeyClick() },
             onDismiss = viewModel::dismissKeyChoice,
         )
     }

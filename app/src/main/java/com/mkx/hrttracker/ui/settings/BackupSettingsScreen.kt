@@ -178,7 +178,7 @@ fun BackupSettingsScreen(
     }
     AppAuthenticationPromptEffect(
         request = uiState.encryptionKey.pendingPrompt,
-        onAuthenticated = { viewModel.onKeyCredentialAuthenticated(activity) },
+        onAuthenticated = { viewModel.onKeyCredentialAuthenticated() },
         onError = viewModel::onKeyCredentialError,
     )
     var isReplaceKeyDialogShown by rememberSaveable { mutableStateOf(false) }
@@ -528,14 +528,14 @@ fun BackupSettingsScreen(
                     },
                     onCancel = viewModel::clearPendingRestoreRequest,
                     onUsePasskey = { activity?.let(viewModel::unlockBackupRestoreWithPasskey) },
-                    onUseSecurityKey = { activity?.let(viewModel::unlockBackupRestoreWithSecurityKey) },
+                    onUseSecurityKey = viewModel::unlockBackupRestoreWithSecurityKey,
                     onUseKeyChoice = viewModel::onUseKeyClick,
                 )
                 if (uiState.encryptionKey.isKeyChoiceShown) {
                     BackupKeyChoiceSheet(
                         title = stringResource(R.string.settings_backup_use_passkey_or_security_key),
                         onPasskey = { activity?.let(viewModel::unlockBackupRestoreWithPasskey) },
-                        onSecurityKey = { activity?.let(viewModel::unlockBackupRestoreWithSecurityKey) },
+                        onSecurityKey = viewModel::unlockBackupRestoreWithSecurityKey,
                         onDismiss = viewModel::dismissKeyChoice,
                     )
                 }
