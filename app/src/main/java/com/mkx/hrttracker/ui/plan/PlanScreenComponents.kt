@@ -321,7 +321,7 @@ private fun SelectedDayRow(
     val loggedDayOffsetText = when (row) {
         is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedDayOffsetDays(
-                scheduledDate = date,
+                scheduledDate = row.entry.scheduledFor.toLocalDate(),
                 loggedAt = displayedLoggedAt
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
@@ -497,7 +497,7 @@ private fun SelectedDayRow(
     }
 }
 
-private fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
     return buildList {
         addAll(
             daySchedule.scheduledEntries.map { entry ->
@@ -508,7 +508,7 @@ private fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowMo
             daySchedule.unplannedEntries.map { entry ->
                 SelectedDayRowModel.Unplanned(
                     entry = entry,
-                    sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+                    sortTime = appliedAtAsLocalDateTime(entry)
                 )
             }
         )
@@ -1102,7 +1102,7 @@ private fun UpcomingOccurrenceChip(
 }
 
 internal sealed interface SelectedDayRowModel {
-    val sortTime: LocalTime
+    val sortTime: LocalDateTime
 
     // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
     val medicine: com.mkx.hrttracker.model.medication.Medicine?
@@ -1115,7 +1115,7 @@ internal sealed interface SelectedDayRowModel {
     data class Scheduled(
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
-        override val sortTime: LocalTime = entry.scheduledTime
+        override val sortTime: LocalDateTime = entry.scheduledFor
         override val medicine = entry.medication.medicine
         override val doseInstruction = entry.medication.doseInstruction
         override val doseAmountDelta: Double? = entry.doseAmountDelta
@@ -1126,7 +1126,7 @@ internal sealed interface SelectedDayRowModel {
 
     data class Unplanned(
         val entry: MedicationLogEntry,
-        override val sortTime: LocalTime
+        override val sortTime: LocalDateTime
     ) : SelectedDayRowModel {
         override val medicine = entry.medicine
         override val doseInstruction = entry.doseInstruction
@@ -1217,7 +1217,7 @@ private fun SelectedDayManualRowPreview() {
             today = uiState.today,
             row = SelectedDayRowModel.Unplanned(
                 entry = entry,
-                sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+                sortTime = appliedAtAsLocalDateTime(entry)
             ),
             index = 0,
             itemCount = 1,

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.R
@@ -516,8 +517,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = any(),
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
 
         advanceUntilIdle()
@@ -544,8 +545,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
@@ -574,8 +575,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
         coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
@@ -601,8 +602,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
@@ -631,8 +632,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
         coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
@@ -658,8 +659,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery {
             medicationGroupRepository.saveGroup(
@@ -700,8 +701,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
         coVerify(exactly = 0) {
             medicationGroupRepository.saveGroup(
@@ -739,8 +740,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
@@ -769,8 +770,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
         coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
@@ -789,7 +790,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = any(),
                 now = any(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
@@ -816,7 +817,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = selectedBackdate,
                 now = appTimeSource.now(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         }
     }
 
@@ -835,7 +836,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = any(),
                 now = any(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
@@ -862,7 +863,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = null,
                 now = appTimeSource.now(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         }
     }
 
@@ -890,8 +891,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -951,8 +952,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
         coVerify(exactly = 1) {
             medicationGroupRepository.saveGroup(
@@ -1000,7 +1001,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                     uuid = groupUuid,
                     archivedThroughDate = any(),
                     now = any(),
-                )
+                    boundary = MedicationDayBoundary.Midnight)
             } returns Unit
             coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
             coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -1047,7 +1048,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                     uuid = groupUuid,
                     archivedThroughDate = selectedBackdate,
                     now = appTimeSource.now(),
-                )
+                    boundary = MedicationDayBoundary.Midnight)
             }
             assertEquals(LocalDate.of(2026, 4, 25), savedSchedule.captured.since)
         }
@@ -1079,7 +1080,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = any(),
                 now = any(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -1121,7 +1122,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                 uuid = groupUuid,
                 archivedThroughDate = endOfDayToday,
                 now = appTimeSource.now(),
-            )
+                boundary = MedicationDayBoundary.Midnight)
         }
         assertEquals(LocalDate.of(2026, 4, 26), savedSchedule.captured.since)
     }
@@ -1149,8 +1150,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -1207,8 +1208,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         } returns Unit
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
@@ -1253,8 +1254,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveGroup(
                 uuid = groupUuid,
                 archivedThroughDate = any(),
-                now = any()
-            )
+                now = any(),
+                boundary = MedicationDayBoundary.Midnight)
         }
     }
 

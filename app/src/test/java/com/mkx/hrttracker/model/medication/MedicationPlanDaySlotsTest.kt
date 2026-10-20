@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -15,6 +16,7 @@ class MedicationPlanDaySlotsTest {
             scheduledForIso = "2026-05-08T23:30",
             appliedAtEpochMillis = Instant.parse("2026-05-08T01:00:00Z").toEpochMilli(),
             appliedAtTimeZoneId = "Asia/Tokyo",
+            boundary = MedicationDayBoundary.Midnight,
             zoneId = ZoneId.of("America/Los_Angeles"),
         )
 
@@ -27,6 +29,7 @@ class MedicationPlanDaySlotsTest {
             scheduledForIso = null,
             appliedAtEpochMillis = Instant.parse("2026-05-08T15:30:00Z").toEpochMilli(),
             appliedAtTimeZoneId = "Asia/Tokyo",
+            boundary = MedicationDayBoundary.Midnight,
             zoneId = ZoneId.of("America/Los_Angeles"),
         )
 
@@ -48,9 +51,10 @@ class MedicationPlanDaySlotsTest {
                 scheduledForIso = null,
                 appliedAtEpochMillis = entry.appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                boundary = MedicationDayBoundary.Midnight,
                 zoneId = zoneId,
             ),
-            entry.planCalendarDate(zoneId),
+            entry.planCalendarDate(MedicationDayBoundary.Midnight, zoneId),
         )
     }
 
@@ -65,7 +69,10 @@ class MedicationPlanDaySlotsTest {
 
         assertEquals(
             LocalDate.of(2026, 5, 8),
-            entry.planCalendarDate(ZoneId.of("America/Los_Angeles")),
+            entry.planCalendarDate(
+                MedicationDayBoundary.Midnight,
+                ZoneId.of("America/Los_Angeles"),
+            ),
         )
     }
 }

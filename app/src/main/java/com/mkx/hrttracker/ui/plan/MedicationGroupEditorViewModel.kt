@@ -48,6 +48,8 @@ import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -133,8 +135,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
             ) ?: MedicationGroupEditorUiState(
                 editingGroupId = editingGroupId,
                 isLoadingGroupForEditing = editingGroupUuid != null,
-                sinceDate = defaultScheduleDateTime.toLocalDate(),
-                weeklyDaysOfWeek = setOf(defaultScheduleDateTime.dayOfWeek),
+                sinceDate = medicationDay(
+                    defaultScheduleDateTime,
+                    settingsRepository.settingsState.value.medicationDayBoundary,
+                ),
+                weeklyDaysOfWeek = setOf(
+                    medicationDay(
+                        defaultScheduleDateTime,
+                        settingsRepository.settingsState.value.medicationDayBoundary,
+                    ).dayOfWeek
+                ),
                 weeklyTime = defaultScheduleDateTime.toLocalTime(),
                 dailyTimes = listOf(
                     MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
@@ -271,16 +281,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationLogRepository.observeEntries(),
                 _uiState.map { it.editingGroupId }.distinctUntilChanged(),
                 appTimeSource.currentSnapshot,
-            ) { entriesOrNull, currentEditingGroupId, timeSnapshot ->
+                settingsRepository.settingsState,
+            ) { entriesOrNull, currentEditingGroupId, timeSnapshot, settings ->
                 entryCountsForGroup(
                     entries = entriesOrNull.orEmpty(),
                     groupId = currentEditingGroupId,
                     currentMinute = timeSnapshot.minute,
+                    boundary = settings.medicationDayBoundary,
                     zoneId = timeSnapshot.zone,
                     areEntriesLoaded = entriesOrNull != null,
-                ) to timeSnapshot
+                ) to (timeSnapshot to settings.medicationDayBoundary)
             }
-                .collect { (counts, timeSnapshot) ->
+                .collect { (counts, timeAndBoundary) ->
+                    val (timeSnapshot, boundary) = timeAndBoundary
                     _uiState.update {
                         val shouldLockRecreatedStartDate =
                             it.recreatedFromGroupId != null &&
@@ -289,7 +302,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             scheduleSince = it.originalSinceDate,
                             latestRecordedDoseDate = counts.latestRecordedDoseDate,
                             areEntriesLoaded = counts.areEntriesLoaded,
-                            today = timeSnapshot.minute.toLocalDate(),
+                            today = medicationDay(timeSnapshot.minute, boundary),
                         )
                         val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
@@ -407,7 +420,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            val today = currentMinute.value.toLocalDate()
+            val today = medicationDay(
+                currentMinute.value,
+                settingsRepository.settingsState.value.medicationDayBoundary,
+            )
             editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
@@ -1199,7 +1215,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             resolvedGroupName = resolvedGroupName,
             defaultGroupName = source.defaultGroupName,
             colorKey = colorKey,
-            scheduleStartDate = currentMinute.value.toLocalDate(),
+            scheduleStartDate = medicationDay(
+                currentMinute.value,
+                settingsRepository.settingsState.value.medicationDayBoundary,
+            ),
         )
     }
 
@@ -1269,6 +1288,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
+                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = archiveNow,
                 )
             }.fold(
@@ -1329,7 +1349,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         // never own the same day. An end-of-day archive of today pushes the new
         // start to tomorrow; "now" (null) or an earlier-date archive keeps it at
         // today.
-        val recreateToday = recreateNow.toLocalDate()
+        val recreateToday = medicationDay(
+            recreateNow,
+            settingsRepository.settingsState.value.medicationDayBoundary,
+        )
         val recreateScheduleStartDate =
             maxOf(recreateToday, archivedThroughDate?.plusDays(1) ?: recreateToday)
 
@@ -1373,6 +1396,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
+                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = recreateNowInstant,
                 )
             }.fold(
@@ -1636,7 +1660,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         scheduleSince = group.schedule.since,
                         latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                         areEntriesLoaded = currentState.areEntriesLoaded,
-                        today = snapshot.minute.toLocalDate(),
+                        today = medicationDay(
+                            snapshot.minute,
+                            settingsRepository.settingsState.value.medicationDayBoundary,
+                        ),
                     ),
                 )
             }
@@ -1654,8 +1681,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 group = savedGroup,
                 existingEntries = medicationLogRepository.getEntries(),
                 startDate = savedGroup.schedule.since,
-                endDate = now.toLocalDate(),
+                endDate = medicationDay(
+                    now,
+                    settingsRepository.settingsState.value.medicationDayBoundary,
+                ),
                 now = now,
+                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                 zoneId = ZoneId.systemDefault(),
             )
             medicationLogRepository.saveBackfillEntries(entriesToSave)
@@ -2471,6 +2502,7 @@ internal fun entryCountsForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
     currentMinute: LocalDateTime = LocalDateTime.now().withSecond(0).withNano(0),
+    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
     areEntriesLoaded: Boolean = true,
 ): MedicationGroupEntryCounts {
@@ -2496,7 +2528,7 @@ internal fun entryCountsForGroup(
             .toSet()
             .size,
         latestRecordedDoseDate = relatedEntries.maxOfOrNull { entry ->
-            entry.planCalendarDate(zoneId)
+            entry.planCalendarDate(boundary, zoneId)
         },
         areEntriesLoaded = areEntriesLoaded,
     )
@@ -2556,7 +2588,8 @@ internal fun resolveArchiveDateWindow(
 internal fun relatedEntryCountForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
-): Int = entryCountsForGroup(entries, groupId).relatedEntryCount
+    boundary: MedicationDayBoundary,
+): Int = entryCountsForGroup(entries, groupId, boundary = boundary).relatedEntryCount
 
 internal fun scheduleTimeInputsForSave(
     uiState: MedicationGroupEditorUiState,

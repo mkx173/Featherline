@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -43,8 +44,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 18, 10, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertFalse(schedule.scheduledEntries[0].isDueSoon)
         assertTrue(schedule.scheduledEntries[0].isPastDue)
@@ -106,7 +107,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(LocalTime.of(11, 0)),
@@ -138,7 +139,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
@@ -199,7 +200,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 5),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         val times = schedule.scheduledEntries.map { entry -> entry.scheduledTime }
         assertEquals(
@@ -267,8 +268,8 @@ class PlanDayOccurrenceTest {
             groups = listOf(newerGroup, olderGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 7, 0),
-            zoneId = zoneId
-        )
+            zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(olderGroupUuid, olderGroupUuid, newerGroupUuid),
@@ -313,8 +314,8 @@ class PlanDayOccurrenceTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 22, 0),
-            zoneId = zoneId
-        )
+            zoneId = zoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(morningEntryUuid, eveningEntryUuid),
@@ -358,7 +359,7 @@ class PlanDayOccurrenceTest {
             entries = listOf(loggedSlot),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, schedule.scheduledEntries.size)
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
@@ -397,7 +398,7 @@ class PlanDayOccurrenceTest {
             entries = listOf(importedLog),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertTrue(schedule.scheduledEntries.single().isImportedRecord)
     }
@@ -438,7 +439,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(loggedSlot),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, schedule.scheduledEntries.size)
         assertEquals(LocalTime.of(9, 0), schedule.scheduledEntries.single().scheduledTime)
@@ -482,7 +483,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(shiftedSlotLog),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, schedule.scheduledEntries.size)
         assertEquals(LocalTime.of(9, 0), schedule.scheduledEntries.single().scheduledTime)
@@ -522,8 +523,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = listOf(fulfilledEntry),
-            now = LocalDateTime.of(2026, 4, 18, 10, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
         assertEquals(
@@ -562,8 +563,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = listOf(fulfilledEntry),
-            now = LocalDateTime.of(2026, 4, 19, 1, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 19, 1, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
         assertEquals(
@@ -603,8 +604,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = listOf(linkedEntry),
-            now = LocalDateTime.of(2026, 4, 18, 10, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertTrue(schedule.unplannedEntries.isEmpty())
         assertEquals(1, schedule.scheduledEntries.size)
@@ -653,8 +654,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 18, 8, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 8, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, schedule.scheduledEntries.size)
         assertEquals(2, schedule.scheduledEntries.single().medication.count)
@@ -704,8 +705,8 @@ class PlanDayOccurrenceTest {
                     count = 2
                 )
             ),
-            now = LocalDateTime.of(2026, 4, 18, 10, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         val scheduledEntry = schedule.scheduledEntries.single()
         assertEquals(2, scheduledEntry.loggedCount)
@@ -742,8 +743,8 @@ class PlanDayOccurrenceTest {
             date = LocalDate.of(2026, 4, 18),
             groups = listOf(group),
             entries = listOf(linkedEntry),
-            now = LocalDateTime.of(2026, 4, 18, 10, 30)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 10, 30),
+            boundary = MedicationDayBoundary.Midnight)
 
         val firstScheduledEntry = schedule.scheduledEntries.first()
         assertFalse(firstScheduledEntry.isFulfilled)
