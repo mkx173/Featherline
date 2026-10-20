@@ -110,7 +110,7 @@ internal fun MedicationGroup.scheduledSlotsInPlanWindow(
     }
     // Only the 04:00 boundary pulls the next civil day's early hours into `date`.
     val windowEnd = if (boundary.endsAtFourAm) date.plusDays(1) else date
-    return occurrencesBetweenInPlanWindow(date, windowEnd, zoneId)
+    return occurrencesBetweenInPlanWindow(date, windowEnd, zoneId, boundary)
         .filter { occurrence -> medicationDay(occurrence.scheduledFor, boundary) == date }
         .map { occurrence -> occurrence.toMedicationGroupSlotKey() }
 }

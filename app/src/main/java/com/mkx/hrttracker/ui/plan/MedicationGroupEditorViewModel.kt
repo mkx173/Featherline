@@ -128,24 +128,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private var latestGroups: List<MedicationGroup> = emptyList()
     private val _uiState = MutableStateFlow(
         run {
-            val defaultDay = medicationDay(
-                defaultScheduleDateTime,
-                settingsRepository.settingsState.value.medicationDayBoundary,
-            )
-            val baseState = cachedEditingGroup?.toEditorState(
-                remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
-                relatedEntryCount = 0,
-                plannedEntryCount = 0,
-            ) ?: MedicationGroupEditorUiState(
-                editingGroupId = editingGroupId,
-                isLoadingGroupForEditing = editingGroupUuid != null,
-                sinceDate = defaultDay,
-                weeklyDaysOfWeek = setOf(defaultDay.dayOfWeek),
-                weeklyTime = defaultScheduleDateTime.toLocalTime(),
-                dailyTimes = listOf(
-                    MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
+            val boundary = settingsRepository.settingsState.value.medicationDayBoundary
+            val defaultDay = medicationDay(defaultScheduleDateTime, boundary)
+            val baseState = (
+                cachedEditingGroup?.toEditorState(
+                    remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
+                    relatedEntryCount = 0,
+                    plannedEntryCount = 0,
+                ) ?: MedicationGroupEditorUiState(
+                    editingGroupId = editingGroupId,
+                    isLoadingGroupForEditing = editingGroupUuid != null,
+                    sinceDate = defaultDay,
+                    weeklyDaysOfWeek = setOf(defaultScheduleDateTime.toLocalDate().dayOfWeek),
+                    weeklyTime = defaultScheduleDateTime.toLocalTime(),
+                    dailyTimes = listOf(
+                        MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
+                    )
                 )
-            )
+            ).copy(medicationDayBoundary = boundary)
             // Only restore pendingReplacementGroupId from SavedStateHandle when one
             // was actually persisted. Don't clobber recreatedFromGroupId — that's a
             // DB-derived lineage tag set by toEditorState above and is unrelated to
@@ -304,6 +304,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             today = medicationDay(timeSnapshot.minute, boundary),
                         )
                         val nextState = it.copy(
+                            medicationDayBoundary = boundary,
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
                             currentOrFuturePlannedSlotCount =
@@ -1245,6 +1246,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
                 relatedEntryCount = 0,
                 plannedEntryCount = 0,
+                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             )
             _uiState.update { current ->
                 buildDuplicatedDraftState(sourceState).copy(
@@ -1379,6 +1381,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 remindersEnabled = currentState.remindersEnabled,
                 relatedEntryCount = currentState.relatedEntryCount,
                 plannedEntryCount = currentState.plannedEntryCount,
+                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             )
             val resolvedGroupName = resolveMedicationGroupName(
                 groupName = persistedState.groupName,
@@ -1442,6 +1445,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         remindersEnabled = remindersEnabled,
                         relatedEntryCount = 0,
                         plannedEntryCount = 0,
+                        boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     ).copy(
                         isRecreatingAfterArchive = false,
                         archiveAndRecreateMedicationGroupResult =
@@ -1652,6 +1656,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     plannedEntryCount = currentState.plannedEntryCount,
                     currentOrFuturePlannedSlotCount =
                         currentState.currentOrFuturePlannedSlotCount,
+                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                 ).copy(
                     areEntriesLoaded = currentState.areEntriesLoaded,
                     latestRecordedDoseDate = currentState.latestRecordedDoseDate,
@@ -1777,6 +1782,7 @@ private fun MedicationGroup.toEditorState(
     relatedEntryCount: Int,
     plannedEntryCount: Int,
     currentOrFuturePlannedSlotCount: Int = 0,
+    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ): MedicationGroupEditorUiState {
     val normalizedScheduleTimeSlots = schedule.timeSlots
         .ifEmpty {
@@ -1800,6 +1806,7 @@ private fun MedicationGroup.toEditorState(
         hasResolvedInitialGroupName = true,
         scheduleType = schedule.type,
         sinceDate = schedule.since,
+        medicationDayBoundary = boundary,
         weeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
             parseScheduleInterval(schedule.interval.toString()).toString()
         } else {
@@ -2013,8 +2020,17 @@ internal fun editorStateWithUpdatedScheduleType(
 internal fun editorStateWithResetWeeklyDaysOfWeek(
     uiState: MedicationGroupEditorUiState,
 ): MedicationGroupEditorUiState {
+    // A selected weekly day names the civil day the dose fires on, so a time
+    // before the medication-day boundary belongs to the following civil day.
+    val firstOccurrenceDate = if (
+        uiState.weeklyTime.isBefore(uiState.medicationDayBoundary.startTime)
+    ) {
+        uiState.sinceDate.plusDays(1)
+    } else {
+        uiState.sinceDate
+    }
     return uiState.copy(
-        weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
+        weeklyDaysOfWeek = setOf(firstOccurrenceDate.dayOfWeek),
         hasUserCustomizedWeeklyDays = false,
     )
 }
@@ -2224,6 +2240,7 @@ data class MedicationGroupEditorUiState(
     val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
+    val medicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
     val hasUserCustomizedWeeklyDays: Boolean = false,

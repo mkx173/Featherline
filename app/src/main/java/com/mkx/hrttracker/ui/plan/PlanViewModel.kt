@@ -128,7 +128,8 @@ class PlanViewModel @Inject constructor(
             groups = activeGroups,
             entries = entries,
             start = now,
-            limit = UPCOMING_OCCURRENCES_LIMIT
+            limit = UPCOMING_OCCURRENCES_LIMIT,
+            boundary = settingsState.medicationDayBoundary,
         )
 
         return PlanUiState(
@@ -225,14 +226,16 @@ internal fun buildNextOccurrencesByGroup(
     entries: List<MedicationLogEntry>,
     start: LocalDateTime,
     limit: Int,
-    lookaheadDays: Long = 90L
+    lookaheadDays: Long = 90L,
+    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ): Map<UUID, List<LocalDateTime>> {
     return groups.associate { group ->
         group.uuid to group
             .nextOccurrencesInPlanWindowFrom(
                 start = start,
                 limit = Int.MAX_VALUE,
-                lookaheadDays = lookaheadDays
+                lookaheadDays = lookaheadDays,
+                boundary = boundary,
             )
             .asSequence()
             .filterNot { occurrence ->

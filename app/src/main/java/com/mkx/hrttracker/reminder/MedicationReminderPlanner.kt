@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -23,6 +24,7 @@ internal fun buildNextMedicationReminderPlans(
     lookaheadDays: Long = 90L,
     /** Each group's armed reminder time, from the schedule store. */
     armed: Map<UUID, LocalDateTime> = emptyMap(),
+    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ): List<MedicationReminderPlan> {
     return groups.asSequence()
         .filter(MedicationGroup::isActive)
@@ -48,7 +50,8 @@ internal fun buildNextMedicationReminderPlans(
                 .nextOccurrencesInPlanWindowFrom(
                     start = now,
                     limit = Int.MAX_VALUE,
-                    lookaheadDays = lookaheadDays
+                    lookaheadDays = lookaheadDays,
+                    boundary = boundary,
                 )
                 .firstOrNull { occurrence ->
                     // Re-arm FUTURE alarms only. An occurrence at exactly `now`
