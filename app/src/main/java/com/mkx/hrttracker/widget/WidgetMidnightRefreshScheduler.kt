@@ -11,6 +11,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
+import kotlinx.coroutines.CancellationException
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -68,6 +69,37 @@ internal fun scheduleNextWidgetDateRefresh(
             triggerAtMillis,
             pendingIntent,
         )
+    }
+}
+
+/**
+ * The single read-then-schedule path for the widget date-refresh alarm: reads the day start
+ * through [readBoundary], falling back to [MedicationDayBoundary.Midnight] on failure, then
+ * arms the next alarm. Callers supply the boundary source because startup must use the eager
+ * settings state (no suspension) while the receiver reads the persisted settings.
+ */
+internal suspend fun armWidgetDateRefreshFromSettings(
+    context: Context,
+    diagnosticsLogger: AppDiagnosticsLogger,
+    logTag: String,
+    scheduleFailedMessage: String,
+    readBoundary: suspend () -> MedicationDayBoundary,
+) {
+    val boundary = runCatching { readBoundary() }
+        .onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
+            diagnosticsLogger.warning(logTag, "widget_day_boundary_read_failed", throwable)
+        }
+        .getOrDefault(MedicationDayBoundary.Midnight)
+    runCatching {
+        scheduleNextWidgetDateRefresh(
+            context = context,
+            boundary = boundary,
+            diagnosticsLogger = diagnosticsLogger,
+        )
+    }.onFailure { throwable ->
+        if (throwable is CancellationException) throw throwable
+        diagnosticsLogger.warning(logTag, scheduleFailedMessage, throwable)
     }
 }
 

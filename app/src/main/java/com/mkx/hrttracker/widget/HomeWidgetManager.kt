@@ -23,6 +23,7 @@ import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.drop
@@ -65,17 +66,17 @@ class HomeWidgetManager @Inject constructor(
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
         // The settings state is eager; arm once with its value at this point. The
-        // collector re-arms only if the first loaded emission disagrees.
+        // collector re-arms only if the first loaded emission disagrees. The helper is
+        // suspend for the receiver's persisted read; UNDISPATCHED runs the startup arm on
+        // this thread (its eager read never suspends), so it still precedes the collector.
         val startupBoundary = settingsRepository.settingsState.value.medicationDayBoundary
-        runCatching {
-            scheduleNextWidgetDateRefresh(
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            armWidgetDateRefreshFromSettings(
                 context = context,
-                boundary = startupBoundary,
                 diagnosticsLogger = diagnosticsLogger,
-            )
-        }.onFailure { throwable ->
-            if (throwable is CancellationException) throw throwable
-            diagnosticsLogger.warning(TAG, "widget_date_refresh_startup_failed", throwable)
+                logTag = TAG,
+                scheduleFailedMessage = "widget_date_refresh_startup_failed",
+            ) { startupBoundary }
         }
         publishGeneratedWidgetPreviewsIfNeeded()
 
@@ -116,20 +117,12 @@ class HomeWidgetManager @Inject constructor(
                 .onEach { settings ->
                     if (settings.medicationDayBoundary != armedBoundary) {
                         armedBoundary = settings.medicationDayBoundary
-                        runCatching {
-                            scheduleNextWidgetDateRefresh(
-                                context = context,
-                                boundary = settings.medicationDayBoundary,
-                                diagnosticsLogger = diagnosticsLogger,
-                            )
-                        }.onFailure { throwable ->
-                            if (throwable is CancellationException) throw throwable
-                            diagnosticsLogger.warning(
-                                TAG,
-                                "widget_date_refresh_settings_failed",
-                                throwable
-                            )
-                        }
+                        armWidgetDateRefreshFromSettings(
+                            context = context,
+                            diagnosticsLogger = diagnosticsLogger,
+                            logTag = TAG,
+                            scheduleFailedMessage = "widget_date_refresh_settings_failed",
+                        ) { settings.medicationDayBoundary }
                     }
                 }
                 .distinctUntilChangedBy { settings ->
