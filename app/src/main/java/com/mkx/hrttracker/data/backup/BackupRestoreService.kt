@@ -990,7 +990,6 @@ private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): Li
 private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
-    require(medicationDayStartMinutes in 0..1439) { "Invalid medication day start time." }
     val darkModeOption = requireEnumName<DarkModeOption>(
         darkModeOption,
         "dark mode option",
