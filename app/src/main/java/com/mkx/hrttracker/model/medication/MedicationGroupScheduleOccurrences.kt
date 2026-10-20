@@ -14,8 +14,10 @@ data class MedicationGroupSlotOccurrence(
     val scheduledFor: LocalDateTime,
 )
 
-fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean =
-    isScheduledAt(date.atStartOfDay(), MedicationDayBoundary.Midnight)
+fun MedicationGroupSchedule.isScheduledOn(
+    date: LocalDate,
+    boundary: MedicationDayBoundary,
+): Boolean = isScheduledAt(date.atStartOfDay(), boundary)
 
 /**
  * Whether an occurrence at [dateTime] fires under [boundary]. Daily cadence counts
@@ -65,7 +67,7 @@ fun MedicationGroupSchedule.isScheduledAt(
 fun MedicationGroupSchedule.occurrencesBetween(
     startDate: LocalDate,
     endDate: LocalDate,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<LocalDateTime> {
     if (startDate.isAfter(endDate) || times.isEmpty()) {
         return emptyList()
@@ -90,7 +92,7 @@ fun MedicationGroupSchedule.nextOccurrencesFrom(
     start: LocalDateTime,
     limit: Int,
     lookaheadDays: Long = 90L,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<LocalDateTime> {
     if (limit <= 0 || times.isEmpty()) {
         return emptyList()
@@ -117,7 +119,7 @@ fun MedicationGroup.occurrencesBetweenInPlanWindow(
     startDate: LocalDate,
     endDate: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<MedicationGroupSlotOccurrence> {
     if (startDate.isAfter(endDate) || schedule.timeSlots.isEmpty()) {
         return emptyList()
@@ -149,7 +151,7 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
     limit: Int,
     lookaheadDays: Long = 90L,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<MedicationGroupSlotOccurrence> {
     if (limit <= 0 || schedule.timeSlots.isEmpty()) {
         return emptyList()

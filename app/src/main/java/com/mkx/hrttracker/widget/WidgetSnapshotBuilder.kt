@@ -64,10 +64,6 @@ internal fun buildWidgetSnapshotRecord(
         now = now,
         boundary = boundary,
         zoneId = zoneId,
-        comingUpSource = MedicationDaySectionSource(
-            groups = activeGroups,
-            entries = scheduleEntries,
-        ),
     )
 
     val lastNightRows = sections.lastNight?.let { previousSchedule ->
@@ -115,7 +111,7 @@ internal fun buildWidgetSnapshotRecord(
             )
         }
 
-    val comingUpRows = sections.comingUp?.scheduledEntries
+    val comingUpScheduledRows = sections.comingUp?.scheduledEntries
         ?.map { entry ->
             entry.toWidgetDoseRow(
                 context = context,
@@ -125,6 +121,20 @@ internal fun buildWidgetSnapshotRecord(
             )
         }
         .orEmpty()
+    val comingUpManualRows = sections.comingUp?.unplannedEntries
+        ?.map { entry ->
+            entry.toManualWidgetDoseRow(
+                context = context,
+                zoneId = zoneId,
+                colorKey = entry.sourceGroupUuid?.let(groupColorByUuid::get),
+                contextChip = WidgetDoseChip.COMING_UP,
+                isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                        entry.sourceGroupUuid in archivedGroupUuids,
+            )
+        }
+        .orEmpty()
+    val comingUpRows = (comingUpScheduledRows + comingUpManualRows)
+        .sortedBy { row -> row.scheduledAt }
 
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,

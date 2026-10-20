@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -50,6 +51,7 @@ class MedicationReminderBundlePlannerTest {
             scheduledAt = scheduledAt,
             groups = listOf(firstGroup, laterGroup, secondGroup),
             entries = emptyList(),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertNotNull(bundle)
@@ -93,6 +95,7 @@ class MedicationReminderBundlePlannerTest {
             scheduledAt = scheduledAt,
             groups = listOf(newest, oldest, middle),
             entries = emptyList(),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -125,6 +128,7 @@ class MedicationReminderBundlePlannerTest {
                     scheduledFor = scheduledAt,
                 )
             ),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -187,6 +191,7 @@ class MedicationReminderBundlePlannerTest {
                     scheduledFor = scheduledAt,
                 ),
             ),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         val medications = bundle?.items?.single()?.medications.orEmpty()

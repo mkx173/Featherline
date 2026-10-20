@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- With the "Day ends at 04:00" switch on, the medication day now also governs dose fulfillment windows, stock runway, planned doses on the estradiol curve, reminders and the editor's neighboring-dose lookups, not just the Home, Plan and History day lists. A daily plan with an interval above 1 no longer counts its pre-04:00 doses on calendar-day parity.
+- The home-screen widget's Coming up list now includes manual records and archived groups like Home, and its Last night section disappears at noon in both boundary modes.
 - After a planned dose's time passes, opening the app no longer shows an estradiol curve that looks like the population estimate, or the calibrated curve without its prediction interval. Home now works the estimate out again whenever the time, your data or the chart window moves it, usually in the background before you open the app.
 - The home-screen widget no longer goes blank when you change a widget setting, such as its appearance or the estradiol unit, while the app's saved copy of your data is out of date, for example right after an app update or a time zone change. It keeps showing your doses while the app brings them up to date.
 - When the device's clock moves ahead, for example when you set it forward, the app no longer sends a reminder for every dose time it skipped. Each group reminds you once, of its latest dose time if you haven't logged that dose yet, and its next reminder comes at the usual time.

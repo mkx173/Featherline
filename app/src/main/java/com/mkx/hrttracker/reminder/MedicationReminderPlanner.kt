@@ -24,7 +24,7 @@ internal fun buildNextMedicationReminderPlans(
     lookaheadDays: Long = 90L,
     /** Each group's armed reminder time, from the schedule store. */
     armed: Map<UUID, LocalDateTime> = emptyMap(),
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<MedicationReminderPlan> {
     return groups.asSequence()
         .filter(MedicationGroup::isActive)
@@ -67,7 +67,8 @@ internal fun buildNextMedicationReminderPlans(
                                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
                                     scheduledFor = occurrence.scheduledFor,
                                 ),
-                                entries = entries
+                                entries = entries,
+                                boundary = boundary,
                             )
                 }
                 ?.let { occurrence ->

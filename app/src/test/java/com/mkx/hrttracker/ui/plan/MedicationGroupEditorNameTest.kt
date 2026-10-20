@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -42,7 +43,9 @@ class MedicationGroupEditorNameTest {
     @Test
     fun applyDefaultGroupNameToEditorState_stores_default_name_as_placeholder_for_new_group() {
         val updated = applyDefaultGroupNameToEditorState(
-            currentState = MedicationGroupEditorUiState(),
+            currentState = MedicationGroupEditorUiState(
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
+            ),
             defaultGroupName = "Group 3"
         )
 
@@ -57,7 +60,8 @@ class MedicationGroupEditorNameTest {
             currentState = MedicationGroupEditorUiState(
                 groupName = "",
                 defaultGroupName = "Group 2",
-                hasResolvedInitialGroupName = true
+                hasResolvedInitialGroupName = true,
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
             ),
             defaultGroupName = "Group 3"
         )
@@ -79,7 +83,8 @@ class MedicationGroupEditorNameTest {
                             applicationType = MedicationApplicationType.ORAL,
                             doseInstruction = DoseInstruction.TabletFraction(1, 1),
                         )
-                    )
+                    ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
@@ -99,7 +104,8 @@ class MedicationGroupEditorNameTest {
                             applicationType = MedicationApplicationType.ORAL,
                             doseInstruction = DoseInstruction.TabletFraction(1, 1),
                         )
-                    )
+                    ),
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )

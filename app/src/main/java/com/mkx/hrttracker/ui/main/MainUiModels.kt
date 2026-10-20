@@ -526,7 +526,7 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
     category: MedicationCategory = MedicationCategory.ANTIANDROGEN,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): List<MainAntiandrogenCardUiState> {
     // `entries` includes the schedule window, which can carry a dose the user
     // pre-logged for later today. Such a dose has not been taken yet, so exclude
@@ -673,6 +673,7 @@ internal fun buildMainTodaySection(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
 }
 
@@ -683,6 +684,7 @@ private fun mainTodaySectionUiState(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    boundary: MedicationDayBoundary,
 ): MainTodaySectionUiState {
     val todayRows = buildMainTodayRows(
         daySchedule = daySchedule,
@@ -690,6 +692,7 @@ private fun mainTodaySectionUiState(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
     val rows = (todayRows.scheduledRows + todayRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -729,6 +732,7 @@ internal fun buildMainLastNightSection(
         entriesByUuid = entries.associateBy { it.uuid },
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
 }
 
@@ -738,6 +742,7 @@ private fun mainLastNightSectionUiState(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    boundary: MedicationDayBoundary,
 ): MainLastNightSectionUiState {
     if (schedule == null) {
         return MainLastNightSectionUiState()
@@ -748,6 +753,7 @@ private fun mainLastNightSectionUiState(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
     val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -787,6 +793,7 @@ internal fun buildMainComingUpSection(
         entriesByUuid = entries.associateBy { it.uuid },
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
 }
 
@@ -796,6 +803,7 @@ private fun mainComingUpSectionUiState(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    boundary: MedicationDayBoundary,
 ): MainComingUpSectionUiState {
     if (schedule == null) {
         return MainComingUpSectionUiState()
@@ -806,6 +814,7 @@ private fun mainComingUpSectionUiState(
         entriesByUuid = entriesByUuid,
         now = now,
         zoneId = zoneId,
+        boundary = boundary,
     )
     val rows = (comingUpRows.scheduledRows + comingUpRows.manualRows)
         .sortedWith(mainTodayDoseRowComparator)
@@ -855,6 +864,7 @@ internal fun buildMainDoseSections(
             entriesByUuid = entriesByUuid,
             now = now,
             zoneId = zoneId,
+            boundary = boundary,
         ),
         lastNight = mainLastNightSectionUiState(
             schedule = sections.lastNight,
@@ -862,6 +872,7 @@ internal fun buildMainDoseSections(
             entriesByUuid = entriesByUuid,
             now = now,
             zoneId = zoneId,
+            boundary = boundary,
         ),
         comingUp = mainComingUpSectionUiState(
             schedule = sections.comingUp,
@@ -869,6 +880,7 @@ internal fun buildMainDoseSections(
             entriesByUuid = entriesByUuid,
             now = now,
             zoneId = zoneId,
+            boundary = boundary,
         ),
     )
 }
@@ -954,6 +966,7 @@ private fun buildMainTodayRows(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
+    boundary: MedicationDayBoundary,
 ): MainTodayRowsForDate {
     val groupsByUuid = groups.associateBy { group -> group.uuid }
     val archivedGroupUuids = groups.filter(MedicationGroup::isArchived)
@@ -981,10 +994,12 @@ private fun buildMainTodayRows(
             sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(
                 scheduledFor = scheduledAt,
                 zoneId = zoneId,
+                boundary = boundary,
             ),
             sourceGroupNextScheduledFor = group?.nextScheduledForAfter(
                 scheduledFor = scheduledAt,
                 zoneId = zoneId,
+                boundary = boundary,
             ),
             medication = scheduledEntry.medication,
             status = when {
@@ -1214,6 +1229,7 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                 medication = medication,
                 entries = entries,
                 zoneId = zoneId,
+                boundary = boundary,
             )
             if (isFulfilled) {
                 return@firstNotNullOfOrNull null

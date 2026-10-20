@@ -13,6 +13,7 @@ import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
 import kotlinx.coroutines.CancellationException
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
@@ -20,8 +21,15 @@ internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTIO
 internal fun nextWidgetDateRefreshAt(now: LocalDateTime, boundary: MedicationDayBoundary): LocalDateTime {
     val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
     val nextBoundary = medicationDayStart(medicationDay(now, boundary).plusDays(1), boundary)
-    // Midnight also refreshes journal anchors, which retain their civil dates.
-    return minOf(midnight, nextBoundary)
+    // Noon drops Last night from the widget, matching Home.
+    val noon = if (now.toLocalTime() < LocalTime.NOON) {
+        now.toLocalDate().atTime(12, 0)
+    } else {
+        now.toLocalDate().plusDays(1).atTime(12, 0)
+    }
+    // Midnight also refreshes journal anchors, which retain their civil dates; the
+    // medication-day boundary refreshes the day split.
+    return minOf(midnight, nextBoundary, noon)
 }
 
 internal fun scheduleNextWidgetDateRefresh(

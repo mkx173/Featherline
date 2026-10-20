@@ -64,7 +64,7 @@ internal fun buildMedicationReminderBundle(
     scheduledAt: LocalDateTime,
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): MedicationReminderBundle? {
     val items = groups
         .sortedBy(MedicationGroup::createdAt)
@@ -89,6 +89,7 @@ internal fun buildMedicationReminderBundle(
                     scheduledFor = occurrence.scheduledFor,
                 ),
                 entries = entries,
+                boundary = boundary,
             )
         }
         .mapNotNull { (group, occurrence) ->
@@ -102,6 +103,7 @@ internal fun buildMedicationReminderBundle(
                     slot = slotKey,
                     medication = medication,
                     entries = entries,
+                    boundary = boundary,
                 )
             }
             // The slot-level filter above already established that at least

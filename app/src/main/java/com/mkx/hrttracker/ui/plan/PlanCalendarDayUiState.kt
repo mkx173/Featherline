@@ -88,13 +88,14 @@ fun buildPlanCalendarDayUiState(
                     group = group,
                     slot = slot,
                     entries = dayEntries,
-                    zoneId = zoneId
+                    zoneId = zoneId,
+                    boundary = boundary,
                 )
             }
         }
         val matchedOccurrenceCount = scheduledSlotsByGroup.entries.sumOf { (group, slots) ->
             slots.count { slot ->
-                isSlotFulfilled(group, slot, dayEntries, zoneId)
+                isSlotFulfilled(group, slot, dayEntries, zoneId, boundary)
             }
         }.coerceAtMost(expectedOccurrenceCount)
 

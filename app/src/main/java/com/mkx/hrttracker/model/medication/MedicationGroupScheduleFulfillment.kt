@@ -9,7 +9,7 @@ fun MedicationGroup.previousScheduledForBefore(
     scheduledFor: LocalDateTime,
     lookbackDays: Long = MaxLookbackForAdjacentDoseDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): LocalDateTime? {
     return occurrencesBetweenInPlanWindow(
         startDate = scheduledFor.toLocalDate().minusDays(lookbackDays),
@@ -26,7 +26,7 @@ fun MedicationGroup.previousScheduledForBefore(
 fun MedicationGroup.nextScheduledForAfter(
     scheduledFor: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): LocalDateTime? {
     return nextOccurrencesInPlanWindowFrom(
         start = scheduledFor.plusNanos(1),

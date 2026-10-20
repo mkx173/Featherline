@@ -135,10 +135,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
                     relatedEntryCount = 0,
                     plannedEntryCount = 0,
+                    boundary = boundary,
                 ) ?: MedicationGroupEditorUiState(
                     editingGroupId = editingGroupId,
                     isLoadingGroupForEditing = editingGroupUuid != null,
                     sinceDate = defaultDay,
+                    medicationDayBoundary = boundary,
                     weeklyDaysOfWeek = setOf(defaultScheduleDateTime.toLocalDate().dayOfWeek),
                     weeklyTime = defaultScheduleDateTime.toLocalTime(),
                     dailyTimes = listOf(
@@ -1782,7 +1784,7 @@ private fun MedicationGroup.toEditorState(
     relatedEntryCount: Int,
     plannedEntryCount: Int,
     currentOrFuturePlannedSlotCount: Int = 0,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): MedicationGroupEditorUiState {
     val normalizedScheduleTimeSlots = schedule.timeSlots
         .ifEmpty {
@@ -2240,7 +2242,7 @@ data class MedicationGroupEditorUiState(
     val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    val medicationDayBoundary: MedicationDayBoundary,
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
     val hasUserCustomizedWeeklyDays: Boolean = false,

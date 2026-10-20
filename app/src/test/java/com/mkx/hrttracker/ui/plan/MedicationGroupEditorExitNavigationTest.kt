@@ -1,4 +1,5 @@
 package com.mkx.hrttracker.ui.plan
+import com.mkx.hrttracker.util.MedicationDayBoundary
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +20,9 @@ class MedicationGroupEditorExitNavigationTest {
     fun editorStaysPut_whileNoCompletionFlagIsSet() {
         assertNull(
             resolveMedicationGroupEditorExitNavigationTarget(
-                uiState = MedicationGroupEditorUiState(),
+                uiState = MedicationGroupEditorUiState(
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                ),
                 openedFromArchivedGroupsPage = false,
             )
         )
@@ -34,6 +37,7 @@ class MedicationGroupEditorExitNavigationTest {
                 uiState = MedicationGroupEditorUiState(
                     isSaving = true,
                     isDeleting = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 openedFromArchivedGroupsPage = false,
             )
@@ -45,6 +49,7 @@ class MedicationGroupEditorExitNavigationTest {
         val finishedState = MedicationGroupEditorUiState(
             isDeleted = true,
             isFinishingAfterDeleteOrArchive = true,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -64,6 +69,7 @@ class MedicationGroupEditorExitNavigationTest {
                 uiState = MedicationGroupEditorUiState(
                     isSaved = true,
                     isFinishingAfterSave = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 openedFromArchivedGroupsPage = false,
             )
@@ -77,7 +83,9 @@ class MedicationGroupEditorExitNavigationTest {
         // after the confirm dialog closes cannot navigate away mid-delete.
         assertTrue(
             isMedicationGroupEditorNavigationLocked(
-                MedicationGroupEditorUiState(isDeleting = true)
+                MedicationGroupEditorUiState(isDeleting = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                )
             )
         )
         assertTrue(
@@ -85,12 +93,15 @@ class MedicationGroupEditorExitNavigationTest {
                 MedicationGroupEditorUiState(
                     isDeleted = true,
                     isFinishingAfterDeleteOrArchive = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
         )
         assertTrue(
             isMedicationGroupEditorNavigationLocked(
-                MedicationGroupEditorUiState(isSaving = true)
+                MedicationGroupEditorUiState(isSaving = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                )
             )
         )
     }
@@ -101,11 +112,15 @@ class MedicationGroupEditorExitNavigationTest {
         // trap the user on the editor.
         assertFalse(
             isMedicationGroupEditorNavigationLocked(
-                MedicationGroupEditorUiState(isLoadingGroupForEditing = true)
+                MedicationGroupEditorUiState(isLoadingGroupForEditing = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                )
             )
         )
         assertFalse(
-            isMedicationGroupEditorNavigationLocked(MedicationGroupEditorUiState())
+            isMedicationGroupEditorNavigationLocked(MedicationGroupEditorUiState(
+                medicationDayBoundary = MedicationDayBoundary.Midnight,
+            ))
         )
     }
 
@@ -118,6 +133,7 @@ class MedicationGroupEditorExitNavigationTest {
                     isSaved = true,
                     isFinishingAfterSave = true,
                     isArchived = false,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 openedFromArchivedGroupsPage = true,
             )

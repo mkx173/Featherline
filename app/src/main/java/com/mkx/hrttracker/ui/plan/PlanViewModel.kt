@@ -227,7 +227,7 @@ internal fun buildNextOccurrencesByGroup(
     start: LocalDateTime,
     limit: Int,
     lookaheadDays: Long = 90L,
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    boundary: MedicationDayBoundary,
 ): Map<UUID, List<LocalDateTime>> {
     return groups.associate { group ->
         group.uuid to group
@@ -245,7 +245,8 @@ internal fun buildNextOccurrencesByGroup(
                         scheduleTimeUuid = occurrence.scheduleTimeUuid,
                         scheduledFor = occurrence.scheduledFor,
                     ),
-                    entries = entries
+                    entries = entries,
+                    boundary = boundary,
                 )
             }
             .take(limit)

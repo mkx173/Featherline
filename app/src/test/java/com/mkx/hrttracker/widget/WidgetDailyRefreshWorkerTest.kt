@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.widget
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.data.repository.E2Derivation
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.E2InputsRecord
@@ -13,6 +12,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.e2Inputs
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
@@ -63,6 +63,7 @@ class WidgetDailyRefreshWorkerTest {
             generation = 0L,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = zoneId.id,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),

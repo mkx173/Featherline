@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +23,7 @@ class MedicationGroupEditorLockedScheduleTimeNoteTest {
                 )
             ),
             originalDailyTimes = listOf(LocalTime.of(8, 0)),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(shouldShowLockedScheduleTimeNote(uiState))
@@ -45,6 +47,7 @@ class MedicationGroupEditorLockedScheduleTimeNoteTest {
                 ),
             ),
             originalDailyTimes = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertFalse(shouldShowLockedScheduleTimeNote(uiState))
@@ -68,6 +71,7 @@ class MedicationGroupEditorLockedScheduleTimeNoteTest {
                 ),
             ),
             originalDailyTimes = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(shouldShowLockedScheduleTimeNote(uiState))
@@ -84,6 +88,7 @@ class MedicationGroupEditorLockedScheduleTimeNoteTest {
             originalWeeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
             weeklyTime = LocalTime.of(10, 0),
             originalWeeklyTime = LocalTime.of(8, 0),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(shouldShowLockedScheduleTimeNote(uiState))

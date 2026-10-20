@@ -168,7 +168,10 @@ class HistoryViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
+        initialValue = initialHistoryUiState(
+            today = currentDateTime.value.toLocalDate(),
+            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
+        )
     )
 
     fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
@@ -341,10 +344,11 @@ class HistoryViewModel @Inject constructor(
     }
 }
 
-private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
+private fun initialHistoryUiState(today: LocalDate, boundary: MedicationDayBoundary): HistoryUiState {
     val currentMonth = YearMonth.from(today)
     return HistoryUiState(
         today = today,
+        medicationDayBoundary = boundary,
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
@@ -354,7 +358,7 @@ private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
 data class HistoryUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    val medicationDayBoundary: MedicationDayBoundary,
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,

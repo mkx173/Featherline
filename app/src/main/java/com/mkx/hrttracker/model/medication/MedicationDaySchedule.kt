@@ -91,6 +91,7 @@ fun buildPlanDaySchedule(
                         slot = slot,
                         entry = entry,
                         zoneId = zoneId,
+                        boundary = boundary,
                     )
                 }
                 val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
@@ -100,6 +101,7 @@ fun buildPlanDaySchedule(
                             group = group,
                             entry = entry,
                             zoneId = zoneId,
+                            boundary = boundary,
                         )
                     }
                     .groupBy(MedicationSignature::fromLogEntry)

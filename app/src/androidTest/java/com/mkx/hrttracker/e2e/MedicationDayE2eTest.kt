@@ -34,6 +34,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.HomeE2Estimate
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.model.home.HomeCardType
@@ -43,8 +44,11 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.RunwayProjection
+import com.mkx.hrttracker.widget.WidgetDoseChip
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -53,16 +57,21 @@ import com.mkx.hrttracker.testing.E2eEntryPoint
 import com.mkx.hrttracker.util.dateLabelFormatter
 import dagger.hilt.android.EntryPointAccessors
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -488,6 +497,199 @@ class MedicationDayE2eTest {
         assertEquals(day.plusDays(1).toString(), io { entryPoint.journalRepository().getNoteEntities().single().dateIso })
     }
 
+    @Test
+    fun lateDoseFulfillsFourAmIntervalPlan() {
+        boundary(true)
+        device.setTime(day.plusDays(1).atTime(20, 0))
+        val medicine = medicine("Interval dose")
+        val group = group(medicine, listOf(LocalTime.of(1, 0)), interval = 2)
+        val scheduled = day.plusDays(1).atTime(1, 0)
+        log(medicine, day.plusDays(1).atTime(20, 0), group, scheduled)
+
+        tab(R.string.tab_plan)
+        if (compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithContentDescription(text(R.string.plan_previous_week))
+                .performSemanticsAction(SemanticsActions.OnClick)
+        }
+        await { compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("plan_calendar_day_$day").performClick()
+        awaitText("1/1")
+        compose.onNodeWithText("0/1", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun stockRunwayUsesFourAmIntervalPlan() {
+        boundary(true)
+        val now = day.plusDays(1).atTime(6, 0)
+        device.setTime(now)
+        val medicine = medicine("Runway dose")
+        group(medicine, listOf(LocalTime.of(1, 0)), interval = 2)
+        io {
+            entryPoint.medicineRepository().enableTracking(
+                uuid = medicine.uuid,
+                initialUnitsRemaining = 1.0,
+                initialOpenContainerAmount = null,
+                initialUnitsLastTotal = 1.0,
+                now = now.atZone(ZoneId.systemDefault()).toInstant(),
+            )
+        }
+
+        val runway = io {
+            entryPoint.medicineStockRepository().projectAllOnce(
+                now = now.atZone(ZoneId.systemDefault()).toInstant(),
+                zoneId = ZoneId.systemDefault(),
+            ).single { projection -> projection.medicine.uuid == medicine.uuid }.runway
+        }
+
+        assertEquals(
+            RunwayProjection.Days(days = 0, lastFulfillable = day.plusDays(1)),
+            runway,
+        )
+    }
+
+    @Test
+    fun pkPlannedDosesUseFourAmIntervalPlan() {
+        boundary(true)
+        val now = day.plusDays(1).atTime(6, 0)
+        device.setTime(now)
+        val estradiol = io {
+            entryPoint.medicineRepository().findOrCreateForCatalog(
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            )
+        }
+        group(estradiol, listOf(LocalTime.of(1, 0)), interval = 2)
+        io { entryPoint.homeSnapshotRepository().rebuildNow() }
+
+        val estimate = io {
+            withTimeout(20_000) {
+                entryPoint.e2EstimateRepository()
+                    .observeHome(flowOf(now))
+                    .first { state -> state.value != null }
+                    .value!!
+            }
+        }
+
+        fun plannedDoseTimes(estimate: HomeE2Estimate): List<LocalDateTime> =
+            estimate.projection.doseMarkers
+                .filter { marker -> marker.isPlanned }
+                .map { marker ->
+                    estimate.projection.windowStart
+                        .plusSeconds(Math.round(marker.timeH * 3_600.0))
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDateTime()
+                }
+
+        fun hasDoseAt(times: List<LocalDateTime>, expected: LocalDateTime): Boolean =
+            times.any { actual ->
+                Duration.between(actual, expected).abs() <= Duration.ofMinutes(2)
+            }
+
+        val fourAmDoseTimes = plannedDoseTimes(estimate)
+        assertTrue(
+            "Expected a planned dose at ${day.plusDays(3).atTime(1, 0)}; got $fourAmDoseTimes",
+            hasDoseAt(fourAmDoseTimes, day.plusDays(3).atTime(1, 0)),
+        )
+        assertFalse(
+            "Calendar-day planned dose leaked into FourAm: $fourAmDoseTimes",
+            hasDoseAt(fourAmDoseTimes, day.plusDays(2).atTime(1, 0)),
+        )
+
+        // Toggling the boundary must rebuild the cached planned slots on its
+        // own: no rebuildNow() here, the estimate has to follow the setting.
+        boundary(false)
+        val midnightEstimate = io {
+            withTimeout(20_000) {
+                entryPoint.e2EstimateRepository()
+                    .observeHome(flowOf(now))
+                    .first { state ->
+                        val times = state.value?.let { value -> plannedDoseTimes(value) }.orEmpty()
+                        hasDoseAt(times, day.plusDays(2).atTime(1, 0)) &&
+                            !hasDoseAt(times, day.plusDays(3).atTime(1, 0))
+                    }
+                    .value!!
+            }
+        }
+        val midnightDoseTimes = plannedDoseTimes(midnightEstimate)
+        assertTrue(
+            "Expected the rebuilt plan to move the dose to ${day.plusDays(2).atTime(1, 0)}; " +
+                "got $midnightDoseTimes",
+            hasDoseAt(midnightDoseTimes, day.plusDays(2).atTime(1, 0)),
+        )
+        assertFalse(
+            "FourAm planned dose survived the toggle: $midnightDoseTimes",
+            hasDoseAt(midnightDoseTimes, day.plusDays(3).atTime(1, 0)),
+        )
+    }
+
+    @Test
+    fun widgetComingUpMirrorsManualAndArchivedRows() {
+        boundary(false)
+        device.setTime(day.plusDays(1).atTime(20, 0))
+
+        val manualMedicine = medicine("Manual midnight")
+        log(manualMedicine, day.plusDays(2).atTime(0, 30))
+
+        val archivedMedicine = medicine("Archived midnight")
+        val archivedGroup = group(archivedMedicine, listOf(LocalTime.of(0, 30)))
+        io {
+            entryPoint.medicationGroupRepository().archiveGroup(
+                uuid = archivedGroup.uuid,
+                boundary = MedicationDayBoundary.Midnight,
+            )
+        }
+        log(
+            medicine = archivedMedicine,
+            time = day.plusDays(2).atTime(0, 35),
+            group = archivedGroup,
+            scheduled = day.plusDays(2).atTime(0, 30),
+        )
+        io { entryPoint.homeSnapshotRepository().rebuildNow() }
+
+        E2eWidgetHost(context).use { host ->
+            host.attach(scenario!!)
+            EmulatorDeviceState.waitFor("widget coming up rows", 20_000) {
+                val rows = io {
+                    entryPoint.widgetSnapshotStore().readSnapshot()?.doseRows
+                        ?.filter { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+                        .orEmpty()
+                }
+                rows.size == 2 &&
+                    rows.any { row -> row.isManualRecord } &&
+                    rows.any { row -> row.isFromArchivedGroup }
+            }
+        }
+    }
+
+    @Test
+    fun widgetDropsLastNightAtNoon() {
+        boundary(true)
+        device.setTime(day.plusDays(1).atTime(11, 59, 50))
+        val medicine = medicine("Last night dose")
+        val group = group(medicine, listOf(LocalTime.of(20, 0)))
+        log(medicine, day.atTime(20, 0), group, day.atTime(20, 0))
+        io { entryPoint.homeSnapshotRepository().rebuildNow() }
+
+        E2eWidgetHost(context).use { host ->
+            host.attach(scenario!!)
+            EmulatorDeviceState.waitFor("last night row before noon", 20_000) {
+                io {
+                    entryPoint.widgetSnapshotStore().readSnapshot()?.doseRows
+                        ?.any { row -> row.contextChip == WidgetDoseChip.LAST_NIGHT } == true
+                }
+            }
+            EmulatorDeviceState.waitFor("last night removed at noon", 25_000) {
+                val snapshot = io { entryPoint.widgetSnapshotStore().readSnapshot() }
+                snapshot != null && snapshot.doseRows.none { row ->
+                    row.contextChip == WidgetDoseChip.LAST_NIGHT
+                }
+            }
+            EmulatorDeviceState.waitFor("widget last night header removed", 20_000) {
+                !host.visibleTexts().any { label -> label == text(R.string.widget_last_night) }
+            }
+        }
+    }
+
     private fun launch() {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         await { compose.onAllNodesWithTag("main_today_section").fetchSemanticsNodes().isNotEmpty() }
@@ -551,12 +753,18 @@ class MedicationDayE2eTest {
         entryPoint.medicineRepository().findOrCreateForCustom(name, null, MedicationCategory.CUSTOM, MedicinePreparation.Pill(1.0))
     }
 
-    private fun group(medicine: Medicine, times: List<LocalTime>, weekdays: Set<DayOfWeek> = emptySet(), notifications: Boolean = false): MedicationGroup = io {
+    private fun group(
+        medicine: Medicine,
+        times: List<LocalTime>,
+        weekdays: Set<DayOfWeek> = emptySet(),
+        notifications: Boolean = false,
+        interval: Int = 1,
+    ): MedicationGroup = io {
         val uuid = entryPoint.medicationGroupRepository().saveGroup(
             uuid = null, name = "E2E plan", colorKey = MedicationGroupColorKey.ROSE,
             schedule = MedicationGroupScheduleInput(
                 if (weekdays.isEmpty()) MedicationGroupScheduleType.DAILY else MedicationGroupScheduleType.WEEKLY,
-                1, day.minusDays(2), weekdays, times,
+                interval, day.minusDays(2), weekdays, times,
             ),
             medications = listOf(MedicationGroupMedicationInput(medicineUuid = medicine.uuid, applicationType = MedicationApplicationType.ORAL, doseInstruction = dose)),
             notificationsEnabled = notifications,

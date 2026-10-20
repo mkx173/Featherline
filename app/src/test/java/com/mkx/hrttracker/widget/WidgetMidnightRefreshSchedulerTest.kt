@@ -55,12 +55,29 @@ class WidgetMidnightRefreshSchedulerTest {
             nextWidgetDateRefreshAt(midnight.withHour(1), MedicationDayBoundary.FourAm),
         )
         assertEquals(
-            midnight.plusDays(1),
+            midnight.withHour(12),
             nextWidgetDateRefreshAt(midnight.withHour(5), MedicationDayBoundary.FourAm),
         )
         assertEquals(
-            midnight.plusDays(1),
+            midnight.withHour(12),
             nextWidgetDateRefreshAt(midnight, MedicationDayBoundary.Midnight),
+        )
+    }
+
+    @Test
+    fun nextRefreshIncludesNoonForLastNightVisibility() {
+        val now = LocalDateTime.of(2026, 10, 1, 11, 55)
+        assertEquals(
+            now.toLocalDate().atTime(12, 0),
+            nextWidgetDateRefreshAt(now, MedicationDayBoundary.FourAm),
+        )
+        assertEquals(
+            now.toLocalDate().atTime(12, 0),
+            nextWidgetDateRefreshAt(now, MedicationDayBoundary.Midnight),
+        )
+        assertEquals(
+            now.toLocalDate().plusDays(1).atStartOfDay(),
+            nextWidgetDateRefreshAt(now.withHour(13), MedicationDayBoundary.Midnight),
         )
     }
 

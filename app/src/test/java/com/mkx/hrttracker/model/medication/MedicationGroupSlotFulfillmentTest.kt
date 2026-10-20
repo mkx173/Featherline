@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
@@ -52,7 +53,8 @@ class MedicationGroupSlotFulfillmentTest {
                 group = group,
                 date = scheduledFor.toLocalDate(),
                 time = scheduledFor.toLocalTime(),
-                entries = listOf(firstEntry)
+                entries = listOf(firstEntry),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -61,7 +63,8 @@ class MedicationGroupSlotFulfillmentTest {
                 group = group,
                 date = scheduledFor.toLocalDate(),
                 time = scheduledFor.toLocalTime(),
-                entries = listOf(firstEntry, secondEntry)
+                entries = listOf(firstEntry, secondEntry),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -101,7 +104,8 @@ class MedicationGroupSlotFulfillmentTest {
                         scheduledFor = scheduledFor,
                         count = 1
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -118,7 +122,8 @@ class MedicationGroupSlotFulfillmentTest {
                         scheduledFor = scheduledFor,
                         count = 2
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -156,7 +161,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.plusHours(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -172,7 +178,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.plusHours(1).minusSeconds(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -188,7 +195,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.minusHours(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -204,7 +212,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.minusHours(1).plusSeconds(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -220,7 +229,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.minusHours(1).minusMinutes(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
@@ -236,7 +246,8 @@ class MedicationGroupSlotFulfillmentTest {
                         appliedAt = scheduledFor.plusHours(1).plusMinutes(1),
                         scheduledFor = scheduledFor
                     )
-                )
+                ),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -285,6 +296,7 @@ class MedicationGroupSlotFulfillmentTest {
                 date = scheduledFor.toLocalDate(),
                 time = scheduledFor.toLocalTime(),
                 entries = listOf(entry),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -334,6 +346,7 @@ class MedicationGroupSlotFulfillmentTest {
                 date = scheduledFor.toLocalDate(),
                 time = scheduledFor.toLocalTime(),
                 entries = listOf(entry),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }

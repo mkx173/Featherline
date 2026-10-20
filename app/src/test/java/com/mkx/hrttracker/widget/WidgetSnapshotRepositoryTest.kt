@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.widget
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.content.Context
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.E2InputsRecord
@@ -13,6 +12,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
@@ -295,6 +295,7 @@ class WidgetSnapshotRepositoryTest {
             generation = generation,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = tag,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),

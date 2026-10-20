@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.plan
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -19,6 +18,7 @@ import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -769,6 +769,7 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -820,6 +821,7 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }

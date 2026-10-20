@@ -129,6 +129,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.components.updateSelectionFabScrollState
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
@@ -2540,6 +2541,7 @@ private fun buildHistoryPreviewUiState(
     return HistoryUiState(
         isLoading = false,
         entries = entries,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         medicationGroups = groups,
         calendarStartMonth = month.minusMonths(1),
         calendarEndMonth = month,

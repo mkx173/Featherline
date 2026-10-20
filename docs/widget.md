@@ -414,8 +414,9 @@ graph TD
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the earlier of the next local midnight and 04:00 when the
-  medication day ends at 04:00. A reboot clears that exact alarm, so the
+  for the earlier of the next local midnight, the medication-day
+  boundary (04:00 when the switch is on), and noon, when `Last night`
+  stops being visible. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and, under `goAsync()`, waits for `rebuildNow()` within its budget,
   again leaning on the cache observer to fan out; out of budget, the

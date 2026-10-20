@@ -68,11 +68,11 @@ Coverage includes:
 | Area | Scenarios |
 | --- | --- |
 | Settings | Switch persistence, recreation and activity relaunch |
-| Boundaries | Default midnight, 04:00 switch, exact boundary and the preceding second |
+| Boundaries | Default midnight, 04:00 switch, exact boundary and the preceding second; fulfillment-window neighbours, stock runway and planned PK doses for daily intervals above 1 |
 | Home and plans | Midnight-last ordering, plain times, no duplicated context rows, quick-log confirmation, completion counts, weekly recurrence |
 | History | Manual versus linked records, regrouping existing records, edit/delete, archive visibility, month/year transitions and stored entry timezone |
 | Lifecycle | Natural foreground tick across the boundary, background clock change and relaunch |
-| System integration | Actual 01:00 notification delivery; real Android widget host, rendered counts and boundary refresh |
+| System integration | Actual 01:00 notification delivery; real Android widget host, rendered counts, boundary refresh, Coming up parity with manual and archived rows, and Last night removal at noon |
 | Persistence | Encrypted backup restore and a legacy backup without the switch field |
 | Other date features | Journal notes retain their civil day |
 

@@ -55,6 +55,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -215,6 +216,8 @@ data class E2InputsRecord(
     val generation: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
+    /** The medication-day boundary the run planned its slots under. */
+    val medicationDayBoundary: MedicationDayBoundary,
     /** Home's chart window when the run read it: the one its estimates cover. */
     val option: HomeE2ChartWindowOption,
     /** Current Weight; unset falls back to the app default. */
@@ -369,6 +372,7 @@ internal object HomeSnapshotCodec {
         writeLong(record.generation)
         writeLong(record.anchorDateEpochDay)
         writeString(record.zoneId)
+        writeString(record.medicationDayBoundary.name)
         writeString(record.option.name)
         writeNullableDouble(record.weightKg)
         writePooledMedicationLogEntries(record.estradiolEntries)
@@ -393,6 +397,7 @@ internal object HomeSnapshotCodec {
             generation = readLong(),
             anchorDateEpochDay = readLong(),
             zoneId = readString(),
+            medicationDayBoundary = MedicationDayBoundary.valueOf(readString()),
             option = HomeE2ChartWindowOption.valueOf(readString()),
             weightKg = readNullableDouble(),
             estradiolEntries = readPooledMedicationLogEntries(),
@@ -1353,7 +1358,7 @@ private const val TAG = "HomeSnapshotStore"
 private const val SNAPSHOT_CODEC_VERSION = 29
 // The E2 inputs record's own version, separate from the snapshot's. A bump
 // drops the inputs part, fit included, so the next run re-solves.
-private const val E2_INPUTS_CODEC_VERSION = 1
+private const val E2_INPUTS_CODEC_VERSION = 2
 // The Home E2 estimate record's own version, separate from the snapshot's.
 private const val HOME_E2_ESTIMATE_CODEC_VERSION = 1
 private const val FIT_OUTCOME_SOLVED = 0
