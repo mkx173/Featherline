@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,18 @@ class WidgetDateReceiver : BroadcastReceiver() {
         )
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
         diagnosticsLogger.info(TAG, "widget_date_receiver_received action=$action")
+        // Arm a fallback before the timed block: if the settings read is slow on
+        // BOOT_COMPLETED, the next midnight still gets an alarm.
+        runCatching {
+            armWidgetDateRefresh(
+                context = context.applicationContext,
+                boundary = MedicationDayBoundary.Midnight,
+                diagnosticsLogger = diagnosticsLogger,
+            )
+        }.onFailure {
+            if (it is kotlinx.coroutines.CancellationException) throw it
+            diagnosticsLogger.warning(TAG, "widget_date_refresh_fallback_failed", it)
+        }
         // One overall bound for every DB-touching step: the home refresh blocks unbounded
         // on the database open, and the anchor steps each run their own 5s await — on a
         // hung SQLCipher open the sequence exceeds the ~10s goAsync allowance (system kills
@@ -38,7 +51,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // blocking open can't be interrupted, but cancelling here lets the receiver finish
         // inside its budget while the open resolves on its own thread.
         val completed = kotlinx.coroutines.withTimeoutOrNull(HANDLE_BUDGET_MS) {
-            armNextWidgetDateRefresh(
+            armWidgetDateRefreshFromSettings(
                 context = context.applicationContext,
                 entryPoint = entryPoint,
                 diagnosticsLogger = diagnosticsLogger,
@@ -80,22 +93,22 @@ class WidgetDateReceiver : BroadcastReceiver() {
         diagnosticsLogger.info(TAG, "widget_date_receiver_complete action=$action")
     }
 
-    private suspend fun armNextWidgetDateRefresh(
+    private suspend fun armWidgetDateRefreshFromSettings(
         context: Context,
         entryPoint: WidgetEntryPoint,
         diagnosticsLogger: AppDiagnosticsLogger,
     ) {
-        val dayStartMinutes = runCatching {
-            entryPoint.settingsRepository().getCurrentSettings().medicationDayStartMinutes
+        val boundary = runCatching {
+            entryPoint.settingsRepository().getCurrentSettings().medicationDayBoundary
         }.onFailure {
             if (it is kotlinx.coroutines.CancellationException) throw it
-            diagnosticsLogger.warning(TAG, "widget_day_start_read_failed", it)
-        }.getOrDefault(0)
+            diagnosticsLogger.warning(TAG, "widget_day_boundary_read_failed", it)
+        }.getOrDefault(MedicationDayBoundary.Midnight)
         runCatching {
-            scheduleNextWidgetDateRefresh(
+            armWidgetDateRefresh(
                 context = context,
+                boundary = boundary,
                 diagnosticsLogger = diagnosticsLogger,
-                dayStartMinutes = dayStartMinutes,
             )
         }.onFailure {
             if (it is kotlinx.coroutines.CancellationException) throw it
