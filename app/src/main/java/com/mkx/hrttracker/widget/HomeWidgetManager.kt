@@ -111,31 +111,47 @@ class HomeWidgetManager @Inject constructor(
 
         // Rebuild only the widget snapshot when widget-facing settings change.
         appScope.launch {
+            var armedBoundary = startupBoundary
             settingsRepository.settingsState
-                .map { settings ->
+                // The first emission can land after the cached startup arm; arm it
+                // only when it disagrees, so startup arms once and a late load still wins.
+                .onEach { settings ->
+                    if (settings.medicationDayBoundary != armedBoundary) {
+                        armedBoundary = settings.medicationDayBoundary
+                        runCatching {
+                            armWidgetDateRefresh(
+                                context = context,
+                                boundary = settings.medicationDayBoundary,
+                                diagnosticsLogger = diagnosticsLogger,
+                            )
+                        }.onFailure { throwable ->
+                            if (throwable is CancellationException) throw throwable
+                            diagnosticsLogger.warning(
+                                TAG,
+                                "widget_date_refresh_settings_failed",
+                                throwable
+                            )
+                        }
+                    }
+                }
+                .distinctUntilChangedBy { settings ->
                     listOf(
                         settings.hideMedicationDetails,
                         settings.adaptiveColorEnabled,
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
                         settings.showArchivedGroupRecords,
-                        settings.medicationDayStartMinutes,
+                        settings.medicationDayEndsAtFourAm,
                     )
                 }
-                .distinctUntilChanged()
                 .drop(1)
                 // Terminal guard: keep an upstream failure off the handler-less appScope
                 // (see the home-snapshot collector above).
                 .catch { throwable ->
                     diagnosticsLogger.warning(TAG, "widget_snapshot_settings_stream_failed", throwable)
                 }
-                .collect {
+                .collect { _ ->
                     runCatching {
-                        scheduleNextWidgetDateRefresh(
-                            context,
-                            diagnosticsLogger = diagnosticsLogger,
-                            dayStartMinutes = settingsRepository.getCurrentSettings().medicationDayStartMinutes,
-                        )
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
                         if (throwable is CancellationException) throw throwable
