@@ -12,9 +12,9 @@ import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
-import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,6 @@ import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
@@ -113,15 +112,16 @@ class HistoryViewModel @Inject constructor(
         } else {
             activeGroups
         }
-        val today = medicationDay(now, settingsState.medicationDayBoundary)
+        val boundary = settingsState.medicationDayBoundary
+        val today = medicationDay(now, boundary)
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
-            YearMonth.from(entry.planCalendarDate(settingsState.medicationDayBoundary, ZoneId.systemDefault()))
+            YearMonth.from(entry.planCalendarDate(boundary))
         }
         val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
             YearMonth.from(
                 group.schedule.times.minOrNull()?.let { time ->
-                    medicationDay(group.schedule.since.atTime(time), settingsState.medicationDayBoundary)
+                    medicationDay(group.schedule.since.atTime(time), boundary)
                 } ?: group.schedule.since
             )
         }

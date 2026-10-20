@@ -128,6 +128,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private var latestGroups: List<MedicationGroup> = emptyList()
     private val _uiState = MutableStateFlow(
         run {
+            val defaultDay = medicationDay(
+                defaultScheduleDateTime,
+                settingsRepository.settingsState.value.medicationDayBoundary,
+            )
             val baseState = cachedEditingGroup?.toEditorState(
                 remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
                 relatedEntryCount = 0,
@@ -135,16 +139,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             ) ?: MedicationGroupEditorUiState(
                 editingGroupId = editingGroupId,
                 isLoadingGroupForEditing = editingGroupUuid != null,
-                sinceDate = medicationDay(
-                    defaultScheduleDateTime,
-                    settingsRepository.settingsState.value.medicationDayBoundary,
-                ),
-                weeklyDaysOfWeek = setOf(
-                    medicationDay(
-                        defaultScheduleDateTime,
-                        settingsRepository.settingsState.value.medicationDayBoundary,
-                    ).dayOfWeek
-                ),
+                sinceDate = defaultDay,
+                weeklyDaysOfWeek = setOf(defaultDay.dayOfWeek),
                 weeklyTime = defaultScheduleDateTime.toLocalTime(),
                 dailyTimes = listOf(
                     MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
@@ -283,17 +279,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 appTimeSource.currentSnapshot,
                 settingsRepository.settingsState,
             ) { entriesOrNull, currentEditingGroupId, timeSnapshot, settings ->
-                entryCountsForGroup(
-                    entries = entriesOrNull.orEmpty(),
-                    groupId = currentEditingGroupId,
-                    currentMinute = timeSnapshot.minute,
-                    boundary = settings.medicationDayBoundary,
-                    zoneId = timeSnapshot.zone,
-                    areEntriesLoaded = entriesOrNull != null,
-                ) to (timeSnapshot to settings.medicationDayBoundary)
+                Triple(
+                    entryCountsForGroup(
+                        entries = entriesOrNull.orEmpty(),
+                        groupId = currentEditingGroupId,
+                        currentMinute = timeSnapshot.minute,
+                        boundary = settings.medicationDayBoundary,
+                        zoneId = timeSnapshot.zone,
+                        areEntriesLoaded = entriesOrNull != null,
+                    ),
+                    timeSnapshot,
+                    settings.medicationDayBoundary,
+                )
             }
-                .collect { (counts, timeAndBoundary) ->
-                    val (timeSnapshot, boundary) = timeAndBoundary
+                .collect { (counts, timeSnapshot, boundary) ->
                     _uiState.update {
                         val shouldLockRecreatedStartDate =
                             it.recreatedFromGroupId != null &&
@@ -1677,16 +1676,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
         return runCatching {
             val savedGroup = medicationGroupRepository.getGroup(groupUuid)
                 ?: throw NoSuchElementException("Medication group $groupUuid was not found.")
+            val boundary = settingsRepository.settingsState.value.medicationDayBoundary
             val entriesToSave = buildPlanBatchAddEntries(
                 group = savedGroup,
                 existingEntries = medicationLogRepository.getEntries(),
                 startDate = savedGroup.schedule.since,
-                endDate = medicationDay(
-                    now,
-                    settingsRepository.settingsState.value.medicationDayBoundary,
-                ),
+                endDate = medicationDay(now, boundary),
                 now = now,
-                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
+                boundary = boundary,
                 zoneId = ZoneId.systemDefault(),
             )
             medicationLogRepository.saveBackfillEntries(entriesToSave)

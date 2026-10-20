@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -78,11 +79,11 @@ import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.medicationDayTimeText
 import java.time.DayOfWeek
 import java.time.Instant
@@ -94,7 +95,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
-import androidx.compose.ui.platform.LocalContext
 
 internal val SelectedDayRowIndicatorSlotSize = 14.dp
 internal val SelectedDayCrossZoneIndicatorGlyphSize = 13.dp
@@ -388,7 +388,7 @@ private fun SelectedDayRow(
             medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, timeFormatter)
         }
 
-        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(row.entry), date, timeFormatter)
+        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, timeFormatter)
     }
     val isCrossZoneRow = when (row) {
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)

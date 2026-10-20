@@ -1107,7 +1107,8 @@
 
     <string name="settings_medication_day_ends_at_four_am">Day ends at 04:00</string>
     <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count toward the previous day.</string>
-        <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+
+    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>
     <string name="calibration_pk_global_no_dose_history_body">The population estimate is shown until you add an estradiol dose.</string>
     <string name="calibration_pk_global_no_usable_labs_title">Add a test result</string>

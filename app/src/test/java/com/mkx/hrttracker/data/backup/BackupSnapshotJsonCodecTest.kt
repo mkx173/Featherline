@@ -13,6 +13,19 @@ class BackupSnapshotJsonCodecTest {
     // path must still extract `snapshotVersion` so the restore flow can raise
     // the intended unsupported-version error.
     @Test
+    fun peekSnapshotVersion_extractsVersionFromV1ShapeMissingMedicines() {
+        val v1Json = """
+            {
+              "snapshotVersion": 1,
+              "exportedAtEpochMillis": 0,
+              "app": { "packageName": "com.mkx.hrttracker" }
+            }
+        """.trimIndent()
+
+        assertEquals(1, BackupSnapshotJsonCodec.peekSnapshotVersion(v1Json))
+    }
+
+    @Test
     fun roundTrip_preservesMedicationDayBoundaryAndOldBackupsDefaultToMidnight() {
         val snapshot = baselineSnapshot().let {
             it.copy(settings = it.settings.copy(medicationDayEndsAtFourAm = true))
@@ -27,19 +40,6 @@ class BackupSnapshotJsonCodecTest {
             false,
             BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayEndsAtFourAm,
         )
-    }
-
-    @Test
-    fun peekSnapshotVersion_extractsVersionFromV1ShapeMissingMedicines() {
-        val v1Json = """
-            {
-              "snapshotVersion": 1,
-              "exportedAtEpochMillis": 0,
-              "app": { "packageName": "com.mkx.hrttracker" }
-            }
-        """.trimIndent()
-
-        assertEquals(1, BackupSnapshotJsonCodec.peekSnapshotVersion(v1Json))
     }
 
     @Test

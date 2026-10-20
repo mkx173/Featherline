@@ -179,12 +179,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
-import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.floor
@@ -3401,6 +3401,8 @@ internal fun MainTodaySection(
     modifier: Modifier = Modifier
 ) {
     val groupedRows = remember(section.rows) { mainTodayDoseRowGroups(section.rows) }
+    val nowDate = now.toLocalDate()
+    val nowTimeRange = MedicationDayTimeRange.of(now.toLocalTime())
     val countLabel = mainTodayCountLabel(
         doneCount = section.doneCount,
         totalCount = section.totalCount,
@@ -3437,8 +3439,8 @@ internal fun MainTodaySection(
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MedicationDayTimeRangeHeader(
                         timeRange = timeRange,
-                        isCurrent = rows.first().scheduledAt.toLocalDate() == now.toLocalDate() &&
-                            timeRange == MedicationDayTimeRange.of(now.toLocalTime()),
+                        isCurrent = rows.first().scheduledAt.toLocalDate() == nowDate &&
+                            timeRange == nowTimeRange,
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
                         totalCount = scheduledRows.size,
                         manualCount = rows.count { row -> row.isManualRecord },

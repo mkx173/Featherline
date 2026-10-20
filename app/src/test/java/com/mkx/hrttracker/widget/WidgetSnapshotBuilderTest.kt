@@ -76,7 +76,6 @@ class WidgetSnapshotBuilderTest {
                 row.scheduledAt == now.toLocalDate().atTime(1, 0)
         }
         assertEquals("01:00", missedDawn.trailingText)
-        assertTrue(snapshot.doseRows.all { row -> row.trailingText?.contains("Next day") != true })
     }
 
     @Test

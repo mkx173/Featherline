@@ -35,7 +35,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
         // Arm a fallback before the timed block: if the settings read is slow on
         // BOOT_COMPLETED, the next midnight still gets an alarm.
         runCatching {
-            armWidgetDateRefresh(
+            scheduleNextWidgetDateRefresh(
                 context = context.applicationContext,
                 boundary = MedicationDayBoundary.Midnight,
                 diagnosticsLogger = diagnosticsLogger,
@@ -105,7 +105,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
             diagnosticsLogger.warning(TAG, "widget_day_boundary_read_failed", it)
         }.getOrDefault(MedicationDayBoundary.Midnight)
         runCatching {
-            armWidgetDateRefresh(
+            scheduleNextWidgetDateRefresh(
                 context = context,
                 boundary = boundary,
                 diagnosticsLogger = diagnosticsLogger,

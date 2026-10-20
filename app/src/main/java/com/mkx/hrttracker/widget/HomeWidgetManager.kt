@@ -68,7 +68,7 @@ class HomeWidgetManager @Inject constructor(
         // collector re-arms only if the first loaded emission disagrees.
         val startupBoundary = settingsRepository.settingsState.value.medicationDayBoundary
         runCatching {
-            armWidgetDateRefresh(
+            scheduleNextWidgetDateRefresh(
                 context = context,
                 boundary = startupBoundary,
                 diagnosticsLogger = diagnosticsLogger,
@@ -113,13 +113,11 @@ class HomeWidgetManager @Inject constructor(
         appScope.launch {
             var armedBoundary = startupBoundary
             settingsRepository.settingsState
-                // The first emission can land after the cached startup arm; arm it
-                // only when it disagrees, so startup arms once and a late load still wins.
                 .onEach { settings ->
                     if (settings.medicationDayBoundary != armedBoundary) {
                         armedBoundary = settings.medicationDayBoundary
                         runCatching {
-                            armWidgetDateRefresh(
+                            scheduleNextWidgetDateRefresh(
                                 context = context,
                                 boundary = settings.medicationDayBoundary,
                                 diagnosticsLogger = diagnosticsLogger,

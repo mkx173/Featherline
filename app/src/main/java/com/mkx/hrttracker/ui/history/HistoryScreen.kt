@@ -2201,7 +2201,7 @@ private fun historyIndicatorColor(
 internal fun HistoryEntryCardItem(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
-    dayDate: LocalDate = appliedAtAsLocalDateTime(entry).toLocalDate(),
+    dayDate: LocalDate,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2235,7 +2235,7 @@ internal fun HistoryEntryCardItem(
 private fun HistoryEntryCard(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
-    dayDate: LocalDate = appliedAtAsLocalDateTime(entry).toLocalDate(),
+    dayDate: LocalDate,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,

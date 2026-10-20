@@ -9,6 +9,7 @@ import androidx.core.net.toUri
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -17,28 +18,9 @@ internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTIO
 
 internal fun nextWidgetDateRefreshAt(now: LocalDateTime, boundary: MedicationDayBoundary): LocalDateTime {
     val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
-    val boundaryToday = medicationDayStart(now.toLocalDate(), boundary)
-    val nextBoundary = if (boundaryToday.isAfter(now)) boundaryToday else boundaryToday.plusDays(1)
+    val nextBoundary = medicationDayStart(medicationDay(now, boundary).plusDays(1), boundary)
     // Midnight also refreshes journal anchors, which retain their civil dates.
     return minOf(midnight, nextBoundary)
-}
-
-
-/** One place that both the manager and the receiver use to arm the next refresh. */
-internal fun armWidgetDateRefresh(
-    context: Context,
-    boundary: MedicationDayBoundary,
-    diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
-    now: LocalDateTime = LocalDateTime.now(),
-    sdkInt: Int = Build.VERSION.SDK_INT,
-) {
-    scheduleNextWidgetDateRefresh(
-        context = context,
-        now = now,
-        diagnosticsLogger = diagnosticsLogger,
-        sdkInt = sdkInt,
-        boundary = boundary,
-    )
 }
 
 internal fun scheduleNextWidgetDateRefresh(

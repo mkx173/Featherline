@@ -1034,7 +1034,8 @@
 
     <string name="settings_medication_day_ends_at_four_am">用藥日在 04:00 結束</string>
     <string name="settings_medication_day_ends_at_four_am_summary">04:00 前的用藥記錄計入前一天。</string>
-        <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
+
+    <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">請新增用藥記錄</string>
     <string name="calibration_pk_global_no_dose_history_body">新增雌二醇用藥記錄前將顯示人群估算</string>
     <string name="calibration_pk_global_no_usable_labs_title">請新增檢查結果</string>

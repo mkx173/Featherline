@@ -48,9 +48,7 @@ class WidgetDailyRefreshWorker(
  * Otherwise it only re-renders the widget. Either way it then warms Home's
  * estimate.
  *
- * The rows' anchor is the medication day at [boundary], not the calendar
- * day, so a night-owl boundary keeps the row for the dose that is still the
- * current medication day's.
+ * The rows' anchor is the medication day at [boundary], not the calendar day.
  */
 internal suspend fun handleWidgetDailyRefresh(
     now: LocalDateTime,

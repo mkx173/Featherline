@@ -960,7 +960,6 @@ internal fun buildMainUpcomingSection(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val tomorrow = medicationDay(now, boundary).plusDays(1)
-    // Tonight owns tomorrow's Midnight doses only with the midnight boundary.
     val shouldExcludeTonightRows = boundary.isTonightVisible(now)
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,

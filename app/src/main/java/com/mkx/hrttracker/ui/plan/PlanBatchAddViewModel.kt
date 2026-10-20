@@ -641,8 +641,10 @@ internal fun buildPlanBatchAddOccurrences(
 
     val sortedTimes = schedule.times.sorted()
     val result = mutableListOf<LocalDateTime>()
+    // The 04:00 boundary can move the next civil day's early occurrence into endDate.
+    val lastCalendarDate = if (boundary.endsAtFourAm) endDate.plusDays(1) else endDate
     var currentDate = startDate
-    while (!currentDate.isAfter(endDate.plusDays(1))) {
+    while (!currentDate.isAfter(lastCalendarDate)) {
         if (schedule.isScheduledOnForBatchAdd(currentDate)) {
             sortedTimes.forEach { time ->
                 val occurrence = LocalDateTime.of(currentDate, time)

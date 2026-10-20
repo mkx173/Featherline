@@ -55,9 +55,10 @@ fun buildPlanDaySchedule(
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
     boundary: MedicationDayBoundary,
 ): PlanDaySchedule {
+    val dayEntries = entries.filter { entry -> entry.planCalendarDate(boundary, zoneId) == date }
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
-        entries = entries.filter { entry -> entry.planCalendarDate(boundary, zoneId) == date },
+        entries = dayEntries,
         boundary = boundary,
         zoneId = zoneId,
     )
@@ -167,16 +168,15 @@ fun buildPlanDaySchedule(
                 .thenBy { entry -> entry.medicationSortOrder }
         )
 
-    val unplannedEntries = entries
+    val unplannedEntries = dayEntries
         .filter { entry ->
-            entry.planCalendarDate(boundary, zoneId) == date &&
-                    isPlanOffPlanEntry(
-                        entry = entry,
-                        scheduledGroups = scheduledGroups,
-                        date = date,
-                        boundary = boundary,
-                        zoneId = zoneId,
-                    )
+            isPlanOffPlanEntry(
+                entry = entry,
+                scheduledGroups = scheduledGroups,
+                date = date,
+                boundary = boundary,
+                zoneId = zoneId,
+            )
         }
         .sortedBy { it.appliedAt }
 
