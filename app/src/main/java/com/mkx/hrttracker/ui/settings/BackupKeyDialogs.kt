@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -121,6 +122,12 @@ import com.mkx.hrttracker.ui.components.HazeBasicAlertDialog
 import com.mkx.hrttracker.ui.components.HazeDialogSurface
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.rememberModalWindowAllowed
+import androidx.compose.ui.tooling.preview.Preview
+import com.mkx.hrttracker.data.backup.KeyringCrypto
+import com.mkx.hrttracker.data.backup.KeyringSlot
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.math.floor
 
 /**
@@ -442,6 +449,11 @@ private fun SecureKeyDialog(
     actions: @Composable RowScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Previews never resume, so the window gate would hide it: draw inline.
+    if (LocalInspectionMode.current) {
+        SecureKeyDialogLayout(onClose, closeLabel, actions, content)
+        return
+    }
     if (!rememberModalWindowAllowed(onDismissRequest = onClose)) {
         return
     }
@@ -459,31 +471,41 @@ private fun SecureKeyDialog(
                 }
             }
         }
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(modifier = Modifier.systemBarsPadding()) {
-                IconButton(onClick = onClose, modifier = Modifier.padding(4.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = closeLabel,
-                    )
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    content = content,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = actions,
+        SecureKeyDialogLayout(onClose, closeLabel, actions, content)
+    }
+}
+
+@Composable
+private fun SecureKeyDialogLayout(
+    onClose: () -> Unit,
+    closeLabel: String,
+    actions: @Composable RowScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Column(modifier = Modifier.systemBarsPadding()) {
+            IconButton(onClick = onClose, modifier = Modifier.padding(4.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = closeLabel,
                 )
             }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                content = content,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions,
+            )
         }
     }
 }
@@ -1143,4 +1165,318 @@ private fun BackupSheet(
             content = content,
         )
     }
+}
+
+private const val PREVIEW_RECOVERY_KEY = "K7QM3XRT9F2BHW4D"
+private const val PREVIEW_FILE_NAME = "featherline-backup-2026-10-12_23-31-04.hrtbackup"
+private const val PREVIEW_DATE_LABEL = "12 Oct 2026"
+
+internal fun previewKeyringSlot(type: String, id: String = type): KeyringSlot = KeyringSlot(
+    type = type,
+    id = id,
+    createdAt = LocalDate.of(2026, 10, 12).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+    wrapped = "",
+)
+
+@Preview(name = "Key setup · first backup", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeySetupDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupKeySetupDialog(
+            state = BackupKeySetupUiState(recoveryKey = PREVIEW_RECOVERY_KEY),
+            isInProgress = false,
+            onCancel = {},
+            onSaved = {},
+        )
+    }
+}
+
+@Preview(name = "Key setup · replace", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeySetupReplaceDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupKeySetupDialog(
+            state = BackupKeySetupUiState(recoveryKey = PREVIEW_RECOVERY_KEY, isReplace = true),
+            isInProgress = false,
+            onCancel = {},
+            onSaved = {},
+        )
+    }
+}
+
+@Preview(name = "Passkey offer", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupPasskeyOfferDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupPasskeyOfferDialog(isInProgress = false, onNotNow = {}, onAdd = {})
+    }
+}
+
+@Preview(name = "Recovery key · show with QR", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupRecoveryKeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRecoveryKeyDialog(
+            recoveryKey = PREVIEW_RECOVERY_KEY,
+            createdLabel = stringResource(R.string.settings_backup_recovery_key_created, PREVIEW_DATE_LABEL),
+            onDone = {},
+        )
+    }
+}
+
+@Composable
+private fun BackupUnlockDialogPreviewContent(state: BackupRestoreKeyUiState) {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupUnlockDialog(
+            displayName = PREVIEW_FILE_NAME,
+            state = state,
+            onInputChange = {},
+            onUnlock = {},
+            onScan = {},
+            onCancel = {},
+        )
+    }
+}
+
+@Preview(name = "Unlock (C1) · recovery key only", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogPreview() {
+    BackupUnlockDialogPreviewContent(BackupRestoreKeyUiState(isUnlocked = false, canAdopt = false))
+}
+
+@Preview(name = "Unlock (C1) · use passkey", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogPasskeyPreview() {
+    BackupUnlockDialogPreviewContent(
+        BackupRestoreKeyUiState(
+            isUnlocked = false,
+            canAdopt = false,
+            passkeySlots = listOf(previewKeyringSlot(KeyringCrypto.SLOT_TYPE_PASSKEY)),
+        )
+    )
+}
+
+@Preview(name = "Unlock (C1) · use security key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogSecurityKeyPreview() {
+    BackupUnlockDialogPreviewContent(
+        BackupRestoreKeyUiState(
+            isUnlocked = false,
+            canAdopt = false,
+            securityKeySlots = listOf(previewKeyringSlot(KeyringCrypto.SLOT_TYPE_SECURITY_KEY)),
+        )
+    )
+}
+
+@Preview(name = "Unlock (C1) · passkey or security key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogBothPreview() {
+    BackupUnlockDialogPreviewContent(
+        BackupRestoreKeyUiState(
+            isUnlocked = false,
+            canAdopt = false,
+            passkeySlots = listOf(previewKeyringSlot(KeyringCrypto.SLOT_TYPE_PASSKEY)),
+            securityKeySlots = listOf(previewKeyringSlot(KeyringCrypto.SLOT_TYPE_SECURITY_KEY)),
+        )
+    )
+}
+
+@Preview(name = "Unlock (C1) · wrong key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogWrongKeyPreview() {
+    BackupUnlockDialogPreviewContent(
+        BackupRestoreKeyUiState(
+            isUnlocked = false,
+            canAdopt = false,
+            input = PREVIEW_RECOVERY_KEY,
+            isWrongKey = true,
+        )
+    )
+}
+
+@Preview(name = "Unlock (C1) · not a key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupUnlockDialogNotAKeyPreview() {
+    BackupUnlockDialogPreviewContent(
+        BackupRestoreKeyUiState(isUnlocked = false, canAdopt = false, isNotAKey = true)
+    )
+}
+
+@Preview(name = "Restore confirm (C2) · adopt key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRestoreConfirmDialogAdoptPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRestoreConfirmDialog(
+            displayName = PREVIEW_FILE_NAME,
+            state = BackupRestoreKeyUiState(isUnlocked = true, canAdopt = true),
+            isInProgress = false,
+            onAdoptChange = {},
+            onRestore = {},
+            onCancel = {},
+        )
+    }
+}
+
+@Preview(name = "Restore confirm (C2)", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRestoreConfirmDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRestoreConfirmDialog(
+            displayName = PREVIEW_FILE_NAME,
+            state = BackupRestoreKeyUiState(isUnlocked = true, canAdopt = false),
+            isInProgress = false,
+            onAdoptChange = {},
+            onRestore = {},
+            onCancel = {},
+        )
+    }
+}
+
+@Preview(name = "Replace key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupReplaceKeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupReplaceKeyDialog(onReplace = {}, onCancel = {})
+    }
+}
+
+@Preview(name = "New key active", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupNewKeyActiveDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupNewKeyActiveDialog(onBackUpNow = {}, onDone = {})
+    }
+}
+
+@Preview(name = "Add passkey notice", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupAddPasskeyNoticeDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupAddPasskeyNoticeDialog(onContinue = {}, onCancel = {})
+    }
+}
+
+@Preview(name = "Remove passkey", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRemovePasskeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRemoveSlotDialog(isSecurityKey = false, onRemove = {}, onCancel = {})
+    }
+}
+
+@Preview(name = "Remove security key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRemoveSecurityKeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRemoveSlotDialog(isSecurityKey = true, onRemove = {}, onCancel = {})
+    }
+}
+
+@Preview(name = "Re-link passkey", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRelinkPasskeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRelinkSlotDialog(
+            addedLabel = PREVIEW_DATE_LABEL,
+            isSecurityKey = false,
+            isInProgress = false,
+            onLink = {},
+            onSkip = {},
+        )
+    }
+}
+
+@Preview(name = "Re-link security key", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupRelinkSecurityKeyDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupRelinkSlotDialog(
+            addedLabel = PREVIEW_DATE_LABEL,
+            isSecurityKey = true,
+            isInProgress = false,
+            onLink = {},
+            onSkip = {},
+        )
+    }
+}
+
+@Preview(name = "Add key choice sheet", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupKeyChoiceSheetPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupKeyChoiceSheet(
+            title = stringResource(R.string.settings_backup_add_passkey_or_security_key),
+            onPasskey = {},
+            onSecurityKey = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Composable
+private fun BackupSecurityKeySheetPreviewContent(
+    status: SecurityKeyStatus? = null,
+    prompt: SecurityKeyPromptUiState = SecurityKeyPromptUiState(),
+) {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupSecurityKeySheet(status = status, prompt = prompt, onSubmitPin = {}, onCancel = {})
+    }
+}
+
+@Preview(name = "Security key (E4) · PIN", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetPinPreview() {
+    BackupSecurityKeySheetPreviewContent(prompt = SecurityKeyPromptUiState(needsPin = true))
+}
+
+@Preview(name = "Security key (E4) · wrong PIN, retries left", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetWrongPinPreview() {
+    BackupSecurityKeySheetPreviewContent(
+        prompt = SecurityKeyPromptUiState(needsPin = true, isWrongPin = true, pinRetries = 3)
+    )
+}
+
+@Preview(name = "Security key (E4) · PIN failed", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetPinFailedPreview() {
+    BackupSecurityKeySheetPreviewContent(
+        prompt = SecurityKeyPromptUiState(needsPin = true, isWrongPin = true)
+    )
+}
+
+@Preview(name = "Security key (E4) · waiting", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetWaitingPreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.WAITING)
+}
+
+@Preview(name = "Security key (E4) · NFC off", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetNfcOffPreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.NFC_OFF)
+}
+
+@Preview(name = "Security key (E4) · touch", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetTouchPreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.TOUCH)
+}
+
+@Preview(name = "Security key (E4) · keep holding", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetKeepHoldingPreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.KEEP_HOLDING)
+}
+
+@Preview(name = "Security key (E4) · touch again", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetTouchAgainPreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.TOUCH_AGAIN)
+}
+
+@Preview(name = "Security key (E4) · done", showBackground = true, widthDp = 420)
+@Composable
+private fun BackupSecurityKeySheetDonePreview() {
+    BackupSecurityKeySheetPreviewContent(status = SecurityKeyStatus.DONE)
 }

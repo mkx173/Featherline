@@ -29,6 +29,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +46,7 @@ import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 /** E3: the keyring's passkey and security-key slots, Add and Remove. Shares the Backup page's ViewModel. */
 @Composable
@@ -235,4 +237,63 @@ private fun BackupKeysScreenContent(
             }
         }
     }
+}
+
+@Composable
+private fun BackupKeysScreenPreviewContent(
+    slots: List<KeyringSlot>,
+    addKeyChoice: AddKeyChoice = AddKeyChoice.BOTH,
+) {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupKeysScreenContent(
+            slots = slots,
+            addKeyChoice = addKeyChoice,
+            isInProgress = false,
+            onNavigateBack = {},
+            onAddClick = {},
+            onRemoveSlotClick = {},
+        )
+    }
+}
+
+@Preview(name = "Passkeys & security keys · empty", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeysScreenEmptyPreview() {
+    BackupKeysScreenPreviewContent(slots = emptyList())
+}
+
+@Preview(name = "Passkeys & security keys · empty, passkeys only", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeysScreenPasskeyOnlyPreview() {
+    BackupKeysScreenPreviewContent(slots = emptyList(), addKeyChoice = AddKeyChoice.PASSKEY)
+}
+
+@Preview(name = "Passkeys & security keys · passkeys", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeysScreenPasskeysPreview() {
+    BackupKeysScreenPreviewContent(
+        slots = listOf(
+            previewKeyringSlot(KeyringCrypto.SLOT_TYPE_PASSKEY, "p1"),
+            previewKeyringSlot(KeyringCrypto.SLOT_TYPE_PASSKEY, "p2"),
+        )
+    )
+}
+
+@Preview(name = "Passkeys & security keys · security keys", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeysScreenSecurityKeysPreview() {
+    BackupKeysScreenPreviewContent(
+        slots = listOf(previewKeyringSlot(KeyringCrypto.SLOT_TYPE_SECURITY_KEY)),
+    )
+}
+
+@Preview(name = "Passkeys & security keys · both", showBackground = true, widthDp = 420, heightDp = 920)
+@Composable
+private fun BackupKeysScreenBothPreview() {
+    BackupKeysScreenPreviewContent(
+        slots = listOf(
+            previewKeyringSlot(KeyringCrypto.SLOT_TYPE_PASSKEY),
+            previewKeyringSlot(KeyringCrypto.SLOT_TYPE_SECURITY_KEY),
+        )
+    )
 }

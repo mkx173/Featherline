@@ -762,6 +762,27 @@ private fun BackupSettingsScreenPreview() {
     }
 }
 
+@Preview(
+    name = "Backup Settings Screen · with key",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun BackupSettingsScreenWithKeyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        BackupSettingsScreenContent(
+            showEncryptionKeyGroup = true,
+            keyCreatedLabel = stringResource(R.string.settings_backup_recovery_key_created, "12 Oct 2026"),
+            passkeysLabel = pluralStringResource(R.plurals.settings_backup_passkeys_count, 1, 1),
+            onNavigateBack = { },
+            onBackupToFileClick = { },
+            onRestoreFromFileClick = { },
+            onImportExternalTrackerClick = { },
+        )
+    }
+}
+
 /** A key or slot creation date, as the Encryption key rows show it. */
 @Composable
 internal fun backupKeyDateLabel(createdAt: Long): String {

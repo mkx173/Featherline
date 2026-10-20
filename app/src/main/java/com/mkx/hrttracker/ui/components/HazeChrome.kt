@@ -8,7 +8,13 @@ import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
@@ -601,6 +607,47 @@ fun HazeAlertDialog(
     tonalElevation: Dp = AlertDialogDefaults.TonalElevation,
     properties: DialogProperties = DialogProperties(),
 ) {
+    // Previews never resume, so the window gate below would hide the dialog:
+    // draw it inline instead, as HazeModalBottomSheet does.
+    // ponytail: approximates AlertDialog's layout (its content is internal to M3).
+    if (LocalInspectionMode.current) {
+        HazeDialogSurface(
+            modifier = modifier,
+            shape = shape,
+            color = containerColor,
+            tonalElevation = tonalElevation,
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                icon?.let {
+                    CompositionLocalProvider(LocalContentColor provides iconContentColor) {
+                        Box(Modifier.padding(bottom = 16.dp).align(Alignment.CenterHorizontally)) { it() }
+                    }
+                }
+                title?.let {
+                    CompositionLocalProvider(LocalContentColor provides titleContentColor) {
+                        ProvideTextStyle(MaterialTheme.typography.headlineSmall) {
+                            Box(Modifier.padding(bottom = 16.dp)) { it() }
+                        }
+                    }
+                }
+                text?.let {
+                    CompositionLocalProvider(LocalContentColor provides textContentColor) {
+                        ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
+                            Box(Modifier.padding(bottom = 24.dp)) { it() }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) {
+                    dismissButton?.invoke()
+                    confirmButton()
+                }
+            }
+        }
+        return
+    }
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
@@ -631,6 +678,11 @@ fun HazeBasicAlertDialog(
     properties: DialogProperties = DialogProperties(),
     content: @Composable () -> Unit,
 ) {
+    // Previews: inline, as in HazeAlertDialog.
+    if (LocalInspectionMode.current) {
+        Box(modifier = modifier) { content() }
+        return
+    }
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
