@@ -24,10 +24,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -64,31 +64,18 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
-        // Arm the date alarm before start() returns, with the cached value, so
-        // a process that dies before the settings read below still has the
-        // midnight fallback. The async pass then replaces it with the stored
-        // boundary.
+        // The settings state is eager; arm once with its value at this point. The
+        // collector re-arms only if the first loaded emission disagrees.
+        val startupBoundary = settingsRepository.settingsState.value.medicationDayBoundary
         runCatching {
-            scheduleNextWidgetDateRefresh(
-                context,
+            armWidgetDateRefresh(
+                context = context,
+                boundary = startupBoundary,
                 diagnosticsLogger = diagnosticsLogger,
-                dayStartMinutes = settingsRepository.settingsState.value.medicationDayStartMinutes,
             )
         }.onFailure { throwable ->
             if (throwable is CancellationException) throw throwable
             diagnosticsLogger.warning(TAG, "widget_date_refresh_startup_failed", throwable)
-        }
-        appScope.launch {
-            runCatching {
-                scheduleNextWidgetDateRefresh(
-                    context,
-                    diagnosticsLogger = diagnosticsLogger,
-                    dayStartMinutes = settingsRepository.getCurrentSettings().medicationDayStartMinutes,
-                )
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                diagnosticsLogger.warning(TAG, "widget_date_refresh_startup_failed", throwable)
-            }
         }
         publishGeneratedWidgetPreviewsIfNeeded()
 

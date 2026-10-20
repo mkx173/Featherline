@@ -8,18 +8,37 @@ import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDayStart
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
 
-internal fun nextWidgetDateRefreshAt(now: LocalDateTime, dayStartMinutes: Int = 0): LocalDateTime {
+internal fun nextWidgetDateRefreshAt(now: LocalDateTime, boundary: MedicationDayBoundary): LocalDateTime {
     val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
-    val boundaryToday = medicationDayStart(now.toLocalDate(), dayStartMinutes)
-    val boundary = if (boundaryToday.isAfter(now)) boundaryToday else boundaryToday.plusDays(1)
+    val boundaryToday = medicationDayStart(now.toLocalDate(), boundary)
+    val nextBoundary = if (boundaryToday.isAfter(now)) boundaryToday else boundaryToday.plusDays(1)
     // Midnight also refreshes journal anchors, which retain their civil dates.
-    return minOf(midnight, boundary)
+    return minOf(midnight, nextBoundary)
+}
+
+
+/** One place that both the manager and the receiver use to arm the next refresh. */
+internal fun armWidgetDateRefresh(
+    context: Context,
+    boundary: MedicationDayBoundary,
+    diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    now: LocalDateTime = LocalDateTime.now(),
+    sdkInt: Int = Build.VERSION.SDK_INT,
+) {
+    scheduleNextWidgetDateRefresh(
+        context = context,
+        now = now,
+        diagnosticsLogger = diagnosticsLogger,
+        sdkInt = sdkInt,
+        boundary = boundary,
+    )
 }
 
 internal fun scheduleNextWidgetDateRefresh(
@@ -27,10 +46,10 @@ internal fun scheduleNextWidgetDateRefresh(
     now: LocalDateTime = LocalDateTime.now(),
     diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     sdkInt: Int = Build.VERSION.SDK_INT,
-    dayStartMinutes: Int = 0,
+    boundary: MedicationDayBoundary,
 ) {
     val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-    val triggerAt = nextWidgetDateRefreshAt(now, dayStartMinutes)
+    val triggerAt = nextWidgetDateRefreshAt(now, boundary)
     val triggerAtMillis = triggerAt
         .atZone(ZoneId.systemDefault())
         .toInstant()
