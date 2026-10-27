@@ -57,13 +57,12 @@
     <string name="main_antiandrogen_next_dose">下次用藥 %1$s</string>
     <string name="main_antiandrogen_next_dose_past_due">逾期 %1$s</string>
     <string name="main_antiandrogen_no_next_dose">暫無下一次劑量</string>
-    <!-- Compact on purpose, like English "2d 3h": no space between number and unit. -->
-    <string name="main_duration_compact_days">%1$d天</string>
-    <string name="main_duration_compact_hours">%1$d小時</string>
-    <string name="main_duration_compact_minutes">%1$d分鐘</string>
-    <string name="main_duration_days_hours">%1$d天%2$d小時</string>
-    <string name="main_duration_hours_minutes">%1$d小時%2$d分鐘</string>
-    <string name="main_duration_minutes">%1$d分鐘</string>
+    <string name="main_duration_compact_days">%1$d 天</string>
+    <string name="main_duration_compact_hours">%1$d 小時</string>
+    <string name="main_duration_compact_minutes">%1$d 分鐘</string>
+    <string name="main_duration_days_hours">%1$d 天 %2$d 小時</string>
+    <string name="main_duration_hours_minutes">%1$d 小時 %2$d 分鐘</string>
+    <string name="main_duration_minutes">%1$d 分鐘</string>
     <string name="main_relative_tomorrow">明天</string>
     <string name="main_more_options">更多選項</string>
     <string name="main_display_unit">顯示單位</string>
