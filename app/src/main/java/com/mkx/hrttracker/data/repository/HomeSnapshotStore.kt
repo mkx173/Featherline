@@ -1217,6 +1217,7 @@ internal object HomeSnapshotCodec {
         writeNullableDouble(profile.weightOriginalValue)
         writeString(profile.weightOriginalUnit.name)
         writeNullableLong(profile.updatedAt?.toEpochMilli())
+        writeNullableLong(profile.weightMeasuredAt?.toEpochMilli())
     }
 
     private fun DataInputStream.readUserProfile(): UserProfile? {
@@ -1226,6 +1227,7 @@ internal object HomeSnapshotCodec {
             weightOriginalValue = readNullableDouble(),
             weightOriginalUnit = WeightUnit.fromStorageValue(readString()),
             updatedAt = readNullableLong()?.let(Instant::ofEpochMilli),
+            weightMeasuredAt = readNullableLong()?.let(Instant::ofEpochMilli),
         )
     }
 
@@ -1355,7 +1357,8 @@ private const val TAG = "HomeSnapshotStore"
 // move to home_e2_inputs.pb, and the widget's projection goes.
 // A bump drops Home data only: the next run reuses the fit published in the
 // still-valid E2 inputs part.
-private const val SNAPSHOT_CODEC_VERSION = 29
+// v30 appends the profile's Health Connect measured time.
+private const val SNAPSHOT_CODEC_VERSION = 30
 // The E2 inputs record's own version, separate from the snapshot's. A bump
 // drops the inputs part, fit included, so the next run re-solves.
 private const val E2_INPUTS_CODEC_VERSION = 2

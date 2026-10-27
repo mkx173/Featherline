@@ -465,6 +465,7 @@ fun HazeModalBottomSheet(
             modifier = modifier,
             shape = BottomSheetDefaults.ExpandedShape,
             color = hazeBottomSheetContainerColor(),
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
             HazeBottomSheetSurface(
                 sheetState = sheetState,
@@ -495,6 +496,10 @@ fun HazeModalBottomSheet(
         modifier = modifier,
         sheetState = sheetState,
         containerColor = hazeBottomSheetContainerColor(),
+        // Explicit: contentColorFor(transparent haze container) falls back to
+        // LocalContentColor, which is black where the sheet is composed outside
+        // a Surface (onboarding).
+        contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = null,
         contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
     ) {

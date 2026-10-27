@@ -33,6 +33,7 @@ data class BackupSettingsSnapshot(
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
     val remindersEnabled: Boolean,
+    val healthConnectWeightSyncEnabled: Boolean = false,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
     val appLockGracePeriodOption: String,
@@ -69,6 +70,9 @@ data class BackupUserProfileSnapshot(
     val weightOriginalValue: Double?,
     val weightOriginalUnit: String,
     val updatedAtEpochMillis: Long? = null,
+    // Additive (no snapshot version bump): a backup without it restores null,
+    // which only blanks the "Measured" time until the next sync.
+    val weightMeasuredAtEpochMillis: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -17,6 +17,10 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
+import com.mkx.hrttracker.healthconnect.ReadingProblem
+import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.movesWithMedicationDayBoundary
@@ -74,6 +78,8 @@ class SettingsViewModel @Inject constructor(
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     e2EstimateRepository: E2EstimateRepository,
     medicationGroupRepository: MedicationGroupRepository,
+    private val weightSyncCoordinator: WeightSyncCoordinator,
+    private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
 
@@ -172,6 +178,11 @@ class SettingsViewModel @Inject constructor(
         preloadCalibrationData()
     }
 
+    val healthConnectState: StateFlow<HealthConnectCapabilityState> =
+        healthConnectCapabilityReconciler.state
+    val isWeightSyncing: StateFlow<Boolean> = weightSyncCoordinator.isSyncing
+    val healthConnectReadingProblem: StateFlow<ReadingProblem?> = weightSyncCoordinator.readingProblem
+
     fun setWeight(value: Double, unit: WeightUnit) {
         launchWeightMutation {
             userProfileRepository.setWeight(value, unit)
@@ -182,6 +193,25 @@ class SettingsViewModel @Inject constructor(
         launchWeightMutation {
             userProfileRepository.clearWeight()
         }
+    }
+
+    /** Called once READ weight is granted. */
+    fun enableHealthConnectWeightSync() {
+        launchSettingsMutation {
+            healthConnectCapabilityReconciler.enableSync()
+        }
+    }
+
+    fun disableHealthConnectWeightSync() {
+        launchSettingsMutation {
+            // Also clears the reading's date: turning sync back on shouldn't show
+            // it before the new sync lands.
+            healthConnectCapabilityReconciler.disableSync()
+        }
+    }
+
+    fun syncWeightNow() {
+        healthConnectCapabilityReconciler.requestReconcile("weight_sync_now", sync = true)
     }
 
     private fun launchWeightMutation(block: suspend () -> Unit) {

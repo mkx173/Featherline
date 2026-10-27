@@ -302,7 +302,7 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun load() {
         mutationMutex.withLock {
             val zoneId = ZoneId.systemDefault()
-            val today = LocalDate.ofInstant(appTimeSource.now(), zoneId)
+            val today = appTimeSource.now().atZone(zoneId).toLocalDate()
             val (durable, homeData, e2Inputs) = coroutineScope {
                 // Unreadable, it can't vouch for either file: both wait for a run.
                 val durable = async {

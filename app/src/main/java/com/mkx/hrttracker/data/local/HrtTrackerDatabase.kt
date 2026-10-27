@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -220,5 +220,13 @@ internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
             )
             """.trimIndent()
         )
+    }
+}
+
+// v10 -> v11: Health Connect weight sync (read-only). The time of the adopted
+// HC reading; every existing weight was typed, so all rows start null.
+internal val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE user_profile ADD COLUMN weightMeasuredAtEpochMillis INTEGER")
     }
 }

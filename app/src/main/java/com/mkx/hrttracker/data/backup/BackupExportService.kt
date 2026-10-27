@@ -208,6 +208,7 @@ class BackupExportService @Inject constructor(
                 pureBlackEnabled = settings.pureBlackEnabled,
                 hazeBlurEnabled = settings.hazeBlurEnabled,
                 remindersEnabled = settings.remindersEnabled,
+                healthConnectWeightSyncEnabled = settings.healthConnectWeightSyncEnabled,
                 showArchivedGroupRecords = settings.showArchivedGroupRecords,
                 hideReferenceRanges = settings.hideReferenceRanges,
                 // Do not include screenLockProtectionEnabled; app-lock protection stays local.
@@ -246,6 +247,7 @@ class BackupExportService @Inject constructor(
                 weightOriginalValue = userProfile.weightOriginalValue,
                 weightOriginalUnit = userProfile.weightOriginalUnit.name,
                 updatedAtEpochMillis = userProfile.updatedAt?.toEpochMilli(),
+                weightMeasuredAtEpochMillis = userProfile.weightMeasuredAt?.toEpochMilli(),
             ),
             medicines = medicines.map { medicine -> medicine.toBackupSnapshot() },
             medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },

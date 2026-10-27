@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Featherline</string>
+    <string name="tab_main">메인화면</string>
+    <string name="tab_plan">계획</string>
+    <string name="tab_journal">일지</string>
+    <string name="tab_history">기록</string>
+    <string name="tab_settings">설정</string>
+    <string name="navigate_back">돌아가기</string>
+    <string name="add_entry">기록 추가</string>
+    <string name="edit_entry">기록 수정</string>
+    <string name="add_medication_group">그룹 추가</string>
+    <string name="edit_medication_group">그룹 수정</string>
+    <string name="archived_medication_group">보관된 그룹</string>
+    <string name="main_today_title">오늘</string>
+    <string name="main_last_night_title">어젯밤</string>
+    <string name="main_tomorrow_title">내일</string>
+    <string name="main_upcoming_title">다음 스케줄</string>
+    <string name="main_today_summary_done_label">완료</string>
+    <string name="main_today_summary_manual_label">수동</string>
+    <string name="main_today_empty_state">오늘 지정된 스케줄이 없습니다.</string>
+    <string name="main_upcoming_empty_state">90일간 지정된 스케줄이 없습니다.</string>
+    <string name="main_today_quick_log">빠른 기록</string>
+    <string name="main_today_range_night">밤</string>
+    <string name="main_today_range_morning">아침</string>
+    <string name="main_today_range_afternoon">오후</string>
+    <string name="main_today_range_evening">저녁</string>
+    <plurals name="main_today_schedule_offset_hours_later">
+        <item quantity="other">+%1$d 시간</item>
+    </plurals>
+    <plurals name="main_today_schedule_offset_hours_earlier">
+        <item quantity="other">-%1$d 시간</item>
+    </plurals>
+    <string name="main_e2_title">에스트라디올 · 예상치</string>
+    <string name="main_e2_chart_title_seven_days">7일 추세</string>
+    <string name="main_e2_chart_title_thirty_days">30일 추세</string>
+    <string name="main_e2_chart_window_toggle_cd">도표 화면 변경</string>
+    <string name="main_e2_chart_target">목표치 %1$s–%2$s %3$s</string>
+    <string name="main_e2_chart_overview">도표 개요</string>
+    <string name="main_e2_chart_reset_view">도표 시점 초기화</string>
+    <string name="main_e2_change_since_yesterday">24시간 전 대비 %1$s</string>
+    <string name="main_e2_no_change_since_yesterday">24시간 전과 동일</string>
+    <string name="main_e2_last_dose_with_time">마지막 복용 %1$s 전</string>
+    <string name="main_e2_no_last_dose">복용기록 없음</string>
+    <string name="medical_disclaimer_home_estimates_and_ranges">예상 농도나 WPATH SOC-8 목표 구간은 참고용으로, 측정치나 의학적 조언이 아닙니다. 목표치는 개인차가 있을 수 있습니다.</string>
+</resources>

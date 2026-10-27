@@ -182,6 +182,7 @@ internal fun UserProfileEntity.toUserProfileModel(): UserProfile {
         weightOriginalValue = weightOriginalValue,
         weightOriginalUnit = WeightUnit.fromStorageValue(weightOriginalUnit),
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+        weightMeasuredAt = weightMeasuredAtEpochMillis?.let(Instant::ofEpochMilli),
     )
 }
 

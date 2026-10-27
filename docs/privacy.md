@@ -65,11 +65,15 @@ The developer operates no backup server, never receives these files, and has no 
 
 ## Permissions
 
-Three permissions are declared in [`AndroidManifest.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/AndroidManifest.xml):
+Five permissions are declared in [`AndroidManifest.xml`](https://github.com/mkx173/Featherline/blob/main/app/src/main/AndroidManifest.xml):
 
 - `android.permission.POST_NOTIFICATIONS` — dose reminder notifications. On Android 13+ the system shows a runtime prompt the first time the app posts a notification; on earlier API levels the permission is granted at install.
 - `android.permission.RECEIVE_BOOT_COMPLETED` — lets [`MedicationReminderRescheduleReceiver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/AndroidManifest.xml#L47-L58) re-arm pending alarms after a reboot. Without this, reminders silently stop after the device restarts.
 - `android.permission.SCHEDULE_EXACT_ALARM` — exact-time dose reminders. The reminder pipeline calls `setExactAndAllowWhileIdle` to fire alarms during Doze; the runtime requires this permission for that API. See [reminders.md](reminders.md) for the full pipeline.
+- `android.permission.health.READ_WEIGHT` — optional Health Connect weight sync. Requested only when the user turns sync on in the weight sheet; Health Connect shows its own grant screen, which links to the canonical policy. The app reads the latest weight record and its measurement time and stores them in the user profile in the encrypted database, replacing the weight there. Nothing is written to Health Connect.
+- `android.permission.health.READ_HEALTH_DATA_HISTORY` — requested alongside READ_WEIGHT where Health Connect supports it, because without it Health Connect hides records from more than 30 days before the first grant. Sync works without it.
+
+Turning sync off, or losing access, stops reading; the weight already stored stays until the user changes it.
 
 Biometric authentication for the optional app lock uses the AndroidX biometric library, which talks to `BiometricManager` and `BiometricPrompt` directly. No `<uses-permission>` entry is needed on modern Android. The canonical user-facing policy refers to this as "biometric permission" loosely; the technical reality is that no manifest permission is declared.
 
@@ -83,4 +87,4 @@ Android removes the entire app sandbox on uninstall, including the encrypted dat
 - [architecture.md](architecture.md) — layer map confirming the absence of a networking sub-package.
 - [data-model.md](data-model.md) — Room entities held inside `hrt_tracker.db`.
 - [backup-format.md](backup-format.md) — the user-controlled encrypted backup format.
-- [reminders.md](reminders.md) — the reminder pipeline that consumes the three declared permissions.
+- [reminders.md](reminders.md) — the reminder pipeline that consumes the three reminder permissions.

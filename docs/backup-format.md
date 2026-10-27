@@ -139,7 +139,8 @@ flattened into the parent's JSON.
   encoded widget-appearance default — accent hue, saturation, light
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags
-  `stockNudgeEnabled` / `stockNudgeUserEnabled`, and the home-card layout
+  `stockNudgeEnabled` / `stockNudgeUserEnabled`,
+  `healthConnectWeightSyncEnabled` (default false), and the home-card layout
   `homeCardOrder` / `homeCardHidden`). The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
@@ -151,7 +152,10 @@ flattened into the parent's JSON.
   so the auto-disable threshold starts fresh on the new device.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries
-  `weightKg` plus the original value + unit for display round-trip.
+  `weightKg` plus the original value + unit for display round-trip, and
+  `weightMeasuredAtEpochMillis` (the adopted Health Connect reading's time).
+  That field was added without a snapshot version bump: a backup without it
+  restores null, which only blanks the "Measured" time until the next sync.
 - `BackupMedicineSnapshot` →
   [`MedicineEntity`](data-model.md#medicineentity); the canonical
   identity row that most group items and log entries point at via

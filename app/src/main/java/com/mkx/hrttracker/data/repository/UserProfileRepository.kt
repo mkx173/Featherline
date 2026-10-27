@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -33,20 +33,22 @@ class UserProfileRepository @Inject constructor(
         databaseHolder.databaseFlow
             .flatMapLatest { database ->
                 if (database == null) {
-                    flowOf<UserProfile?>(null)
+                    // Emit nothing: a null here would replace the snapshot seed
+                    // below with "not set" until Room opens.
+                    emptyFlow()
                 } else {
                     database.userProfileDao().observeProfile()
                         .map<UserProfileEntity?, UserProfile?> { entity ->
                             // Handle per emission rather than via a terminal `.catch`
                             // inside flatMapLatest: a terminal catch would freeze this
                             // Eagerly, app-scoped flow — and the Settings weight — until
-                            // the database (app process) is rebuilt. toModel() can't
+                            // the database (app process) is rebuilt. toUserProfileModel() can't
                             // currently throw, so this is defensive parity with the
                             // medication/medicine flows that share this shape. Suppress
                             // (null -> filterNotNull below) rather than emit a default:
                             // a fabricated default profile would flash for one frame
                             // before the next consistent emission lands.
-                            runCatching { entity?.toModel() ?: UserProfile() }
+                            runCatching { entity?.toUserProfileModel() ?: UserProfile() }
                                 .getOrElse { error ->
                                     // No suspension point inside the block today, so
                                     // cancellation can't surface here — but rethrow it
@@ -102,7 +104,7 @@ class UserProfileRepository @Inject constructor(
     suspend fun getCurrentProfile(): UserProfile {
         return databaseHolder.get().userProfileDao()
             .getProfile()
-            ?.toModel()
+            ?.toUserProfileModel()
             ?: UserProfile()
     }
 
@@ -117,31 +119,108 @@ class UserProfileRepository @Inject constructor(
                     weightKg = originalUnit.toKg(originalValue),
                     weightOriginalValue = originalValue,
                     weightOriginalUnit = originalUnit.name,
-                    updatedAtEpochMillis = now.toEpochMilli()
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                    weightMeasuredAtEpochMillis = null,
                 )
             )
         }
     }
 
+    // Keeps the unit, so a Health Connect reading adopted later still shows in
+    // the unit the user picked.
     suspend fun clearWeight(now: Instant = Instant.now()) {
         homeSnapshotRepository.runHomeDataMutation {
-            databaseHolder.get().userProfileDao().upsertProfile(
+            val dao = databaseHolder.get().userProfileDao()
+            dao.upsertProfile(
                 UserProfileEntity(
                     weightKg = null,
                     weightOriginalValue = null,
-                    weightOriginalUnit = null,
-                    updatedAtEpochMillis = now.toEpochMilli()
+                    weightOriginalUnit = dao.getProfile()?.weightOriginalUnit,
+                    updatedAtEpochMillis = now.toEpochMilli(),
+                    weightMeasuredAtEpochMillis = null,
                 )
             )
         }
     }
 
-    private fun UserProfileEntity.toModel(): UserProfile {
-        return UserProfile(
-            weightKg = weightKg,
-            weightOriginalValue = weightOriginalValue,
-            weightOriginalUnit = WeightUnit.fromStorageValue(weightOriginalUnit),
-            updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis)
+    /**
+     * Makes a Health Connect reading the weight (with sync on, HC is the source).
+     * The value is rounded to 0.1 in the user's last unit and kg is derived from
+     * that, which keeps the backup validator's kg/unit consistency check true.
+     * Returns false without writing when the reading is the one already stored
+     * (same time in millis, same rounded value), or when [isSyncOn] is false.
+     * That's checked inside the mutation, which manual edits share: sync turned
+     * off mid-sync then can't overwrite a weight typed right after.
+     */
+    suspend fun adoptHcWeight(
+        weightKg: Double,
+        measuredAt: Instant,
+        now: Instant = Instant.now(),
+        isSyncOn: suspend () -> Boolean = { true },
+    ): Boolean {
+        // Checked before the mutation as well as inside it: a mutation always
+        // bumps Home's generation and rebuilds, and most syncs change nothing.
+        if (isStoredReading(databaseHolder.get().userProfileDao().getProfile(), weightKg, measuredAt)) {
+            return false
+        }
+        if (!isSyncOn()) return false
+        return homeSnapshotRepository.runHomeDataMutation {
+            isSyncOn() && adoptHcWeightLocked(weightKg, measuredAt, now)
+        }
+    }
+
+    private suspend fun adoptHcWeightLocked(
+        weightKg: Double,
+        measuredAt: Instant,
+        now: Instant,
+    ): Boolean {
+        val dao = databaseHolder.get().userProfileDao()
+        val current = dao.getProfile()
+        if (isStoredReading(current, weightKg, measuredAt)) return false
+        val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
+        val originalValue = roundWeightToTenth(weightKg / unit.kgPerUnit)
+        dao.upsertProfile(
+            UserProfileEntity(
+                weightKg = unit.toKg(originalValue),
+                weightOriginalValue = originalValue,
+                weightOriginalUnit = unit.name,
+                updatedAtEpochMillis = now.toEpochMilli(),
+                weightMeasuredAtEpochMillis = measuredAt.toEpochMilli(),
+            )
         )
+        return true
+    }
+
+    // Millis on both sides: the column stores millis, and a reading with
+    // sub-millisecond precision must not look changed on every sync.
+    private fun isStoredReading(
+        current: UserProfileEntity?,
+        weightKg: Double,
+        measuredAt: Instant,
+    ): Boolean {
+        val unit = WeightUnit.fromStorageValue(current?.weightOriginalUnit)
+        return current?.weightMeasuredAtEpochMillis == measuredAt.toEpochMilli() &&
+            current.weightOriginalValue == roundWeightToTenth(weightKg / unit.kgPerUnit)
+    }
+
+    /**
+     * Health Connect has no reading left, or sync was turned off: the weight
+     * stays, but it no longer comes from a reading, so its measured time goes.
+     * No-op when already unset.
+     */
+    suspend fun clearHcMeasuredAt(): Boolean {
+        if (databaseHolder.get().userProfileDao().getProfile()?.weightMeasuredAtEpochMillis == null) {
+            return false
+        }
+        return homeSnapshotRepository.runHomeDataMutation {
+            val dao = databaseHolder.get().userProfileDao()
+            val current = dao.getProfile()
+                ?.takeIf { it.weightMeasuredAtEpochMillis != null }
+                ?: return@runHomeDataMutation false
+            dao.upsertProfile(current.copy(weightMeasuredAtEpochMillis = null))
+            true
+        }
     }
 }
+
+internal fun roundWeightToTenth(value: Double): Double = Math.round(value * 10.0) / 10.0
