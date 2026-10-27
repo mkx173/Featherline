@@ -475,7 +475,7 @@ class MedicationGroupRepository @Inject constructor(
 
                             // effectiveFrom marks when this time was added (now),
                             // not the start date. `since` already gates generation
-                            // via isScheduledOn, so a future start needs nothing
+                            // via isScheduledAt, so a future start needs nothing
                             // more here — and pinning effectiveFrom to `since`
                             // would orphan slots if the start is later edited
                             // earlier (the preserved future effectiveFrom would

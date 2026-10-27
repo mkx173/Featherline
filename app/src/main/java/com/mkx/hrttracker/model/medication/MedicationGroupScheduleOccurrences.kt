@@ -2,6 +2,7 @@ package com.mkx.hrttracker.model.medication
 
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayStart
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -17,7 +18,7 @@ data class MedicationGroupSlotOccurrence(
 fun MedicationGroupSchedule.isScheduledOn(
     date: LocalDate,
     boundary: MedicationDayBoundary,
-): Boolean = isScheduledAt(date.atStartOfDay(), boundary)
+): Boolean = isScheduledAt(medicationDayStart(date, boundary), boundary)
 
 /**
  * Whether an occurrence at [dateTime] fires under [boundary]. Daily cadence counts
