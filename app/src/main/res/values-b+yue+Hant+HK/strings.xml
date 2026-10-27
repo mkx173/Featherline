@@ -780,7 +780,7 @@
     <string name="personalization_weight_unit_a11y">單位：%1$s，轉做 %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_status_synced">已同步</string>
-    <string name="health_connect_status_syncing">同步緊…</string>
+    <string name="health_connect_status_syncing">同步緊……</string>
     <string name="health_connect_status_off">同步已關閉</string>
     <string name="health_connect_status_unavailable">唔支援呢部裝置</string>
     <string name="health_connect_status_update_required">要安裝或者更新</string>

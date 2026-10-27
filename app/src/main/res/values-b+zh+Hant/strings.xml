@@ -47,9 +47,9 @@
     <string name="main_e2_no_change_since_yesterday">較 24 小時前無變化</string>
     <string name="main_e2_last_dose_with_time">上次用藥 %1$s前</string>
     <string name="main_e2_no_last_dose">還沒有記錄</string>
-    <string name="medical_disclaimer_home_estimates_and_ranges">血藥濃度為模型估算值，WPATH SOC-8 目標範圍僅作參考；二者並非實測值或醫療建議，您的目標範圍可能不同</string>
+    <string name="medical_disclaimer_home_estimates_and_ranges">血藥濃度為模型估算值，WPATH SOC-8 目標範圍僅作參考；二者並非實測值或醫療建議，你的目標範圍可能不同</string>
     <string name="medical_disclaimer_preset_doses">預設劑量為參考值，不構成醫療建議，用藥安全取決於檢查結果、合併用藥、既往病史以及醫生的監督</string>
-    <string name="medical_disclaimer_wpath_reference_ranges">目標範圍基於 WPATH 第八版照護標準（SOC-8），僅作通用指引，不構成醫療建議——您的目標範圍可能因治療方案而異</string>
+    <string name="medical_disclaimer_wpath_reference_ranges">目標範圍基於 WPATH 第八版照護標準（SOC-8），僅作通用指引，不構成醫療建議——你的目標範圍可能因治療方案而異</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血藥濃度數值為基於服藥記錄的模型估算值，並非實測值</string>
     <string name="main_antiandrogen_title">抗雄激素</string>
     <string name="main_antiandrogen_last_dose_elapsed">上次用藥 %1$s前</string>
@@ -90,7 +90,7 @@
     <string name="reminder_notification_action_log_now">立即記錄</string>
     <string name="reminder_notification_action_log_all">全部記錄</string>
     <string name="reminder_notification_action_remind_later">稍後提醒</string>
-    <string name="reminder_notification_snoozed">將在 %1$d 分鐘後再次提醒您</string>
+    <string name="reminder_notification_snoozed">將在 %1$d 分鐘後再次提醒你</string>
     <string name="stock_toast_out_single">%1$s 已用盡</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="other">%1$d 種藥物已用盡</item>
@@ -104,7 +104,7 @@
         <item quantity="other">%1$d 種藥物庫存不足</item>
     </plurals>
     <plurals name="stock_toast_many_attention">
-        <item quantity="other">%1$d 種藥物的庫存狀態需要您留意</item>
+        <item quantity="other">%1$d 種藥物的庫存狀態需要你留意</item>
     </plurals>
     <string name="stock_snackbar_action_view">檢視</string>
     <string name="stock_snackbar_action_dismiss">關閉</string>
@@ -195,7 +195,7 @@
     <string name="timezone_change_notice">時區已從%1$s變更為%2$s，計劃時間將跟隨當地時間</string>
     <string name="timezone_change_notice_dismiss">關閉時區變更提示</string>
     <string name="schedule_fulfillment_warning_title">不會計為完成計劃</string>
-    <string name="schedule_fulfillment_warning_message">您輸入的時間距離原計劃時間較遠，因此這條記錄不會計為完成此次計劃</string>
+    <string name="schedule_fulfillment_warning_message">你輸入的時間距離原計劃時間較遠，因此這條記錄不會計為完成此次計劃</string>
     <string name="history_delete_all_entries">刪除全部記錄</string>
     <string name="history_delete_all_entries_title">刪除全部記錄</string>
     <string name="history_delete_all_entries_success">已刪除全部記錄</string>
@@ -402,7 +402,7 @@
     <string name="delete_medication_group_title">刪除群組</string>
     <string name="delete_medication_group_confirmation">要刪除這個用藥群組嗎？它沒有相關歷史記錄</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
-        <item quantity="other">要刪除這個用藥群組嗎？您可以保留它關聯的 %1$d 條歷史記錄並將其轉為手動記錄，或一併刪除</item>
+        <item quantity="other">要刪除這個用藥群組嗎？你可以保留它關聯的 %1$d 條歷史記錄並將其轉為手動記錄，或一併刪除</item>
     </plurals>
     <string name="save_medication_group_failure">無法儲存群組</string>
     <string name="delete_medication_group_failure">無法刪除群組</string>
@@ -437,7 +437,7 @@
     <string name="duplicate_medication_group">複製為新群組</string>
     <string name="archive_and_recreate_medication_group_success">已歸檔</string>
     <string name="archive_and_recreate_medication_group_failure">無法歸檔並重建群組</string>
-    <string name="group_locked_banner">這個群組已有相關的記錄，因此您無法更改部分內容，如需調整，請歸檔目前群組並重新建立</string>
+    <string name="group_locked_banner">這個群組已有相關的記錄，因此你無法更改部分內容，如需調整，請歸檔目前群組並重新建立</string>
     <string name="group_locked_time_note">更改計劃時間也會更新歷史記錄中顯示的計劃時間</string>
     <string name="add">新增</string>
     <string name="group_schedule_reset_days_to_start">重設</string>
@@ -462,11 +462,11 @@
     <string name="medicine_manager_manual_log_title">手動新增記錄</string>
     <string name="medicines_empty_state">暫無藥物</string>
     <string name="medicine_picker_add_new_medicine">新增藥物</string>
-    <string name="onboarding_stock_optin_banner">點按藥物即可新增庫存，您也可以隨時在「計劃」→「藥物」中啟用庫存追蹤</string>
+    <string name="onboarding_stock_optin_banner">點按藥物即可新增庫存，你也可以隨時在「計劃」→「藥物」中啟用庫存追蹤</string>
     <string name="create_medicine_title">新增藥物</string>
     <string name="create_medicine_action">儲存</string>
     <string name="medicine_detail_title">藥物詳情</string>
-    <string name="medicine_locked_by_logs">這個藥物已有相關的記錄，因此您無法更改部分內容</string>
+    <string name="medicine_locked_by_logs">這個藥物已有相關的記錄，因此你無法更改部分內容</string>
     <string name="medicine_display_name">顯示名稱</string>
     <string name="medicine_preparation">製劑</string>
     <string name="medicine_edit_title">編輯藥物</string>
@@ -751,7 +751,7 @@
     <string name="settings_about_feedback">意見與建議</string>
     <string name="settings_about_feedback_summary">透過電郵傳送意見</string>
     <string name="settings_about_feedback_subject">%1$s 意見與建議</string>
-    <string name="settings_about_feedback_body">請在這裡描述您的意見或建議。\n\n\n---\n版本名稱：%1$s\n版本代碼：%2$s</string>
+    <string name="settings_about_feedback_body">請在這裡描述你的意見或建議。\n\n\n---\n版本名稱：%1$s\n版本代碼：%2$s</string>
     <string name="settings_about_feedback_chooser_title">傳送意見</string>
     <string name="settings_about_feedback_no_email_app">沒有可用的電郵應用程式</string>
     <string name="settings_about_open_link_title">開啟外部連結</string>
@@ -780,7 +780,7 @@
     <string name="personalization_weight_unit_a11y">單位：%1$s，切換為 %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_status_synced">已同步</string>
-    <string name="health_connect_status_syncing">正在同步…</string>
+    <string name="health_connect_status_syncing">正在同步……</string>
     <string name="health_connect_status_off">同步已關閉</string>
     <string name="health_connect_status_unavailable">不支援此裝置</string>
     <string name="health_connect_status_update_required">需要安裝或更新</string>
@@ -827,9 +827,9 @@
     <string name="onboarding_start_tagline">記錄 HRT 用藥、檢視血藥濃度、掌握用藥節奏</string>
     <string name="onboarding_start_cta">開始使用</string>
     <string name="onboarding_disclaimer_title">重要說明</string>
-    <string name="onboarding_disclaimer_subtitle">Featherline 是一個記錄工具，不提供醫療建議。血藥濃度數值是根據您的用藥計劃計算出的模型估算值，並非實際測量值。這些數值不應替代化驗檢查或臨床醫生的指導。</string>
+    <string name="onboarding_disclaimer_subtitle">Featherline 是一個記錄工具，不提供醫療建議。血藥濃度數值是根據你的用藥計劃計算出的模型估算值，並非實際測量值。這些數值不應替代化驗檢查或臨床醫生的指導。</string>
     <string name="onboarding_disclaimer_data_heading">資料與私隱</string>
-    <string name="onboarding_disclaimer_data_body">所有用藥、劑量和化驗資料都會儲存在您裝置上的本機加密資料庫中。本應用程式不使用任何分析或第三方追蹤服務。預設情況下，您的資料不會離開您的裝置——您可以隨時匯出加密備份。</string>
+    <string name="onboarding_disclaimer_data_body">所有用藥、劑量和化驗資料都會儲存在你裝置上的本機加密資料庫中。本應用程式不使用任何分析或第三方追蹤服務。預設情況下，你的資料不會離開你的裝置——你可以隨時匯出加密備份。</string>
     <string name="onboarding_disclaimer_estimates_heading">估算與建模</string>
     <string name="onboarding_disclaimer_estimates_body">血藥濃度估算基於近似藥代動力學模型，並參考已發表資料和不同給藥途徑的建模假設。個人反應可能存在顯著差異。請僅將估算值作為粗略的趨勢參考。</string>
     <string name="onboarding_disclaimer_advice_heading">非醫療建議</string>
@@ -840,10 +840,10 @@
     <string name="onboarding_disclaimer_acknowledge_read">我已閱讀並同意</string>
     <string name="onboarding_continue">繼續</string>
     <string name="onboarding_notifications_title">開啟用藥提醒</string>
-    <string name="onboarding_notifications_subtitle">為了在您預定的服藥時間傳送提醒，Featherline 需要以下兩項權限，您可以隨時在系統設定中關閉它們</string>
-    <string name="onboarding_notifications_permission_subtitle">為了在您預定的服藥時間傳送提醒，Featherline 需要以下權限，您可以隨時在系統設定中關閉它</string>
-    <string name="onboarding_notifications_master_subtitle">Featherline 可在您預定的服藥時間傳送提醒，您可以隨時在設定中關閉它</string>
-    <string name="onboarding_notifications_master_alarm_subtitle">Featherline 可在您預定的服藥時間傳送提醒，您還可以開啟精確鬧鐘以使通知更準時</string>
+    <string name="onboarding_notifications_subtitle">為了在你預定的服藥時間傳送提醒，Featherline 需要以下兩項權限，你可以隨時在系統設定中關閉它們</string>
+    <string name="onboarding_notifications_permission_subtitle">為了在你預定的服藥時間傳送提醒，Featherline 需要以下權限，你可以隨時在系統設定中關閉它</string>
+    <string name="onboarding_notifications_master_subtitle">Featherline 可在你預定的服藥時間傳送提醒，你可以隨時在設定中關閉它</string>
+    <string name="onboarding_notifications_master_alarm_subtitle">Featherline 可在你預定的服藥時間傳送提醒，你還可以開啟精確鬧鐘以使通知更準時</string>
     <string name="onboarding_notifications_app_title">通知權限</string>
     <string name="onboarding_notifications_app_desc">在預定的服藥時間傳送提醒</string>
     <string name="onboarding_notifications_alarm_title">精確鬧鐘</string>
@@ -1091,7 +1091,7 @@
     <string name="calibration_pk_coaching_safety_note">未經醫生同意，請勿更改用藥或檢查時間</string>
     <string name="calibration_pk_edu_title">估算校準的原理</string>
     <string name="calibration_pk_edu_intro_title">根據檢查結果校準雌二醇估算</string>
-    <string name="calibration_pk_edu_intro">各給藥途徑的權重會根據您的檢查結果進行調整</string>
+    <string name="calibration_pk_edu_intro">各給藥途徑的權重會根據你的檢查結果進行調整</string>
     <string name="calibration_pk_edu_does_header">能做什麼</string>
     <string name="calibration_pk_edu_doesnt_header">不能做什麼</string>
     <string name="calibration_pk_edu_does_routes_title">分別校準每個給藥途徑</string>
@@ -1100,7 +1100,7 @@
     <string name="calibration_pk_edu_does_band_body">陰影是下次抽血結果可能落在的範圍，它包含了化驗誤差和抽血時間的波動，不是信賴區間</string>
     <string name="calibration_pk_edu_doesnt_verify_title">判斷 HPG 軸的抑制情況</string>
     <string name="calibration_pk_edu_doesnt_verify_body">不會參考 FSH、LH 或睪酮</string>
-    <string name="calibration_pk_edu_doesnt_learn_title">了解您的吸收情況</string>
+    <string name="calibration_pk_edu_doesnt_learn_title">了解你的吸收情況</string>
     <string name="calibration_pk_edu_doesnt_learn_body">只調整各給藥途徑的整體水平，不調整吸收或清除速率</string>
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：無法計算此時間點的估算</string>

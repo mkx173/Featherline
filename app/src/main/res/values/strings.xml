@@ -90,7 +90,7 @@
     <string name="reminder_notification_action_log_now">Log now</string>
     <string name="reminder_notification_action_log_all">Log all</string>
     <string name="reminder_notification_action_remind_later">Remind later</string>
-    <string name="reminder_notification_snoozed">We\'ll remind you in %1$d minutes.</string>
+    <string name="reminder_notification_snoozed">We’ll remind you in %1$d minutes.</string>
     <string name="stock_toast_out_single">Out of stock: %1$s</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="one">%1$d medicine out of stock</item>
@@ -224,7 +224,7 @@
     <string name="journal_see_all_notes">See all notes</string>
     <string name="journal_today">Today</string>
     <string name="journal_write_about_today">Write about this moment…</string>
-    <string name="journal_no_dates_subtitle">Add a date to see how far you\'ve come.</string>
+    <string name="journal_no_dates_subtitle">Add a date to see how far you’ve come.</string>
     <string name="journal_nothing_pinned_title">No pinned dates yet</string>
     <string name="journal_nothing_pinned_subtitle">Pinned dates appear here.</string>
     <string name="journal_open">Open</string>
@@ -708,7 +708,7 @@
     <string name="settings_calibration_custom_analyte_archive_success">Archived custom analyte.</string>
     <string name="settings_calibration_custom_analyte_archive_title">Archive custom analyte</string>
     <string name="settings_calibration_custom_analyte_archive_message">Archive %1$s? Existing test results will be kept.</string>
-    <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can\'t be changed once test results have been recorded for this analyte.</string>
+    <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can’t be changed once test results have been recorded for this analyte.</string>
     <string name="settings_calibration_delete_all_entries">Delete all calibration records</string>
     <string name="settings_calibration_delete_all_entries_title">Delete all calibration records</string>
     <string name="settings_calibration_delete_all_entries_success">Deleted all calibration records.</string>
@@ -864,7 +864,7 @@
     <string name="onboarding_disclaimer_advice_heading">Not medical advice</string>
     <string name="onboarding_disclaimer_advice_body">Information shown by this app is educational and is not medical advice. It is not a medical device, and it cannot diagnose, treat, cure, or prevent any condition. Always consult a qualified clinician before changing your regimen.</string>
     <string name="onboarding_disclaimer_reminders_heading">Reminders</string>
-    <string name="onboarding_disclaimer_reminders_body">Dose reminders depend on your device\'s notification and alarm permissions. Battery optimizations or system limits may delay or skip reminders.</string>
+    <string name="onboarding_disclaimer_reminders_body">Dose reminders depend on your device’s notification and alarm permissions. Battery optimizations or system limits may delay or skip reminders.</string>
     <string name="onboarding_disclaimer_view_full_policy">View full privacy policy</string>
     <string name="onboarding_disclaimer_acknowledge_read">I have read and agree</string>
     <string name="onboarding_continue">Continue</string>
