@@ -189,6 +189,37 @@ class PlanViewModelTest {
     }
 
     @Test
+    fun turningNightOwlOffBeforeFourClearsASelectionThatBecomesToday() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 2, 0))
+        val settingsState = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = true))
+        every { settingsRepository.settingsState } returns settingsState
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 28))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.selectedDate)
+
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.today)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 30))
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = true)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
     fun archivedRecordsAreShownAsPlannedRowsWithoutAddingArchivedGroupToRegimen() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
         val settingsState = MutableStateFlow(

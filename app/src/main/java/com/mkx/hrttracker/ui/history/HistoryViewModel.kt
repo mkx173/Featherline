@@ -174,6 +174,21 @@ class HistoryViewModel @Inject constructor(
         )
     )
 
+    init {
+        // Turning night owl mode on between 00:00 and 04:00 moves today back a day, which can
+        // leave the selection on a date the calendar no longer lets you pick.
+        viewModelScope.launch {
+            uiState.collect { state ->
+                val date = state.selectedDate ?: return@collect
+                if (!canSelectHistoryCalendarDate(date, state.today)) {
+                    selectedDate.value = null
+                    selectedEntryIds.value = emptySet()
+                    isDeleteConfirmationVisible.value = false
+                }
+            }
+        }
+    }
+
     fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
         if (displayedMonth.value == month) {
             if (clearSelection && selectedDate.value != null) {

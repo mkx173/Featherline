@@ -89,7 +89,14 @@ class PlanViewModel @Inject constructor(
                     selection = selection,
                     now = now,
                 )
-            }.collect { state -> _uiState.value = state }
+            }.collect { state ->
+                _uiState.value = state
+                // Today is never a stored selection (tapping it clears one). Turning night owl
+                // mode off between 00:00 and 04:00 moves today onto the selected next day.
+                if (state.selectedDate == state.today) {
+                    selectedDate.value = null
+                }
+            }
         }
     }
 
