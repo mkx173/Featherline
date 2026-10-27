@@ -134,6 +134,8 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayTimeLabel
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
@@ -3857,7 +3859,8 @@ private fun MainUpcomingDoseRow(
         routeLabel,
         doseText,
     ).joinToString(separator = " · ")
-    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, LocalMedicationDayBoundary.current, timeFormatter)
+    val boundary = LocalMedicationDayBoundary.current
+    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, boundary, timeFormatter)
     // See MainTodayDoseRow: animate the container color (rest -> secondaryContainer)
     // rather than fading a translucent overlay, to avoid 8-bit banding in the tail.
     val containerColor = lerp(
@@ -3876,8 +3879,9 @@ private fun MainUpcomingDoseRow(
                 .fillMaxWidth()
                 .bringIntoViewRequester(bringIntoViewRequester),
             trailingContent = {
-                Text(
+                MedicationDayTimeLabel(
                     text = timeLabel,
+                    isPastMidnight = boundary.isPastMidnight(row.scheduledAt.toLocalTime()),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -3981,8 +3985,10 @@ private fun MainTodayTrailingContent(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (textLabel != null && textLabel.text.isNotBlank()) {
-            Text(
+            MedicationDayTimeLabel(
                 text = textLabel.text,
+                isPastMidnight = !textLabel.isDelta &&
+                        LocalMedicationDayBoundary.current.isPastMidnight(row.scheduledAt.toLocalTime()),
                 style = if (textLabel.isDelta) {
                     MaterialTheme.typography.labelLarge
                 } else {

@@ -1,7 +1,24 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.em
 import com.mkx.hrttracker.R
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -37,3 +54,62 @@ fun medicationDayTimeText(
     )
     return "$time ($offsetText)"
 }
+
+/**
+ * A dose time listed under a medication day. With the day ending at 04:00, a time
+ * between midnight and 04:00 leads with the night owl moon, so a lone 01:00 under
+ * Today reads as tonight rather than this morning. The moon sits inside the text,
+ * keeping its baseline and end alignment, and reads aloud as "After midnight".
+ */
+@Composable
+fun MedicationDayTimeLabel(
+    text: String,
+    isPastMidnight: Boolean,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+    textAlign: TextAlign? = null,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    if (!isPastMidnight) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            fontWeight = fontWeight,
+            textAlign = textAlign,
+            maxLines = maxLines,
+            modifier = modifier,
+        )
+        return
+    }
+    val description = stringResource(R.string.medication_day_past_midnight)
+    Text(
+        text = buildAnnotatedString {
+            appendInlineContent(PAST_MIDNIGHT_ICON_ID, description)
+            append(' ')
+            append(text)
+        },
+        inlineContent = mapOf(
+            PAST_MIDNIGHT_ICON_ID to InlineTextContent(
+                Placeholder(1.em, 1.em, PlaceholderVerticalAlign.TextCenter),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_moon_stars),
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            },
+        ),
+        style = style,
+        color = color,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
+        maxLines = maxLines,
+        modifier = modifier,
+    )
+}
+
+private const val PAST_MIDNIGHT_ICON_ID = "past_midnight"

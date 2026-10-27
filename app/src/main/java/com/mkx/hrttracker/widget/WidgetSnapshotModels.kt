@@ -22,6 +22,8 @@ data class WidgetDoseRow(
     val scheduledAt: LocalDateTime,
     val trailingText: String?,
     val isManualRecord: Boolean,
+    /** [scheduledAt] falls in the small hours of the night it is listed under; its time shows the night owl moon. */
+    val isPastMidnight: Boolean = false,
     val isFromArchivedGroup: Boolean = false,
     val contextChip: WidgetDoseChip?,
     val groupUuid: String?,

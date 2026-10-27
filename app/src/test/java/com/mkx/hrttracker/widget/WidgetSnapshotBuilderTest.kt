@@ -24,6 +24,7 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -47,7 +48,7 @@ class WidgetSnapshotBuilderTest {
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
-    fun fourAmKeepsMissedDawnInLastNightWithAPlainTime() {
+    fun fourAmKeepsMissedDawnInLastNightWithAPlainTimeMarkedPastMidnight() {
         val now = LocalDateTime.of(2026, 10, 2, 4, 30)
         val group = widgetTestGroup(
             groupName = "Night", medicationKey = MedicationKey.ESTRADIOL,
@@ -76,6 +77,8 @@ class WidgetSnapshotBuilderTest {
                 row.scheduledAt == now.toLocalDate().atTime(1, 0)
         }
         assertEquals("01:00", missedDawn.trailingText)
+        assertTrue(missedDawn.isPastMidnight)
+        assertFalse(snapshot.doseRows.first { it.scheduledAt.hour == 20 }.isPastMidnight)
     }
 
     @Test

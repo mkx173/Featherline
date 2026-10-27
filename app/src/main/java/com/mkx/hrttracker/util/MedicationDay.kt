@@ -34,5 +34,8 @@ fun medicationDay(dateTime: LocalDateTime, boundary: MedicationDayBoundary): Loc
 fun MedicationDayBoundary.timeOfDayOrder(time: LocalTime): Int =
     Math.floorMod(time.toSecondOfDay() - startTime.toSecondOfDay(), LocalTime.MAX.toSecondOfDay() + 1)
 
+/** Whether [time] falls in the small hours that count toward the night before; never with the day ending at midnight. */
+fun MedicationDayBoundary.isPastMidnight(time: LocalTime): Boolean = time.isBefore(startTime)
+
 fun medicationDayStart(date: LocalDate, boundary: MedicationDayBoundary): LocalDateTime =
     date.atTime(boundary.startTime)

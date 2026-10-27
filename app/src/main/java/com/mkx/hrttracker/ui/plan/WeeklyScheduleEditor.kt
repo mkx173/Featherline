@@ -34,6 +34,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.DayOfWeek
@@ -162,6 +164,7 @@ internal fun WeeklyScheduleEditor(
             formattedOriginalTime = originalTime?.format(timeFormatter),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
+            isPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(time),
             showLockedTimeNote = showLockedTimeNote,
             index = itemIndex++,
             count = totalCount
@@ -201,6 +204,7 @@ private fun WeeklyTimeCard(
     formattedOriginalTime: String?,
     onClick: () -> Unit,
     enabled: Boolean,
+    isPastMidnight: Boolean,
     showLockedTimeNote: Boolean,
     index: Int = 0,
     count: Int = 1,
@@ -223,6 +227,7 @@ private fun WeeklyTimeCard(
                 formattedOriginalTime = formattedOriginalTime,
                 onClick = onClick,
                 enabled = enabled,
+                isPastMidnight = isPastMidnight,
             )
 
             AnimatedVisibility(

@@ -260,6 +260,16 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips isPastMidnight flag`() {
+        val dawnRow = baseRecord.doseRows.first().copy(isPastMidnight = true)
+        val record = baseRecord.copy(doseRows = listOf(dawnRow, baseRecord.doseRows[1]))
+        val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
+        assertEquals(record, decoded)
+        assertTrue(decoded.doseRows[0].isPastMidnight)
+        assertFalse(decoded.doseRows[1].isPastMidnight)
+    }
+
+    @Test
     fun `WidgetSnapshotSerializer returns empty state on corrupt bytes`() {
         val serializer = WidgetSnapshotSerializer(PassthroughWidgetCrypto)
         var result: WidgetSnapshotState? = null

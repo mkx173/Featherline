@@ -33,6 +33,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
@@ -176,13 +177,15 @@ private fun DailyTimesCard(
                     AddChip(onClick = onAddTime)
                 }
             }
-            val sortedTimes = sortDailyTimesByOriginalTime(times, LocalMedicationDayBoundary.current)
+            val boundary = LocalMedicationDayBoundary.current
+            val sortedTimes = sortDailyTimesByOriginalTime(times, boundary)
             sortedTimes.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),
                     formattedOriginalTime = dailyTime.originalTime?.format(timeFormatter),
                     onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
                     enabled = timeEditEnabled,
+                    isPastMidnight = boundary.isPastMidnight(dailyTime.time),
                     index = index,
                     count = sortedTimes.size
                 )
@@ -210,6 +213,7 @@ private fun DailyTimeRow(
     formattedOriginalTime: String?,
     onClick: () -> Unit,
     enabled: Boolean,
+    isPastMidnight: Boolean,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -218,6 +222,7 @@ private fun DailyTimeRow(
         formattedOriginalTime = formattedOriginalTime,
         onClick = onClick,
         enabled = enabled,
+        isPastMidnight = isPastMidnight,
         index = index,
         count = count,
     )

@@ -82,6 +82,8 @@ import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayTimeLabel
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayTimeText
@@ -340,6 +342,12 @@ private fun SelectedDayRow(
 
         is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, LocalMedicationDayBoundary.current, timeFormatter)
     }
+    val timeLabelIsPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(
+        when (row) {
+            is SelectedDayRowModel.Scheduled -> displayedLoggedAt ?: row.entry.scheduledFor
+            is SelectedDayRowModel.Unplanned -> row.sortTime
+        }.toLocalTime()
+    )
     val isCrossZoneRow = when (row) {
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
         is SelectedDayRowModel.Scheduled -> row.entry.isLastFulfillingEntryCrossZone
@@ -383,8 +391,9 @@ private fun SelectedDayRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
+                    MedicationDayTimeLabel(
                         text = timeLabel,
+                        isPastMidnight = timeLabelIsPastMidnight,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,

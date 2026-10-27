@@ -232,6 +232,8 @@ internal fun ScheduleTimeRow(
     formattedOriginalTime: String?,
     onClick: () -> Unit,
     enabled: Boolean,
+    /** With the day ending at 04:00, a time before it counts toward the night before and shows the night owl moon. */
+    isPastMidnight: Boolean = false,
     index: Int = 0,
     count: Int = 1,
 ) {
@@ -247,8 +249,8 @@ internal fun ScheduleTimeRow(
         pressedShape = MaterialTheme.shapes.medium,
         leadingContent = {
             Icon(
-                painter = painterResource(R.drawable.ic_schedule),
-                contentDescription = null,
+                painter = painterResource(if (isPastMidnight) R.drawable.ic_moon_stars else R.drawable.ic_schedule),
+                contentDescription = if (isPastMidnight) stringResource(R.string.medication_day_past_midnight) else null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )

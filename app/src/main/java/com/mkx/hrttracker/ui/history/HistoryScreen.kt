@@ -141,6 +141,8 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayTimeLabel
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.swmansion.kmpwheelpicker.WheelPicker
 import com.swmansion.kmpwheelpicker.WheelPickerState
@@ -2320,8 +2322,11 @@ private fun HistoryEntryCard(
             val indicatorIconRes = historyEntryIndicatorIconRes(entry)
             val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(entry, deviceZone), dayDate, LocalMedicationDayBoundary.current, timeFormatter),
+                val appliedAt = appliedAtAsLocalDateTime(entry, deviceZone)
+                val boundary = LocalMedicationDayBoundary.current
+                MedicationDayTimeLabel(
+                    text = medicationDayTimeText(LocalContext.current, appliedAt, dayDate, boundary, timeFormatter),
+                    isPastMidnight = boundary.isPastMidnight(appliedAt.toLocalTime()),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End

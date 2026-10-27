@@ -6,8 +6,11 @@ import io.mockk.every
 import io.mockk.mockk
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MedicationDayDisplayTextTest {
@@ -70,5 +73,14 @@ class MedicationDayDisplayTextTest {
         assertEquals("01:00", text(LocalDateTime.of(2026, 11, 1, 1, 0)))
         assertEquals("09:00 (+1)", text(LocalDateTime.of(2026, 11, 1, 9, 0)))
         assertEquals("02:00 (-1)", text(LocalDateTime.of(2026, 10, 31, 2, 0)))
+    }
+
+    @Test
+    fun onlyTheSmallHoursBeforeFourAmArePastMidnight() {
+        assertTrue(MedicationDayBoundary.FourAm.isPastMidnight(LocalTime.MIDNIGHT))
+        assertTrue(MedicationDayBoundary.FourAm.isPastMidnight(LocalTime.of(3, 59)))
+        assertFalse(MedicationDayBoundary.FourAm.isPastMidnight(LocalTime.of(4, 0)))
+        assertFalse(MedicationDayBoundary.FourAm.isPastMidnight(LocalTime.of(22, 0)))
+        assertFalse(MedicationDayBoundary.Midnight.isPastMidnight(LocalTime.of(1, 0)))
     }
 }

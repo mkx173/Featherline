@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -238,6 +239,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         scheduledAt = scheduledFor,
         trailingText = displayTime,
         isManualRecord = false,
+        isPastMidnight = boundary.isPastMidnight(scheduledFor.toLocalTime()),
         isFromArchivedGroup = isFromArchivedGroup,
         contextChip = contextChip,
         groupUuid = groupUuid.toString(),

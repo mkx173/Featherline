@@ -1041,6 +1041,7 @@
     <string name="settings_medication_day_moves_doses_body">呢個操作會將 %2$s 入面 %1$s 前嘅用藥移動一日，之前嘅用藥可能顯示為已錯過</string>
     <string name="settings_medication_day_enable_confirm">開啟</string>
     <string name="settings_medication_day_disable_confirm">關閉</string>
+    <string name="medication_day_past_midnight">凌晨</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">請新增用藥記錄</string>
