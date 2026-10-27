@@ -141,7 +141,6 @@ internal fun handleDoseReminder(
             if (bundle != null) {
                 reminderNotificationManager.showDoseReminderNotification(
                     bundle,
-                    boundary = settings.medicationDayBoundary,
                     hideMedicationDetails = settings.hideMedicationDetails,
                 )
                 diagnosticsLogger.info(

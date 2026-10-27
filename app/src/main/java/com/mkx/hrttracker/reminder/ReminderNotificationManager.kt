@@ -26,9 +26,6 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.toStorageValue
-import com.mkx.hrttracker.util.medicationDayDateAndTimeText
-import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -37,7 +34,7 @@ import com.mkx.hrttracker.util.medicineDisplayName
 import com.mkx.hrttracker.util.uses24HourTimeFormat
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.LocalDateTime
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,7 +85,6 @@ class ReminderNotificationManager @Inject constructor(
 
     fun showDoseReminderNotification(
         bundle: MedicationReminderBundle,
-        boundary: MedicationDayBoundary,
         canSnooze: Boolean = true,
         hideMedicationDetails: Boolean = false,
     ) {
@@ -134,21 +130,13 @@ class ReminderNotificationManager @Inject constructor(
             // Two reminders for one group, say a snoozed dose and a later one,
             // would otherwise read the same: name the dose each one is for.
             .setSubText(
-                medicationDayDateAndTimeText(
-                    localizedContext,
-                    bundle.scheduledAt,
-                    boundary,
-                    localizedShortTimeFormatter(appLanguageLocale(), context.uses24HourTimeFormat()),
-                ).let { (scheduledDay, scheduledTime) ->
-                    localizedContext.getString(
-                        R.string.reminder_notification_scheduled_at,
-                        dateLabelFormatter(
-                            appLanguageLocale(),
-                            medicationDay(LocalDateTime.now(), boundary),
-                        )(scheduledDay),
-                        scheduledTime,
-                    )
-                }
+                localizedContext.getString(
+                    R.string.reminder_notification_scheduled_at,
+                    dateLabelFormatter(appLanguageLocale(), LocalDate.now())(bundle.scheduledAt.toLocalDate()),
+                    bundle.scheduledAt.format(
+                        localizedShortTimeFormatter(appLanguageLocale(), context.uses24HourTimeFormat())
+                    ),
+                )
             )
             // The header would show the post time next to the subtext's dose time.
             .setShowWhen(false)

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Settings now has a "Day ends at 04:00" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan, History and the widget, so a dose taken after midnight stays with the evening it belongs to, and its time shows as, for example, 01:00 (+1). Turning the switch on or off never moves a dose: plans keep firing at the same times on the same calendar days, and existing records only regroup.
+- Settings now has a "Day ends at 04:00" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan, History and the widget, so a dose taken after midnight stays with the evening it belongs to, and in those day lists its time shows as, for example, 01:00 (+1). Anywhere a date is printed next to a time, such as reminders, the record editor, the plan editor's preview and a plan's upcoming doses, it is the real calendar date and time. Turning the switch on or off never moves a dose: plans keep firing at the same times on the same calendar days, and existing records only regroup.
 
 ### Fixed
 

@@ -468,7 +468,8 @@ private fun PlanScreenContent(
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
                     nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                    today = uiState.today,
+                    // The upcoming chips print real dates, so "Today" is the calendar day.
+                    today = uiState.now.toLocalDate(),
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     onGroupClick = onGroupClick
                 )

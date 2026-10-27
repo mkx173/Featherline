@@ -84,7 +84,7 @@ class MedicationReminderReceiverTest {
         deliver(now = scheduledAt)
 
         coVerifyOrder {
-            reminderNotificationManager.showDoseReminderNotification(any(), any(), any(), any())
+            reminderNotificationManager.showDoseReminderNotification(any(), any(), any())
             e2EstimateRepository.warmHome()
             pendingResult.finish()
         }
@@ -162,7 +162,7 @@ class MedicationReminderReceiverTest {
     /** The slots of the one reminder posted, by group and time. */
     private fun postedSlots(): List<Pair<UUID, LocalDateTime>> {
         val bundle = slot<MedicationReminderBundle>()
-        coVerify(exactly = 1) { reminderNotificationManager.showDoseReminderNotification(capture(bundle), any(), any(), any()) }
+        coVerify(exactly = 1) { reminderNotificationManager.showDoseReminderNotification(capture(bundle), any(), any()) }
         return bundle.captured.slots.map { slot -> slot.groupUuid to slot.scheduledAt }
     }
 }

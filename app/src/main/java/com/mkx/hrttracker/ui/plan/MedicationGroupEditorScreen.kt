@@ -136,7 +136,6 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -545,7 +544,7 @@ private fun MedicationGroupEditorScreenContent(
     val scope = rememberCoroutineScope()
     val resolvedOccurrenceReferenceTime = occurrenceReferenceTime
         ?: LocalDateTime.now().withSecond(0).withNano(0)
-    val currentDate = medicationDay(resolvedOccurrenceReferenceTime, uiState.medicationDayBoundary)
+    val currentDate = resolvedOccurrenceReferenceTime.toLocalDate()
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, currentDate) {
         medicationGroupScheduleDateFormatter(appLocale, currentDate)
