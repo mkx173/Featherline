@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -67,6 +68,8 @@ import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.medicationDayDateAndTimeText
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatEditorZoneLabel
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -142,13 +145,14 @@ fun MedicationLogEntryEditorSheet(
         dateLabelFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val boundary = LocalMedicationDayBoundary.current
+    val context = LocalContext.current
     val sourceGroupScheduledForText = sourceGroupScheduledFor?.let { scheduledFor ->
+        val (scheduledDay, scheduledTime) =
+            medicationDayDateAndTimeText(context, scheduledFor, boundary, timeFormatter)
         stringResource(
             R.string.medication_editor_original_schedule,
-            listOf(
-                dateFormatter(scheduledFor.toLocalDate()),
-                scheduledFor.toLocalTime().format(timeFormatter),
-            ).joinToString(separator = " "),
+            listOf(dateFormatter(scheduledDay), scheduledTime).joinToString(separator = " "),
         )
     }
     val sourceGroupScheduleOffset = sourceGroupScheduledFor?.let { scheduledFor ->

@@ -281,6 +281,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 scheduledAt = unfulfilledSlots.minOf(MedicationReminderSlot::scheduledAt),
                 items = bundleItems,
             ),
+            boundary = settings.medicationDayBoundary,
             canSnooze = canSnooze,
             hideMedicationDetails = settings.hideMedicationDetails,
         )

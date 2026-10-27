@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.reminder
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -139,7 +140,7 @@ class ReminderNotificationManagerTest {
             )
         } throws SecurityException("revoked")
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle, boundary = MedicationDayBoundary.Midnight, canSnooze = false)
 
         verify {
             diagnosticsLogger.warning(
@@ -275,7 +276,7 @@ class ReminderNotificationManagerTest {
         every { notifManagerCompat.areNotificationsEnabled() } returns true
         every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle, boundary = MedicationDayBoundary.Midnight, canSnooze = false)
 
         verify {
             anyConstructed<Intent>().putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)

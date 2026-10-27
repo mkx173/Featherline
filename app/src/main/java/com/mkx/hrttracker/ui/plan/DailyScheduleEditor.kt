@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -32,7 +33,9 @@ import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationDayDateAndTimeText
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -251,8 +254,12 @@ internal fun ScheduleOccurrencesCard(
             )
             val todayLabel = stringResource(R.string.plan_group_upcoming_today)
             val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
+            val boundary = LocalMedicationDayBoundary.current
+            val context = LocalContext.current
             occurrences.forEachIndexed { occurrenceIndex, occurrence ->
-                val occurrenceDate = occurrence.toLocalDate()
+                val (occurrenceDate, formattedTime) = medicationDayDateAndTimeText(
+                    context, occurrence, boundary, timeFormatter,
+                )
                 val relativeDateLabel = schedulePreviewRelativeDateLabel(
                     date = occurrenceDate,
                     currentDate = currentDate,
@@ -261,7 +268,7 @@ internal fun ScheduleOccurrencesCard(
                 )
                 val formattedDate = dateFormatter(occurrenceDate)
                 ScheduleOccurrenceRow(
-                    formattedTime = occurrence.toLocalTime().format(timeFormatter),
+                    formattedTime = formattedTime,
                     formattedDate = relativeDateLabel?.let { label ->
                         stringResource(R.string.plan_group_upcoming_format, label, formattedDate)
                     } ?: formattedDate,

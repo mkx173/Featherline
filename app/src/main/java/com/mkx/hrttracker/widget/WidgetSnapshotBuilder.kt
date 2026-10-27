@@ -12,12 +12,14 @@ import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.medicationDayTimeText
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -72,6 +74,7 @@ internal fun buildWidgetSnapshotRecord(
                 entry.toWidgetDoseRow(
                     context = context,
                     timeFormatter = timeFormatter,
+                    dayDate = previousSchedule.date,
                     contextChip = WidgetDoseChip.LAST_NIGHT,
                     isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
                 )
@@ -95,6 +98,7 @@ internal fun buildWidgetSnapshotRecord(
             entry.toWidgetDoseRow(
                 context = context,
                 timeFormatter = timeFormatter,
+                dayDate = sections.todaySchedule.date,
                 contextChip = null,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
@@ -111,16 +115,17 @@ internal fun buildWidgetSnapshotRecord(
             )
         }
 
-    val comingUpScheduledRows = sections.comingUp?.scheduledEntries
-        ?.map { entry ->
+    val comingUpScheduledRows = sections.comingUp?.let { comingUp ->
+        comingUp.scheduledEntries.map { entry ->
             entry.toWidgetDoseRow(
                 context = context,
                 timeFormatter = timeFormatter,
+                dayDate = comingUp.date,
                 contextChip = WidgetDoseChip.COMING_UP,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
         }
-        .orEmpty()
+    }.orEmpty()
     val comingUpManualRows = sections.comingUp?.unplannedEntries
         ?.map { entry ->
             entry.toManualWidgetDoseRow(
@@ -188,6 +193,8 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
 private fun PlanDayScheduleEntry.toWidgetDoseRow(
     context: Context,
     timeFormatter: DateTimeFormatter,
+    /** The medication day the row is listed under; a later civil date shows (+1). */
+    dayDate: LocalDate,
     contextChip: WidgetDoseChip?,
     isFromArchivedGroup: Boolean,
 ): WidgetDoseRow {
@@ -203,7 +210,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW,
             -> null
 
-        else -> scheduledFor.toLocalTime().format(timeFormatter)
+        else -> medicationDayTimeText(context, scheduledFor, dayDate, timeFormatter)
     }
     return WidgetDoseRow(
         medicationName = medicationEntryTitle(

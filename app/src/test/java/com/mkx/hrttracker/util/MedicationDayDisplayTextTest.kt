@@ -58,4 +58,21 @@ class MedicationDayDisplayTextTest {
             ),
         )
     }
+
+    @Test
+    fun datedDoseTimeNamesItsMedicationDayAndOnlyMarksBeforeFourAm() {
+        val dawn = LocalDateTime.of(2026, 11, 1, 1, 0)
+        assertEquals(
+            day to "01:00 (+1)",
+            medicationDayDateAndTimeText(context, dawn, MedicationDayBoundary.FourAm, formatter),
+        )
+        assertEquals(
+            day.plusDays(1) to "01:00",
+            medicationDayDateAndTimeText(context, dawn, MedicationDayBoundary.Midnight, formatter),
+        )
+        assertEquals(
+            day.plusDays(1) to "04:00",
+            medicationDayDateAndTimeText(context, dawn.withHour(4), MedicationDayBoundary.FourAm, formatter),
+        )
+    }
 }

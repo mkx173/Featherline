@@ -84,6 +84,8 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDayDateAndTimeText
 import com.mkx.hrttracker.util.medicationDayTimeText
 import java.time.DayOfWeek
 import java.time.Instant
@@ -829,15 +831,20 @@ internal fun RegimenGroupCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.horizontalScroll(rememberScrollState())
                     ) {
+                        val boundary = LocalMedicationDayBoundary.current
+                        val context = LocalContext.current
                         upcomingOccurrences.forEachIndexed { index, occurrence ->
-                            val dayLabel = when (occurrence.toLocalDate()) {
+                            val (occurrenceDay, occurrenceTime) = medicationDayDateAndTimeText(
+                                context, occurrence, boundary, timeFormatter,
+                            )
+                            val dayLabel = when (occurrenceDay) {
                                 today -> stringResource(R.string.plan_group_upcoming_today)
                                 today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                                else -> dateFormatter(occurrence.toLocalDate())
+                                else -> dateFormatter(occurrenceDay)
                             }
                             UpcomingOccurrenceChip(
                                 label = dayLabel,
-                                time = occurrence.toLocalTime().format(timeFormatter),
+                                time = occurrenceTime,
                                 emphasized = index == 0
                             )
                         }

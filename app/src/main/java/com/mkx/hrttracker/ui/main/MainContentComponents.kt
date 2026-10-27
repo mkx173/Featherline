@@ -133,6 +133,9 @@ import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayDateAndTimeText
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
@@ -3461,6 +3464,7 @@ internal fun MainTodaySection(
                             key(rowKey) {
                                 MainTodayDoseRow(
                                     row = row,
+                                    dayDate = section.date,
                                     index = index,
                                     itemCount = rows.size,
                                     now = now,
@@ -3525,6 +3529,7 @@ internal fun MainLastNightSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
+                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3586,6 +3591,7 @@ internal fun MainComingUpSection(
                 key(rowKey) {
                     MainTodayDoseRow(
                         row = row,
+                        dayDate = section.date ?: row.scheduledAt.toLocalDate(),
                         index = index,
                         itemCount = section.rows.size,
                         now = now,
@@ -3686,6 +3692,8 @@ internal fun mainUpcomingDoseRowCompositionKey(row: MainUpcomingDoseRowUiState):
 @Composable
 private fun MainTodayDoseRow(
     row: MainTodayDoseRowUiState,
+    /** The medication day the row is listed under; times on a later civil day show (+1). */
+    dayDate: LocalDate,
     index: Int,
     itemCount: Int,
     now: LocalDateTime,
@@ -3841,6 +3849,7 @@ private fun MainTodayDoseRow(
 
                 MainTodayTrailingContent(
                     row = row,
+                    dayDate = dayDate,
                     now = now,
                     timeFormatter = timeFormatter,
                     onStatusClick = onStatusClick
@@ -3963,6 +3972,7 @@ private fun MainUpcomingDoseRow(
 @Composable
 private fun MainTodayTrailingContent(
     row: MainTodayDoseRowUiState,
+    dayDate: LocalDate,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
     onStatusClick: () -> Unit,
@@ -3983,7 +3993,7 @@ private fun MainTodayTrailingContent(
                     scheduledFor = row.scheduledAt,
                     now = now
                 ) -> MainTodayTrailingText(
-                    text = row.scheduledAt.toLocalTime().format(timeFormatter),
+                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter),
                     isDelta = false
                 )
 
@@ -4484,10 +4494,14 @@ private fun mainAntiandrogenDueLabel(
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter
 ): String {
-    return when (target.toLocalDate()) {
-        now.toLocalDate() -> target.toLocalTime().format(timeFormatter)
-        now.toLocalDate().plusDays(1) -> stringResource(R.string.main_relative_tomorrow)
-        else -> dateFormatter(target.toLocalDate())
+    val boundary = LocalMedicationDayBoundary.current
+    val (targetDay, targetTime) =
+        medicationDayDateAndTimeText(LocalContext.current, target, boundary, timeFormatter)
+    val today = medicationDay(now, boundary)
+    return when (targetDay) {
+        today -> targetTime
+        today.plusDays(1) -> stringResource(R.string.main_relative_tomorrow)
+        else -> dateFormatter(targetDay)
     }
 }
 
@@ -4661,6 +4675,7 @@ private fun MainTodayDoseRowPreview() {
     MainContentComponentPreviewContainer {
         MainTodayDoseRow(
             row = uiState.todaySection.rows.first { it.status == MainTodayDoseStatus.DUE_SOON },
+            dayDate = uiState.todaySection.date,
             index = 0,
             itemCount = 2,
             now = uiState.now,
@@ -4702,6 +4717,7 @@ private fun MainTodayTrailingContentPreview() {
             uiState.todaySection.rows.forEach { row ->
                 MainTodayTrailingContent(
                     row = row,
+                    dayDate = uiState.todaySection.date,
                     now = uiState.now,
                     timeFormatter = timeFormatter,
                     onStatusClick = { }

@@ -943,6 +943,7 @@ class MedicationReminderActionHandlerTest {
             verify(exactly = 1) {
                 notificationManager.showDoseReminderNotification(
                     any(),
+                    boundary = any(),
                     canSnooze = false,
                     hideMedicationDetails = false,
                 )
@@ -966,7 +967,7 @@ class MedicationReminderActionHandlerTest {
         )
 
         verify(exactly = 0) {
-            notificationManager.showDoseReminderNotification(any(), any(), any())
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
         }
         coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }

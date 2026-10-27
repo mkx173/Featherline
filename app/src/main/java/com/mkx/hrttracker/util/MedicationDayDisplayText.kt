@@ -1,12 +1,16 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.mkx.hrttracker.R
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.absoluteValue
+
+/** The 04:00 switch for display code, provided from settings by MainActivity. */
+val LocalMedicationDayBoundary = staticCompositionLocalOf { MedicationDayBoundary.Midnight }
 
 /**
  * Formats [dateTime]'s time and, when it falls on another date than [dayDate],
@@ -30,4 +34,19 @@ fun medicationDayTimeText(
         dayOffset.absoluteValue.toInt(),
     )
     return "$time ($offsetText)"
+}
+
+/**
+ * A dose time shown with a date: the date is the medication day that owns it and the
+ * time carries the offset, so with the day ending at 04:00, Oct 20 01:00 reads
+ * `Oct 19` + `01:00 (+1)`.
+ */
+fun medicationDayDateAndTimeText(
+    context: Context,
+    dateTime: LocalDateTime,
+    boundary: MedicationDayBoundary,
+    timeFormatter: DateTimeFormatter,
+): Pair<LocalDate, String> {
+    val day = medicationDay(dateTime, boundary)
+    return day to medicationDayTimeText(context, dateTime, day, timeFormatter)
 }
