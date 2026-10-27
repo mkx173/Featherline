@@ -183,12 +183,8 @@ class MedicationDayBoundaryTest {
         assertEquals(2, today.totalCount)
         assertEquals(1, today.manualCount)
 
-        val lastNight = buildMainLastNightSection(groups, emptyList(), now, fourAm, zone)
-        assertEquals(day.minusDays(1), lastNight.date)
-        assertEquals(
-            listOf(day.minusDays(1).atTime(20, 0), day.atTime(1, 0)),
-            lastNight.rows.map { row -> row.scheduledAt },
-        )
+        // Before 04:00 Today already holds this evening, so the night before last is not shown.
+        assertTrue(buildMainLastNightSection(groups, emptyList(), now, fourAm, zone).rows.isEmpty())
         assertTrue(buildMainComingUpSection(groups, emptyList(), day.atTime(22, 0), fourAm, zone).rows.isEmpty())
 
         val upcoming = buildMainUpcomingSection(groups, emptyList(), now, zoneId = zone, boundary = fourAm)

@@ -26,8 +26,9 @@ enum class MedicationDayTimeRange(val startHour: Int, val endHour: Int) {
 private val LastNightEndTime = LocalTime.NOON
 private val TonightStartTime = LocalTime.of(18, 0)
 
+/** Until noon of the current medication day: never between midnight and the 04:00 boundary. */
 fun MedicationDayBoundary.isLastNightVisible(now: LocalDateTime): Boolean =
-    now.toLocalTime().isBefore(LastNightEndTime)
+    now.isBefore(medicationDay(now, this).atTime(LastNightEndTime))
 
 fun MedicationDayBoundary.lastNightMedicationDay(now: LocalDateTime): LocalDate =
     medicationDay(now, this).minusDays(1)
