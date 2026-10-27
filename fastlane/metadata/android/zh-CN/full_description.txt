@@ -8,7 +8,7 @@ Featherline 是一款为长期使用激素疗法的人精心设计的用药记�
 
 直观呈现你的日常
 
-Featherline 把你的用药时间在一天和一周内的分布直观呈现出来——可视化让你看到自己的节奏。你可以设定个人的参考范围，在时间轴上标记每次用药，查看过去 24 小时的变化。你也可以记录个人的测试结果，Featherline 可以按给药途径据此校准可视化，让它更贴合你的实际。
+Featherline shows you how your dose timing flows across the day and week — visualizations help you see patterns in your routine. Set your own personal target ranges, mark your doses on a timeline, and check changes over the past 24 hours when you want a closer look. You can also record personal test results, and Featherline can calibrate the visualization to them, route by route, so it stays meaningful to you.
 
 为隐私而设计
 
@@ -19,17 +19,17 @@ Featherline 把你的用药时间在一天和一周内的分布直观呈现出�
 
 主要功能
 
-- 自定义用药安排，支持每日或每周方案
-- 智能用药提醒，支持批量记录
-- 日常可视化
-- 根据你的测试结果进行校准，并在图表上显示预测区间
-- 月历视图历史和个人摘要
-- 个人记录，支持内置与自定义字段
-- 设置你的体重以提供更个性化的可视化
-- 主屏幕小组件——在主屏幕上查看下一次用药并直接标记为已记录
-- 日记日期小组件和桌面快捷方式，显示累计天数
-- 用药库存管理——记录手头的余量，在用尽前收到低库存提醒和可用天数预估，便于及时补充
-- 每日日记——记录每天状态，追踪重要日期与里程碑
+- Custom medication schedules, daily or weekly
+- Smart reminders with batch logging
+- Routine visualization
+- Calibration to your own test results, with a prediction interval on the chart
+- Month-view history with personal summaries
+- Personal record logging with built-in and custom fields
+- Set your body weight for more personalized visualization
+- Home screen widget — see your next dose and mark it taken right from your home screen
+- Journal date widget and home-screen shortcuts with running day counts
+- Medication stock tracking — keep count of what you have on hand, with low-stock reminders and a runway estimate so you can reorder before you run out
+- Daily journal — note how any day went and track meaningful dates with milestones
 
 关于 Featherline
 
