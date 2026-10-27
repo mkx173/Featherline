@@ -620,7 +620,6 @@ internal fun RegimenGroupCard(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 4.dp)
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -816,14 +815,14 @@ internal fun RegimenGroupCard(
 
             if (showUpcomingSection) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    modifier = Modifier.padding(vertical = 2.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 2.dp)
+                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 6.dp)
                 ) {
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
                         val dayLabel = when (occurrence.toLocalDate()) {
