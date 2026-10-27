@@ -407,7 +407,7 @@ class MedicationDayE2eTest {
             .performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         await { !io { entryPoint.settingsRepository().getCurrentSettings().showArchivedGroupRecords } }
         history()
-        awaitText(text(R.string.history_empty_state))
+        awaitText(text(R.string.history_selected_day_empty_state))
         compose.onNodeWithText("Archived dawn dose").assertDoesNotExist()
         tab(R.string.tab_settings)
         compose.onNode(hasText(text(R.string.settings_hide_archived_group_records)) and hasClickAction())
