@@ -43,7 +43,7 @@ class StockNudgeGateTest {
             produceFile = { tmpFolder.newFile("settings_test.preferences_pb") },
         )
 
-        settings = SettingsRepository(context, dataStore)
+        settings = SettingsRepository(dataStore)
         gate = StockNudgeGate(settings)
     }
 

@@ -43,11 +43,14 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
-    fun nextWidgetDateRefreshAt_returnsNextLocalMidnight() {
-        assertEquals(
-            LocalDateTime.of(2026, 5, 23, 0, 0),
-            nextWidgetDateRefreshAt(LocalDateTime.of(2026, 5, 22, 16, 45)),
-        )
+    fun nextRefreshIsTheNextOfFourAmNoonAndMidnight() {
+        val midnight = LocalDateTime.of(2026, 10, 2, 0, 0)
+        assertEquals(midnight.withHour(4), nextWidgetDateRefreshAt(midnight))
+        assertEquals(midnight.withHour(4), nextWidgetDateRefreshAt(midnight.withHour(1)))
+        assertEquals(midnight.withHour(12), nextWidgetDateRefreshAt(midnight.withHour(4)))
+        assertEquals(midnight.withHour(12), nextWidgetDateRefreshAt(midnight.withHour(11).withMinute(55)))
+        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(12)))
+        assertEquals(midnight.plusDays(1), nextWidgetDateRefreshAt(midnight.withHour(16).withMinute(45)))
     }
 
     @Test
@@ -60,7 +63,6 @@ class WidgetMidnightRefreshSchedulerTest {
             now = now,
             diagnosticsLogger = diagnosticsLogger,
         )
-
         verify(exactly = 1) {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
@@ -78,6 +80,21 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
+    fun scheduleNextWidgetDateRefresh_logsInsteadOfThrowingAtTheAlarmLimit() {
+        every {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any())
+        } throws IllegalStateException("Maximum limit of concurrent alarms 500 reached")
+
+        scheduleNextWidgetDateRefresh(
+            context = context,
+            now = LocalDateTime.of(2026, 10, 28, 1, 0),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        verify { diagnosticsLogger.warning(any(), match { it.startsWith("widget_date_refresh_alarm_schedule_failed") }, any()) }
+    }
+
+    @Test
     fun scheduleNextWidgetDateRefresh_fallsBackToInexactAlarmWhenExactAccessIsMissing() {
         every { alarmManager.canScheduleExactAlarms() } returns false
 
@@ -87,7 +104,6 @@ class WidgetMidnightRefreshSchedulerTest {
             diagnosticsLogger = diagnosticsLogger,
             sdkInt = Build.VERSION_CODES.S,
         )
-
         verify(exactly = 0) {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }

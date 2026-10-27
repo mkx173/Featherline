@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
@@ -243,7 +244,7 @@ class WidgetSnapshotRepositoryTest {
         widgetSnapshotRepository = repository,
         e2EstimateRepository = mockk(relaxed = true),
         rerender = {},
-    )
+        boundary = MedicationDayBoundary.Midnight)
 
     // What the builder stub writes for a derived estimate, and an older one.
     private val derivedProjection = projection(windowEndEpochMillis = 2_000L)
@@ -294,6 +295,7 @@ class WidgetSnapshotRepositoryTest {
             generation = generation,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = tag,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),

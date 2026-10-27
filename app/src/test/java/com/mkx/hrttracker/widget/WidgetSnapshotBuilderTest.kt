@@ -47,6 +47,38 @@ class WidgetSnapshotBuilderTest {
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
+    fun fourAmKeepsMissedDawnInLastNightWithAPlainTime() {
+        val now = LocalDateTime.of(2026, 10, 2, 4, 30)
+        val group = widgetTestGroup(
+            groupName = "Night", medicationKey = MedicationKey.ESTRADIOL,
+            since = now.toLocalDate().minusDays(2), time = LocalTime.of(1, 0),
+        )
+        val configuredGroup = group.copy(schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY, interval = 1,
+            since = now.toLocalDate().minusDays(2), weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)),
+        ))
+        val entry = testMedicationLogEntry(
+            medicine = configuredGroup.medications.single().medicine,
+            sourceGroupUuid = null, appliedAt = now.atZone(zoneId).toInstant(), appliedAtTimeZoneId = zoneId.id,
+        )
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(configuredGroup)).copy(scheduleEntries = listOf(entry)),
+            widgetEstimate = null,
+            settings = SettingsState(medicationDayEndsAtFourAm = true), now = now, zoneId = zoneId,
+        )
+        assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
+        assertEquals(2, snapshot.totalCount)
+        assertEquals(1, snapshot.manualCount)
+        val missedDawn = snapshot.doseRows.first { row ->
+            row.contextChip == WidgetDoseChip.LAST_NIGHT &&
+                row.scheduledAt == now.toLocalDate().atTime(1, 0)
+        }
+        assertEquals("01:00", missedDawn.trailingText)
+    }
+
+    @Test
     fun writesMedicationNamesToWidgetRows() {
         val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         val group = widgetTestGroup(
@@ -333,6 +365,67 @@ class WidgetSnapshotBuilderTest {
         )
 
         assertEquals(true, snapshot.doseRows.single().isImportedRecord)
+    }
+
+    @Test
+    fun comingUpIncludesManualMidnightRowAtMidnightBoundary() {
+        val now = LocalDateTime.of(2026, 10, 1, 20, 0)
+        val manualMedicine = testCustomMedicine(medicationName = "Midnight manual")
+        val manual = testMedicationLogEntry(
+            medicine = manualMedicine,
+            sourceGroupUuid = null,
+            appliedAt = now.toLocalDate().plusDays(1).atTime(0, 30).atZone(zoneId).toInstant(),
+            appliedAtTimeZoneId = zoneId.id,
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now).copy(scheduleEntries = listOf(manual)),
+            widgetEstimate = null,
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val row = snapshot.doseRows.single { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+        assertTrue(row.isManualRecord)
+        assertEquals("Midnight manual", row.medicationName)
+    }
+
+    @Test
+    fun comingUpIncludesArchivedGroupMidnightRowWhenSettingOn() {
+        val now = LocalDateTime.of(2026, 10, 1, 20, 0)
+        val archived = widgetTestGroup(
+            groupName = "Archived night",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate().minusDays(10),
+            time = LocalTime.of(0, 30),
+        ).copy(
+            archivedAt = now.minusHours(1).atZone(zoneId).toInstant(),
+            archivedAtLocal = now.minusHours(1),
+        )
+        val logged = testMedicationLogEntry(
+            medicine = archived.medications.single().medicine,
+            sourceGroupUuid = archived.uuid,
+            scheduleTimeUuid = archived.schedule.timeSlots.single().uuid,
+            scheduledFor = now.toLocalDate().plusDays(1).atTime(0, 30),
+            appliedAt = now.toLocalDate().plusDays(1).atTime(0, 35).atZone(zoneId).toInstant(),
+            appliedAtTimeZoneId = zoneId.id,
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, archivedGroups = listOf(archived))
+                .copy(scheduleEntries = listOf(logged)),
+            widgetEstimate = null,
+            settings = SettingsState(showArchivedGroupRecords = true),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val row = snapshot.doseRows.single { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+        assertEquals("Archived night", row.groupName)
+        assertTrue(row.isFromArchivedGroup)
     }
 
     private fun stubMedicationStrings() {

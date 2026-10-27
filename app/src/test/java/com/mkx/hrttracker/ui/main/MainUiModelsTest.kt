@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -391,7 +392,8 @@ class MainUiModelsTest {
                 )
             ),
             now = now,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -471,6 +473,7 @@ class MainUiModelsTest {
             now = now,
             zoneId = testZoneId,
             category = MedicationCategory.SERM,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -533,7 +536,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 21, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -622,7 +626,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -702,7 +707,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(3, cards.size)
@@ -780,7 +786,8 @@ class MainUiModelsTest {
                 )
             ),
             now = now,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -843,7 +850,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(1, cards.size)
@@ -906,7 +914,8 @@ class MainUiModelsTest {
                 )
             ),
             now = displayedNow,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -968,7 +977,8 @@ class MainUiModelsTest {
                 )
             ),
             now = loggedMinute,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -1047,7 +1057,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(3, cards.size)
@@ -1122,7 +1133,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -1158,7 +1170,8 @@ class MainUiModelsTest {
                 )
             ),
             now = now,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 19, 19, 30), cards.single().nextDoseAt)
@@ -1176,7 +1189,8 @@ class MainUiModelsTest {
             groups = listOf(antiandrogenGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 20, 31),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
@@ -1194,7 +1208,8 @@ class MainUiModelsTest {
             groups = listOf(antiandrogenGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 20, 30),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
@@ -1212,7 +1227,8 @@ class MainUiModelsTest {
             groups = listOf(antiandrogenGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 15, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 20, 0), cards.single().nextDoseAt)
@@ -1260,7 +1276,8 @@ class MainUiModelsTest {
             buildMainAntiandrogenCards(
                 groups = listOf(estradiolGroup),
                 entries = emptyList(),
-                now = LocalDateTime.of(2026, 4, 18, 11, 0)
+                now = LocalDateTime.of(2026, 4, 18, 11, 0),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -1299,7 +1316,8 @@ class MainUiModelsTest {
             groups = listOf(antiandrogenGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(1, cards.size)
@@ -1351,7 +1369,8 @@ class MainUiModelsTest {
             groups = listOf(newerGroup, olderGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf("Older blocker", "Newer blocker"), cards.map { it.groupName })
@@ -1385,8 +1404,8 @@ class MainUiModelsTest {
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0)
                 )
             ),
-            now = LocalDateTime.of(2026, 4, 18, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, todaySection.doneCount)
         assertEquals(4, todaySection.totalCount)
@@ -1441,7 +1460,7 @@ class MainUiModelsTest {
             zoneId = testZoneId,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(1, section.totalCount)
         assertEquals(1, section.doneCount)
@@ -1490,7 +1509,7 @@ class MainUiModelsTest {
             zoneId = testZoneId,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             true,
@@ -1524,7 +1543,7 @@ class MainUiModelsTest {
             zoneId = testZoneId,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         // The group is archived later today (23:00), so both 08:00 and 20:00
         // are "owned" unlogged occurrences. With includeUnloggedArchivedSlots
@@ -1553,8 +1572,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 22, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainTodayDoseStatus.OVERDUE, todaySection.rows.single().status)
     }
@@ -1579,8 +1598,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 20, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         val row = todaySection.rows.single()
         assertEquals(groupUuid, row.groupUuid)
@@ -1621,8 +1640,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = listOf(entry),
             now = LocalDateTime.of(2026, 4, 18, 22, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         val row = todaySection.rows.single()
         assertEquals(MainTodayDoseStatus.DONE, row.status)
@@ -1682,8 +1701,8 @@ class MainUiModelsTest {
             groups = listOf(newerGroup, olderGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 7, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(olderGroupUuid, olderGroupUuid, newerGroupUuid),
@@ -1716,8 +1735,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(0, todaySection.doneCount)
         assertEquals(0, todaySection.totalCount)
@@ -1752,8 +1771,8 @@ class MainUiModelsTest {
             groups = emptyList(),
             entries = listOf(imported),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         val row = todaySection.rows.single()
         assertEquals(true, row.isManualRecord)
@@ -1797,7 +1816,7 @@ class MainUiModelsTest {
             entries = listOf(crossZoneEntry),
             now = LocalDateTime.of(2026, 4, 18, 12, 0),
             zoneId = deviceZone,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         // The scheduled slot should be present and marked DONE; no manual rows.
         assertEquals(0, todaySection.manualCount)
@@ -1835,8 +1854,8 @@ class MainUiModelsTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             listOf(false, true),
@@ -1885,8 +1904,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = entries,
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(0, todaySection.doneCount)
         assertEquals(0, todaySection.totalCount)
@@ -1900,8 +1919,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = entries,
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(previousDate, lastNightSection.date)
         assertEquals(0, lastNightSection.doneCount)
@@ -1921,7 +1940,7 @@ class MainUiModelsTest {
     }
 
     @Test
-    fun buildMainLastNightSection_isEmpty_atSix() {
+    fun buildMainLastNightSection_keepsPreviousEveningVisibleAtSix() {
         val previousDate = LocalDate.of(2026, 4, 18)
         val today = previousDate.plusDays(1)
         val group = medicationGroup(
@@ -1946,8 +1965,8 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = entries,
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
         assertEquals(emptyList<MainTodayDoseRowUiState>(), todaySection.rows)
         assertEquals(0, todaySection.totalCount)
         assertEquals(0, todaySection.manualCount)
@@ -1956,12 +1975,18 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = entries,
             now = now,
-            zoneId = testZoneId
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
+        assertEquals(previousDate, lastNightSection.date)
+        assertEquals(1, lastNightSection.totalCount)
+        assertEquals(1, lastNightSection.manualCount)
+        assertEquals(
+            listOf(
+                LocalDateTime.of(previousDate, LocalTime.of(20, 0)),
+                LocalDateTime.of(previousDate, LocalTime.of(21, 15)),
+            ),
+            lastNightSection.rows.map { row -> row.scheduledAt },
         )
-        assertEquals(emptyList<MainTodayDoseRowUiState>(), lastNightSection.rows)
-        assertEquals(0, lastNightSection.totalCount)
-        assertEquals(0, lastNightSection.manualCount)
-        assertNull(lastNightSection.date)
     }
 
     @Test
@@ -1990,18 +2015,15 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = emptyList(),
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(tomorrow, comingUpSection.date)
         assertEquals(0, comingUpSection.doneCount)
-        assertEquals(2, comingUpSection.totalCount)
+        assertEquals(1, comingUpSection.totalCount)
         assertEquals(0, comingUpSection.manualCount)
         assertEquals(
-            listOf(
-                LocalDateTime.of(tomorrow, LocalTime.of(0, 30)),
-                LocalDateTime.of(tomorrow, LocalTime.of(5, 30)),
-            ),
+            listOf(LocalDateTime.of(tomorrow, LocalTime.of(0, 30))),
             comingUpSection.rows.map { row -> row.scheduledAt }
         )
         assertEquals(
@@ -2014,12 +2036,13 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = now,
             zoneId = testZoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.TOMORROW, upcomingSection.title)
         assertEquals(tomorrow, upcomingSection.anchorDate)
         assertEquals(
             listOf(
+                LocalDateTime.of(tomorrow, LocalTime.of(5, 30)),
                 LocalDateTime.of(tomorrow, LocalTime.of(6, 0)),
                 LocalDateTime.of(tomorrow, LocalTime.of(8, 0)),
             ),
@@ -2048,14 +2071,14 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = emptyList(),
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(group),
             entries = emptyList(),
             now = now,
             zoneId = testZoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertNull(comingUpSection.date)
         assertEquals(emptyList<MainTodayDoseRowUiState>(), comingUpSection.rows)
@@ -2088,14 +2111,14 @@ class MainUiModelsTest {
             groups = listOf(group),
             entries = emptyList(),
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
         val todaySection = buildMainTodaySection(
             groups = listOf(group),
             entries = emptyList(),
             now = now,
-            zoneId = testZoneId
-        )
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.Midnight)
 
         assertNull(comingUpSection.date)
         assertEquals(emptyList<MainTodayDoseRowUiState>(), comingUpSection.rows)
@@ -2122,8 +2145,8 @@ class MainUiModelsTest {
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 18, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.TOMORROW, upcomingSection.title)
         assertEquals(LocalDate.of(2026, 4, 19), upcomingSection.anchorDate)
@@ -2157,8 +2180,8 @@ class MainUiModelsTest {
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 18, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
         assertEquals(LocalDate.of(2026, 4, 20), upcomingSection.anchorDate)
@@ -2188,8 +2211,8 @@ class MainUiModelsTest {
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 5, 6, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 5, 6, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
         assertEquals(nextScheduleDate, upcomingSection.anchorDate)
@@ -2217,8 +2240,8 @@ class MainUiModelsTest {
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 5, 6, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 5, 6, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(nextScheduleDate, upcomingSection.anchorDate)
         assertEquals(
@@ -2277,8 +2300,8 @@ class MainUiModelsTest {
         val upcomingSection = buildMainUpcomingSection(
             groups = listOf(newerGroup, olderGroup),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 4, 18, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
         assertEquals(
@@ -2314,8 +2337,8 @@ class MainUiModelsTest {
                     scheduledFor = LocalDateTime.of(2026, 4, 19, 8, 0)
                 )
             ),
-            now = LocalDateTime.of(2026, 4, 18, 11, 0)
-        )
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
         assertEquals(LocalDate.of(2026, 4, 20), upcomingSection.anchorDate)

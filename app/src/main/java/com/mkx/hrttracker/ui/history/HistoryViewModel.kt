@@ -12,6 +12,8 @@ import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
@@ -26,7 +28,6 @@ import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
@@ -111,13 +112,18 @@ class HistoryViewModel @Inject constructor(
         } else {
             activeGroups
         }
-        val today = now.toLocalDate()
+        val boundary = settingsState.medicationDayBoundary
+        val today = medicationDay(now, boundary)
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
-            YearMonth.from(entry.planCalendarDate(ZoneId.systemDefault()))
+            YearMonth.from(entry.planCalendarDate(boundary))
         }
         val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
-            YearMonth.from(group.schedule.since)
+            YearMonth.from(
+                group.schedule.times.minOrNull()?.let { time ->
+                    medicationDay(group.schedule.since.atTime(time), boundary)
+                } ?: group.schedule.since
+            )
         }
         val selectedMonth = selectedDay?.let(YearMonth::from)
         val calendarStartMonth = listOfNotNull(
@@ -138,6 +144,7 @@ class HistoryViewModel @Inject constructor(
         HistoryUiState(
             isLoading = isLoading,
             today = today,
+            medicationDayBoundary = settingsState.medicationDayBoundary,
             entries = entries,
             allEntryCount = allEntries.size,
             hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
@@ -161,8 +168,26 @@ class HistoryViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
+        initialValue = initialHistoryUiState(
+            today = currentDateTime.value.toLocalDate(),
+            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
+        )
     )
+
+    init {
+        // Turning night owl mode on between 00:00 and 04:00 moves today back a day, which can
+        // leave the selection on a date the calendar no longer lets you pick.
+        viewModelScope.launch {
+            uiState.collect { state ->
+                val date = state.selectedDate ?: return@collect
+                if (!canSelectHistoryCalendarDate(date, state.today)) {
+                    selectedDate.value = null
+                    selectedEntryIds.value = emptySet()
+                    isDeleteConfirmationVisible.value = false
+                }
+            }
+        }
+    }
 
     fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
         if (displayedMonth.value == month) {
@@ -334,10 +359,11 @@ class HistoryViewModel @Inject constructor(
     }
 }
 
-private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
+private fun initialHistoryUiState(today: LocalDate, boundary: MedicationDayBoundary): HistoryUiState {
     val currentMonth = YearMonth.from(today)
     return HistoryUiState(
         today = today,
+        medicationDayBoundary = boundary,
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
@@ -347,6 +373,7 @@ private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
 data class HistoryUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
+    val medicationDayBoundary: MedicationDayBoundary,
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,

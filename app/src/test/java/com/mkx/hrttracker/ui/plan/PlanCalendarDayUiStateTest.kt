@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -133,8 +134,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 15),
-            endDate = LocalDate.of(2026, 4, 19)
-        )
+            endDate = LocalDate.of(2026, 4, 19),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.OFFPLAN,
@@ -192,8 +193,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 17)
-        )
+            endDate = LocalDate.of(2026, 4, 17),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -252,8 +253,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -310,7 +311,7 @@ class PlanCalendarDayUiStateTest {
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         val state = dayStates.getValue(LocalDate.of(2026, 4, 16))
         assertEquals(1, state.expectedOccurrenceCount)
@@ -359,7 +360,7 @@ class PlanCalendarDayUiStateTest {
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
             zoneId = zoneId,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         val state = dayStates.getValue(LocalDate.of(2026, 4, 17))
         assertEquals(1, state.expectedOccurrenceCount)
@@ -405,8 +406,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 17)
-        )
+            endDate = LocalDate.of(2026, 4, 17),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -458,8 +459,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.PARTIAL,
@@ -510,8 +511,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.MISSED,
@@ -560,8 +561,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(0, dayStates.getValue(LocalDate.of(2026, 4, 16)).matchedOccurrenceCount)
         assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasMatchingScheduledRecord)
@@ -607,8 +608,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 17),
-            endDate = LocalDate.of(2026, 4, 17)
-        )
+            endDate = LocalDate.of(2026, 4, 17),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.OFFPLAN,
@@ -662,8 +663,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         assertEquals(
             PlanCalendarDayStatus.MISSED,
@@ -705,8 +706,8 @@ class PlanCalendarDayUiStateTest {
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
-            endDate = LocalDate.of(2026, 4, 16)
-        )
+            endDate = LocalDate.of(2026, 4, 16),
+            boundary = MedicationDayBoundary.Midnight)
 
         val dayState = dayStates.getValue(LocalDate.of(2026, 4, 16))
         assertEquals(3, dayState.expectedOccurrenceCount)
@@ -768,6 +769,7 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -819,6 +821,7 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -843,7 +846,7 @@ class PlanCalendarDayUiStateTest {
             scheduledFor = null,
         )
         // Device in JST should still bucket the entry to its PDT date (May 8), not May 9.
-        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(ZoneId.of("Asia/Tokyo")))
+        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(MedicationDayBoundary.Midnight, ZoneId.of("Asia/Tokyo")))
     }
 
     @Test
@@ -866,7 +869,7 @@ class PlanCalendarDayUiStateTest {
             scheduledFor = LocalDateTime.of(2026, 5, 8, 9, 0),
         )
         // Even with device in JST, scheduledFor date (May 8) wins over device-zone conversion.
-        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(ZoneId.of("Asia/Tokyo")))
+        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(MedicationDayBoundary.Midnight, ZoneId.of("Asia/Tokyo")))
     }
 
     private fun medicationGroup(

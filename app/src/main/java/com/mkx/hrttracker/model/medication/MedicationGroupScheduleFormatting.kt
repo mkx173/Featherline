@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.timeOfDayOrder
 import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -11,8 +13,11 @@ fun MedicationGroupSchedule.formatSummary(
     dailyIntervalLabel: String,
     weeklyIntervalLabel: String,
     firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
+    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ): String {
-    val formattedTimes = times.map { time ->
+    // With the day ending at 04:00, dawn times read last, after the evening ones.
+    val orderedTimes = if (boundary.endsAtFourAm) times.sortedBy(boundary::timeOfDayOrder) else times
+    val formattedTimes = orderedTimes.map { time ->
         time.format(timeFormatter)
     }
 

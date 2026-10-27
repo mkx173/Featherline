@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -14,6 +15,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -205,6 +207,35 @@ class MainContentComponentsTest {
             mainTodayDoseRowCompositionKey(comingUpRow),
             mainDoseRowHighlightScrollTargetKey(uiState, request),
         )
+    }
+
+    @Test
+    fun mainTodayDoseRowGroups_splitsDuplicateTimeRangesAcrossDates() {
+        val groupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val medicationUuid = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val rows = listOf(
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                scheduledAt = LocalDateTime.of(2026, 5, 20, 19, 0),
+                medicationUuid = medicationUuid,
+            ),
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                scheduledAt = LocalDateTime.of(2026, 5, 21, 19, 0),
+                medicationUuid = medicationUuid,
+            ),
+        )
+
+        val groups = mainTodayDoseRowGroups(rows)
+
+        assertEquals(2, groups.size)
+        assertEquals(
+            listOf(LocalDate.of(2026, 5, 20), LocalDate.of(2026, 5, 21)),
+            groups.map { group -> group.date },
+        )
+        assertTrue(groups.all { group -> group.timeRange == MedicationDayTimeRange.EVENING })
     }
 
     @Test

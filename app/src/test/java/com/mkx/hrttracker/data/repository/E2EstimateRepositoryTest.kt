@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationLab
 import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationRenderer
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -929,6 +930,7 @@ class E2EstimateRepositoryTest {
         generation = generation,
         anchorDateEpochDay = today.toEpochDay(),
         zoneId = zoneId.id,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         option = HomeE2ChartWindowOption.SEVEN_DAYS,
         weightKg = weightKg,
         estradiolEntries = logged,

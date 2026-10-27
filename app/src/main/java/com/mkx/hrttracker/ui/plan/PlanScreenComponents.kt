@@ -41,6 +41,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -77,11 +79,15 @@ import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.formatEntryWallTime
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayTimeText
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -224,7 +230,7 @@ internal fun LazyListScope.selectedDaySectionItems(
                 key = selectedDayRowKey(row),
                 contentType = "selected-day-row"
             ) {
-                Column {
+                Column(modifier = Modifier.testTag("plan_day_row")) {
                     Spacer(
                         modifier = Modifier.height(
                             dimensionResource(
@@ -319,7 +325,8 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = date,
-                loggedAt = displayedLoggedAt
+                loggedAt = displayedLoggedAt,
+                boundary = LocalMedicationDayBoundary.current,
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
                 stringResource(
@@ -382,10 +389,10 @@ private fun SelectedDayRow(
                 loggedDayOffsetText = loggedDayOffsetText
             )
         } else {
-            row.entry.scheduledTime.format(timeFormatter)
+            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, LocalMedicationDayBoundary.current, timeFormatter)
         }
 
-        is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
+        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, LocalMedicationDayBoundary.current, timeFormatter)
     }
     val isCrossZoneRow = when (row) {
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
@@ -494,7 +501,7 @@ private fun SelectedDayRow(
     }
 }
 
-private fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
     return buildList {
         addAll(
             daySchedule.scheduledEntries.map { entry ->
@@ -505,7 +512,7 @@ private fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowMo
             daySchedule.unplannedEntries.map { entry ->
                 SelectedDayRowModel.Unplanned(
                     entry = entry,
-                    sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+                    sortTime = appliedAtAsLocalDateTime(entry)
                 )
             }
         )
@@ -529,8 +536,9 @@ private fun selectedDayRowKey(row: SelectedDayRowModel): String {
 internal fun selectedDayLoggedDayOffsetDays(
     scheduledDate: LocalDate,
     loggedAt: LocalDateTime?,
+    boundary: MedicationDayBoundary,
 ): Long? {
-    val loggedDate = loggedAt?.toLocalDate() ?: return null
+    val loggedDate = loggedAt?.let { medicationDay(it, boundary) } ?: return null
     val dayOffset = ChronoUnit.DAYS.between(scheduledDate, loggedDate)
     if (dayOffset == 0L) {
         return null
@@ -675,6 +683,7 @@ internal fun RegimenGroupCard(
                                 )
                             ),
                             firstDayOfWeek = firstDayOfWeek,
+                            boundary = LocalMedicationDayBoundary.current,
                         )
                         Text(
                             text = groupScheduleSummary,
@@ -1099,7 +1108,7 @@ private fun UpcomingOccurrenceChip(
 }
 
 internal sealed interface SelectedDayRowModel {
-    val sortTime: LocalTime
+    val sortTime: LocalDateTime
 
     // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
     val medicine: com.mkx.hrttracker.model.medication.Medicine?
@@ -1112,7 +1121,7 @@ internal sealed interface SelectedDayRowModel {
     data class Scheduled(
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
-        override val sortTime: LocalTime = entry.scheduledTime
+        override val sortTime: LocalDateTime = entry.scheduledFor
         override val medicine = entry.medication.medicine
         override val doseInstruction = entry.medication.doseInstruction
         override val doseAmountDelta: Double? = entry.doseAmountDelta
@@ -1123,7 +1132,7 @@ internal sealed interface SelectedDayRowModel {
 
     data class Unplanned(
         val entry: MedicationLogEntry,
-        override val sortTime: LocalTime
+        override val sortTime: LocalDateTime
     ) : SelectedDayRowModel {
         override val medicine = entry.medicine
         override val doseInstruction = entry.doseInstruction
@@ -1214,7 +1223,7 @@ private fun SelectedDayManualRowPreview() {
             today = uiState.today,
             row = SelectedDayRowModel.Unplanned(
                 entry = entry,
-                sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+                sortTime = appliedAtAsLocalDateTime(entry)
             ),
             index = 0,
             itemCount = 1,

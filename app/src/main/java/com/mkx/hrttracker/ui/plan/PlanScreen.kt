@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -102,6 +103,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.planUpcomingDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -247,6 +249,7 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
+            boundary = uiState.medicationDayBoundary,
         )
     } else {
         uiState.daySchedule
@@ -465,7 +468,8 @@ private fun PlanScreenContent(
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
                     nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                    today = uiState.today,
+                    // The upcoming chips print real dates, so "Today" is the calendar day.
+                    today = uiState.now.toLocalDate(),
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     onGroupClick = onGroupClick
                 )
@@ -802,6 +806,7 @@ private fun Day(
 
     Box(
         modifier = Modifier
+            .testTag("plan_calendar_day_$date")
             .fillMaxWidth()
             .padding(2.dp)
             .alpha(dayAlpha)
@@ -1021,7 +1026,7 @@ private fun planDayIndicatorColors(
             emphasizedColor = MaterialTheme.colorScheme.primary
         ),
         fulfilled = MaterialTheme.colorScheme.primary,
-        neutral = MaterialTheme.colorScheme.outlineVariant,
+        neutral = MaterialTheme.colorScheme.onSurfaceVariant,
         unplanned = MaterialTheme.colorScheme.tertiary
     )
 }
@@ -1245,6 +1250,7 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         date = today,
         groups = groups,
         entries = entries,
+        boundary = MedicationDayBoundary.Midnight,
         now = now,
         zoneId = zoneId
     )
@@ -1252,12 +1258,14 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         groups = groups,
         entries = entries,
         startDate = range.startDate,
-        endDate = range.endDate
+        endDate = range.endDate,
+        boundary = MedicationDayBoundary.Midnight,
     )
 
     return PlanUiState(
         isLoading = false,
         today = today,
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,
         calendarStartDate = range.startDate,
         calendarEndDate = range.endDate,

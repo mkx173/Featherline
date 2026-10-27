@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -40,7 +41,8 @@ class PlanUpcomingOccurrencesTest {
             groups = listOf(group),
             entries = emptyList(),
             start = LocalDateTime.of(2026, 4, 18, 12, 0),
-            limit = 3
+            limit = 3,
+            boundary = MedicationDayBoundary.Midnight,
         ).getValue(group.uuid)
 
         assertEquals(
@@ -74,7 +76,8 @@ class PlanUpcomingOccurrencesTest {
                 )
             ),
             start = LocalDateTime.of(2026, 4, 18, 12, 0),
-            limit = 3
+            limit = 3,
+            boundary = MedicationDayBoundary.Midnight,
         ).getValue(group.uuid)
 
         assertEquals(
@@ -103,7 +106,8 @@ class PlanUpcomingOccurrencesTest {
             groups = listOf(group),
             entries = emptyList(),
             start = LocalDateTime.of(2026, 4, 18, 12, 0),
-            limit = 3
+            limit = 3,
+            boundary = MedicationDayBoundary.Midnight,
         ).getValue(group.uuid)
 
         assertEquals(

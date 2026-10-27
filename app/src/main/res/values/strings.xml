@@ -22,7 +22,7 @@
     <string name="main_today_empty_state">Nothing scheduled today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_quick_log">Quick log</string>
-    <string name="main_today_range_night">Night</string>
+    <string name="main_today_range_midnight">Midnight</string>
     <string name="main_today_range_morning">Morning</string>
     <string name="main_today_range_afternoon">Afternoon</string>
     <string name="main_today_range_evening">Evening</string>
@@ -1123,6 +1123,14 @@
     <string name="stock_disable_confirm">Turn off</string>
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
+
+    <string name="settings_medication_day_ends_at_four_am">Night owl mode</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">Doses before %1$s count as the previous day.</string>
+    <string name="settings_medication_day_enable_title">Turn on night owl mode?</string>
+    <string name="settings_medication_day_disable_title">Turn off night owl mode?</string>
+    <string name="settings_medication_day_moves_doses_body">This will move doses before %1$s in %2$s by one day. Past doses may show as missed.</string>
+    <string name="settings_medication_day_enable_confirm">Turn on</string>
+    <string name="settings_medication_day_disable_confirm">Turn off</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>

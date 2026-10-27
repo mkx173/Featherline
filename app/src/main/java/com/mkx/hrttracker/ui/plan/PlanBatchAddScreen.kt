@@ -356,7 +356,7 @@ private fun PlanBatchAddScreenContent(
                                     dateFormatter = dateFormatter,
                                     timeFormatter = timeFormatter,
                                     upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-                                    today = uiState.today,
+                                    today = LocalDate.now(),
                                     onClick = { onGroupSelected(group.uuid) },
                                     selected = group.uuid == uiState.selectedGroupUuid,
                                     showNotificationIcon = false,

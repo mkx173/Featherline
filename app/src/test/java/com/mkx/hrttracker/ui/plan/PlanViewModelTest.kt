@@ -70,6 +70,27 @@ class PlanViewModelTest {
     }
 
     @Test
+    fun medicationBoundaryAndSettingChangesUpdateImplicitDayWhileUnsubscribed() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 10, 2, 3, 59)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        val settings = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = true))
+        every { settingsRepository.settingsState } returns settings
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val viewModel = PlanViewModel(medicationGroupRepository, medicationLogRepository, settingsRepository, appTimeSource)
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
+        settings.value = settings.value.copy(medicationDayEndsAtFourAm = false)
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.daySchedule.date)
+        settings.value = settings.value.copy(medicationDayEndsAtFourAm = true)
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.daySchedule.date)
+    }
+
+    @Test
     fun clockTickAcrossWeekBoundary_withoutSelectionMovesImplicitDisplayToToday() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 23, 59))
         every { medicationGroupRepository.observeGroups() } returns flowOf(
@@ -165,6 +186,37 @@ class PlanViewModelTest {
             PlanCalendarDayStatus.MISSED,
             viewModel.uiState.value.calendarDays[selectedDate]?.status
         )
+    }
+
+    @Test
+    fun turningNightOwlOffBeforeFourClearsASelectionThatBecomesToday() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 2, 0))
+        val settingsState = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = true))
+        every { settingsRepository.settingsState } returns settingsState
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 28))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.selectedDate)
+
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.today)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 30))
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = true)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.selectedDate)
     }
 
     @Test

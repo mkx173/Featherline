@@ -8,13 +8,28 @@ import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
 
-internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime =
-    now.toLocalDate().plusDays(1).atStartOfDay()
+/**
+ * The next of civil midnight, 04:00 and noon. Midnight refreshes journal anchors (civil
+ * dates), 04:00 the medication-day split when the day ends at 04:00, and noon drops
+ * Last night, matching Home.
+ */
+// ponytail: 04:00 is armed whatever the switch says, so the alarm never reads settings;
+// with the switch off that is one spare widget refresh a day.
+internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime {
+    val date = now.toLocalDate()
+    return listOf(
+        date.atTime(MedicationDayBoundary.FourAm.startTime),
+        date.atTime(LocalTime.NOON),
+        date.plusDays(1).atStartOfDay(),
+    ).first { refreshAt -> refreshAt.isAfter(now) }
+}
 
 internal fun scheduleNextWidgetDateRefresh(
     context: Context,
@@ -35,30 +50,40 @@ internal fun scheduleNextWidgetDateRefresh(
         WIDGET_DATE_REFRESH_TAG,
         "widget_date_refresh_alarm_schedule triggerAt=$triggerAt triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
     )
-    if (exactAlarm) {
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
-        } catch (error: SecurityException) {
-            diagnosticsLogger.warning(
-                WIDGET_DATE_REFRESH_TAG,
-                "widget_date_refresh_alarm_exact_revoked triggerAt=$triggerAt",
-                error,
-            )
+    // Best effort: an alarm failure (e.g. IllegalStateException at the 500-alarm cap)
+    // must not stop the date refresh or app startup that called this.
+    try {
+        if (exactAlarm) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            } catch (error: SecurityException) {
+                diagnosticsLogger.warning(
+                    WIDGET_DATE_REFRESH_TAG,
+                    "widget_date_refresh_alarm_exact_revoked triggerAt=$triggerAt",
+                    error,
+                )
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            }
+        } else {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent,
             )
         }
-    } else {
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent,
+    } catch (error: RuntimeException) {
+        diagnosticsLogger.warning(
+            WIDGET_DATE_REFRESH_TAG,
+            "widget_date_refresh_alarm_schedule_failed triggerAt=$triggerAt",
+            error,
         )
     }
 }

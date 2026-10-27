@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.DayOfWeek
 import java.time.temporal.WeekFields
 import java.util.Locale
@@ -96,6 +97,7 @@ data class SettingsState(
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    val medicationDayEndsAtFourAm: Boolean = false,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
@@ -113,7 +115,10 @@ data class SettingsState(
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
     val groupNameCounter: Int = 0,
-)
+) {
+    val medicationDayBoundary: MedicationDayBoundary
+        get() = MedicationDayBoundary.fromSwitch(medicationDayEndsAtFourAm)
+}
 
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
     return calibrationDefaultUnits[analyteKey]

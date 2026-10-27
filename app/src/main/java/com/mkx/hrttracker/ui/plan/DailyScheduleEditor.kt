@@ -32,6 +32,7 @@ import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
@@ -175,7 +176,7 @@ private fun DailyTimesCard(
                     AddChip(onClick = onAddTime)
                 }
             }
-            val sortedTimes = sortDailyTimesByOriginalTime(times)
+            val sortedTimes = sortDailyTimesByOriginalTime(times, LocalMedicationDayBoundary.current)
             sortedTimes.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),

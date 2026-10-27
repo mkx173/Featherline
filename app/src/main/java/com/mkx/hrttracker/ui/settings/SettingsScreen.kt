@@ -74,6 +74,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -123,6 +124,8 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
@@ -145,6 +148,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
+    val medicationDayMovingGroupNames by viewModel.medicationDayMovingGroupNames.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -529,6 +533,7 @@ fun SettingsScreen(
     SettingsScreenContent(
         uiState = uiState,
         widgetAppearance = widgetAppearance,
+        medicationDayMovingGroupNames = medicationDayMovingGroupNames,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
         isReminderEnablePending = isReminderEnablePending,
@@ -549,6 +554,7 @@ fun SettingsScreen(
         onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
+        onMedicationDayEndsAtFourAmChange = viewModel::setMedicationDayEndsAtFourAm,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
@@ -704,6 +710,20 @@ fun SettingsScreen(
 // "NN%" label shown next to the slider (e.g. 1.0455 → 1.05, displayed as 105%). Without
 // this the slider saves its raw continuous position while the label rounds for display.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
+
+/** Joins group names the way a reminder for several groups does. */
+@Composable
+private fun medicationGroupNamesText(names: List<String>): String = when (names.size) {
+    1 -> names.first()
+    2 -> stringResource(R.string.reminder_notification_two_groups, names[0], names[1])
+    else -> pluralStringResource(
+        R.plurals.reminder_notification_more_groups,
+        names.size - 2,
+        names[0],
+        names[1],
+        names.size - 2,
+    )
+}
 
 @Composable
 internal fun WidgetAppearanceDialog(
@@ -975,6 +995,8 @@ internal fun SettingsScreenContent(
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
+    onMedicationDayEndsAtFourAmChange: (Boolean) -> Unit = {},
+    medicationDayMovingGroupNames: List<String> = emptyList(),
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
@@ -998,6 +1020,16 @@ internal fun SettingsScreenContent(
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingMedicationDayEndsAtFourAm by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val medicationDayBoundaryTime = MedicationDayBoundary.FourAm.startTime
+        .format(rememberLocalizedShortTimeFormatter(rememberAppLocale()))
+    val requestMedicationDayEndsAtFourAm = { enabled: Boolean ->
+        if (medicationDayMovingGroupNames.isEmpty()) {
+            onMedicationDayEndsAtFourAmChange(enabled)
+        } else {
+            pendingMedicationDayEndsAtFourAm = enabled
+        }
+    }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
@@ -1318,6 +1350,30 @@ internal fun SettingsScreenContent(
                                 },
                             )
                         }
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                            supportingText = stringResource(
+                                R.string.settings_medication_day_ends_at_four_am_summary,
+                                medicationDayBoundaryTime,
+                            ),
+                            onClick = {
+                                requestMedicationDayEndsAtFourAm(
+                                    !settingsState.medicationDayEndsAtFourAm
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(painter = painterResource(R.drawable.ic_moon_stars))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.medicationDayEndsAtFourAm,
+                                    onCheckedChange = requestMedicationDayEndsAtFourAm
+                                )
+                            },
+                        )
                     }
 
                     item {
@@ -1795,6 +1851,53 @@ internal fun SettingsScreenContent(
                 onRequestExactAlarmAccess()
             },
             onDismiss = { showExactAlarmRecoveryDialog = false }
+        )
+    }
+
+    pendingMedicationDayEndsAtFourAm?.let { enabled ->
+        HazeAlertDialog(
+            onDismissRequest = { pendingMedicationDayEndsAtFourAm = null },
+            title = {
+                Text(
+                    text = stringResource(
+                        if (enabled) {
+                            R.string.settings_medication_day_enable_title
+                        } else {
+                            R.string.settings_medication_day_disable_title
+                        }
+                    )
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.settings_medication_day_moves_doses_body,
+                        medicationDayBoundaryTime,
+                        medicationGroupNamesText(medicationDayMovingGroupNames),
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingMedicationDayEndsAtFourAm = null
+                    onMedicationDayEndsAtFourAmChange(enabled)
+                }) {
+                    Text(
+                        stringResource(
+                            if (enabled) {
+                                R.string.settings_medication_day_enable_confirm
+                            } else {
+                                R.string.settings_medication_day_disable_confirm
+                            }
+                        )
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMedicationDayEndsAtFourAm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
         )
     }
 

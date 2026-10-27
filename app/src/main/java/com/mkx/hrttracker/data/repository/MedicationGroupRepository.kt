@@ -16,6 +16,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayStart
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -162,14 +165,17 @@ class MedicationGroupRepository @Inject constructor(
         uuid: UUID,
         // null archives as of `now` (the confirm-time instant, minute-granular),
         // matching the original archive behavior; a non-null date archives
-        // through the end of that calendar day (the plan owns the whole day).
+        // through the end of that medication day (the plan owns the whole day).
         archivedThroughDate: LocalDate? = null,
+        boundary: MedicationDayBoundary,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
         val systemZone = ZoneId.systemDefault()
         val nowLocal = now.toLocalDateTime(systemZone)
-        val archiveCutoffLocal = archivedThroughDate?.atTime(LocalTime.MAX) ?: nowLocal
+        val archiveCutoffLocal = archivedThroughDate
+            ?.let { date -> medicationDayStart(date.plusDays(1), boundary) }
+            ?: nowLocal
         val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
             archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
         } else {
@@ -200,7 +206,7 @@ class MedicationGroupRepository @Inject constructor(
                     // active lists/reminders now while its plan still owns days up to
                     // that future day. The UI clamps to today, but the repository is
                     // the authoritative invariant enforcer for non-UI callers.
-                    val maxArchiveDate = nowLocal.toLocalDate()
+                    val maxArchiveDate = medicationDay(nowLocal, boundary)
                     if (archivedThroughDate.isAfter(maxArchiveDate)) {
                         throw ArchiveDateAfterTodayException(
                             uuid = uuid,
@@ -221,6 +227,7 @@ class MedicationGroupRepository @Inject constructor(
                                 scheduledForIso = entry.scheduledForIso,
                                 appliedAtEpochMillis = entry.appliedAtEpochMillis,
                                 appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
+                                boundary = boundary,
                                 zoneId = systemZone,
                             )
                         }
@@ -468,7 +475,7 @@ class MedicationGroupRepository @Inject constructor(
 
                             // effectiveFrom marks when this time was added (now),
                             // not the start date. `since` already gates generation
-                            // via isScheduledOn, so a future start needs nothing
+                            // via isScheduledAt, so a future start needs nothing
                             // more here — and pinning effectiveFrom to `since`
                             // would orphan slots if the start is later edited
                             // earlier (the preserved future effectiveFrom would

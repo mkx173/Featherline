@@ -134,6 +134,7 @@ import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -653,6 +654,7 @@ private fun MedicationGroupEditorScreenContent(
         uiState.weeklyTime,
         uiState.dailyIntervalDays,
         uiState.dailyTimes,
+        uiState.medicationDayBoundary,
         resolvedOccurrenceReferenceTime
     ) {
         if (uiState.isArchived) {
@@ -1832,7 +1834,8 @@ internal fun buildMedicationGroupEditorUpcomingOccurrences(
     )
     return schedule.nextOccurrencesFrom(
         start = start,
-        limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState)
+        limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState),
+        boundary = uiState.medicationDayBoundary,
     )
 }
 
@@ -2656,6 +2659,7 @@ private fun buildMedicationGroupEditorPreviewUiState(
         },
         scheduleType = scheduleType,
         sinceDate = today.minusWeeks(6),
+        medicationDayBoundary = MedicationDayBoundary.Midnight,
         weeklyIntervalWeeks = "1",
         weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
         weeklyTime = LocalTime.of(9, 0),

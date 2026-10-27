@@ -52,7 +52,7 @@ class SettingsRepositoryLegacyWidgetAppearanceTest {
             produceFile = { tmpFolder.newFile("legacy_widget_test.preferences_pb") },
         )
 
-        settingsRepository = SettingsRepository(context, dataStore)
+        settingsRepository = SettingsRepository(dataStore)
     }
 
     @After

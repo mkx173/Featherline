@@ -24,6 +24,20 @@ import java.util.UUID
 class BackupRestoreValidationTest {
 
     @Test
+    fun toValidatedSnapshot_preservesMedicationBoundarySwitch() {
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 1L, app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings().copy(medicationDayEndsAtFourAm = true),
+            userProfile = baselineUserProfile(), medicines = emptyList(), medicationGroups = emptyList(),
+            medicationLogs = emptyList(), customBloodAnalytes = emptyList(), bloodTestPanels = emptyList(),
+        )
+        assertEquals(
+            true,
+            snapshot.toValidatedSnapshot("com.mkx.hrttracker").settings.medicationDayEndsAtFourAm,
+        )
+    }
+
+    @Test
     fun toValidatedSnapshot_mapsCurrentSnapshotToRestorableEntities() {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
         val profileUpdatedAt = Instant.parse("2026-04-25T00:00:00Z").toEpochMilli()

@@ -23,7 +23,7 @@
     <string name="main_today_empty_state">今天沒有計劃</string>
     <string name="main_upcoming_empty_state">接下來 90 天內沒有計劃</string>
     <string name="main_today_quick_log">快速記錄</string>
-    <string name="main_today_range_night">夜間</string>
+    <string name="main_today_range_midnight">午夜</string>
     <string name="main_today_range_morning">上午</string>
     <string name="main_today_range_afternoon">下午</string>
     <string name="main_today_range_evening">晚上</string>
@@ -775,7 +775,7 @@
     <string name="personalization_weight_dialog_save">儲存</string>
     <string name="personalization_weight_dialog_clear">清除</string>
     <string name="personalization_weight_validation_invalid">請輸入有效的體重</string>
-    <string name="personalization_weight_update_failed">無法更新體重。</string>
+    <string name="personalization_weight_update_failed">無法更新體重</string>
     <string name="personalization_weight_unit_a11y">單位：%1$s，切換為 %2$s</string>
     <string name="personalization_weight_display_health_connect">%1$s · Health Connect</string>
     <string name="health_connect_status_synced">已同步</string>
@@ -1039,6 +1039,15 @@
     <string name="stock_disable_confirm">關閉</string>
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">此日期已刪除</string>
+
+    <string name="settings_medication_day_ends_at_four_am">修仙模式</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前的用藥計入前一天</string>
+    <string name="settings_medication_day_enable_title">開啟修仙模式？</string>
+    <string name="settings_medication_day_disable_title">關閉修仙模式？</string>
+    <string name="settings_medication_day_moves_doses_body">這會將 %2$s 中 %1$s 前的用藥移動一天，過去的用藥可能顯示為已錯過</string>
+    <string name="settings_medication_day_enable_confirm">開啟</string>
+    <string name="settings_medication_day_disable_confirm">關閉</string>
+
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">請新增用藥記錄</string>
     <string name="calibration_pk_global_no_dose_history_body">新增雌二醇用藥記錄前將顯示人群估算</string>
@@ -1095,7 +1104,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：無法計算此時間點的估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：此時間點預計幾乎沒有來自用藥的雌二醇</string>
-    <string name="calibration_pk_lab_invalid_body">數值需大於零。若報告顯示低於檢測下限，可忽略此提示</string>
+    <string name="calibration_pk_lab_invalid_body">數值需大於零，若報告顯示低於檢測下限，可忽略此提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>
     <string name="calibration_pk_lab_outlier_body">此結果與%1$s的估算相差較大，請核對資訊是否正確</string>
@@ -1107,10 +1116,11 @@
     <string name="medical_disclaimer_lab_adjustment">校準後的數值仍是模型估算，並非實測值或用藥建議，不能取代實驗室檢查或醫生指導</string>
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">無法顯示圖表</string>
-    <string name="calibration_pk_chart_unavailable_body">計算未完成，暫不顯示曲線。已儲存的資料不受影響</string>
+    <string name="calibration_pk_chart_unavailable_body">計算未完成，暫不顯示曲線，已儲存的資料不受影響</string>
     <string name="calibration_pk_band_unavailable_note">無法計算此檢視的預測區間</string>
     <string name="calibration_pk_band_legend">68% / 95% 預測區間</string>
-    <string name="calibration_pk_band_a11y_summary">已校準的途徑使用校準估算，其餘途徑使用人群估算。陰影為抽血結果的預測區間</string>
+    <string name="calibration_pk_band_a11y_summary">已校準的途徑使用校準估算，其餘途徑使用人群估算，陰影為抽血結果的預測區間</string>
+
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
     <string name="calibration_pk_lab_accepted_body">已保留，將以較低權重計入</string>
     <string name="calibration_pk_lab_show_review">復原</string>

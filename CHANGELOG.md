@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings now has a "Night owl mode" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan, History and the widget, so a dose taken after midnight stays with the evening it belongs to, and it is listed at its own time after that evening's doses, with no day marker. Anywhere a date is printed next to a time, such as reminders, the record editor, the plan editor's preview and a plan's upcoming doses, it is the real calendar date and time. For plans that repeat every few days or on chosen weekdays, a dose between 00:00 and 04:00 belongs to the day before, so a Monday 01:00 dose is taken in the early hours of Tuesday. Turning the switch on or off moves those doses by one day, past ones included, and Settings asks first when any plan has them. The plan editor lists times before 04:00 after the evening ones.
+
 ### Fixed
 
+- The home-screen widget's Coming up list now includes manual records and archived groups like Home, and its Last night section disappears at noon in both boundary modes.
 - After a planned dose's time passes, opening the app no longer shows an estradiol curve that looks like the population estimate, or the calibrated curve without its prediction interval. Home now works the estimate out again whenever the time, your data or the chart window moves it, usually in the background before you open the app.
 - The home-screen widget no longer goes blank when you change a widget setting, such as its appearance or the estradiol unit, while the app's saved copy of your data is out of date, for example right after an app update or a time zone change. It keeps showing your doses while the app brings them up to date.
 - When the device's clock moves ahead, for example when you set it forward, the app no longer sends a reminder for every dose time it skipped. Each group reminds you once, of its latest dose time if you haven't logged that dose yet, and its next reminder comes at the usual time.

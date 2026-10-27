@@ -91,6 +91,7 @@ class HomeRepository @Inject constructor(
                 logEntries = homeData.stockFulfillmentEntries,
                 now = now.atZone(zoneId).toInstant(),
                 zoneId = zoneId,
+                boundary = settingsState.medicationDayBoundary,
             ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = homeData.activeGroups,
@@ -165,6 +166,7 @@ class HomeRepository @Inject constructor(
                     logEntries = stockAndAnchorInputs.stockFulfillmentEntries,
                     now = now.atZone(zoneId).toInstant(),
                     zoneId = zoneId,
+                    boundary = inputs.settings.medicationDayBoundary,
                 ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = inputs.activeGroups,
@@ -227,8 +229,8 @@ class HomeRepository @Inject constructor(
         // re-subscribe per minute. MainViewModel re-subscribes only on date change;
         // a per-minute `now` upper bound would otherwise hide entries the user logs
         // later in the day from that window. `manualEndEpochMillis` is the start of
-        // tomorrow, used with `<` (exclusive) by `observeScheduleEntries`.
-        val manualEndEpochMillis = today.plusDays(1)
+        // the day after tomorrow, covering the next medication day’s early hours.
+        val manualEndEpochMillis = today.plusDays(2)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()

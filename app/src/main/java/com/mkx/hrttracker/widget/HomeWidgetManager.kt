@@ -107,6 +107,7 @@ class HomeWidgetManager @Inject constructor(
                         settings.homeE2DisplayUnit,
                         settings.appLanguageOption,
                         settings.showArchivedGroupRecords,
+                        settings.medicationDayEndsAtFourAm,
                     )
                 }
                 .distinctUntilChanged()

@@ -3,11 +3,13 @@ package com.mkx.hrttracker.ui.plan
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -19,6 +21,43 @@ import java.util.Locale
 import java.util.UUID
 
 class PlanScreenComponentsTest {
+
+    @Test
+    fun selectedDayRows_sortAfterMidnightSlotLast() {
+        val dawn = PlanDayScheduleEntry(
+            groupUuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+            groupName = "Night",
+            groupColorKey = MedicationGroupColorKey.ROSE,
+            scheduledTime = LocalTime.of(2, 0),
+            scheduledFor = LocalDateTime.of(2026, 5, 19, 2, 0),
+            medication = testMedicationGroupMedication(),
+            fulfillingEntryUuids = emptyList(),
+            isFulfilled = false,
+            isDueSoon = false,
+            isPastDue = false,
+        )
+        val evening = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 5, 18, 23, 0)),
+        )
+
+        val rows = selectedDayRows(
+            PlanDaySchedule(
+                date = LocalDate.of(2026, 5, 18),
+                scheduledEntries = listOf(dawn),
+                unplannedEntries = listOf(evening),
+            )
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 5, 18, 23, 0),
+                LocalDateTime.of(2026, 5, 19, 2, 0),
+            ),
+            rows.map { row -> row.sortTime },
+        )
+    }
+
     @Test
     fun selectedDayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
         assertEquals(14.dp, SelectedDayRowIndicatorSlotSize)
@@ -38,7 +77,7 @@ class PlanScreenComponentsTest {
         )
         val row = SelectedDayRowModel.Unplanned(
             entry = entry,
-            sortTime = LocalTime.of(9, 0),
+            sortTime = LocalDateTime.of(2026, 5, 20, 9, 0),
         )
 
         assertEquals(R.drawable.ic_download, selectedDayRowImportedIndicatorIconRes(row))
@@ -71,7 +110,7 @@ class PlanScreenComponentsTest {
         )
         val row = SelectedDayRowModel.Unplanned(
             entry = entry,
-            sortTime = LocalTime.of(9, 0),
+            sortTime = LocalDateTime.of(2026, 5, 20, 9, 0),
         )
 
         assertNull(selectedDayRowImportedIndicatorIconRes(row))
@@ -88,7 +127,8 @@ class PlanScreenComponentsTest {
         assertNull(
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 18, 23, 30)
+                loggedAt = LocalDateTime.of(2026, 4, 18, 23, 30),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -99,14 +139,36 @@ class PlanScreenComponentsTest {
             1L,
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 19, 0, 15)
+                loggedAt = LocalDateTime.of(2026, 4, 19, 0, 15),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
             -1L,
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 17, 23, 45)
+                loggedAt = LocalDateTime.of(2026, 4, 17, 23, 45),
+                boundary = MedicationDayBoundary.Midnight,
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayLoggedDayOffsetDays_fourAmKeepsAPreDawnLogOnItsNight() {
+        val scheduledDate = LocalDate.of(2026, 4, 18)
+        assertNull(
+            selectedDayLoggedDayOffsetDays(
+                scheduledDate = scheduledDate,
+                loggedAt = LocalDateTime.of(2026, 4, 19, 1, 5),
+                boundary = MedicationDayBoundary.FourAm,
+            )
+        )
+        assertEquals(
+            1L,
+            selectedDayLoggedDayOffsetDays(
+                scheduledDate = scheduledDate,
+                loggedAt = LocalDateTime.of(2026, 4, 19, 9, 0),
+                boundary = MedicationDayBoundary.FourAm,
             )
         )
     }

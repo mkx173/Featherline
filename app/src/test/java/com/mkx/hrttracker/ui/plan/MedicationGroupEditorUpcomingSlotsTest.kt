@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.DayOfWeek
@@ -18,7 +19,8 @@ class MedicationGroupEditorUpcomingSlotsTest {
             dailyTimes = listOf(
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(8, 0)),
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(20, 0))
-            )
+            ),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val occurrences = buildMedicationGroupEditorUpcomingOccurrences(
@@ -42,7 +44,8 @@ class MedicationGroupEditorUpcomingSlotsTest {
             scheduleType = MedicationGroupScheduleType.DAILY,
             sinceDate = LocalDate.of(2026, 4, 1),
             dailyIntervalDays = "1",
-            dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+            dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val beforeScheduledTime = buildMedicationGroupEditorUpcomingOccurrences(
@@ -88,7 +91,8 @@ class MedicationGroupEditorUpcomingSlotsTest {
             sinceDate = LocalDate.of(2026, 4, 1),
             weeklyIntervalWeeks = "1",
             weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
-            weeklyTime = LocalTime.of(9, 0)
+            weeklyTime = LocalTime.of(9, 0),
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
         )
 
         val occurrences = buildMedicationGroupEditorUpcomingOccurrences(

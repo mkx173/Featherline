@@ -18,6 +18,8 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -58,6 +60,7 @@ class MedicineStockRepositoryTest {
     private lateinit var medicationGroupRepository: MedicationGroupRepository
     private lateinit var medicationLogRepository: MedicationLogRepository
     private lateinit var homeSnapshotRepository: HomeSnapshotRepository
+    private lateinit var settingsRepository: SettingsRepository
     private lateinit var repository: MedicineStockRepository
     private lateinit var appScope: CoroutineScope
     private lateinit var originalTimeZone: TimeZone
@@ -74,6 +77,9 @@ class MedicineStockRepositoryTest {
         medicationGroupRepository = mockk(relaxed = true)
         medicationLogRepository = mockk(relaxed = true)
         homeSnapshotRepository = mockk(relaxed = true)
+        settingsRepository = mockk {
+            every { settingsState } returns MutableStateFlow(SettingsState())
+        }
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         every { medicineRepository.observeAllActive() } returns MutableStateFlow(emptyList())
         every { medicineRepository.observeAllActiveOrNull() } returns MutableStateFlow(emptyList())
@@ -86,6 +92,7 @@ class MedicineStockRepositoryTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            settingsRepository = settingsRepository,
             appScope = appScope,
             clock = clock,
         )
@@ -113,6 +120,7 @@ class MedicineStockRepositoryTest {
         val projection = repository.projectAll(
             medicines = listOf(medicine),
             activeGroups = listOf(dailyGroup(medicine)),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(MedicineStockState.UNTRACKED, projection.state)
@@ -133,7 +141,9 @@ class MedicineStockRepositoryTest {
             )
         )
 
-        val projection = repository.projectAll(listOf(medicine), emptyList()).single()
+        val projection = repository.projectAll(listOf(medicine), emptyList(),
+            boundary = MedicationDayBoundary.Midnight,
+        ).single()
 
         assertEquals(MedicineStockState.NO_RUNWAY, projection.state)
         assertEquals(RunwayProjection.NoSchedule, projection.runway)
@@ -155,6 +165,7 @@ class MedicineStockRepositoryTest {
         val projection = repository.projectAll(
             medicines = listOf(medicine),
             activeGroups = listOf(dailyGroup(medicine)),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(1.0, projection.dosesPerDayMagnitude, 1e-9)
@@ -178,6 +189,7 @@ class MedicineStockRepositoryTest {
         val projection = repository.projectAll(
             medicines = listOf(medicine),
             activeGroups = listOf(dailyGroup(medicine)),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(MedicineStockState.USER_LOW, projection.state)
@@ -199,6 +211,7 @@ class MedicineStockRepositoryTest {
         val projection = repository.projectAll(
             medicines = listOf(medicine),
             activeGroups = listOf(dailyGroup(medicine)),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(MedicineStockState.OUT, projection.state)
@@ -226,6 +239,7 @@ class MedicineStockRepositoryTest {
                     doseInstruction = DoseInstruction.VolumeMl(0.5),
                 )
             ),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(2.5, projection.totalStockUnits, 1e-9)
@@ -253,6 +267,7 @@ class MedicineStockRepositoryTest {
             activeGroups = listOf(group),
             logEntries = listOf(log),
             now = clock.instant(),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(RunwayProjection.Days(2, LocalDate.of(2026, 1, 3)), projection.runway)
@@ -282,6 +297,7 @@ class MedicineStockRepositoryTest {
                 )
             ),
             now = clock.instant(),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         // Exact-split carries the 0.5 dreg into the cracked vial, so two 0.7 mL
@@ -315,6 +331,7 @@ class MedicineStockRepositoryTest {
                 )
             ),
             now = clock.instant(),
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         assertEquals(4, projection.intervalDays)
@@ -339,6 +356,7 @@ class MedicineStockRepositoryTest {
             activeGroups = listOf(dailyGroup(medicine)),
             now = Instant.parse("2025-12-31T23:30:00Z"),
             zoneId = providedZone,
+            boundary = MedicationDayBoundary.Midnight,
         ).single()
 
         // now = Jan 1 08:30 JST -> today is Jan 1 in the provided zone, and under
@@ -380,6 +398,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -433,6 +452,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -493,6 +513,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = tickingClock,
             )
@@ -567,6 +588,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = movingClock,
             )
@@ -619,6 +641,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -669,6 +692,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -718,6 +742,7 @@ class MedicineStockRepositoryTest {
                 medicationGroupRepository = medicationGroupRepository,
                 medicationLogRepository = medicationLogRepository,
                 homeSnapshotRepository = homeSnapshotRepository,
+                settingsRepository = settingsRepository,
                 appScope = projectionScope,
                 clock = clock,
             )
@@ -778,6 +803,7 @@ class MedicineStockRepositoryTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             homeSnapshotRepository = homeSnapshotRepository,
+            settingsRepository = settingsRepository,
             appScope = backgroundScope,
             clock = clock,
         )
@@ -819,6 +845,7 @@ class MedicineStockRepositoryTest {
             activeGroups = listOf(group),
             logEntries = listOf(log),
             now = clock.instant(),
+            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(directProjection, oneShotProjection)

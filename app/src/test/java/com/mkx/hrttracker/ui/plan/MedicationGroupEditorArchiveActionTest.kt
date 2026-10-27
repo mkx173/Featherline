@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -69,7 +70,7 @@ class MedicationGroupEditorArchiveActionTest {
             currentMinute = LocalDateTime.of(2026, 5, 8, 10, 0),
             zoneId = ZoneId.of("America/Los_Angeles"),
             areEntriesLoaded = true,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertTrue(counts.areEntriesLoaded)
         assertEquals(LocalDate.of(2026, 5, 10), counts.latestRecordedDoseDate)
@@ -83,7 +84,7 @@ class MedicationGroupEditorArchiveActionTest {
             currentMinute = LocalDateTime.of(2026, 5, 8, 10, 0),
             zoneId = ZoneId.of("UTC"),
             areEntriesLoaded = false,
-        )
+            boundary = MedicationDayBoundary.Midnight)
 
         assertFalse(counts.areEntriesLoaded)
         assertNull(counts.latestRecordedDoseDate)

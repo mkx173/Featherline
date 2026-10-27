@@ -477,6 +477,38 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun turningNightOwlOnBeforeFourClearsASelectionThatBecomesTheFuture() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 2, 0))
+        val settingsState = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = false))
+        every { settingsRepository.settingsState } returns settingsState
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 28))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.selectedDate)
+
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = true)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 27), viewModel.uiState.value.today)
+        assertNull(viewModel.uiState.value.selectedDate)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 26))
+        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 26), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
     fun hiddenArchivedGroupRecords_areCountedForDeleteAllWarning() = runTest {
         val settingsState = MutableStateFlow(
             SettingsState(
