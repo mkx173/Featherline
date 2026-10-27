@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Featherline</string>
     <string name="tab_main">主頁</string>
@@ -860,7 +861,6 @@
     <string name="onboarding_useful_stock_added">已啟用庫存追蹤</string>
     <string name="onboarding_open_app">開啟 Featherline</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
-
     <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>
     <plurals name="reminder_notification_more_groups">
         <item quantity="other">%1$s、%2$s 和其他 %3$d 個群組</item>
@@ -950,7 +950,6 @@
     <string name="widget_preview_dose_supporting_cpa">口服 · 1/4 片 · 12.5 mg</string>
     <string name="widget_preview_dose_supporting_progesterone">口服 · 200 mg</string>
     <string name="widget_preview_dose_time_evening">21:00</string>
-
     <string name="stock_section_title">庫存追蹤</string>
     <string name="stock_chip_low">庫存不足</string>
     <string name="stock_chip_out">已用晒</string>
@@ -961,29 +960,24 @@
     <plurals name="stock_runway_days_remaining">
         <item quantity="other">約剩餘 %1$d 天</item>
     </plurals>
-
     <string name="stock_subcard_chip_in_stock">庫存充足</string>
     <string name="stock_subcard_chip_low">庫存不足</string>
     <string name="stock_subcard_chip_almost_out">就快用完</string>
     <string name="stock_subcard_chip_out">已用晒</string>
-    <string name="stock_subcard_runway_more_than_one_year">>1 年</string>
+    <string name="stock_subcard_runway_more_than_one_year">&gt;1 年</string>
     <plurals name="stock_subcard_runway_days">
         <item quantity="other">~%1$d 天</item>
     </plurals>
     <string name="stock_subcard_cd_stock_pool">庫存池</string>
     <string name="stock_subcard_cd_open_vial">已開啟藥瓶</string>
     <string name="stock_subcard_cd_open_container">已開啟容器</string>
-
     <string name="stock_optin_title">啟用庫存追蹤</string>
-
     <string name="stock_row_label_stock">庫存</string>
     <string name="stock_row_label_current_vial">現有藥瓶</string>
     <string name="stock_row_label_current_container">現有容器</string>
-
     <string name="stock_row_count_over_total">%1$s / %2$s</string>
     <string name="stock_row_count_only">%1$s</string>
     <string name="stock_row_count_with_unit">%1$s %2$s</string>
-
     <string name="stock_rate_per_day">%1$s %2$s / 天</string>
     <string name="stock_rate_per_week">%1$s %2$s / 週</string>
     <string name="stock_unit_tablets">片</string>
@@ -1016,7 +1010,6 @@
     <plurals name="stock_count_containers">
         <item quantity="other">容器</item>
     </plurals>
-
     <string name="stock_adjust_row_label">調整庫存</string>
     <string name="stock_adjust_title">調整庫存</string>
     <string name="stock_adjust_tab_recount">編輯庫存</string>
@@ -1029,7 +1022,6 @@
     <string name="stock_adjust_add">新增</string>
     <string name="stock_adjust_decrease_count">減少數量</string>
     <string name="stock_adjust_increase_count">增加數量</string>
-
     <!-- Stock section overflow + current container edit dialog -->
     <string name="stock_section_more_options">更多選項</string>
     <string name="stock_current_edit_action_vial">編輯現有藥瓶</string>
@@ -1038,18 +1030,15 @@
     <string name="stock_current_edit_dialog_title_container">設定現有容器</string>
     <string name="stock_current_edit_dialog_field">剩餘量</string>
     <string name="stock_current_edit_dialog_invalid">請輸入有效嘅數字</string>
-
     <string name="stock_warnat_row_title">庫存不足提醒</string>
     <string name="stock_warnat_value_off">關閉</string>
     <string name="stock_warnat_value_days">%1$d 天</string>
-
     <string name="stock_disable_menu_action">關閉庫存追蹤</string>
     <string name="stock_disable_title">關閉庫存追蹤？</string>
     <string name="stock_disable_body">呢個操作會清除庫存資料</string>
     <string name="stock_disable_confirm">關閉</string>
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">呢個日期已經刪除</string>
-
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">請新增用藥記錄</string>
     <string name="calibration_pk_global_no_dose_history_body">新增雌二醇用藥記錄之前會顯示人群估算</string>
@@ -1057,11 +1046,9 @@
     <string name="calibration_pk_global_no_usable_labs_body">新增雌二醇檢查結果之前會顯示人群估算</string>
     <string name="calibration_pk_global_numeric_failure_title">未能更新估算</string>
     <string name="calibration_pk_global_numeric_failure_body">計算未完成，會顯示人群估算</string>
-
     <!-- Route-isolated E2 calibration (PK) — per-route display states -->
     <string name="calibration_pk_route_tag_no_supporting_labs">暫時冇可用結果</string>
     <string name="calibration_pk_route_tag_numeric_failure">未能校準</string>
-
     <!-- Route-isolated E2 calibration (PK) — hero and counts -->
     <string name="calibration_pk_hero_population">人群估算</string>
     <string name="calibration_pk_hero_adjusted">已校準</string>
@@ -1069,7 +1056,6 @@
     <plurals name="calibration_pk_supporting_lab_count">
         <item quantity="other">%1$d 項結果</item>
     </plurals>
-
     <!-- Route-isolated E2 calibration (PK) — status section -->
     <string name="calibration_pk_section_title">估算校準</string>
     <string name="calibration_pk_status_population_title">而家用緊人群估算</string>
@@ -1082,7 +1068,6 @@
     <string name="calibration_pk_confidence_high">高</string>
     <string name="calibration_pk_route_meta_confidence">%1$s · 可信度%2$s</string>
     <string name="calibration_pk_coaching_row_title">令估算更準確</string>
-
     <!-- Route-isolated E2 calibration (PK) — sheets -->
     <string name="calibration_pk_got_it">知道喇</string>
     <string name="calibration_pk_coaching_time_title">填寫採樣時間</string>
@@ -1107,7 +1092,6 @@
     <string name="calibration_pk_edu_doesnt_verify_body">唔會參考 FSH、LH 或者睪酮</string>
     <string name="calibration_pk_edu_doesnt_learn_title">了解你嘅吸收情況</string>
     <string name="calibration_pk_edu_doesnt_learn_body">只會調整各給藥途徑嘅整體水平，唔會調整吸收或者清除速率</string>
-
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：計唔到呢個時間點嘅估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間點預計幾乎冇嚟自用藥嘅雌二醇</string>
@@ -1121,14 +1105,12 @@
     <string name="calibration_pk_lab_reinclude">重新納入</string>
     <string name="calibration_pk_review_action_rejected">未能儲存呢個變更</string>
     <string name="medical_disclaimer_lab_adjustment">校準後嘅數值仍然係模型估算，唔係實測值或者用藥建議，唔可以取代化驗檢查或者醫生指導</string>
-
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">未能顯示圖表</string>
     <string name="calibration_pk_chart_unavailable_body">計算未完成，暫時唔顯示曲線。已儲存嘅資料唔受影響</string>
     <string name="calibration_pk_band_unavailable_note">計唔到呢個檢視嘅預測區間</string>
     <string name="calibration_pk_band_legend">68% / 95% 預測區間</string>
     <string name="calibration_pk_band_a11y_summary">已校準嘅途徑用校準估算，其餘途徑用人群估算。陰影係抽血結果嘅預測區間</string>
-
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
     <string name="calibration_pk_lab_accepted_body">已保留，會以較低權重計入</string>
     <string name="calibration_pk_lab_show_review">復原</string>
@@ -1155,4 +1137,7 @@
     <string name="calibration_pk_edu_next">下一步</string>
     <string name="calibration_pk_edu_back">返回</string>
     <string name="calibration_pk_edu_finish">完成</string>
+    <string name="anchor_widget_preview_name" translatable="false"></string>
+    <string name="privacy_policy_url" translatable="false"></string>
+    <string name="health_connect_title" translatable="false"></string>
 </resources>
