@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In a weekly schedule, the day-of-week letters are centered in their buttons on narrow phones like the Galaxy S20 instead of sitting slightly to the right.
 - In Add stock, the Add button is no longer available when the amount is 0 and stock tracking is on, for example after tapping + and then −.
 - In History, after you delete the last record of a month you're viewing, swiping to the next month no longer briefly enables the previous-month button.
 - History now lets you select dates with records even when they fall after today in the device's time zone, including dates in the next month. Those records also appear in calendar indicators and month summaries.
