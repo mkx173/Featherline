@@ -321,7 +321,7 @@ private fun SelectedDayRow(
     val loggedDayOffsetText = when (row) {
         is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedDayOffsetDays(
-                scheduledDate = row.entry.scheduledFor.toLocalDate(),
+                scheduledDate = date,
                 loggedAt = displayedLoggedAt
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
