@@ -48,6 +48,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.RunwayProjection
+import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.widget.WidgetDoseChip
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -274,11 +275,11 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun tuesdayDawnAppearsOnMondayWithoutChangingWeeklySchedule() {
+    fun mondayDawnSlotStaysOnMondayAndFiresInItsEarlyHours() {
         boundary(true)
         val monday = LocalDate.of(2026, 11, 2)
         device.setTime(monday.atTime(20, 0))
-        val group = group(medicine("Weekly dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.TUESDAY))
+        val group = group(medicine("Weekly dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY))
         assertTodayDate(monday)
         assertTodayCount("0/1")
         tab(R.string.tab_plan)
@@ -286,7 +287,11 @@ class MedicationDayE2eTest {
         await { compose.onAllNodesWithTag("plan_day_row").fetchSemanticsNodes().size == 1 }
         compose.onNodeWithTag("plan_calendar_day_${monday.plusDays(1)}").performClick()
         awaitText(text(R.string.plan_selected_day_records_empty))
-        assertEquals(setOf(DayOfWeek.TUESDAY), io { entryPoint.medicationGroupRepository().getGroup(group.uuid)!! }.schedule.weeklyDaysOfWeek)
+        assertEquals(
+            listOf(monday.plusDays(1).atTime(1, 0)),
+            io { entryPoint.medicationGroupRepository().getGroup(group.uuid)!! }
+                .schedule.nextOccurrencesFrom(monday.atTime(20, 0), limit = 1, boundary = MedicationDayBoundary.FourAm),
+        )
     }
 
     @Test

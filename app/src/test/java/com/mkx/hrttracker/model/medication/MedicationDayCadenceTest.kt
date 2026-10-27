@@ -34,7 +34,7 @@ class MedicationDayCadenceTest {
     }
 
     @Test
-    fun fourAmWeeklyDefaultDawnSlotUsesTheOccurrenceCivilWeekday() {
+    fun fourAmWeeklyDawnSlotFiresInItsMedicationDaysEarlyHours() {
         val group = group(
             type = MedicationGroupScheduleType.WEEKLY,
             interval = 1,
@@ -42,9 +42,10 @@ class MedicationDayCadenceTest {
             weeklyDays = setOf(DayOfWeek.MONDAY),
         )
 
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since, fourAm))
         assertEquals(
-            listOf(LocalDateTime.of(2026, 10, 19, 2, 0)),
-            slots(group, since, fourAm),
+            listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
+            slots(group, since.plusDays(1), fourAm),
         )
     }
 
@@ -161,7 +162,7 @@ class MedicationDayCadenceTest {
     }
 
     @Test
-    fun fourAmWeeklyResetSelectsTheOccurrenceCivilWeekday() {
+    fun fourAmWeeklyResetSelectsTheStartMedicationDaysWeekday() {
         val state = MedicationGroupEditorUiState(
             sinceDate = since,
             medicationDayBoundary = fourAm,
@@ -169,7 +170,7 @@ class MedicationDayCadenceTest {
         )
 
         assertEquals(
-            setOf(DayOfWeek.MONDAY),
+            setOf(DayOfWeek.SUNDAY),
             editorStateWithResetWeeklyDaysOfWeek(state).weeklyDaysOfWeek,
         )
     }

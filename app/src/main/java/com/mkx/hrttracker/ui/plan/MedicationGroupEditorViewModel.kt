@@ -141,7 +141,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     isLoadingGroupForEditing = editingGroupUuid != null,
                     sinceDate = defaultDay,
                     medicationDayBoundary = boundary,
-                    weeklyDaysOfWeek = setOf(defaultScheduleDateTime.toLocalDate().dayOfWeek),
+                    weeklyDaysOfWeek = setOf(defaultDay.dayOfWeek),
                     weeklyTime = defaultScheduleDateTime.toLocalTime(),
                     dailyTimes = listOf(
                         MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
@@ -2022,17 +2022,8 @@ internal fun editorStateWithUpdatedScheduleType(
 internal fun editorStateWithResetWeeklyDaysOfWeek(
     uiState: MedicationGroupEditorUiState,
 ): MedicationGroupEditorUiState {
-    // A selected weekly day names the civil day the dose fires on, so a time
-    // before the medication-day boundary belongs to the following civil day.
-    val firstOccurrenceDate = if (
-        uiState.weeklyTime.isBefore(uiState.medicationDayBoundary.startTime)
-    ) {
-        uiState.sinceDate.plusDays(1)
-    } else {
-        uiState.sinceDate
-    }
     return uiState.copy(
-        weeklyDaysOfWeek = setOf(firstOccurrenceDate.dayOfWeek),
+        weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
         hasUserCustomizedWeeklyDays = false,
     )
 }

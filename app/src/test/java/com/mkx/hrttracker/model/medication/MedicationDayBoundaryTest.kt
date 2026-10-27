@@ -89,13 +89,13 @@ class MedicationDayBoundaryTest {
     }
 
     @Test
-    fun weeklyDawnBelongsToPreviousDayWithoutMovingItsOccurrence() {
+    fun weeklyDawnFiresInTheSelectedMedicationDaysEarlyHours() {
         val monday = LocalDate.of(2026, 11, 2)
         val group = group(listOf(LocalTime.of(1, 0))).copy(schedule = MedicationGroupSchedule(
             type = MedicationGroupScheduleType.WEEKLY,
             interval = 1,
             since = monday,
-            weeklyDaysOfWeek = setOf(DayOfWeek.TUESDAY),
+            weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
             times = listOf(LocalTime.of(1, 0)),
         ))
         val schedule = buildPlanDaySchedule(

@@ -79,13 +79,13 @@ class MedicationGroupEditorMedicationDayTest {
     }
 
     @Test
-    fun fourAmNewPlanDefaultsToStartMedicationDayAndItsDawnCivilWeekday() = runTest {
+    fun fourAmNewPlanDefaultsToStartMedicationDayAndItsWeekday() = runTest {
         val viewModel = newViewModel()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(LocalDate.of(2026, 10, 18), state.sinceDate)
-        assertEquals(setOf(DayOfWeek.MONDAY), state.weeklyDaysOfWeek)
+        assertEquals(setOf(DayOfWeek.SUNDAY), state.weeklyDaysOfWeek)
         assertEquals(LocalTime.of(2, 0), state.weeklyTime)
         assertEquals(
             listOf(

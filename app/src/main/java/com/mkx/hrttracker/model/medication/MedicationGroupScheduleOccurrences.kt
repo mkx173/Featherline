@@ -21,10 +21,9 @@ fun MedicationGroupSchedule.isScheduledOn(
 ): Boolean = isScheduledAt(medicationDayStart(date, boundary), boundary)
 
 /**
- * Whether an occurrence at [dateTime] fires under [boundary]. Daily cadence counts
- * medication days, so a pre-boundary occurrence is gated by the day it belongs to.
- * Weekly cadence keeps the occurrence's civil weekday: a selected weekday names the
- * civil day the dose fires on, even when it falls before the boundary.
+ * Whether an occurrence at [dateTime] fires under [boundary]. Both cadences count
+ * medication days: with the day ending at 04:00, a Monday 01:00 weekly slot fires
+ * at 01:00 on calendar Tuesday, the early hours of medication day Monday.
  *
  * [allowBeforeSince] backs batch-add's backfill before the plan's start; the regular
  * plan path requires the occurrence's medication day to be on or after `since`.
@@ -35,31 +34,25 @@ fun MedicationGroupSchedule.isScheduledAt(
     allowBeforeSince: Boolean = false,
 ): Boolean {
     val normalizedInterval = interval.coerceAtLeast(1)
+    val day = medicationDay(dateTime, boundary)
+    if (!allowBeforeSince && day.isBefore(since)) {
+        return false
+    }
 
     return when (type) {
-        MedicationGroupScheduleType.DAILY -> {
-            val day = medicationDay(dateTime, boundary)
-            if (!allowBeforeSince && day.isBefore(since)) {
-                return false
-            }
-            Math.floorMod(
-                ChronoUnit.DAYS.between(since, day),
-                normalizedInterval.toLong(),
-            ) == 0L
-        }
+        MedicationGroupScheduleType.DAILY -> Math.floorMod(
+            ChronoUnit.DAYS.between(since, day),
+            normalizedInterval.toLong(),
+        ) == 0L
 
         MedicationGroupScheduleType.WEEKLY -> {
-            val civilDate = dateTime.toLocalDate()
-            if ((!allowBeforeSince && medicationDay(dateTime, boundary).isBefore(since)) ||
-                weeklyDaysOfWeek.isEmpty() ||
-                civilDate.dayOfWeek !in weeklyDaysOfWeek
-            ) {
+            if (day.dayOfWeek !in weeklyDaysOfWeek) {
                 return false
             }
             // floorDiv (not `/`) keeps parity around `since` for backfilled dates:
             // JVM `/` truncates toward zero, which would lump the 6 days before
             // `since` into week 0.
-            val weekIndex = Math.floorDiv(ChronoUnit.DAYS.between(since, civilDate), 7L)
+            val weekIndex = Math.floorDiv(ChronoUnit.DAYS.between(since, day), 7L)
             weekIndex % normalizedInterval.toLong() == 0L
         }
     }
