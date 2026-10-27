@@ -48,6 +48,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.YearMonth
+import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -506,6 +507,41 @@ class HistoryViewModelTest {
         settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
         advanceUntilIdle()
         assertEquals(LocalDate.of(2026, 10, 26), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun recordFromAZoneAheadKeepsItsFutureDayReachable() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 18, 0))
+        val entry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            sourceGroupUuid = null,
+            appliedAt = LocalDateTime.of(2026, 5, 1, 10, 0)
+                .atZone(ZoneId.of("Asia/Tokyo"))
+                .toInstant(),
+            appliedAtTimeZoneId = "Asia/Tokyo",
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.today)
+        assertEquals(YearMonth.of(2026, 5), viewModel.uiState.value.calendarEndMonth)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 5, 1))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.selectedDate)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 5, 2))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.selectedDate)
     }
 
     @Test

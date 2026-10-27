@@ -518,6 +518,9 @@ private fun HistoryScreenContent(
             }
         }
     }
+    val recordDates = remember(uiState.entries, uiState.medicationDayBoundary) {
+        historyRecordDates(uiState.entries, boundary = uiState.medicationDayBoundary)
+    }
     val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayBoundary) {
         buildHistoryMonthSummary(
             entries = uiState.entries,
@@ -902,6 +905,7 @@ private fun HistoryScreenContent(
                             today = today,
                             firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                             dayStates = monthDayStates,
+                            recordDates = recordDates,
                             appLocale = appLocale,
                             selectedDate = calendarSelectedDate,
                             hasResettableSelection = uiState.selectedDate != null &&
@@ -985,8 +989,13 @@ private fun HistoryScreenContent(
                                 HistoryEntryGroupHeader(
                                     date = date,
                                     today = today,
-                                    dayStatus = monthDayStates[date]?.status
-                                        ?: PlanCalendarDayStatus.NONE,
+                                    dayStatus = historyCalendarIndicatorStatus(
+                                        date = date,
+                                        today = today,
+                                        dayStatus = monthDayStates[date]?.status
+                                            ?: PlanCalendarDayStatus.NONE,
+                                        hasRecord = dateEntries.isNotEmpty()
+                                    ),
                                     hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
                                     countLabel = dateEntries.size.toString(),
                                     appLocale = appLocale
@@ -1214,6 +1223,7 @@ private fun HistoryMonthCalendar(
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
+    recordDates: Set<LocalDate>,
     appLocale: Locale,
     selectedDate: LocalDate?,
     hasResettableSelection: Boolean,
@@ -1365,6 +1375,7 @@ private fun HistoryMonthCalendar(
                 monthHeader = { _ -> },
                 dayContent = { day ->
                     val dayState = dayStates[day.date] ?: HistoryCalendarDayUiState()
+                    val hasRecord = day.date in recordDates
                     val targetMonth = historyCalendarDayClickTargetMonth(
                         position = day.position,
                         date = day.date
@@ -1376,11 +1387,13 @@ private fun HistoryMonthCalendar(
                         today = today,
                         dayStatus = dayState.status,
                         hasOffPlanRecord = dayState.hasOffPlanRecord,
+                        hasRecord = hasRecord,
                         isSelected = day.date == selectedDate &&
                                 day.position == DayPosition.MonthDate,
                         isSelectable = canSelectHistoryCalendarDate(
                             date = day.date,
                             today = today,
+                            hasRecord = hasRecord,
                             targetMonth = targetMonth,
                             calendarStartMonth = calendarState.startMonth,
                             calendarEndMonth = calendarState.endMonth
@@ -1821,6 +1834,7 @@ private fun HistoryCalendarDay(
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
     hasOffPlanRecord: Boolean,
+    hasRecord: Boolean,
     isSelected: Boolean,
     isSelectable: Boolean,
     onClick: (LocalDate) -> Unit,
@@ -1846,17 +1860,17 @@ private fun HistoryCalendarDay(
     val indicatorStatus = historyCalendarIndicatorStatus(
         date = day.date,
         today = today,
-        dayStatus = dayStatus
+        dayStatus = dayStatus,
+        hasRecord = hasRecord
     )
     val showOffPlanBadge = historyShouldShowOffPlanBadge(
         status = indicatorStatus,
-        hasOffPlanRecord = !day.date.isAfter(today) && hasOffPlanRecord
+        hasOffPlanRecord = (!day.date.isAfter(today) || hasRecord) && hasOffPlanRecord
     )
 
     Box(
         modifier = modifier
             .testTag("history_calendar_day_${day.date}")
-            .aspectRatio(1f)
             .fillMaxWidth()
             .padding(2.dp)
             .alpha(dayAlpha)
@@ -1912,12 +1926,16 @@ internal fun historyCalendarDayAlpha(
 internal fun historyCalendarIndicatorStatus(
     date: LocalDate,
     today: LocalDate,
-    dayStatus: PlanCalendarDayStatus
+    dayStatus: PlanCalendarDayStatus,
+    hasRecord: Boolean
 ): PlanCalendarDayStatus {
-    return if (date.isAfter(today)) {
-        PlanCalendarDayStatus.NONE
-    } else {
-        dayStatus
+    return when {
+        !date.isAfter(today) -> dayStatus
+        !hasRecord -> PlanCalendarDayStatus.NONE
+        // A planned dose is not missed before it is due, so the unplanned record is all
+        // there is to show for that day.
+        dayStatus == PlanCalendarDayStatus.MISSED -> PlanCalendarDayStatus.OFFPLAN
+        else -> dayStatus
     }
 }
 

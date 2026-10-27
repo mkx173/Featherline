@@ -680,6 +680,35 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun buildHistoryMonthSummary_counts_future_days_that_have_records() {
+        val summary = buildHistoryMonthSummary(
+            entries = listOf(
+                entryAt(LocalDateTime.of(2026, 4, 21, 8, 0)),
+                entryAt(LocalDateTime.of(2026, 4, 23, 8, 0))
+            ),
+            displayedMonth = YearMonth.of(2026, 4),
+            dayStates = mapOf(
+                LocalDate.of(2026, 4, 21) to stateFor(
+                    status = PlanCalendarDayStatus.FULFILLED,
+                    hasOffPlanRecord = true
+                ),
+                LocalDate.of(2026, 4, 22) to stateFor(PlanCalendarDayStatus.MISSED),
+                // A manual dose on a planned future day: off plan, but nothing is missed yet.
+                LocalDate.of(2026, 4, 23) to stateFor(
+                    status = PlanCalendarDayStatus.MISSED,
+                    hasOffPlanRecord = true
+                )
+            ),
+            today = LocalDate.of(2026, 4, 20),
+            boundary = MedicationDayBoundary.Midnight)
+
+        assertEquals(2, summary.logged)
+        assertEquals(1, summary.onTrack)
+        assertEquals(2, summary.offPlan)
+        assertEquals(0, summary.missed)
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_off_plan_days_even_when_primary_status_is_fulfilled() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(entryAt(LocalDateTime.of(2026, 4, 10, 8, 0))),
@@ -1301,28 +1330,39 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun canSelectHistoryCalendarDate_disallows_future_dates() {
+    fun canSelectHistoryCalendarDate_disallows_future_dates_without_records() {
         val today = LocalDate.of(2026, 4, 20)
 
         assertEquals(
             true,
             canSelectHistoryCalendarDate(
                 date = today.minusDays(1),
-                today = today
+                today = today,
+                hasRecord = false
             )
         )
         assertEquals(
             true,
             canSelectHistoryCalendarDate(
                 date = today,
-                today = today
+                today = today,
+                hasRecord = false
             )
         )
         assertEquals(
             false,
             canSelectHistoryCalendarDate(
                 date = today.plusDays(1),
-                today = today
+                today = today,
+                hasRecord = false
+            )
+        )
+        assertEquals(
+            true,
+            canSelectHistoryCalendarDate(
+                date = today.plusDays(1),
+                today = today,
+                hasRecord = true
             )
         )
     }
@@ -1336,6 +1376,7 @@ class HistoryUiModelsTest {
             canSelectHistoryCalendarDate(
                 date = LocalDate.of(2026, 3, 31),
                 today = today,
+                hasRecord = false,
                 targetMonth = YearMonth.of(2026, 3),
                 calendarStartMonth = YearMonth.of(2026, 3),
                 calendarEndMonth = YearMonth.of(2026, 4)
@@ -1346,6 +1387,7 @@ class HistoryUiModelsTest {
             canSelectHistoryCalendarDate(
                 date = LocalDate.of(2026, 3, 31),
                 today = today,
+                hasRecord = false,
                 targetMonth = YearMonth.of(2026, 3),
                 calendarStartMonth = YearMonth.of(2026, 4),
                 calendarEndMonth = YearMonth.of(2026, 4)
@@ -1356,6 +1398,7 @@ class HistoryUiModelsTest {
             canSelectHistoryCalendarDate(
                 date = LocalDate.of(2026, 5, 1),
                 today = today,
+                hasRecord = false,
                 targetMonth = YearMonth.of(2026, 5),
                 calendarStartMonth = YearMonth.of(2026, 4),
                 calendarEndMonth = YearMonth.of(2026, 5)
@@ -1366,6 +1409,7 @@ class HistoryUiModelsTest {
             canSelectHistoryCalendarDate(
                 date = LocalDate.of(2026, 4, 20),
                 today = today,
+                hasRecord = false,
                 targetMonth = null,
                 calendarStartMonth = YearMonth.of(2026, 4),
                 calendarEndMonth = YearMonth.of(2026, 4)
@@ -1374,7 +1418,7 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarIndicatorStatus_uses_none_for_future_dates() {
+    fun historyCalendarIndicatorStatus_uses_none_for_future_dates_without_records() {
         val today = LocalDate.of(2026, 4, 20)
 
         assertEquals(
@@ -1382,7 +1426,8 @@ class HistoryUiModelsTest {
             historyCalendarIndicatorStatus(
                 date = today.plusDays(1),
                 today = today,
-                dayStatus = PlanCalendarDayStatus.MISSED
+                dayStatus = PlanCalendarDayStatus.MISSED,
+                hasRecord = false
             )
         )
         assertEquals(
@@ -1390,7 +1435,35 @@ class HistoryUiModelsTest {
             historyCalendarIndicatorStatus(
                 date = today.minusDays(1),
                 today = today,
-                dayStatus = PlanCalendarDayStatus.PARTIAL
+                dayStatus = PlanCalendarDayStatus.PARTIAL,
+                hasRecord = false
+            )
+        )
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            historyCalendarIndicatorStatus(
+                date = today.plusDays(1),
+                today = today,
+                dayStatus = PlanCalendarDayStatus.FULFILLED,
+                hasRecord = true
+            )
+        )
+        assertEquals(
+            PlanCalendarDayStatus.OFFPLAN,
+            historyCalendarIndicatorStatus(
+                date = today.plusDays(1),
+                today = today,
+                dayStatus = PlanCalendarDayStatus.MISSED,
+                hasRecord = true
+            )
+        )
+        assertEquals(
+            PlanCalendarDayStatus.MISSED,
+            historyCalendarIndicatorStatus(
+                date = today,
+                today = today,
+                dayStatus = PlanCalendarDayStatus.MISSED,
+                hasRecord = true
             )
         )
     }

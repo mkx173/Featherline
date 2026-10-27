@@ -115,9 +115,8 @@ class HistoryViewModel @Inject constructor(
         val boundary = settingsState.medicationDayBoundary
         val today = medicationDay(now, boundary)
         val currentMonth = YearMonth.from(today)
-        val earliestEntryMonth = entries.minOfOrNull { entry ->
-            YearMonth.from(entry.planCalendarDate(boundary))
-        }
+        val entryMonths = entries.map { entry -> YearMonth.from(entry.planCalendarDate(boundary)) }
+        val earliestEntryMonth = entryMonths.minOrNull()
         val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
             YearMonth.from(
                 group.schedule.times.minOrNull()?.let { time ->
@@ -135,7 +134,8 @@ class HistoryViewModel @Inject constructor(
             .minOrNull()
             ?.coerceAtMost(currentMonth)
             ?: currentMonth
-        val calendarEndMonth = currentMonth
+        // A record logged in a zone ahead of the device can land in next month.
+        val calendarEndMonth = maxOf(currentMonth, entryMonths.maxOrNull() ?: currentMonth)
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
         val visibleSelection = reconcileHistoryEntrySelection(
             selectedEntryIds = deletionUiState.selectedEntryIds,
@@ -180,7 +180,7 @@ class HistoryViewModel @Inject constructor(
         viewModelScope.launch {
             uiState.collect { state ->
                 val date = state.selectedDate ?: return@collect
-                if (!canSelectHistoryCalendarDate(date, state.today)) {
+                if (!state.canSelectCalendarDate(date)) {
                     selectedDate.value = null
                     selectedEntryIds.value = emptySet()
                     isDeleteConfirmationVisible.value = false
@@ -216,7 +216,7 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun toggleSelectedDate(date: LocalDate) {
-        if (!canSelectHistoryCalendarDate(date, uiState.value.today)) {
+        if (!uiState.value.canSelectCalendarDate(date)) {
             return
         }
         selectedDate.value = if (selectedDate.value == date) {
@@ -367,6 +367,14 @@ private fun initialHistoryUiState(today: LocalDate, boundary: MedicationDayBound
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
+    )
+}
+
+private fun HistoryUiState.canSelectCalendarDate(date: LocalDate): Boolean {
+    return canSelectHistoryCalendarDate(
+        date = date,
+        today = today,
+        hasRecord = entries.any { entry -> entry.planCalendarDate(medicationDayBoundary) == date },
     )
 }
 

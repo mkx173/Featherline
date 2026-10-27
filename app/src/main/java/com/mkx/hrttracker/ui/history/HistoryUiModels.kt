@@ -60,21 +60,33 @@ internal fun buildHistoryVisibleEntries(
         .sortedByDescending { it.appliedAt }
 }
 
+internal fun historyRecordDates(
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    boundary: MedicationDayBoundary,
+): Set<LocalDate> {
+    return entries.mapTo(hashSetOf()) { entry -> entry.planCalendarDate(boundary, zoneId) }
+}
+
+// Moving to a zone behind the one a record was logged in can put that record after today,
+// so a future day with records still behaves like a past one.
 internal fun canSelectHistoryCalendarDate(
     date: LocalDate,
-    today: LocalDate
+    today: LocalDate,
+    hasRecord: Boolean,
 ): Boolean {
-    return !date.isAfter(today)
+    return !date.isAfter(today) || hasRecord
 }
 
 internal fun canSelectHistoryCalendarDate(
     date: LocalDate,
     today: LocalDate,
+    hasRecord: Boolean,
     targetMonth: YearMonth?,
     calendarStartMonth: YearMonth,
     calendarEndMonth: YearMonth,
 ): Boolean {
-    if (!canSelectHistoryCalendarDate(date = date, today = today)) {
+    if (!canSelectHistoryCalendarDate(date = date, today = today, hasRecord = hasRecord)) {
         return false
     }
     val adjacentTargetMonth = targetMonth ?: return true
@@ -283,9 +295,11 @@ internal fun buildHistoryMonthSummary(
     zoneId: ZoneId = ZoneId.systemDefault(),
     boundary: MedicationDayBoundary,
 ): HistoryMonthSummary {
-    val logged = entries.count { entry ->
-        YearMonth.from(entry.planCalendarDate(boundary, zoneId)) == displayedMonth
-    }
+    val loggedDates = entries
+        .map { entry -> entry.planCalendarDate(boundary, zoneId) }
+        .filter { date -> YearMonth.from(date) == displayedMonth }
+    val logged = loggedDates.size
+    val recordDates = loggedDates.toSet()
 
     var onTrack = 0
     var partial = 0
@@ -295,7 +309,7 @@ internal fun buildHistoryMonthSummary(
     val endDate = displayedMonth.atEndOfMonth()
 
     while (!currentDate.isAfter(endDate)) {
-        if (!currentDate.isAfter(today)) {
+        if (!currentDate.isAfter(today) || currentDate in recordDates) {
             val dayState = dayStates[currentDate] ?: HistoryCalendarDayUiState()
             when (dayState.status) {
                 PlanCalendarDayStatus.FULFILLED -> onTrack++
