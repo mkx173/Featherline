@@ -49,6 +49,7 @@ import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.timeOfDayOrder
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.withAppLanguage
@@ -2114,12 +2115,14 @@ private fun dailyTimesWithUpdatedTimeInCurrentOrder(
 
 internal fun sortDailyTimesByOriginalTime(
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    // Display order only: the editor state and save path keep plain clock order.
+    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ): List<MedicationGroupScheduleTimeUiState> {
     return dailyTimes.sortedWith(
         compareBy<MedicationGroupScheduleTimeUiState> { dailyTime ->
-            dailyTime.originalTime ?: dailyTime.time
+            boundary.timeOfDayOrder(dailyTime.originalTime ?: dailyTime.time)
         }.thenBy { dailyTime ->
-            dailyTime.time
+            boundary.timeOfDayOrder(dailyTime.time)
         }.thenBy { dailyTime ->
             dailyTime.localId
         }

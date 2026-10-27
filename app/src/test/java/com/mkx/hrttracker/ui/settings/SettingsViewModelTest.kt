@@ -619,6 +619,9 @@ class SettingsViewModelTest {
             diagnosticsExportService = diagnosticsExportService,
             widgetAppearanceRepository = widgetAppearanceRepository,
             e2EstimateRepository = e2EstimateRepository,
+            medicationGroupRepository = mockk {
+                every { observeGroups() } returns flowOf(emptyList())
+            },
         )
     }
 

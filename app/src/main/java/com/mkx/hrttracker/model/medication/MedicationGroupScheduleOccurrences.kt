@@ -21,6 +21,14 @@ fun MedicationGroupSchedule.isScheduledOn(
 ): Boolean = isScheduledAt(medicationDayStart(date, boundary), boundary)
 
 /**
+ * Whether the 04:00 switch moves this plan's doses: its times before 04:00 belong to
+ * the night before, so a plan that skips days fires them on another calendar day.
+ */
+val MedicationGroupSchedule.movesWithMedicationDayBoundary: Boolean
+    get() = (type == MedicationGroupScheduleType.WEEKLY || interval > 1) &&
+        times.any { time -> time.isBefore(MedicationDayBoundary.FourAm.startTime) }
+
+/**
  * Whether an occurrence at [dateTime] fires under [boundary]. Both cadences count
  * medication days: with the day ending at 04:00, a Monday 01:00 weekly slot fires
  * at 01:00 on calendar Tuesday, the early hours of medication day Monday.

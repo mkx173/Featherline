@@ -144,6 +144,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val widgetAppearance by viewModel.widgetAppearance.collectAsStateWithLifecycle()
+    val medicationDayMovingGroupNames by viewModel.medicationDayMovingGroupNames.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // The app swaps UI language in place via composition locals (see
     // MainActivity) without recreating the Activity, so LocalContext.current is
@@ -525,6 +526,7 @@ fun SettingsScreen(
     SettingsScreenContent(
         uiState = uiState,
         widgetAppearance = widgetAppearance,
+        medicationDayMovingGroupNames = medicationDayMovingGroupNames,
         hasNotificationAccess = hasNotificationAccess,
         reminderSupportState = reminderSupportState,
         isReminderEnablePending = isReminderEnablePending,
@@ -961,6 +963,7 @@ internal fun SettingsScreenContent(
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onMedicationDayEndsAtFourAmChange: (Boolean) -> Unit = {},
+    medicationDayMovingGroupNames: List<String> = emptyList(),
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
@@ -984,6 +987,14 @@ internal fun SettingsScreenContent(
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingMedicationDayEndsAtFourAm by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val requestMedicationDayEndsAtFourAm = { enabled: Boolean ->
+        if (medicationDayMovingGroupNames.isEmpty()) {
+            onMedicationDayEndsAtFourAmChange(enabled)
+        } else {
+            pendingMedicationDayEndsAtFourAm = enabled
+        }
+    }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
@@ -1268,7 +1279,7 @@ internal fun SettingsScreenContent(
                             title = stringResource(R.string.settings_medication_day_ends_at_four_am),
                             supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
                             onClick = {
-                                onMedicationDayEndsAtFourAmChange(
+                                requestMedicationDayEndsAtFourAm(
                                     !settingsState.medicationDayEndsAtFourAm
                                 )
                             },
@@ -1278,7 +1289,7 @@ internal fun SettingsScreenContent(
                             trailingContent = {
                                 Switch(
                                     checked = settingsState.medicationDayEndsAtFourAm,
-                                    onCheckedChange = onMedicationDayEndsAtFourAmChange
+                                    onCheckedChange = requestMedicationDayEndsAtFourAm
                                 )
                             },
                         )
@@ -1785,6 +1796,34 @@ internal fun SettingsScreenContent(
                 onRequestExactAlarmAccess()
             },
             onDismiss = { showExactAlarmRecoveryDialog = false }
+        )
+    }
+
+    pendingMedicationDayEndsAtFourAm?.let { enabled ->
+        HazeAlertDialog(
+            onDismissRequest = { pendingMedicationDayEndsAtFourAm = null },
+            title = { Text(text = stringResource(R.string.settings_medication_day_moves_doses_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.settings_medication_day_moves_doses_message,
+                        medicationDayMovingGroupNames.joinToString(),
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingMedicationDayEndsAtFourAm = null
+                    onMedicationDayEndsAtFourAmChange(enabled)
+                }) {
+                    Text(stringResource(R.string.settings_medication_day_moves_doses_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMedicationDayEndsAtFourAm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
         )
     }
 

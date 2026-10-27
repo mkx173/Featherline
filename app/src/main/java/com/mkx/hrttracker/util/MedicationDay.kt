@@ -30,5 +30,9 @@ fun medicationDay(dateTime: LocalDateTime, boundary: MedicationDayBoundary): Loc
     }
 }
 
+/** Orders times from the boundary on, so with the day ending at 04:00, 01:00 sorts after 22:00. */
+fun MedicationDayBoundary.timeOfDayOrder(time: LocalTime): Int =
+    Math.floorMod(time.toSecondOfDay() - startTime.toSecondOfDay(), LocalTime.MAX.toSecondOfDay() + 1)
+
 fun medicationDayStart(date: LocalDate, boundary: MedicationDayBoundary): LocalDateTime =
     date.atTime(boundary.startTime)

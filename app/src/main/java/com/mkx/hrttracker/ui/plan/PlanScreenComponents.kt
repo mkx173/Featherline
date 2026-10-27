@@ -683,6 +683,7 @@ internal fun RegimenGroupCard(
                                 )
                             ),
                             firstDayOfWeek = firstDayOfWeek,
+                            boundary = LocalMedicationDayBoundary.current,
                         )
                         Text(
                             text = groupScheduleSummary,
