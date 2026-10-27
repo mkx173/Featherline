@@ -4,7 +4,7 @@
 
 # Featherline
 
-**English** · [简体中文](README.zh-Hans.md)· [繁體中文](README.zh-Hant.md) ·· [廣東話](README.zh-HK.md) 
+**English** · [简体中文](README.zh-Hans.md) · [繁體中文](README.zh-Hant.md) · [廣東話](README.zh-HK.md) 
 
 HRT medication tracker for Android with PK projections and lab tracking. On-device, encrypted, no account required.
 
