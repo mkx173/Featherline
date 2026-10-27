@@ -222,7 +222,7 @@ private fun PlanScreenContent(
             firstDayOfWeek = uiState.calendarFirstDayOfWeek,
         )
     }
-    val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
+    val visibleWeek = rememberFirstMostVisibleWeek(state)
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)
     val currentWeekStartDate = remember(uiState.today, uiState.calendarFirstDayOfWeek) {
