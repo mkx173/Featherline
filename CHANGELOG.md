@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Settings now has a "Day ends at 04:00" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan and History, so a dose taken after midnight stays with the evening it belongs to. Existing records regroup on the next open without changing their stored times, and reminders and Journal keep their actual times and dates.
+- Settings now has a "Day ends at 04:00" switch, off by default. When it is on, records and planned doses before 04:00 count toward the previous day on Home, Plan, History and the widget, so a dose taken after midnight stays with the evening it belongs to, and its time shows as, for example, 01:00 (+1). Turning the switch on or off never moves a dose: plans keep firing at the same times on the same calendar days, and existing records only regroup.
 
 ### Fixed
 
-- With the "Day ends at 04:00" switch on, the medication day now also governs dose fulfillment windows, stock runway, planned doses on the estradiol curve, reminders and the editor's neighboring-dose lookups, not just the Home, Plan and History day lists. A daily plan with an interval above 1 no longer counts its pre-04:00 doses on calendar-day parity.
 - The home-screen widget's Coming up list now includes manual records and archived groups like Home, and its Last night section disappears at noon in both boundary modes.
 - After a planned dose's time passes, opening the app no longer shows an estradiol curve that looks like the population estimate, or the calibrated curve without its prediction interval. Home now works the estimate out again whenever the time, your data or the chart window moves it, usually in the background before you open the app.
 - The home-screen widget no longer goes blank when you change a widget setting, such as its appearance or the estradiol unit, while the app's saved copy of your data is out of date, for example right after an app update or a time zone change. It keeps showing your doses while the app brings them up to date.
