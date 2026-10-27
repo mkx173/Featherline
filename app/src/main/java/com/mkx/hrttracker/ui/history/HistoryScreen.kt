@@ -2183,7 +2183,7 @@ private fun historyIndicatorColors(
             emphasizedColor = MaterialTheme.colorScheme.primary
         ),
         fulfilled = MaterialTheme.colorScheme.primary,
-        neutral = MaterialTheme.colorScheme.outlineVariant,
+        neutral = MaterialTheme.colorScheme.onSurfaceVariant,
         unplanned = MaterialTheme.colorScheme.tertiary
     )
 }
