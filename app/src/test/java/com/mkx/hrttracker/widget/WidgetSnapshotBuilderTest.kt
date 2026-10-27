@@ -343,31 +343,6 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
-    fun marksImportedManualLogRows() {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        stubMedicationStrings()
-        val imported = testMedicationLogEntry(
-            sourceGroupUuid = null,
-            appliedAt = now.atZone(zoneId).toInstant(),
-        ).copy(
-            importSourceApp = "transmtf",
-            importExternalId = "dose-1",
-        )
-
-        val snapshot = buildWidgetSnapshotRecord(
-            context = context,
-            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = emptyList())
-                .copy(scheduleEntries = listOf(imported)),
-            widgetEstimate = null,
-            settings = SettingsState(),
-            now = now,
-            zoneId = zoneId,
-        )
-
-        assertEquals(true, snapshot.doseRows.single().isImportedRecord)
-    }
-
-    @Test
     fun comingUpIncludesManualMidnightRowAtMidnightBoundary() {
         val now = LocalDateTime.of(2026, 10, 1, 20, 0)
         val manualMedicine = testCustomMedicine(medicationName = "Midnight manual")

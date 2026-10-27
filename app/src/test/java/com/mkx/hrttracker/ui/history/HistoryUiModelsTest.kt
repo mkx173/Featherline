@@ -41,11 +41,11 @@ class HistoryUiModelsTest {
 
     @Test
     fun historyEntryIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
-        assertEquals(18.dp, HistoryEntryRowIndicatorSlotSize)
-        assertEquals(16.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_download))
-        assertEquals(17.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_edit_square))
-        assertEquals(18.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_archive))
-        assertEquals(16.5.dp, HistoryEntryCrossZoneIndicatorGlyphSize)
+        assertEquals(14.dp, HistoryEntryRowIndicatorSlotSize)
+        assertEquals(13.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_download))
+        assertEquals(13.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_edit_square))
+        assertEquals(14.dp, historyEntryRowIndicatorGlyphSize(R.drawable.ic_archive))
+        assertEquals(13.dp, HistoryEntryCrossZoneIndicatorGlyphSize)
     }
 
     @Test

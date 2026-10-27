@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
 import androidx.annotation.DrawableRes
-import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
@@ -94,7 +93,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -130,6 +128,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
+import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -3142,50 +3141,6 @@ private fun MainAntiandrogenCardHeader(
     }
 }
 
-@DrawableRes
-internal fun mainTodayDoseRowIndicatorIconRes(row: MainTodayDoseRowUiState): Int? = when {
-    row.isImportedRecord -> R.drawable.ic_download
-    row.isManualRecord -> R.drawable.ic_edit_square
-    else -> null
-}
-
-internal val MainTodayRowIndicatorSlotSize = 18.dp
-
-internal fun mainTodayRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
-    when (iconDrawableRes) {
-        R.drawable.ic_download -> 16.dp
-        R.drawable.ic_edit_square -> 17.dp
-
-        else -> MainTodayRowIndicatorSlotSize
-    }
-
-@StringRes
-private fun mainTodayDoseRowIndicatorContentDescriptionRes(row: MainTodayDoseRowUiState): Int? =
-    when {
-        row.isImportedRecord -> R.string.external_tracker_record_indicator
-        row.isManualRecord -> R.string.plan_entry_label_manual
-        else -> null
-    }
-
-@Composable
-private fun MainRowIndicatorIcon(
-    @DrawableRes iconDrawableRes: Int,
-    @StringRes contentDescriptionRes: Int,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.size(MainTodayRowIndicatorSlotSize),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconDrawableRes),
-            contentDescription = stringResource(contentDescriptionRes),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(mainTodayRowIndicatorGlyphSize(iconDrawableRes))
-        )
-    }
-}
-
 @Composable
 private fun MainAntiandrogenMedicationSubCard(
     card: MainAntiandrogenCardUiState,
@@ -4021,54 +3976,31 @@ private fun MainTodayTrailingContent(
         }
     }
 
-    val hasTextLabel = textLabel != null && textLabel.text.isNotBlank()
-    val indicatorIconRes = mainTodayDoseRowIndicatorIconRes(row)
-    val indicatorContentDescriptionRes = mainTodayDoseRowIndicatorContentDescriptionRes(row)
-
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (row.isFromArchivedGroup || indicatorIconRes != null || hasTextLabel) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (row.isFromArchivedGroup) {
-                    MainRowIndicatorIcon(
-                        iconDrawableRes = R.drawable.ic_archive,
-                        contentDescriptionRes = R.string.archived_group_record_indicator,
-                    )
-                }
-                if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
-                    MainRowIndicatorIcon(
-                        iconDrawableRes = indicatorIconRes,
-                        contentDescriptionRes = indicatorContentDescriptionRes,
-                    )
-                }
-                if (textLabel != null && textLabel.text.isNotBlank()) {
-                    Text(
-                        text = textLabel.text,
-                        style = if (textLabel.isDelta) {
-                            MaterialTheme.typography.labelLarge
-                        } else {
-                            MaterialTheme.typography.titleMedium
-                        },
-                        color = if (textLabel.isDelta) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        fontWeight = if (textLabel.isDelta) {
-                            FontWeight.Normal
-                        } else {
-                            FontWeight.Medium
-                        },
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                    )
-                }
-            }
+        if (textLabel != null && textLabel.text.isNotBlank()) {
+            Text(
+                text = textLabel.text,
+                style = if (textLabel.isDelta) {
+                    MaterialTheme.typography.labelLarge
+                } else {
+                    MaterialTheme.typography.titleMedium
+                },
+                color = if (textLabel.isDelta) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                fontWeight = if (textLabel.isDelta) {
+                    FontWeight.Normal
+                } else {
+                    FontWeight.Medium
+                },
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
         }
         MainTodayTrailingStatusButton(
             isLogged = isLogged,
@@ -4159,18 +4091,8 @@ private fun mainTodayScheduleOffsetText(
     if (absoluteMinutes < MainScheduleGraceMinutes) {
         return null
     }
-    val isEarly = deltaMinutes < 0
-    val absoluteHours = (absoluteMinutes / 60L).coerceAtLeast(1L)
-    val quantity = absoluteHours.toInt()
-    return pluralStringResource(
-        if (isEarly) {
-            R.plurals.main_today_schedule_offset_hours_earlier
-        } else {
-            R.plurals.main_today_schedule_offset_hours_later
-        },
-        quantity,
-        quantity
-    )
+    return medicationLogScheduleOffset(scheduledFor = scheduledFor, appliedAt = comparedAt)
+        ?.let { offset -> stringResource(offset.labelRes, offset.value) }
 }
 
 private fun mainTodayIsBeforeOrInGracePeriod(

@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.main
 
-import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -41,53 +40,6 @@ class MainContentComponentsTest {
         assertEquals(96, start)
         // Narrow viewport at the right edge: the pair clamps inside the canvas.
         assertEquals(192 to 250, mainE2ChartMinimapDateLabelXs(300, 280f, 20f, 50, 50, 8))
-    }
-
-    @Test
-    fun mainTodayRowIndicatorSizes_useFixedSlotWithSmallerDownloadGlyph() {
-        assertEquals(18.dp, MainTodayRowIndicatorSlotSize)
-        assertEquals(16.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_download))
-        assertEquals(17.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_edit_square))
-        assertEquals(18.dp, mainTodayRowIndicatorGlyphSize(R.drawable.ic_archive))
-    }
-
-    @Test
-    fun mainTodayDoseRowIndicatorIconRes_usesDownloadForImportedRows() {
-        val row = scheduledTodayRow(
-            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-            scheduleTimeUuid = null,
-            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
-            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
-        ).copy(
-            isManualRecord = true,
-            isImportedRecord = true,
-        )
-
-        assertEquals(R.drawable.ic_download, mainTodayDoseRowIndicatorIconRes(row))
-    }
-
-    @Test
-    fun mainTodayDoseRowIndicatorIconRes_keepsEditForLocalManualRows() {
-        val row = scheduledTodayRow(
-            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-            scheduleTimeUuid = null,
-            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
-            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
-        ).copy(isManualRecord = true)
-
-        assertEquals(R.drawable.ic_edit_square, mainTodayDoseRowIndicatorIconRes(row))
-    }
-
-    @Test
-    fun mainTodayDoseRowIndicatorIconRes_omitsIconForScheduledRows() {
-        val row = scheduledTodayRow(
-            groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
-            scheduleTimeUuid = null,
-            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
-            medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
-        )
-
-        assertNull(mainTodayDoseRowIndicatorIconRes(row))
     }
 
     @Test

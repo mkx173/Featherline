@@ -25,12 +25,6 @@
     <string name="main_today_range_morning">朝</string>
     <string name="main_today_range_afternoon">午後</string>
     <string name="main_today_range_evening">夕方</string>
-    <plurals name="main_today_schedule_offset_hours_later">
-        <item quantity="other">+%1$d 時間</item>
-    </plurals>
-    <plurals name="main_today_schedule_offset_hours_earlier">
-        <item quantity="other">-%1$d 時間</item>
-    </plurals>
     <string name="main_e2_title">エストロゲン・推定</string>
     <string name="main_e2_chart_title_seven_days">7日間の推移</string>
     <string name="main_e2_chart_title_thirty_days">30日間の推移</string>

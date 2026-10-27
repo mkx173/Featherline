@@ -27,12 +27,6 @@
     <string name="main_today_range_morning">朝早</string>
     <string name="main_today_range_afternoon">下晝</string>
     <string name="main_today_range_evening">夜晚</string>
-    <plurals name="main_today_schedule_offset_hours_later">
-        <item quantity="other">+%1$d 小時</item>
-    </plurals>
-    <plurals name="main_today_schedule_offset_hours_earlier">
-        <item quantity="other">-%1$d 小時</item>
-    </plurals>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_title_calibrated">雌二醇 · 已校準</string>
     <string name="main_e2_title_population">雌二醇 · 人群估算</string>

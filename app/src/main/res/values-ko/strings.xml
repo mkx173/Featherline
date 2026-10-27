@@ -24,12 +24,6 @@
     <string name="main_today_range_morning">아침</string>
     <string name="main_today_range_afternoon">오후</string>
     <string name="main_today_range_evening">저녁</string>
-    <plurals name="main_today_schedule_offset_hours_later">
-        <item quantity="other">+%1$d 시간</item>
-    </plurals>
-    <plurals name="main_today_schedule_offset_hours_earlier">
-        <item quantity="other">-%1$d 시간</item>
-    </plurals>
     <string name="main_e2_title">에스트라디올 · 예상치</string>
     <string name="main_e2_chart_title_seven_days">7일 추세</string>
     <string name="main_e2_chart_title_thirty_days">30일 추세</string>

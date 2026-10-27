@@ -522,39 +522,27 @@ private fun MedicationEditorGroupInfoCard(
             count = 2,
             modifier = modifier,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            trailingContent = if (isArchived || scheduleOffsetText != null) {
+            trailingContent = if (scheduleOffsetText != null) {
                 {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (isArchived) {
+                        Text(
+                            text = scheduleOffsetText,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        if (showScheduleOffsetWarning) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_archive),
+                                imageVector = Icons.Rounded.WarningAmber,
                                 contentDescription = stringResource(
-                                    R.string.archived_group_record_indicator,
+                                    R.string.medication_editor_schedule_offset_warning,
                                 ),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp),
                             )
-                        }
-                        if (scheduleOffsetText != null) {
-                            Text(
-                                text = scheduleOffsetText,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            if (showScheduleOffsetWarning) {
-                                Icon(
-                                    imageVector = Icons.Rounded.WarningAmber,
-                                    contentDescription = stringResource(
-                                        R.string.medication_editor_schedule_offset_warning,
-                                    ),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
                         }
                     }
                 }
@@ -578,11 +566,27 @@ private fun MedicationEditorGroupInfoCard(
                         ),
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = groupName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Normal,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = groupName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (isArchived) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_archive),
+                                contentDescription = stringResource(
+                                    R.string.archived_group_record_indicator,
+                                ),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),

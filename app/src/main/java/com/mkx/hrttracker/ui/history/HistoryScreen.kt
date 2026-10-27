@@ -175,13 +175,13 @@ internal fun historyEntryIndicatorIconRes(entry: MedicationLogEntry): Int? = whe
     else -> null
 }
 
-internal val HistoryEntryRowIndicatorSlotSize = 18.dp
-internal val HistoryEntryCrossZoneIndicatorGlyphSize = 16.5.dp
+internal val HistoryEntryRowIndicatorSlotSize = 14.dp
+internal val HistoryEntryCrossZoneIndicatorGlyphSize = 13.dp
 
 internal fun historyEntryRowIndicatorGlyphSize(@DrawableRes iconDrawableRes: Int): Dp =
     when (iconDrawableRes) {
-        R.drawable.ic_download -> 16.dp
-        R.drawable.ic_edit_square -> 17.dp
+        R.drawable.ic_download -> 13.dp
+        R.drawable.ic_edit_square -> 13.dp
 
         else -> HistoryEntryRowIndicatorSlotSize
     }
@@ -2319,31 +2319,35 @@ private fun HistoryEntryCard(
             val crossZone = remember(entry) { isCrossZone(entry, deviceZone) }
             val indicatorIconRes = historyEntryIndicatorIconRes(entry)
             val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (isFromArchivedGroup) {
-                    HistoryEntryRowIndicatorIcon(
-                        iconDrawableRes = R.drawable.ic_archive,
-                        contentDescriptionRes = R.string.archived_group_record_indicator,
-                    )
-                }
-                if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
-                    HistoryEntryRowIndicatorIcon(
-                        iconDrawableRes = indicatorIconRes,
-                        contentDescriptionRes = indicatorContentDescriptionRes,
-                    )
-                }
-                if (crossZone) {
-                    HistoryEntryCrossZoneIndicatorIcon()
-                }
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(entry, deviceZone), dayDate, LocalMedicationDayBoundary.current, timeFormatter),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
                 )
+                if (isFromArchivedGroup || indicatorIconRes != null || crossZone) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isFromArchivedGroup) {
+                            HistoryEntryRowIndicatorIcon(
+                                iconDrawableRes = R.drawable.ic_archive,
+                                contentDescriptionRes = R.string.archived_group_record_indicator,
+                            )
+                        }
+                        if (indicatorIconRes != null && indicatorContentDescriptionRes != null) {
+                            HistoryEntryRowIndicatorIcon(
+                                iconDrawableRes = indicatorIconRes,
+                                contentDescriptionRes = indicatorContentDescriptionRes,
+                            )
+                        }
+                        if (crossZone) {
+                            HistoryEntryCrossZoneIndicatorIcon()
+                        }
+                    }
+                }
             }
         }
     )
