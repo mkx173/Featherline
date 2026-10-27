@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dose rows show fewer icons. Home and the home-screen widget no longer mark archived, imported or manual records, and Plan only marks records logged in another time zone. History shows its icons under the time. Tap a record to see where it came from. Home shows how early or late a dose was in the same short form as the record editor, such as +2h or -1d, and the record editor shows the archive icon next to the group name.
 - The Plan week strip's buttons and labels now switch halfway through a swipe, like the History calendar, instead of only near its end.
 - In the History calendar and the Plan week strip, the previous and next buttons fade in and out as they turn on and off.
 - History calendar days use consistent vertical padding, and plan cards show upcoming doses without a separate heading.
