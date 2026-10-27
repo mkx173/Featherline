@@ -627,8 +627,6 @@
     <string name="settings_reminders_notifications_unavailable">Zapněte oznámení aplikace v nastavení systému.</string>
     <string name="settings_appearance">Vzhled</string>
     <string name="settings_app_language">Jazyk aplikace</string>
-    <string name="settings_cjk_text_offset">Upravit zobrazení čínského textu</string>
-    <string name="settings_cjk_text_offset_summary">Vyzkoušejte, pokud je čínský text nesprávně zarovnaný.</string>
     <string name="settings_first_day_of_week">První den týdne</string>
     <string name="settings_dark_mode">Tmavý režim</string>
     <string name="settings_adaptive_color">Adaptivní barvy</string>
@@ -715,13 +713,6 @@
         <item quantity="many">+%1$d záznamů</item>
         <item quantity="other">+%1$d záznamů</item>
     </plurals>
-    <plurals name="settings_calibration_total_count">
-        <item quantity="one">Celkem %1$d</item>
-        <item quantity="few">Celkem %1$d</item>
-        <item quantity="many">Celkem %1$d</item>
-        <item quantity="other">Celkem %1$d</item>
-    </plurals>
-    <string name="settings_calibration_under_development_message">Kalibrace je ve vývoji. Výsledky krevních testů můžete i nadále zaznamenávat.</string>
     <string name="settings_calibration_target_ranges_title">Cílové rozmezí WPATH SOC-8</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Zálohování a obnovení</string>
@@ -865,7 +856,6 @@
     <string name="onboarding_open_app">Otevřít Featherline</string>
     <string name="settings_calibration_remaining_analytes">K dispozici: %1$d</string>
     <string name="main_e2_title">Estradiol · odhad</string>
-    <string name="main_e2_estimate_info">Zobrazit informace o odhadu estradiolu</string>
     <string name="main_e2_chart_title_seven_days">Trend za 7 dní</string>
     <string name="main_e2_chart_title_thirty_days">Trend za 30 dní</string>
     <string name="main_e2_chart_window_toggle_cd">Přepnout období grafu</string>
@@ -878,7 +868,6 @@
     <string name="main_e2_no_last_dose">Zatím nebyla zaznamenána žádná dávka</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">Odhadované koncentrace a cílová rozmezí WPATH SOC-8 slouží pouze jako orientační údaje, nikoli jako naměřené hodnoty nebo zdravotní doporučení; vaše cílová rozmezí se mohou lišit.</string>
     <string name="medical_disclaimer_preset_doses">Přednastavené dávky jsou pouze orientační hodnoty, nikoli zdravotní doporučení. Bezpečné dávkování závisí na výsledcích laboratorních vyšetření, dalších lécích, zdravotní anamnéze a dohledu zdravotnického pracovníka.</string>
-    <string name="medical_disclaimer_reference_ranges">Cílová rozmezí jsou obecná vodítka, nikoli zdravotní doporučení — vaše cílová rozmezí se mohou lišit podle léčebného plánu.</string>
     <string name="medical_disclaimer_wpath_reference_ranges">Cílová rozmezí vycházejí ze Standardů péče WPATH, verze 8. Jde o obecná vodítka, nikoli zdravotní doporučení — vaše cílová rozmezí se mohou lišit podle léčebného plánu.</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">Hodnoty plazmatické koncentrace jsou modelové odhady založené na vašem dávkovacím rozvrhu, nikoli naměřené hodnoty.</string>
     <string name="main_antiandrogen_last_dose_elapsed">Poslední dávka před %1$s</string>
