@@ -279,7 +279,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
-        launchSettingsMutation { settingsRepository.setMedicationDayEndsAtFourAm(enabled) }
+        launchSettingsMutation {
+            settingsRepository.setMedicationDayEndsAtFourAm(enabled)
+            // Every-N-days and weekly cadence count medication days, so the next
+            // reminder before 04:00 can move to another civil date.
+            runReminderSideEffectBestEffort {
+                medicationReminderScheduler.rescheduleAll()
+            }
+        }
     }
 
     fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
