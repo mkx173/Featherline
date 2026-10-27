@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.history
 
+import androidx.compose.animation.animateColorAsState
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -42,6 +43,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -1806,13 +1808,22 @@ private fun HistoryCalendarNavigationButton(
     onClick: () -> Unit,
     iconSize: Dp
 ) {
+    val colors = IconButtonDefaults.iconButtonColors()
+    val contentColor by animateColorAsState(
+        targetValue = if (enabled) colors.contentColor else colors.disabledContentColor,
+        label = "historyCalendarNavigationColor",
+    )
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier
+            modifier = modifier,
+            colors = colors.copy(
+                contentColor = contentColor,
+                disabledContentColor = contentColor,
+            ),
         ) {
             if (painter != null) {
                 Icon(

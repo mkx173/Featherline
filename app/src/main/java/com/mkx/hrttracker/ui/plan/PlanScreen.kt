@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.animation.animateColorAsState
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
@@ -28,6 +29,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -604,13 +606,22 @@ private fun PlanWeekNavigationButton(
     onClick: () -> Unit,
     iconSize: Dp
 ) {
+    val colors = IconButtonDefaults.iconButtonColors()
+    val contentColor by animateColorAsState(
+        targetValue = if (enabled) colors.contentColor else colors.disabledContentColor,
+        label = "planWeekNavigationColor",
+    )
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier
+            modifier = modifier,
+            colors = colors.copy(
+                contentColor = contentColor,
+                disabledContentColor = contentColor,
+            ),
         ) {
             if (painter != null) {
                 Icon(
