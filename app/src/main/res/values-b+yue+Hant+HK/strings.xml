@@ -1137,7 +1137,4 @@
     <string name="calibration_pk_edu_next">下一步</string>
     <string name="calibration_pk_edu_back">返回</string>
     <string name="calibration_pk_edu_finish">完成</string>
-    <string name="anchor_widget_preview_name" translatable="false"></string>
-    <string name="privacy_policy_url" translatable="false"></string>
-    <string name="health_connect_title" translatable="false"></string>
 </resources>
