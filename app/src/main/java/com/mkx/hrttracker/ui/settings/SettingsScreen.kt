@@ -1812,15 +1812,19 @@ internal fun SettingsScreenContent(
             title = {
                 Text(
                     text = stringResource(
-                        R.string.settings_medication_day_moves_doses_title,
-                        medicationDayBoundaryTime,
+                        if (enabled) {
+                            R.string.settings_medication_day_enable_title
+                        } else {
+                            R.string.settings_medication_day_disable_title
+                        }
                     )
                 )
             },
             text = {
                 Text(
                     text = stringResource(
-                        R.string.settings_medication_day_moves_doses_message,
+                        R.string.settings_medication_day_moves_doses_body,
+                        medicationDayBoundaryTime,
                         medicationDayMovingGroupNames.joinToString(),
                     )
                 )
@@ -1830,7 +1834,15 @@ internal fun SettingsScreenContent(
                     pendingMedicationDayEndsAtFourAm = null
                     onMedicationDayEndsAtFourAmChange(enabled)
                 }) {
-                    Text(stringResource(R.string.settings_medication_day_moves_doses_confirm))
+                    Text(
+                        stringResource(
+                            if (enabled) {
+                                R.string.settings_medication_day_enable_confirm
+                            } else {
+                                R.string.settings_medication_day_disable_confirm
+                            }
+                        )
+                    )
                 }
             },
             dismissButton = {

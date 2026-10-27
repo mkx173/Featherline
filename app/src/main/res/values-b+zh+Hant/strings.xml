@@ -1033,10 +1033,12 @@
     <string name="anchor_shortcut_disabled_message">此日期已刪除</string>
 
     <string name="settings_medication_day_ends_at_four_am">修仙模式</string>
-    <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前的用藥計入前一天。</string>
-    <string name="settings_medication_day_moves_doses_title">移動 %1$s 前的用藥？</string>
-    <string name="settings_medication_day_moves_doses_message">%1$s 的用藥將移動一天，過去的用藥可能顯示為已錯過。</string>
-    <string name="settings_medication_day_moves_doses_confirm">移動</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前的用藥計入前一天</string>
+    <string name="settings_medication_day_enable_title">開啟修仙模式？</string>
+    <string name="settings_medication_day_disable_title">關閉修仙模式？</string>
+    <string name="settings_medication_day_moves_doses_body">這會將 %2$s 中 %1$s 前的用藥移動一天，過去的用藥可能顯示為已錯過</string>
+    <string name="settings_medication_day_enable_confirm">開啟</string>
+    <string name="settings_medication_day_disable_confirm">關閉</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">請新增用藥記錄</string>
