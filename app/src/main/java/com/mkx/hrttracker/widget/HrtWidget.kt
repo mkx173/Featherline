@@ -972,15 +972,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         val showTrailingText = activeRow.trailingText != null &&
                                 !(record.hideMedicationDetails && activeRow.isManualRecord)
                         if (showTrailingText) {
-                            if (activeRow.isPastMidnight && !activeRow.isManualRecord) {
-                                Image(
-                                    provider = ImageProvider(R.drawable.ic_moon_stars),
-                                    contentDescription = context.getString(R.string.medication_day_past_midnight),
-                                    modifier = GlanceModifier.size((16f * scale).dp),
-                                    colorFilter = ColorFilter.tint(colors.onSurface),
-                                )
-                                Spacer(GlanceModifier.width(4.dp))
-                            }
+                            WidgetPastMidnightIcon(
+                                visible = activeRow.isPastMidnight && !activeRow.isManualRecord,
+                                sizeDp = 16f * scale,
+                            )
                             Text(
                                 text = activeRow.trailingText,
                                 style = TextStyle(

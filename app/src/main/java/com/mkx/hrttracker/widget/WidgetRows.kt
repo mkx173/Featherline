@@ -18,6 +18,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.Visibility
 import androidx.glance.action.Action
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
@@ -42,6 +43,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.visibility
 import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.EXTRA_HIGHLIGHT_ENTRY_UUID
 import com.mkx.hrttracker.EXTRA_HIGHLIGHT_GROUP_UUID
@@ -505,6 +507,23 @@ internal fun widgetRowHighlightIntent(context: Context, row: WidgetDoseRow): Int
     }
 }
 
+/**
+ * The night owl moon before a dose time between midnight and 04:00. Always in the tree and
+ * only hidden, for the same RemoteViews layout-ID reason as the hidden text nodes.
+ */
+@Composable
+internal fun WidgetPastMidnightIcon(visible: Boolean, sizeDp: Float) {
+    Image(
+        provider = ImageProvider(R.drawable.ic_moon_stars),
+        contentDescription = LocalContext.current.getString(R.string.medication_day_past_midnight),
+        modifier = GlanceModifier
+            .padding(end = 4.dp)
+            .size(sizeDp.dp)
+            .visibility(if (visible) Visibility.Visible else Visibility.Gone),
+        colorFilter = ColorFilter.tint(LocalWidgetColors.current.onSurface),
+    )
+}
+
 // Manual rows carry no schedule time, so they show no trailing label.
 internal fun widgetDoseRowTrailingText(row: WidgetDoseRow): String? =
     if (row.isManualRecord) null else row.trailingText
@@ -588,6 +607,7 @@ internal fun DoseRow(
 
         Spacer(GlanceModifier.width(8.dp))
 
+        WidgetPastMidnightIcon(visible = showTrailingText && row.isPastMidnight, sizeDp = 14f * scale)
         // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
         // layout IDs across updates, so toggling privacy must not change the RemoteViews tree.
         Text(
