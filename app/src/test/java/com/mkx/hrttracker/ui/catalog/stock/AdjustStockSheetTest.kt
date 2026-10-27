@@ -4,7 +4,9 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Locale
 
@@ -27,6 +29,14 @@ class AdjustStockSheetTest {
     fun parseAdjustStockCount_acceptsZero() {
         assertEquals(0.0, requireNotNull(parseAdjustStockCount("0", allowDecimal = true)), 0.0)
         assertEquals(0.0, requireNotNull(parseAdjustStockCount("0", allowDecimal = false)), 0.0)
+    }
+
+    @Test
+    fun canConfirmReceived_rejectsZeroOnlyWhileTracking() {
+        assertFalse(canConfirmReceived(null, trackingEnabled = true))
+        assertFalse(canConfirmReceived(0.0, trackingEnabled = true))
+        assertTrue(canConfirmReceived(1.0, trackingEnabled = true))
+        assertTrue(canConfirmReceived(0.0, trackingEnabled = false))
     }
 
     @Test

@@ -318,7 +318,7 @@ internal fun ReceivedForm(
     var receivedText by remember(initialReceivedText) { mutableStateOf(initialReceivedText) }
 
     val received = parseAdjustStockCount(receivedText, allowDecimal)
-    val canConfirm = received != null && received >= 0
+    val canConfirm = canConfirmReceived(received, projection.medicine.stock.trackingEnabled)
     val effectiveUnitsRemaining = if (isContainer) {
         (projection.medicine.stock.unitsRemaining ?: 0.0) + (received ?: 0.0)
     } else {
@@ -657,6 +657,11 @@ internal fun parseAdjustStockCount(
     if (!value.isFinite() || value < 0.0) return null
     return value
 }
+
+// Adding 0 is a no-op once tracking is on; while it's off, it turns tracking on
+// with the stored count, so 0 stays valid there.
+internal fun canConfirmReceived(received: Double?, trackingEnabled: Boolean): Boolean =
+    received != null && (received > 0.0 || !trackingEnabled)
 
 internal fun sanitizeAdjustStockCountText(
     input: String,
