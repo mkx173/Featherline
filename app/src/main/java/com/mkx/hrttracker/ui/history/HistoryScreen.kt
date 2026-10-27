@@ -902,6 +902,8 @@ private fun HistoryScreenContent(
                             calendarState = calendarState,
                             displayedMonth = displayedMonth.yearMonth,
                             settledDisplayedMonth = settledDisplayedMonth.yearMonth,
+                            navigationStartMonth = uiState.calendarNavigationStartMonth,
+                            navigationEndMonth = uiState.calendarNavigationEndMonth,
                             today = today,
                             firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                             dayStates = monthDayStates,
@@ -1220,6 +1222,8 @@ private fun HistoryMonthCalendar(
     calendarState: CalendarState,
     displayedMonth: YearMonth,
     settledDisplayedMonth: YearMonth,
+    navigationStartMonth: YearMonth,
+    navigationEndMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
@@ -1332,13 +1336,13 @@ private fun HistoryMonthCalendar(
                 calendarStartMonth = calendarState.startMonth,
                 calendarEndMonth = calendarState.endMonth,
                 appLocale = appLocale,
-                canGoToPrevious = navigationMonth > calendarState.startMonth,
+                canGoToPrevious = navigationMonth > navigationStartMonth,
                 canGoToCurrent = canResetHistoryCalendar(
                     navigationMonth = navigationMonth,
                     currentMonth = YearMonth.from(today),
                     hasResettableSelection = hasResettableSelection,
                 ),
-                canGoToNext = navigationMonth < calendarState.endMonth,
+                canGoToNext = navigationMonth < navigationEndMonth,
                 onGoToPrevious = {
                     val baseMonth = latestNavigationMonth()
                     animateToMonth(baseMonth.minusMonths(1))

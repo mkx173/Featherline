@@ -125,17 +125,16 @@ class HistoryViewModel @Inject constructor(
             )
         }
         val selectedMonth = selectedDay?.let(YearMonth::from)
-        val calendarStartMonth = listOfNotNull(
-            earliestEntryMonth,
-            earliestGroupMonth,
-            month,
-            selectedMonth,
-        )
+        val navigationStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
             .minOrNull()
             ?.coerceAtMost(currentMonth)
             ?: currentMonth
         // A record logged in a zone ahead of the device can land in next month.
-        val calendarEndMonth = maxOf(currentMonth, entryMonths.maxOrNull() ?: currentMonth)
+        val navigationEndMonth = maxOf(currentMonth, entryMonths.maxOrNull() ?: currentMonth)
+        // The pager also keeps the displayed and selected months, so deleting the last record
+        // there doesn't pull the page away. The navigation buttons stop at months with data.
+        val calendarStartMonth = listOfNotNull(navigationStartMonth, month, selectedMonth).min()
+        val calendarEndMonth = listOfNotNull(navigationEndMonth, month, selectedMonth).max()
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
         val visibleSelection = reconcileHistoryEntrySelection(
             selectedEntryIds = deletionUiState.selectedEntryIds,
@@ -155,6 +154,8 @@ class HistoryViewModel @Inject constructor(
             calendarFirstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
+            calendarNavigationStartMonth = navigationStartMonth,
+            calendarNavigationEndMonth = navigationEndMonth,
             displayedMonth = visibleMonth,
             selectedDate = selectedDay,
             selectedEntryIds = visibleSelection,
@@ -392,6 +393,8 @@ data class HistoryUiState(
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartMonth: YearMonth = YearMonth.now(),
     val calendarEndMonth: YearMonth = YearMonth.now(),
+    val calendarNavigationStartMonth: YearMonth = calendarStartMonth,
+    val calendarNavigationEndMonth: YearMonth = calendarEndMonth,
     val displayedMonth: YearMonth = YearMonth.now(),
     val selectedDate: LocalDate? = null,
     val selectedEntryIds: Set<UUID> = emptySet(),

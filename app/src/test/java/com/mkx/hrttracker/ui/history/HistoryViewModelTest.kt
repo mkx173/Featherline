@@ -698,6 +698,34 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun deletingLastRecordOfDisplayedMonth_keepsPagerMonthButNotNavigationMonth() = runTest {
+        val entry = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-03-10T00:00:00Z"),
+        )
+        val entries = MutableStateFlow(listOf(entry))
+        every { medicationLogRepository.observeEntries() } returns entries
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        viewModel.setDisplayedMonth(YearMonth.of(2026, 3))
+        advanceUntilIdle()
+
+        entries.value = emptyList()
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.of(2026, 3), viewModel.uiState.value.calendarStartMonth)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.calendarNavigationStartMonth)
+    }
+
+    @Test
     fun clockTickAcrossMonth_updatesRangeWithoutMovingDisplayedMonthOrSelection() = runTest {
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
