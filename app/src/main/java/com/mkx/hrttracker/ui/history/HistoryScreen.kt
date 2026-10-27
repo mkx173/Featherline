@@ -1874,7 +1874,7 @@ private fun HistoryCalendarDay(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(bottom = 2.dp)
+            modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
         ) {
             Text(
                 text = day.date.dayOfMonth.toString(),
