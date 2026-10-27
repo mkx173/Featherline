@@ -642,8 +642,8 @@ internal fun buildPlanBatchAddOccurrences(
 
     val sortedTimes = schedule.times.sorted()
     val result = mutableListOf<LocalDateTime>()
-    // The 04:00 boundary can move the next civil day's early occurrence into endDate.
-    val lastCalendarDate = if (boundary.endsAtFourAm) endDate.plusDays(1) else endDate
+    // A medication day can reach into the next civil day's early hours.
+    val lastCalendarDate = endDate.plusDays(1)
     var currentDate = startDate
     while (!currentDate.isAfter(lastCalendarDate)) {
         sortedTimes.forEach { time ->
