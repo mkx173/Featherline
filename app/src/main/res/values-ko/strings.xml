@@ -21,7 +21,6 @@
     <string name="main_today_empty_state">오늘 지정된 스케줄이 없습니다.</string>
     <string name="main_upcoming_empty_state">90일간 지정된 스케줄이 없습니다.</string>
     <string name="main_today_quick_log">빠른 기록</string>
-    <string name="main_today_range_night">밤</string>
     <string name="main_today_range_morning">아침</string>
     <string name="main_today_range_afternoon">오후</string>
     <string name="main_today_range_evening">저녁</string>

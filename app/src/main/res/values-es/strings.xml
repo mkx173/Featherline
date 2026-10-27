@@ -18,7 +18,6 @@
     <string name="main_upcoming_title">Próximas</string>
     <string name="main_today_empty_state">Nada programado para hoy.</string>
     <string name="main_upcoming_empty_state">Nada programado en los próximos 90 días.</string>
-    <string name="main_today_range_night">Noche</string>
     <string name="main_today_range_morning">Mañana</string>
     <string name="main_today_range_afternoon">Tarde</string>
     <string name="main_today_range_evening">Atardecer</string>

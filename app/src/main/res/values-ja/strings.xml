@@ -22,7 +22,6 @@
     <string name="main_today_empty_state">今日の予定はありません。</string>
     <string name="main_upcoming_empty_state">今後90日以内の予定はありません。</string>
     <string name="main_today_quick_log">クイック記録</string>
-    <string name="main_today_range_night">夜</string>
     <string name="main_today_range_morning">朝</string>
     <string name="main_today_range_afternoon">午後</string>
     <string name="main_today_range_evening">夕方</string>

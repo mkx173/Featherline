@@ -22,7 +22,6 @@
     <string name="main_today_empty_state">Na dnešek není nic naplánováno.</string>
     <string name="main_upcoming_empty_state">Na příštích 90 dní není nic naplánováno.</string>
     <string name="main_today_quick_log">Rychlý záznam</string>
-    <string name="main_today_range_night">Noc</string>
     <string name="main_today_range_morning">Ráno</string>
     <string name="main_today_range_afternoon">Odpoledne</string>
     <string name="main_today_range_evening">Večer</string>
