@@ -33,7 +33,6 @@
         <item quantity="other">-%1$d 時間</item>
     </plurals>
     <string name="main_e2_title">エストロゲン・推定</string>
-    <string name="main_e2_estimate_info">エストロゲン推定値の情報を表示</string>
     <string name="main_e2_chart_title_seven_days">7日間の推移</string>
     <string name="main_e2_chart_title_thirty_days">30日間の推移</string>
     <string name="main_e2_chart_window_toggle_cd">グラフの表示期間を切り替え</string>
@@ -46,7 +45,6 @@
     <string name="main_e2_no_last_dose">まだ投与記録がありません</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">推定濃度とWPATH SOC-8の目標範囲は参考値であり、測定値や医療アドバイスではありません。目標範囲は人によって異なる場合があります。</string>
     <string name="medical_disclaimer_preset_doses">プリセット投与量は参考値であり、医療アドバイスではありません。安全な投与量は検査結果、併用薬、病歴、医師の方針によって異なります。</string>
-    <string name="medical_disclaimer_reference_ranges">目標範囲は一般的な目安であり、医療アドバイスではありません。治療方針によって、目標範囲は異なる場合があります。</string>
     <string name="medical_disclaimer_wpath_reference_ranges">目標範囲はWPATH Standards of Care 8に基づく一般的な目安であり、医療アドバイスではありません。治療方針によって、目標範囲は異なる場合があります。</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血漿中濃度の値は、投与スケジュールに基づくモデル推定値であり、測定値ではありません。</string>
     <string name="main_antiandrogen_title">抗アンドロゲン剤</string>
