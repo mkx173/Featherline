@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -126,7 +127,8 @@ class PlanScreenComponentsTest {
         assertNull(
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 18, 23, 30)
+                loggedAt = LocalDateTime.of(2026, 4, 18, 23, 30),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -137,14 +139,36 @@ class PlanScreenComponentsTest {
             1L,
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 19, 0, 15)
+                loggedAt = LocalDateTime.of(2026, 4, 19, 0, 15),
+                boundary = MedicationDayBoundary.Midnight,
             )
         )
         assertEquals(
             -1L,
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = LocalDate.of(2026, 4, 18),
-                loggedAt = LocalDateTime.of(2026, 4, 17, 23, 45)
+                loggedAt = LocalDateTime.of(2026, 4, 17, 23, 45),
+                boundary = MedicationDayBoundary.Midnight,
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayLoggedDayOffsetDays_fourAmKeepsAPreDawnLogOnItsNight() {
+        val scheduledDate = LocalDate.of(2026, 4, 18)
+        assertNull(
+            selectedDayLoggedDayOffsetDays(
+                scheduledDate = scheduledDate,
+                loggedAt = LocalDateTime.of(2026, 4, 19, 1, 5),
+                boundary = MedicationDayBoundary.FourAm,
+            )
+        )
+        assertEquals(
+            1L,
+            selectedDayLoggedDayOffsetDays(
+                scheduledDate = scheduledDate,
+                loggedAt = LocalDateTime.of(2026, 4, 19, 9, 0),
+                boundary = MedicationDayBoundary.FourAm,
             )
         )
     }

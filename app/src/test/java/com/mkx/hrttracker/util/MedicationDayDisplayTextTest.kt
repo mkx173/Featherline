@@ -32,6 +32,7 @@ class MedicationDayDisplayTextTest {
                 context = context,
                 dateTime = LocalDateTime.of(2026, 10, 31, 20, 0),
                 dayDate = day,
+                boundary = MedicationDayBoundary.Midnight,
                 timeFormatter = formatter,
             ),
         )
@@ -45,6 +46,7 @@ class MedicationDayDisplayTextTest {
                 context = context,
                 dateTime = LocalDateTime.of(2026, 11, 1, 2, 0),
                 dayDate = day,
+                boundary = MedicationDayBoundary.Midnight,
                 timeFormatter = formatter,
             ),
         )
@@ -54,25 +56,19 @@ class MedicationDayDisplayTextTest {
                 context = context,
                 dateTime = LocalDateTime.of(2026, 10, 30, 23, 0),
                 dayDate = day,
+                boundary = MedicationDayBoundary.Midnight,
                 timeFormatter = formatter,
             ),
         )
     }
 
     @Test
-    fun datedDoseTimeNamesItsMedicationDayAndOnlyMarksBeforeFourAm() {
-        val dawn = LocalDateTime.of(2026, 11, 1, 1, 0)
-        assertEquals(
-            day to "01:00 (+1)",
-            medicationDayDateAndTimeText(context, dawn, MedicationDayBoundary.FourAm, formatter),
+    fun fourAmOnlyMarksTimesOnAnotherMedicationDay() {
+        fun text(dateTime: LocalDateTime) = medicationDayTimeText(
+            context, dateTime, day, MedicationDayBoundary.FourAm, formatter,
         )
-        assertEquals(
-            day.plusDays(1) to "01:00",
-            medicationDayDateAndTimeText(context, dawn, MedicationDayBoundary.Midnight, formatter),
-        )
-        assertEquals(
-            day.plusDays(1) to "04:00",
-            medicationDayDateAndTimeText(context, dawn.withHour(4), MedicationDayBoundary.FourAm, formatter),
-        )
+        assertEquals("01:00", text(LocalDateTime.of(2026, 11, 1, 1, 0)))
+        assertEquals("09:00 (+1)", text(LocalDateTime.of(2026, 11, 1, 9, 0)))
+        assertEquals("02:00 (-1)", text(LocalDateTime.of(2026, 10, 31, 2, 0)))
     }
 }

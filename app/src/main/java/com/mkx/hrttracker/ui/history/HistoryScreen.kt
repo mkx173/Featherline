@@ -138,6 +138,7 @@ import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.swmansion.kmpwheelpicker.WheelPicker
 import com.swmansion.kmpwheelpicker.WheelPickerState
@@ -2305,7 +2306,7 @@ private fun HistoryEntryCard(
                     HistoryEntryCrossZoneIndicatorIcon()
                 }
                 Text(
-                    text = medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(entry, deviceZone), dayDate, timeFormatter),
+                    text = medicationDayTimeText(LocalContext.current, appliedAtAsLocalDateTime(entry, deviceZone), dayDate, LocalMedicationDayBoundary.current, timeFormatter),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End

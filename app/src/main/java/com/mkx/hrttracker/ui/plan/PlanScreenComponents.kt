@@ -84,6 +84,9 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayTimeText
 import java.time.DayOfWeek
 import java.time.Instant
@@ -322,7 +325,8 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = date,
-                loggedAt = displayedLoggedAt
+                loggedAt = displayedLoggedAt,
+                boundary = LocalMedicationDayBoundary.current,
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
                 stringResource(
@@ -385,10 +389,10 @@ private fun SelectedDayRow(
                 loggedDayOffsetText = loggedDayOffsetText
             )
         } else {
-            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, timeFormatter)
+            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, LocalMedicationDayBoundary.current, timeFormatter)
         }
 
-        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, timeFormatter)
+        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, LocalMedicationDayBoundary.current, timeFormatter)
     }
     val isCrossZoneRow = when (row) {
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
@@ -532,8 +536,9 @@ private fun selectedDayRowKey(row: SelectedDayRowModel): String {
 internal fun selectedDayLoggedDayOffsetDays(
     scheduledDate: LocalDate,
     loggedAt: LocalDateTime?,
+    boundary: MedicationDayBoundary,
 ): Long? {
-    val loggedDate = loggedAt?.toLocalDate() ?: return null
+    val loggedDate = loggedAt?.let { medicationDay(it, boundary) } ?: return null
     val dayOffset = ChronoUnit.DAYS.between(scheduledDate, loggedDate)
     if (dayOffset == 0L) {
         return null

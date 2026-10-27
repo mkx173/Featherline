@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -75,6 +76,7 @@ internal fun buildWidgetSnapshotRecord(
                     context = context,
                     timeFormatter = timeFormatter,
                     dayDate = previousSchedule.date,
+                    boundary = boundary,
                     contextChip = WidgetDoseChip.LAST_NIGHT,
                     isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
                 )
@@ -99,6 +101,7 @@ internal fun buildWidgetSnapshotRecord(
                 context = context,
                 timeFormatter = timeFormatter,
                 dayDate = sections.todaySchedule.date,
+                boundary = boundary,
                 contextChip = null,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
@@ -121,6 +124,7 @@ internal fun buildWidgetSnapshotRecord(
                 context = context,
                 timeFormatter = timeFormatter,
                 dayDate = comingUp.date,
+                boundary = boundary,
                 contextChip = WidgetDoseChip.COMING_UP,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
@@ -193,8 +197,9 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
 private fun PlanDayScheduleEntry.toWidgetDoseRow(
     context: Context,
     timeFormatter: DateTimeFormatter,
-    /** The medication day the row is listed under; a later civil date shows (+1). */
+    /** The medication day the row is listed under; a dose on another one shows (+N). */
     dayDate: LocalDate,
+    boundary: MedicationDayBoundary,
     contextChip: WidgetDoseChip?,
     isFromArchivedGroup: Boolean,
 ): WidgetDoseRow {
@@ -210,7 +215,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW,
             -> null
 
-        else -> medicationDayTimeText(context, scheduledFor, dayDate, timeFormatter)
+        else -> medicationDayTimeText(context, scheduledFor, dayDate, boundary, timeFormatter)
     }
     return WidgetDoseRow(
         medicationName = medicationEntryTitle(

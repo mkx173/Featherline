@@ -13,17 +13,19 @@ import kotlin.math.absoluteValue
 val LocalMedicationDayBoundary = staticCompositionLocalOf { MedicationDayBoundary.Midnight }
 
 /**
- * Formats [dateTime]'s time and, when it falls on another date than [dayDate],
- * appends the existing signed day offset: `02:00 (+1)`.
+ * Formats [dateTime]'s time and, when its medication day is not [dayDate], appends
+ * the signed day offset: `09:00 (+1)`. With the day ending at 04:00, a time between
+ * midnight and 04:00 belongs to the night before, so it gets no offset there.
  */
 fun medicationDayTimeText(
     context: Context,
     dateTime: LocalDateTime,
     dayDate: LocalDate,
+    boundary: MedicationDayBoundary,
     timeFormatter: DateTimeFormatter,
 ): String {
     val time = dateTime.format(timeFormatter)
-    val dayOffset = ChronoUnit.DAYS.between(dayDate, dateTime.toLocalDate())
+    val dayOffset = ChronoUnit.DAYS.between(dayDate, medicationDay(dateTime, boundary))
     if (dayOffset == 0L) return time
     val offsetText = context.getString(
         if (dayOffset > 0) {
@@ -34,19 +36,4 @@ fun medicationDayTimeText(
         dayOffset.absoluteValue.toInt(),
     )
     return "$time ($offsetText)"
-}
-
-/**
- * A dose time shown with a date: the date is the medication day that owns it and the
- * time carries the offset, so with the day ending at 04:00, Oct 20 01:00 reads
- * `Oct 19` + `01:00 (+1)`.
- */
-fun medicationDayDateAndTimeText(
-    context: Context,
-    dateTime: LocalDateTime,
-    boundary: MedicationDayBoundary,
-    timeFormatter: DateTimeFormatter,
-): Pair<LocalDate, String> {
-    val day = medicationDay(dateTime, boundary)
-    return day to medicationDayTimeText(context, dateTime, day, timeFormatter)
 }

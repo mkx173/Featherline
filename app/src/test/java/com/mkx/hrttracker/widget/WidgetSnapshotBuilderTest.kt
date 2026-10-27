@@ -47,7 +47,7 @@ class WidgetSnapshotBuilderTest {
     private val zoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
-    fun fourAmKeepsMissedDawnInLastNightAndMarksItsNextDayTime() {
+    fun fourAmKeepsMissedDawnInLastNightWithAPlainTime() {
         val now = LocalDateTime.of(2026, 10, 2, 4, 30)
         val group = widgetTestGroup(
             groupName = "Night", medicationKey = MedicationKey.ESTRADIOL,
@@ -75,7 +75,7 @@ class WidgetSnapshotBuilderTest {
             row.contextChip == WidgetDoseChip.LAST_NIGHT &&
                 row.scheduledAt == now.toLocalDate().atTime(1, 0)
         }
-        assertEquals("01:00 (+1)", missedDawn.trailingText)
+        assertEquals("01:00", missedDawn.trailingText)
     }
 
     @Test

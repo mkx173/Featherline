@@ -134,7 +134,6 @@ import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.medicationDayDateAndTimeText
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -3903,7 +3902,7 @@ private fun MainUpcomingDoseRow(
         routeLabel,
         doseText,
     ).joinToString(separator = " · ")
-    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter)
+    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, LocalMedicationDayBoundary.current, timeFormatter)
     // See MainTodayDoseRow: animate the container color (rest -> secondaryContainer)
     // rather than fading a translucent overlay, to avoid 8-bit banding in the tail.
     val containerColor = lerp(
@@ -3993,7 +3992,7 @@ private fun MainTodayTrailingContent(
                     scheduledFor = row.scheduledAt,
                     now = now
                 ) -> MainTodayTrailingText(
-                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, timeFormatter),
+                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, LocalMedicationDayBoundary.current, timeFormatter),
                     isDelta = false
                 )
 
@@ -4495,11 +4494,10 @@ private fun mainAntiandrogenDueLabel(
     timeFormatter: DateTimeFormatter
 ): String {
     val boundary = LocalMedicationDayBoundary.current
-    val (targetDay, targetTime) =
-        medicationDayDateAndTimeText(LocalContext.current, target, boundary, timeFormatter)
+    val targetDay = medicationDay(target, boundary)
     val today = medicationDay(now, boundary)
     return when (targetDay) {
-        today -> targetTime
+        today -> target.toLocalTime().format(timeFormatter)
         today.plusDays(1) -> stringResource(R.string.main_relative_tomorrow)
         else -> dateFormatter(targetDay)
     }
