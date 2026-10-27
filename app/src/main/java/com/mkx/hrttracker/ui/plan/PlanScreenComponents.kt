@@ -816,37 +816,26 @@ internal fun RegimenGroupCard(
 
             if (showUpcomingSection) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
 
-                val upcomingText = stringResource(R.string.plan_group_upcoming_title)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(bottom = 2.dp),
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 2.dp)
                 ) {
-                    Text(
-                        text = upcomingText.uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    ) {
-                        upcomingOccurrences.forEachIndexed { index, occurrence ->
-                            val dayLabel = when (occurrence.toLocalDate()) {
-                                today -> stringResource(R.string.plan_group_upcoming_today)
-                                today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                                else -> dateFormatter(occurrence.toLocalDate())
-                            }
-                            UpcomingOccurrenceChip(
-                                label = dayLabel,
-                                time = occurrence.toLocalTime().format(timeFormatter),
-                                emphasized = index == 0
-                            )
+                    upcomingOccurrences.forEachIndexed { index, occurrence ->
+                        val dayLabel = when (occurrence.toLocalDate()) {
+                            today -> stringResource(R.string.plan_group_upcoming_today)
+                            today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
+                            else -> dateFormatter(occurrence.toLocalDate())
                         }
+                        UpcomingOccurrenceChip(
+                            label = dayLabel,
+                            time = occurrence.toLocalTime().format(timeFormatter),
+                            emphasized = index == 0
+                        )
                     }
                 }
             }
