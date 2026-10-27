@@ -19,7 +19,7 @@ import org.junit.Test
 class MedicationDayBoundaryCallersTest {
     private val zone = ZoneId.of("UTC")
     private val since = LocalDate.of(2026, 10, 29)
-    private val scheduledFor = LocalDateTime.of(2026, 11, 2, 1, 0)
+    private val scheduledFor = LocalDateTime.of(2026, 11, 1, 1, 0)
     private val fourAm = MedicationDayBoundary.FourAm
     private val medicine = testMedicine()
     private val group = MedicationGroup(
@@ -38,15 +38,16 @@ class MedicationDayBoundaryCallersTest {
     )
 
     @Test
-    fun adjacentDoseLookupKeepsTheCalendarCadenceUnderFourAm() {
-        // The every-other-day phase counts calendar dates, so the switch moves no
-        // dose: Nov 2 01:00 (medication day Nov 1) has Oct 31 and Nov 4 as neighbours.
+    fun adjacentDoseLookupUsesMedicationDayCadence() {
+        // Under FourAm the 01:00 doses are owned by Oct 29 / Oct 31 / Nov 2, so
+        // the Nov 1 01:00 dose has Oct 30 01:00 and Nov 3 01:00 as neighbours.
+        // Calendar-day cadence would report Oct 31 and Nov 2 instead.
         assertEquals(
-            LocalDateTime.of(2026, 10, 31, 1, 0),
+            LocalDateTime.of(2026, 10, 30, 1, 0),
             group.previousScheduledForBefore(scheduledFor, zoneId = zone, boundary = fourAm),
         )
         assertEquals(
-            LocalDateTime.of(2026, 11, 4, 1, 0),
+            LocalDateTime.of(2026, 11, 3, 1, 0),
             group.nextScheduledForAfter(scheduledFor, zoneId = zone, boundary = fourAm),
         )
     }
@@ -58,15 +59,15 @@ class MedicationDayBoundaryCallersTest {
             sourceGroupUuid = group.uuid,
             scheduleTimeUuid = group.schedule.timeSlots.single().uuid,
             scheduledFor = scheduledFor,
-            appliedAt = LocalDateTime.of(2026, 11, 2, 20, 0).atZone(zone).toInstant(),
+            appliedAt = LocalDateTime.of(2026, 11, 1, 20, 0).atZone(zone).toInstant(),
             appliedAtTimeZoneId = zone.id,
         )
 
         val schedule = buildPlanDaySchedule(
-            date = LocalDate.of(2026, 11, 1),
+            date = LocalDate.of(2026, 10, 31),
             groups = listOf(group),
             entries = listOf(entry),
-            now = LocalDateTime.of(2026, 11, 2, 20, 0),
+            now = LocalDateTime.of(2026, 11, 1, 20, 0),
             zoneId = zone,
             boundary = fourAm,
         )

@@ -281,8 +281,8 @@ class SettingsViewModel @Inject constructor(
     fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setMedicationDayEndsAtFourAm(enabled)
-            // Dose times never move, but a plan starts on a medication day, so its
-            // first pre-04:00 slot can appear or disappear with the switch.
+            // Every-N-days and weekly cadence count medication days, so the next
+            // reminder before 04:00 can move to another civil date.
             runReminderSideEffectBestEffort {
                 medicationReminderScheduler.rescheduleAll()
             }

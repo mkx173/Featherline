@@ -500,21 +500,19 @@ class MedicationDayE2eTest {
     @Test
     fun lateDoseFulfillsFourAmIntervalPlan() {
         boundary(true)
-        // Every other calendar day from Oct 29: the Nov 2 01:00 dose is listed under Nov 1.
-        val planDay = day.plusDays(1)
-        val scheduled = day.plusDays(2).atTime(1, 0)
-        device.setTime(day.plusDays(2).atTime(20, 0))
+        device.setTime(day.plusDays(1).atTime(20, 0))
         val medicine = medicine("Interval dose")
         val group = group(medicine, listOf(LocalTime.of(1, 0)), interval = 2)
-        log(medicine, day.plusDays(2).atTime(20, 0), group, scheduled)
+        val scheduled = day.plusDays(1).atTime(1, 0)
+        log(medicine, day.plusDays(1).atTime(20, 0), group, scheduled)
 
         tab(R.string.tab_plan)
-        if (compose.onAllNodesWithTag("plan_calendar_day_$planDay").fetchSemanticsNodes().isEmpty()) {
+        if (compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithContentDescription(text(R.string.plan_previous_week))
                 .performSemanticsAction(SemanticsActions.OnClick)
         }
-        await { compose.onAllNodesWithTag("plan_calendar_day_$planDay").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("plan_calendar_day_$planDay").performClick()
+        await { compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("plan_calendar_day_$day").performClick()
         awaitText("1/1")
         compose.onNodeWithText("0/1", substring = true).assertDoesNotExist()
     }
@@ -550,7 +548,7 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun pkPlannedDosesStayPutWhenTheBoundaryToggles() {
+    fun pkPlannedDosesUseFourAmIntervalPlan() {
         boundary(true)
         val now = day.plusDays(1).atTime(6, 0)
         device.setTime(now)
@@ -587,18 +585,18 @@ class MedicationDayE2eTest {
                 Duration.between(actual, expected).abs() <= Duration.ofMinutes(2)
             }
 
-        // Every other calendar day from Oct 29 under either boundary: Nov 2, not Nov 3.
         val fourAmDoseTimes = plannedDoseTimes(estimate)
         assertTrue(
-            "Expected a planned dose at ${day.plusDays(2).atTime(1, 0)}; got $fourAmDoseTimes",
-            hasDoseAt(fourAmDoseTimes, day.plusDays(2).atTime(1, 0)),
-        )
-        assertFalse(
-            "Off-phase planned dose under FourAm: $fourAmDoseTimes",
+            "Expected a planned dose at ${day.plusDays(3).atTime(1, 0)}; got $fourAmDoseTimes",
             hasDoseAt(fourAmDoseTimes, day.plusDays(3).atTime(1, 0)),
         )
+        assertFalse(
+            "Calendar-day planned dose leaked into FourAm: $fourAmDoseTimes",
+            hasDoseAt(fourAmDoseTimes, day.plusDays(2).atTime(1, 0)),
+        )
 
-        // Toggling the boundary moves no planned dose.
+        // Toggling the boundary must rebuild the cached planned slots on its
+        // own: no rebuildNow() here, the estimate has to follow the setting.
         boundary(false)
         val midnightEstimate = io {
             withTimeout(20_000) {
@@ -614,11 +612,12 @@ class MedicationDayE2eTest {
         }
         val midnightDoseTimes = plannedDoseTimes(midnightEstimate)
         assertTrue(
-            "Expected the dose to stay at ${day.plusDays(2).atTime(1, 0)}; got $midnightDoseTimes",
+            "Expected the rebuilt plan to move the dose to ${day.plusDays(2).atTime(1, 0)}; " +
+                "got $midnightDoseTimes",
             hasDoseAt(midnightDoseTimes, day.plusDays(2).atTime(1, 0)),
         )
         assertFalse(
-            "Off-phase planned dose after the toggle: $midnightDoseTimes",
+            "FourAm planned dose survived the toggle: $midnightDoseTimes",
             hasDoseAt(midnightDoseTimes, day.plusDays(3).atTime(1, 0)),
         )
     }

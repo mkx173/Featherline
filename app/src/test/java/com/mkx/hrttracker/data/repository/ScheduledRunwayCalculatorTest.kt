@@ -353,7 +353,7 @@ class ScheduledRunwayCalculatorTest {
     }
 
     @Test
-    fun fourAmIntervalCadenceKeepsCalendarParity() {
+    fun fourAmIntervalCadenceUsesMedicationDayParity() {
         val medicine = pill(unitsRemaining = 1.0)
         val group = dailyGroup(medicine).copy(
             schedule = MedicationGroupSchedule(
@@ -377,9 +377,9 @@ class ScheduledRunwayCalculatorTest {
 
         assertEquals(
             listOf(
-                LocalDateTime.of(2026, 11, 2, 1, 0),
-                LocalDateTime.of(2026, 11, 4, 1, 0),
-                LocalDateTime.of(2026, 11, 6, 1, 0),
+                LocalDateTime.of(2026, 11, 1, 1, 0),
+                LocalDateTime.of(2026, 11, 3, 1, 0),
+                LocalDateTime.of(2026, 11, 5, 1, 0),
             ),
             occurrences.map { occurrence -> occurrence.scheduledFor },
         )
