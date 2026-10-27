@@ -583,7 +583,7 @@ private fun MedicationEditorGroupInfoCard(
                                     R.string.archived_group_record_indicator,
                                 ),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
@@ -595,7 +595,7 @@ private fun MedicationEditorGroupInfoCard(
                             painter = painterResource(R.drawable.ic_calendar_clock),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(12.dp),
                         )
                         Text(
                             text = scheduledForText,

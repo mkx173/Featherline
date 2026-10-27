@@ -581,7 +581,7 @@ internal fun RegimenGroupCard(
                             painter = painterResource(R.drawable.ic_repeat),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
 
                         val groupScheduleSummary = group.schedule.formatSummary(
@@ -790,14 +790,14 @@ private fun RegimenGroupCardMetadataRow(
                 painter = metadata.iconPainter,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(12.dp)
             )
         } else if (metadata.icon != null) {
             Icon(
                 imageVector = metadata.icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(12.dp)
             )
         }
         Text(
