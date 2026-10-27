@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In Add stock, the Add button is no longer available when the amount is 0 and stock tracking is on, for example after tapping + and then −.
 - In History, after you delete the last record of a month you're viewing, swiping to the next month no longer briefly enables the previous-month button.
 - History now lets you select dates with records even when they fall after today in the device's time zone, including dates in the next month. Those records also appear in calendar indicators and month summaries.
 - The home-screen widget's Coming up list now includes manual records and archived groups like Home, and its Last night section disappears at noon in both boundary modes.
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The Plan week strip's buttons and labels now switch halfway through a swipe, like the History calendar, instead of only near its end.
+- In the History calendar and the Plan week strip, the previous and next buttons fade in and out as they turn on and off.
 - History calendar days use consistent vertical padding, and plan cards show upcoming doses without a separate heading.
 - Estradiol cypionate injection estimates peak around day 4 again instead of day 2, matching cypionate in oil such as Depo-Estradiol. The day-2 peak came from studies of a different product, the cypionate suspension in monthly contraceptive injections. Total exposure is unchanged, and existing calibrations are refit on the first open after the update.
 - Dose reminders now show the date and time of the dose they're for, so two reminders for the same group are easy to tell apart.
