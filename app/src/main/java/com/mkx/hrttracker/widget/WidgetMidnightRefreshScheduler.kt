@@ -50,30 +50,40 @@ internal fun scheduleNextWidgetDateRefresh(
         WIDGET_DATE_REFRESH_TAG,
         "widget_date_refresh_alarm_schedule triggerAt=$triggerAt triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
     )
-    if (exactAlarm) {
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent,
-            )
-        } catch (error: SecurityException) {
-            diagnosticsLogger.warning(
-                WIDGET_DATE_REFRESH_TAG,
-                "widget_date_refresh_alarm_exact_revoked triggerAt=$triggerAt",
-                error,
-            )
+    // Best effort: an alarm failure (e.g. IllegalStateException at the 500-alarm cap)
+    // must not stop the date refresh or app startup that called this.
+    try {
+        if (exactAlarm) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            } catch (error: SecurityException) {
+                diagnosticsLogger.warning(
+                    WIDGET_DATE_REFRESH_TAG,
+                    "widget_date_refresh_alarm_exact_revoked triggerAt=$triggerAt",
+                    error,
+                )
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            }
+        } else {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent,
             )
         }
-    } else {
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent,
+    } catch (error: RuntimeException) {
+        diagnosticsLogger.warning(
+            WIDGET_DATE_REFRESH_TAG,
+            "widget_date_refresh_alarm_schedule_failed triggerAt=$triggerAt",
+            error,
         )
     }
 }

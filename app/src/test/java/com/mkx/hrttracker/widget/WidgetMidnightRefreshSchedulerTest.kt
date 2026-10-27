@@ -80,6 +80,21 @@ class WidgetMidnightRefreshSchedulerTest {
     }
 
     @Test
+    fun scheduleNextWidgetDateRefresh_logsInsteadOfThrowingAtTheAlarmLimit() {
+        every {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any())
+        } throws IllegalStateException("Maximum limit of concurrent alarms 500 reached")
+
+        scheduleNextWidgetDateRefresh(
+            context = context,
+            now = LocalDateTime.of(2026, 10, 28, 1, 0),
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        verify { diagnosticsLogger.warning(any(), match { it.startsWith("widget_date_refresh_alarm_schedule_failed") }, any()) }
+    }
+
+    @Test
     fun scheduleNextWidgetDateRefresh_fallsBackToInexactAlarmWhenExactAccessIsMissing() {
         every { alarmManager.canScheduleExactAlarms() } returns false
 
