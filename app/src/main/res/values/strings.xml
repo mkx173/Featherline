@@ -1105,11 +1105,11 @@
     <string name="stock_cancel">Cancel</string>
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
-    <string name="settings_medication_day_ends_at_four_am">Day ends at 04:00</string>
-    <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count toward the previous day.</string>
+    <string name="settings_medication_day_ends_at_four_am">Night owl mode</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count as the previous day.</string>
     <string name="settings_medication_day_moves_doses_title">Move doses before 04:00?</string>
-    <string name="settings_medication_day_moves_doses_message">%1$s skip days and have doses between 00:00 and 04:00. Those doses will move by one day, past ones included, so doses you already logged for them may show as missed.</string>
-    <string name="settings_medication_day_moves_doses_confirm">Move doses</string>
+    <string name="settings_medication_day_moves_doses_message">Doses in %1$s will move by one day. Past ones may show as missed.</string>
+    <string name="settings_medication_day_moves_doses_confirm">Move</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
     <string name="calibration_pk_global_no_dose_history_title">Add a dose</string>

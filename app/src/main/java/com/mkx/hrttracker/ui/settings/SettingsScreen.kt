@@ -1275,27 +1275,6 @@ internal fun SettingsScreenContent(
 
                 HrtSection(title = stringResource(R.string.settings_display)) {
                     item {
-                        SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_medication_day_ends_at_four_am),
-                            supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
-                            onClick = {
-                                requestMedicationDayEndsAtFourAm(
-                                    !settingsState.medicationDayEndsAtFourAm
-                                )
-                            },
-                            leadingContent = {
-                                SettingsLeadingIconSlot(painter = painterResource(R.drawable.ic_lock_clock))
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = settingsState.medicationDayEndsAtFourAm,
-                                    onCheckedChange = requestMedicationDayEndsAtFourAm
-                                )
-                            },
-                        )
-                    }
-
-                    item {
                         Box {
                             SettingsSegmentedListItem(
                                 title = stringResource(R.string.settings_first_day_of_week),
@@ -1319,6 +1298,27 @@ internal fun SettingsScreenContent(
                                 },
                             )
                         }
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                            supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
+                            onClick = {
+                                requestMedicationDayEndsAtFourAm(
+                                    !settingsState.medicationDayEndsAtFourAm
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(painter = painterResource(R.drawable.ic_moon_stars))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.medicationDayEndsAtFourAm,
+                                    onCheckedChange = requestMedicationDayEndsAtFourAm
+                                )
+                            },
+                        )
                     }
 
                     item {
