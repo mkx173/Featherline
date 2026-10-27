@@ -28,10 +28,10 @@
     <string name="main_today_range_afternoon">下晝</string>
     <string name="main_today_range_evening">夜晚</string>
     <plurals name="main_today_schedule_offset_hours_later">
-        <item quantity="other">+%1$d小時</item>
+        <item quantity="other">+%1$d 小時</item>
     </plurals>
     <plurals name="main_today_schedule_offset_hours_earlier">
-        <item quantity="other">-%1$d小時</item>
+        <item quantity="other">-%1$d 小時</item>
     </plurals>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_title_calibrated">雌二醇 · 已校準</string>
@@ -43,12 +43,12 @@
     <string name="main_e2_chart_target">目標 %1$s–%2$s %3$s</string>
     <string name="main_e2_chart_overview">圖表概覽</string>
     <string name="main_e2_chart_reset_view">重設圖表視圖</string>
-    <string name="main_e2_change_since_yesterday">較24小時前 %1$s</string>
-    <string name="main_e2_no_change_since_yesterday">較24小時前無變化</string>
+    <string name="main_e2_change_since_yesterday">較 24 小時前 %1$s</string>
+    <string name="main_e2_no_change_since_yesterday">較 24 小時前無變化</string>
     <string name="main_e2_last_dose_with_time">上次用藥 %1$s前</string>
     <string name="main_e2_no_last_dose">仲未有記錄</string>
     <string name="medical_disclaimer_home_estimates_and_ranges">血藥濃度係模型估算值，WPATH SOC-8 目標範圍只供參考；兩者都唔係實測值或醫療建議，你嘅目標範圍可能會唔同</string>
-    <string name="medical_disclaimer_preset_doses">預設劑量只供參考，唔構成醫療建議；用藥安全視乎檢查結果、合併用藥、過往病史同醫生監察</string>
+    <string name="medical_disclaimer_preset_doses">預設劑量只供參考，唔構成醫療建議，用藥安全視乎檢查結果、合併用藥、過往病史同醫生監察</string>
     <string name="medical_disclaimer_wpath_reference_ranges">目標範圍以 WPATH 第八版照護標準（SOC-8）為基礎，只係一般指引，唔構成醫療建議——你嘅目標範圍可能會因治療方案而唔同</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血藥濃度數值係根據服藥記錄計算嘅模型估算值，唔係實測值</string>
     <string name="main_antiandrogen_title">抗雄激素</string>
@@ -57,6 +57,7 @@
     <string name="main_antiandrogen_next_dose">下次用藥 %1$s</string>
     <string name="main_antiandrogen_next_dose_past_due">逾期 %1$s</string>
     <string name="main_antiandrogen_no_next_dose">暫時冇下一次劑量</string>
+    <!-- Compact on purpose, like English "2d 3h": no space between number and unit. -->
     <string name="main_duration_compact_days">%1$d天</string>
     <string name="main_duration_compact_hours">%1$d小時</string>
     <string name="main_duration_compact_minutes">%1$d分鐘</string>
@@ -216,7 +217,7 @@
     <string name="journal_add_date">新增日期</string>
     <string name="journal_see_all_notes">檢視全部筆記</string>
     <string name="journal_today">今日</string>
-    <string name="journal_write_about_today">隨手記低呢一刻…</string>
+    <string name="journal_write_about_today">隨手記低呢一刻……</string>
     <string name="journal_no_dates_subtitle">新增一個日期，記錄重要嘅瞬間</string>
     <string name="journal_nothing_pinned_title">暫時冇已固定嘅日期</string>
     <string name="journal_nothing_pinned_subtitle">已固定嘅日期會顯示喺呢度</string>
@@ -260,8 +261,8 @@
     <string name="journal_unpin_anchor">取消固定 %1$s</string>
     <string name="journal_move_anchor_up">上移 %1$s</string>
     <string name="journal_move_anchor_down">下移 %1$s</string>
-    <string name="journal_reorder_anchor">重新排序%1$s</string>
-    <string name="journal_move_anchor_to_top">移動%1$s到最頂</string>
+    <string name="journal_reorder_anchor">重新排序 %1$s</string>
+    <string name="journal_move_anchor_to_top">移動 %1$s 到最頂</string>
     <string name="journal_pin_to_home_content_description">固定到主頁</string>
     <string name="journal_pin_date">固定呢個日期</string>
     <!-- Hero background (pride colour wash) feature -->
@@ -337,12 +338,12 @@
     <string name="field_medication">藥物</string>
     <string name="field_medication_name">藥物名稱</string>
     <string name="medication_editor_original_schedule">原定喺 %1$s</string>
-    <string name="medication_editor_schedule_offset_minutes_later">+%1$d分鐘</string>
-    <string name="medication_editor_schedule_offset_minutes_earlier">-%1$d分鐘</string>
-    <string name="medication_editor_schedule_offset_hours_later">+%1$d小時</string>
-    <string name="medication_editor_schedule_offset_hours_earlier">-%1$d小時</string>
-    <string name="medication_editor_schedule_offset_days_later">+%1$d天</string>
-    <string name="medication_editor_schedule_offset_days_earlier">-%1$d天</string>
+    <string name="medication_editor_schedule_offset_minutes_later">+%1$d 分鐘</string>
+    <string name="medication_editor_schedule_offset_minutes_earlier">-%1$d 分鐘</string>
+    <string name="medication_editor_schedule_offset_hours_later">+%1$d 小時</string>
+    <string name="medication_editor_schedule_offset_hours_earlier">-%1$d 小時</string>
+    <string name="medication_editor_schedule_offset_days_later">+%1$d 天</string>
+    <string name="medication_editor_schedule_offset_days_earlier">-%1$d 天</string>
     <string name="medication_log_actual_amount">實際用量</string>
     <string name="medication_log_actual_amount_decrease">減少實際用量</string>
     <string name="medication_log_actual_amount_increase">增加實際用量</string>
@@ -370,7 +371,7 @@
     <string name="group_notifications_reenable_confirm">開啟</string>
     <string name="group_notifications_inexact_warning">提醒可能會延遲</string>
     <string name="group_notifications_exact_alarm_title">允許精確鬧鐘？</string>
-    <string name="group_notifications_exact_alarm_message">如果唔允許精確鬧鐘，提醒可能會延遲；你可以繼續，或者去設定開啟</string>
+    <string name="group_notifications_exact_alarm_message">如果唔允許精確鬧鐘，提醒可能會延遲，你可以繼續，或者去設定開啟</string>
     <string name="group_notifications_exact_alarm_settings">開啟設定</string>
     <string name="group_notifications_exact_alarm_skip">跳過</string>
     <string name="group_schedule_title">計劃</string>
@@ -603,7 +604,7 @@
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/天</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>
-    <string name="medication_editor_dose_assist_grams">%1$sg</string>
+    <string name="medication_editor_dose_assist_grams">%1$s g</string>
     <string name="medication_editor_dose_assist_mg_per_ml">%1$s mg/mL</string>
     <string name="medication_editor_dose_assist_ml">%1$s mL</string>
     <string name="group_danger_zone_title">危險操作</string>
@@ -823,7 +824,7 @@
     <string name="screen_lock_auth_unavailable_generic">呢部裝置未能使用安全認證</string>
     <string name="screen_lock_auth_locked_out">失敗次數過多，請遲啲再試</string>
     <string name="screen_lock_auth_failed">認證失敗</string>
-    <string name="onboarding_start_tagline">記錄HRT用藥、檢視血藥濃度、掌握用藥節奏</string>
+    <string name="onboarding_start_tagline">記錄 HRT 用藥、檢視血藥濃度、掌握用藥節奏</string>
     <string name="onboarding_start_cta">開始使用</string>
     <string name="onboarding_disclaimer_title">重要說明</string>
     <string name="onboarding_disclaimer_subtitle">Featherline 係一個記錄工具，唔提供醫療建議。血藥濃度數值係根據你嘅用藥計劃計算出嚟嘅模型估算值，唔係實際測量值。呢啲數值唔應該取代化驗檢查或臨床醫生嘅指導。</string>
@@ -839,8 +840,8 @@
     <string name="onboarding_disclaimer_acknowledge_read">我已閱讀並同意</string>
     <string name="onboarding_continue">繼續</string>
     <string name="onboarding_notifications_title">開啟用藥提醒</string>
-    <string name="onboarding_notifications_subtitle">為咗喺你預定嘅服藥時間傳送提醒，Featherline 需要以下兩項權限；你可以隨時喺系統設定關閉佢哋</string>
-    <string name="onboarding_notifications_permission_subtitle">為咗喺你預定嘅服藥時間傳送提醒，Featherline 需要以下權限；你可以隨時喺系統設定關閉佢</string>
+    <string name="onboarding_notifications_subtitle">為咗喺你預定嘅服藥時間傳送提醒，Featherline 需要以下兩項權限，你可以隨時喺系統設定關閉佢哋</string>
+    <string name="onboarding_notifications_permission_subtitle">為咗喺你預定嘅服藥時間傳送提醒，Featherline 需要以下權限，你可以隨時喺系統設定關閉佢</string>
     <string name="onboarding_notifications_master_subtitle">Featherline 可以喺你預定嘅服藥時間傳送提醒，你可以隨時喺設定關閉佢</string>
     <string name="onboarding_notifications_master_alarm_subtitle">Featherline 可以喺你預定嘅服藥時間傳送提醒，你亦可以開啟精確鬧鐘，令通知更準時</string>
     <string name="onboarding_notifications_app_title">通知權限</string>
@@ -866,7 +867,7 @@
         <item quantity="other">%1$s、%2$s 和其他 %3$d 個群組</item>
     </plurals>
     <plurals name="reminder_notification_more_medications">
-        <item quantity="other">…同埋另外 %1$d 種藥物</item>
+        <item quantity="other">……同埋另外 %1$d 種藥物</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已新增 %1$d 條記錄</item>
@@ -1097,7 +1098,7 @@
     <string name="calibration_pk_edu_does_routes_body">每個結果只會校準抽血嗰陣有效嘅途徑</string>
     <string name="calibration_pk_edu_does_band_title">顯示可能嘅範圍</string>
     <string name="calibration_pk_edu_does_band_body">陰影係下次抽血結果可能落喺嘅範圍，佢包含咗化驗誤差同抽血時間嘅波動，唔係置信區間</string>
-    <string name="calibration_pk_edu_doesnt_verify_title">判斷HPG軸嘅抑制情況</string>
+    <string name="calibration_pk_edu_doesnt_verify_title">判斷 HPG 軸嘅抑制情況</string>
     <string name="calibration_pk_edu_doesnt_verify_body">唔會參考 FSH、LH 或者睪酮</string>
     <string name="calibration_pk_edu_doesnt_learn_title">了解你嘅吸收情況</string>
     <string name="calibration_pk_edu_doesnt_learn_body">只會調整各給藥途徑嘅整體水平，唔會調整吸收或者清除速率</string>
