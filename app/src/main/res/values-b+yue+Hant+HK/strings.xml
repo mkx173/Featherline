@@ -770,7 +770,7 @@
     <string name="personalization_weight_dialog_save">儲存</string>
     <string name="personalization_weight_dialog_clear">清除</string>
     <string name="personalization_weight_validation_invalid">請輸入有效嘅體重</string>
-    <string name="personalization_weight_update_failed">未能更新體重。</string>
+    <string name="personalization_weight_update_failed">未能更新體重</string>
     <string name="onboarding_update_failed">未能更新引導設定</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">簡體中文</string>
@@ -1101,7 +1101,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：計唔到呢個時間點嘅估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間點預計幾乎冇嚟自用藥嘅雌二醇</string>
-    <string name="calibration_pk_lab_invalid_body">數值要大過零。如果報告顯示低過檢測下限，可以忽略呢個提示</string>
+    <string name="calibration_pk_lab_invalid_body">數值要大過零，如果報告顯示低過檢測下限，可以忽略呢個提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>
     <string name="calibration_pk_lab_outlier_body">呢項結果同%1$s嘅估算相差好遠，請核對資料係咪正確</string>
@@ -1114,10 +1114,10 @@
 
     <!-- Route-isolated E2 calibration (PK) — home chart -->
     <string name="calibration_pk_chart_unavailable_title">未能顯示圖表</string>
-    <string name="calibration_pk_chart_unavailable_body">計算未完成，暫時唔顯示曲線。已儲存嘅資料唔受影響</string>
+    <string name="calibration_pk_chart_unavailable_body">計算未完成，暫時唔顯示曲線，已儲存嘅資料唔受影響</string>
     <string name="calibration_pk_band_unavailable_note">計唔到呢個檢視嘅預測區間</string>
     <string name="calibration_pk_band_legend">68% / 95% 預測區間</string>
-    <string name="calibration_pk_band_a11y_summary">已校準嘅途徑用校準估算，其餘途徑用人群估算。陰影係抽血結果嘅預測區間</string>
+    <string name="calibration_pk_band_a11y_summary">已校準嘅途徑用校準估算，其餘途徑用人群估算，陰影係抽血結果嘅預測區間</string>
 
     <!-- Accepting a result only clears it from the review queue; numerical calibration is unchanged. -->
     <string name="calibration_pk_lab_accepted_body">已保留，會以較低權重計入</string>
