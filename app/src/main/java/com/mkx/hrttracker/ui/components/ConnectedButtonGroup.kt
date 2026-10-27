@@ -178,6 +178,7 @@ private fun <T> ConnectedButtonGroup(
                     }
                     ConnectedButtonGroupRowButton(
                         modifier = buttonModifier,
+                        expanded = expandOptions,
                         option = option,
                         index = index,
                         optionCount = options.size,
@@ -213,11 +214,16 @@ private fun <T> ConnectedButtonGroupButton(
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
+    expanded: Boolean = false,
 ) {
     val hasStartIcon = connectedButtonGroupButtonHasStartIcon(
         optionIconCount = optionIcons.size,
         hasLeadingContent = optionLeadingContent != null,
     )
+    // A weighted button's width comes from the row, not its label. The 16dp sides of
+    // contentPaddingFor leave seven weekday buttons on a 360dp screen ~8dp for the label,
+    // narrower than one glyph, which then overflows its centred box to the right.
+    val expandedTrim = if (expanded) 8.dp else 0.dp
 
     ToggleButton(
         modifier = modifier,
@@ -227,7 +233,12 @@ private fun <T> ConnectedButtonGroupButton(
         colors = colors,
         contentPadding = ButtonDefaults.contentPaddingFor(
             buttonHeight = ButtonDefaults.MinHeight,
-        ).minus(PaddingValues(start = if (hasStartIcon) 2.dp else 0.dp)),
+        ).minus(
+            PaddingValues(
+                start = (if (hasStartIcon) 2.dp else 0.dp) + expandedTrim,
+                end = expandedTrim,
+            )
+        ),
         shapes =
             when (index) {
                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -270,9 +281,11 @@ private fun <T> ConnectedButtonGroupRowButton(
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
+    expanded: Boolean,
 ) {
     ConnectedButtonGroupButton(
         modifier = modifier,
+        expanded = expanded,
         textStyle = textStyle,
         option = option,
         index = index,
