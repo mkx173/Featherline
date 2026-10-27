@@ -23,7 +23,6 @@
     <string name="main_today_range_afternoon">Tarde</string>
     <string name="main_today_range_evening">Atardecer</string>
     <string name="main_e2_title">Estradiol · niv. estimado</string>
-    <string name="main_e2_estimate_info">Mostrar info de estimación de estradiol</string>
     <string name="main_e2_chart_title_seven_days">Tendencia semanal</string>
     <string name="main_e2_chart_title_thirty_days">Tendencia mensual</string>
     <string name="main_e2_chart_window_toggle_cd">Cambiar rango del gráfico</string>
