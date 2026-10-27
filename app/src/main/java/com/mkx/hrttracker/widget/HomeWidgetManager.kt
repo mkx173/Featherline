@@ -23,12 +23,11 @@ import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -65,19 +64,7 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
-        // The settings state is eager; arm once with its value at this point. The
-        // collector re-arms only if the first loaded emission disagrees. The helper is
-        // suspend for the receiver's persisted read; UNDISPATCHED runs the startup arm on
-        // this thread (its eager read never suspends), so it still precedes the collector.
-        val startupBoundary = settingsRepository.settingsState.value.medicationDayBoundary
-        appScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            armWidgetDateRefreshFromSettings(
-                context = context,
-                diagnosticsLogger = diagnosticsLogger,
-                logTag = TAG,
-                scheduleFailedMessage = "widget_date_refresh_startup_failed",
-            ) { startupBoundary }
-        }
+        scheduleNextWidgetDateRefresh(context, diagnosticsLogger = diagnosticsLogger)
         publishGeneratedWidgetPreviewsIfNeeded()
 
         appScope.launch {
@@ -112,20 +99,8 @@ class HomeWidgetManager @Inject constructor(
 
         // Rebuild only the widget snapshot when widget-facing settings change.
         appScope.launch {
-            var armedBoundary = startupBoundary
             settingsRepository.settingsState
-                .onEach { settings ->
-                    if (settings.medicationDayBoundary != armedBoundary) {
-                        armedBoundary = settings.medicationDayBoundary
-                        armWidgetDateRefreshFromSettings(
-                            context = context,
-                            diagnosticsLogger = diagnosticsLogger,
-                            logTag = TAG,
-                            scheduleFailedMessage = "widget_date_refresh_settings_failed",
-                        ) { settings.medicationDayBoundary }
-                    }
-                }
-                .distinctUntilChangedBy { settings ->
+                .map { settings ->
                     listOf(
                         settings.hideMedicationDetails,
                         settings.adaptiveColorEnabled,
@@ -135,13 +110,14 @@ class HomeWidgetManager @Inject constructor(
                         settings.medicationDayEndsAtFourAm,
                     )
                 }
+                .distinctUntilChanged()
                 .drop(1)
                 // Terminal guard: keep an upstream failure off the handler-less appScope
                 // (see the home-snapshot collector above).
                 .catch { throwable ->
                     diagnosticsLogger.warning(TAG, "widget_snapshot_settings_stream_failed", throwable)
                 }
-                .collect { _ ->
+                .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->

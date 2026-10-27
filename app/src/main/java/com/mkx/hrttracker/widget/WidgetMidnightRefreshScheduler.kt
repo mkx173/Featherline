@@ -9,27 +9,26 @@ import androidx.core.net.toUri
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.MedicationDayBoundary
-import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.medicationDayStart
-import kotlinx.coroutines.CancellationException
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
 internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTION_DATE_REFRESH"
 
-internal fun nextWidgetDateRefreshAt(now: LocalDateTime, boundary: MedicationDayBoundary): LocalDateTime {
-    val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
-    val nextBoundary = medicationDayStart(medicationDay(now, boundary).plusDays(1), boundary)
-    // Noon drops Last night from the widget, matching Home.
-    val noon = if (now.toLocalTime() < LocalTime.NOON) {
-        now.toLocalDate().atTime(12, 0)
-    } else {
-        now.toLocalDate().plusDays(1).atTime(12, 0)
-    }
-    // Midnight also refreshes journal anchors, which retain their civil dates; the
-    // medication-day boundary refreshes the day split.
-    return minOf(midnight, nextBoundary, noon)
+/**
+ * The next of civil midnight, 04:00 and noon. Midnight refreshes journal anchors (civil
+ * dates), 04:00 the medication-day split when the day ends at 04:00, and noon drops
+ * Last night, matching Home.
+ */
+// ponytail: 04:00 is armed whatever the switch says, so the alarm never reads settings;
+// with the switch off that is one spare widget refresh a day.
+internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime {
+    val date = now.toLocalDate()
+    return listOf(
+        date.atTime(MedicationDayBoundary.FourAm.startTime),
+        date.atTime(LocalTime.NOON),
+        date.plusDays(1).atStartOfDay(),
+    ).first { refreshAt -> refreshAt.isAfter(now) }
 }
 
 internal fun scheduleNextWidgetDateRefresh(
@@ -37,10 +36,9 @@ internal fun scheduleNextWidgetDateRefresh(
     now: LocalDateTime = LocalDateTime.now(),
     diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     sdkInt: Int = Build.VERSION.SDK_INT,
-    boundary: MedicationDayBoundary,
 ) {
     val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
-    val triggerAt = nextWidgetDateRefreshAt(now, boundary)
+    val triggerAt = nextWidgetDateRefreshAt(now)
     val triggerAtMillis = triggerAt
         .atZone(ZoneId.systemDefault())
         .toInstant()
@@ -77,37 +75,6 @@ internal fun scheduleNextWidgetDateRefresh(
             triggerAtMillis,
             pendingIntent,
         )
-    }
-}
-
-/**
- * The single read-then-schedule path for the widget date-refresh alarm: reads the day start
- * through [readBoundary], falling back to [MedicationDayBoundary.Midnight] on failure, then
- * arms the next alarm. Callers supply the boundary source because startup must use the eager
- * settings state (no suspension) while the receiver reads the persisted settings.
- */
-internal suspend fun armWidgetDateRefreshFromSettings(
-    context: Context,
-    diagnosticsLogger: AppDiagnosticsLogger,
-    logTag: String,
-    scheduleFailedMessage: String,
-    readBoundary: suspend () -> MedicationDayBoundary,
-) {
-    val boundary = runCatching { readBoundary() }
-        .onFailure { throwable ->
-            if (throwable is CancellationException) throw throwable
-            diagnosticsLogger.warning(logTag, "widget_day_boundary_read_failed", throwable)
-        }
-        .getOrDefault(MedicationDayBoundary.Midnight)
-    runCatching {
-        scheduleNextWidgetDateRefresh(
-            context = context,
-            boundary = boundary,
-            diagnosticsLogger = diagnosticsLogger,
-        )
-    }.onFailure { throwable ->
-        if (throwable is CancellationException) throw throwable
-        diagnosticsLogger.warning(logTag, scheduleFailedMessage, throwable)
     }
 }
 
