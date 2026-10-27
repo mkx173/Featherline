@@ -122,6 +122,8 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
@@ -988,6 +990,8 @@ internal fun SettingsScreenContent(
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
     var pendingMedicationDayEndsAtFourAm by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val medicationDayBoundaryTime = MedicationDayBoundary.FourAm.startTime
+        .format(rememberLocalizedShortTimeFormatter(rememberAppLocale()))
     val requestMedicationDayEndsAtFourAm = { enabled: Boolean ->
         if (medicationDayMovingGroupNames.isEmpty()) {
             onMedicationDayEndsAtFourAmChange(enabled)
@@ -1303,7 +1307,10 @@ internal fun SettingsScreenContent(
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_medication_day_ends_at_four_am),
-                            supportingText = stringResource(R.string.settings_medication_day_ends_at_four_am_summary),
+                            supportingText = stringResource(
+                                R.string.settings_medication_day_ends_at_four_am_summary,
+                                medicationDayBoundaryTime,
+                            ),
                             onClick = {
                                 requestMedicationDayEndsAtFourAm(
                                     !settingsState.medicationDayEndsAtFourAm
@@ -1802,7 +1809,14 @@ internal fun SettingsScreenContent(
     pendingMedicationDayEndsAtFourAm?.let { enabled ->
         HazeAlertDialog(
             onDismissRequest = { pendingMedicationDayEndsAtFourAm = null },
-            title = { Text(text = stringResource(R.string.settings_medication_day_moves_doses_title)) },
+            title = {
+                Text(
+                    text = stringResource(
+                        R.string.settings_medication_day_moves_doses_title,
+                        medicationDayBoundaryTime,
+                    )
+                )
+            },
             text = {
                 Text(
                     text = stringResource(

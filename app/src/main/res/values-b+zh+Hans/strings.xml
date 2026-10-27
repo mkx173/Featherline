@@ -1033,8 +1033,8 @@
     <string name="anchor_shortcut_disabled_message">此日期已删除</string>
 
     <string name="settings_medication_day_ends_at_four_am">修仙模式</string>
-    <string name="settings_medication_day_ends_at_four_am_summary">04:00 前的用药计入前一天。</string>
-    <string name="settings_medication_day_moves_doses_title">移动 04:00 前的用药？</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前的用药计入前一天。</string>
+    <string name="settings_medication_day_moves_doses_title">移动 %1$s 前的用药？</string>
     <string name="settings_medication_day_moves_doses_message">%1$s 的用药将移动一天，过去的用药可能显示为已错过。</string>
     <string name="settings_medication_day_moves_doses_confirm">移动</string>
 

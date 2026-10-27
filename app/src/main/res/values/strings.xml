@@ -1106,8 +1106,8 @@
     <string name="anchor_shortcut_disabled_message">This date was removed</string>
 
     <string name="settings_medication_day_ends_at_four_am">Night owl mode</string>
-    <string name="settings_medication_day_ends_at_four_am_summary">Doses before 04:00 count as the previous day.</string>
-    <string name="settings_medication_day_moves_doses_title">Move doses before 04:00?</string>
+    <string name="settings_medication_day_ends_at_four_am_summary">Doses before %1$s count as the previous day.</string>
+    <string name="settings_medication_day_moves_doses_title">Move doses before %1$s?</string>
     <string name="settings_medication_day_moves_doses_message">Doses in %1$s will move by one day. Past ones may show as missed.</string>
     <string name="settings_medication_day_moves_doses_confirm">Move</string>
 
