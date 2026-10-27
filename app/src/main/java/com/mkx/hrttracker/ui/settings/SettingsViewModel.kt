@@ -18,7 +18,9 @@ import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.movesWithMedicationDayBoundary
+import com.mkx.hrttracker.ui.plan.sortPlanMedicationGroups
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -244,8 +246,10 @@ class SettingsViewModel @Inject constructor(
     val medicationDayMovingGroupNames: StateFlow<List<String>> = medicationGroupRepository
         .observeGroups()
         .map { groups ->
-            groups.orEmpty()
+            // Plan's order, with archived plans after the active ones.
+            sortPlanMedicationGroups(groups.orEmpty())
                 .filter { group -> group.schedule.movesWithMedicationDayBoundary }
+                .sortedBy { group -> group.isArchived() }
                 .map(MedicationGroup::name)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

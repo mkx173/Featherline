@@ -74,6 +74,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -699,6 +700,20 @@ fun SettingsScreen(
 // "NN%" label shown next to the slider (e.g. 1.0455 → 1.05, displayed as 105%). Without
 // this the slider saves its raw continuous position while the label rounds for display.
 private fun snapToWholePercent(value: Float): Float = (value * 100).roundToInt() / 100f
+
+/** Joins group names the way a reminder for several groups does. */
+@Composable
+private fun medicationGroupNamesText(names: List<String>): String = when (names.size) {
+    1 -> names.first()
+    2 -> stringResource(R.string.reminder_notification_two_groups, names[0], names[1])
+    else -> pluralStringResource(
+        R.plurals.reminder_notification_more_groups,
+        names.size - 2,
+        names[0],
+        names[1],
+        names.size - 2,
+    )
+}
 
 @Composable
 internal fun WidgetAppearanceDialog(
@@ -1825,7 +1840,7 @@ internal fun SettingsScreenContent(
                     text = stringResource(
                         R.string.settings_medication_day_moves_doses_body,
                         medicationDayBoundaryTime,
-                        medicationDayMovingGroupNames.joinToString(),
+                        medicationGroupNamesText(medicationDayMovingGroupNames),
                     )
                 )
             },
