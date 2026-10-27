@@ -49,37 +49,28 @@ class MedicationDayCadenceTest {
     }
 
     @Test
-    fun fourAmDailyIntervalCountsMedicationDays() {
+    fun fourAmDailyIntervalKeepsTheCalendarCadenceSoTogglingMovesNoDose() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
 
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 19, 2, 0)), slots(group, since, fourAm))
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), fourAm))
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 21, 2, 0)), slots(group, since.plusDays(2), fourAm))
+        // Oct 19 02:00 is off-phase by calendar date; Oct 20 02:00 fires under both
+        // boundaries and is listed under medication day Oct 19 with the switch on.
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since, fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 20, 2, 0)), slots(group, since.plusDays(1), fourAm))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(2), fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 20, 2, 0)), slots(group, since.plusDays(2), midnight))
     }
 
     @Test
-    fun fourAmEachScheduledMedicationDayCarriesItsEveningAndNextDawnTimes() {
+    fun fourAmIntervalEveningAndDawnKeepTheirCalendarDates() {
         val group = group(
             MedicationGroupScheduleType.DAILY,
             interval = 2,
             times = listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)),
         )
 
-        assertEquals(
-            listOf(
-                LocalDateTime.of(2026, 10, 18, 20, 0),
-                LocalDateTime.of(2026, 10, 19, 1, 0),
-            ),
-            slots(group, since, fourAm),
-        )
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), fourAm))
-        assertEquals(
-            listOf(
-                LocalDateTime.of(2026, 10, 20, 20, 0),
-                LocalDateTime.of(2026, 10, 21, 1, 0),
-            ),
-            slots(group, since.plusDays(2), fourAm),
-        )
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 18, 20, 0)), slots(group, since, fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 20, 1, 0)), slots(group, since.plusDays(1), fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 20, 20, 0)), slots(group, since.plusDays(2), fourAm))
     }
 
     @Test
@@ -107,7 +98,7 @@ class MedicationDayCadenceTest {
     }
 
     @Test
-    fun fourAmReminderAgreesWithTheStartMedicationDaysDawn() {
+    fun fourAmIntervalReminderFollowsTheCalendarCadence() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
             .copy(notificationsEnabled = true)
 
@@ -119,13 +110,13 @@ class MedicationDayCadenceTest {
         )
 
         assertEquals(
-            listOf(LocalDateTime.of(2026, 10, 19, 2, 0)),
+            listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
             plans.map(MedicationReminderPlan::scheduledAt),
         )
     }
 
     @Test
-    fun fourAmPlanNextOccurrencesAgreeWithTheStartMedicationDaysDawn() {
+    fun fourAmIntervalPlanNextOccurrenceFollowsTheCalendarCadence() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
 
         val next = buildNextOccurrencesByGroup(
@@ -137,7 +128,7 @@ class MedicationDayCadenceTest {
         )
 
         assertEquals(
-            listOf(LocalDateTime.of(2026, 10, 19, 2, 0)),
+            listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
             next.getValue(group.uuid),
         )
     }
@@ -175,14 +166,11 @@ class MedicationDayCadenceTest {
     }
 
     @Test
-    fun fourAmBatchAddFollowsMedicationDayCadence() {
+    fun fourAmBatchAddFollowsTheCalendarCadenceWithinMedicationDays() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
 
         assertEquals(
-            listOf(
-                LocalDateTime.of(2026, 10, 19, 2, 0),
-                LocalDateTime.of(2026, 10, 21, 2, 0),
-            ),
+            listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
             buildPlanBatchAddOccurrences(
                 schedule = group.schedule,
                 startDate = since,

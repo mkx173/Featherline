@@ -21,10 +21,11 @@ fun MedicationGroupSchedule.isScheduledOn(
 ): Boolean = isScheduledAt(medicationDayStart(date, boundary), boundary)
 
 /**
- * Whether an occurrence at [dateTime] fires under [boundary]. Daily cadence counts
- * medication days, so a pre-boundary occurrence is gated by the day it belongs to.
- * Weekly cadence keeps the occurrence's civil weekday: a selected weekday names the
- * civil day the dose fires on, even when it falls before the boundary.
+ * Whether an occurrence at [dateTime] fires under [boundary]. Only the plan start is
+ * a medication day: nothing fires before the medication day `since`. The cadence
+ * itself (every-N-days phase, selected weekdays) counts the civil date the dose fires
+ * on, so turning the 04:00 switch on or off never moves an existing dose, past or
+ * future; it only changes which medication day the dose is listed under.
  *
  * [allowBeforeSince] backs batch-add's backfill before the plan's start; the regular
  * plan path requires the occurrence's medication day to be on or after `since`.
@@ -35,25 +36,19 @@ fun MedicationGroupSchedule.isScheduledAt(
     allowBeforeSince: Boolean = false,
 ): Boolean {
     val normalizedInterval = interval.coerceAtLeast(1)
+    if (!allowBeforeSince && medicationDay(dateTime, boundary).isBefore(since)) {
+        return false
+    }
+    val civilDate = dateTime.toLocalDate()
 
     return when (type) {
-        MedicationGroupScheduleType.DAILY -> {
-            val day = medicationDay(dateTime, boundary)
-            if (!allowBeforeSince && day.isBefore(since)) {
-                return false
-            }
-            Math.floorMod(
-                ChronoUnit.DAYS.between(since, day),
-                normalizedInterval.toLong(),
-            ) == 0L
-        }
+        MedicationGroupScheduleType.DAILY -> Math.floorMod(
+            ChronoUnit.DAYS.between(since, civilDate),
+            normalizedInterval.toLong(),
+        ) == 0L
 
         MedicationGroupScheduleType.WEEKLY -> {
-            val civilDate = dateTime.toLocalDate()
-            if ((!allowBeforeSince && medicationDay(dateTime, boundary).isBefore(since)) ||
-                weeklyDaysOfWeek.isEmpty() ||
-                civilDate.dayOfWeek !in weeklyDaysOfWeek
-            ) {
+            if (civilDate.dayOfWeek !in weeklyDaysOfWeek) {
                 return false
             }
             // floorDiv (not `/`) keeps parity around `since` for backfilled dates:

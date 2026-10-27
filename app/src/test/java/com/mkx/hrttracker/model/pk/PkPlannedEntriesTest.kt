@@ -549,7 +549,7 @@ class PkPlannedEntriesTest {
         )
 
     @Test
-    fun build_fourAmIntervalCadenceUsesMedicationDayParity() {
+    fun build_fourAmIntervalCadenceKeepsCalendarParity() {
         val now = LocalDateTime.of(2026, 11, 1, 6, 0)
         val group = dailyEstradiolGroup(
             since = LocalDate.of(2026, 10, 29),
@@ -574,7 +574,7 @@ class PkPlannedEntriesTest {
         )
 
         assertEquals(
-            listOf(LocalDateTime.of(2026, 11, 3, 1, 0)),
+            listOf(LocalDateTime.of(2026, 11, 2, 1, 0), LocalDateTime.of(2026, 11, 4, 1, 0)),
             result.planned.map { entry -> entry.scheduledFor },
         )
     }
