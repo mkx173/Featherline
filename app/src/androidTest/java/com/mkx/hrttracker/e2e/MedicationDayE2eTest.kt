@@ -56,6 +56,8 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.reminder.REMINDER_CHANNEL_ID
 import com.mkx.hrttracker.testing.E2eEntryPoint
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import dagger.hilt.android.EntryPointAccessors
 import java.time.DayOfWeek
 import java.time.Duration
@@ -141,11 +143,11 @@ class MedicationDayE2eTest {
         setBoundary(true)
         assertEquals(true, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
         scenario!!.recreate()
-        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary))
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
         scenario!!.close()
         launch()
         tab(R.string.tab_settings)
-        compose.onNodeWithText(text(R.string.settings_medication_day_ends_at_four_am_summary))
+        compose.onNodeWithText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
             .performScrollTo().assertExists()
     }
 
@@ -741,7 +743,7 @@ class MedicationDayE2eTest {
         await {
             io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm } == enabled
         }
-        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary))
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
     }
 
     private fun pickTime(hour: Int, minute: Int) {
@@ -802,6 +804,8 @@ class MedicationDayE2eTest {
     private fun assertTodayDate(date: LocalDate) = await { todayExists(hasText(dateText(date), substring = true, ignoreCase = true)) }
     private fun assertTodayCount(count: String) = await { todayExists(hasText(count, substring = true)) }
     private fun dateText(date: LocalDate) = dateLabelFormatter(Locale.ENGLISH, LocalDate.now())(date)
+    private fun nightOwlBoundaryTime(): String = MedicationDayBoundary.FourAm.startTime
+        .format(localizedShortTimeFormatter(Locale.ENGLISH, context.uses24HourTimeFormat()))
     private fun text(id: Int, vararg args: Any): String = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.ENGLISH) }).getString(id, *args)
     private fun awaitText(text: String) = await {
         val matcher = hasText(text)
