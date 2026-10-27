@@ -719,8 +719,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val manualCount = record.manualCount
         // A day whose only rows are manual records still reads as "nothing scheduled" for
         // the bottom panel — the manual activity surfaces in the top count instead, so the
-        // bottom matches a plan-less day. Scheduled last-night carry-overs and tonight's
-        // coming-up entries are not manual records, so they keep this false.
+        // bottom matches a plan-less day. Tonight's coming-up entries keep this false;
+        // last-night carry-overs don't count (an unaddressed one drives activeRow instead).
         val nothingScheduledToday = mediumNothingScheduledToday(record.doseRows)
 
         // Treat LOGGED_OUT_OF_WINDOW as addressed for activeRow/all-done: the slot has an

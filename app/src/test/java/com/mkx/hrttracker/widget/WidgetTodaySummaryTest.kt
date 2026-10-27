@@ -107,6 +107,17 @@ class WidgetTodaySummaryTest {
     }
 
     @Test
+    fun lastNightRowAloneMeansNothingScheduledToday() {
+        // Regression for the blank medium bottom panel after archiving a group: last
+        // night's taken dose is the only row and today has no plan.
+        assertTrue(
+            mediumNothingScheduledToday(
+                listOf(doseRow(isManualRecord = false, contextChip = WidgetDoseChip.LAST_NIGHT))
+            )
+        )
+    }
+
+    @Test
     fun manualRecordsAlongsideAScheduledRowAreStillScheduled() {
         assertFalse(
             mediumNothingScheduledToday(

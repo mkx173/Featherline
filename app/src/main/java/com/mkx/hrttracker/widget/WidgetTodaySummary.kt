@@ -57,11 +57,13 @@ internal fun widgetLargeCountLabel(
  * scheduled (non-manual) rows to surface. Manual records are deliberately ignored: a day
  * with only manual records is still a "no doses scheduled today" day for the bottom panel
  * (the manual activity shows in the top count instead), matching a plan-less day with no
- * manual records. Scheduled last-night carry-overs and tonight's coming-up entries are
- * not manual records, so they keep this false.
+ * manual records. Tonight's coming-up entries keep this false. Last-night carry-overs are
+ * ignored: an unaddressed one becomes the active row and shows its own card, and an
+ * addressed one (e.g. the group was archived after last night's dose) must not leave the
+ * bottom panel blank on a plan-less day.
  */
 internal fun mediumNothingScheduledToday(doseRows: List<WidgetDoseRow>): Boolean =
-    doseRows.none { !it.isManualRecord }
+    doseRows.none { !it.isManualRecord && it.contextChip != WidgetDoseChip.LAST_NIGHT }
 
 /**
  * Icon for the medium widget's bottom final-state badge. The emphatic "done_all" (✓✓) mark
