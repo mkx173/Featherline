@@ -135,7 +135,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 15),
             endDate = LocalDate.of(2026, 4, 19),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(dailyGroup, weeklyGroup).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.OFFPLAN,
@@ -194,7 +195,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 17),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -254,7 +256,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -311,7 +314,8 @@ class PlanCalendarDayUiStateTest {
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         val state = dayStates.getValue(LocalDate.of(2026, 4, 16))
         assertEquals(1, state.expectedOccurrenceCount)
@@ -360,7 +364,8 @@ class PlanCalendarDayUiStateTest {
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         val state = dayStates.getValue(LocalDate.of(2026, 4, 17))
         assertEquals(1, state.expectedOccurrenceCount)
@@ -407,7 +412,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 17),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
@@ -460,7 +466,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.PARTIAL,
@@ -512,7 +519,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.MISSED,
@@ -562,7 +570,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(0, dayStates.getValue(LocalDate.of(2026, 4, 16)).matchedOccurrenceCount)
         assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasMatchingScheduledRecord)
@@ -609,7 +618,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.OFFPLAN,
@@ -664,7 +674,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             PlanCalendarDayStatus.MISSED,
@@ -707,7 +718,8 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         val dayState = dayStates.getValue(LocalDate.of(2026, 4, 16))
         assertEquals(3, dayState.expectedOccurrenceCount)

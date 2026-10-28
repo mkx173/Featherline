@@ -70,6 +70,7 @@ class MedicationDayBoundaryCallersTest {
             entries = listOf(entry),
             now = LocalDateTime.of(2026, 11, 1, 20, 0),
             zoneId = zone,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         val slot = schedule.scheduledEntries.single()

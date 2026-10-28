@@ -1714,14 +1714,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         return runCatching {
             val savedGroup = medicationGroupRepository.getGroup(groupUuid)
                 ?: throw NoSuchElementException("Medication group $groupUuid was not found.")
-            val boundary = settingsRepository.settingsState.value.medicationDayBoundary
             val entriesToSave = buildPlanBatchAddEntries(
                 group = savedGroup,
                 existingEntries = medicationLogRepository.getEntries(),
                 startDate = savedGroup.schedule.since,
-                endDate = medicationDay(now, boundary),
+                endDate = medicationDay(now, savedGroup.schedule.dayBoundary),
                 now = now,
-                boundary = boundary,
                 zoneId = ZoneId.systemDefault(),
             )
             medicationLogRepository.saveBackfillEntries(entriesToSave)

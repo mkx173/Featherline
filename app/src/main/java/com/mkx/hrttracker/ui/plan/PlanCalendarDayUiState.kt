@@ -2,16 +2,17 @@ package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.hasMatchingSlotRecord
 import com.mkx.hrttracker.model.medication.isPlanOffPlanEntry
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.scheduledGroupsForPlanDay
 import com.mkx.hrttracker.model.medication.scheduledSlotsForPlanDay
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.UUID
 
 enum class PlanCalendarDayStatus {
     NONE,
@@ -45,10 +46,12 @@ fun buildPlanCalendarDayUiState(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    boundary: MedicationDayBoundary,
+    /** Every plan a record can come from, archived ones too; [groups] may be filtered. */
+    groupsByUuid: Map<UUID, MedicationGroup>,
 ): Map<LocalDate, PlanCalendarDayUiState> {
+    // Each record sits on the day its own plan's ending gives it; one not from a plan on its calendar day.
     val entriesByDate = entries.groupBy { entry ->
-        entry.planCalendarDate(boundary, zoneId)
+        entry.planCalendarDate(entry.dayBoundary(groupsByUuid), zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, PlanCalendarDayUiState>()

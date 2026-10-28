@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -234,6 +235,180 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
+    fun selectedNightOwlPlan_usesItsOwnTodayBeforeFour() = runTest {
+        val nightOwl = medicationGroup(
+            uuid = UUID.fromString("b7d1f0a2-6c3e-4f59-9a1d-2e8c4b6f0a13"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val startsTonight = medicationGroup(
+            uuid = UUID.fromString("c2e4a6b8-1d3f-4a5c-8e7b-9f0a1b2c3d4e"),
+            schedule = nightOwl.schedule.copy(since = LocalDate.of(2026, 10, 29)),
+            medications = nightOwl.medications,
+        )
+        val viewModel = planBatchAddViewModel(
+            groups = listOf(nightOwl, startsTonight),
+            now = LocalDateTime.of(2026, 10, 29, 1, 30),
+        )
+        advanceUntilIdle()
+
+        // With no plan selected, today is the calendar date.
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.today)
+
+        viewModel.selectGroup(nightOwl.uuid)
+        advanceUntilIdle()
+
+        // Before 04:00 the night-owl plan is still on the evening of Oct 28, and so is
+        // its default range; tonight's 01:00 dose is that evening's last.
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 10, 1), viewModel.uiState.value.startDate)
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.endDate)
+        assertEquals(28, viewModel.uiState.value.entryCount)
+        assertEquals(
+            LocalDateTime.of(2026, 10, 29, 1, 0),
+            viewModel.uiState.value.entriesToAdd.last().scheduledFor,
+        )
+
+        // A plan starting on the calendar's today hasn't started on its own day yet.
+        viewModel.selectGroup(startsTonight.uuid)
+        advanceUntilIdle()
+        assertEquals(true, viewModel.uiState.value.selectedGroupStartsInFuture)
+    }
+
+    @Test
+    fun switchingTheSelectedPlanBeforeFour_followsEachPlansOwnToday() = runTest {
+        val nightOwl = medicationGroup(
+            uuid = UUID.fromString("e1f3a5c7-9b2d-4f6e-8a0c-2b4d6f8a0c1e"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0), LocalTime.of(22, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val midnight = medicationGroup(
+            uuid = UUID.fromString("f2a4b6c8-0d1e-4a3b-9c5d-7e9f1a3b5c7d"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val tonight = LocalDateTime.of(2026, 10, 29, 1, 0)
+        val loggedTonight = testMedicationLogEntry(
+            medicine = estradiolMedicine(),
+            sourceGroupUuid = nightOwl.uuid,
+            scheduleTimeUuid = nightOwl.schedule.timeSlots.first { slot -> slot.time == tonight.toLocalTime() }.uuid,
+            appliedAt = testInstant(tonight),
+            scheduledFor = tonight,
+        )
+        val timeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 10, 29, 1, 30))
+        val viewModel = planBatchAddViewModel(
+            groups = listOf(nightOwl, midnight),
+            appTimeSource = timeSource,
+            entries = listOf(loggedTonight),
+        )
+        advanceUntilIdle()
+
+        // The night-owl plan is still on the evening of Oct 28: its 28 evenings and 28 dawns,
+        // less tonight's 01:00, which is already logged.
+        viewModel.selectGroup(nightOwl.uuid)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 10, 1), viewModel.uiState.value.startDate)
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.endDate)
+        assertEquals(55, viewModel.uiState.value.entryCount)
+        assertEquals(1, viewModel.uiState.value.skippedEntryCount)
+
+        // The midnight plan is already on Oct 29.
+        viewModel.selectGroup(midnight.uuid)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 10, 1), viewModel.uiState.value.startDate)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.endDate)
+        assertEquals(28, viewModel.uiState.value.entryCount)
+
+        // A range chosen for one plan doesn't carry over to the other.
+        viewModel.updateStartDate(LocalDate.of(2026, 10, 10))
+        advanceUntilIdle()
+        viewModel.selectGroup(nightOwl.uuid)
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 1), viewModel.uiState.value.startDate)
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.endDate)
+
+        // At 04:00 the picker can reach Oct 29, but the chosen range stays.
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 29, 4, 0))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.endDate)
+        assertEquals(55, viewModel.uiState.value.entryCount)
+    }
+
+    @Test
+    fun buildPlanBatchAddEntries_checksThePlanStartWithThePlansOwnEnding() {
+        val groupUuid = UUID.fromString("d4f6b8a0-2e4c-4b6d-9f1a-3c5e7a9b1d2f")
+        val midnightPlan = medicationGroup(
+            uuid = groupUuid,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 28),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+
+        // A midnight plan's 01:00 on its start date is the plan's own dose.
+        val midnightEntries = buildPlanBatchAddEntries(
+            group = midnightPlan,
+            startDate = LocalDate.of(2026, 10, 27),
+            endDate = LocalDate.of(2026, 10, 28),
+            now = LocalDateTime.of(2026, 10, 30, 12, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+        assertEquals(listOf(null, groupUuid), midnightEntries.map { entry -> entry.sourceGroupUuid })
+        assertEquals(
+            listOf(null, LocalDateTime.of(2026, 10, 28, 1, 0)),
+            midnightEntries.map { entry -> entry.scheduledFor },
+        )
+
+        // On a night-owl plan the same 01:00 belongs to Oct 27, before the start, so it is
+        // saved as a record not from a plan, on its calendar day.
+        val nightOwlEntries = buildPlanBatchAddEntries(
+            group = midnightPlan.copy(
+                schedule = midnightPlan.schedule.copy(dayBoundary = MedicationDayBoundary.FourAm),
+            ),
+            startDate = LocalDate.of(2026, 10, 27),
+            endDate = LocalDate.of(2026, 10, 28),
+            now = LocalDateTime.of(2026, 10, 30, 12, 0),
+            zoneId = ZoneId.of("UTC"),
+        )
+        assertEquals(listOf(null, groupUuid), nightOwlEntries.map { entry -> entry.sourceGroupUuid })
+        assertEquals(
+            listOf(Instant.parse("2026-10-28T01:00:00Z"), Instant.parse("2026-10-29T01:00:00Z")),
+            nightOwlEntries.map { entry -> entry.appliedAt },
+        )
+        assertEquals(
+            listOf(null, LocalDateTime.of(2026, 10, 29, 1, 0)),
+            nightOwlEntries.map { entry -> entry.scheduledFor },
+        )
+    }
+
+    @Test
     fun buildPlanBatchAddEntries_adds_beforePlanStartAsManual_and_afterPlanStartAsScheduled() {
         val groupUuid = UUID.fromString("3b877888-5d32-4b3a-86ab-422b9d29d5f1")
         val group = medicationGroup(
@@ -258,7 +433,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 9),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(2, entries.size)
         assertNull(entries[0].sourceGroupUuid)
@@ -288,7 +463,6 @@ class PlanBatchAddViewModelTest {
             group = group,
             startDate = LocalDate.of(2026, 10, 1),
             endDate = LocalDate.of(2026, 10, 31),
-            boundary = MedicationDayBoundary.FourAm,
             now = LocalDateTime.of(2026, 11, 1, 6, 0),
             zoneId = ZoneId.of("UTC"),
         )
@@ -335,7 +509,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(1, entries.size)
         assertEquals(groupUuid, entries.single().sourceGroupUuid)
@@ -362,7 +536,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 1),
             endDate = LocalDate.of(2026, 4, 15),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(2, entries.size)
         assertNull(entries[0].sourceGroupUuid)
@@ -398,7 +572,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 1),
             endDate = LocalDate.of(2026, 4, 14),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(1, entries.size)
         assertEquals(Instant.parse("2026-04-06T10:30:00Z"), entries.single().appliedAt)
@@ -425,7 +599,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(2, entries.size)
         assertEquals(listOf(3, 1), entries.map { entry -> entry.count })
@@ -463,7 +637,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         val entries = plan.entries
         assertEquals(2, entries.size)
@@ -496,7 +670,7 @@ class PlanBatchAddViewModelTest {
             endDate = LocalDate.of(2026, 4, 10),
             now = LocalDateTime.of(2026, 4, 10, 0, 30),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(1, entries.size)
         assertEquals(pastSlot, entries.single().scheduledFor)
@@ -523,7 +697,7 @@ class PlanBatchAddViewModelTest {
             endDate = now.toLocalDate(),
             now = now,
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         assertEquals(1, entries.size)
         assertEquals(now, entries.single().scheduledFor)
@@ -546,7 +720,7 @@ class PlanBatchAddViewModelTest {
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
             zoneId = ZoneId.of("UTC"),
-            boundary = MedicationDayBoundary.Midnight).single()
+        ).single()
 
         assertEquals(
             false,
@@ -1251,6 +1425,7 @@ class PlanBatchAddViewModelTest {
         groups: List<MedicationGroup>,
         now: LocalDateTime = LocalDateTime.of(2026, 4, 25, 12, 0),
         appTimeSource: FakeAppTimeSource = FakeAppTimeSource(initialMinute = now),
+        entries: List<MedicationLogEntry> = emptyList(),
     ): PlanBatchAddViewModel {
         val medicationGroupRepository = mockk<MedicationGroupRepository>()
         val medicationLogRepository = mockk<MedicationLogRepository>()
@@ -1258,7 +1433,7 @@ class PlanBatchAddViewModelTest {
         val settingsRepository = mockk<SettingsRepository>()
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(groups)
-        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(entries)
         every { medicineStockRepository.getCachedProjections() } returns emptyList()
         every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
         every { settingsRepository.settingsState } returns MutableStateFlow(

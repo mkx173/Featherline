@@ -44,6 +44,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertFalse(schedule.scheduledEntries[0].isDueSoon)
@@ -106,6 +107,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(
@@ -138,6 +140,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(
@@ -199,6 +202,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 10, 5),
             zoneId = zoneId,
+            groupsByUuid = listOf(archivedOriginal, recreated).associateBy(MedicationGroup::uuid),
         )
 
         val times = schedule.scheduledEntries.map { entry -> entry.scheduledTime }
@@ -268,6 +272,7 @@ class PlanDayOccurrenceTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 7, 0),
             zoneId = zoneId,
+            groupsByUuid = listOf(newerGroup, olderGroup).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(
@@ -314,6 +319,7 @@ class PlanDayOccurrenceTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 22, 0),
             zoneId = zoneId,
+            groupsByUuid = emptyMap(),
         )
 
         assertEquals(
@@ -358,6 +364,7 @@ class PlanDayOccurrenceTest {
             entries = listOf(loggedSlot),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(1, schedule.scheduledEntries.size)
@@ -397,6 +404,7 @@ class PlanDayOccurrenceTest {
             entries = listOf(importedLog),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
             zoneId = zoneId,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertTrue(schedule.scheduledEntries.single().isImportedRecord)
@@ -438,6 +446,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(loggedSlot),
             now = LocalDateTime.of(2026, 4, 18, 10, 15),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(1, schedule.scheduledEntries.size)
@@ -482,6 +491,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(shiftedSlotLog),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(1, schedule.scheduledEntries.size)
@@ -523,6 +533,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(fulfilledEntry),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
@@ -563,6 +574,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(fulfilledEntry),
             now = LocalDateTime.of(2026, 4, 19, 1, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
@@ -604,6 +616,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(linkedEntry),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertTrue(schedule.unplannedEntries.isEmpty())
@@ -654,6 +667,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 8, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         assertEquals(1, schedule.scheduledEntries.size)
@@ -705,6 +719,7 @@ class PlanDayOccurrenceTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 10, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         val scheduledEntry = schedule.scheduledEntries.single()
@@ -743,6 +758,7 @@ class PlanDayOccurrenceTest {
             groups = listOf(group),
             entries = listOf(linkedEntry),
             now = LocalDateTime.of(2026, 4, 18, 10, 30),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
         val firstScheduledEntry = schedule.scheduledEntries.first()

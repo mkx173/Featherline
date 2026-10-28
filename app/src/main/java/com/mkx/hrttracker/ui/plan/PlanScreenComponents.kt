@@ -61,6 +61,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -81,7 +82,6 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.PastMidnightMarkedText
 import com.mkx.hrttracker.util.PAST_MIDNIGHT_MARK
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
@@ -98,6 +98,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.UUID
 
 internal val SelectedDayRowIndicatorSlotSize = 14.dp
 internal val SelectedDayCrossZoneIndicatorGlyphSize = 13.dp
@@ -124,8 +125,11 @@ private fun SelectedDayCrossZoneIndicatorIcon(modifier: Modifier = Modifier) {
  * changes — so callers compute the rows here, in composable scope, and pass them in.
  */
 @Composable
-internal fun rememberSelectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
-    return remember(daySchedule) { selectedDayRows(daySchedule) }
+internal fun rememberSelectedDayRows(
+    daySchedule: PlanDaySchedule,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): List<SelectedDayRowModel> {
+    return remember(daySchedule, groupsByUuid) { selectedDayRows(daySchedule, groupsByUuid) }
 }
 
 internal fun LazyListScope.selectedDaySectionItems(
@@ -276,7 +280,7 @@ private fun SelectedDayRow(
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = date,
                 loggedAt = displayedLoggedAt,
-                boundary = LocalMedicationDayBoundary.current,
+                boundary = row.dayBoundary,
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
                 stringResource(
@@ -339,12 +343,12 @@ private fun SelectedDayRow(
                 loggedDayOffsetText = loggedDayOffsetText
             )
         } else {
-            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, LocalMedicationDayBoundary.current, timeFormatter)
+            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, row.dayBoundary, timeFormatter)
         }
 
-        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, LocalMedicationDayBoundary.current, timeFormatter)
+        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, row.dayBoundary, timeFormatter)
     }
-    val timeLabelIsPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(
+    val timeLabelIsPastMidnight = row.dayBoundary.isPastMidnight(
         when (row) {
             is SelectedDayRowModel.Scheduled -> displayedLoggedAt ?: row.entry.scheduledFor
             is SelectedDayRowModel.Unplanned -> row.sortTime
@@ -440,7 +444,10 @@ private fun SelectedDayRow(
     }
 }
 
-internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+internal fun selectedDayRows(
+    daySchedule: PlanDaySchedule,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): List<SelectedDayRowModel> {
     return buildList {
         addAll(
             daySchedule.scheduledEntries.map { entry ->
@@ -451,7 +458,8 @@ internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowM
             daySchedule.unplannedEntries.map { entry ->
                 SelectedDayRowModel.Unplanned(
                     entry = entry,
-                    sortTime = appliedAtAsLocalDateTime(entry)
+                    sortTime = appliedAtAsLocalDateTime(entry),
+                    dayBoundary = entry.dayBoundary(groupsByUuid),
                 )
             }
         )
@@ -1044,6 +1052,9 @@ internal sealed interface SelectedDayRowModel {
     val medicationCount: Int
     val groupColorKey: MedicationGroupColorKey?
 
+    /** The row's own plan's day ending (midnight for a record not from a plan): its moon and day label follow it. */
+    val dayBoundary: MedicationDayBoundary
+
     data class Scheduled(
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
@@ -1054,11 +1065,13 @@ internal sealed interface SelectedDayRowModel {
         override val applicationType = entry.medication.applicationType
         override val medicationCount: Int = entry.medication.count
         override val groupColorKey: MedicationGroupColorKey = entry.groupColorKey
+        override val dayBoundary: MedicationDayBoundary = entry.dayBoundary
     }
 
     data class Unplanned(
         val entry: MedicationLogEntry,
-        override val sortTime: LocalDateTime
+        override val sortTime: LocalDateTime,
+        override val dayBoundary: MedicationDayBoundary,
     ) : SelectedDayRowModel {
         override val medicine = entry.medicine
         override val doseInstruction = entry.doseInstruction
@@ -1097,7 +1110,7 @@ private fun SelectedDaySectionPreview() {
     // Renders through the same lazy builder production uses so the preview cannot
     // drift from the real section.
     PlanScreenComponentPreviewContainer {
-        val rows = rememberSelectedDayRows(uiState.daySchedule)
+        val rows = rememberSelectedDayRows(uiState.daySchedule, uiState.groupsByUuid)
         LazyColumn {
             selectedDaySectionItems(
                 date = uiState.daySchedule.date,
@@ -1147,7 +1160,8 @@ private fun SelectedDayManualRowPreview() {
             today = uiState.today,
             row = SelectedDayRowModel.Unplanned(
                 entry = entry,
-                sortTime = appliedAtAsLocalDateTime(entry)
+                sortTime = appliedAtAsLocalDateTime(entry),
+                dayBoundary = entry.dayBoundary(uiState.groupsByUuid),
             ),
             index = 0,
             itemCount = 1,

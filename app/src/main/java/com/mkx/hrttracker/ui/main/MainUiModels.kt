@@ -1151,6 +1151,9 @@ private fun mainPreviewEntriesForDate(
         entries = entries,
         now = date.atStartOfDay(),
         zoneId = zoneId,
+        // Only scheduled rows are read, and a plan's rows only look at its own records,
+        // which this lookup always finds; other plans' records only feed unplannedEntries.
+        groupsByUuid = groups.associateBy(MedicationGroup::uuid),
     ).scheduledEntries
         .filterNot { it.isFulfilled }
 }

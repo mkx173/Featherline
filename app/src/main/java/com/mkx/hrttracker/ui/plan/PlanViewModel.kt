@@ -65,12 +65,12 @@ class PlanViewModel @Inject constructor(
     // a live minute tick would otherwise rebuild the ui state every minute for
     // the activity's whole lifetime, including backgrounded. While
     // unsubscribed only date changes pass through, keeping the midnight
-    // re-anchor.
+    // re-anchor and the 04:00 one, when a night-owl plan's day ends.
     val uiState: StateFlow<PlanUiState> = _uiState.asStateFlow()
 
     private val currentDateTime =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayBoundary)
+            minute.toLocalDate() to medicationDay(minute, MedicationDayBoundary.FourAm)
         }
 
     init {
@@ -91,8 +91,8 @@ class PlanViewModel @Inject constructor(
                 )
             }.collect { state ->
                 _uiState.value = state
-                // Today is never a stored selection (tapping it clears one). Turning night owl
-                // mode off between 00:00 and 04:00 moves today onto the selected next day.
+                // Today is never a stored selection (tapping it clears one). Midnight can move
+                // today onto a selected next day.
                 if (state.selectedDate == state.today) {
                     selectedDate.value = null
                 }
@@ -116,7 +116,9 @@ class PlanViewModel @Inject constructor(
             showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
         )
         val scheduleGroups = if (settingsState.showArchivedGroupRecords) allGroups else activeGroups
-        val today = medicationDay(now, settingsState.medicationDayBoundary)
+        // Today is the calendar date; each plan's slots and records sit on the day its own ending gives them.
+        val today = now.toLocalDate()
+        val groupsByUuid = allGroups.associateBy(MedicationGroup::uuid)
         val calendarRange = buildPlanCalendarRange(
             today = today,
             firstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale())
@@ -129,6 +131,7 @@ class PlanViewModel @Inject constructor(
             now = now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
+            groupsByUuid = groupsByUuid,
         )
         val nextOccurrencesByGroup = buildNextOccurrencesByGroup(
             groups = activeGroups,
@@ -141,7 +144,7 @@ class PlanViewModel @Inject constructor(
             isLoading = isLoading,
             now = now,
             today = today,
-            medicationDayBoundary = settingsState.medicationDayBoundary,
+            groupsByUuid = groupsByUuid,
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
             calendarEndDate = calendarRange.endDate,
@@ -158,7 +161,7 @@ class PlanViewModel @Inject constructor(
                 displayedDate = displayedDate,
                 includeUnloggedArchivedSlots = false,
                 unloggedArchivedSlotCutoff = now,
-                boundary = settingsState.medicationDayBoundary,
+                groupsByUuid = groupsByUuid,
             ),
             daySchedule = daySchedule,
             nextOccurrencesByGroup = nextOccurrencesByGroup
@@ -199,7 +202,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
     displayedDate: LocalDate,
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    boundary: MedicationDayBoundary,
+    groupsByUuid: Map<UUID, MedicationGroup>,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val calendarDays = buildPlanCalendarDayUiState(
         groups = groups,
@@ -208,7 +211,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
         endDate = endDate,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-        boundary = boundary,
+        groupsByUuid = groupsByUuid,
     )
 
     if (displayedDate in calendarDays) {
@@ -222,7 +225,7 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
         endDate = displayedDate,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-        boundary = boundary,
+        groupsByUuid = groupsByUuid,
     )
 }
 
@@ -261,7 +264,8 @@ data class PlanUiState(
     val isLoading: Boolean = true,
     val now: LocalDateTime = LocalDate.now().atStartOfDay(),
     val today: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary,
+    /** Every plan, archived ones too: the record → plan lookup. */
+    val groupsByUuid: Map<UUID, MedicationGroup>,
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartDate: LocalDate = buildPlanCalendarRange(
         today = today,

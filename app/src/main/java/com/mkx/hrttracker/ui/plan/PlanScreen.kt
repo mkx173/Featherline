@@ -104,7 +104,6 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.planUpcomingDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -250,12 +249,13 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
+            groupsByUuid = uiState.groupsByUuid,
         )
     } else {
         uiState.daySchedule
     }
     val displayedDate = daySchedule.date
-    val selectedDayRowModels = rememberSelectedDayRows(daySchedule)
+    val selectedDayRowModels = rememberSelectedDayRows(daySchedule, uiState.groupsByUuid)
 
     LaunchedEffect(
         visibleWeekStartDate,
@@ -1249,25 +1249,27 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         ),
     )
 
+    val groupsByUuid = groups.associateBy(MedicationGroup::uuid)
     val daySchedule = buildPlanDaySchedule(
         date = today,
         groups = groups,
         entries = entries,
         now = now,
-        zoneId = zoneId
+        zoneId = zoneId,
+        groupsByUuid = groupsByUuid,
     )
     val calendarDays = buildPlanCalendarDayUiState(
         groups = groups,
         entries = entries,
         startDate = range.startDate,
         endDate = range.endDate,
-        boundary = MedicationDayBoundary.Midnight,
+        groupsByUuid = groupsByUuid,
     )
 
     return PlanUiState(
         isLoading = false,
         today = today,
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
+        groupsByUuid = groupsByUuid,
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,
         calendarStartDate = range.startDate,
         calendarEndDate = range.endDate,

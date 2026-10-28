@@ -77,6 +77,7 @@ class MedicationDayBoundaryTest {
             entries = listOf(entry),
             now = day.atTime(22, 0),
             zoneId = zone,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
         assertEquals(listOf(day.atTime(20, 0), scheduledFor), schedule.scheduledEntries.map { it.scheduledFor })
         assertFalse(schedule.scheduledEntries.first().isFulfilled)
@@ -103,33 +104,46 @@ class MedicationDayBoundaryTest {
             entries = emptyList(),
             now = monday.atTime(20, 0),
             zoneId = zone,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
         assertEquals(listOf(monday.plusDays(1).atTime(1, 0)), schedule.scheduledEntries.map { it.scheduledFor })
         assertTrue(
             buildPlanDaySchedule(
-                monday.plusDays(1), listOf(group), emptyList(), zoneId = zone,
+                monday.plusDays(1), listOf(group), emptyList(), zoneId = zone, groupsByUuid = mapOf(group.uuid to group),
             ).scheduledEntries.isEmpty()
         )
     }
 
     @Test
-    fun manualHistoryRegroupsAcrossMonthWithMatchingSummaryAndExactBoundary() {
-        val dawn = log(day.plusDays(1).atTime(3, 59))
-        val boundary = log(day.plusDays(1).atTime(4, 0))
-        val entries = listOf(dawn, boundary)
+    fun historyRegroupsANightOwlDawnAcrossMonthButKeepsManualRecordsOnTheirCalendarDay() {
+        // The plan is hidden from the calendar, but its records still follow its ending.
+        val group = group(listOf(LocalTime.of(3, 0)))
+        val groupsByUuid = mapOf(group.uuid to group)
+        val dawn = log(day.plusDays(1).atTime(3, 59)).copy(sourceGroupUuid = group.uuid)
+        val manualDawn = log(day.plusDays(1).atTime(3, 59))
+        val boundary = log(day.plusDays(1).atTime(4, 0)).copy(sourceGroupUuid = group.uuid)
+        val entries = listOf(dawn, manualDawn, boundary)
         assertEquals(
             listOf(dawn),
-            buildHistoryVisibleEntries(entries, YearMonth.from(day), null, zone, fourAm),
+            buildHistoryVisibleEntries(entries, YearMonth.from(day), null, zone, groupsByUuid),
         )
-        assertEquals(setOf(day, day.plusDays(1)), groupHistoryEntriesByDate(entries, zone, fourAm).keys)
-        val states = buildHistoryCalendarDayUiState(emptyList(), entries, day, day.plusDays(1), zone, fourAm)
-        assertEquals(PlanCalendarDayStatus.OFFPLAN, states.getValue(day).status)
-        assertEquals(1, buildHistoryMonthSummary(entries, YearMonth.from(day), states, day, zone, fourAm).logged)
-        // A record not from a plan sits on its calendar day.
-        assertTrue(buildPlanDaySchedule(day, emptyList(), entries, zoneId = zone).unplannedEntries.isEmpty())
         assertEquals(
-            entries,
-            buildPlanDaySchedule(day.plusDays(1), emptyList(), entries, zoneId = zone).unplannedEntries,
+            mapOf(day to listOf(dawn), day.plusDays(1) to listOf(manualDawn, boundary)),
+            groupHistoryEntriesByDate(entries, zone, groupsByUuid),
+        )
+        val states = buildHistoryCalendarDayUiState(emptyList(), entries, day, day.plusDays(1), zone, groupsByUuid)
+        assertEquals(PlanCalendarDayStatus.OFFPLAN, states.getValue(day).status)
+        assertEquals(1, buildHistoryMonthSummary(entries, YearMonth.from(day), states, day, zone, groupsByUuid).logged)
+        // A record not from a plan sits on its calendar day.
+        val manualEntries = listOf(manualDawn)
+        assertTrue(
+            buildPlanDaySchedule(day, emptyList(), manualEntries, zoneId = zone, groupsByUuid = emptyMap())
+                .unplannedEntries.isEmpty()
+        )
+        assertEquals(
+            manualEntries,
+            buildPlanDaySchedule(day.plusDays(1), emptyList(), manualEntries, zoneId = zone, groupsByUuid = emptyMap())
+                .unplannedEntries,
         )
     }
 
@@ -137,7 +151,7 @@ class MedicationDayBoundaryTest {
     fun midnightSupplementStaysWithItsEveningPlanInCalendar() {
         val group = group(listOf(LocalTime.of(23, 0)))
         val entry = log(day.plusDays(1).atTime(1, 0)).copy(sourceGroupUuid = group.uuid, scheduledFor = day.atTime(23, 0))
-        val states = buildHistoryCalendarDayUiState(listOf(group), listOf(entry), day, day.plusDays(1), zone, fourAm)
+        val states = buildHistoryCalendarDayUiState(listOf(group), listOf(entry), day, day.plusDays(1), zone, mapOf(group.uuid to group))
         assertEquals(PlanCalendarDayStatus.FULFILLED, states.getValue(day).status)
         assertEquals(PlanCalendarDayStatus.MISSED, states.getValue(day.plusDays(1)).status)
     }
@@ -156,6 +170,7 @@ class MedicationDayBoundaryTest {
             zoneId = zone,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = day.atTime(22, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
         assertEquals(listOf(day.atTime(20, 0)), schedule.scheduledEntries.map { it.scheduledFor })
         val scheduledFor = day.plusDays(1).atTime(1, 0)
@@ -168,6 +183,7 @@ class MedicationDayBoundaryTest {
             zoneId = zone,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = day.atTime(22, 0),
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
         assertTrue(withLog.scheduledEntries.last().isFulfilled)
     }

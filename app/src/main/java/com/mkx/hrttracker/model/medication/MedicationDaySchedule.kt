@@ -56,7 +56,7 @@ fun buildPlanDaySchedule(
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
     /** Every plan a record can come from, archived ones too; [groups] may be filtered. */
-    groupsByUuid: Map<UUID, MedicationGroup> = groups.associateBy(MedicationGroup::uuid),
+    groupsByUuid: Map<UUID, MedicationGroup>,
 ): PlanDaySchedule {
     // Each record sits on the day its own plan's ending gives it; one not from a plan on its calendar day.
     val dayEntries = entries.filter { entry ->

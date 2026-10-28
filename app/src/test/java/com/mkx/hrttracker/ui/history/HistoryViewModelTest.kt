@@ -17,7 +17,9 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -478,10 +480,8 @@ class HistoryViewModelTest {
     }
 
     @Test
-    fun turningNightOwlOnBeforeFourClearsASelectionThatBecomesTheFuture() = runTest {
+    fun clockMovingBackClearsASelectionThatBecomesTheFuture() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 2, 0))
-        val settingsState = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = false))
-        every { settingsRepository.settingsState } returns settingsState
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         val viewModel = HistoryViewModel(
@@ -498,15 +498,85 @@ class HistoryViewModelTest {
         advanceUntilIdle()
         assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.selectedDate)
 
-        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = true)
+        // Moving to a zone behind puts the clock back on yesterday.
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 27, 20, 0))
         advanceUntilIdle()
         assertEquals(LocalDate.of(2026, 10, 27), viewModel.uiState.value.today)
         assertNull(viewModel.uiState.value.selectedDate)
 
         viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 26))
-        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 28, 2, 0))
         advanceUntilIdle()
         assertEquals(LocalDate.of(2026, 10, 26), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun nightOwlPlansDawnRecordShowsOnItsEveningWhileAManualOneKeepsItsCalendarDay() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 1, 30))
+        val nightOwl = testGroup(
+            uuid = UUID.fromString("5f3f0e44-4a49-4bb4-8d0f-6a1c9e3d7b21"),
+            since = LocalDate.of(2026, 10, 1),
+            archivedAt = null,
+            time = LocalTime.of(1, 0),
+            dayBoundary = MedicationDayBoundary.FourAm,
+        )
+        val dawn = LocalDateTime.of(2026, 10, 29, 1, 0)
+        val medication = nightOwl.medications.single()
+        val planRecord = testMedicationLogEntry(
+            medicine = medication.medicine,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+            sourceGroupUuid = nightOwl.uuid,
+            scheduleTimeUuid = nightOwl.schedule.timeSlots.single().uuid,
+            appliedAt = testInstant(dawn),
+            scheduledFor = dawn,
+        )
+        val manualRecord = testMedicationLogEntry(
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(dawn),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(planRecord, manualRecord))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(nightOwl))
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Today and its highlight are the calendar date, whatever the plans' endings.
+        assertEquals(LocalDate.of(2026, 10, 29), state.today)
+        assertEquals(
+            mapOf(
+                LocalDate.of(2026, 10, 28) to listOf(planRecord),
+                LocalDate.of(2026, 10, 29) to listOf(manualRecord),
+            ),
+            groupHistoryEntriesByDate(state.entries, groupsByUuid = state.groupsByUuid),
+        )
+        assertEquals(
+            listOf(planRecord),
+            buildHistoryVisibleEntries(
+                entries = state.entries,
+                displayedMonth = state.displayedMonth,
+                selectedDate = LocalDate.of(2026, 10, 28),
+                groupsByUuid = state.groupsByUuid,
+            ),
+        )
+        val dayStates = buildHistoryCalendarDayUiState(
+            groups = state.calendarMedicationGroups,
+            entries = state.entries,
+            startDate = LocalDate.of(2026, 10, 28),
+            endDate = LocalDate.of(2026, 10, 29),
+            groupsByUuid = state.groupsByUuid,
+        )
+        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 10, 28)).status)
+        assertFalse(dayStates.getValue(LocalDate.of(2026, 10, 28)).hasOffPlanRecord)
+        assertTrue(dayStates.getValue(LocalDate.of(2026, 10, 29)).hasOffPlanRecord)
     }
 
     @Test
@@ -675,6 +745,33 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun calendarRange_startsAtANightOwlPlansOwnStartMonth() = runTest {
+        // Its first 01:00 dose is on medication day Nov 1, so History has no October page.
+        val nightOwl = testGroup(
+            uuid = UUID.fromString("7c1e9a3b-2d4f-4e6a-8b0c-1d2e3f4a5b6c"),
+            since = LocalDate.of(2026, 11, 1),
+            archivedAt = null,
+            time = LocalTime.of(1, 0),
+            dayBoundary = MedicationDayBoundary.FourAm,
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(nightOwl))
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 11, 20, 10, 0)),
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.of(2026, 11), viewModel.uiState.value.calendarNavigationStartMonth)
+        assertEquals(YearMonth.of(2026, 11), viewModel.uiState.value.calendarStartMonth)
+    }
+
+    @Test
     fun calendarRange_includesArchivedGroupStartWhenArchivedRecordsAreShown() = runTest {
         val archivedGroup = testGroup(
             uuid = UUID.fromString("38685781-560d-4a70-b53d-b50e939df536"),
@@ -800,6 +897,8 @@ class HistoryViewModelTest {
         uuid: UUID,
         since: LocalDate,
         archivedAt: Instant?,
+        time: LocalTime = LocalTime.of(9, 0),
+        dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
@@ -810,7 +909,8 @@ class HistoryViewModelTest {
                 interval = 1,
                 since = since,
                 weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(9, 0)),
+                times = listOf(time),
+                dayBoundary = dayBoundary,
             ),
             medications = listOf(
                 testMedicationGroupMedication(

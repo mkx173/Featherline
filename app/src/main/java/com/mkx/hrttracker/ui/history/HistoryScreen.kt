@@ -108,6 +108,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
@@ -140,7 +141,6 @@ import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.medicationDayTimeText
@@ -506,7 +506,7 @@ private fun HistoryScreenContent(
         uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
-        uiState.medicationDayBoundary,
+        uiState.groupsByUuid,
     ) {
         dayStateMonthRanges.fold(linkedMapOf<LocalDate, HistoryCalendarDayUiState>()) { dayStates, range ->
             dayStates.apply {
@@ -516,35 +516,35 @@ private fun HistoryScreenContent(
                         entries = uiState.entries,
                         startDate = range.startMonth.atDay(1),
                         endDate = range.endMonth.atEndOfMonth(),
-                        boundary = uiState.medicationDayBoundary,
+                        groupsByUuid = uiState.groupsByUuid,
                     )
                 )
             }
         }
     }
-    val recordDates = remember(uiState.entries, uiState.medicationDayBoundary) {
-        historyRecordDates(uiState.entries, boundary = uiState.medicationDayBoundary)
+    val recordDates = remember(uiState.entries, uiState.groupsByUuid) {
+        historyRecordDates(uiState.entries, groupsByUuid = uiState.groupsByUuid)
     }
-    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayBoundary) {
+    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.groupsByUuid) {
         buildHistoryMonthSummary(
             entries = uiState.entries,
             displayedMonth = displayedMonth.yearMonth,
             dayStates = monthDayStates,
             today = today,
-            boundary = uiState.medicationDayBoundary,
+            groupsByUuid = uiState.groupsByUuid,
         )
     }
     val visibleEntries =
-        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.medicationDayBoundary) {
+        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.groupsByUuid) {
             buildHistoryVisibleEntries(
                 entries = uiState.entries,
                 displayedMonth = displayedMonth.yearMonth,
                 selectedDate = effectiveSelectedDate,
-                boundary = uiState.medicationDayBoundary,
+                groupsByUuid = uiState.groupsByUuid,
             )
         }
-    val groupedEntries = remember(visibleEntries, uiState.medicationDayBoundary) {
-        groupHistoryEntriesByDate(visibleEntries, boundary = uiState.medicationDayBoundary)
+    val groupedEntries = remember(visibleEntries, uiState.groupsByUuid) {
+        groupHistoryEntriesByDate(visibleEntries, groupsByUuid = uiState.groupsByUuid)
     }
     val visibleEntryIds = remember(visibleEntries) {
         visibleEntries.mapTo(linkedSetOf()) { entry -> entry.uuid }
@@ -1029,6 +1029,7 @@ private fun HistoryScreenContent(
                                     HistoryEntryCardItem(
                                         entry = entry,
                                         dayDate = date,
+                                        dayBoundary = entry.dayBoundary(uiState.groupsByUuid),
                                         timeFormatter = timeFormatter,
                                         groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                                         isFromArchivedGroup = entry.sourceGroupUuid != null &&
@@ -2239,6 +2240,8 @@ internal fun HistoryEntryCardItem(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
     dayDate: LocalDate,
+    /** The record's own plan's day ending (midnight for one not from a plan): its moon and day label follow it. */
+    dayBoundary: MedicationDayBoundary,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2253,6 +2256,7 @@ internal fun HistoryEntryCardItem(
         HistoryEntryCard(
             entry = entry,
             dayDate = dayDate,
+            dayBoundary = dayBoundary,
             timeFormatter = timeFormatter,
             groupColorKey = groupColorKey,
             isFromArchivedGroup = isFromArchivedGroup,
@@ -2273,6 +2277,8 @@ private fun HistoryEntryCard(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
     dayDate: LocalDate,
+    /** The record's own plan's day ending (midnight for one not from a plan): its moon and day label follow it. */
+    dayBoundary: MedicationDayBoundary,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2323,10 +2329,9 @@ private fun HistoryEntryCard(
             val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
             Column(horizontalAlignment = Alignment.End) {
                 val appliedAt = appliedAtAsLocalDateTime(entry, deviceZone)
-                val boundary = LocalMedicationDayBoundary.current
                 MedicationDayTimeLabel(
-                    text = medicationDayTimeText(LocalContext.current, appliedAt, dayDate, boundary, timeFormatter),
-                    isPastMidnight = boundary.isPastMidnight(appliedAt.toLocalTime()),
+                    text = medicationDayTimeText(LocalContext.current, appliedAt, dayDate, dayBoundary, timeFormatter),
+                    isPastMidnight = dayBoundary.isPastMidnight(appliedAt.toLocalTime()),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
@@ -2584,7 +2589,6 @@ private fun buildHistoryPreviewUiState(
     return HistoryUiState(
         isLoading = false,
         entries = entries,
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
         medicationGroups = groups,
         calendarStartMonth = month.minusMonths(1),
         calendarEndMonth = month,

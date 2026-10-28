@@ -7,13 +7,12 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
-import com.mkx.hrttracker.util.MedicationDayBoundary
-import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
@@ -112,18 +111,16 @@ class HistoryViewModel @Inject constructor(
         } else {
             activeGroups
         }
-        val boundary = settingsState.medicationDayBoundary
-        val today = medicationDay(now, boundary)
+        // Today is the calendar date; each record sits on the day its own plan's ending gives it.
+        val today = now.toLocalDate()
         val currentMonth = YearMonth.from(today)
-        val entryMonths = entries.map { entry -> YearMonth.from(entry.planCalendarDate(boundary)) }
-        val earliestEntryMonth = entryMonths.minOrNull()
-        val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
-            YearMonth.from(
-                group.schedule.times.minOrNull()?.let { time ->
-                    medicationDay(group.schedule.since.atTime(time), boundary)
-                } ?: group.schedule.since
-            )
+        val groupsByUuid = allGroups.associateBy(MedicationGroup::uuid)
+        val entryMonths = entries.map { entry ->
+            YearMonth.from(entry.planCalendarDate(entry.dayBoundary(groupsByUuid)))
         }
+        val earliestEntryMonth = entryMonths.minOrNull()
+        // `since` is already a medication day in the plan's own ending.
+        val earliestGroupMonth = calendarGroups.minOfOrNull { group -> YearMonth.from(group.schedule.since) }
         val selectedMonth = selectedDay?.let(YearMonth::from)
         val navigationStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
             .minOrNull()
@@ -143,7 +140,6 @@ class HistoryViewModel @Inject constructor(
         HistoryUiState(
             isLoading = isLoading,
             today = today,
-            medicationDayBoundary = settingsState.medicationDayBoundary,
             entries = entries,
             allEntryCount = allEntries.size,
             hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
@@ -169,15 +165,12 @@ class HistoryViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = initialHistoryUiState(
-            today = currentDateTime.value.toLocalDate(),
-            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
-        )
+        initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
     )
 
     init {
-        // Turning night owl mode on between 00:00 and 04:00 moves today back a day, which can
-        // leave the selection on a date the calendar no longer lets you pick.
+        // A zone change can move today back a day, which can leave the selection on a date
+        // the calendar no longer lets you pick.
         viewModelScope.launch {
             uiState.collect { state ->
                 val date = state.selectedDate ?: return@collect
@@ -360,11 +353,10 @@ class HistoryViewModel @Inject constructor(
     }
 }
 
-private fun initialHistoryUiState(today: LocalDate, boundary: MedicationDayBoundary): HistoryUiState {
+private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
     val currentMonth = YearMonth.from(today)
     return HistoryUiState(
         today = today,
-        medicationDayBoundary = boundary,
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
@@ -375,14 +367,13 @@ private fun HistoryUiState.canSelectCalendarDate(date: LocalDate): Boolean {
     return canSelectHistoryCalendarDate(
         date = date,
         today = today,
-        hasRecord = entries.any { entry -> entry.planCalendarDate(medicationDayBoundary) == date },
+        hasRecord = entries.any { entry -> entry.planCalendarDate(entry.dayBoundary(groupsByUuid)) == date },
     )
 }
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary,
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,
@@ -406,6 +397,9 @@ data class HistoryUiState(
 ) {
     val isSelectionMode: Boolean
         get() = selectedEntryIds.isNotEmpty()
+
+    /** Every plan, archived ones too: the record → plan lookup. */
+    val groupsByUuid: Map<UUID, MedicationGroup> = medicationGroups.associateBy(MedicationGroup::uuid)
 }
 
 enum class HistoryDeleteAllEntriesResult {

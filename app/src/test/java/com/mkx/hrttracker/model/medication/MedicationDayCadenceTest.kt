@@ -215,7 +215,6 @@ class MedicationDayCadenceTest {
                 schedule = group.schedule,
                 startDate = since,
                 endDate = since.plusDays(2),
-                boundary = fourAm,
             ),
         )
     }

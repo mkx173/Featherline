@@ -10,12 +10,14 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -70,24 +72,26 @@ class PlanViewModelTest {
     }
 
     @Test
-    fun medicationBoundaryAndSettingChangesUpdateImplicitDayWhileUnsubscribed() = runTest {
+    fun nightOwlPlanKeepsTheCalendarTodayAndReAnchorsAtFourWhileUnsubscribed() = runTest {
         val firstMinute = LocalDateTime.of(2026, 10, 2, 3, 59)
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        val settings = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = true))
-        every { settingsRepository.settingsState } returns settings
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(medicationGroup(times = listOf(LocalTime.of(1, 0))).nightOwl())
+        )
         val viewModel = PlanViewModel(medicationGroupRepository, medicationLogRepository, settingsRepository, appTimeSource)
         advanceUntilIdle()
-        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
-        settings.value = settings.value.copy(medicationDayEndsAtFourAm = false)
-        advanceUntilIdle()
+        // Today is the calendar date; the plan's dawn slot sits on its own medication day.
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.today)
         assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.daySchedule.date)
-        settings.value = settings.value.copy(medicationDayEndsAtFourAm = true)
-        advanceUntilIdle()
-        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.daySchedule.date)
+        val dawnRow = viewModel.uiState.value.daySchedule.scheduledEntries.single()
+        assertEquals(LocalDateTime.of(2026, 10, 3, 1, 0), dawnRow.scheduledFor)
+        assertEquals(MedicationDayBoundary.FourAm, dawnRow.dayBoundary)
         appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
         advanceUntilIdle()
-        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.daySchedule.date)
+        assertEquals(firstMinute.plusMinutes(1), viewModel.uiState.value.now)
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(2))
+        advanceUntilIdle()
+        assertEquals(firstMinute.plusMinutes(1), viewModel.uiState.value.now)
     }
 
     @Test
@@ -189,12 +193,9 @@ class PlanViewModelTest {
     }
 
     @Test
-    fun turningNightOwlOffBeforeFourClearsASelectionThatBecomesToday() = runTest {
-        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 2, 0))
-        val settingsState = MutableStateFlow(SettingsState(medicationDayEndsAtFourAm = true))
-        every { settingsRepository.settingsState } returns settingsState
+    fun midnightClearsASelectionThatBecomesToday() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 28, 23, 59))
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         val viewModel = PlanViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
@@ -204,19 +205,68 @@ class PlanViewModelTest {
         startUiStateCollection(viewModel)
         advanceUntilIdle()
 
-        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 28))
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 29))
         advanceUntilIdle()
-        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.selectedDate)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.selectedDate)
 
-        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = false)
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 29, 0, 0))
         advanceUntilIdle()
-        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.today)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.today)
         assertEquals(null, viewModel.uiState.value.selectedDate)
 
-        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 30))
-        settingsState.value = settingsState.value.copy(medicationDayEndsAtFourAm = true)
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 31))
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 29, 0, 1))
         advanceUntilIdle()
-        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.selectedDate)
+        assertEquals(LocalDate.of(2026, 10, 31), viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun nightOwlPlansDawnRecordSitsOnItsEveningWhileAManualOneKeepsItsCalendarDay() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 10, 0))
+        val nightOwl = medicationGroup(times = listOf(LocalTime.of(1, 0))).nightOwl()
+        val medication = nightOwl.medications.single()
+        val dawn = LocalDateTime.of(2026, 10, 29, 1, 0)
+        val planRecord = testMedicationLogEntry(
+            medicine = medication.medicine,
+            applicationType = medication.applicationType,
+            doseInstruction = medication.doseInstruction,
+            sourceGroupUuid = nightOwl.uuid,
+            scheduleTimeUuid = nightOwl.schedule.timeSlots.single().uuid,
+            appliedAt = testInstant(dawn),
+            scheduledFor = dawn,
+        )
+        val manualRecord = testMedicationLogEntry(
+            medicine = medication.medicine,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(dawn),
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(nightOwl))
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(planRecord, manualRecord))
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val today = viewModel.uiState.value
+        assertEquals(LocalDate.of(2026, 10, 29), today.today)
+        assertEquals(listOf(manualRecord), today.daySchedule.unplannedEntries)
+        assertEquals(
+            PlanCalendarDayStatus.FULFILLED,
+            today.calendarDays[LocalDate.of(2026, 10, 28)]?.status,
+        )
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 10, 28))
+        advanceUntilIdle()
+        val evening = viewModel.uiState.value.daySchedule
+        val row = evening.scheduledEntries.single()
+        assertEquals(dawn, row.scheduledFor)
+        assertTrue(row.isFulfilled)
+        assertEquals(MedicationDayBoundary.FourAm, row.dayBoundary)
+        assertTrue(evening.unplannedEntries.isEmpty())
     }
 
     @Test
@@ -544,6 +594,9 @@ class PlanViewModelTest {
         // the plan/home rows can render the actual dose, not the planned one.
         assertEquals(0.1, scheduledEntry.doseAmountDelta!!, 1e-9)
     }
+
+    private fun MedicationGroup.nightOwl(): MedicationGroup =
+        copy(schedule = schedule.copy(dayBoundary = MedicationDayBoundary.FourAm))
 
     private fun medicationGroup(times: List<LocalTime>): MedicationGroup {
         return MedicationGroup(
