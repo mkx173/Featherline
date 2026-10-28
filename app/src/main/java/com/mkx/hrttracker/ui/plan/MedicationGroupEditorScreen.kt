@@ -145,6 +145,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Composable
@@ -2162,7 +2163,15 @@ internal fun hasPastScheduleOptionWindow(
 ): Boolean {
     val start = uiState.scheduleStartAt(referenceTime)
     return uiState.toEditorSchedule()
-        .nextOccurrencesFrom(start = start, limit = 1, boundary = uiState.medicationDayBoundary)
+        .nextOccurrencesFrom(
+            start = start,
+            limit = 1,
+            // Up to now, not the default 90 days: a plan every 91 days or more can
+            // start after one dose and still have its next one in the past.
+            lookaheadDays = ChronoUnit.DAYS.between(start.toLocalDate(), referenceTime.toLocalDate())
+                .coerceAtLeast(0),
+            boundary = uiState.medicationDayBoundary,
+        )
         .firstOrNull()
         ?.isBefore(referenceTime) == true
 }

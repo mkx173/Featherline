@@ -54,6 +54,13 @@ class MedicationGroupEditorScheduleStartTest {
         assertFalse(hasPastScheduleOptionWindow(state(startsNow = true), now))
         assertFalse(hasPastScheduleOptionWindow(state(startTime = LocalTime.of(9, 30)), now))
         assertTrue(hasPastScheduleOptionWindow(state(sinceDate = today.minusDays(1), startTime = LocalTime.of(9, 30)), now))
+        // Every 91 days, starting after that day's dose: the next one is 91 days on, still past.
+        assertTrue(
+            hasPastScheduleOptionWindow(
+                state(sinceDate = today.minusDays(200), startTime = LocalTime.of(12, 0)).copy(dailyIntervalDays = "91"),
+                now,
+            )
+        )
     }
 
     @Test
