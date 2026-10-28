@@ -132,8 +132,8 @@ import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationRouteLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -3206,6 +3206,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 mainAntiandrogenDueLabel(
                     target = nextDoseAt,
                     now = now,
+                    boundary = card.dayBoundary,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter
                 )
@@ -3420,7 +3421,8 @@ internal fun MainTodaySection(
                             key(rowKey) {
                                 MainTodayDoseRow(
                                     row = row,
-                                    dayDate = section.date,
+                                    // Each row's own plan's today: a night-owl plan's evening until 04:00.
+                                    dayDate = medicationDay(now, row.dayBoundary),
                                     index = index,
                                     itemCount = rows.size,
                                     now = now,
@@ -3533,8 +3535,8 @@ internal fun MainComingUpSection(
     Column(modifier = modifier.fillMaxWidth()) {
         MainSectionHeader(
             title = stringResource(
-                // With the day ending at 04:00, Coming up holds the next morning's doses, not tonight's.
-                if (LocalMedicationDayBoundary.current.endsAtFourAm) R.string.main_coming_up_morning_title else R.string.main_coming_up_title
+                // Built under the day ending at 04:00, Coming up holds the next morning's doses, not tonight's.
+                if (section.dayBoundary.endsAtFourAm) R.string.main_coming_up_morning_title else R.string.main_coming_up_title
             ),
             summary = sectionSummary
         )
@@ -3610,7 +3612,6 @@ internal fun MainUpcomingSection(
                     key(rowKey) {
                         MainUpcomingDoseRow(
                             row = row,
-                            dayDate = section.anchorDate ?: row.scheduledAt.toLocalDate(),
                             index = index,
                             itemCount = section.rows.size,
                             timeFormatter = timeFormatter,
@@ -3824,7 +3825,6 @@ private fun MainUpcomingDoseRow(
     index: Int,
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
-    dayDate: LocalDate = row.scheduledAt.toLocalDate(),
     isHighlighted: Boolean = false,
     isHighlightFlashReady: Boolean = isHighlighted,
     isHighlightScrollTarget: Boolean = isHighlighted,
@@ -3862,8 +3862,15 @@ private fun MainUpcomingDoseRow(
         routeLabel,
         doseText,
     ).joinToString(separator = " · ")
-    val boundary = LocalMedicationDayBoundary.current
-    val timeLabel = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, boundary, timeFormatter)
+    // Rows sit on their own plan's day; when a night-owl plan's isn't the calendar tomorrow, Tomorrow shows no date.
+    val boundary = row.dayBoundary
+    val timeLabel = medicationDayTimeText(
+        LocalContext.current,
+        row.scheduledAt,
+        medicationDay(row.scheduledAt, boundary),
+        boundary,
+        timeFormatter,
+    )
     // See MainTodayDoseRow: animate the container color (rest -> secondaryContainer)
     // rather than fading a translucent overlay, to avoid 8-bit banding in the tail.
     val containerColor = lerp(
@@ -3954,7 +3961,7 @@ private fun MainTodayTrailingContent(
                     scheduledFor = row.scheduledAt,
                     now = now
                 ) -> MainTodayTrailingText(
-                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, LocalMedicationDayBoundary.current, timeFormatter),
+                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, row.dayBoundary, timeFormatter),
                     isDelta = false
                 )
 
@@ -3991,7 +3998,7 @@ private fun MainTodayTrailingContent(
             MedicationDayTimeLabel(
                 text = textLabel.text,
                 isPastMidnight = !textLabel.isDelta &&
-                        LocalMedicationDayBoundary.current.isPastMidnight(row.scheduledAt.toLocalTime()),
+                        row.dayBoundary.isPastMidnight(row.scheduledAt.toLocalTime()),
                 style = if (textLabel.isDelta) {
                     MaterialTheme.typography.labelLarge
                 } else {
@@ -4421,10 +4428,10 @@ private fun mainPastDueHoursLabel(
 private fun mainAntiandrogenDueLabel(
     target: LocalDateTime,
     now: LocalDateTime,
+    boundary: MedicationDayBoundary,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter
 ): String {
-    val boundary = LocalMedicationDayBoundary.current
     val targetDay = medicationDay(target, boundary)
     val today = medicationDay(now, boundary)
     return when (targetDay) {

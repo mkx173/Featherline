@@ -67,7 +67,6 @@ fun buildPlanCalendarDayUiState(
                 scheduledGroups = scheduledGroups,
                 date = currentDate,
                 zoneId = zoneId,
-                boundary = boundary,
             )
         }
         val scheduledSlotsByGroup = scheduledGroups.associateWith { group ->

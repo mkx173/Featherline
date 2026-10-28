@@ -70,7 +70,6 @@ class MedicationDayBoundaryCallersTest {
             entries = listOf(entry),
             now = LocalDateTime.of(2026, 11, 1, 20, 0),
             zoneId = zone,
-            boundary = fourAm,
         )
 
         val slot = schedule.scheduledEntries.single()

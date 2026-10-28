@@ -36,6 +36,7 @@ import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.holdWhileUpdating
 import com.mkx.hrttracker.util.tickWhileSubscribed
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -112,16 +113,17 @@ class MainViewModel @Inject constructor(
     // count: a live minute tick would otherwise rebuild the ui state every
     // minute for the activity's whole lifetime, including backgrounded.
     // While unsubscribed only date/zone changes pass through, keeping the
-    // midnight/timezone re-anchor.
+    // midnight/timezone re-anchor, and the 04:00 one a night-owl plan's rows
+    // leave Today at, whatever the plans are.
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     private val gatedSnapshot: StateFlow<AppTimeSnapshot> =
         currentSnapshot.tickWhileSubscribed(_uiState.subscriptionCount) { snapshot ->
-            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, settingsRepository.settingsState.value.medicationDayBoundary), snapshot.zone)
+            Triple(snapshot.minute.toLocalDate(), medicationDay(snapshot.minute, MedicationDayBoundary.FourAm), snapshot.zone)
         }
     private val gatedMinute: StateFlow<LocalDateTime> =
         appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
-            minute.toLocalDate() to medicationDay(minute, settingsRepository.settingsState.value.medicationDayBoundary)
+            minute.toLocalDate() to medicationDay(minute, MedicationDayBoundary.FourAm)
         }
 
     /**
@@ -424,7 +426,6 @@ class MainViewModel @Inject constructor(
             option = chartWindowOption,
         )
 
-        val boundary = inputs.settings.medicationDayBoundary
         val doseSections = buildMainDoseSections(
             groups = scheduleGroups,
             entries = visibleEntries,
@@ -432,7 +433,7 @@ class MainViewModel @Inject constructor(
             zoneId = zoneId,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-            boundary = boundary,
+            allGroups = allGroups,
         )
 
         return MainUiState(
@@ -493,7 +494,6 @@ class MainViewModel @Inject constructor(
             lastNightSection = doseSections.lastNight,
             comingUpSection = doseSections.comingUp,
             upcomingSection = buildMainUpcomingSection(
-                boundary = boundary,
                 groups = inputs.activeGroups,
                 entries = homeEntries,
                 now = now,

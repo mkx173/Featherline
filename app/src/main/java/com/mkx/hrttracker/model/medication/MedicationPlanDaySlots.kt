@@ -7,6 +7,11 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.UUID
+
+/** The day ending a record follows: its plan's, or midnight for a record not from a plan. */
+internal fun MedicationLogEntry.dayBoundary(groupsByUuid: Map<UUID, MedicationGroup>): MedicationDayBoundary =
+    sourceGroupUuid?.let(groupsByUuid::get)?.schedule?.dayBoundary ?: MedicationDayBoundary.Midnight
 
 internal fun planCalendarDate(
     scheduledForIso: String?,
@@ -57,18 +62,16 @@ internal fun isPlanOffPlanEntry(
     entry: MedicationLogEntry,
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,
-    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return true
     val scheduledFor = entry.scheduledFor ?: return true
-    if (medicationDay(scheduledFor, boundary) != date) {
-        return true
-    }
-
     val group =
         scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
             ?: return true
+    if (medicationDay(scheduledFor, group.schedule.dayBoundary) != date) {
+        return true
+    }
     return !group.hasMedicationSignatureFor(entry)
 }
 

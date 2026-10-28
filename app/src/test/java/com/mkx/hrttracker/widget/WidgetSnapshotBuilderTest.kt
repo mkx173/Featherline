@@ -69,7 +69,7 @@ class WidgetSnapshotBuilderTest {
             context = realContext,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(configuredGroup)).copy(scheduleEntries = listOf(entry)),
             widgetEstimate = null,
-            settings = SettingsState(medicationDayEndsAtFourAm = true), now = now, zoneId = zoneId,
+            settings = SettingsState(), now = now, zoneId = zoneId,
         )
         assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
         assertEquals(2, snapshot.totalCount)
@@ -81,6 +81,50 @@ class WidgetSnapshotBuilderTest {
         assertEquals("01:00", missedDawn.trailingText)
         assertTrue(missedDawn.isPastMidnight)
         assertFalse(snapshot.doseRows.first { it.scheduledAt.hour == 20 }.isPastMidnight)
+    }
+
+    @Test
+    fun eachPlanKeepsItsOwnDayEndingBeforeFourAm() {
+        // 00:30: the night-owl plan's evening is still its today; the midnight plan has rolled over.
+        val now = LocalDateTime.of(2026, 10, 29, 0, 30)
+        val nightOwl = widgetTestGroup(
+            groupName = "Night owl", medicationKey = MedicationKey.ESTRADIOL,
+            since = now.toLocalDate().minusDays(5), time = LocalTime.of(22, 0),
+        ).let { group ->
+            group.copy(schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY, interval = 1,
+                since = now.toLocalDate().minusDays(5), weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(22, 0), LocalTime.of(2, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
+            ))
+        }
+        val midnight = widgetTestGroup(
+            groupName = "Midnight", medicationKey = MedicationKey.ESTRADIOL,
+            since = now.toLocalDate().minusDays(5), time = LocalTime.of(8, 0),
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(nightOwl, midnight)),
+            widgetEstimate = null,
+            settings = SettingsState(), now = now, zoneId = zoneId,
+        )
+
+        assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
+        assertEquals(now.toLocalDate().minusDays(1).toEpochDay(), snapshot.fourAmAnchorDateEpochDay)
+        val todayRows = snapshot.doseRows.filter { row -> row.contextChip == null }
+        assertEquals(
+            listOf(
+                now.toLocalDate().minusDays(1).atTime(22, 0),
+                now.toLocalDate().atTime(2, 0),
+                now.toLocalDate().atTime(8, 0),
+            ),
+            todayRows.map { row -> row.scheduledAt },
+        )
+        // Each row's moon and day label follow its own plan, not the calendar date it is listed under.
+        assertEquals(listOf("22:00", "02:00", "08:00"), todayRows.map { row -> row.trailingText })
+        assertEquals(listOf(false, true, false), todayRows.map { row -> row.isPastMidnight })
+        assertEquals(3, snapshot.totalCount)
     }
 
     @Test
@@ -356,13 +400,14 @@ class WidgetSnapshotBuilderTest {
             medicationKey = MedicationKey.ESTRADIOL,
             since = now.toLocalDate().minusDays(2),
             time = LocalTime.of(5, 0),
+            dayBoundary = MedicationDayBoundary.FourAm,
         )
 
         val snapshot = buildWidgetSnapshotRecord(
             context = realContext,
             homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
             widgetEstimate = null,
-            settings = SettingsState(medicationDayEndsAtFourAm = true),
+            settings = SettingsState(),
             now = now,
             zoneId = zoneId,
         )
@@ -448,6 +493,7 @@ class WidgetSnapshotBuilderTest {
         medicationKey: MedicationKey,
         since: LocalDate,
         time: LocalTime,
+        dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     ): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.randomUUID(),
@@ -459,6 +505,7 @@ class WidgetSnapshotBuilderTest {
                 since = since,
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(time),
+                dayBoundary = dayBoundary,
             ),
             medications = listOf(
                 testMedicationGroupMedication(

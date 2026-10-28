@@ -129,7 +129,6 @@ class PlanViewModel @Inject constructor(
             now = now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
-            boundary = settingsState.medicationDayBoundary,
         )
         val nextOccurrencesByGroup = buildNextOccurrencesByGroup(
             groups = activeGroups,

@@ -52,7 +52,6 @@ class MedicationDayBoundaryTest {
             groups = listOf(dawn, evening),
             entries = emptyList(),
             now = day.plusDays(1).atTime(12, 0),
-            boundary = fourAm,
             zoneId = zone,
         )
         assertEquals(listOf("Evening", "Dawn"), section.rows.map { it.groupName })
@@ -76,7 +75,6 @@ class MedicationDayBoundaryTest {
             date = day,
             groups = listOf(group),
             entries = listOf(entry),
-            boundary = fourAm,
             now = day.atTime(22, 0),
             zoneId = zone,
         )
@@ -103,14 +101,13 @@ class MedicationDayBoundaryTest {
             date = monday,
             groups = listOf(group),
             entries = emptyList(),
-            boundary = fourAm,
             now = monday.atTime(20, 0),
             zoneId = zone,
         )
         assertEquals(listOf(monday.plusDays(1).atTime(1, 0)), schedule.scheduledEntries.map { it.scheduledFor })
         assertTrue(
             buildPlanDaySchedule(
-                monday.plusDays(1), listOf(group), emptyList(), zoneId = zone, boundary = fourAm,
+                monday.plusDays(1), listOf(group), emptyList(), zoneId = zone,
             ).scheduledEntries.isEmpty()
         )
     }
@@ -128,9 +125,11 @@ class MedicationDayBoundaryTest {
         val states = buildHistoryCalendarDayUiState(emptyList(), entries, day, day.plusDays(1), zone, fourAm)
         assertEquals(PlanCalendarDayStatus.OFFPLAN, states.getValue(day).status)
         assertEquals(1, buildHistoryMonthSummary(entries, YearMonth.from(day), states, day, zone, fourAm).logged)
+        // A record not from a plan sits on its calendar day.
+        assertTrue(buildPlanDaySchedule(day, emptyList(), entries, zoneId = zone).unplannedEntries.isEmpty())
         assertEquals(
-            listOf(dawn),
-            buildPlanDaySchedule(day, emptyList(), entries, zoneId = zone, boundary = fourAm).unplannedEntries,
+            entries,
+            buildPlanDaySchedule(day.plusDays(1), emptyList(), entries, zoneId = zone).unplannedEntries,
         )
     }
 
@@ -153,7 +152,6 @@ class MedicationDayBoundaryTest {
             date = day,
             groups = listOf(group),
             entries = emptyList(),
-            boundary = fourAm,
             now = day.atTime(22, 0),
             zoneId = zone,
             includeUnloggedArchivedSlots = false,
@@ -166,7 +164,6 @@ class MedicationDayBoundaryTest {
             date = day,
             groups = listOf(group),
             entries = listOf(entry),
-            boundary = fourAm,
             now = day.atTime(22, 0),
             zoneId = zone,
             includeUnloggedArchivedSlots = false,
@@ -179,24 +176,26 @@ class MedicationDayBoundaryTest {
     fun homeKeepsDawnInTodayAndKeepsPreviousMidnightInLastNight() {
         val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0))))
         val now = day.plusDays(1).atTime(1, 0)
-        val today = buildMainTodaySection(groups, listOf(log(now)), now, fourAm, zone)
-        assertEquals(day, today.date)
+        val today = buildMainTodaySection(groups, listOf(log(now)), now, zone)
+        // Today's header is the calendar date; the plan's evening and dawn rows stay in it.
+        assertEquals(day.plusDays(1), today.date)
         assertEquals(2, today.totalCount)
         assertEquals(1, today.manualCount)
 
         // Before 04:00 Today already holds this evening, so the night before last is not shown.
-        assertTrue(buildMainLastNightSection(groups, emptyList(), now, fourAm, zone).rows.isEmpty())
-        assertTrue(buildMainComingUpSection(groups, emptyList(), day.atTime(22, 0), fourAm, zone).rows.isEmpty())
+        assertTrue(buildMainLastNightSection(groups, emptyList(), now, zone).rows.isEmpty())
+        assertTrue(buildMainComingUpSection(groups, emptyList(), day.atTime(22, 0), zone).rows.isEmpty())
 
-        val upcoming = buildMainUpcomingSection(groups, emptyList(), now, zoneId = zone, boundary = fourAm)
-        assertEquals(day.plusDays(1), upcoming.anchorDate)
+        // The plan's tomorrow is not the calendar's, so Tomorrow shows no date.
+        val upcoming = buildMainUpcomingSection(groups, emptyList(), now, zoneId = zone)
+        assertEquals(null, upcoming.anchorDate)
         assertEquals(
             listOf(day.plusDays(1).atTime(20, 0), day.plusDays(2).atTime(1, 0)),
             upcoming.rows.map { row -> row.scheduledAt },
         )
         assertEquals(
             day.plusDays(1),
-            buildMainTodaySection(groups, emptyList(), now.withHour(5), fourAm, zone).date,
+            buildMainTodaySection(groups, emptyList(), now.withHour(5), zone).date,
         )
     }
 
@@ -204,14 +203,14 @@ class MedicationDayBoundaryTest {
     fun lastNightKeepsMissedDawnAfterTheBoundaryPasses() {
         val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0))))
         val afterBoundary = day.plusDays(1).atTime(4, 30)
-        val lastNight = buildMainLastNightSection(groups, emptyList(), afterBoundary, fourAm, zone)
+        val lastNight = buildMainLastNightSection(groups, emptyList(), afterBoundary, zone)
         assertEquals(day, lastNight.date)
         assertEquals(
             listOf(day.atTime(20, 0), day.plusDays(1).atTime(1, 0)),
             lastNight.rows.map { row -> row.scheduledAt },
         )
         assertTrue(
-            buildMainLastNightSection(groups, emptyList(), day.plusDays(1).atTime(12, 0), fourAm, zone)
+            buildMainLastNightSection(groups, emptyList(), day.plusDays(1).atTime(12, 0), zone)
                 .rows.isEmpty()
         )
     }
@@ -220,11 +219,11 @@ class MedicationDayBoundaryTest {
     fun midnightBoundaryLastNightIsEveningOnlyUntilNoon() {
         val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)), midnight))
         val morning = day.plusDays(1).atTime(4, 30)
-        val lastNight = buildMainLastNightSection(groups, emptyList(), morning, midnight, zone)
+        val lastNight = buildMainLastNightSection(groups, emptyList(), morning, zone)
         assertEquals(day, lastNight.date)
         assertEquals(listOf(day.atTime(20, 0)), lastNight.rows.map { row -> row.scheduledAt })
         assertTrue(
-            buildMainLastNightSection(groups, emptyList(), day.plusDays(1).atTime(12, 0), midnight, zone)
+            buildMainLastNightSection(groups, emptyList(), day.plusDays(1).atTime(12, 0), zone)
                 .rows.isEmpty()
         )
     }
@@ -233,15 +232,16 @@ class MedicationDayBoundaryTest {
     fun tonightOnlyExistsAtMidnightAndUpcomingExcludesItsRows() {
         val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)), midnight))
         val evening = day.atTime(20, 0)
-        val tonight = buildMainComingUpSection(groups, emptyList(), evening, midnight, zone)
+        val tonight = buildMainComingUpSection(groups, emptyList(), evening, zone)
         assertEquals(day.plusDays(1), tonight.date)
         assertEquals(listOf(day.plusDays(1).atTime(1, 0)), tonight.rows.map { row -> row.scheduledAt })
 
-        val upcoming = buildMainUpcomingSection(groups, emptyList(), evening, zoneId = zone, boundary = midnight)
+        val upcoming = buildMainUpcomingSection(groups, emptyList(), evening, zoneId = zone)
         assertEquals(day.plusDays(1), upcoming.anchorDate)
         assertEquals(listOf(day.plusDays(1).atTime(20, 0)), upcoming.rows.map { row -> row.scheduledAt })
 
-        assertTrue(buildMainComingUpSection(groups, emptyList(), evening, fourAm, zone).rows.isEmpty())
+        val nightOwlGroups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0))))
+        assertTrue(buildMainComingUpSection(nightOwlGroups, emptyList(), evening, zone).rows.isEmpty())
     }
 
     @Test
@@ -251,7 +251,6 @@ class MedicationDayBoundaryTest {
             entries = emptyList(),
             now = day.atTime(20, 0),
             zoneId = zone,
-            boundary = fourAm,
         )
         assertEquals(
             listOf(day.plusDays(1).atTime(20, 0), day.plusDays(2).atTime(1, 0)),

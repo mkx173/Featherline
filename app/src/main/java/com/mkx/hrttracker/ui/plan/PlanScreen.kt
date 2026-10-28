@@ -250,7 +250,6 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
-            boundary = uiState.medicationDayBoundary,
         )
     } else {
         uiState.daySchedule
@@ -1254,7 +1253,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         date = today,
         groups = groups,
         entries = entries,
-        boundary = MedicationDayBoundary.Midnight,
         now = now,
         zoneId = zoneId
     )

@@ -12,7 +12,6 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.e2Inputs
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.confirmVerified
@@ -104,6 +103,8 @@ class WidgetDailyRefreshWorkerTest {
             null,
             // Written yesterday.
             widget(anchorDate = today.minusDays(1)),
+            // Written at 01:00 today: a night-owl plan's rows leave Today at 04:00.
+            widget(fourAmAnchorDate = today.minusDays(1)),
             // A dose that turned due soon since.
             widget(rows = listOf(row(WidgetDoseStatus.UPCOMING, now.plusMinutes(30)))),
             // A dose due soon that turned overdue since.
@@ -112,10 +113,10 @@ class WidgetDailyRefreshWorkerTest {
 
         for (snapshot in stale) refresh(snapshot)
 
-        coVerify(exactly = 4) { widgetSnapshotRepository.writeWidgetSnapshot(state, now) }
+        coVerify(exactly = 5) { widgetSnapshotRepository.writeWidgetSnapshot(state, now) }
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
         verify(exactly = 0) { homeSnapshotRepository.requestRebuild() }
-        coVerify(exactly = 4) { e2EstimateRepository.warmHome() }
+        coVerify(exactly = 5) { e2EstimateRepository.warmHome() }
         assertEquals(0, rerenders)
     }
 
@@ -208,7 +209,7 @@ class WidgetDailyRefreshWorkerTest {
         widgetSnapshotRepository = widgetSnapshotRepository,
         e2EstimateRepository = e2EstimateRepository,
         rerender = { rerenders++ },
-        boundary = MedicationDayBoundary.Midnight)
+    )
 
     private val clock = MutableClock(now.atZone(zoneId).toInstant())
     private var stored: HomeE2EstimateRecord? = null
@@ -239,11 +240,13 @@ class WidgetDailyRefreshWorkerTest {
 
     private fun widget(
         anchorDate: LocalDate = today,
+        fourAmAnchorDate: LocalDate = anchorDate,
         rows: List<WidgetDoseRow> = emptyList(),
     ) = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = zoneId.id,
         anchorDateEpochDay = anchorDate.toEpochDay(),
+        fourAmAnchorDateEpochDay = fourAmAnchorDate.toEpochDay(),
         doneCount = 0,
         totalCount = rows.size,
         manualCount = 0,

@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayTimeText
 import com.mkx.hrttracker.util.doseInstructionText
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -44,7 +45,6 @@ internal fun buildWidgetSnapshotRecord(
         uses24HourFormat = true
     ),
 ): WidgetSnapshotRecord {
-    val boundary = settings.medicationDayBoundary
     val activeGroups = homeSnapshot.activeGroups
     val allGroups = activeGroups + homeSnapshot.archivedGroups
     val scheduleEntries = homeSnapshot.scheduleEntries
@@ -64,9 +64,9 @@ internal fun buildWidgetSnapshotRecord(
             entries = visibleEntries,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
+            allGroups = allGroups,
         ),
         now = now,
-        boundary = boundary,
         zoneId = zoneId,
     )
 
@@ -77,7 +77,6 @@ internal fun buildWidgetSnapshotRecord(
                     context = context,
                     timeFormatter = timeFormatter,
                     dayDate = previousSchedule.date,
-                    boundary = boundary,
                     contextChip = WidgetDoseChip.LAST_NIGHT,
                     isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
                 )
@@ -101,8 +100,8 @@ internal fun buildWidgetSnapshotRecord(
             entry.toWidgetDoseRow(
                 context = context,
                 timeFormatter = timeFormatter,
-                dayDate = sections.todaySchedule.date,
-                boundary = boundary,
+                // Each row's own plan's today: a night-owl plan's evening until 04:00.
+                dayDate = medicationDay(now, entry.dayBoundary),
                 contextChip = null,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
@@ -125,7 +124,6 @@ internal fun buildWidgetSnapshotRecord(
                 context = context,
                 timeFormatter = timeFormatter,
                 dayDate = comingUp.date,
-                boundary = boundary,
                 contextChip = WidgetDoseChip.COMING_UP,
                 isFromArchivedGroup = entry.groupUuid in archivedGroupUuids,
             )
@@ -150,6 +148,7 @@ internal fun buildWidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = zoneId.id,
         anchorDateEpochDay = sections.today.toEpochDay(),
+        fourAmAnchorDateEpochDay = medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay(),
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,
@@ -199,10 +198,11 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
     timeFormatter: DateTimeFormatter,
     /** The medication day the row is listed under; a dose on another one shows (+N). */
     dayDate: LocalDate,
-    boundary: MedicationDayBoundary,
     contextChip: WidgetDoseChip?,
     isFromArchivedGroup: Boolean,
 ): WidgetDoseRow {
+    // The row's own plan's day ending gives its moon and day label.
+    val boundary = dayBoundary
     val status = when {
         isFulfilled -> WidgetDoseStatus.DONE
         hasOutsideScheduleWindowEntry -> WidgetDoseStatus.LOGGED_OUT_OF_WINDOW

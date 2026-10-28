@@ -34,6 +34,8 @@ data class PlanDayScheduleEntry(
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
     val isPastDue: Boolean,
+    /** The row's own plan's day ending: its moon and day label follow it. */
+    val dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 ) {
     val hasOutsideScheduleWindowEntry: Boolean
         get() = outsideScheduleWindowEntryUuids.isNotEmpty()
@@ -53,9 +55,13 @@ fun buildPlanDaySchedule(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-    boundary: MedicationDayBoundary,
+    /** Every plan a record can come from, archived ones too; [groups] may be filtered. */
+    groupsByUuid: Map<UUID, MedicationGroup> = groups.associateBy(MedicationGroup::uuid),
 ): PlanDaySchedule {
-    val dayEntries = entries.filter { entry -> entry.planCalendarDate(boundary, zoneId) == date }
+    // Each record sits on the day its own plan's ending gives it; one not from a plan on its calendar day.
+    val dayEntries = entries.filter { entry ->
+        entry.planCalendarDate(entry.dayBoundary(groupsByUuid), zoneId) == date
+    }
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
         entries = dayEntries,
@@ -155,16 +161,13 @@ fun buildPlanDaySchedule(
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,
-                        isPastDue = !isFulfilled && isPastDue(slotDateTime, now)
+                        isPastDue = !isFulfilled && isPastDue(slotDateTime, now),
+                        dayBoundary = group.schedule.dayBoundary,
                     )
                 }
             }
         }
-        .sortedWith(
-            compareBy<PlanDayScheduleEntry> { entry -> entry.scheduledFor }
-                .thenBy { entry -> entry.groupCreatedAt }
-                .thenBy { entry -> entry.medicationSortOrder }
-        )
+        .sortedWith(planDayScheduleEntryComparator)
 
     val unplannedEntries = dayEntries
         .filter { entry ->
@@ -172,7 +175,6 @@ fun buildPlanDaySchedule(
                 entry = entry,
                 scheduledGroups = scheduledGroups,
                 date = date,
-                boundary = boundary,
                 zoneId = zoneId,
             )
         }
@@ -184,6 +186,11 @@ fun buildPlanDaySchedule(
         unplannedEntries = unplannedEntries
     )
 }
+
+internal val planDayScheduleEntryComparator: Comparator<PlanDayScheduleEntry> =
+    compareBy<PlanDayScheduleEntry> { entry -> entry.scheduledFor }
+        .thenBy { entry -> entry.groupCreatedAt }
+        .thenBy { entry -> entry.medicationSortOrder }
 
 internal fun isDueSoon(
     scheduledAt: LocalDateTime,

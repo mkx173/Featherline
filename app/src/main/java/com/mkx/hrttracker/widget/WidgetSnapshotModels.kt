@@ -77,7 +77,13 @@ data class WidgetPkProjectionRecord(
 data class WidgetSnapshotRecord(
     val schemaVersion: Int,
     val zoneId: String,
+    /** The calendar date the rows were built for. */
     val anchorDateEpochDay: Long,
+    /**
+     * The medication day at 04:00 the rows were built on: a night-owl plan's rows
+     * leave Today at 04:00, so a build that day's 04:00 run missed is stale too.
+     */
+    val fourAmAnchorDateEpochDay: Long,
     val doneCount: Int,
     val totalCount: Int,
     val manualCount: Int,

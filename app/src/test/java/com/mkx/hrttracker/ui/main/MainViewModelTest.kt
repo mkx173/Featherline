@@ -43,6 +43,7 @@ import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -117,13 +118,21 @@ class MainViewModelTest {
     }
 
     @Test
-    fun medicationBoundaryUpdatesRetainedHomeDayWhileUnsubscribed() = runTest {
+    fun reAnchorsAtFourAmWithANightOwlPlanWhileUnsubscribed() = runTest {
         val firstMinute = LocalDateTime.of(2026, 10, 2, 3, 59)
         val appTimeSource = FakeAppTimeSource(firstMinute)
-        val settings = SettingsState(medicationDayEndsAtFourAm = true)
-        every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        val nightOwlPlan = medicationGroup().copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(22, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
+            ),
+        )
         every { homeRepository.observeHomeInputs(any(), any(), any()) } returns flowOf(
-            homeInputs(now = firstMinute).copy(settings = settings)
+            homeInputs(now = firstMinute, activeGroups = listOf(nightOwlPlan))
         )
         val viewModel = MainViewModel(
             homeRepository = homeRepository, settingsRepository = settingsRepository,
@@ -133,10 +142,17 @@ class MainViewModelTest {
             appTimeSource = appTimeSource, defaultDispatcher = dispatcher,
         )
         advanceUntilIdle()
-        assertEquals(firstMinute.toLocalDate().minusDays(1), viewModel.uiState.value.todaySection.date)
+        val lastEvening = LocalDateTime.of(2026, 10, 1, 22, 0)
+        // Before 04:00 the plan's evening is still Today, under the calendar date.
+        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.todaySection.date)
+        assertEquals(listOf(lastEvening), viewModel.uiState.value.todaySection.rows.map { it.scheduledAt })
         appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
         advanceUntilIdle()
-        assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.todaySection.date)
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 10, 2, 22, 0)),
+            viewModel.uiState.value.todaySection.rows.map { it.scheduledAt },
+        )
+        assertEquals(listOf(lastEvening), viewModel.uiState.value.lastNightSection.rows.map { it.scheduledAt })
         verify(exactly = 1) { homeRepository.observeHomeInputs(any(), any(), any()) }
     }
 

@@ -1314,6 +1314,7 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = "UTC",
         anchorDateEpochDay = morningDoseTime.toLocalDate().toEpochDay(),
+        fourAmAnchorDateEpochDay = morningDoseTime.toLocalDate().toEpochDay(),
         doneCount = 1,
         totalCount = 3,
         manualCount = 0,
