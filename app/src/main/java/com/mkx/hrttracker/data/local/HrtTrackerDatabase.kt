@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackedDateEntity::class,
         NoteEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -228,5 +228,12 @@ internal val MIGRATION_9_10: Migration = object : Migration(9, 10) {
 internal val MIGRATION_10_11: Migration = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE user_profile ADD COLUMN weightMeasuredAtEpochMillis INTEGER")
+    }
+}
+
+// v11 -> v12: a plan's own day ending (night owl). Existing plans keep midnight.
+internal val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE medication_groups ADD COLUMN dayEndsAtFourAm INTEGER NOT NULL DEFAULT 0")
     }
 }

@@ -85,7 +85,7 @@ class Migration10To11Test {
         // the SQLCipher factory used by production.
         val roomDatabase = Room.databaseBuilder(context, HrtTrackerDatabase::class.java, testDb)
             .openHelperFactory(cipherFactory())
-            .addMigrations(MIGRATION_10_11)
+            .addMigrations(MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
         migrationHelper.closeWhenFinished(roomDatabase)
