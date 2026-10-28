@@ -31,6 +31,7 @@ import java.time.ZoneId
 import java.util.UUID
 
 class PlanCalendarDayUiStateTest {
+    private val afterEveryDose = LocalDateTime.of(2027, 1, 1, 0, 0)
     @Test
     fun buildPlanCalendarDayUiState_marks_none_unplanned_scheduled_partial_and_fulfilled_days() {
         val dailyGroup = medicationGroup(
@@ -135,6 +136,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 15),
             endDate = LocalDate.of(2026, 4, 19),
+            now = afterEveryDose,
             groupsByUuid = listOf(dailyGroup, weeklyGroup).associateBy(MedicationGroup::uuid),
         )
 
@@ -195,6 +197,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 17),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -256,6 +259,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -313,6 +317,7 @@ class PlanCalendarDayUiStateTest {
             entries = emptyList(),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             zoneId = zoneId,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
@@ -363,6 +368,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
+            now = afterEveryDose,
             zoneId = zoneId,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
@@ -412,6 +418,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 17),
+            now = afterEveryDose,
             groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
         )
 
@@ -466,6 +473,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
         )
 
@@ -519,6 +527,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -570,6 +579,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -618,6 +628,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -674,6 +685,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 
@@ -718,6 +730,7 @@ class PlanCalendarDayUiStateTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 16),
+            now = afterEveryDose,
             groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
         )
 

@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
 import javax.inject.Inject
@@ -139,6 +140,7 @@ class HistoryViewModel @Inject constructor(
         )
         HistoryUiState(
             isLoading = isLoading,
+            now = now,
             today = today,
             entries = entries,
             allEntryCount = allEntries.size,
@@ -165,7 +167,7 @@ class HistoryViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
+        initialValue = initialHistoryUiState(now = currentDateTime.value)
     )
 
     init {
@@ -353,10 +355,11 @@ class HistoryViewModel @Inject constructor(
     }
 }
 
-private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
-    val currentMonth = YearMonth.from(today)
+private fun initialHistoryUiState(now: LocalDateTime): HistoryUiState {
+    val currentMonth = YearMonth.from(now)
     return HistoryUiState(
-        today = today,
+        now = now,
+        today = now.toLocalDate(),
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
@@ -373,7 +376,9 @@ private fun HistoryUiState.canSelectCalendarDate(date: LocalDate): Boolean {
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
-    val today: LocalDate = LocalDate.now(),
+    /** Ticks each minute, so a day turns missed once its dose is past due. */
+    val now: LocalDateTime = LocalDateTime.now(),
+    val today: LocalDate = now.toLocalDate(),
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,

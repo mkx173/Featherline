@@ -426,6 +426,7 @@ private fun PlanScreenContent(
                     today = uiState.today,
                     overallStatus = uiState.calendarDays[displayedDate]?.status
                         ?: PlanCalendarDayStatus.NONE,
+                    hasMissedDose = uiState.calendarDays[displayedDate]?.hasMissedDose == true,
                     rows = selectedDayRowModels,
                     appLocale = appLocale,
                     timeFormatter = timeFormatter,
@@ -839,9 +840,8 @@ private fun Day(
                 fontWeight = FontWeight.SemiBold
             )
             DayStatusIndicator(
-                date = date,
-                today = today,
                 dayStatus = dayState.status,
+                hasMissedDose = dayState.hasMissedDose,
                 hasOffPlanRecord = dayState.hasOffPlanRecord,
                 isSelected = isSelected
             )
@@ -865,13 +865,13 @@ internal fun planWeekCalendarDayAlpha(
 
 @Composable
 private fun DayStatusIndicator(
-    date: LocalDate,
-    today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     hasOffPlanRecord: Boolean,
     isSelected: Boolean
 ) {
-    val indicatorMode = if (date.isBefore(today)) {
+    // A day with no dose past due yet, today included, is drawn the way a future day is.
+    val indicatorMode = if (hasMissedDose) {
         PlanDayIndicatorColorMode.Emphasized
     } else {
         PlanDayIndicatorColorMode.Neutral
@@ -886,7 +886,7 @@ private fun DayStatusIndicator(
             selectedColor = selectedColor
         ),
         modifier = Modifier.size(12.dp),
-        showFutureMissedIcon = date.isAfter(today),
+        showFutureMissedIcon = !hasMissedDose,
         showOffPlanBadge = planShouldShowOffPlanBadge(
             status = dayStatus,
             hasOffPlanRecord = hasOffPlanRecord
@@ -1263,11 +1263,13 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         entries = entries,
         startDate = range.startDate,
         endDate = range.endDate,
+        now = now,
         groupsByUuid = groupsByUuid,
     )
 
     return PlanUiState(
         isLoading = false,
+        now = now,
         today = today,
         groupsByUuid = groupsByUuid,
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,

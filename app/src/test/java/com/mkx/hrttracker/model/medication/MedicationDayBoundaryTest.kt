@@ -31,6 +31,7 @@ class MedicationDayBoundaryTest {
     private val medicine = testMedicine()
     private val midnight = MedicationDayBoundary.Midnight
     private val fourAm = MedicationDayBoundary.FourAm
+    private val afterEveryDose = day.plusDays(3).atStartOfDay()
 
     @Test
     fun boundaryUsesHalfOpenLocalDayAndRetainsMidnightDefault() {
@@ -131,7 +132,7 @@ class MedicationDayBoundaryTest {
             mapOf(day to listOf(dawn), day.plusDays(1) to listOf(manualDawn, boundary)),
             groupHistoryEntriesByDate(entries, zone, groupsByUuid),
         )
-        val states = buildHistoryCalendarDayUiState(emptyList(), entries, day, day.plusDays(1), zone, groupsByUuid)
+        val states = buildHistoryCalendarDayUiState(emptyList(), entries, day, day.plusDays(1), afterEveryDose, zone, groupsByUuid)
         assertEquals(PlanCalendarDayStatus.OFFPLAN, states.getValue(day).status)
         assertEquals(1, buildHistoryMonthSummary(entries, YearMonth.from(day), states, day, zone, groupsByUuid).logged)
         // A record not from a plan sits on its calendar day.
@@ -151,7 +152,7 @@ class MedicationDayBoundaryTest {
     fun midnightSupplementStaysWithItsEveningPlanInCalendar() {
         val group = group(listOf(LocalTime.of(23, 0)))
         val entry = log(day.plusDays(1).atTime(1, 0)).copy(sourceGroupUuid = group.uuid, scheduledFor = day.atTime(23, 0))
-        val states = buildHistoryCalendarDayUiState(listOf(group), listOf(entry), day, day.plusDays(1), zone, mapOf(group.uuid to group))
+        val states = buildHistoryCalendarDayUiState(listOf(group), listOf(entry), day, day.plusDays(1), afterEveryDose, zone, mapOf(group.uuid to group))
         assertEquals(PlanCalendarDayStatus.FULFILLED, states.getValue(day).status)
         assertEquals(PlanCalendarDayStatus.MISSED, states.getValue(day.plusDays(1)).status)
     }

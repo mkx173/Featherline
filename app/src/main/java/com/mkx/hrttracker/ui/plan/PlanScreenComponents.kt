@@ -136,6 +136,7 @@ internal fun LazyListScope.selectedDaySectionItems(
     date: LocalDate,
     today: LocalDate,
     overallStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     rows: List<SelectedDayRowModel>,
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
@@ -162,6 +163,7 @@ internal fun LazyListScope.selectedDaySectionItems(
             date = date,
             today = today,
             dayStatus = overallStatus,
+            hasMissedDose = hasMissedDose,
             hasOffPlanRecord = offPlanCount > 0,
             countLabel = countLabel,
             appLocale = appLocale,
@@ -243,15 +245,7 @@ private fun SelectedDayRow(
 ) {
     val rowColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val rowState = when (row) {
-        is SelectedDayRowModel.Scheduled -> when {
-            row.entry.isFulfilled -> SelectedDayRowState.LOGGED
-            row.entry.hasOutsideScheduleWindowEntry -> SelectedDayRowState.MISSED
-            row.entry.isDueSoon -> SelectedDayRowState.DUE
-            date == today && row.entry.isPastDue -> SelectedDayRowState.PAST_DUE
-            date.isBefore(today) -> SelectedDayRowState.MISSED
-            else -> SelectedDayRowState.PLANNED
-        }
-
+        is SelectedDayRowModel.Scheduled -> selectedDayScheduledRowState(date, today, row.entry)
         is SelectedDayRowModel.Unplanned -> SelectedDayRowState.MANUAL
     }
     val labelText = when (rowState) {
@@ -1091,7 +1085,22 @@ private val selectedDayRowComparator = compareBy<SelectedDayRowModel> { row -> r
         (row as? SelectedDayRowModel.Scheduled)?.entry?.medicationSortOrder ?: 0
     }
 
-private enum class SelectedDayRowState {
+// A dose reads planned until an hour before its time, due within the hour and missed after
+// that, on any date: a night-owl plan's evening is yesterday by the calendar before 04:00.
+internal fun selectedDayScheduledRowState(
+    date: LocalDate,
+    today: LocalDate,
+    entry: PlanDayScheduleEntry,
+): SelectedDayRowState = when {
+    entry.isFulfilled -> SelectedDayRowState.LOGGED
+    entry.hasOutsideScheduleWindowEntry -> SelectedDayRowState.MISSED
+    entry.isDueSoon -> SelectedDayRowState.DUE
+    date == today && entry.isPastDue -> SelectedDayRowState.PAST_DUE
+    date.isBefore(today) && entry.isPastDue -> SelectedDayRowState.MISSED
+    else -> SelectedDayRowState.PLANNED
+}
+
+internal enum class SelectedDayRowState {
     LOGGED,
     DUE,
     PAST_DUE,
@@ -1117,6 +1126,7 @@ private fun SelectedDaySectionPreview() {
                 today = uiState.today,
                 overallStatus = uiState.calendarDays[uiState.daySchedule.date]?.status
                     ?: PlanCalendarDayStatus.NONE,
+                hasMissedDose = uiState.calendarDays[uiState.daySchedule.date]?.hasMissedDose == true,
                 rows = rows,
                 appLocale = appLocale,
                 timeFormatter = timeFormatter,

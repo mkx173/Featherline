@@ -511,6 +511,46 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun todayTurnsMissedOnTheMinuteItsDoseIsPastDueWithoutReopening() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 9, 59))
+        val group = testGroup(
+            uuid = UUID.fromString("9b2d4c6e-8f0a-4b1c-9d2e-3f4a5b6c7d8e"),
+            since = LocalDate.of(2026, 10, 29),
+            archivedAt = null,
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        fun todayHasMissedDose(): Boolean {
+            val state = viewModel.uiState.value
+            return buildHistoryCalendarDayUiState(
+                groups = state.calendarMedicationGroups,
+                entries = state.entries,
+                startDate = state.today,
+                endDate = state.today,
+                now = state.now,
+                groupsByUuid = state.groupsByUuid,
+            ).getValue(state.today).hasMissedDose
+        }
+
+        // The 09:00 dose is past due an hour after its time.
+        assertFalse(todayHasMissedDose())
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 29, 10, 0))
+        advanceUntilIdle()
+        assertEquals(LocalDateTime.of(2026, 10, 29, 10, 0), viewModel.uiState.value.now)
+        assertTrue(todayHasMissedDose())
+    }
+
+    @Test
     fun nightOwlPlansDawnRecordShowsOnItsEveningWhileAManualOneKeepsItsCalendarDay() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 1, 30))
         val nightOwl = testGroup(
@@ -572,6 +612,7 @@ class HistoryViewModelTest {
             entries = state.entries,
             startDate = LocalDate.of(2026, 10, 28),
             endDate = LocalDate.of(2026, 10, 29),
+            now = state.now,
             groupsByUuid = state.groupsByUuid,
         )
         assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 10, 28)).status)

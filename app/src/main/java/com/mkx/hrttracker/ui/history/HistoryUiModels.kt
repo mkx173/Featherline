@@ -10,6 +10,7 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.util.medicationDay
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -18,6 +19,8 @@ import java.util.UUID
 data class HistoryCalendarDayUiState(
     val status: PlanCalendarDayStatus = PlanCalendarDayStatus.NONE,
     val hasOffPlanRecord: Boolean = false,
+    /** See [PlanCalendarDayUiState.hasMissedDose]. */
+    val hasMissedDose: Boolean = false,
 )
 
 data class HistoryMonthSummary(
@@ -311,14 +314,11 @@ internal fun buildHistoryMonthSummary(
     while (!currentDate.isAfter(endDate)) {
         if (!currentDate.isAfter(today) || currentDate in recordDates) {
             val dayState = dayStates[currentDate] ?: HistoryCalendarDayUiState()
+            // A day counts as missed or partial only once a dose in it is past due.
             when (dayState.status) {
                 PlanCalendarDayStatus.FULFILLED -> onTrack++
-                PlanCalendarDayStatus.PARTIAL -> partial++
-                PlanCalendarDayStatus.MISSED -> {
-                    if (currentDate.isBefore(today)) {
-                        missed++
-                    }
-                }
+                PlanCalendarDayStatus.PARTIAL -> if (dayState.hasMissedDose) partial++
+                PlanCalendarDayStatus.MISSED -> if (dayState.hasMissedDose) missed++
 
                 PlanCalendarDayStatus.OFFPLAN,
                 PlanCalendarDayStatus.NONE -> Unit
@@ -344,6 +344,7 @@ internal fun buildHistoryCalendarDayUiState(
     entries: List<MedicationLogEntry>,
     startDate: LocalDate,
     endDate: LocalDate,
+    now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
     /** Every plan a record can come from, archived ones too; [groups] may be filtered. */
     groupsByUuid: Map<UUID, MedicationGroup>,
@@ -359,6 +360,7 @@ internal fun buildHistoryCalendarDayUiState(
         entries = rangeEntries,
         startDate = startDate,
         endDate = endDate,
+        now = now,
         zoneId = zoneId,
         groupsByUuid = groupsByUuid,
     )
@@ -385,7 +387,8 @@ internal fun buildHistoryCalendarDayUiState(
             } else {
                 primaryState.status
             },
-            hasOffPlanRecord = hasOffPlanRecord
+            hasOffPlanRecord = hasOffPlanRecord,
+            hasMissedDose = primaryState.hasMissedDose,
         )
         currentDate = currentDate.plusDays(1)
     }
