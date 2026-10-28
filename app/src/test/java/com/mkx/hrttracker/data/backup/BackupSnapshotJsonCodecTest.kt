@@ -321,8 +321,8 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun currentBackupSnapshotVersion_isNine() {
-        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun currentBackupSnapshotVersion_isEightForPlanDayEnding() {
+        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     private fun makeSnapshotWithSingleMedicine(

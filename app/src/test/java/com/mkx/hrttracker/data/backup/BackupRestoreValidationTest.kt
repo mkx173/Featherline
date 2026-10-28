@@ -112,6 +112,7 @@ class BackupRestoreValidationTest {
                     updatedAtEpochMillis = 200L,
                     archivedAtEpochMillis = null,
                     recreatedFromGroupUuid = recreatedFromGroupUuid.toString(),
+                    dayEndsAtFourAm = true,
                 )
             ),
             medicationLogs = listOf(
@@ -219,6 +220,7 @@ class BackupRestoreValidationTest {
         assertEquals(groupUuid.toString(), restoredGroup.uuid)
         assertEquals(2, restoredGroup.scheduleInterval)
         assertEquals(recreatedFromGroupUuid.toString(), restoredGroup.recreatedFromGroupUuid)
+        assertEquals(true, restoredGroup.dayEndsAtFourAm)
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals(itemUuid.toString(), restoredItem.uuid)

@@ -45,6 +45,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -127,8 +128,10 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun backupExport_versionTripwire_includesCalibrationReviewMetadata() {
-        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun backupExport_versionTripwire_planDayEndingBumpedSnapshotVersion() {
+        // The 7→8 bump is intentional for a plan's own day ending (night owl).
+        // Keep this tripwire aligned with BackupSnapshot.kt's compatibility notes.
+        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     @Test
@@ -517,6 +520,7 @@ class BackupExportServiceTest {
                     since = LocalDate.of(2026, 4, 1),
                     weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY),
                     times = listOf(LocalTime.of(9, 0), LocalTime.of(21, 30)),
+                    dayBoundary = MedicationDayBoundary.FourAm,
                     timeSlots = listOf(
                         MedicationGroupScheduleTime(
                             uuid = morningScheduleTimeUuid,
@@ -623,7 +627,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
         assertEquals(true, snapshot.settings.pureBlackEnabled)
@@ -662,6 +666,7 @@ class BackupExportServiceTest {
             group.schedule.times.map { it.effectiveFromLocalIso },
         )
         assertEquals(sourceGroupUuid.toString(), group.recreatedFromGroupUuid)
+        assertEquals(true, group.dayEndsAtFourAm)
 
         val groupMedication = group.medications.single()
         assertEquals(groupMedicationUuid.toString(), groupMedication.uuid)

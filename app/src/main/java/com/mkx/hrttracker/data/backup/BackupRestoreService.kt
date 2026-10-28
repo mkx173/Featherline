@@ -601,6 +601,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = replacedByGroupUuid,
             recreatedFromGroupUuid = recreatedFromGroupUuid,
+            dayEndsAtFourAm = group.dayEndsAtFourAm,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
             val scheduleTimeUuid = time.uuid

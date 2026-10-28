@@ -362,6 +362,7 @@ class BackupExportService @Inject constructor(
             includePastScheduledSlots = includePastScheduledSlots,
             replacedByGroupUuid = replacedByGroupUuid?.toString(),
             recreatedFromGroupUuid = recreatedFromGroupUuid?.toString(),
+            dayEndsAtFourAm = schedule.dayBoundary.endsAtFourAm,
         )
     }
 
