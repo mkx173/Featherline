@@ -139,7 +139,43 @@ fun TimePickerModal(
     initialTime: LocalTime,
     is24Hour: Boolean,
     onRemove: (() -> Unit)? = null,
+    // Like DatePickerModal's: a left-aligned button that clears the caller's
+    // selection and dismisses. Ignored when onRemove is set.
+    onReset: (() -> Unit)? = null,
+    resetButtonText: String? = null,
 ) {
+    val leadingButton: (@Composable () -> Unit)? = when {
+        onRemove != null -> {
+            {
+                TextButton(
+                    onClick = {
+                        onRemove()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                ) {
+                    Text(stringResource(R.string.remove_time))
+                }
+            }
+        }
+
+        onReset != null && resetButtonText != null -> {
+            {
+                TextButton(
+                    onClick = {
+                        onReset()
+                        onDismiss()
+                    },
+                ) {
+                    Text(resetButtonText)
+                }
+            }
+        }
+
+        else -> null
+    }
     val timePickerState = rememberTimePickerState(
         initialHour = initialTime.hour,
         initialMinute = initialTime.minute,
@@ -157,22 +193,12 @@ fun TimePickerModal(
                     onDismiss()
                 }
             }
-            if (onRemove != null) {
+            if (leadingButton != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    TextButton(
-                        onClick = {
-                            onRemove()
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                    ) {
-                        Text(stringResource(R.string.remove_time))
-                    }
+                    leadingButton()
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
@@ -189,7 +215,7 @@ fun TimePickerModal(
                 }
             }
         },
-        dismissButton = if (onRemove == null) {
+        dismissButton = if (leadingButton == null) {
             {
                 TextButton(onClick = onDismiss) {
                     Text(stringResource(R.string.cancel))

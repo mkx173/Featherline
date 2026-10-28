@@ -376,10 +376,14 @@
     <string name="decrease_schedule_interval">减少计划间隔</string>
     <string name="increase_schedule_interval">增加计划间隔</string>
     <string name="group_schedule_since">开始日期</string>
+    <string name="group_start_title">开始</string>
+    <string name="group_schedule_start_time">开始时间</string>
+    <string name="group_schedule_start_now">现在</string>
+    <string name="group_schedule_start_reset_to_now">重置</string>
     <string name="group_schedule_recreated_start_date_past_note">重新创建的分组不能将开始日期设在过去</string>
-    <string name="group_past_schedule_do_not_show">不显示</string>
-    <string name="group_past_schedule_show">显示</string>
-    <string name="group_past_schedule_show_and_generate_records">同时按计划生成记录</string>
+    <string name="group_past_schedule_mark_completed">标记为已完成</string>
+    <string name="group_past_schedule_mark_missed">标记为已错过</string>
+    <string name="group_past_schedule_hide">隐藏</string>
     <string name="group_past_schedule_recreated_locked_note">重新创建的分组不会显示过去的计划</string>
     <string name="group_schedule_backfill_records_empty">未添加记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>

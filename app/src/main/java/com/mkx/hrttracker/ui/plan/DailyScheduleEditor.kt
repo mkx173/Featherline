@@ -44,44 +44,24 @@ import java.util.Locale
 
 @Composable
 internal fun DailyScheduleEditor(
-    sinceDate: LocalDate,
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
     previewOccurrences: List<LocalDateTime>,
     currentDate: LocalDate,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
-    pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
-    onPastScheduleShowPastChange: (Boolean) -> Unit = {},
-    onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = {},
-    sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     addRemoveTimeEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
 ) {
-    val totalCount = 3 +
-            (if (previewOccurrences.isNotEmpty()) 1 else 0) +
-            (if (pastScheduleSelectorState != null) 1 else 0)
+    val totalCount = 2 + (if (previewOccurrences.isNotEmpty()) 1 else 0)
     var itemIndex = 0
     Column {
-        EditorFieldRow(
-            label = stringResource(R.string.group_schedule_since),
-            value = dateFormatter(sinceDate),
-            icon = painterResource(R.drawable.ic_event),
-            onClick = { onSinceDateChange(sinceDate) },
-            enabled = sinceEnabled,
-            locked = shapeLocked,
-            index = itemIndex++,
-            count = totalCount
-        )
-
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalDays),
@@ -121,17 +101,6 @@ internal fun DailyScheduleEditor(
                 timeFormatter = timeFormatter,
                 index = itemIndex++,
                 count = totalCount
-            )
-        }
-
-        pastScheduleSelectorState?.let { selectorState ->
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onShowPastChange = onPastScheduleShowPastChange,
-                onGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
-                index = itemIndex,
-                count = totalCount,
             )
         }
     }
@@ -332,7 +301,6 @@ private fun DailyScheduleEditorPreview() {
     val previewLocale = Locale.US
     HrtTrackerTheme(dynamicColor = false) {
         DailyScheduleEditor(
-            sinceDate = LocalDate.of(2026, 4, 22),
             intervalDays = "3",
             dailyTimes = listOf(
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)),
@@ -354,7 +322,6 @@ private fun DailyScheduleEditorPreview() {
                 previewLocale,
                 uses24HourFormat = false,
             ),
-            onSinceDateChange = {},
             onIntervalChange = {},
             onAddTime = {},
             onTimeClick = { _, _ -> },

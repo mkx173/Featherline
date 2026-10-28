@@ -376,10 +376,14 @@
     <string name="decrease_schedule_interval">減少計劃間隔</string>
     <string name="increase_schedule_interval">增加計劃間隔</string>
     <string name="group_schedule_since">開始日期</string>
+    <string name="group_start_title">開始</string>
+    <string name="group_schedule_start_time">開始時間</string>
+    <string name="group_schedule_start_now">現在</string>
+    <string name="group_schedule_start_reset_to_now">重設</string>
     <string name="group_schedule_recreated_start_date_past_note">重新建立的群組不能將開始日期設在過去</string>
-    <string name="group_past_schedule_do_not_show">不顯示</string>
-    <string name="group_past_schedule_show">顯示</string>
-    <string name="group_past_schedule_show_and_generate_records">同時按計劃生成記錄</string>
+    <string name="group_past_schedule_mark_completed">標記為已完成</string>
+    <string name="group_past_schedule_mark_missed">標記為已錯過</string>
+    <string name="group_past_schedule_hide">隱藏</string>
     <string name="group_past_schedule_recreated_locked_note">重新建立的群組不會顯示過去的計劃</string>
     <string name="group_schedule_backfill_records_empty">未新增記錄</string>
     <string name="group_schedule_backfill_records_failure">群組已儲存，但無法新增記錄</string>

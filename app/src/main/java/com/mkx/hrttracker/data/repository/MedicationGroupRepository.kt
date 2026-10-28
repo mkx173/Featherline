@@ -383,12 +383,9 @@ class MedicationGroupRepository @Inject constructor(
                 val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
                         isExistingRecordlessRecreatedGroup &&
                         existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+                val scheduleStartLocal = schedule.startAt ?: schedule.since.atStartOfDay()
                 val recordlessRecreatedEffectiveFromLocal =
-                    if (schedule.since.isAfter(nowLocal.toLocalDate())) {
-                        schedule.since.atStartOfDay().toString()
-                    } else {
-                        nowLocal.toString()
-                    }
+                    maxOf(nowLocal, scheduleStartLocal).toString()
                 val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                     ?: replacesGroupUuid?.toString()
                 val existingScheduleTimesByUuid = existingGroup
@@ -455,23 +452,22 @@ class MedicationGroupRepository @Inject constructor(
                                     recordlessRecreatedEffectiveFromLocal
 
                                 existingScheduleTime != null && existingTime == time ->
-                                    existingScheduleTime.effectiveFromLocalIso
+                                    existingScheduleTime.keptEffectiveFrom(nowLocal, schedule.startAt)
 
-                                isExistingRecordlessRecreatedGroup &&
-                                        schedule.since.isAfter(nowLocal.toLocalDate()) ->
-                                    schedule.since.atStartOfDay().toString()
+                                isExistingRecordlessRecreatedGroup ->
+                                    maxOf(nowLocal, scheduleStartLocal).toString()
 
                                 else -> nowLocal.toString()
                             }
 
                             resolvedIncludePastScheduledSlots ->
-                                schedule.since.atStartOfDay().toString()
+                                scheduleStartLocal.toString()
 
                             didBackfillModeChange ->
-                                nowLocal.toString()
+                                maxOf(nowLocal, schedule.startAt ?: nowLocal).toString()
 
                             existingScheduleTime != null && existingTime == time ->
-                                existingScheduleTime.effectiveFromLocalIso
+                                existingScheduleTime.keptEffectiveFrom(nowLocal, schedule.startAt)
 
                             // effectiveFrom marks when this time was added (now),
                             // not the start date. `since` already gates generation
@@ -479,8 +475,10 @@ class MedicationGroupRepository @Inject constructor(
                             // more here — and pinning effectiveFrom to `since`
                             // would orphan slots if the start is later edited
                             // earlier (the preserved future effectiveFrom would
-                            // filter the now-valid slots).
-                            else -> nowLocal.toString()
+                            // filter the now-valid slots). An explicit start later
+                            // than now still holds, and keptEffectiveFrom lowers it
+                            // again if the start later moves earlier.
+                            else -> maxOf(nowLocal, schedule.startAt ?: nowLocal).toString()
                         }
                         MedicationGroupScheduleTimeEntity(
                             uuid = scheduleTimeUuid.toString(),
@@ -633,7 +631,22 @@ data class MedicationGroupScheduleInput(
     val timeSlots: List<MedicationGroupScheduleTimeInput> = times.map { time ->
         MedicationGroupScheduleTimeInput(time = time)
     },
+    /** The first moment a slot can fall on; null starts with the whole of [since]. */
+    val startAt: LocalDateTime? = null,
 )
+
+/**
+ * Keeps an unchanged time's effectiveFrom, clamped to [startAt]. One still ahead
+ * of now was pinned by an earlier startAt, so it drops back to now before the
+ * clamp and an earlier start can reopen its slots.
+ */
+private fun MedicationGroupScheduleTimeEntity.keptEffectiveFrom(
+    nowLocal: LocalDateTime,
+    startAt: LocalDateTime?,
+): String {
+    val kept = minOf(LocalDateTime.parse(effectiveFromLocalIso), nowLocal)
+    return (startAt?.let { maxOf(kept, it) } ?: kept).toString()
+}
 
 data class MedicationGroupScheduleTimeInput(
     val uuid: UUID? = null,

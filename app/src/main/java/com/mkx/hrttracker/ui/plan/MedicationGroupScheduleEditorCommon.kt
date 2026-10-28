@@ -143,8 +143,8 @@ internal fun EditorFieldRow(
     originalValue: String? = null,
     enabled: Boolean = true,
     locked: Boolean = false,
-    index: Int = 0,
-    count: Int = 1
+    index: Int? = null,
+    count: Int? = null,
 ) {
     val fieldEnabled = enabled && !locked
     EditorSegmentedListItem(

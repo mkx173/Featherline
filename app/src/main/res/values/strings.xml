@@ -395,10 +395,14 @@
     <string name="decrease_schedule_interval">Decrease schedule interval</string>
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
+    <string name="group_start_title">Start</string>
+    <string name="group_schedule_start_time">Start time</string>
+    <string name="group_schedule_start_now">Now</string>
+    <string name="group_schedule_start_reset_to_now">Reset</string>
     <string name="group_schedule_recreated_start_date_past_note">Recreated groups can’t set a start date in the past.</string>
-    <string name="group_past_schedule_do_not_show">Do not show</string>
-    <string name="group_past_schedule_show">Show</string>
-    <string name="group_past_schedule_show_and_generate_records">Also generate past records as planned</string>
+    <string name="group_past_schedule_mark_completed">Mark as completed</string>
+    <string name="group_past_schedule_mark_missed">Mark as missed</string>
+    <string name="group_past_schedule_hide">Hide</string>
     <string name="group_past_schedule_recreated_locked_note">Recreated groups won’t show past schedule.</string>
     <string name="group_schedule_backfill_records_empty">No records added.</string>
     <string name="group_schedule_backfill_records_failure">Group saved, but unable to add records.</string>

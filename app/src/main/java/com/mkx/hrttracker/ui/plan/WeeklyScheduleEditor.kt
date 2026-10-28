@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,38 +59,19 @@ internal fun WeeklyScheduleEditor(
     appLocale: Locale,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
     onResetDaysOfWeek: () -> Unit,
     onTimeChange: (LocalTime) -> Unit,
-    pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
-    onPastScheduleShowPastChange: (Boolean) -> Unit = {},
-    onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = {},
-    sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
 ) {
-    val totalCount = 4 +
-            (if (previewOccurrences.isNotEmpty()) 1 else 0) +
-            (if (pastScheduleSelectorState != null) 1 else 0)
+    val totalCount = 3 + (if (previewOccurrences.isNotEmpty()) 1 else 0)
     var itemIndex = 0
     Column {
-        EditorFieldRow(
-            label = stringResource(R.string.group_schedule_since),
-            value = dateFormatter(sinceDate),
-            icon = painterResource(R.drawable.ic_event),
-            onClick = { onSinceDateChange(sinceDate) },
-            enabled = sinceEnabled,
-            locked = shapeLocked,
-            index = itemIndex++,
-            count = totalCount
-        )
-
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalWeeks),
@@ -182,17 +162,6 @@ internal fun WeeklyScheduleEditor(
                 count = totalCount
             )
         }
-
-        pastScheduleSelectorState?.let { selectorState ->
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onShowPastChange = onPastScheduleShowPastChange,
-                onGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
-                index = itemIndex,
-                count = totalCount,
-            )
-        }
     }
 }
 
@@ -274,7 +243,6 @@ private fun WeeklyScheduleEditorPreview() {
                 previewLocale,
                 uses24HourFormat = false,
             ),
-            onSinceDateChange = {},
             onIntervalChange = {},
             onDayChange = {},
             onResetDaysOfWeek = {},

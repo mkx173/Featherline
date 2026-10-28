@@ -978,6 +978,50 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun saveGroup_newGroupStartsItsSlotsAtStartAt() = runTest {
+        val savedTimes = mutableListOf<List<MedicationGroupScheduleTimeEntity>>()
+        val now = Instant.parse("2026-04-25T10:00:00Z")
+        val startAt = LocalDate.of(2026, 5, 1).atTime(13, 30)
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        listOf(true, false).forEach { includePast ->
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = startAt.toLocalDate(),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                    startAt = startAt,
+                ),
+                medications = emptyList(),
+                includePastScheduledSlots = includePast,
+                now = now,
+            )
+        }
+
+        coVerify(exactly = 2) {
+            medicationGroupDao.upsertGroupWithItems(
+                group = any(),
+                items = any(),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = any(),
+            )
+        }
+        assertEquals(
+            listOf(startAt.toString(), startAt.toString()),
+            savedTimes.map { it.single().effectiveFromLocalIso },
+        )
+    }
+
+    @Test
     fun saveGroup_forExistingFreshGroupWhenBackfillEnabled_movesCurrentRowsToSinceStart() =
         runTest {
             val groupUuid = UUID.fromString("30c4a905-64d5-4ef0-8096-60b7d1edc4c4")

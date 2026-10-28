@@ -351,6 +351,8 @@ fun MedicationGroupEditorScreen(
         onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,
         onSinceDateChange = viewModel::updateSinceDate,
+        onStartTimeChange = viewModel::updateStartTime,
+        onResetStartToNow = viewModel::resetStartToNow,
         onIncludePastScheduledSlotsChange = viewModel::updateIncludePastScheduledSlots,
         onCreatePastScheduledSlotRecordsChange = viewModel::updateCreatePastScheduledSlotRecords,
         onNotificationsEnabledChange = { enabled ->
@@ -476,6 +478,8 @@ private fun MedicationGroupEditorScreenContent(
     onGroupColorChange: (MedicationGroupColorKey) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
+    onStartTimeChange: (LocalTime) -> Unit,
+    onResetStartToNow: () -> Unit,
     onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
     onCreatePastScheduledSlotRecordsChange: (Boolean) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
@@ -587,6 +591,7 @@ private fun MedicationGroupEditorScreenContent(
     }
     var pendingSinceDate by remember { mutableStateOf<LocalDate?>(null) }
     var pendingWeeklyTime by remember { mutableStateOf<LocalTime?>(null) }
+    var pendingStartTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingNewDailyTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
@@ -649,6 +654,8 @@ private fun MedicationGroupEditorScreenContent(
         uiState.isArchived,
         uiState.scheduleType,
         uiState.sinceDate,
+        uiState.startsNow,
+        uiState.startTime,
         uiState.weeklyIntervalWeeks,
         uiState.weeklyDaysOfWeek,
         uiState.weeklyTime,
@@ -818,6 +825,26 @@ private fun MedicationGroupEditorScreenContent(
             } else {
                 null
             },
+        )
+    }
+
+    pendingStartTime?.let { initialStartTime ->
+        TimePickerModal(
+            onTimeSelected = { selectedTime ->
+                onStartTimeChange(selectedTime)
+                true
+            },
+            onDismiss = { pendingStartTime = null },
+            initialTime = initialStartTime,
+            is24Hour = is24Hour,
+            // Only offer a reset once a start is picked; "Now" is already the default.
+            // A recreated plan can't move its start earlier than its own.
+            onReset = if (!uiState.startsNow && uiState.recreatedFromGroupId == null) {
+                onResetStartToNow
+            } else {
+                null
+            },
+            resetButtonText = stringResource(R.string.group_schedule_start_reset_to_now),
         )
     }
 
@@ -1502,20 +1529,21 @@ private fun MedicationGroupEditorScreenContent(
                         } else {
                             null
                         }
-                    val onPastScheduleShowPastChange: (Boolean) -> Unit = { showPast ->
+                    val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
                         if (pastScheduleSelectorState?.interactive == true) {
+                            val showPast = option != PastScheduleOption.DO_NOT_SHOW
                             onIncludePastScheduledSlotsChange(showPast)
-                        }
-                    }
-                    val onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = { generate ->
-                        if (pastScheduleSelectorState?.interactive == true) {
-                            onCreatePastScheduledSlotRecordsChange(generate)
+                            if (showPast) {
+                                onCreatePastScheduledSlotRecordsChange(
+                                    option == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+                                )
+                            }
                         }
                     }
                     val showRecreatedStartDatePastLimitMessage =
                         shouldShowRecreatedStartDatePastLimitMessage(uiState)
                     Column {
-                        HrtSection(title = stringResource(R.string.group_schedule_title)) {
+                        HrtSection(title = stringResource(R.string.group_start_title)) {
                             if (showRecreatedStartDatePastLimitMessage) {
                                 item {
                                     SupportMessageListItem(
@@ -1531,6 +1559,31 @@ private fun MedicationGroupEditorScreenContent(
                         if (showRecreatedStartDatePastLimitMessage) {
                             Spacer(modifier = Modifier.height(8.dp))
                         }
+                        ScheduleStartEditor(
+                            sinceDate = uiState.sinceDate,
+                            startsNow = uiState.startsNow,
+                            startTime = uiState.startTime ?: uiState.medicationDayBoundary.startTime,
+                            dateFormatter = dateFormatter,
+                            timeFormatter = timeFormatter,
+                            onDateClick = { pendingSinceDate = uiState.sinceDate },
+                            onTimeClick = {
+                                pendingStartTime = when {
+                                    uiState.startsNow -> resolvedOccurrenceReferenceTime.toLocalTime()
+                                    else -> uiState.startTime ?: uiState.medicationDayBoundary.startTime
+                                }
+                            },
+                            pastScheduleSelectorState = pastScheduleSelectorState,
+                            onPastScheduleOptionSelected = onPastScheduleOptionSelected,
+                            enabled = !areFieldsRenderedLocked &&
+                                    !uiState.isScheduleStartDateLocked,
+                            shapeLocked = areFieldsRenderedLocked,
+                        )
+                    }
+                }
+
+                item {
+                    Column {
+                        HrtSection(title = stringResource(R.string.group_schedule_title)) {}
                         CompositionLocalProvider(
                             LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                         ) {
@@ -1570,18 +1623,10 @@ private fun MedicationGroupEditorScreenContent(
                                 appLocale = appLocale,
                                 dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
-                                onSinceDateChange = { currentDate ->
-                                    pendingSinceDate = currentDate
-                                },
                                 onIntervalChange = onWeeklyIntervalChange,
                                 onDayChange = onWeeklyDayChange,
                                 onResetDaysOfWeek = onWeeklyResetDaysOfWeek,
                                 onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
-                                pastScheduleSelectorState = pastScheduleSelectorState,
-                                onPastScheduleShowPastChange = onPastScheduleShowPastChange,
-                                onPastScheduleGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
-                                sinceEnabled = !areFieldsRenderedLocked &&
-                                        !uiState.isScheduleStartDateLocked,
                                 intervalEnabled = !areFieldsRenderedLocked,
                                 daySelectionEnabled = !areFieldsRenderedLocked,
                                 timeEditEnabled = !uiState.isArchived,
@@ -1590,16 +1635,12 @@ private fun MedicationGroupEditorScreenContent(
                             )
                         } else {
                             DailyScheduleEditor(
-                                sinceDate = uiState.sinceDate,
                                 intervalDays = uiState.dailyIntervalDays,
                                 dailyTimes = uiState.dailyTimes,
                                 previewOccurrences = upcomingOccurrences,
                                 currentDate = currentDate,
                                 dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
-                                onSinceDateChange = { currentDate ->
-                                    pendingSinceDate = currentDate
-                                },
                                 onIntervalChange = onDailyIntervalChange,
                                 onAddTime = {
                                     pendingNewDailyTime = LocalTime.now()
@@ -1612,11 +1653,6 @@ private fun MedicationGroupEditorScreenContent(
                                         initialTime = currentTime
                                     )
                                 },
-                                pastScheduleSelectorState = pastScheduleSelectorState,
-                                onPastScheduleShowPastChange = onPastScheduleShowPastChange,
-                                onPastScheduleGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
-                                sinceEnabled = !areFieldsRenderedLocked &&
-                                        !uiState.isScheduleStartDateLocked,
                                 intervalEnabled = !areFieldsRenderedLocked,
                                 addRemoveTimeEnabled = !areFieldsRenderedLocked,
                                 timeEditEnabled = !uiState.isArchived,
@@ -1814,7 +1850,16 @@ internal fun buildMedicationGroupEditorUpcomingOccurrences(
     uiState: MedicationGroupEditorUiState,
     start: LocalDateTime
 ): List<LocalDateTime> {
-    val schedule = MedicationGroupSchedule(
+    return uiState.toEditorSchedule().nextOccurrencesFrom(
+        start = uiState.scheduleStartAt(start)?.let { maxOf(it, start) } ?: start,
+        limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState),
+        boundary = uiState.medicationDayBoundary,
+    )
+}
+
+private fun MedicationGroupEditorUiState.toEditorSchedule(): MedicationGroupSchedule {
+    val uiState = this
+    return MedicationGroupSchedule(
         type = uiState.scheduleType,
         interval = when (uiState.scheduleType) {
             MedicationGroupScheduleType.DAILY -> parseScheduleInterval(uiState.dailyIntervalDays)
@@ -1831,11 +1876,6 @@ internal fun buildMedicationGroupEditorUpcomingOccurrences(
         } else {
             uiState.dailyTimes.map(MedicationGroupScheduleTimeUiState::time)
         }
-    )
-    return schedule.nextOccurrencesFrom(
-        start = start,
-        limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState),
-        boundary = uiState.medicationDayBoundary,
     )
 }
 
@@ -2056,35 +2096,23 @@ internal fun resolvePastScheduleSelectorState(
     isNewGroupCreationFlow: Boolean,
     lockedMessage: String?,
 ): PastScheduleSelectorUiState {
-    val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
     val pastScheduleOptionsEnabled = lockedMessage == null &&
             uiState.canEditBackfillOption
-    // The generate-records option is a sub-choice of "show past": only offer it
-    // while the card is interactive (so it never appears for locked/archived
-    // groups) and past slots are actually being shown. The card animates it
-    // in/out as this flag changes (see PastScheduleSelectorCard). SHOW_AND_
-    // GENERATE_RECORDS counts as showing past so the row stays put when selected.
-    val includePastScheduleSelected =
-        selectedPastScheduleOption == PastScheduleOption.SHOW ||
-                selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+    // Generating records only happens at save time, so a group that can't edit
+    // its past schedule anymore (locked/archived) never offers it.
     val showGeneratePastRecordsOption = pastScheduleOptionsEnabled &&
             shouldShowGeneratePastScheduledSlotRecordsOption(
                 uiState = uiState,
                 isNewGroupCreationFlow = isNewGroupCreationFlow,
                 isFinishingAfterSave = uiState.isFinishingAfterSave,
-            ) &&
-            includePastScheduleSelected
+            )
 
     return PastScheduleSelectorUiState(
-        selectedOption = selectedPastScheduleOption,
+        selectedOption = resolvePastScheduleOption(uiState),
         showGeneratePastRecordsOption = showGeneratePastRecordsOption,
         enabled = pastScheduleOptionsEnabled,
         interactive = pastScheduleOptionsEnabled,
         lockedMessage = lockedMessage,
-        // The raw ViewModel field, not a selectedOption derivation: it carries
-        // the remembered checkbox choice across a "Do not show" detour and
-        // through the row's collapse animation.
-        generateRecordsChecked = uiState.createPastScheduledSlotRecords,
     )
 }
 
@@ -2118,34 +2146,16 @@ internal fun shouldShowRecreatedPastScheduleMessage(
             (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
 }
 
+/** Whether a dose falls between the plan start and [referenceTime]. */
 internal fun hasPastScheduleOptionWindow(
     uiState: MedicationGroupEditorUiState,
     referenceTime: LocalDateTime,
 ): Boolean {
-    val currentDate = referenceTime.toLocalDate()
-    return when {
-        uiState.sinceDate.isBefore(currentDate) -> true
-        uiState.sinceDate.isAfter(currentDate) -> false
-        else -> firstPlannedDoseOnScheduleStartDate(uiState)?.let { firstDose ->
-            firstDose.isBefore(referenceTime)
-        } ?: false
-    }
-}
-
-internal fun firstPlannedDoseOnScheduleStartDate(
-    uiState: MedicationGroupEditorUiState,
-): LocalDateTime? {
-    val firstTime = when (uiState.scheduleType) {
-        MedicationGroupScheduleType.DAILY -> uiState.dailyTimes
-            .ifEmpty { listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))) }
-            .map(MedicationGroupScheduleTimeUiState::time)
-            .minOrNull()
-
-        MedicationGroupScheduleType.WEEKLY -> uiState.weeklyTime.takeIf {
-            uiState.sinceDate.dayOfWeek in uiState.weeklyDaysOfWeek
-        }
-    }
-    return firstTime?.let { time -> LocalDateTime.of(uiState.sinceDate, time) }
+    val start = uiState.scheduleStartAt(referenceTime) ?: uiState.sinceDate.atStartOfDay()
+    return uiState.toEditorSchedule()
+        .nextOccurrencesFrom(start = start, limit = 1, boundary = uiState.medicationDayBoundary)
+        .firstOrNull()
+        ?.isBefore(referenceTime) == true
 }
 
 private data class DailyTimeEditRequest(
@@ -2393,6 +2403,8 @@ private fun MedicationGroupEditorDailyPreview() {
             onGroupColorChange = { },
             onScheduleTypeChange = { },
             onSinceDateChange = { },
+            onStartTimeChange = { },
+            onResetStartToNow = { },
             onIncludePastScheduledSlotsChange = { },
             onCreatePastScheduledSlotRecordsChange = { },
             onNotificationsEnabledChange = { },
@@ -2469,6 +2481,8 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onGroupColorChange = { },
             onScheduleTypeChange = { },
             onSinceDateChange = { },
+            onStartTimeChange = { },
+            onResetStartToNow = { },
             onIncludePastScheduledSlotsChange = { },
             onCreatePastScheduledSlotRecordsChange = { },
             onNotificationsEnabledChange = { },
@@ -2586,6 +2600,8 @@ private fun MedicationGroupEditorPreviewContent(
         onGroupColorChange = { },
         onScheduleTypeChange = { },
         onSinceDateChange = { },
+        onStartTimeChange = { },
+        onResetStartToNow = { },
         onIncludePastScheduledSlotsChange = { },
         onCreatePastScheduledSlotRecordsChange = { },
         onNotificationsEnabledChange = { },
