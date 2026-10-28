@@ -24,7 +24,6 @@ enum class MedicationDayTimeRange(val startHour: Int, val endHour: Int) {
 }
 
 private val LastNightEndTime = LocalTime.NOON
-private val TonightStartTime = LocalTime.of(18, 0)
 
 /** Until noon of the current medication day: never between midnight and the 04:00 boundary. */
 fun MedicationDayBoundary.isLastNightVisible(now: LocalDateTime): Boolean =
@@ -33,11 +32,20 @@ fun MedicationDayBoundary.isLastNightVisible(now: LocalDateTime): Boolean =
 fun MedicationDayBoundary.lastNightMedicationDay(now: LocalDateTime): LocalDate =
     medicationDay(now, this).minusDays(1)
 
-fun MedicationDayBoundary.isTonightVisible(now: LocalDateTime): Boolean =
-    !endsAtFourAm && !now.toLocalTime().isBefore(TonightStartTime)
+/**
+ * Coming up previews the next medication day's first bucket during this one's last: from
+ * 18:00 it shows the Midnight doses, and with the day ending at 04:00, from midnight it
+ * shows the Morning ones, which would otherwise stay hidden until 04:00.
+ */
+fun MedicationDayBoundary.isComingUpVisible(now: LocalDateTime): Boolean =
+    MedicationDayTimeRange.of(now.toLocalTime()) ==
+        if (endsAtFourAm) MedicationDayTimeRange.MIDNIGHT else MedicationDayTimeRange.EVENING
 
-/** Midnight boundary only: the tomorrow whose Midnight doses Tonight shows. */
-fun MedicationDayBoundary.tonightMedicationDay(now: LocalDateTime): LocalDate =
+/** The bucket Coming up shows: the next medication day's first. */
+val MedicationDayBoundary.comingUpTimeRange: MedicationDayTimeRange
+    get() = if (endsAtFourAm) MedicationDayTimeRange.MORNING else MedicationDayTimeRange.MIDNIGHT
+
+fun MedicationDayBoundary.comingUpMedicationDay(now: LocalDateTime): LocalDate =
     medicationDay(now, this).plusDays(1)
 
 fun MedicationDayBoundary.includesInLastNight(dateTime: LocalDateTime): Boolean {

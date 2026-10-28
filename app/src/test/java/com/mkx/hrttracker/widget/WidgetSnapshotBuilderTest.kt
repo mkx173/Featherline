@@ -346,6 +346,31 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
+    fun comingUpShowsNextMorningBeforeFourAmWhenTheDayEndsAtFour() {
+        // 02:58 is still the previous medication day; the 05:00 dose opens the next one.
+        val now = LocalDateTime.of(2026, 10, 29, 2, 58)
+        val group = widgetTestGroup(
+            groupName = "Morning group",
+            medicationKey = MedicationKey.ESTRADIOL,
+            since = now.toLocalDate().minusDays(2),
+            time = LocalTime.of(5, 0),
+        )
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
+            settings = SettingsState(medicationDayEndsAtFourAm = true),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val row = snapshot.doseRows.single { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+        assertEquals(now.toLocalDate().atTime(5, 0), row.scheduledAt)
+        assertEquals("05:00", row.trailingText)
+    }
+
+    @Test
     fun comingUpIncludesManualMidnightRowAtMidnightBoundary() {
         val now = LocalDateTime.of(2026, 10, 1, 20, 0)
         val manualMedicine = testCustomMedicine(medicationName = "Midnight manual")

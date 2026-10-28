@@ -3532,7 +3532,10 @@ internal fun MainComingUpSection(
 
     Column(modifier = modifier.fillMaxWidth()) {
         MainSectionHeader(
-            title = stringResource(R.string.main_coming_up_title),
+            title = stringResource(
+                // With the day ending at 04:00, Coming up holds the next morning's doses, not tonight's.
+                if (LocalMedicationDayBoundary.current.endsAtFourAm) R.string.main_coming_up_morning_title else R.string.main_coming_up_title
+            ),
             summary = sectionSummary
         )
 

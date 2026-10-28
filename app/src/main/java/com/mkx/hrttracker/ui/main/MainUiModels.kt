@@ -23,7 +23,8 @@ import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
-import com.mkx.hrttracker.model.medication.isTonightVisible
+import com.mkx.hrttracker.model.medication.comingUpTimeRange
+import com.mkx.hrttracker.model.medication.isComingUpVisible
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
@@ -1068,7 +1069,7 @@ internal fun buildMainUpcomingSection(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val tomorrow = medicationDay(now, boundary).plusDays(1)
-    val shouldExcludeTonightRows = boundary.isTonightVisible(now)
+    val shouldExcludeComingUpRows = boundary.isComingUpVisible(now)
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
@@ -1076,10 +1077,9 @@ internal fun buildMainUpcomingSection(
         boundary = boundary,
         zoneId = zoneId,
     ).filterNot { row ->
-        shouldExcludeTonightRows &&
+        shouldExcludeComingUpRows &&
             row.scheduledAt.toLocalDate() == tomorrow &&
-            MedicationDayTimeRange.of(row.scheduledAt.toLocalTime()) ==
-            MedicationDayTimeRange.MIDNIGHT
+            MedicationDayTimeRange.of(row.scheduledAt.toLocalTime()) == boundary.comingUpTimeRange
     }
 
     if (tomorrowRows.isNotEmpty()) {

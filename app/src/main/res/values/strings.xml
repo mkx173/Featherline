@@ -15,6 +15,7 @@
     <string name="main_today_title">Today</string>
     <string name="main_last_night_title">Last night</string>
     <string name="main_coming_up_title">Tonight</string>
+    <string name="main_coming_up_morning_title">This morning</string>
     <string name="main_tomorrow_title">Tomorrow</string>
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_summary_done_label">DONE</string>
@@ -982,6 +983,7 @@
     <string name="widget_last_night">Last night</string>
     <string name="widget_today">Today</string>
     <string name="widget_tonight">Tonight</string>
+    <string name="widget_this_morning">This morning</string>
     <string name="widget_manual_record">Manual record</string>
     <string name="widget_upcoming">Upcoming</string>
     <!-- Hardcoded sample strings rendered in the static appwidget previewLayout

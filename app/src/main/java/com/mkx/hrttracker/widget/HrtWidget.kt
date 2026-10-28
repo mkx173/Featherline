@@ -55,6 +55,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDayTimeRange
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
@@ -1128,7 +1129,10 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 todayRows.forEach { add(WidgetListItem.Row(it)) }
             }
             if (comingUpRows.isNotEmpty()) {
-                add(WidgetListItem.Header(context.getString(R.string.widget_tonight)))
+                // The snapshot holds no boundary, but only the day ending at 04:00 puts Morning doses here.
+                val isMorning = MedicationDayTimeRange.of(comingUpRows.first().scheduledAt.toLocalTime()) ==
+                    MedicationDayTimeRange.MORNING
+                add(WidgetListItem.Header(context.getString(if (isMorning) R.string.widget_this_morning else R.string.widget_tonight)))
                 comingUpRows.forEach { add(WidgetListItem.Row(it)) }
             }
         }

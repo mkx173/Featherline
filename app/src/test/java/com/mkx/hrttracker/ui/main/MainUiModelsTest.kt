@@ -2031,6 +2031,65 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainComingUpSection_showsNextMorningBeforeFourAmWhenTheDayEndsAtFour() {
+        val today = LocalDate.of(2026, 4, 18)
+        val tomorrow = today.plusDays(1)
+        val group = medicationGroup(
+            uuid = UUID.fromString("5b0f6c2e-8d0a-4a51-9c7e-2f7d3c1a9e44"),
+            name = "Night owl estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(
+                    LocalTime.of(0, 30),
+                    LocalTime.of(5, 30),
+                    LocalTime.of(13, 0),
+                    LocalTime.of(20, 0),
+                )
+            )
+        )
+        // 02:58 on the 19th is still medication day the 18th.
+        val now = LocalDateTime.of(tomorrow, LocalTime.of(2, 58))
+
+        val comingUpSection = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.FourAm)
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = now,
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(tomorrow, comingUpSection.date)
+        assertEquals(
+            listOf(LocalDateTime.of(tomorrow, LocalTime.of(5, 30))),
+            comingUpSection.rows.map { row -> row.scheduledAt }
+        )
+        assertEquals(
+            listOf(
+                LocalDateTime.of(tomorrow, LocalTime.of(13, 0)),
+                LocalDateTime.of(tomorrow, LocalTime.of(20, 0)),
+                LocalDateTime.of(tomorrow.plusDays(1), LocalTime.of(0, 30)),
+            ),
+            upcomingSection.rows.map { row -> row.scheduledAt }
+        )
+
+        val afterBoundary = buildMainComingUpSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(tomorrow, LocalTime.of(4, 30)),
+            zoneId = testZoneId,
+            boundary = MedicationDayBoundary.FourAm)
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), afterBoundary.rows)
+    }
+
+    @Test
     fun buildMainComingUpSection_isEmptyBeforeEveningWindow() {
         val today = LocalDate.of(2026, 4, 18)
         val tomorrow = today.plusDays(1)

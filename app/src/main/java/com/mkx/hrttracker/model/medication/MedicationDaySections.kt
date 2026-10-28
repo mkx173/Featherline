@@ -31,8 +31,8 @@ data class MedicationDaySections(
  * - last night: the previous medication day, only until noon, and only rows the
  *   boundary counts as last night;
  * - today: the medication day containing [now], in time order;
- * - coming up: the next medication day's Midnight rows, only when the boundary
- *   shows a separate Tonight block.
+ * - coming up: the next medication day's first bucket, during this day's last; see
+ *   isComingUpVisible.
  */
 fun buildMedicationDaySections(
     source: MedicationDaySectionSource,
@@ -53,13 +53,13 @@ fun buildMedicationDaySections(
     } else {
         null
     }
-    val comingUp = if (boundary.isTonightVisible(now)) {
+    val comingUp = if (boundary.isComingUpVisible(now)) {
         comingUpSource.scheduleFor(
-            date = boundary.tonightMedicationDay(now),
+            date = boundary.comingUpMedicationDay(now),
             now = now,
             boundary = boundary,
             zoneId = zoneId,
-        ).filteredToMidnight(zoneId = zoneId)
+        ).filteredTo(range = boundary.comingUpTimeRange, zoneId = zoneId)
     } else {
         null
     }
@@ -101,15 +101,12 @@ private fun PlanDaySchedule.filteredToLastNight(
     },
 )
 
-private fun PlanDaySchedule.filteredToMidnight(zoneId: ZoneId): PlanDaySchedule = PlanDaySchedule(
+private fun PlanDaySchedule.filteredTo(range: MedicationDayTimeRange, zoneId: ZoneId): PlanDaySchedule = PlanDaySchedule(
     date = date,
     scheduledEntries = scheduledEntries.filter { entry ->
-        entry.scheduledFor.isMidnightRange()
+        MedicationDayTimeRange.of(entry.scheduledFor.toLocalTime()) == range
     },
     unplannedEntries = unplannedEntries.filter { entry ->
-        appliedAtAsLocalDateTime(entry, zoneId).isMidnightRange()
+        MedicationDayTimeRange.of(appliedAtAsLocalDateTime(entry, zoneId).toLocalTime()) == range
     },
 )
-
-private fun LocalDateTime.isMidnightRange(): Boolean =
-    MedicationDayTimeRange.of(toLocalTime()) == MedicationDayTimeRange.MIDNIGHT
