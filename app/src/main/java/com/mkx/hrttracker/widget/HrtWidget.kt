@@ -974,7 +974,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         if (showTrailingText) {
                             WidgetPastMidnightIcon(
                                 visible = activeRow.isPastMidnight && !activeRow.isManualRecord,
-                                sizeDp = 16f * scale,
+                                sizeDp = 18f * scale,
                             )
                             Text(
                                 text = activeRow.trailingText,

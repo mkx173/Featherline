@@ -520,7 +520,7 @@ internal fun WidgetPastMidnightIcon(visible: Boolean, sizeDp: Float) {
         modifier = GlanceModifier
             .width((sizeDp + 4f).dp)
             .height(sizeDp.dp)
-            .padding(end = 4.dp)
+            .padding(top = 1.dp, end = 4.dp)
             .visibility(if (visible) Visibility.Visible else Visibility.Gone),
         colorFilter = ColorFilter.tint(LocalWidgetColors.current.onSurface),
     )
@@ -609,7 +609,7 @@ internal fun DoseRow(
 
         Spacer(GlanceModifier.width(8.dp))
 
-        WidgetPastMidnightIcon(visible = showTrailingText && row.isPastMidnight, sizeDp = 14f * scale)
+        WidgetPastMidnightIcon(visible = showTrailingText && row.isPastMidnight, sizeDp = 16f * scale)
         // Keep this node even when hidden. The synchronous GlanceRemoteViews path can reuse
         // layout IDs across updates, so toggling privacy must not change the RemoteViews tree.
         Text(
