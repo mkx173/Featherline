@@ -52,6 +52,16 @@ class MedicationGroupEditorScheduleStartTest {
     }
 
     @Test
+    fun pastScheduleSection_hiddenOnceThePlanCanNoLongerChangeIt() {
+        val editing = state().copy(editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95")
+
+        assertTrue(shouldShowPastScheduleSection(editing.copy(areEntriesLoaded = true), now))
+        assertFalse(shouldShowPastScheduleSection(editing, now))
+        assertFalse(shouldShowPastScheduleSection(editing.copy(areEntriesLoaded = true, plannedEntryCount = 1), now))
+        assertFalse(shouldShowPastScheduleSection(editing.copy(areEntriesLoaded = true, relatedEntryCount = 1), now))
+    }
+
+    @Test
     fun changingStartDate_startsWithTheWholeDay() {
         val updated = editorStateWithUpdatedSinceDate(state(startsNow = true), today.minusDays(3))
 

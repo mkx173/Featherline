@@ -2120,9 +2120,18 @@ internal fun shouldShowPastScheduleSection(
     uiState: MedicationGroupEditorUiState,
     referenceTime: LocalDateTime,
 ): Boolean {
+    // A plan with records can't change its past schedule anymore, so the card
+    // (choices or the recreated note) is hidden rather than shown disabled. An
+    // existing plan waits for its entries so the card doesn't flash in before
+    // they lock it.
+    val isUnlocked = (!uiState.isEditing || uiState.areEntriesLoaded) &&
+            uiState.relatedEntryCount == 0 &&
+            uiState.plannedEntryCount == 0
     return !uiState.isArchived &&
+            isUnlocked &&
             (
                     shouldShowRecreatedPastScheduleMessage(uiState) ||
+                            uiState.canEditBackfillOption &&
                             hasPastScheduleOptionWindow(
                                 uiState = uiState,
                                 referenceTime = referenceTime,
