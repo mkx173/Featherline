@@ -12,7 +12,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -26,6 +26,7 @@ internal fun ScheduleStartEditor(
     sinceDate: LocalDate,
     startsNow: Boolean,
     start: LocalDateTime,
+    boundary: MedicationDayBoundary,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onDateClick: () -> Unit,
@@ -61,7 +62,7 @@ internal fun ScheduleStartEditor(
                     startsNow -> stringResource(R.string.group_schedule_start_now)
                     // A saved start past the start date's own day: a plan that hid its
                     // past from a later save, or one a night owl switch shifted.
-                    medicationDay(start, LocalMedicationDayBoundary.current) != sinceDate ->
+                    medicationDay(start, boundary) != sinceDate ->
                         stringResource(
                             R.string.plan_group_upcoming_format,
                             dateFormatter(start.toLocalDate()),
@@ -98,6 +99,7 @@ private fun ScheduleStartEditorPreview() {
             sinceDate = LocalDate.of(2026, 4, 20),
             startsNow = false,
             start = LocalDate.of(2026, 4, 20).atStartOfDay(),
+            boundary = MedicationDayBoundary.Midnight,
             dateFormatter = medicationGroupScheduleDateFormatter(
                 locale = previewLocale,
                 today = LocalDate.of(2026, 4, 22),

@@ -1565,6 +1565,7 @@ private fun MedicationGroupEditorScreenContent(
                             sinceDate = uiState.sinceDate,
                             startsNow = uiState.startsNow,
                             start = uiState.scheduleStartAt(resolvedOccurrenceReferenceTime),
+                            boundary = uiState.medicationDayBoundary,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onDateClick = { pendingSinceDate = uiState.sinceDate },
