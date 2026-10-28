@@ -86,8 +86,8 @@ fun MedicationDayTimeLabel(
         return
     }
     val description = stringResource(R.string.medication_day_past_midnight)
-    // 2 dp under the text's size: a full em read heavier than the digits beside it.
-    val iconSize = with(LocalDensity.current) { (style.fontSize.toDp() - 2.dp).toSp() }
+    // 1 dp under the text's size: a full em read heavier than the digits beside it.
+    val iconSize = with(LocalDensity.current) { (style.fontSize.toDp() - 1.dp).toSp() }
     Text(
         text = buildAnnotatedString {
             appendInlineContent(PAST_MIDNIGHT_ICON_ID, description)
