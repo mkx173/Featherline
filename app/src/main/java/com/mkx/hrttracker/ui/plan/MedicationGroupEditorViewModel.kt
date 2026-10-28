@@ -458,9 +458,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (!it.canEditScheduleStart || it.recreatedFromGroupId != null) {
                 it
             } else {
-                val today = medicationDay(currentMinute.value, it.medicationDayBoundary)
-                editorStateWithUpdatedSinceDate(it, today)
-                    .copy(startsNow = true, startTime = null, loadedStartAt = null)
+                editorStateStartingNow(
+                    uiState = it,
+                    today = medicationDay(currentMinute.value, it.medicationDayBoundary),
+                )
             }
         }
     }
@@ -2102,6 +2103,30 @@ internal fun editorStateWithUpdatedSinceDate(
         editorStateWithResetWeeklyDaysOfWeek(withDate)
     } else {
         withDate
+    }
+}
+
+/**
+ * The draft starting now, on [today]. Unlike picking a date, it keeps weekdays the user
+ * chose, since only the start changed; untouched ones still follow the start date.
+ */
+internal fun editorStateStartingNow(
+    uiState: MedicationGroupEditorUiState,
+    today: LocalDate,
+): MedicationGroupEditorUiState {
+    val startingNow = uiState.copy(
+        sinceDate = today,
+        startsNow = true,
+        startTime = null,
+        loadedStartAt = null,
+    )
+    return if (
+        startingNow.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        !startingNow.hasUserCustomizedWeeklyDays
+    ) {
+        editorStateWithResetWeeklyDaysOfWeek(startingNow)
+    } else {
+        startingNow
     }
 }
 

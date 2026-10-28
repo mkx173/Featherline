@@ -1,11 +1,13 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -98,6 +100,25 @@ class MedicationGroupEditorScheduleStartTest {
         assertNull(updated.loadedStartAt)
         // Re-picking the same date keeps "Now".
         assertTrue(editorStateWithUpdatedSinceDate(state(startsNow = true), today).startsNow)
+    }
+
+    @Test
+    fun startingNow_keepsPickedWeekdays() {
+        val weekly = state(sinceDate = today.plusDays(3)).copy(
+            scheduleType = MedicationGroupScheduleType.WEEKLY,
+            weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY),
+            hasUserCustomizedWeeklyDays = true,
+        )
+        val started = editorStateStartingNow(weekly, today)
+
+        assertEquals(today, started.sinceDate)
+        assertTrue(started.startsNow)
+        assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY), started.weeklyDaysOfWeek)
+        // Untouched weekdays still follow the start date, as when picking one.
+        assertEquals(
+            setOf(today.dayOfWeek),
+            editorStateStartingNow(weekly.copy(hasUserCustomizedWeeklyDays = false), today).weeklyDaysOfWeek,
+        )
     }
 
     @Test
