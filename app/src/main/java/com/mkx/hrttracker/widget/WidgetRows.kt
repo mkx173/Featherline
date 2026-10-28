@@ -516,9 +516,11 @@ internal fun WidgetPastMidnightIcon(visible: Boolean, sizeDp: Float) {
     Image(
         provider = ImageProvider(R.drawable.ic_moon_stars),
         contentDescription = LocalContext.current.getString(R.string.medication_day_past_midnight),
+        // The end padding sits inside the view's width, so widen it by the gap to keep the moon at sizeDp.
         modifier = GlanceModifier
+            .width((sizeDp + 4f).dp)
+            .height(sizeDp.dp)
             .padding(end = 4.dp)
-            .size(sizeDp.dp)
             .visibility(if (visible) Visibility.Visible else Visibility.Gone),
         colorFilter = ColorFilter.tint(LocalWidgetColors.current.onSurface),
     )

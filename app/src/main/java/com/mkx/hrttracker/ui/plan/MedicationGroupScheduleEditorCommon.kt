@@ -252,7 +252,7 @@ internal fun ScheduleTimeRow(
                 painter = painterResource(if (isPastMidnight) R.drawable.ic_moon_stars else R.drawable.ic_schedule),
                 contentDescription = if (isPastMidnight) stringResource(R.string.medication_day_past_midnight) else null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp).then(if (isPastMidnight) Modifier.padding(1.dp) else Modifier)
             )
         },
         trailingContent = if (enabled) {

@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.Placeholder
@@ -18,7 +19,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -85,6 +86,8 @@ fun MedicationDayTimeLabel(
         return
     }
     val description = stringResource(R.string.medication_day_past_midnight)
+    // 2 dp under the text's size: a full em read heavier than the digits beside it.
+    val iconSize = with(LocalDensity.current) { (style.fontSize.toDp() - 2.dp).toSp() }
     Text(
         text = buildAnnotatedString {
             appendInlineContent(PAST_MIDNIGHT_ICON_ID, description)
@@ -93,7 +96,7 @@ fun MedicationDayTimeLabel(
         },
         inlineContent = mapOf(
             PAST_MIDNIGHT_ICON_ID to InlineTextContent(
-                Placeholder(1.em, 1.em, PlaceholderVerticalAlign.TextCenter),
+                Placeholder(iconSize, iconSize, PlaceholderVerticalAlign.TextCenter),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_moon_stars),
