@@ -30,8 +30,13 @@ class MedicationGroupEditorScheduleStartTest {
     @Test
     fun scheduleStartAt_resolvesNowWholeDayAndSmallHours() {
         assertEquals(now, state(startsNow = true).scheduleStartAt(now))
-        assertNull(state().scheduleStartAt(now))
-        assertNull(state(startTime = LocalTime.of(4, 0), boundary = MedicationDayBoundary.FourAm).scheduleStartAt(now))
+        assertEquals(today.atStartOfDay(), state().scheduleStartAt(now))
+        // A whole day ending at 04:00 starts at 04:00, so turning the switch off
+        // later can't pull that night's doses in before the start.
+        assertEquals(
+            LocalDateTime.of(today, LocalTime.of(4, 0)),
+            state(boundary = MedicationDayBoundary.FourAm).scheduleStartAt(now),
+        )
         assertEquals(
             LocalDateTime.of(today, LocalTime.of(8, 0)),
             state(startTime = LocalTime.of(8, 0)).scheduleStartAt(now),
@@ -62,12 +67,28 @@ class MedicationGroupEditorScheduleStartTest {
     }
 
     @Test
+    fun loadedStart_survivesUntilTheStartIsEdited() {
+        // An all-night plan shifted by turning night owl on: its start date moved
+        // back a day, its saved start didn't.
+        val loadedStartAt = LocalDateTime.of(today, LocalTime.of(23, 0))
+        val loaded = state(sinceDate = today.minusDays(1), boundary = MedicationDayBoundary.FourAm)
+            .copy(loadedStartAt = loadedStartAt)
+
+        assertEquals(loadedStartAt, loaded.scheduleStartAt(now))
+        assertEquals(
+            LocalDateTime.of(today.minusDays(2), LocalTime.of(4, 0)),
+            editorStateWithUpdatedSinceDate(loaded, today.minusDays(2)).scheduleStartAt(now),
+        )
+    }
+
+    @Test
     fun changingStartDate_startsWithTheWholeDay() {
         val updated = editorStateWithUpdatedSinceDate(state(startsNow = true), today.minusDays(3))
 
         assertEquals(today.minusDays(3), updated.sinceDate)
         assertFalse(updated.startsNow)
         assertNull(updated.startTime)
+        assertNull(updated.loadedStartAt)
         // Re-picking the same date keeps "Now".
         assertTrue(editorStateWithUpdatedSinceDate(state(startsNow = true), today).startsNow)
     }

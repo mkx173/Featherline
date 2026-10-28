@@ -445,7 +445,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateStartTime(time: LocalTime) {
         _uiState.update {
-            if (!it.canEditScheduleStart) it else it.copy(startsNow = false, startTime = time)
+            if (!it.canEditScheduleStart) {
+                it
+            } else {
+                it.copy(startsNow = false, startTime = time, loadedStartAt = null)
+            }
         }
     }
 
@@ -455,7 +459,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 it
             } else {
                 val today = medicationDay(currentMinute.value, it.medicationDayBoundary)
-                editorStateWithUpdatedSinceDate(it, today).copy(startsNow = true, startTime = null)
+                editorStateWithUpdatedSinceDate(it, today)
+                    .copy(startsNow = true, startTime = null, loadedStartAt = null)
             }
         }
     }
@@ -1835,13 +1840,12 @@ private fun MedicationGroup.toEditorState(
         hasResolvedInitialGroupName = true,
         scheduleType = schedule.type,
         sinceDate = schedule.since,
-        // Not stored on its own: the earliest effectiveFrom is the start when it
-        // falls inside the start date, otherwise the plan starts with that day.
-        startTime = schedule.timeSlots
+        // Not stored on its own: the earliest effectiveFrom is the start. It's
+        // kept as is rather than split into a time of the start date, since a
+        // night owl switch can move the start date off the day it falls on.
+        loadedStartAt = schedule.timeSlots
             .minOfOrNull(MedicationGroupScheduleTime::effectiveFrom)
-            ?.takeIf { medicationDay(it, boundary) == schedule.since }
-            ?.toLocalTime()
-            ?.takeIf { it != boundary.startTime },
+            ?.takeIf { it.isAfter(medicationDayStart(schedule.since, boundary)) },
         medicationDayBoundary = boundary,
         weeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
             parseScheduleInterval(schedule.interval.toString()).toString()
@@ -1932,6 +1936,7 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         sinceDate = scheduleStartDate,
         startsNow = false,
         startTime = null,
+        loadedStartAt = null,
     )
 }
 
@@ -1955,6 +1960,7 @@ private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
         sinceDate = scheduleStartDate,
         startsNow = true,
         startTime = null,
+        loadedStartAt = null,
     )
 }
 
@@ -2085,7 +2091,12 @@ internal fun editorStateWithUpdatedSinceDate(
     }
 
     // A picked date starts with the whole day: 00:00, or 04:00 when the day ends then.
-    val withDate = uiState.copy(sinceDate = date, startsNow = false, startTime = null)
+    val withDate = uiState.copy(
+        sinceDate = date,
+        startsNow = false,
+        startTime = null,
+        loadedStartAt = null,
+    )
     return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
         editorStateWithResetWeeklyDaysOfWeek(withDate)
     } else {
@@ -2093,12 +2104,18 @@ internal fun editorStateWithUpdatedSinceDate(
     }
 }
 
-/** When the first slot can fall; null starts with the whole of [MedicationGroupEditorUiState.sinceDate]. */
-internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): LocalDateTime? {
+/**
+ * The first moment a slot can fall on. A whole start date still starts at its day
+ * boundary, 04:00 with the day ending then, so turning the switch off later can't
+ * add that night's doses before the start.
+ */
+internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): LocalDateTime {
+    val dayStart = medicationDayStart(sinceDate, medicationDayBoundary)
     if (startsNow) {
-        return maxOf(now, medicationDayStart(sinceDate, medicationDayBoundary))
+        return maxOf(now, dayStart)
     }
-    val time = startTime?.takeIf { it != medicationDayBoundary.startTime } ?: return null
+    loadedStartAt?.let { return it }
+    val time = startTime ?: return dayStart
     // Small-hours times belong to the night after the start date.
     val date = if (medicationDayBoundary.isPastMidnight(time)) sinceDate.plusDays(1) else sinceDate
     return date.atTime(time)
@@ -2290,6 +2307,8 @@ data class MedicationGroupEditorUiState(
     val startsNow: Boolean = false,
     // Null starts with the whole start date, from the day boundary on.
     val startTime: LocalTime? = null,
+    // The saved plan's start, kept until the start is edited; wins over startTime.
+    val loadedStartAt: LocalDateTime? = null,
     val medicationDayBoundary: MedicationDayBoundary,
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),

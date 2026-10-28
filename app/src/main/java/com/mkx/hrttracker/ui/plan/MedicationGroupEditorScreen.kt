@@ -656,6 +656,7 @@ private fun MedicationGroupEditorScreenContent(
         uiState.sinceDate,
         uiState.startsNow,
         uiState.startTime,
+        uiState.loadedStartAt,
         uiState.weeklyIntervalWeeks,
         uiState.weeklyDaysOfWeek,
         uiState.weeklyTime,
@@ -1562,15 +1563,14 @@ private fun MedicationGroupEditorScreenContent(
                         ScheduleStartEditor(
                             sinceDate = uiState.sinceDate,
                             startsNow = uiState.startsNow,
-                            startTime = uiState.startTime ?: uiState.medicationDayBoundary.startTime,
+                            start = uiState.scheduleStartAt(resolvedOccurrenceReferenceTime),
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onDateClick = { pendingSinceDate = uiState.sinceDate },
                             onTimeClick = {
-                                pendingStartTime = when {
-                                    uiState.startsNow -> resolvedOccurrenceReferenceTime.toLocalTime()
-                                    else -> uiState.startTime ?: uiState.medicationDayBoundary.startTime
-                                }
+                                pendingStartTime = uiState
+                                    .scheduleStartAt(resolvedOccurrenceReferenceTime)
+                                    .toLocalTime()
                             },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
@@ -1851,7 +1851,7 @@ internal fun buildMedicationGroupEditorUpcomingOccurrences(
     start: LocalDateTime
 ): List<LocalDateTime> {
     return uiState.toEditorSchedule().nextOccurrencesFrom(
-        start = uiState.scheduleStartAt(start)?.let { maxOf(it, start) } ?: start,
+        start = maxOf(uiState.scheduleStartAt(start), start),
         limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState),
         boundary = uiState.medicationDayBoundary,
     )
@@ -2160,7 +2160,7 @@ internal fun hasPastScheduleOptionWindow(
     uiState: MedicationGroupEditorUiState,
     referenceTime: LocalDateTime,
 ): Boolean {
-    val start = uiState.scheduleStartAt(referenceTime) ?: uiState.sinceDate.atStartOfDay()
+    val start = uiState.scheduleStartAt(referenceTime)
     return uiState.toEditorSchedule()
         .nextOccurrencesFrom(start = start, limit = 1, boundary = uiState.medicationDayBoundary)
         .firstOrNull()

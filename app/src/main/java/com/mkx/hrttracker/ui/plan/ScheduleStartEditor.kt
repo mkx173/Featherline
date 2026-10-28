@@ -12,10 +12,12 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
-import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -23,7 +25,7 @@ import java.util.Locale
 internal fun ScheduleStartEditor(
     sinceDate: LocalDate,
     startsNow: Boolean,
-    startTime: LocalTime,
+    start: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onDateClick: () -> Unit,
@@ -55,10 +57,18 @@ internal fun ScheduleStartEditor(
         item {
             EditorFieldRow(
                 label = stringResource(R.string.group_schedule_start_time),
-                value = if (startsNow) {
-                    stringResource(R.string.group_schedule_start_now)
-                } else {
-                    startTime.format(timeFormatter)
+                value = when {
+                    startsNow -> stringResource(R.string.group_schedule_start_now)
+                    // A saved start past the start date's own day: a plan that hid its
+                    // past from a later save, or one a night owl switch shifted.
+                    medicationDay(start, LocalMedicationDayBoundary.current) != sinceDate ->
+                        stringResource(
+                            R.string.plan_group_upcoming_format,
+                            dateFormatter(start.toLocalDate()),
+                            start.format(timeFormatter),
+                        )
+
+                    else -> start.format(timeFormatter)
                 },
                 icon = painterResource(R.drawable.ic_calendar_clock),
                 onClick = onTimeClick,
@@ -87,7 +97,7 @@ private fun ScheduleStartEditorPreview() {
         ScheduleStartEditor(
             sinceDate = LocalDate.of(2026, 4, 20),
             startsNow = false,
-            startTime = LocalTime.MIDNIGHT,
+            start = LocalDate.of(2026, 4, 20).atStartOfDay(),
             dateFormatter = medicationGroupScheduleDateFormatter(
                 locale = previewLocale,
                 today = LocalDate.of(2026, 4, 22),
