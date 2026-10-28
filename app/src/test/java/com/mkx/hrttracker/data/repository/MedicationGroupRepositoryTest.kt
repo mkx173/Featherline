@@ -13,6 +13,7 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.data.local.ScheduledEntryEntity
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -1695,33 +1696,34 @@ class MedicationGroupRepositoryTest {
             times = listOf(LocalTime.of(8, 0), LocalTime.of(9, 0))
         )
         coEvery {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(0).toString(),
                 "08:00",
             )
-        } returns listOf("entry-8")
+        } returns listOf(ScheduledEntryEntity("entry-8", "2026-04-29T08:00"))
         coEvery {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(1).toString(),
                 "09:00",
             )
-        } returns listOf("entry-9")
+        } returns listOf(ScheduledEntryEntity("entry-9", "2026-04-29T09:00"))
 
         repository.updateScheduleTimes(
             groupUuid = groupUuid,
             newTimes = listOf(LocalTime.of(9, 30), LocalTime.of(8, 30)),
+            boundary = MedicationDayBoundary.Midnight,
             now = now,
         )
 
         coVerifyOrder {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(0).toString(),
                 "08:00",
             )
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(1).toString(),
                 "09:00",
@@ -1746,8 +1748,40 @@ class MedicationGroupRepositoryTest {
                     ),
                 )
             )
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-8"), "09:30")
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-9"), "08:30")
+            medicationLogDao.updateScheduledFor("entry-8", "2026-04-29T09:30")
+            medicationLogDao.updateScheduledFor("entry-9", "2026-04-29T08:30")
+        }
+    }
+
+    @Test
+    fun updateScheduleTimes_keepsEachRecordOnItsMedicationDayAcrossFourAm() = runTest {
+        val groupUuid = UUID.fromString("d5037093-0f98-4f24-a0d4-f4fb93a8d210")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0), LocalTime.of(23, 0)),
+        )
+        // Both doses of medication day Oct 28: its 01:00 falls on the 29th.
+        coEvery {
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(any(), testScheduleTimeUuid(0).toString(), any())
+        } returns listOf(ScheduledEntryEntity("night", "2026-10-29T01:00"))
+        coEvery {
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(any(), testScheduleTimeUuid(1).toString(), any())
+        } returns listOf(ScheduledEntryEntity("evening", "2026-10-28T23:00"))
+
+        repository.updateScheduleTimes(
+            groupUuid = groupUuid,
+            newTimes = listOf(LocalTime.of(23, 30), LocalTime.of(0, 30)),
+            boundary = MedicationDayBoundary.FourAm,
+        )
+
+        coVerify {
+            medicationLogDao.updateScheduledFor("night", "2026-10-28T23:30")
+            medicationLogDao.updateScheduledFor("evening", "2026-10-29T00:30")
         }
     }
 

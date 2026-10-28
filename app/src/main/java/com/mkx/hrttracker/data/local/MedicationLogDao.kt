@@ -179,7 +179,7 @@ interface MedicationLogDao {
 
     @Query(
         """
-        SELECT uuid FROM medication_log_entries
+        SELECT uuid, scheduledForIso FROM medication_log_entries
         WHERE sourceGroupUuid = :groupUuid
           AND scheduledForIso IS NOT NULL
           AND (
@@ -188,23 +188,14 @@ interface MedicationLogDao {
           )
         """
     )
-    suspend fun getPlannedEntryIdsForGroupSlotTime(
+    suspend fun getPlannedEntriesForGroupSlotTime(
         groupUuid: String,
         scheduleTimeUuid: String,
         oldTimeIso: String,
-    ): List<String>
+    ): List<ScheduledEntryEntity>
 
-    @Query(
-        """
-        UPDATE medication_log_entries
-        SET scheduledForIso = substr(scheduledForIso, 1, 11) || :newTimeIso
-        WHERE uuid IN (:entryUuids)
-        """
-    )
-    suspend fun updateScheduledForTimeForEntries(
-        entryUuids: List<String>,
-        newTimeIso: String,
-    )
+    @Query("UPDATE medication_log_entries SET scheduledForIso = :scheduledForIso WHERE uuid = :uuid")
+    suspend fun updateScheduledFor(uuid: String, scheduledForIso: String)
 
     @Query(
         """

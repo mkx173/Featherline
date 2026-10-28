@@ -37,3 +37,8 @@ data class MedicationLogEntryEntity(
     val importSourceApp: String? = null,
     val importExternalId: String? = null,
 )
+
+data class ScheduledEntryEntity(
+    val uuid: String,
+    val scheduledForIso: String,
+)

@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.dateTimeOn
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -254,6 +255,7 @@ class MedicationGroupRepository @Inject constructor(
     suspend fun updateScheduleTimes(
         groupUuid: UUID,
         newTimes: List<LocalTime>,
+        boundary: MedicationDayBoundary,
         now: Instant = Instant.now(),
     ) {
         homeSnapshotRepository.runHomeDataMutation {
@@ -273,11 +275,11 @@ class MedicationGroupRepository @Inject constructor(
 
                 validateScheduleTimeMigration(oldTimes, normalizedNewTimes)
 
-                val entryIdsBySlot = oldTimes.mapIndexed { index, oldTime ->
+                val entriesBySlot = oldTimes.mapIndexed { index, oldTime ->
                     if (oldTime == normalizedNewTimes[index]) {
                         emptyList()
                     } else {
-                        logDao.getPlannedEntryIdsForGroupSlotTime(
+                        logDao.getPlannedEntriesForGroupSlotTime(
                             groupUuid = groupUuid.toString(),
                             scheduleTimeUuid = oldTimeRows[index].uuid,
                             oldTimeIso = oldTime.toScheduleTimeIso(),
@@ -316,11 +318,17 @@ class MedicationGroupRepository @Inject constructor(
                             scheduleTime.copy(sortOrder = index)
                         }
                 )
-                entryIdsBySlot.forEachIndexed { index, entryUuids ->
-                    if (entryUuids.isNotEmpty()) {
-                        logDao.updateScheduledForTimeForEntries(
-                            entryUuids = entryUuids,
-                            newTimeIso = normalizedNewTimes[index].toScheduleTimeIso(),
+                entriesBySlot.forEachIndexed { index, entries ->
+                    entries.forEach { entry ->
+                        // Each record keeps its medication day: with the day ending at 04:00,
+                        // 23:00 moved to 01:00 is that night, not the morning before.
+                        val scheduledFor = LocalDateTime.parse(entry.scheduledForIso)
+                        logDao.updateScheduledFor(
+                            uuid = entry.uuid,
+                            scheduledForIso = boundary.dateTimeOn(
+                                medicationDay(scheduledFor, boundary),
+                                normalizedNewTimes[index],
+                            ).toString(),
                         )
                     }
                 }

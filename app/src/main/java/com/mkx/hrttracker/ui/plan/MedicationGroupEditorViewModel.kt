@@ -49,7 +49,7 @@ import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.MedicationDayBoundary
-import com.mkx.hrttracker.util.isPastMidnight
+import com.mkx.hrttracker.util.dateTimeOn
 import com.mkx.hrttracker.util.timeOfDayOrder
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
@@ -1051,6 +1051,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     medicationGroupRepository.updateScheduleTimes(
                         groupUuid = UUID.fromString(checkNotNull(currentState.editingGroupId)),
                         newTimes = scheduleTimesForSave(currentState),
+                        boundary = currentState.medicationDayBoundary,
                         now = saveNow,
                     )
                 }
@@ -2119,8 +2120,7 @@ internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): L
     loadedStartAt?.let { return maxOf(it, dayStart) }
     val time = startTime ?: return dayStart
     // Small-hours times belong to the night after the start date.
-    val date = if (medicationDayBoundary.isPastMidnight(time)) sinceDate.plusDays(1) else sinceDate
-    return date.atTime(time)
+    return medicationDayBoundary.dateTimeOn(sinceDate, time)
 }
 
 internal fun hasSaveableMedicationGroupContent(
