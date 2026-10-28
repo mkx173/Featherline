@@ -2114,7 +2114,9 @@ internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): L
     if (startsNow) {
         return maxOf(now, dayStart)
     }
-    loadedStartAt?.let { return it }
+    // Nothing before the start date's day can fall anyway, so an earlier saved start,
+    // left behind when the switch moves the start date forward, is that day's start.
+    loadedStartAt?.let { return maxOf(it, dayStart) }
     val time = startTime ?: return dayStart
     // Small-hours times belong to the night after the start date.
     val date = if (medicationDayBoundary.isPastMidnight(time)) sinceDate.plusDays(1) else sinceDate
