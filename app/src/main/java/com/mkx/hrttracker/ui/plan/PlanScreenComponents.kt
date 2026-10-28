@@ -82,6 +82,8 @@ import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.PastMidnightMarkedText
+import com.mkx.hrttracker.util.PAST_MIDNIGHT_MARK
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.MedicationDayBoundary
@@ -620,14 +622,14 @@ internal fun RegimenGroupCard(
                             ),
                             firstDayOfWeek = firstDayOfWeek,
                             boundary = LocalMedicationDayBoundary.current,
+                            pastMidnightMark = PAST_MIDNIGHT_MARK,
                         )
-                        Text(
+                        PastMidnightMarkedText(
                             text = groupScheduleSummary,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .weight(1f),
-                            softWrap = true
                         )
                     }
                     if (showStartDate) {

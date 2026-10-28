@@ -59,8 +59,7 @@ fun medicationDayTimeText(
 /**
  * A dose time listed under a medication day. With the day ending at 04:00, a time
  * between midnight and 04:00 leads with the night owl moon, so a lone 01:00 under
- * Today reads as tonight rather than this morning. The moon sits inside the text,
- * keeping its baseline and end alignment, and reads aloud as "After midnight".
+ * Today reads as tonight rather than this morning.
  */
 @Composable
 fun MedicationDayTimeLabel(
@@ -73,7 +72,35 @@ fun MedicationDayTimeLabel(
     textAlign: TextAlign? = null,
     maxLines: Int = Int.MAX_VALUE,
 ) {
-    if (!isPastMidnight) {
+    PastMidnightMarkedText(
+        text = if (isPastMidnight) "$PAST_MIDNIGHT_MARK $text" else text,
+        style = style,
+        color = color,
+        modifier = modifier,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
+        maxLines = maxLines,
+    )
+}
+
+/** Stands in a string for the night owl moon, as in a plan's schedule summary; see PastMidnightMarkedText. */
+const val PAST_MIDNIGHT_MARK = '\u263E'
+
+/**
+ * Draws each [PAST_MIDNIGHT_MARK] in [text] as the night owl moon. The moon sits inside
+ * the text, keeping its baseline and wrapping, and reads aloud as "After midnight".
+ */
+@Composable
+fun PastMidnightMarkedText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+    textAlign: TextAlign? = null,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    if (PAST_MIDNIGHT_MARK !in text) {
         Text(
             text = text,
             style = style,
@@ -90,9 +117,10 @@ fun MedicationDayTimeLabel(
     val iconSize = with(LocalDensity.current) { (style.fontSize.toDp() - 1.dp).toSp() }
     Text(
         text = buildAnnotatedString {
-            appendInlineContent(PAST_MIDNIGHT_ICON_ID, description)
-            append(' ')
-            append(text)
+            text.split(PAST_MIDNIGHT_MARK).forEachIndexed { index, part ->
+                if (index > 0) appendInlineContent(PAST_MIDNIGHT_ICON_ID, description)
+                append(part)
+            }
         },
         inlineContent = mapOf(
             PAST_MIDNIGHT_ICON_ID to InlineTextContent(

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.DayOfWeek
@@ -51,5 +52,34 @@ class MedicationGroupScheduleFormattingTest {
                 weeklyIntervalLabel = "Every 2 weeks"
             )
         )
+    }
+
+    @Test
+    fun formatSummary_marks_times_before_four_when_the_day_ends_at_four() {
+        val formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+        val daily = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 20),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(1, 0), LocalTime.of(22, 0))
+        )
+        val weekly = daily.copy(
+            type = MedicationGroupScheduleType.WEEKLY,
+            weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
+            times = listOf(LocalTime.of(1, 0))
+        )
+        fun MedicationGroupSchedule.summary(boundary: MedicationDayBoundary) = formatSummary(
+            locale = Locale.US,
+            timeFormatter = formatter,
+            dailyIntervalLabel = "Every day",
+            weeklyIntervalLabel = "Every week",
+            boundary = boundary,
+            pastMidnightMark = '*',
+        )
+
+        assertEquals("Every day · 22:00/* 01:00", daily.summary(MedicationDayBoundary.FourAm))
+        assertEquals("Every week · Mon · * 01:00", weekly.summary(MedicationDayBoundary.FourAm))
+        assertEquals("Every day · 01:00/22:00", daily.summary(MedicationDayBoundary.Midnight))
     }
 }
