@@ -27,6 +27,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -172,6 +173,7 @@ class HomeSnapshotCodecTest {
                 since = LocalDate.of(2026, 4, 1),
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
                 times = listOf(LocalTime.of(8, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
                 timeSlots = listOf(
                     MedicationGroupScheduleTime(
                         uuid = UUID.fromString("56c99b34-6a42-42e0-b2cc-2c68a4c8e5f5"),

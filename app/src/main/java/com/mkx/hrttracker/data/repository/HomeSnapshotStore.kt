@@ -737,6 +737,7 @@ internal object HomeSnapshotCodec {
         }
         writeList(schedule.times) { time -> writeLocalTime(time) }
         writeList(schedule.timeSlots) { timeSlot -> writeMedicationGroupScheduleTime(timeSlot) }
+        writeBoolean(schedule.dayBoundary.endsAtFourAm)
     }
 
     private fun DataInputStream.readMedicationGroupSchedule(): MedicationGroupSchedule {
@@ -747,6 +748,7 @@ internal object HomeSnapshotCodec {
             weeklyDaysOfWeek = readList { DayOfWeek.of(readInt()) }.toSet(),
             times = readList { readLocalTime() },
             timeSlots = readList { readMedicationGroupScheduleTime() },
+            dayBoundary = MedicationDayBoundary.fromSwitch(readBoolean()),
         )
     }
 
@@ -1358,10 +1360,11 @@ private const val TAG = "HomeSnapshotStore"
 // A bump drops Home data only: the next run reuses the fit published in the
 // still-valid E2 inputs part.
 // v30 appends the profile's Health Connect measured time.
-private const val SNAPSHOT_CODEC_VERSION = 30
+// v31 appends each plan's own day ending (night owl) to its schedule.
+private const val SNAPSHOT_CODEC_VERSION = 31
 // The E2 inputs record's own version, separate from the snapshot's. A bump
 // drops the inputs part, fit included, so the next run re-solves.
-private const val E2_INPUTS_CODEC_VERSION = 2
+private const val E2_INPUTS_CODEC_VERSION = 3
 // The Home E2 estimate record's own version, separate from the snapshot's.
 private const val HOME_E2_ESTIMATE_CODEC_VERSION = 1
 private const val FIT_OUTCOME_SOLVED = 0

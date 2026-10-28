@@ -66,6 +66,7 @@ class HomeE2InputsCodecTest {
                 since = LocalDate.of(2026, 4, 1),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
             ),
             medications = listOf(testMedicationGroupMedication(medicine = medicine)),
             createdAt = Instant.ofEpochMilli(11L),
@@ -126,7 +127,7 @@ class HomeE2InputsCodecTest {
             decode = HomeSnapshotCodec::decodeE2Inputs,
         )
         val otherVersion = HomeSnapshotCodec.encodeE2Inputs(minimalRecord()).also { bytes ->
-            ByteBuffer.wrap(bytes).putInt(0, 3)
+            ByteBuffer.wrap(bytes).putInt(0, 4)
         }
 
         assertThrows(IllegalArgumentException::class.java) { HomeSnapshotCodec.decodeE2Inputs(otherVersion) }

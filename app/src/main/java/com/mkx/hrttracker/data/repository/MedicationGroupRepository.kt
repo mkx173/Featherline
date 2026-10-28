@@ -384,6 +384,16 @@ class MedicationGroupRepository @Inject constructor(
                     isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
                     else -> includePastScheduledSlots
                 }
+                // Once a plan has records or is archived, its day ending stays.
+                // A new or recreated plan (no row yet) takes the input.
+                val resolvedDayEndsAtFourAm = if (
+                    existingGroupRow != null &&
+                    (hasExistingRecords || existingGroupRow.archivedAtEpochMillis != null)
+                ) {
+                    existingGroupRow.dayEndsAtFourAm
+                } else {
+                    schedule.dayBoundary.endsAtFourAm
+                }
                 val didBackfillModeChange = existingGroupRow != null &&
                         !isExistingRecreatedGroup &&
                         !hasExistingRecords &&
@@ -420,6 +430,7 @@ class MedicationGroupRepository @Inject constructor(
                         includePastScheduledSlots = resolvedIncludePastScheduledSlots,
                         replacedByGroupUuid = existingGroupRow?.replacedByGroupUuid,
                         recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
+                        dayEndsAtFourAm = resolvedDayEndsAtFourAm,
                     ),
                     items = medications.mapIndexed { index, medication ->
                         val preparationType = medication.medicineUuid
@@ -641,6 +652,8 @@ data class MedicationGroupScheduleInput(
     },
     /** The first moment a slot can fall on; null starts with the whole of [since]. */
     val startAt: LocalDateTime? = null,
+    /** Ignored once the plan has records or is archived; it then keeps its stored day ending. */
+    val dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 )
 
 /**

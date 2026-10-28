@@ -1331,6 +1331,118 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun saveGroup_forFreshGroup_writesItsDayEnding() = runTest {
+        val saved = saveWithDayBoundary(uuid = null, dayBoundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forReplacementCopy_writesItsDayEnding() = runTest {
+        val saved = saveWithDayBoundary(
+            uuid = null,
+            replacesGroupUuid = UUID.fromString("0b6f5a3c-8d1e-4f2a-9c7b-3e5d6f7a8b90"),
+            dayBoundary = MedicationDayBoundary.FourAm,
+        )
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forRecordlessRecreatedGroup_writesItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("7a1c2e3f-4b5d-4e6f-8a9b-0c1d2e3f4a5b")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            recreatedFromGroupUuid = "1d2e3f4a-5b6c-4d7e-8f90-a1b2c3d4e5f6",
+            dayEndsAtFourAm = false,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 0
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forExistingGroupWithRecords_keepsItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("5f0e8a4e-2f53-4d0c-9b8e-6a1f3c2d7e91")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = true,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.Midnight)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forArchivedGroupWithoutRecords_keepsItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            archivedAtEpochMillis = Instant.parse("2026-04-20T12:00:00Z").toEpochMilli(),
+            dayEndsAtFourAm = true,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 0
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.Midnight)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    /** Saves a single-time daily plan at 01:00 and returns the group row written. */
+    private suspend fun saveWithDayBoundary(
+        uuid: UUID?,
+        dayBoundary: MedicationDayBoundary,
+        replacesGroupUuid: UUID? = null,
+    ): MedicationGroupEntity {
+        val savedGroup = slot<MedicationGroupEntity>()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        repository.saveGroup(
+            uuid = uuid,
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTimeInput(
+                        uuid = uuid?.let { testScheduleTimeUuid(0) },
+                        time = LocalTime.of(1, 0),
+                    ),
+                ),
+                dayBoundary = dayBoundary,
+            ),
+            medications = emptyList(),
+            replacesGroupUuid = replacesGroupUuid,
+            now = Instant.parse("2026-04-30T08:15:00Z"),
+        )
+
+        coVerify {
+            medicationGroupDao.upsertGroupWithItems(
+                group = capture(savedGroup),
+                items = any(),
+                scheduleTimes = any(),
+                weeklyDays = any(),
+            )
+        }
+        return savedGroup.captured
+    }
+
+    @Test
     fun saveGroup_forExistingRecreatedGroup_ignoresBackfillToggle() = runTest {
         val originalGroupUuid = UUID.fromString("aefc640e-c100-4498-b2d0-39d25da81182")
         val groupUuid = UUID.fromString("c26d46fc-5000-4c58-8522-2fc765f4c7db")
@@ -1876,6 +1988,7 @@ class MedicationGroupRepositoryTest {
         createdAtEpochMillis: Long = 0,
         replacedByGroupUuid: String? = null,
         recreatedFromGroupUuid: String? = null,
+        dayEndsAtFourAm: Boolean = false,
         effectiveFromLocalIso: List<String> = List(times.size) {
             LocalDate.EPOCH.atStartOfDay().toString()
         },
@@ -1895,6 +2008,7 @@ class MedicationGroupRepositoryTest {
                 includePastScheduledSlots = includePastScheduledSlots,
                 replacedByGroupUuid = replacedByGroupUuid,
                 recreatedFromGroupUuid = recreatedFromGroupUuid,
+                dayEndsAtFourAm = dayEndsAtFourAm,
             ),
             items = items,
             scheduleTimes = times.mapIndexed { index, time ->
