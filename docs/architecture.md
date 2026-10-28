@@ -548,7 +548,7 @@ durable generation in `home_snapshot_metadata.preferences_pb`:
   current, its generation is the durable one, its zone is the device's,
   and today is within ten days of its anchor date.
 - It persists the E2 inputs, `E2InputsRecord`, in `home_e2_inputs.pb`,
-  with its own codec, `E2_INPUTS_CODEC_VERSION = 3`: the logged estradiol
+  with its own codec, `E2_INPUTS_CODEC_VERSION = 4`: the logged estradiol
   doses from 17 + 180 days back, with no upper bound, so one read serves
   every chart option and the calibration page; the active groups with an
   estradiol dose, whose slots after now are Home's planned doses; the

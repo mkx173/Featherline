@@ -154,7 +154,6 @@ class PlanBatchAddViewModel @Inject constructor(
                 entries = entries,
                 start = now,
                 limit = PLAN_BATCH_ADD_UPCOMING_OCCURRENCE_LIMIT,
-                boundary = settingsState.medicationDayBoundary,
             ),
             entriesToAdd = entryPlan.entries,
             manualEntryCount = entryPlan.entries.count { entry -> entry.sourceGroupUuid == null },
@@ -648,7 +647,7 @@ internal fun buildPlanBatchAddOccurrences(
     while (!currentDate.isAfter(lastCalendarDate)) {
         sortedTimes.forEach { time ->
             val occurrence = LocalDateTime.of(currentDate, time)
-            if (!schedule.isScheduledAt(occurrence, boundary, allowBeforeSince = true)) {
+            if (!schedule.isScheduledAt(occurrence, allowBeforeSince = true)) {
                 return@forEach
             }
             val day = medicationDay(occurrence, boundary)

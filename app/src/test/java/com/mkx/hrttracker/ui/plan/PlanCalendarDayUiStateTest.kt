@@ -769,7 +769,6 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
-                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -821,7 +820,6 @@ class PlanCalendarDayUiStateTest {
             isEntryWithinScheduleFulfillmentWindow(
                 group = group,
                 entry = entry,
-                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }

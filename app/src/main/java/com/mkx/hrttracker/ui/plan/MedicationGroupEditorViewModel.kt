@@ -1052,7 +1052,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     medicationGroupRepository.updateScheduleTimes(
                         groupUuid = UUID.fromString(checkNotNull(currentState.editingGroupId)),
                         newTimes = scheduleTimesForSave(currentState),
-                        boundary = currentState.medicationDayBoundary,
                         now = saveNow,
                     )
                 }
@@ -1323,7 +1322,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = archiveNow,
                 )
             }.fold(
@@ -1432,7 +1430,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = recreateNowInstant,
                 )
             }.fold(

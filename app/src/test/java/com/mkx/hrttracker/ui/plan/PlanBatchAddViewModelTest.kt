@@ -279,6 +279,7 @@ class PlanBatchAddViewModelTest {
                 since = LocalDate.of(2026, 10, 1),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(1, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
             ),
             medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )

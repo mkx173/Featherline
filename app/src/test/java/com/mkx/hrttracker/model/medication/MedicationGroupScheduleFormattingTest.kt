@@ -69,12 +69,11 @@ class MedicationGroupScheduleFormattingTest {
             weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
             times = listOf(LocalTime.of(1, 0))
         )
-        fun MedicationGroupSchedule.summary(boundary: MedicationDayBoundary) = formatSummary(
+        fun MedicationGroupSchedule.summary(boundary: MedicationDayBoundary) = copy(dayBoundary = boundary).formatSummary(
             locale = Locale.US,
             timeFormatter = formatter,
             dailyIntervalLabel = "Every day",
             weeklyIntervalLabel = "Every week",
-            boundary = boundary,
             pastMidnightMark = '*',
         )
 

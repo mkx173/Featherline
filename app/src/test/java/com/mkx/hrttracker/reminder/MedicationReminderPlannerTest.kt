@@ -47,7 +47,6 @@ class MedicationReminderPlannerTest {
             groups = listOf(secondGroup, firstGroup),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -79,7 +78,6 @@ class MedicationReminderPlannerTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
             armed = mapOf(group.uuid to missed),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf(missed), plans.map { it.scheduledAt })
@@ -100,7 +98,6 @@ class MedicationReminderPlannerTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
             armed = mapOf(group.uuid to LocalDateTime.of(2026, 4, 20, 20, 0)),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf(LocalDateTime.of(2026, 4, 20, 20, 0)), plans.map { it.scheduledAt })
@@ -120,7 +117,6 @@ class MedicationReminderPlannerTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 8, 0),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
@@ -145,7 +141,6 @@ class MedicationReminderPlannerTest {
                 )
             ),
             now = LocalDateTime.of(2026, 4, 20, 8, 30),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -171,7 +166,6 @@ class MedicationReminderPlannerTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 9, 0),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -205,7 +199,6 @@ class MedicationReminderPlannerTest {
             groups = listOf(group),
             entries = fulfilledEntries,
             now = now,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -228,7 +221,6 @@ class MedicationReminderPlannerTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 10, 0),
             lookaheadDays = 0,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
@@ -266,12 +258,55 @@ class MedicationReminderPlannerTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 21, 8, 0),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
             listOf(LocalDateTime.of(2026, 4, 23, 9, 0)),
             plans.map { it.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_follows_each_plans_own_day_ending() {
+        // Both weekly on Monday at 01:00. The 04:00 plan's Monday 01:00 falls on
+        // calendar Tuesday, the early hours of its Monday; the midnight plan's
+        // stays on calendar Monday.
+        fun weeklyMondayGroup(uuid: UUID, dayBoundary: MedicationDayBoundary) = medicationGroup(
+            uuid = uuid,
+            name = dayBoundary.name,
+            time = LocalTime.of(1, 0),
+            notificationsEnabled = true,
+        ).let { group ->
+            group.copy(
+                schedule = group.schedule.copy(
+                    type = MedicationGroupScheduleType.WEEKLY,
+                    since = LocalDate.of(2026, 10, 26),
+                    weeklyDaysOfWeek = setOf(java.time.DayOfWeek.MONDAY),
+                    dayBoundary = dayBoundary,
+                ),
+            )
+        }
+        val nightOwl = weeklyMondayGroup(
+            UUID.fromString("2f0c6a51-7d3e-4b8a-9c1d-0e5f6a7b8c9d"),
+            MedicationDayBoundary.FourAm,
+        )
+        val midnight = weeklyMondayGroup(
+            UUID.fromString("8a9b0c1d-2e3f-4a5b-8c6d-7e8f9a0b1c2d"),
+            MedicationDayBoundary.Midnight,
+        )
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(nightOwl, midnight),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 11, 2, 0, 30),
+        )
+
+        assertEquals(
+            mapOf(
+                nightOwl.uuid to LocalDateTime.of(2026, 11, 3, 1, 0),
+                midnight.uuid to LocalDateTime.of(2026, 11, 2, 1, 0),
+            ),
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt },
         )
     }
 

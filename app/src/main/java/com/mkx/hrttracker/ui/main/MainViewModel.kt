@@ -485,7 +485,6 @@ class MainViewModel @Inject constructor(
                     now = now,
                     zoneId = zoneId,
                     category = category,
-                    boundary = inputs.settings.medicationDayBoundary,
                 )
                 cards.takeIf { it.isNotEmpty() }
                     ?.let { MainMedicationCategorySection(category = category, cards = it) }

@@ -63,7 +63,6 @@ class WidgetDailyRefreshWorkerTest {
             generation = 0L,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = zoneId.id,
-            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),

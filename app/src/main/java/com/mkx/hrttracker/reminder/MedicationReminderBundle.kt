@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.toStorageValue
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.UUID
@@ -64,7 +63,6 @@ internal fun buildMedicationReminderBundle(
     scheduledAt: LocalDateTime,
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
-    boundary: MedicationDayBoundary,
 ): MedicationReminderBundle? {
     val items = groups
         .sortedBy(MedicationGroup::createdAt)
@@ -75,7 +73,6 @@ internal fun buildMedicationReminderBundle(
             group.occurrencesBetweenInPlanWindow(
                 startDate = scheduledAt.toLocalDate(),
                 endDate = scheduledAt.toLocalDate(),
-                boundary = boundary,
             )
                 .asSequence()
                 .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
@@ -89,7 +86,6 @@ internal fun buildMedicationReminderBundle(
                     scheduledFor = occurrence.scheduledFor,
                 ),
                 entries = entries,
-                boundary = boundary,
             )
         }
         .mapNotNull { (group, occurrence) ->
@@ -103,7 +99,6 @@ internal fun buildMedicationReminderBundle(
                     slot = slotKey,
                     medication = medication,
                     entries = entries,
-                    boundary = boundary,
                 )
             }
             // The slot-level filter above already established that at least

@@ -59,7 +59,6 @@ fun buildPlanCalendarDayUiState(
         val scheduledGroups = groups.scheduledGroupsForPlanDay(
             date = currentDate,
             entries = dayEntries,
-            boundary = boundary,
             zoneId = zoneId,
         )
         val hasOffPlanRecord = dayEntries.any { entry ->
@@ -78,7 +77,6 @@ fun buildPlanCalendarDayUiState(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-                boundary = boundary,
             )
         }
         val expectedOccurrenceCount = scheduledSlotsByGroup.values.sumOf { slots -> slots.size }
@@ -89,13 +87,12 @@ fun buildPlanCalendarDayUiState(
                     slot = slot,
                     entries = dayEntries,
                     zoneId = zoneId,
-                    boundary = boundary,
                 )
             }
         }
         val matchedOccurrenceCount = scheduledSlotsByGroup.entries.sumOf { (group, slots) ->
             slots.count { slot ->
-                isSlotFulfilled(group, slot, dayEntries, zoneId, boundary)
+                isSlotFulfilled(group, slot, dayEntries, zoneId)
             }
         }.coerceAtMost(expectedOccurrenceCount)
 

@@ -59,7 +59,6 @@ fun buildPlanDaySchedule(
     val scheduledGroups = groups.scheduledGroupsForPlanDay(
         date = date,
         entries = dayEntries,
-        boundary = boundary,
         zoneId = zoneId,
     )
     val scheduledEntries = scheduledGroups
@@ -75,7 +74,6 @@ fun buildPlanDaySchedule(
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-                boundary = boundary,
             ).flatMap { slot ->
                 val slotDateTime = slot.scheduledFor
                 val matchingSlotLogs = entries.filter { entry ->
@@ -91,7 +89,6 @@ fun buildPlanDaySchedule(
                         slot = slot,
                         entry = entry,
                         zoneId = zoneId,
-                        boundary = boundary,
                     )
                 }
                 val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
@@ -101,7 +98,6 @@ fun buildPlanDaySchedule(
                             group = group,
                             entry = entry,
                             zoneId = zoneId,
-                            boundary = boundary,
                         )
                     }
                     .groupBy(MedicationSignature::fromLogEntry)

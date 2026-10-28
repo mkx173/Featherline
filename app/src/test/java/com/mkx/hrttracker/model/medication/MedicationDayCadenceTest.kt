@@ -54,7 +54,7 @@ class MedicationDayCadenceTest {
 
         assertEquals(
             listOf(LocalDateTime.of(2026, 10, 19, 2, 0)),
-            slots(group, since, fourAm),
+            slots(group, since),
         )
     }
 
@@ -67,10 +67,10 @@ class MedicationDayCadenceTest {
             weeklyDays = setOf(DayOfWeek.MONDAY),
         )
 
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since, fourAm))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since))
         assertEquals(
             listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
-            slots(group, since.plusDays(1), fourAm),
+            slots(group, since.plusDays(1)),
         )
     }
 
@@ -78,9 +78,9 @@ class MedicationDayCadenceTest {
     fun fourAmDailyIntervalCountsMedicationDays() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
 
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 19, 2, 0)), slots(group, since, fourAm))
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), fourAm))
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 21, 2, 0)), slots(group, since.plusDays(2), fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 19, 2, 0)), slots(group, since))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1)))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 21, 2, 0)), slots(group, since.plusDays(2)))
     }
 
     @Test
@@ -96,27 +96,32 @@ class MedicationDayCadenceTest {
                 LocalDateTime.of(2026, 10, 18, 20, 0),
                 LocalDateTime.of(2026, 10, 19, 1, 0),
             ),
-            slots(group, since, fourAm),
+            slots(group, since),
         )
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), fourAm))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1)))
         assertEquals(
             listOf(
                 LocalDateTime.of(2026, 10, 20, 20, 0),
                 LocalDateTime.of(2026, 10, 21, 1, 0),
             ),
-            slots(group, since.plusDays(2), fourAm),
+            slots(group, since.plusDays(2)),
         )
     }
 
     @Test
     fun midnightCadenceStaysOnCivilDates() {
-        val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(2, 0)))
+        val group = group(
+            MedicationGroupScheduleType.DAILY,
+            interval = 2,
+            times = listOf(LocalTime.of(2, 0)),
+            dayBoundary = midnight,
+        )
 
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 18, 2, 0)), slots(group, since, midnight))
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), midnight))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 18, 2, 0)), slots(group, since))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1)))
         assertEquals(
             listOf(LocalDateTime.of(2026, 10, 20, 2, 0)),
-            slots(group, since.plusDays(2), midnight),
+            slots(group, since.plusDays(2)),
         )
     }
 
@@ -124,11 +129,11 @@ class MedicationDayCadenceTest {
     fun fourAmDaytimeCadenceIsUnchanged() {
         val group = group(MedicationGroupScheduleType.DAILY, interval = 2, times = listOf(LocalTime.of(9, 0)))
 
-        assertEquals(listOf(LocalDateTime.of(2026, 10, 18, 9, 0)), slots(group, since, fourAm))
-        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1), fourAm))
+        assertEquals(listOf(LocalDateTime.of(2026, 10, 18, 9, 0)), slots(group, since))
+        assertEquals(emptyList<LocalDateTime>(), slots(group, since.plusDays(1)))
         assertEquals(
             listOf(LocalDateTime.of(2026, 10, 20, 9, 0)),
-            slots(group, since.plusDays(2), fourAm),
+            slots(group, since.plusDays(2)),
         )
     }
 
@@ -141,7 +146,6 @@ class MedicationDayCadenceTest {
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 10, 19, 1, 32),
-            boundary = fourAm,
         )
 
         assertEquals(
@@ -159,7 +163,6 @@ class MedicationDayCadenceTest {
             entries = emptyList(),
             start = LocalDateTime.of(2026, 10, 19, 1, 32),
             limit = 1,
-            boundary = fourAm,
         )
 
         assertEquals(
@@ -181,7 +184,6 @@ class MedicationDayCadenceTest {
             schedule.nextOccurrencesFrom(
                 start = LocalDateTime.of(2026, 10, 19, 1, 32),
                 limit = 1,
-                boundary = fourAm,
             ),
         )
     }
@@ -221,9 +223,8 @@ class MedicationDayCadenceTest {
     private fun slots(
         group: MedicationGroup,
         date: LocalDate,
-        boundary: MedicationDayBoundary,
     ): List<LocalDateTime> {
-        return group.scheduledSlotsInPlanWindow(date, boundary, zone)
+        return group.scheduledSlotsInPlanWindow(date, zone)
             .map(MedicationGroupSlotKey::scheduledFor)
     }
 
@@ -232,13 +233,14 @@ class MedicationDayCadenceTest {
         interval: Int,
         times: List<LocalTime>,
         weeklyDays: Set<DayOfWeek> = emptySet(),
+        dayBoundary: MedicationDayBoundary = fourAm,
     ): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("1c7a4a6c-6c1d-4c7d-9d2a-6f7b5a3e8c11"),
             name = "Dawn",
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,
-            schedule = schedule(type, interval, times, weeklyDays),
+            schedule = schedule(type, interval, times, weeklyDays, dayBoundary),
             medications = listOf(testMedicationGroupMedication(medicine = testMedicine())),
         )
     }
@@ -248,6 +250,7 @@ class MedicationDayCadenceTest {
         interval: Int,
         times: List<LocalTime>,
         weeklyDays: Set<DayOfWeek> = emptySet(),
+        dayBoundary: MedicationDayBoundary = fourAm,
     ): MedicationGroupSchedule {
         return MedicationGroupSchedule(
             type = type,
@@ -255,6 +258,7 @@ class MedicationDayCadenceTest {
             since = since,
             weeklyDaysOfWeek = weeklyDays,
             times = times,
+            dayBoundary = dayBoundary,
         )
     }
 }

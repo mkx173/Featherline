@@ -376,7 +376,6 @@ internal fun buildHistoryCalendarDayUiState(
                 entry = entry,
                 groups = groups,
                 zoneId = zoneId,
-                boundary = boundary,
             )
         }
         dayStates[currentDate] = HistoryCalendarDayUiState(
@@ -397,7 +396,6 @@ private fun isHistoryAppliedDateOffPlanRecord(
     entry: MedicationLogEntry,
     groups: List<MedicationGroup>,
     zoneId: ZoneId,
-    boundary: MedicationDayBoundary,
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return false
     if (entry.scheduledFor == null) {
@@ -408,7 +406,6 @@ private fun isHistoryAppliedDateOffPlanRecord(
         group = group,
         entry = entry,
         zoneId = zoneId,
-        boundary = boundary,
     )
 }
 

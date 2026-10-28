@@ -11,7 +11,6 @@ import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +39,6 @@ class MedicineStockRepository @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
-    private val settingsRepository: SettingsRepository,
     @AppScope appScope: CoroutineScope,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
@@ -57,23 +55,15 @@ class MedicineStockRepository @Inject constructor(
         val activeGroups: List<MedicationGroup>,
         val logEntries: List<MedicationLogEntry>,
         val now: Instant,
-        val boundary: MedicationDayBoundary,
         val isLive: Boolean,
     )
 
     // Declared before projectionsCacheFlow, whose eager collection can start
     // during construction.
     private val snapshotProjectionsCacheFlow: Flow<ProjectionsCache?> =
-        combine(
-            homeSnapshotRepository.currentCache,
-            settingsRepository.settingsState
-                .map { settingsState -> settingsState.medicationDayBoundary }
-                .distinctUntilChanged(),
-        ) { state, boundary ->
-            state?.homeData?.let { homeData -> homeData to boundary }
-        }
-            .map { snapshotAndBoundary ->
-                val (snapshot, boundary) = snapshotAndBoundary ?: return@map null
+        homeSnapshotRepository.currentCache
+            .map { state ->
+                val snapshot = state?.homeData ?: return@map null
                 val now = clock.instant()
                 ProjectionsCache(
                     projections = projectAll(
@@ -81,13 +71,11 @@ class MedicineStockRepository @Inject constructor(
                         activeGroups = snapshot.activeGroups,
                         logEntries = snapshot.stockFulfillmentEntries,
                         now = now,
-                        boundary = boundary,
                     ),
                     medicines = snapshot.stockMedicines,
                     activeGroups = snapshot.activeGroups,
                     logEntries = snapshot.stockFulfillmentEntries,
                     now = now,
-                    boundary = boundary,
                     isLive = false,
                 )
             }
@@ -104,10 +92,7 @@ class MedicineStockRepository @Inject constructor(
             homeSnapshotRepository.cache
                 .map { state -> state?.homeData?.let { homeData -> homeData.anchorDateEpochDay to homeData.zoneId } }
                 .distinctUntilChanged(),
-            settingsRepository.settingsState
-                .map { settingsState -> settingsState.medicationDayBoundary }
-                .distinctUntilChanged(),
-        ) { medicines, groups, logEntries, _, boundary ->
+        ) { medicines, groups, logEntries, _ ->
             if (medicines == null || groups == null || logEntries == null) return@combine null
             val now = clock.instant()
             val activeGroups = groups.filter { group -> group.archivedAt == null }
@@ -117,13 +102,11 @@ class MedicineStockRepository @Inject constructor(
                     activeGroups = activeGroups,
                     logEntries = logEntries,
                     now = now,
-                    boundary = boundary,
                 ),
                 medicines = medicines,
                 activeGroups = activeGroups,
                 logEntries = logEntries,
                 now = now,
-                boundary = boundary,
                 isLive = true,
             )
         }
@@ -139,7 +122,6 @@ class MedicineStockRepository @Inject constructor(
                         activeGroups = emptyList(),
                         logEntries = emptyList(),
                         now = clock.instant(),
-                        boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                         isLive = true,
                     )
                 )
@@ -200,7 +182,6 @@ class MedicineStockRepository @Inject constructor(
             logEntries = stockWindowLogEntries(cache.logEntries, cache.now, zoneId),
             now = cache.now,
             zoneId = zoneId,
-            boundary = cache.boundary,
             fulfilledSlot = fulfilledSlot,
         )
     }
@@ -211,11 +192,10 @@ class MedicineStockRepository @Inject constructor(
         logEntries: List<MedicationLogEntry> = emptyList(),
         now: Instant = clock.instant(),
         zoneId: ZoneId = scheduleZoneId(),
-        boundary: MedicationDayBoundary,
     ): List<MedicineStockProjection> {
         val stockWindowLogEntries = stockWindowLogEntries(logEntries, now, zoneId)
         return medicines.map { medicine ->
-            project(medicine, activeGroups, stockWindowLogEntries, now, zoneId, boundary)
+            project(medicine, activeGroups, stockWindowLogEntries, now, zoneId)
         }
     }
 
@@ -229,7 +209,6 @@ class MedicineStockRepository @Inject constructor(
             logEntries = medicationLogRepository.getEntries(),
             now = now,
             zoneId = zoneId,
-            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
         )
     }
 
@@ -239,7 +218,6 @@ class MedicineStockRepository @Inject constructor(
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId,
-        boundary: MedicationDayBoundary,
         fulfilledSlot: FulfilledScheduledSlot? = null,
     ): MedicineStockProjection {
         val total = computeTotalStock(medicine)
@@ -250,10 +228,9 @@ class MedicineStockRepository @Inject constructor(
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
-            boundary = boundary,
             fulfilledSlot = fulfilledSlot,
         )
-        val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId, boundary)
+        val intervalDays = computeIntervalDays(medicine, activeGroups, now, zoneId)
         val maxPerAdministration = ScheduledRunwayCalculator.maxPerAdministration(
             medicine = medicine,
             activeGroups = activeGroups,
@@ -335,7 +312,6 @@ class MedicineStockRepository @Inject constructor(
         activeGroups: List<MedicationGroup>,
         now: Instant,
         zoneId: ZoneId,
-        boundary: MedicationDayBoundary,
     ): Int? {
         val nowLocal = now.atZone(zoneId).toLocalDateTime()
         val horizonEnd = nowLocal.toLocalDate().plusDays(ScheduledRunwayCalculator.HORIZON_DAYS)
@@ -347,7 +323,6 @@ class MedicineStockRepository @Inject constructor(
                     startDate = nowLocal.toLocalDate(),
                     endDate = horizonEnd,
                     zoneId = zoneId,
-                    boundary = boundary,
                 ).asSequence()
             }
             .filter { occurrence -> !occurrence.scheduledFor.isBefore(nowLocal) }

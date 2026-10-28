@@ -97,6 +97,7 @@ class MedicationDayBoundaryTest {
             since = monday,
             weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
             times = listOf(LocalTime.of(1, 0)),
+            dayBoundary = fourAm,
         ))
         val schedule = buildPlanDaySchedule(
             date = monday,
@@ -217,7 +218,7 @@ class MedicationDayBoundaryTest {
 
     @Test
     fun midnightBoundaryLastNightIsEveningOnlyUntilNoon() {
-        val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0))))
+        val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)), midnight))
         val morning = day.plusDays(1).atTime(4, 30)
         val lastNight = buildMainLastNightSection(groups, emptyList(), morning, midnight, zone)
         assertEquals(day, lastNight.date)
@@ -230,7 +231,7 @@ class MedicationDayBoundaryTest {
 
     @Test
     fun tonightOnlyExistsAtMidnightAndUpcomingExcludesItsRows() {
-        val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0))))
+        val groups = listOf(group(listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)), midnight))
         val evening = day.atTime(20, 0)
         val tonight = buildMainComingUpSection(groups, emptyList(), evening, midnight, zone)
         assertEquals(day.plusDays(1), tonight.date)
@@ -262,9 +263,11 @@ class MedicationDayBoundaryTest {
         medicine = medicine, sourceGroupUuid = null, appliedAt = at.atZone(zone).toInstant(), appliedAtTimeZoneId = zone.id,
     )
 
-    private fun group(times: List<LocalTime>) = MedicationGroup(
+    private fun group(times: List<LocalTime>, dayBoundary: MedicationDayBoundary = fourAm) = MedicationGroup(
         uuid = UUID.randomUUID(), name = "Night doses", createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH,
-        schedule = MedicationGroupSchedule(MedicationGroupScheduleType.DAILY, 1, day.minusDays(10), emptySet(), times),
+        schedule = MedicationGroupSchedule(
+            MedicationGroupScheduleType.DAILY, 1, day.minusDays(10), emptySet(), times, dayBoundary = dayBoundary,
+        ),
         medications = listOf(testMedicationGroupMedication(medicine = medicine)),
     )
 }

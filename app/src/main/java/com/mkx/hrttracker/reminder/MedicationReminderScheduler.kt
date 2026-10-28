@@ -103,7 +103,6 @@ class MedicationReminderScheduler private constructor(
             entries = entries,
             now = now,
             armed = stored.armedTimes(),
-            boundary = settingsRepository.getCurrentSettings().medicationDayBoundary,
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
@@ -169,7 +168,6 @@ class MedicationReminderScheduler private constructor(
             entries = entries,
             now = now,
             armed = stored.armedTimes(),
-            boundary = settingsRepository.getCurrentSettings().medicationDayBoundary,
         )
 
         uuidsToCancel.forEach(::cancelReminderAlarm)
@@ -232,7 +230,6 @@ class MedicationReminderScheduler private constructor(
             groups = listOf(group),
             entries = entries,
             now = after,
-            boundary = settingsRepository.getCurrentSettings().medicationDayBoundary,
         ).firstOrNull() ?: return diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_skipped reason=no_plan groupUuid=$groupUuid entries=${entries.size}"

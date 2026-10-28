@@ -621,7 +621,6 @@ internal fun RegimenGroupCard(
                                 )
                             ),
                             firstDayOfWeek = firstDayOfWeek,
-                            boundary = LocalMedicationDayBoundary.current,
                             pastMidnightMark = PAST_MIDNIGHT_MARK,
                         )
                         PastMidnightMarkedText(

@@ -168,24 +168,25 @@ class MedicationGroupRepository @Inject constructor(
         // matching the original archive behavior; a non-null date archives
         // through the end of that medication day (the plan owns the whole day).
         archivedThroughDate: LocalDate? = null,
-        boundary: MedicationDayBoundary,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
         val systemZone = ZoneId.systemDefault()
         val nowLocal = now.toLocalDateTime(systemZone)
-        val archiveCutoffLocal = archivedThroughDate
-            ?.let { date -> medicationDayStart(date.plusDays(1), boundary) }
-            ?: nowLocal
-        val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
-            archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
-        } else {
-            nowEpochMillis
-        }
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 val groupRow = database.medicationGroupDao().getGroup(uuid.toString())
                     ?: throw MedicationGroupNotFoundException(uuid)
+                // The cutoff, the latest date and the record floor follow the plan's own day ending.
+                val boundary = MedicationDayBoundary.fromSwitch(groupRow.group.dayEndsAtFourAm)
+                val archiveCutoffLocal = archivedThroughDate
+                    ?.let { date -> medicationDayStart(date.plusDays(1), boundary) }
+                    ?: nowLocal
+                val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
+                    archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
+                } else {
+                    nowEpochMillis
+                }
                 val currentOrFuturePlannedSlotCount = database.medicationLogDao()
                     .getCurrentOrFuturePlannedSlotCountForGroup(
                         groupUuid = uuid.toString(),
@@ -255,7 +256,6 @@ class MedicationGroupRepository @Inject constructor(
     suspend fun updateScheduleTimes(
         groupUuid: UUID,
         newTimes: List<LocalTime>,
-        boundary: MedicationDayBoundary,
         now: Instant = Instant.now(),
     ) {
         homeSnapshotRepository.runHomeDataMutation {
@@ -264,6 +264,7 @@ class MedicationGroupRepository @Inject constructor(
                 val logDao = database.medicationLogDao()
                 val existingGroup = groupDao.getGroup(groupUuid.toString())
                     ?: throw MedicationGroupNotFoundException(groupUuid)
+                val boundary = MedicationDayBoundary.fromSwitch(existingGroup.group.dayEndsAtFourAm)
                 val oldTimeRows = existingGroup.scheduleTimes
                     .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
                 val oldTimes = oldTimeRows.map { time ->

@@ -15,10 +15,8 @@ data class MedicationGroupSlotOccurrence(
     val scheduledFor: LocalDateTime,
 )
 
-fun MedicationGroupSchedule.isScheduledOn(
-    date: LocalDate,
-    boundary: MedicationDayBoundary,
-): Boolean = isScheduledAt(medicationDayStart(date, boundary), boundary)
+fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean =
+    isScheduledAt(medicationDayStart(date, dayBoundary))
 
 /**
  * Whether the 04:00 switch moves this plan's doses: its times before 04:00 belong to
@@ -29,8 +27,8 @@ val MedicationGroupSchedule.movesWithMedicationDayBoundary: Boolean
         times.any { time -> time.isBefore(MedicationDayBoundary.FourAm.startTime) }
 
 /**
- * Whether an occurrence at [dateTime] fires under [boundary]. Both cadences count
- * medication days: with the day ending at 04:00, a Monday 01:00 weekly slot fires
+ * Whether an occurrence at [dateTime] fires under this plan's [dayBoundary]. Both
+ * cadences count medication days: with the day ending at 04:00, a Monday 01:00 weekly slot fires
  * at 01:00 on calendar Tuesday, the early hours of medication day Monday.
  *
  * [allowBeforeSince] backs batch-add's backfill before the plan's start; the regular
@@ -38,11 +36,10 @@ val MedicationGroupSchedule.movesWithMedicationDayBoundary: Boolean
  */
 fun MedicationGroupSchedule.isScheduledAt(
     dateTime: LocalDateTime,
-    boundary: MedicationDayBoundary,
     allowBeforeSince: Boolean = false,
 ): Boolean {
     val normalizedInterval = interval.coerceAtLeast(1)
-    val day = medicationDay(dateTime, boundary)
+    val day = medicationDay(dateTime, dayBoundary)
     if (!allowBeforeSince && day.isBefore(since)) {
         return false
     }
@@ -69,7 +66,6 @@ fun MedicationGroupSchedule.isScheduledAt(
 fun MedicationGroupSchedule.occurrencesBetween(
     startDate: LocalDate,
     endDate: LocalDate,
-    boundary: MedicationDayBoundary,
 ): List<LocalDateTime> {
     if (startDate.isAfter(endDate) || times.isEmpty()) {
         return emptyList()
@@ -81,7 +77,7 @@ fun MedicationGroupSchedule.occurrencesBetween(
     while (!currentDate.isAfter(endDate)) {
         sortedTimes.forEach { time ->
             val occurrence = LocalDateTime.of(currentDate, time)
-            if (isScheduledAt(occurrence, boundary)) {
+            if (isScheduledAt(occurrence)) {
                 result += occurrence
             }
         }
@@ -94,7 +90,6 @@ fun MedicationGroupSchedule.nextOccurrencesFrom(
     start: LocalDateTime,
     limit: Int,
     lookaheadDays: Long = 90L,
-    boundary: MedicationDayBoundary,
 ): List<LocalDateTime> {
     if (limit <= 0 || times.isEmpty()) {
         return emptyList()
@@ -107,7 +102,7 @@ fun MedicationGroupSchedule.nextOccurrencesFrom(
     while (!currentDate.isAfter(maxDate) && result.size < limit) {
         for (time in sortedTimes) {
             val occurrence = LocalDateTime.of(currentDate, time)
-            if (!occurrence.isBefore(start) && isScheduledAt(occurrence, boundary)) {
+            if (!occurrence.isBefore(start) && isScheduledAt(occurrence)) {
                 result += occurrence
                 if (result.size >= limit) break
             }
@@ -121,7 +116,6 @@ fun MedicationGroup.occurrencesBetweenInPlanWindow(
     startDate: LocalDate,
     endDate: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): List<MedicationGroupSlotOccurrence> {
     if (startDate.isAfter(endDate) || schedule.timeSlots.isEmpty()) {
         return emptyList()
@@ -133,7 +127,7 @@ fun MedicationGroup.occurrencesBetweenInPlanWindow(
     while (!currentDate.isAfter(endDate)) {
         sortedTimeSlots.forEach { slot ->
             val occurrence = LocalDateTime.of(currentDate, slot.time)
-            if (schedule.isScheduledAt(occurrence, boundary) &&
+            if (schedule.isScheduledAt(occurrence) &&
                 ownsUnloggedOccurrence(slot, occurrence)
             ) {
                 result += MedicationGroupSlotOccurrence(
@@ -153,7 +147,6 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
     limit: Int,
     lookaheadDays: Long = 90L,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): List<MedicationGroupSlotOccurrence> {
     if (limit <= 0 || schedule.timeSlots.isEmpty()) {
         return emptyList()
@@ -163,7 +156,6 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
         startDate = start.toLocalDate(),
         endDate = start.toLocalDate().plusDays(lookaheadDays),
         zoneId = zoneId,
-        boundary = boundary,
     )
         .asSequence()
         .filter { occurrence -> !occurrence.scheduledFor.isBefore(start) }

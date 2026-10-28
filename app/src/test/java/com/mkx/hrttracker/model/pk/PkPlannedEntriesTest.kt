@@ -34,7 +34,6 @@ class PkPlannedEntriesTest {
             now = LocalDateTime.of(2026, 5, 6, 10, 0),
             horizon = LocalDateTime.of(2026, 5, 20, 0, 0),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -52,7 +51,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -74,7 +72,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         // Expected future slots: May 7 8am, May 8 8am, May 9 8am. May 6 8am is
@@ -105,7 +102,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -146,7 +142,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         // Real entry stays, virtual for May 7 8am is suppressed, May 8 8am virtual
@@ -187,7 +182,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -221,7 +215,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -261,7 +254,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -307,7 +299,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertTrue(result.real.isEmpty())
@@ -373,7 +364,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(real, result.real)
@@ -396,7 +386,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
         val second = buildEstradiolPkSimulationEntries(
             realEntries = emptyList(),
@@ -404,7 +393,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = horizon,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(first.planned.map { it.uuid }, second.planned.map { it.uuid })
@@ -427,7 +415,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now.toLocalDate().plusDays(14).atStartOfDay(),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
             entries = simulationEntries.real,
@@ -484,7 +471,6 @@ class PkPlannedEntriesTest {
             now = now,
             horizon = now.toLocalDate().plusDays(3).atStartOfDay(),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
             entries = simulationEntries.real,
@@ -561,6 +547,7 @@ class PkPlannedEntriesTest {
                 since = LocalDate.of(2026, 10, 29),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(1, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
             ),
         )
 
@@ -569,7 +556,6 @@ class PkPlannedEntriesTest {
             activeGroups = listOf(group),
             now = now,
             horizon = LocalDateTime.of(2026, 11, 5, 0, 0),
-            boundary = MedicationDayBoundary.FourAm,
             zoneId = zoneId,
         )
 

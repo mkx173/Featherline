@@ -30,12 +30,10 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -141,24 +139,6 @@ class HomeSnapshotRepository @Inject constructor(
         // and decode on DataStore's own thread.
         appScope.launch(start = CoroutineStart.UNDISPATCHED) {
             load()
-            // A changed boundary changes the medication days every planned slot
-            // belongs to, so the cached E2 inputs must be rebuilt. Started after
-            // the load, so the first emission is compared with the boundary the
-            // cache actually holds: a matching one asks for nothing.
-            launch {
-                settingsRepository.settingsState
-                    .map { settingsState -> settingsState.medicationDayBoundary }
-                    .distinctUntilChanged()
-                    .catch { throwable ->
-                        diagnosticsLogger.warning(TAG, "home_snapshot_boundary_observer_failed", throwable)
-                    }
-                    .collect { boundary ->
-                        val cachedBoundary = cacheState.value?.e2Inputs?.medicationDayBoundary
-                        if (cachedBoundary != null && cachedBoundary != boundary) {
-                            requestRebuild()
-                        }
-                    }
-            }
             while (true) {
                 // Idle only with no request waiting, checked under the lock a
                 // mutation marks its run pending under (see [rebuilding]).
@@ -599,7 +579,6 @@ class HomeSnapshotRepository @Inject constructor(
             generation = generation,
             anchorDateEpochDay = homeData.anchorDateEpochDay,
             zoneId = homeData.zoneId,
-            medicationDayBoundary = settingsRepository.settingsState.value.medicationDayBoundary,
             option = option,
             weightKg = inputs.profile.weightKg,
             estradiolEntries = inputs.pkEntries,

@@ -292,7 +292,7 @@ class MedicationDayE2eTest {
         assertEquals(
             listOf(monday.plusDays(1).atTime(1, 0)),
             io { entryPoint.medicationGroupRepository().getGroup(group.uuid)!! }
-                .schedule.nextOccurrencesFrom(monday.atTime(20, 0), limit = 1, boundary = MedicationDayBoundary.FourAm),
+                .schedule.copy(dayBoundary = MedicationDayBoundary.FourAm).nextOccurrencesFrom(monday.atTime(20, 0), limit = 1),
         )
     }
 
@@ -403,7 +403,6 @@ class MedicationDayE2eTest {
         io {
             entryPoint.medicationGroupRepository().archiveGroup(
                 uuid = group.uuid,
-                boundary = MedicationDayBoundary.FourAm,
             )
         }
         history()
@@ -642,7 +641,6 @@ class MedicationDayE2eTest {
         io {
             entryPoint.medicationGroupRepository().archiveGroup(
                 uuid = archivedGroup.uuid,
-                boundary = MedicationDayBoundary.Midnight,
             )
         }
         log(

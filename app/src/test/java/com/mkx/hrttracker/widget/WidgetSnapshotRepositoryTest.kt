@@ -295,7 +295,6 @@ class WidgetSnapshotRepositoryTest {
             generation = generation,
             anchorDateEpochDay = today.toEpochDay(),
             zoneId = tag,
-            medicationDayBoundary = MedicationDayBoundary.Midnight,
             option = HomeE2ChartWindowOption.SEVEN_DAYS,
             weightKg = 62.0,
             estradiolEntries = emptyList(),

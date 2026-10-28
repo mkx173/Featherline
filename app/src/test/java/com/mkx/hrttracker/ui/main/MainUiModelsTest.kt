@@ -393,7 +393,6 @@ class MainUiModelsTest {
             ),
             now = now,
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -473,7 +472,6 @@ class MainUiModelsTest {
             now = now,
             zoneId = testZoneId,
             category = MedicationCategory.SERM,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -537,7 +535,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 21, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -627,7 +624,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -708,7 +704,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(3, cards.size)
@@ -787,7 +782,6 @@ class MainUiModelsTest {
             ),
             now = now,
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -851,7 +845,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(1, cards.size)
@@ -915,7 +908,6 @@ class MainUiModelsTest {
             ),
             now = displayedNow,
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -978,7 +970,6 @@ class MainUiModelsTest {
             ),
             now = loggedMinute,
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(2, cards.size)
@@ -1058,7 +1049,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(3, cards.size)
@@ -1134,7 +1124,6 @@ class MainUiModelsTest {
             ),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -1171,7 +1160,6 @@ class MainUiModelsTest {
             ),
             now = now,
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 19, 19, 30), cards.single().nextDoseAt)
@@ -1190,7 +1178,6 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 20, 31),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
@@ -1209,7 +1196,6 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 20, 30),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
@@ -1228,7 +1214,6 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 15, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(LocalDateTime.of(2026, 4, 18, 20, 0), cards.single().nextDoseAt)
@@ -1277,7 +1262,6 @@ class MainUiModelsTest {
                 groups = listOf(estradiolGroup),
                 entries = emptyList(),
                 now = LocalDateTime.of(2026, 4, 18, 11, 0),
-                boundary = MedicationDayBoundary.Midnight,
             )
         )
     }
@@ -1317,7 +1301,6 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(1, cards.size)
@@ -1370,7 +1353,6 @@ class MainUiModelsTest {
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 18, 11, 0),
             zoneId = testZoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(listOf("Older blocker", "Newer blocker"), cards.map { it.groupName })
@@ -2047,7 +2029,8 @@ class MainUiModelsTest {
                     LocalTime.of(5, 30),
                     LocalTime.of(13, 0),
                     LocalTime.of(20, 0),
-                )
+                ),
+                dayBoundary = MedicationDayBoundary.FourAm,
             )
         )
         // 02:58 on the 19th is still medication day the 18th.

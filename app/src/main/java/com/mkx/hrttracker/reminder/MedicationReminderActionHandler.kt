@@ -233,7 +233,6 @@ class MedicationReminderActionHandler @Inject constructor(
                         group = group,
                         slot = planSlot,
                         entries = entries,
-                        boundary = settings.medicationDayBoundary,
                     )
                 ) {
                     return@mapNotNull null
@@ -244,7 +243,6 @@ class MedicationReminderActionHandler @Inject constructor(
                         slot = planSlot,
                         medication = medication,
                         entries = entries,
-                        boundary = settings.medicationDayBoundary,
                     )
                 }
                 if (displayedMedications.isEmpty()) {
@@ -308,7 +306,6 @@ class MedicationReminderActionHandler @Inject constructor(
                 group = group,
                 slot = slot.toMedicationGroupSlotKey(),
                 entries = entries,
-                boundary = settingsRepository.getCurrentSettings().medicationDayBoundary,
             )
         }
         diagnosticsLogger.info(

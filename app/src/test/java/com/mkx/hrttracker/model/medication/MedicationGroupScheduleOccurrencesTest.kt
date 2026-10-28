@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -24,13 +23,10 @@ class MedicationGroupScheduleOccurrencesTest {
         )
 
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 21),
-            boundary = MedicationDayBoundary.Midnight,
         ))
     }
 
@@ -52,31 +48,23 @@ class MedicationGroupScheduleOccurrencesTest {
         )
 
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 13),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 16),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight,
         ))
 
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 23),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 27),
-            boundary = MedicationDayBoundary.Midnight,
         ))
 
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 30),
-            boundary = MedicationDayBoundary.Midnight,
         ))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 5, 4),
-            boundary = MedicationDayBoundary.Midnight,
         ))
 
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 5, 7),
-            boundary = MedicationDayBoundary.Midnight,
         ))
     }
 
@@ -93,7 +81,6 @@ class MedicationGroupScheduleOccurrencesTest {
         val occurrences = schedule.occurrencesBetween(
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 23),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -123,7 +110,6 @@ class MedicationGroupScheduleOccurrencesTest {
         val occurrences = group.occurrencesBetweenInPlanWindow(
             startDate = LocalDate.of(2026, 4, 18),
             endDate = LocalDate.of(2026, 4, 18),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -155,7 +141,6 @@ class MedicationGroupScheduleOccurrencesTest {
         val occurrences = group.occurrencesBetweenInPlanWindow(
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 19),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -197,7 +182,6 @@ class MedicationGroupScheduleOccurrencesTest {
         val occurrences = group.occurrencesBetweenInPlanWindow(
             startDate = LocalDate.of(2026, 4, 18),
             endDate = LocalDate.of(2026, 4, 19),
-            boundary = MedicationDayBoundary.Midnight,
         )
 
         assertEquals(
@@ -243,7 +227,6 @@ class MedicationGroupScheduleOccurrencesTest {
             lateSaveGroup.occurrencesBetweenInPlanWindow(
                 startDate = LocalDate.of(2026, 4, 19),
                 endDate = LocalDate.of(2026, 4, 19),
-                boundary = MedicationDayBoundary.Midnight,
             ).map(MedicationGroupSlotOccurrence::scheduledFor),
         )
         assertEquals(
@@ -251,7 +234,6 @@ class MedicationGroupScheduleOccurrencesTest {
             earlySaveGroup.occurrencesBetweenInPlanWindow(
                 startDate = LocalDate.of(2026, 4, 19),
                 endDate = LocalDate.of(2026, 4, 19),
-                boundary = MedicationDayBoundary.Midnight,
             ).map(MedicationGroupSlotOccurrence::scheduledFor),
         )
     }

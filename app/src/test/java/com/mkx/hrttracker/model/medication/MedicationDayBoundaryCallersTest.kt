@@ -31,6 +31,7 @@ class MedicationDayBoundaryCallersTest {
             since = since,
             weeklyDaysOfWeek = emptySet(),
             times = listOf(LocalTime.of(1, 0)),
+            dayBoundary = fourAm,
         ),
         medications = listOf(testMedicationGroupMedication(medicine = medicine)),
         createdAt = Instant.EPOCH,
@@ -44,11 +45,11 @@ class MedicationDayBoundaryCallersTest {
         // Calendar-day cadence would report Oct 31 and Nov 2 instead.
         assertEquals(
             LocalDateTime.of(2026, 10, 30, 1, 0),
-            group.previousScheduledForBefore(scheduledFor, zoneId = zone, boundary = fourAm),
+            group.previousScheduledForBefore(scheduledFor, zoneId = zone),
         )
         assertEquals(
             LocalDateTime.of(2026, 11, 3, 1, 0),
-            group.nextScheduledForAfter(scheduledFor, zoneId = zone, boundary = fourAm),
+            group.nextScheduledForAfter(scheduledFor, zoneId = zone),
         )
     }
 

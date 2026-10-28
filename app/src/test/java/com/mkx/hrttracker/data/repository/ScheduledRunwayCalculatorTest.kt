@@ -192,7 +192,6 @@ class ScheduledRunwayCalculatorTest {
                 scheduleTimeUuid = slotUuid,
                 scheduledFor = scheduledFor,
             ),
-            boundary = MedicationDayBoundary.Midnight,
         )
         // The pre-logged slot is gone, so the first remaining demand is tomorrow.
         assertEquals(scheduledFor.plusDays(1), withSuppression.first().scheduledFor)
@@ -225,7 +224,6 @@ class ScheduledRunwayCalculatorTest {
                 scheduleTimeUuid = slotUuid,
                 scheduledFor = scheduledFor,
             ),
-            boundary = MedicationDayBoundary.Midnight,
         )
         assertEquals(
             RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)),
@@ -362,6 +360,7 @@ class ScheduledRunwayCalculatorTest {
                 since = LocalDate.of(2026, 10, 29),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(1, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
             ),
         )
 
@@ -371,7 +370,6 @@ class ScheduledRunwayCalculatorTest {
             logEntries = emptyList(),
             nowLocal = LocalDateTime.of(2026, 11, 1, 6, 0),
             horizonEnd = LocalDate.of(2026, 11, 6),
-            boundary = MedicationDayBoundary.FourAm,
             zoneId = zoneId,
         )
 
@@ -397,7 +395,6 @@ class ScheduledRunwayCalculatorTest {
             logEntries = logEntries,
             now = now,
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
     }
 
@@ -413,7 +410,6 @@ class ScheduledRunwayCalculatorTest {
             nowLocal = LocalDateTime.of(today, LocalTime.of(7, 0)),
             horizonEnd = today.plusDays(ScheduledRunwayCalculator.HORIZON_DAYS),
             zoneId = zoneId,
-            boundary = MedicationDayBoundary.Midnight,
         )
     }
 

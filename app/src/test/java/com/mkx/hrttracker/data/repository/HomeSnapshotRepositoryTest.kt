@@ -44,7 +44,6 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.FakeAppTimeSource
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -1433,7 +1432,6 @@ class HomeSnapshotRepositoryTest {
         generation = generation,
         anchorDateEpochDay = at.toLocalDate().toEpochDay(),
         zoneId = zoneId.id,
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
         option = HomeE2ChartWindowOption.SEVEN_DAYS,
         weightKg = null,
         estradiolEntries = emptyList(),

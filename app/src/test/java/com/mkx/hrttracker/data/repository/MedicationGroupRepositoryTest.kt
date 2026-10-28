@@ -193,7 +193,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = archivedThroughDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
         coVerify(exactly = 1) {
@@ -235,7 +235,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate(),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected current or future planned slots to block archiving")
         } catch (_: CurrentOrFuturePlannedSlotsBlockArchiveException) {
         }
@@ -277,7 +277,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = archivedThroughDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -305,6 +305,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
             groupUuid = groupUuid,
             times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = true,
         )
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns listOf(
             testMedicationLogEntryEntity(
@@ -326,7 +327,6 @@ class MedicationGroupRepositoryTest {
         repository.archiveGroup(
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
-            boundary = MedicationDayBoundary.FourAm,
             now = now,
         )
 
@@ -364,7 +364,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
 
         repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now,
-            boundary = MedicationDayBoundary.Midnight)
+            )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -403,7 +403,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
 
         repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now,
-            boundary = MedicationDayBoundary.Midnight)
+            )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -436,7 +436,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 4, 19),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected archive date before schedule start to be rejected")
         } catch (expected: ArchiveDateBeforeRecordedDoseException) {
             assertTrue(expected.message.orEmpty().contains("before minimum archive date"))
@@ -474,7 +474,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 6, 10),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected archive date after today to be rejected")
         } catch (expected: ArchiveDateAfterTodayException) {
             assertTrue(expected.message.orEmpty().contains("after maximum archive date"))
@@ -523,7 +523,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -562,7 +562,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 5, 8),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected backdate before ad-hoc entry date to be rejected")
         } catch (_: ArchiveDateBeforeRecordedDoseException) {
         }
@@ -599,7 +599,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 5, 8),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected backdate before a logged scheduled dose date to be rejected")
         } catch (_: ArchiveDateBeforeRecordedDoseException) {
         }
@@ -639,7 +639,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -1825,7 +1825,6 @@ class MedicationGroupRepositoryTest {
         repository.updateScheduleTimes(
             groupUuid = groupUuid,
             newTimes = listOf(LocalTime.of(9, 30), LocalTime.of(8, 30)),
-            boundary = MedicationDayBoundary.Midnight,
             now = now,
         )
 
@@ -1876,6 +1875,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
             groupUuid = groupUuid,
             times = listOf(LocalTime.of(1, 0), LocalTime.of(23, 0)),
+            dayEndsAtFourAm = true,
         )
         // Both doses of medication day Oct 28: its 01:00 falls on the 29th.
         coEvery {
@@ -1888,7 +1888,6 @@ class MedicationGroupRepositoryTest {
         repository.updateScheduleTimes(
             groupUuid = groupUuid,
             newTimes = listOf(LocalTime.of(23, 30), LocalTime.of(0, 30)),
-            boundary = MedicationDayBoundary.FourAm,
         )
 
         coVerify {

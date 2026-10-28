@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
@@ -58,6 +59,7 @@ class WidgetSnapshotBuilderTest {
             type = MedicationGroupScheduleType.DAILY, interval = 1,
             since = now.toLocalDate().minusDays(2), weeklyDaysOfWeek = emptySet(),
             times = listOf(LocalTime.of(1, 0), LocalTime.of(20, 0)),
+            dayBoundary = MedicationDayBoundary.FourAm,
         ))
         val entry = testMedicationLogEntry(
             medicine = configuredGroup.medications.single().medicine,
