@@ -91,6 +91,15 @@ class MedicationGroupEditorScheduleStartTest {
     }
 
     @Test
+    fun loadedStart_isNeverBeforeTheStartDatesDay() {
+        // 02:00 is still the previous day when the day ends at 04:00.
+        val loaded = state(boundary = MedicationDayBoundary.FourAm)
+            .copy(loadedStartAt = today.atTime(2, 0))
+
+        assertEquals(today.atTime(4, 0), loaded.scheduleStartAt(now))
+    }
+
+    @Test
     fun changingStartDate_startsWithTheWholeDay() {
         val updated = editorStateWithUpdatedSinceDate(state(startsNow = true), today.minusDays(3))
 
