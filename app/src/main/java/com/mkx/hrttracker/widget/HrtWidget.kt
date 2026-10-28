@@ -483,6 +483,11 @@ internal fun anchorWidgetPreviewSizeDp(context: Context, appWidgetId: Int): DpSi
         ?.let { currentWidgetSizeDp(context, it, fallback = ANCHOR_WIDGET_PREVIEW_SIZE) }
         ?: ANCHOR_WIDGET_PREVIEW_SIZE
 
+// The snapshot holds no boundary, but only the day ending at 04:00 puts Morning doses in Coming up.
+private fun WidgetDoseRow.isNextMorning(): Boolean =
+    contextChip == WidgetDoseChip.COMING_UP &&
+        MedicationDayTimeRange.of(scheduledAt.toLocalTime()) == MedicationDayTimeRange.MORNING
+
 // ── Group-aware row collapsing ────────────────────────────────────────────────
 
 // Aggregates several per-medication rows that belong to the same group + scheduled slot
@@ -902,10 +907,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                     SectionHeader(
                         text = context.getString(
-                            if (activeRow.status == WidgetDoseStatus.OVERDUE) {
-                                R.string.plan_schedule_entry_past_due
-                            } else {
-                                R.string.widget_upcoming
+                            when {
+                                activeRow.status == WidgetDoseStatus.OVERDUE -> R.string.plan_schedule_entry_past_due
+                                activeRow.isNextMorning() -> R.string.widget_this_morning
+                                else -> R.string.widget_upcoming
                             }
                         ),
                         topPadding = 0.dp
@@ -1129,10 +1134,13 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 todayRows.forEach { add(WidgetListItem.Row(it)) }
             }
             if (comingUpRows.isNotEmpty()) {
-                // The snapshot holds no boundary, but only the day ending at 04:00 puts Morning doses here.
-                val isMorning = MedicationDayTimeRange.of(comingUpRows.first().scheduledAt.toLocalTime()) ==
-                    MedicationDayTimeRange.MORNING
-                add(WidgetListItem.Header(context.getString(if (isMorning) R.string.widget_this_morning else R.string.widget_tonight)))
+                add(
+                    WidgetListItem.Header(
+                        context.getString(
+                            if (comingUpRows.first().isNextMorning()) R.string.widget_this_morning else R.string.widget_tonight
+                        )
+                    )
+                )
                 comingUpRows.forEach { add(WidgetListItem.Row(it)) }
             }
         }
