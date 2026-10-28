@@ -1287,4 +1287,7 @@
     <string name="settings_medication_day_moves_doses_body">Dávky před %1$s se posunou o jeden den pro tyto skupiny: %2$s. Minulé dávky se mohou zobrazit jako vynechané.</string>
     <string name="settings_medication_day_enable_confirm">Zapnout</string>
     <string name="settings_medication_day_disable_confirm">Vypnout</string>
+    <string name="main_coming_up_morning_title">Dnes ráno</string>
+    <string name="widget_this_morning">Dnes ráno</string>
+    <string name="medication_day_past_midnight">Po půlnoci</string>
 </resources>
