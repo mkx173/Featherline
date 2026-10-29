@@ -332,9 +332,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             },
                         )
                         // A record that arrived after the toggle locks the plan's saved
-                        // ending back in, as saveGroup would keep it anyway.
+                        // ending back in, as saveGroup would keep it anyway. Records a
+                        // save writes itself belong to the ending it is saving.
                         val lockedNextState = if (
                             nextState.isEditing &&
+                            !nextState.isSaving &&
+                            !nextState.isSaved &&
                             counts.relatedEntryCount > 0 &&
                             nextState.medicationDayBoundary != nextState.originalMedicationDayBoundary
                         ) {
@@ -1145,6 +1148,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         it.groupName
                     },
                     editingGroupId = savedGroupUuid?.toString() ?: it.editingGroupId,
+                    originalMedicationDayBoundary = if (isSaved) {
+                        currentState.medicationDayBoundary
+                    } else {
+                        it.originalMedicationDayBoundary
+                    },
                     pendingReplacementGroupId = if (isSaved) {
                         null
                     } else {

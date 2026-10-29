@@ -254,6 +254,51 @@ class MedicationGroupEditorMedicationDayTest {
     }
 
     @Test
+    fun recordsTheSaveWritesKeepTheSavedEnding() = runTest {
+        val group = nightOwlGroup(dayBoundary = MedicationDayBoundary.Midnight)
+        val entries = MutableStateFlow<List<MedicationLogEntry>?>(emptyList())
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns entries
+        val savedSchedule = stubSaveGroup(uuid = groupUuid, returns = groupUuid)
+        // The save writes past records before it returns.
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = groupUuid,
+                name = any(),
+                colorKey = any(),
+                schedule = capture(savedSchedule),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } coAnswers {
+            entries.value = listOf(planRecord(LocalDateTime.of(2026, 10, 28, 1, 0)))
+            kotlinx.coroutines.yield()
+            groupUuid
+        }
+        val viewModel = editingViewModel(now = LocalDateTime.of(2026, 10, 29, 12, 0))
+        advanceUntilIdle()
+
+        viewModel.updateDayEndsAtFourAm(true)
+        viewModel.saveGroup()
+        advanceUntilIdle()
+        // More records after the save, as the repository's later writes.
+        entries.value = entries.value.orEmpty() +
+                planRecord(LocalDateTime.of(2026, 10, 29, 1, 0))
+        advanceUntilIdle()
+
+        assertEquals(MedicationDayBoundary.FourAm, savedSchedule.captured.dayBoundary)
+        assertEquals(MedicationDayBoundary.FourAm, viewModel.uiState.value.medicationDayBoundary)
+        assertEquals(
+            MedicationDayBoundary.FourAm,
+            viewModel.uiState.value.originalMedicationDayBoundary,
+        )
+    }
+
+    @Test
     fun archiveAndRecreateKeepsTheEndingAndStartsOnThePlansOwnToday() = runTest {
         // 02:00 on Oct 29 is still Oct 28 for the night-owl plan.
         val now = LocalDateTime.of(2026, 10, 29, 2, 0)
