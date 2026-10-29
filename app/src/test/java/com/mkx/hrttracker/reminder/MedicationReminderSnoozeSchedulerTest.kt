@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,6 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -256,6 +258,56 @@ class MedicationReminderSnoozeSchedulerTest {
         verify(exactly = 1) {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
+    }
+
+    @Test
+    fun clearStaleSnoozesForGroup_removes_records_for_doses_the_schedule_no_longer_has() = runTest {
+        // A Monday 01:00 dose, once the plan's day ends at 04:00, is on calendar
+        // Tuesday: Monday's snooze has the same slot and time but no dose behind it.
+        val groupUuid = UUID.fromString("6d1f0a9e-3c2b-4e8d-9a7f-1b5c4d3e2f10")
+        val scheduleTimeUuid = UUID.fromString("a4c3b2d1-7e6f-4a5b-8c9d-0e1f2a3b4c5d")
+        val staleRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 1, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 1, 15),
+        )
+        val currentRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 21, 1, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 21, 1, 15),
+        )
+        val storedRecords = slot<List<MedicationReminderSnoozeRecord>>()
+        coEvery { snoozeStore.getSnoozeRecords() } returns listOf(staleRecord, currentRecord)
+        coEvery { snoozeStore.replaceSnoozeRecords(capture(storedRecords)) } just Runs
+
+        scheduler.clearStaleSnoozesForGroup(
+            MedicationGroup(
+                uuid = groupUuid,
+                name = "Group",
+                schedule = MedicationGroupSchedule(
+                    type = MedicationGroupScheduleType.WEEKLY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
+                    times = listOf(LocalTime.of(1, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTime(
+                            uuid = scheduleTimeUuid,
+                            time = LocalTime.of(1, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 1, 0, 0),
+                        ),
+                    ),
+                    dayBoundary = MedicationDayBoundary.FourAm,
+                ),
+                medications = emptyList(),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-20T00:00:00Z"),
+            )
+        )
+
+        assertEquals(listOf(currentRecord), storedRecords.captured)
     }
 
     private fun snoozeRecord(
