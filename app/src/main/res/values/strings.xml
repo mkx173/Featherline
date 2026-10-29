@@ -126,6 +126,9 @@
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">Today</string>
     <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
+    <string name="plan_group_upcoming_tonight">Tonight</string>
+    <string name="plan_group_upcoming_tomorrow_night">Tomorrow night</string>
+    <string name="plan_group_upcoming_night_of">%1$s night</string>
     <string name="plan_group_notifications_enabled">Reminders on</string>
     <string name="plan_group_notifications_disabled">Reminders off</string>
     <string name="plan_regimen_title">Regimen</string>

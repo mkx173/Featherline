@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.plan
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Test
@@ -23,59 +22,33 @@ class DailyScheduleEditorTest {
     }
 
     @Test
-    fun schedule_preview_relative_date_label_returns_today_and_tomorrow_only() {
-        val currentDate = LocalDate.of(2026, 5, 4)
-
-        assertEquals(
-            "Today",
-            schedulePreviewRelativeDateLabel(
-                date = currentDate,
-                currentDate = currentDate,
-                todayLabel = "Today",
-                tomorrowLabel = "Tomorrow"
-            )
-        )
-        assertEquals(
-            "Tomorrow",
-            schedulePreviewRelativeDateLabel(
-                date = currentDate.plusDays(1),
-                currentDate = currentDate,
-                todayLabel = "Today",
-                tomorrowLabel = "Tomorrow"
-            )
-        )
-        assertNull(
-            schedulePreviewRelativeDateLabel(
-                date = currentDate.plusDays(2),
-                currentDate = currentDate,
-                todayLabel = "Today",
-                tomorrowLabel = "Tomorrow"
-            )
-        )
-    }
-
-    @Test
-    fun upcoming_dose_day_label_names_the_plans_own_day() {
-        // Thursday Oct 29, 16:30; a night-owl plan's 03:00 doses are on the evening before.
+    fun upcoming_dose_day_counts_the_plans_own_day_and_its_night() {
+        // Thursday Oct 29, 16:30.
         val now = LocalDateTime.of(2026, 10, 29, 16, 30)
-        fun label(occurrence: LocalDateTime, boundary: MedicationDayBoundary, at: LocalDateTime = now) =
-            upcomingDoseDayLabel(
-                occurrence = occurrence,
-                now = at,
-                boundary = boundary,
-                todayLabel = "Today",
-                tomorrowLabel = "Tomorrow",
-                dateFormatter = { date -> date.toString() },
-            )
-
+        val thursday = LocalDate.of(2026, 10, 29)
         val fridayThree = LocalDateTime.of(2026, 10, 30, 3, 0)
-        assertEquals("Today", label(fridayThree, MedicationDayBoundary.FourAm))
-        assertEquals("Tomorrow", label(fridayThree, MedicationDayBoundary.Midnight))
-        // Far off too: Sunday 03:00 is Saturday night.
-        assertEquals("2026-10-31", label(LocalDateTime.of(2026, 11, 1, 3, 0), MedicationDayBoundary.FourAm))
+
+        // A night-owl plan's Friday 03:00 is Thursday night: Tonight.
+        assertEquals(
+            UpcomingDoseDay(day = thursday, daysAway = 0, isNight = true),
+            upcomingDoseDay(fridayThree, now, MedicationDayBoundary.FourAm),
+        )
+        // Without night owl it's plain Tomorrow.
+        assertEquals(
+            UpcomingDoseDay(day = thursday.plusDays(1), daysAway = 1, isNight = false),
+            upcomingDoseDay(fridayThree, now, MedicationDayBoundary.Midnight),
+        )
+        // Far off: Monday 03:00 is Sunday night, three days away.
+        assertEquals(
+            UpcomingDoseDay(day = LocalDate.of(2026, 11, 1), daysAway = 3, isNight = true),
+            upcomingDoseDay(LocalDateTime.of(2026, 11, 2, 3, 0), now, MedicationDayBoundary.FourAm),
+        )
         // At 01:00 Friday the night-owl plan's today is still Thursday.
         val fridayOne = LocalDateTime.of(2026, 10, 30, 1, 0)
-        assertEquals("Today", label(fridayThree, MedicationDayBoundary.FourAm, at = fridayOne))
-        assertEquals("Tomorrow", label(LocalDateTime.of(2026, 10, 30, 22, 0), MedicationDayBoundary.FourAm, at = fridayOne))
+        assertEquals(0L, upcomingDoseDay(fridayThree, fridayOne, MedicationDayBoundary.FourAm).daysAway)
+        assertEquals(
+            UpcomingDoseDay(day = thursday.plusDays(1), daysAway = 1, isNight = false),
+            upcomingDoseDay(LocalDateTime.of(2026, 10, 30, 22, 0), fridayOne, MedicationDayBoundary.FourAm),
+        )
     }
 }

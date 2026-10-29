@@ -776,16 +776,12 @@ internal fun RegimenGroupCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 6.dp)
                 ) {
-                    val todayLabel = stringResource(R.string.plan_group_upcoming_today)
-                    val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
                         UpcomingOccurrenceChip(
                             label = upcomingDoseDayLabel(
                                 occurrence = occurrence,
                                 now = now,
                                 boundary = group.schedule.dayBoundary,
-                                todayLabel = todayLabel,
-                                tomorrowLabel = tomorrowLabel,
                                 dateFormatter = dateFormatter,
                             ),
                             time = occurrence.toLocalTime().format(timeFormatter),
