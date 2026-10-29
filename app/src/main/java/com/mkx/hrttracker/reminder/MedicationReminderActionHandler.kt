@@ -69,10 +69,12 @@ class MedicationReminderActionHandler @Inject constructor(
                 ?.mapValues { (_, targets) ->
                     targets.mapTo(mutableSetOf(), MedicationReminderLogTarget::signature)
                 }
-        val entriesToSave = normalizedSlots.flatMap { slot ->
-            val group = groupsByUuid[slot.groupUuid]
-                ?.takeIf { group -> group.hasReminderOccurrence(slot) }
-                ?: return@flatMap emptyList()
+        // A reminder can outlive its dose: the plan moved, dropped or deleted it since.
+        val scheduledSlots = normalizedSlots.filter { slot ->
+            groupsByUuid[slot.groupUuid]?.hasReminderOccurrence(slot) == true
+        }
+        val entriesToSave = scheduledSlots.flatMap { slot ->
+            val group = groupsByUuid.getValue(slot.groupUuid)
             // With current-format extras present, a slot missing from the map
             // means every target for it failed to parse — restrict to nothing
             // so we don't silently write the legacy "everything missing" set.
@@ -110,6 +112,12 @@ class MedicationReminderActionHandler @Inject constructor(
                 beforeStatesByUuid = beforeStockStates,
                 hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
             )
+        } else if (scheduledSlots.isEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_log_now_no_scheduled_slots slots=${normalizedSlots.size}"
+            )
+            reminderNotificationManager.showDoseReminderNoLongerScheduledToast()
         } else {
             // Race: the slot was already fulfilled between the notification firing
             // and the tap. Don't render "Logged 0 doses" — show a separate

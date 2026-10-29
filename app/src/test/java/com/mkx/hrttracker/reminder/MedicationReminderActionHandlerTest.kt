@@ -1004,6 +1004,7 @@ class MedicationReminderActionHandlerTest {
         coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
         verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
         coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
+        verify { notificationManager.showDoseReminderNoLongerScheduledToast() }
     }
 
     private fun medicationGroup(

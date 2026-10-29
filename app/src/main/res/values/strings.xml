@@ -907,6 +907,7 @@
         <item quantity="other">Added %1$d records.</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">Already logged.</string>
+    <string name="reminder_notification_no_longer_scheduled">This dose is no longer in the plan.</string>
     <string name="widget_quick_log_failed">Unable to quick-log dose.</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="one">%1$d group</item>

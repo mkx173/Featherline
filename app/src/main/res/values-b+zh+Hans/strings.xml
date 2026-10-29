@@ -874,6 +874,7 @@
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">已经记录过了</string>
+    <string name="reminder_notification_no_longer_scheduled">这次剂量已不在计划中</string>
     <string name="widget_quick_log_failed">无法快速记录剂量</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 分组</item>

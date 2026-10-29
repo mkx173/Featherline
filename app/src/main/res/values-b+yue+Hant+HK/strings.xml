@@ -874,6 +874,7 @@
         <item quantity="other">已新增 %1$d 條記錄</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">已經記錄咗喇</string>
+    <string name="reminder_notification_no_longer_scheduled">呢次劑量已經唔喺計劃入面</string>
     <string name="widget_quick_log_failed">未能快速記錄劑量</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 群組</item>
