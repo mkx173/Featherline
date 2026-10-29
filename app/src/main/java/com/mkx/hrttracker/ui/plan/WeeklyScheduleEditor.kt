@@ -32,14 +32,11 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -54,10 +51,7 @@ internal fun WeeklyScheduleEditor(
     firstDayOfWeek: DayOfWeek,
     time: LocalTime,
     originalTime: LocalTime? = null,
-    previewOccurrences: List<LocalDateTime>,
-    currentDate: LocalDate,
     appLocale: Locale,
-    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     boundary: MedicationDayBoundary,
     onIntervalChange: (String) -> Unit,
@@ -69,11 +63,10 @@ internal fun WeeklyScheduleEditor(
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
-    /** A row placed above the preview, given its segment index and the count. */
+    /** A last row, given its segment index and the count. */
     dayEndingItem: (@Composable (index: Int, count: Int) -> Unit)? = null,
 ) {
-    val totalCount = 3 + (if (dayEndingItem != null) 1 else 0) +
-            (if (previewOccurrences.isNotEmpty()) 1 else 0)
+    val totalCount = 3 + (if (dayEndingItem != null) 1 else 0)
     var itemIndex = 0
     Column {
         IntervalStepperCard(
@@ -159,18 +152,6 @@ internal fun WeeklyScheduleEditor(
             dayEndingItem(itemIndex++, totalCount)
         }
 
-        if (previewOccurrences.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            ScheduleOccurrencesCard(
-                title = stringResource(R.string.group_schedule_preview),
-                occurrences = previewOccurrences,
-                currentDate = currentDate,
-                dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter,
-                index = itemIndex++,
-                count = totalCount
-            )
-        }
     }
 }
 
@@ -235,19 +216,7 @@ private fun WeeklyScheduleEditorPreview() {
             ),
             firstDayOfWeek = DayOfWeek.MONDAY,
             time = LocalTime.of(9, 30),
-            previewOccurrences = listOf(
-                LocalDateTime.of(2026, 4, 22, 9, 30),
-                LocalDateTime.of(2026, 4, 23, 9, 30),
-                LocalDateTime.of(2026, 4, 27, 9, 30),
-                LocalDateTime.of(2026, 4, 29, 9, 30),
-                LocalDateTime.of(2026, 5, 1, 9, 30)
-            ),
-            currentDate = LocalDate.of(2026, 4, 22),
             appLocale = previewLocale,
-            dateFormatter = medicationGroupScheduleDateFormatter(
-                locale = previewLocale,
-                today = LocalDate.of(2026, 4, 22),
-            ),
             timeFormatter = localizedShortTimeFormatter(
                 previewLocale,
                 uses24HourFormat = false,

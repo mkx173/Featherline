@@ -1658,10 +1658,7 @@ private fun MedicationGroupEditorScreenContent(
                                     uiState.originalScheduleType ==
                                             MedicationGroupScheduleType.WEEKLY
                                 },
-                                previewOccurrences = upcomingOccurrences,
-                                currentDate = currentDate,
                                 appLocale = appLocale,
-                                dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
                                 boundary = uiState.medicationDayBoundary,
                                 onIntervalChange = onWeeklyIntervalChange,
@@ -1679,9 +1676,6 @@ private fun MedicationGroupEditorScreenContent(
                             DailyScheduleEditor(
                                 intervalDays = uiState.dailyIntervalDays,
                                 dailyTimes = uiState.dailyTimes,
-                                previewOccurrences = upcomingOccurrences,
-                                currentDate = currentDate,
-                                dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
                                 boundary = uiState.medicationDayBoundary,
                                 onIntervalChange = onDailyIntervalChange,
@@ -1703,6 +1697,23 @@ private fun MedicationGroupEditorScreenContent(
                                 shapeLocked = areFieldsRenderedLocked,
                                 dayEndingItem = dayEndingItem,
                             )
+                        }
+                    }
+                }
+
+                if (upcomingOccurrences.isNotEmpty()) {
+                    item {
+                        HrtSection(title = stringResource(R.string.group_schedule_preview)) {
+                            upcomingOccurrences.forEach { occurrence ->
+                                item {
+                                    ScheduleOccurrenceRow(
+                                        occurrence = occurrence,
+                                        currentDate = currentDate,
+                                        dateFormatter = dateFormatter,
+                                        timeFormatter = timeFormatter,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

@@ -35,7 +35,6 @@ import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -46,9 +45,6 @@ import java.util.Locale
 internal fun DailyScheduleEditor(
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
-    previewOccurrences: List<LocalDateTime>,
-    currentDate: LocalDate,
-    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     boundary: MedicationDayBoundary,
     onIntervalChange: (String) -> Unit,
@@ -59,11 +55,10 @@ internal fun DailyScheduleEditor(
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
-    /** A row placed above the preview, given its segment index and the count. */
+    /** A last row, given its segment index and the count. */
     dayEndingItem: (@Composable (index: Int, count: Int) -> Unit)? = null,
 ) {
-    val totalCount = 2 + (if (dayEndingItem != null) 1 else 0) +
-            (if (previewOccurrences.isNotEmpty()) 1 else 0)
+    val totalCount = 2 + (if (dayEndingItem != null) 1 else 0)
     var itemIndex = 0
     Column {
         IntervalStepperCard(
@@ -101,18 +96,6 @@ internal fun DailyScheduleEditor(
             dayEndingItem(itemIndex++, totalCount)
         }
 
-        if (previewOccurrences.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            ScheduleOccurrencesCard(
-                title = stringResource(R.string.group_schedule_preview),
-                occurrences = previewOccurrences,
-                currentDate = currentDate,
-                dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter,
-                index = itemIndex++,
-                count = totalCount
-            )
-        }
     }
 }
 
@@ -209,55 +192,6 @@ private fun DailyTimeRow(
 
 internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount > 1
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun ScheduleOccurrencesCard(
-    title: String,
-    occurrences: List<LocalDateTime>,
-    currentDate: LocalDate,
-    dateFormatter: LocalDateFormatter,
-    timeFormatter: DateTimeFormatter,
-    index: Int = 0,
-    count: Int = 1
-) {
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-            modifier = Modifier.padding(bottom = 6.dp)
-        ) {
-            Text(
-                text = title.uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp, top = 2.dp)
-            )
-            val todayLabel = stringResource(R.string.plan_group_upcoming_today)
-            val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
-            occurrences.forEachIndexed { occurrenceIndex, occurrence ->
-                val occurrenceDate = occurrence.toLocalDate()
-                val relativeDateLabel = schedulePreviewRelativeDateLabel(
-                    date = occurrenceDate,
-                    currentDate = currentDate,
-                    todayLabel = todayLabel,
-                    tomorrowLabel = tomorrowLabel
-                )
-                val formattedDate = dateFormatter(occurrenceDate)
-                ScheduleOccurrenceRow(
-                    formattedTime = occurrence.toLocalTime().format(timeFormatter),
-                    formattedDate = relativeDateLabel?.let { label ->
-                        stringResource(R.string.plan_group_upcoming_format, label, formattedDate)
-                    } ?: formattedDate,
-                    index = occurrenceIndex,
-                    count = occurrences.size
-                )
-            }
-        }
-    }
-}
-
 internal fun schedulePreviewRelativeDateLabel(
     date: LocalDate,
     currentDate: LocalDate,
@@ -269,37 +203,43 @@ internal fun schedulePreviewRelativeDateLabel(
     else -> null
 }
 
+/** One upcoming dose in the plan editor's Preview section. */
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-private fun ScheduleOccurrenceRow(
-    formattedTime: String,
-    formattedDate: String,
-    index: Int = 0,
-    count: Int = 1
+internal fun ScheduleOccurrenceRow(
+    occurrence: LocalDateTime,
+    currentDate: LocalDate,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter,
 ) {
+    val occurrenceDate = occurrence.toLocalDate()
+    val formattedDate = dateFormatter(occurrenceDate)
+    val relativeDateLabel = schedulePreviewRelativeDateLabel(
+        date = occurrenceDate,
+        currentDate = currentDate,
+        todayLabel = stringResource(R.string.plan_group_upcoming_today),
+        tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow),
+    )
     EditorSegmentedListItem(
-        index = index,
-        count = count,
-        cornerShape = MaterialTheme.shapes.medium,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_event_upcoming),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
             )
         },
         supportingContent = {
             Text(
-                text = formattedDate,
+                text = relativeDateLabel?.let { label ->
+                    stringResource(R.string.plan_group_upcoming_format, label, formattedDate)
+                } ?: formattedDate,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
     ) {
         Text(
-            text = formattedTime,
+            text = occurrence.toLocalTime().format(timeFormatter),
             style = MaterialTheme.typography.titleMedium,
         )
     }
@@ -315,18 +255,6 @@ private fun DailyScheduleEditorPreview() {
             dailyTimes = listOf(
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)),
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(21, 30))
-            ),
-            previewOccurrences = listOf(
-                LocalDateTime.of(2026, 4, 22, 9, 0),
-                LocalDateTime.of(2026, 4, 23, 21, 30),
-                LocalDateTime.of(2026, 4, 25, 21, 30),
-                LocalDateTime.of(2026, 4, 28, 9, 0),
-                LocalDateTime.of(2026, 4, 28, 21, 30)
-            ),
-            currentDate = LocalDate.of(2026, 4, 22),
-            dateFormatter = medicationGroupScheduleDateFormatter(
-                locale = previewLocale,
-                today = LocalDate.of(2026, 4, 22),
             ),
             timeFormatter = localizedShortTimeFormatter(
                 previewLocale,
