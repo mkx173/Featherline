@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The home-screen widget no longer goes blank when you change a widget setting, such as its appearance or the estradiol unit, while the app's saved copy of your data is out of date, for example right after an app update or a time zone change. It keeps showing your doses while the app brings them up to date.
 - When the device's clock moves ahead, for example when you set it forward, the app no longer sends a reminder for every dose time it skipped. Each group reminds you once, of its latest dose time if you haven't logged that dose yet, and its next reminder comes at the usual time.
 - A dose reminder whose time passes while the phone is off, or while the system holds its alarm back, is no longer skipped. It comes as soon as the phone is back, once, for the group's latest dose that's due.
+- After you change a group's days, interval or start date, a reminder for a dose the group no longer has stops: a snooze for it no longer goes off, and on a reminder still on screen, Remind later and Log now no longer bring it back or record a dose the group doesn't have.
 
 ### Changed
 
