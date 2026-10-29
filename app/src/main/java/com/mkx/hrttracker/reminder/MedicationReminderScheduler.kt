@@ -28,6 +28,7 @@ class MedicationReminderScheduler private constructor(
     private val settingsRepository: SettingsRepository,
     private val reminderScheduleStore: ReminderScheduleStore,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val reminderNotificationManager: ReminderNotificationManager,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     private val sdkIntProvider: () -> Int,
 ) {
@@ -39,6 +40,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository: SettingsRepository,
         reminderScheduleStore: ReminderScheduleStore,
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+        reminderNotificationManager: ReminderNotificationManager,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     ) : this(
         context = context,
@@ -47,6 +49,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository = settingsRepository,
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        reminderNotificationManager = reminderNotificationManager,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { Build.VERSION.SDK_INT },
     )
@@ -58,6 +61,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository: SettingsRepository,
         reminderScheduleStore: ReminderScheduleStore,
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+        reminderNotificationManager: ReminderNotificationManager,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
         sdkInt: Int,
     ) : this(
@@ -67,6 +71,7 @@ class MedicationReminderScheduler private constructor(
         settingsRepository = settingsRepository,
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        reminderNotificationManager = reminderNotificationManager,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { sdkInt },
     )
@@ -94,6 +99,7 @@ class MedicationReminderScheduler private constructor(
                 TAG,
                 "reminder_reschedule_all_complete groups=${groups.size} entries=0 plans=0 stored=0"
             )
+            reconcileDoseReminderNotifications(remindersEnabled = false)
             return
         }
 
@@ -124,6 +130,7 @@ class MedicationReminderScheduler private constructor(
                     } " +
                     "cancel=${uuidsToCancel.size}"
         )
+        reconcileDoseReminderNotifications(remindersEnabled = true)
     }
 
     suspend fun rescheduleFromHomeSnapshot(
@@ -195,11 +202,20 @@ class MedicationReminderScheduler private constructor(
         groupUuid: UUID,
         after: LocalDateTime = LocalDateTime.now()
     ) {
+        // Every way out, an archived, deleted or muted plan included, leaves a
+        // reminder on screen that may name doses no longer pending.
+        scheduleGroupReminder(groupUuid, after)
+        reconcileDoseReminderNotifications(
+            remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+        )
+    }
+
+    private suspend fun scheduleGroupReminder(groupUuid: UUID, after: LocalDateTime) {
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_start groupUuid=$groupUuid after=$after"
         )
-        cancelReminder(groupUuid)
+        cancelReminderSchedule(groupUuid)
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
             diagnosticsLogger.info(
@@ -244,7 +260,70 @@ class MedicationReminderScheduler private constructor(
         )
     }
 
+    /**
+     * Brings the dose reminders on screen in line with the plans: one whose doses
+     * are all gone (dropped or moved by an edit, logged, plan archived, deleted or
+     * muted) is cancelled, and one with only some gone, or whose plan's medications
+     * changed, is reposted silently with what is pending now.
+     */
+    private suspend fun reconcileDoseReminderNotifications(remindersEnabled: Boolean) {
+        if (!remindersEnabled) {
+            reminderNotificationManager.cancelAllDoseReminderNotifications()
+            return
+        }
+        val shown = reminderNotificationManager.activeDoseReminders()
+        if (shown.isEmpty()) {
+            return
+        }
+        val groups = medicationGroupRepository.getGroups()
+        val entries = medicationLogRepository.getScheduledGroupEntriesSince(
+            shown.values.flatMap(ShownDoseReminder::slots).minOf(MedicationReminderSlot::scheduledAt)
+        )
+        var cancelled = 0
+        var reposted = 0
+        shown.forEach { (tag, reminder) ->
+            val remaining = remainingMedicationReminderBundle(reminder.slots, groups, entries)
+            // Same doses can still mean other medications, counts or names, and Log
+            // now would log the old ones.
+            if (remaining != null && remaining.contentHash == reminder.contentHash) {
+                return@forEach
+            }
+            // The same doses keep the tag, and posting under it replaces the old one.
+            if (remaining?.notificationTag != tag) {
+                reminderNotificationManager.cancelDoseReminderNotification(tag)
+            }
+            if (remaining == null) {
+                cancelled++
+                return@forEach
+            }
+            val recordsBySlot = medicationReminderSnoozeScheduler.getSnoozeRecords()
+                .associateBy(MedicationReminderSnoozeRecord::slot)
+            reminderNotificationManager.showDoseReminderNotification(
+                bundle = remaining,
+                // As showSnoozedReminder decides it: hidden once every dose hit the limit.
+                canSnooze = remaining.slots.any { slot ->
+                    (recordsBySlot[slot]?.snoozeCount ?: 0) < MAX_REMINDER_SNOOZE_COUNT
+                },
+                hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
+                silent = true,
+            )
+            reposted++
+        }
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_notifications_reconciled shown=${shown.size} cancelled=$cancelled reposted=$reposted"
+        )
+    }
+
     suspend fun cancelReminder(groupUuid: UUID) {
+        cancelReminderSchedule(groupUuid)
+        // A deleted plan reaches only this, not a reschedule.
+        reconcileDoseReminderNotifications(
+            remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+        )
+    }
+
+    private suspend fun cancelReminderSchedule(groupUuid: UUID) {
         diagnosticsLogger.info(TAG, "reminder_cancel_start groupUuid=$groupUuid")
         cancelReminderAlarm(groupUuid)
         reminderScheduleStore.removeScheduledGroupUuid(groupUuid)

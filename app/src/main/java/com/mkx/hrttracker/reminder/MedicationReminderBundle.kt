@@ -57,7 +57,37 @@ data class MedicationReminderBundle(
 
     val notificationTag: String
         get() = medicationReminderNotificationTag(slots)
+
+    /**
+     * Changes whenever what the notification shows or logs would: its doses, plan
+     * names, and each medication's signature, count, name, strength and unit. Not
+     * stock, which every log moves. Built from strings so it survives a restart.
+     */
+    val contentHash: String
+        get() = UUID.nameUUIDFromBytes(
+            items.joinToString(separator = "\n") { item ->
+                listOf(item.slot.toStorageValue(), item.groupName)
+                    .plus(
+                        item.medications.map { medication ->
+                            listOf(
+                                MedicationSignature.fromGroupMedication(medication).toStorageValue(),
+                                medication.count,
+                                medication.medicine?.displayName,
+                                medication.medicine?.preparation,
+                                medication.medicine?.displayDoseUnit,
+                            ).joinToString(separator = "|")
+                        }
+                    )
+                    .joinToString(separator = ";")
+            }.toByteArray(StandardCharsets.UTF_8)
+        ).toString()
 }
+
+/** A dose reminder on screen: the doses it names, and [MedicationReminderBundle.contentHash] when posted. */
+data class ShownDoseReminder(
+    val slots: List<MedicationReminderSlot>,
+    val contentHash: String?,
+)
 
 internal fun buildMedicationReminderBundle(
     scheduledAt: LocalDateTime,
@@ -131,14 +161,43 @@ internal fun buildMedicationReminderBundle(
         }
 }
 
+/**
+ * The part of a reminder on screen for [slots] whose doses are still pending, built as a
+ * fresh post for the same dose time would be, or null when none are left.
+ */
+internal fun remainingMedicationReminderBundle(
+    slots: List<MedicationReminderSlot>,
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+): MedicationReminderBundle? {
+    val groupUuids = slots.mapTo(mutableSetOf(), MedicationReminderSlot::groupUuid)
+    val items = slots.map(MedicationReminderSlot::scheduledAt).distinct().sorted()
+        .flatMap { scheduledAt ->
+            buildMedicationReminderBundle(
+                scheduledAt = scheduledAt,
+                groups = groups.filter { group -> group.uuid in groupUuids },
+                entries = entries,
+            )?.items.orEmpty()
+        }
+        .filter { item -> item.slot in slots }
+    return items.takeIf(List<MedicationReminderBundleItem>::isNotEmpty)?.let { bundleItems ->
+        MedicationReminderBundle(
+            scheduledAt = bundleItems.minOf { item -> item.slot.scheduledAt },
+            items = bundleItems,
+        )
+    }
+}
+
 internal fun medicationReminderNotificationTag(slots: List<MedicationReminderSlot>): String {
     val sortedSlotValues = slots.map(MedicationReminderSlot::toStorageValue).sorted()
     val joinedSlotValues = sortedSlotValues.joinToString(separator = ";")
     val bundleUuid = UUID.nameUUIDFromBytes(joinedSlotValues.toByteArray(StandardCharsets.UTF_8))
     val scheduledAt = slots.minOfOrNull(MedicationReminderSlot::scheduledAt)
         ?: LocalDateTime.MIN
-    return "medication-reminder/$scheduledAt/$bundleUuid"
+    return "$DOSE_REMINDER_TAG_PREFIX$scheduledAt/$bundleUuid"
 }
+
+internal const val DOSE_REMINDER_TAG_PREFIX = "medication-reminder/"
 
 internal fun MedicationReminderSlot.toStorageValue(): String {
     return listOf(

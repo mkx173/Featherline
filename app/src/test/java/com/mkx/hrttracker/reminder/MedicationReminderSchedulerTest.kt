@@ -15,7 +15,10 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -47,6 +50,11 @@ class MedicationReminderSchedulerTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+    private val estradiol = testMedicine(
+        uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+        key = MedicationKey.ESTRADIOL,
+    )
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     private lateinit var scheduler: MedicationReminderScheduler
@@ -67,6 +75,8 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } just Runs
         coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+        every { notificationManager.activeDoseReminders() } returns emptyMap()
 
         scheduler = MedicationReminderScheduler(
             context = context,
@@ -75,6 +85,7 @@ class MedicationReminderSchedulerTest {
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
             medicationReminderSnoozeScheduler = snoozeScheduler,
+            reminderNotificationManager = notificationManager,
             diagnosticsLogger = diagnosticsLogger,
         )
     }
@@ -105,6 +116,7 @@ class MedicationReminderSchedulerTest {
             alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
         coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+        verify { notificationManager.cancelAllDoseReminderNotifications() }
     }
 
     @Test
@@ -125,6 +137,212 @@ class MedicationReminderSchedulerTest {
         }
         coVerify(exactly = 0) { groupRepository.getGroup(any()) }
         coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+        verify { notificationManager.cancelAllDoseReminderNotifications() }
+    }
+
+    @Test
+    fun rescheduleGroup_cancels_reminder_whose_dose_a_plan_edit_dropped() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("0d6a3b52-81c4-4f0e-9a37-5be1c2d4e6f7"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        // The 9:00 dose on screen moved to 10:00.
+        val edited = group.copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = group.schedule.since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(10, 0)),
+            )
+        )
+        givenPlans(listOf(edited), shown = shown)
+
+        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_cancels_reminder_whose_dose_was_logged_in_the_app() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("5e2f7a91-0b3c-4d8e-a6f1-2c9b8d7e6a54"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        givenPlans(
+            listOf(group),
+            shown = shown,
+            entries = listOf(
+                testMedicationLogEntry(
+                    medicine = estradiol,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(reminderNow),
+                    scheduledFor = shown.scheduledAt,
+                    scheduleTimeUuid = shown.slots.single().scheduleTimeUuid,
+                )
+            ),
+        )
+
+        scheduler.rescheduleGroup(group.uuid, after = reminderNow)
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_reposts_reminder_silently_without_an_archived_plans_dose() = runTest {
+        val kept = medicationGroup(
+            uuid = UUID.fromString("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"),
+            notificationsEnabled = true,
+        )
+        val archived = medicationGroup(
+            uuid = UUID.fromString("b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(kept, archived))
+        val nowArchived = archived.copy(archivedAt = Instant.parse("2026-04-20T00:30:00Z"))
+        givenPlans(listOf(kept, nowArchived), shown = shown)
+
+        scheduler.rescheduleGroup(nowArchived.uuid, after = reminderNow)
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.map(MedicationReminderSlot::groupUuid) == listOf(kept.uuid) },
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_leaves_reminder_whose_doses_are_all_pending() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        scheduler.rescheduleGroup(group.uuid, after = reminderNow)
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun cancelReminder_cancels_reminder_of_a_deleted_plan() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        givenPlans(emptyList(), shown = shown)
+
+        scheduler.cancelReminder(group.uuid)
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+    }
+
+    @Test
+    fun rescheduleGroup_refreshes_reminder_whose_plan_changed_medication_at_the_same_dose() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        val edited = group.copy(
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = testMedicine(
+                        uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                        key = MedicationKey.SPIRONOLACTONE,
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                )
+            )
+        )
+        givenPlans(listOf(edited), shown = shown)
+
+        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+
+        // Same dose, same tag: the repost replaces it in place.
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle ->
+                    bundle.notificationTag == shown.notificationTag &&
+                            bundle.logTargets.toSet() != shown.logTargets.toSet()
+                },
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    @Test
+    fun rescheduleGroup_refreshes_reminder_whose_plan_changed_only_a_count() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f7a8b92"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        val edited = group.copy(
+            medications = group.medications.map { medication -> medication.copy(count = 2) }
+        )
+        givenPlans(listOf(edited), shown = shown)
+
+        scheduler.rescheduleGroup(edited.uuid, after = reminderNow)
+
+        verify {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle ->
+                    bundle.notificationTag == shown.notificationTag &&
+                            bundle.items.single().medications.single().count == 2
+                },
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    private val reminderNow = LocalDateTime.of(2026, 4, 20, 9, 30)
+
+    /** The 9:00 reminder for [groups], as posted. */
+    private fun shownReminder(groups: List<MedicationGroup>): MedicationReminderBundle =
+        buildMedicationReminderBundle(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            groups = groups,
+            entries = emptyList(),
+        )!!
+
+    private fun givenPlans(
+        groups: List<MedicationGroup>,
+        shown: MedicationReminderBundle,
+        entries: List<MedicationLogEntry> = emptyList(),
+    ) {
+        coEvery { settingsRepository.getCurrentSettings() } returns
+                SettingsState(remindersEnabled = true)
+        groups.forEach { group -> coEvery { groupRepository.getGroup(group.uuid) } returns group }
+        coEvery { groupRepository.getGroups() } returns groups
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns entries
+        every { notificationManager.activeDoseReminders() } returns
+                mapOf(shown.notificationTag to ShownDoseReminder(shown.slots, shown.contentHash))
     }
 
     @Test
@@ -369,7 +587,7 @@ class MedicationReminderSchedulerTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("aa111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    medicine = estradiol,
                     applicationType = MedicationApplicationType.ORAL,
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
