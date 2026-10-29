@@ -13,6 +13,7 @@ import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -56,6 +57,9 @@ internal fun ScheduleStartEditor(
             )
         }
         item {
+            // A small-hours start of a night-owl plan counts toward the night before:
+            // lead it with the moon, as the plan's time rows do.
+            val startIsPastMidnight = !startsNow && boundary.isPastMidnight(start.toLocalTime())
             EditorFieldRow(
                 label = stringResource(R.string.group_schedule_start_time),
                 value = when {
@@ -72,7 +76,14 @@ internal fun ScheduleStartEditor(
 
                     else -> start.format(timeFormatter)
                 },
-                icon = painterResource(R.drawable.ic_calendar_clock),
+                icon = painterResource(
+                    if (startIsPastMidnight) R.drawable.ic_moon_stars else R.drawable.ic_calendar_clock
+                ),
+                iconContentDescription = if (startIsPastMidnight) {
+                    stringResource(R.string.medication_day_past_midnight)
+                } else {
+                    null
+                },
                 onClick = onTimeClick,
                 enabled = enabled,
                 locked = shapeLocked,
