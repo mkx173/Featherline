@@ -10,38 +10,45 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
-import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.hazeSourceArea
 import dev.chrisbanes.haze.HazeState
 
 private enum class EdgeToEdgeScaffoldSlot { Navigation, Content }
 
+// Every layout but the wide rail puts the navigation bar along the bottom edge.
+internal val NavigationSuiteType.isBottomBar: Boolean
+    get() = this != NavigationSuiteType.WideNavigationRailCollapsed
+
+/**
+ * Height of the bottom navigation bar a top-level destination draws over its content, for that
+ * content's bottom inset. `0.dp` beside the wide rail.
+ */
+internal val LocalTopLevelBottomBarHeight = compositionLocalOf { 0.dp }
+
 /**
  * A [androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold] variant that
- * paints [content] full-height *behind* the bottom navigation bar instead of constraining it into
- * the space above the bar.
+ * draws only the wide navigation rail. In the bottom-bar layouts [HrtTrackerNavHost] draws the bar
+ * inside each top-level destination, so the bar rides that page's transitions and sub pages show
+ * none.
  *
- * The stock scaffold measures content at `height - navigationBarHeight` and stacks the bar below
- * it, so the content's bottom edge sits exactly at the bar's top. Painting content full-height lets
- * bottom-bar chrome float over the routed content instead.
+ * The scaffold still measures a copy of that bar (never placed, no semantics) *before* content is
+ * subcomposed and provides its height via [LocalTopLevelBottomBarHeight], so the top-level pages'
+ * inset is exact in the same frame — no first-frame underlap and no stale value when the
+ * navigation-suite type changes in place (fold, rotation, window resize). [content] itself gets
+ * the system navigation-bar inset through [LocalAppContentBottomInset].
  *
- * Body content must pad its scrollable region above the bar itself; the scaffold provides the
- * required padding via [LocalAppContentBottomInset]. The bar is measured *before* content is
- * subcomposed, so the inset is exact in the same frame — no first-frame underlap and no stale
- * value when the navigation-suite type changes in place (fold, rotation, window resize).
- *
- * Only the bottom-bar layouts (compact / medium) draw content behind the bar; the wide rail keeps
- * the stock side-by-side placement, where content already fills the full height beside the rail
- * and only needs to clear the system gesture inset.
- *
- * @param navigationChromeHazeState stable Haze state used by bottom navigation chrome. The source
- *   is attached above the routed content so navigation transitions are captured after NavHost has
- *   composited outgoing and incoming destinations.
+ * @param navigationChromeHazeState stable Haze state for chrome hosted above the routed content
+ *   (sheets and dialogs). The source is attached above the routed content so their blur sees
+ *   the composed NavHost frame.
  */
 @Composable
 fun EdgeToEdgeNavigationSuiteScaffold(
@@ -51,8 +58,8 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteItems: NavigationSuiteScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val isBottomBar = navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed
-    val railContentBottomInset = with(LocalDensity.current) {
+    val isBottomBar = navigationSuiteType.isBottomBar
+    val contentBottomInset = with(LocalDensity.current) {
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
     Surface(
@@ -61,56 +68,37 @@ fun EdgeToEdgeNavigationSuiteScaffold(
         contentColor = NavigationSuiteScaffoldDefaults.contentColor,
     ) {
         SubcomposeLayout { constraints ->
-            val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
             val navigationPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
-                val navigationModifier = if (isBottomBar) {
-                    Modifier.hazeChrome(navigationChromeHazeState)
-                } else {
-                    Modifier
-                }
-                Box(navigationModifier) {
+                // In bottom-bar layouts this copy is only measured: the destinations draw
+                // the real bar, and its items must not show up twice to accessibility.
+                Box(if (isBottomBar) Modifier.clearAndSetSemantics { } else Modifier) {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
                         colors = hazeNavigationSuiteColors(navigationChromeHazeState),
                         content = navigationSuiteItems,
                     )
                 }
-            }.first().measure(looseConstraints)
+            }.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
             val layoutWidth = constraints.maxWidth
             val layoutHeight = constraints.maxHeight
-            val appContentBottomInset =
-                if (isBottomBar) navigationPlaceable.height.toDp() else railContentBottomInset
+            val railWidth = if (isBottomBar) 0 else navigationPlaceable.width
+            val bottomBarHeight = if (isBottomBar) navigationPlaceable.height.toDp() else 0.dp
             val contentPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Content) {
-                // The source area is attached in every layout, not just behind the
-                // bottom bar: sheets and dialogs blur through this same state, and
-                // Haze draws nothing at all (leaving their transparent containers
-                // invisible) when the state has no source areas — as the wide rail
-                // layout otherwise would.
+                // The source area is attached in every layout: sheets and dialogs blur
+                // through this same state, and Haze draws nothing at all (leaving their
+                // transparent containers invisible) when the state has no source areas.
                 Box(Modifier.hazeSourceArea(navigationChromeHazeState)) {
                     CompositionLocalProvider(
-                        LocalAppContentBottomInset provides appContentBottomInset
+                        LocalAppContentBottomInset provides contentBottomInset,
+                        LocalTopLevelBottomBarHeight provides bottomBarHeight,
                     ) {
                         content()
                     }
                 }
-            }.first().measure(
-                if (isBottomBar) {
-                    // Full height: content paints behind the bar, which is overlaid below.
-                    constraints.copy(minHeight = layoutHeight, maxHeight = layoutHeight)
-                } else {
-                    // Wide rail: content fills the width beside the rail (stock behavior).
-                    val contentWidth = layoutWidth - navigationPlaceable.width
-                    constraints.copy(minWidth = contentWidth, maxWidth = contentWidth)
-                }
-            )
+            }.first().measure(Constraints.fixed(layoutWidth - railWidth, layoutHeight))
             layout(layoutWidth, layoutHeight) {
-                if (isBottomBar) {
-                    contentPlaceable.placeRelative(0, 0)
-                    navigationPlaceable.placeRelative(0, layoutHeight - navigationPlaceable.height)
-                } else {
-                    navigationPlaceable.placeRelative(0, 0)
-                    contentPlaceable.placeRelative(navigationPlaceable.width, 0)
-                }
+                if (!isBottomBar) navigationPlaceable.placeRelative(0, 0)
+                contentPlaceable.placeRelative(railWidth, 0)
             }
         }
     }

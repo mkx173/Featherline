@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
@@ -22,11 +24,11 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The scaffold measures the navigation bar *before* subcomposing content, so
- * [LocalAppContentBottomInset] is exact in every frame content ever composes with —
- * the previous onSizeChanged-into-state wiring published 0.dp on the first frame and a
- * stale height for a frame after the navigation-suite type changed in place (fold,
- * rotation), which matters now that the activity handles those config changes without
- * recreating.
+ * [LocalTopLevelBottomBarHeight] — the inset the top-level destinations pad for, under the bar
+ * they draw themselves — is exact in every frame content ever composes with. The previous
+ * onSizeChanged-into-state wiring published 0.dp on the first frame and a stale height for a
+ * frame after the navigation-suite type changed in place (fold, rotation), which matters now that
+ * the activity handles those config changes without recreating.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -36,6 +38,7 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
     val composeRule = createComposeRule()
 
     private var suiteType by mutableStateOf(NavigationSuiteType.ShortNavigationBarCompact)
+    private val recordedBarHeights = mutableListOf<Dp>()
     private val recordedInsets = mutableListOf<Dp>()
 
     private fun setScaffold() {
@@ -51,6 +54,7 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
                     )
                 },
             ) {
+                recordedBarHeights += LocalTopLevelBottomBarHeight.current
                 recordedInsets += LocalAppContentBottomInset.current
                 Box(Modifier.size(48.dp))
             }
@@ -59,36 +63,50 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
     }
 
     @Test
-    fun contentNeverComposesWithAPlaceholderInset() {
+    fun contentNeverComposesWithAPlaceholderBarHeight() {
         setScaffold()
 
-        assertTrue("content never composed", recordedInsets.isNotEmpty())
+        assertTrue("content never composed", recordedBarHeights.isNotEmpty())
         assertTrue(
             "first composition must already see the measured bar height, got " +
-                    "${recordedInsets.first()}",
-            recordedInsets.first() > 0.dp,
+                    "${recordedBarHeights.first()}",
+            recordedBarHeights.first() > 0.dp,
         )
         assertEquals(
-            "inset must not change after the first composition: $recordedInsets",
+            "bar height must not change after the first composition: $recordedBarHeights",
             1,
-            recordedInsets.toSet().size,
+            recordedBarHeights.toSet().size,
         )
     }
 
     @Test
-    fun suiteTypeFlipNeverPublishesAStaleInset() {
+    fun suiteTypeFlipNeverPublishesAStaleBarHeight() {
         setScaffold()
-        val barInset = recordedInsets.first()
+        val barHeight = recordedBarHeights.first()
 
         suiteType = NavigationSuiteType.WideNavigationRailCollapsed
         composeRule.waitForIdle()
         suiteType = NavigationSuiteType.ShortNavigationBarCompact
         composeRule.waitForIdle()
 
-        // Rail mode publishes the raw gesture inset (0 under Robolectric); bottom-bar
-        // mode publishes the measured bar height. Nothing in between, and never the
-        // rail's full-screen measured height left over from the previous mode.
-        assertEquals(setOf(barInset, 0.dp), recordedInsets.toSet())
-        assertEquals(barInset, recordedInsets.last())
+        // Rail mode has no bottom bar; bottom-bar mode publishes the measured bar height.
+        // Nothing in between, and never the rail's measured height left over.
+        assertEquals(setOf(barHeight, 0.dp), recordedBarHeights.toSet())
+        assertEquals(barHeight, recordedBarHeights.last())
+        // Content itself only ever clears the raw gesture inset (0 under Robolectric).
+        assertEquals(setOf(0.dp), recordedInsets.toSet())
+    }
+
+    @Test
+    fun bottomBarLayoutsLeaveTheVisibleBarToTheDestinations() {
+        setScaffold()
+
+        // The measured-only copy must not reach accessibility as a second, tappable bar.
+        composeRule.onAllNodes(hasClickAction()).assertCountEquals(0)
+
+        suiteType = NavigationSuiteType.WideNavigationRailCollapsed
+        composeRule.waitForIdle()
+
+        composeRule.onAllNodes(hasClickAction()).assertCountEquals(1)
     }
 }

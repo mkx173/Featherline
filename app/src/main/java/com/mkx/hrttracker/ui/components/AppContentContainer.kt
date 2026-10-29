@@ -34,11 +34,12 @@ val AppContentMaxWidth: Dp = 640.dp
 
 /**
  * Bottom padding the body content should apply inside its scrollable region so the
- * last item can scroll past the system navigation gesture bar in tablet layouts.
+ * last item can scroll past whatever covers the bottom of the screen.
  *
- * The navigation host computes the effective value once and provides it here:
- * - On compact layouts (bottom `NavigationBar` covers the gesture bar): `0.dp`.
- * - On medium / expanded layouts (rail / drawer on the side): the real
+ * The navigation host provides it per destination:
+ * - Top-level destinations in bottom-bar layouts: the height of the bottom navigation
+ *   bar they draw over their content.
+ * - Everywhere else (sub pages, and every page beside the wide rail): the real
  *   `WindowInsets.navigationBars` bottom inset.
  *
  * Body content reads this via [appContentPaddingValues] and adds it to its
@@ -54,8 +55,7 @@ val LocalAppContentBottomInset = compositionLocalOf { 0.dp }
  * `verticalScroll(...)` chain.
  *
  * Adds [LocalAppContentBottomInset] to the bottom so the last item scrolls past the
- * system navigation gesture bar on tablet layouts. On compact layouts the local
- * resolves to `0.dp`, so this returns the plain padding values unchanged.
+ * bottom navigation bar or the system navigation gesture bar.
  *
  * @param horizontal padding applied to both `start` and `end`. Defaults to
  *   `R.dimen.padding_medium`.

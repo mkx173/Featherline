@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -18,10 +20,14 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +44,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withResumed
@@ -82,6 +89,8 @@ import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -407,10 +416,18 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
 ): Boolean =
     shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
 
+// The bottom navigation bar a top-level destination draws over its own bottom edge, and
+// the bar's height its content pads for.
+internal class RoutedBottomBar(
+    val height: Dp,
+    val content: @Composable () -> Unit,
+)
+
 @Composable
 private fun RoutedTopChromeHazeProvider(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
+    bottomBar: RoutedBottomBar? = null,
     content: @Composable () -> Unit,
 ) {
     val routeTopChromeHazeState = rememberChromeHazeState()
@@ -425,7 +442,28 @@ private fun RoutedTopChromeHazeProvider(
         LocalChromeHazeState provides routeTopChromeHazeState,
         LocalModalHostIsCurrentDestination provides isCurrentDestination,
     ) {
-        content()
+        // Consumed per destination rather than on the NavHost, so the bottom bar drawn
+        // beside the page still pads itself for the gesture area.
+        val page = @Composable {
+            Box(
+                Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+                propagateMinConstraints = true,
+            ) {
+                content()
+            }
+        }
+        if (bottomBar == null) {
+            page()
+        } else {
+            Box(Modifier.fillMaxSize()) {
+                CompositionLocalProvider(LocalAppContentBottomInset provides bottomBar.height) {
+                    page()
+                }
+                Box(Modifier.align(Alignment.BottomCenter)) {
+                    bottomBar.content()
+                }
+            }
+        }
     }
 }
 
@@ -719,92 +757,123 @@ fun HrtTrackerNavHost(
     val navigationSuiteType = rememberNavigationSuiteType()
     val navigationChromeHazeState = rememberChromeHazeState()
 
+    val navigationSuiteItems: NavigationSuiteScope.() -> Unit = {
+        topLevelNavigationItems.forEach { navItem ->
+            item(
+                selected = selectedBottomScreen == navItem.screen,
+                onClick = {
+                    // Re-evaluated at tap time (not captured at composition)
+                    // so a row tap that just requested a sheet in this same
+                    // frame already locks the chrome.
+                    val chromeLocked = isTopLevelNavigationChromeLocked(
+                        isNavigationLockHeld = navigationLock.isLocked,
+                        hasPendingLogEntrySheetRequest =
+                            medicationLogEntrySheetRequest != null,
+                        hasPendingStockOptInSheet = optInTarget != null || optInResolving,
+                    )
+                    val tapAction = if (chromeLocked) {
+                        TopLevelNavigationTapAction.NONE
+                    } else {
+                        topLevelNavigationTapAction(
+                            tappedScreen = navItem.screen,
+                            selectedBottomScreen = selectedBottomScreen,
+                            currentRoute = currentRoute,
+                        )
+                    }
+                    when (tapAction) {
+                        TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+                            navController.popBackStackSafely(
+                                navItem.screen.route,
+                                inclusive = false
+                            )
+                        }
+
+                        TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
+                            when (navItem.screen) {
+                                Screen.Main -> mainScrollToTopSignal++
+                                Screen.Plan -> planScrollToTopSignal++
+                                Screen.Journal -> journalScrollToTopSignal++
+                                Screen.Settings -> settingsScrollToTopSignal++
+                                else -> Unit
+                            }
+                        }
+
+                        TopLevelNavigationTapAction.NAVIGATE -> {
+                            navController.navigateToTopLevelScreen(
+                                targetScreen = navItem.screen,
+                                selectedBottomScreen = selectedBottomScreen,
+                            )
+                        }
+
+                        TopLevelNavigationTapAction.NONE -> Unit
+                    }
+                },
+                icon = {
+                    val isSelected = selectedBottomScreen == navItem.screen
+                    Icon(
+                        painter = painterResource(
+                            if (isSelected) navItem.icon else navItem.iconAlt
+                        ),
+                        contentDescription = stringResource(navItem.screen.label)
+                    )
+                },
+                label = {
+                    val screenLabelText = stringResource(navItem.screen.label)
+                    Text(
+                        text = screenLabelText,
+                    )
+                }
+            )
+        }
+    }
+
+    // One bar instance shared by the top-level destinations: a tab switch moves it to
+    // the incoming page with the tapped item's ripple and indicator animation intact,
+    // instead of composing a fresh bar there.
+    val topLevelNavigationBar = remember {
+        movableContentOf { layoutType: NavigationSuiteType, items: NavigationSuiteScope.() -> Unit ->
+            val hazeState = LocalChromeHazeState.current
+            Box(Modifier.hazeChrome(hazeState)) {
+                NavigationSuite(
+                    layoutType = layoutType,
+                    colors = hazeNavigationSuiteColors(hazeState),
+                    content = items,
+                )
+            }
+        }
+    }
+
+    // Bottom-bar layouts draw the bar inside each top-level destination rather than the
+    // scaffold, so it rides that page's push/pop and predictive-back motion and sub pages
+    // have none. A push keeps it on the outgoing root so it slides out with that page; a
+    // tab switch hands it to the incoming root.
+    @Composable
+    fun AnimatedContentScope.topLevelBottomBar(): RoutedBottomBar? {
+        val isLeavingForTopLevel = transition.targetState != EnterExitState.Visible &&
+                Screen.topLevelScreenForRoute(navController.currentBackStackEntry?.destination?.route) != null
+        if (!navigationSuiteType.isBottomBar || isLeavingForTopLevel) return null
+        return RoutedBottomBar(height = LocalTopLevelBottomBarHeight.current) {
+            topLevelNavigationBar(navigationSuiteType, navigationSuiteItems)
+        }
+    }
+
     EdgeToEdgeNavigationSuiteScaffold(
         modifier = modifier,
         navigationSuiteType = navigationSuiteType,
         navigationChromeHazeState = navigationChromeHazeState,
-        navigationSuiteItems = {
-            topLevelNavigationItems.forEach { navItem ->
-                item(
-                    selected = selectedBottomScreen == navItem.screen,
-                    onClick = {
-                        // Re-evaluated at tap time (not captured at composition)
-                        // so a row tap that just requested a sheet in this same
-                        // frame already locks the chrome.
-                        val chromeLocked = isTopLevelNavigationChromeLocked(
-                            isNavigationLockHeld = navigationLock.isLocked,
-                            hasPendingLogEntrySheetRequest =
-                                medicationLogEntrySheetRequest != null,
-                            hasPendingStockOptInSheet = optInTarget != null || optInResolving,
-                        )
-                        val tapAction = if (chromeLocked) {
-                            TopLevelNavigationTapAction.NONE
-                        } else {
-                            topLevelNavigationTapAction(
-                                tappedScreen = navItem.screen,
-                                selectedBottomScreen = selectedBottomScreen,
-                                currentRoute = currentRoute,
-                            )
-                        }
-                        when (tapAction) {
-                            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                navController.popBackStackSafely(
-                                    navItem.screen.route,
-                                    inclusive = false
-                                )
-                            }
-
-                            TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
-                                when (navItem.screen) {
-                                    Screen.Main -> mainScrollToTopSignal++
-                                    Screen.Plan -> planScrollToTopSignal++
-                                    Screen.Journal -> journalScrollToTopSignal++
-                                    Screen.Settings -> settingsScrollToTopSignal++
-                                    else -> Unit
-                                }
-                            }
-
-                            TopLevelNavigationTapAction.NAVIGATE -> {
-                                navController.navigateToTopLevelScreen(
-                                    targetScreen = navItem.screen,
-                                    selectedBottomScreen = selectedBottomScreen,
-                                )
-                            }
-
-                            TopLevelNavigationTapAction.NONE -> Unit
-                        }
-                    },
-                    icon = {
-                        val isSelected = selectedBottomScreen == navItem.screen
-                        Icon(
-                            painter = painterResource(
-                                if (isSelected) navItem.icon else navItem.iconAlt
-                            ),
-                            contentDescription = stringResource(navItem.screen.label)
-                        )
-                    },
-                    label = {
-                        val screenLabelText = stringResource(navItem.screen.label)
-                        Text(
-                            text = screenLabelText,
-                        )
-                    }
-                )
-            }
-        }
+        navigationSuiteItems = navigationSuiteItems,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Main.route,
-                modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
                 enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
                 exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
                 popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
                 composable(Screen.Main.route) { backStackEntry ->
-                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry, topLevelBottomBar()) {
                         MainScreen(
                             modifier,
                             scrollToTopSignal = mainScrollToTopSignal,
@@ -875,7 +944,7 @@ fun HrtTrackerNavHost(
                     }
                 }
                 composable(Screen.Plan.route) { backStackEntry ->
-                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry, topLevelBottomBar()) {
                         PlanScreen(
                             modifier = modifier,
                             scrollToTopSignal = planScrollToTopSignal,
@@ -1008,7 +1077,7 @@ fun HrtTrackerNavHost(
                     }
                 }
                 composable(Screen.Journal.route) { backStackEntry ->
-                    RoutedTopChromeHazeProvider(navController, backStackEntry) {
+                    RoutedTopChromeHazeProvider(navController, backStackEntry, topLevelBottomBar()) {
                         JournalScreen(
                             onOpenMilestones = {
                                 navController.navigate(
@@ -1060,7 +1129,7 @@ fun HrtTrackerNavHost(
                     }
                 }
                 composable(Screen.Settings.route) {
-                    RoutedTopChromeHazeProvider(navController, it) {
+                    RoutedTopChromeHazeProvider(navController, it, topLevelBottomBar()) {
                         SettingsScreen(
                             modifier = modifier,
                             scrollToTopSignal = settingsScrollToTopSignal,
@@ -1390,10 +1459,19 @@ fun HrtTrackerNavHost(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
-                    // Content now extends behind the bottom bar, so lift the snackbar by the
-                    // scaffold-provided inset to keep it riding above the bar (the gesture
-                    // inset in the wide-rail layout, where there is no bottom bar).
-                    .padding(bottom = LocalAppContentBottomInset.current),
+                    // Top-level pages draw the bottom bar over their content, so lift the
+                    // snackbar above it there; elsewhere clear the scaffold-provided
+                    // gesture inset.
+                    .padding(
+                        bottom = if (
+                            navigationSuiteType.isBottomBar &&
+                            Screen.topLevelScreenForRoute(currentRoute) != null
+                        ) {
+                            LocalTopLevelBottomBarHeight.current
+                        } else {
+                            LocalAppContentBottomInset.current
+                        },
+                    ),
                 snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
             )
             optInTarget?.let { projection ->

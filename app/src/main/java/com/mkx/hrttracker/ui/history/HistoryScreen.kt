@@ -763,11 +763,10 @@ private fun HistoryScreenContent(
             FloatingActionButton(
                 onClick = onDeleteSelectedClick,
                 modifier = Modifier
-                    // The page now paints edge-to-edge behind the bottom navigation bar, so the
-                    // Scaffold-positioned FAB must clear it by the same inset the body content uses
-                    // (the bar height in compact, the gesture inset beside the wide rail). The
-                    // padding must sit outside animateFloatingActionButton or it inflates the
-                    // bounds the BottomEnd scale pivot is computed on.
+                    // The page paints edge-to-edge behind the system navigation bar, so the
+                    // Scaffold-positioned FAB must clear it by the same inset the body content
+                    // uses. The padding must sit outside animateFloatingActionButton or it
+                    // inflates the bounds the BottomEnd scale pivot is computed on.
                     .padding(bottom = LocalAppContentBottomInset.current)
                     .animateFloatingActionButton(
                         visible = uiState.isSelectionMode && isSelectionFabVisible,
