@@ -218,7 +218,6 @@ private fun ArchivedMedicationGroupCard(
         dateFormatter = dateFormatter,
         timeFormatter = timeFormatter,
         upcomingOccurrences = emptyList(),
-        today = today,
         onClick = onClick,
         index = index,
         itemCount = itemCount,

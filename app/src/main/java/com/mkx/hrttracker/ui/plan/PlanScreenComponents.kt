@@ -527,7 +527,6 @@ internal fun RegimenGroupCard(
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     upcomingOccurrences: List<LocalDateTime>,
-    today: LocalDate,
     onClick: () -> Unit,
     index: Int? = null,
     itemCount: Int? = null,
@@ -538,6 +537,8 @@ internal fun RegimenGroupCard(
     showStartDate: Boolean = true,
     firstDayOfWeek: DayOfWeek,
     metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
+    /** Names [upcomingOccurrences]' days: today and tomorrow as the plan counts them. */
+    now: LocalDateTime = LocalDateTime.now(),
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
@@ -764,15 +765,22 @@ internal fun RegimenGroupCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 6.dp)
                 ) {
+                    val todayLabel = stringResource(R.string.plan_group_upcoming_today)
+                    val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
-                        val dayLabel = when (occurrence.toLocalDate()) {
-                            today -> stringResource(R.string.plan_group_upcoming_today)
-                            today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                            else -> dateFormatter(occurrence.toLocalDate())
-                        }
                         UpcomingOccurrenceChip(
-                            label = dayLabel,
+                            label = upcomingDoseDayLabel(
+                                occurrence = occurrence,
+                                now = now,
+                                boundary = group.schedule.dayBoundary,
+                                todayLabel = todayLabel,
+                                tomorrowLabel = tomorrowLabel,
+                                dateFormatter = dateFormatter,
+                            ),
                             time = occurrence.toLocalTime().format(timeFormatter),
+                            isPastMidnight = group.schedule.dayBoundary.isPastMidnight(
+                                occurrence.toLocalTime()
+                            ),
                             emphasized = index == 0
                         )
                     }
@@ -1007,6 +1015,7 @@ private fun RegimenMedicationChip(
 private fun UpcomingOccurrenceChip(
     label: String,
     time: String,
+    isPastMidnight: Boolean,
     emphasized: Boolean
 ) {
     Surface(
@@ -1026,8 +1035,9 @@ private fun UpcomingOccurrenceChip(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(
+            MedicationDayTimeLabel(
                 text = time,
+                isPastMidnight = isPastMidnight,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1201,7 +1211,7 @@ private fun RegimenGroupCardPreview() {
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
             upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-            today = uiState.today,
+            now = uiState.now,
             onClick = { },
             firstDayOfWeek = DayOfWeek.MONDAY,
         )

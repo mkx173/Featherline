@@ -35,8 +35,10 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationDay
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -194,6 +196,27 @@ private fun DailyTimeRow(
 
 internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount > 1
 
+/**
+ * An upcoming dose's day as its plan counts it, near or far: with the day ending at
+ * 04:00 a 03:00 dose is on the evening before, and its time leads with the moon.
+ */
+internal fun upcomingDoseDayLabel(
+    occurrence: LocalDateTime,
+    now: LocalDateTime,
+    boundary: MedicationDayBoundary,
+    todayLabel: String,
+    tomorrowLabel: String,
+    dateFormatter: LocalDateFormatter,
+): String {
+    val day = medicationDay(occurrence, boundary)
+    return schedulePreviewRelativeDateLabel(
+        date = day,
+        currentDate = medicationDay(now, boundary),
+        todayLabel = todayLabel,
+        tomorrowLabel = tomorrowLabel,
+    ) ?: dateFormatter(day)
+}
+
 internal fun schedulePreviewRelativeDateLabel(
     date: LocalDate,
     currentDate: LocalDate,
@@ -212,7 +235,8 @@ internal fun schedulePreviewRelativeDateLabel(
 @Composable
 internal fun SchedulePreviewRow(
     occurrences: List<LocalDateTime>,
-    currentDate: LocalDate,
+    now: LocalDateTime,
+    boundary: MedicationDayBoundary,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
 ) {
@@ -225,27 +249,30 @@ internal fun SchedulePreviewRow(
             .horizontalScroll(rememberScrollState()),
     ) {
         occurrences.forEach { occurrence ->
-            val date = occurrence.toLocalDate()
             EditorSegmentedListItem(
                 index = 0,
                 count = 1,
                 modifier = Modifier.width(IntrinsicSize.Max),
                 supportingContent = {
                     Text(
-                        text = schedulePreviewRelativeDateLabel(
-                            date = date,
-                            currentDate = currentDate,
+                        text = upcomingDoseDayLabel(
+                            occurrence = occurrence,
+                            now = now,
+                            boundary = boundary,
                             todayLabel = todayLabel,
                             tomorrowLabel = tomorrowLabel,
-                        ) ?: dateFormatter(date),
+                            dateFormatter = dateFormatter,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
             ) {
-                Text(
+                MedicationDayTimeLabel(
                     text = occurrence.toLocalTime().format(timeFormatter),
+                    isPastMidnight = boundary.isPastMidnight(occurrence.toLocalTime()),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

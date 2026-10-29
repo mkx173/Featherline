@@ -1707,7 +1707,8 @@ private fun MedicationGroupEditorScreenContent(
                             item {
                                 SchedulePreviewRow(
                                     occurrences = upcomingOccurrences,
-                                    currentDate = currentDate,
+                                    now = resolvedOccurrenceReferenceTime,
+                                    boundary = uiState.medicationDayBoundary,
                                     dateFormatter = dateFormatter,
                                     timeFormatter = timeFormatter,
                                 )

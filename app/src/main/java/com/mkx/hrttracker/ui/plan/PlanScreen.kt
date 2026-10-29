@@ -463,8 +463,7 @@ private fun PlanScreenContent(
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
                     nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                    // The upcoming chips print real dates, so "Today" is the calendar day.
-                    today = uiState.now.toLocalDate(),
+                    now = uiState.now,
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     onGroupClick = onGroupClick
                 )
@@ -677,7 +676,7 @@ private fun LazyListScope.regimenSectionItems(
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>>,
-    today: LocalDate,
+    now: LocalDateTime,
     firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
@@ -757,7 +756,7 @@ private fun LazyListScope.regimenSectionItems(
                         dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
                         upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
-                        today = today,
+                        now = now,
                         onClick = { onGroupClick(group.uuid) },
                         firstDayOfWeek = firstDayOfWeek,
                     )
