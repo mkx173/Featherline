@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
@@ -348,22 +349,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         } else {
                             nextState
                         }
-                        // "Now" moves its start date along once the day ends, so a draft
-                        // left open past midnight (04:00 for night owl) starts today.
-                        val today = medicationDay(
-                            timeSnapshot.minute,
-                            lockedNextState.medicationDayBoundary,
-                        )
-                        val currentState = if (
-                            lockedNextState.startsNow && lockedNextState.sinceDate != today
-                        ) {
-                            editorStateStartingNow(lockedNextState, today)
-                        } else {
-                            lockedNextState
-                        }
                         resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
                             previousState = it,
-                            nextState = currentState,
+                            nextState = lockedNextState.withStartsNowOn(timeSnapshot.minute),
                         )
                     }
                 }
@@ -1033,7 +1021,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         onCreatePastScheduledSlotRecordsCompleted:
         ((CreatePastScheduledSlotRecordsSaveState) -> Unit)? = null,
     ) {
-        val currentState = _uiState.value
+        // A fresh clock read: the minute tick that moves "Now" past the day's end may not
+        // have run yet, so move it here, or the save pairs yesterday's date with today's time.
+        val recordGenerationNow = currentMinute.value
+        val currentState = _uiState.updateAndGet { it.withStartsNowOn(recordGenerationNow) }
         if (
             currentState.isSaving ||
             currentState.isDeleting ||
@@ -1060,7 +1051,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             uiState = currentState,
             resolvedDailyTimes = resolvedDailyTimes,
         )
-        val recordGenerationNow = currentMinute.value
         val recordGenerationCutoff = minOf(
             recordGenerationNow,
             currentState.createPastScheduledSlotRecordsEnabledAt ?: recordGenerationNow,
@@ -2172,6 +2162,16 @@ internal fun editorStateStartingNow(
     } else {
         startingNow
     }
+}
+
+/**
+ * A draft starting now, on [now]'s medication day: one left open past the day's end
+ * (midnight, or 04:00 for night owl) starts today.
+ */
+internal fun MedicationGroupEditorUiState.withStartsNowOn(now: LocalDateTime): MedicationGroupEditorUiState {
+    if (!startsNow) return this
+    val today = medicationDay(now, medicationDayBoundary)
+    return if (sinceDate == today) this else editorStateStartingNow(this, today)
 }
 
 /**

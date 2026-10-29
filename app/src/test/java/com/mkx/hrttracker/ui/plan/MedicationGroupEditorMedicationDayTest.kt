@@ -640,6 +640,40 @@ class MedicationGroupEditorMedicationDayTest {
         assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
     }
 
+    @Test
+    fun savingANowDraftPastTheDaysEndStartsItTodayBeforeTheMinuteTickRuns() = runTest {
+        coEvery { medicineRepository.getByUuid(editorMedicine.uuid) } returns editorMedicine
+        for (boundary in MedicationDayBoundary.entries) {
+            // Opened Thu Oct 29 at 23:20, saved right as Friday's day starts.
+            val timeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 23, 20))
+            val savedSchedule = stubSaveGroup(uuid = null, returns = savedGroupUuid)
+            val viewModel = newViewModel(LocalDateTime.of(2026, 10, 29, 23, 20), timeSource)
+            advanceUntilIdle()
+            viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY)
+            viewModel.updateDayEndsAtFourAm(boundary.endsAtFourAm)
+            viewModel.addCompletedMedicationSlot(
+                localId = "slot",
+                slot = com.mkx.hrttracker.ui.catalog.MedicineSlotResult(
+                    medicineUuid = editorMedicine.uuid,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    count = 1,
+                ),
+            )
+            advanceUntilIdle()
+            val dayStart = LocalDate.of(2026, 10, 30).atTime(boundary.startTime)
+
+            // No advanceUntilIdle: the save runs before the collector sees the new minute.
+            timeSource.setCurrentMinute(dayStart.plusMinutes(10))
+            viewModel.saveGroup()
+            advanceUntilIdle()
+
+            assertEquals("$boundary", LocalDate.of(2026, 10, 30), savedSchedule.captured.since)
+            assertEquals("$boundary", setOf(DayOfWeek.FRIDAY), savedSchedule.captured.weeklyDaysOfWeek)
+            assertEquals("$boundary", dayStart.plusMinutes(10), savedSchedule.captured.startAt)
+        }
+    }
+
     private fun stubSaveGroup(
         uuid: UUID?,
         returns: UUID,
