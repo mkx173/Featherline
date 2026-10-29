@@ -242,14 +242,17 @@ class HazeChromeIntegrationTest {
                 .readText()
         val navHostText = navHostText()
 
+        val pillBarText =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/PillNavigationBar.kt").readText()
         assertTrue(
             "The bottom bar is drawn inside each top-level destination, so it should blur " +
-                    "that destination's own Haze source (like the top app bar) and make its " +
-                    "container transparent gated on that same state, so the bar can never go " +
-                    "transparent while hazeChrome(null) no-ops.",
-            navHostText.contains("val hazeState = LocalChromeHazeState.current") &&
-                    navHostText.contains(".hazeChrome(hazeState)") &&
-                    navHostText.contains("hazeNavigationSuiteColors(hazeState)"),
+                    "that destination's own Haze source (like the top app bar), and fall back " +
+                    "to an opaque container on the same condition hazeChrome checks, so the " +
+                    "bar can never go transparent while hazeChrome no-ops.",
+            navHostText.contains("hazeState = LocalChromeHazeState.current") &&
+                    pillBarText.contains("if (LocalHazeBlurEnabled.current && hazeState != null)") &&
+                    pillBarText.contains("Modifier.hazeChrome(hazeState)") &&
+                    pillBarText.contains("Modifier.background(MaterialTheme.colorScheme.surfaceContainer)"),
         )
         assertTrue(
             "Sheets and dialogs hosted above the routed content need a stable route-level " +

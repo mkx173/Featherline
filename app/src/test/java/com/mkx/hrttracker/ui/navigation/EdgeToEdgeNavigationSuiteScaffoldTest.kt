@@ -53,6 +53,14 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
                         icon = { Box(Modifier.size(24.dp)) },
                     )
                 },
+                bottomBar = {
+                    PillNavigationBar(
+                        items = topLevelNavigationItems,
+                        selectedScreen = Screen.Main,
+                        onItemClick = { },
+                        hazeState = null,
+                    )
+                },
             ) {
                 recordedBarHeights += LocalTopLevelBottomBarHeight.current
                 recordedInsets += LocalAppContentBottomInset.current

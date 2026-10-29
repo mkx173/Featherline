@@ -20,9 +20,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -89,8 +87,6 @@ import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
-import com.mkx.hrttracker.ui.components.hazeChrome
-import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -757,59 +753,57 @@ fun HrtTrackerNavHost(
     val navigationSuiteType = rememberNavigationSuiteType()
     val navigationChromeHazeState = rememberChromeHazeState()
 
+    // Re-evaluates the chrome lock at tap time (not captured at composition) so a row tap
+    // that just requested a sheet in this same frame already locks the chrome.
+    val onTopLevelItemClick: (Screen) -> Unit = { tappedScreen ->
+        val chromeLocked = isTopLevelNavigationChromeLocked(
+            isNavigationLockHeld = navigationLock.isLocked,
+            hasPendingLogEntrySheetRequest = medicationLogEntrySheetRequest != null,
+            hasPendingStockOptInSheet = optInTarget != null || optInResolving,
+        )
+        val tapAction = if (chromeLocked) {
+            TopLevelNavigationTapAction.NONE
+        } else {
+            topLevelNavigationTapAction(
+                tappedScreen = tappedScreen,
+                selectedBottomScreen = selectedBottomScreen,
+                currentRoute = currentRoute,
+            )
+        }
+        when (tapAction) {
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+                navController.popBackStackSafely(tappedScreen.route, inclusive = false)
+            }
+
+            TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
+                when (tappedScreen) {
+                    Screen.Main -> mainScrollToTopSignal++
+                    Screen.Plan -> planScrollToTopSignal++
+                    Screen.Journal -> journalScrollToTopSignal++
+                    Screen.Settings -> settingsScrollToTopSignal++
+                    else -> Unit
+                }
+            }
+
+            TopLevelNavigationTapAction.NAVIGATE -> {
+                navController.navigateToTopLevelScreen(
+                    targetScreen = tappedScreen,
+                    selectedBottomScreen = selectedBottomScreen,
+                )
+            }
+
+            TopLevelNavigationTapAction.NONE -> Unit
+        }
+    }
+
+    // The wide rail's items.
     val navigationSuiteItems: NavigationSuiteScope.() -> Unit = {
         topLevelNavigationItems.forEach { navItem ->
+            val isSelected = selectedBottomScreen == navItem.screen
             item(
-                selected = selectedBottomScreen == navItem.screen,
-                onClick = {
-                    // Re-evaluated at tap time (not captured at composition)
-                    // so a row tap that just requested a sheet in this same
-                    // frame already locks the chrome.
-                    val chromeLocked = isTopLevelNavigationChromeLocked(
-                        isNavigationLockHeld = navigationLock.isLocked,
-                        hasPendingLogEntrySheetRequest =
-                            medicationLogEntrySheetRequest != null,
-                        hasPendingStockOptInSheet = optInTarget != null || optInResolving,
-                    )
-                    val tapAction = if (chromeLocked) {
-                        TopLevelNavigationTapAction.NONE
-                    } else {
-                        topLevelNavigationTapAction(
-                            tappedScreen = navItem.screen,
-                            selectedBottomScreen = selectedBottomScreen,
-                            currentRoute = currentRoute,
-                        )
-                    }
-                    when (tapAction) {
-                        TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                            navController.popBackStackSafely(
-                                navItem.screen.route,
-                                inclusive = false
-                            )
-                        }
-
-                        TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
-                            when (navItem.screen) {
-                                Screen.Main -> mainScrollToTopSignal++
-                                Screen.Plan -> planScrollToTopSignal++
-                                Screen.Journal -> journalScrollToTopSignal++
-                                Screen.Settings -> settingsScrollToTopSignal++
-                                else -> Unit
-                            }
-                        }
-
-                        TopLevelNavigationTapAction.NAVIGATE -> {
-                            navController.navigateToTopLevelScreen(
-                                targetScreen = navItem.screen,
-                                selectedBottomScreen = selectedBottomScreen,
-                            )
-                        }
-
-                        TopLevelNavigationTapAction.NONE -> Unit
-                    }
-                },
+                selected = isSelected,
+                onClick = { onTopLevelItemClick(navItem.screen) },
                 icon = {
-                    val isSelected = selectedBottomScreen == navItem.screen
                     Icon(
                         painter = painterResource(
                             if (isSelected) navItem.icon else navItem.iconAlt
@@ -818,28 +812,23 @@ fun HrtTrackerNavHost(
                     )
                 },
                 label = {
-                    val screenLabelText = stringResource(navItem.screen.label)
-                    Text(
-                        text = screenLabelText,
-                    )
+                    Text(text = stringResource(navItem.screen.label))
                 }
             )
         }
     }
 
     // One bar instance shared by the top-level destinations: a tab switch moves it to
-    // the incoming page with the tapped item's ripple and indicator animation intact,
-    // instead of composing a fresh bar there.
+    // the incoming page, so the selection pill slides from the old tab and the tapped
+    // item's ripple carries on, instead of a fresh bar appearing there.
     val topLevelNavigationBar = remember {
-        movableContentOf { layoutType: NavigationSuiteType, items: NavigationSuiteScope.() -> Unit ->
-            val hazeState = LocalChromeHazeState.current
-            Box(Modifier.hazeChrome(hazeState)) {
-                NavigationSuite(
-                    layoutType = layoutType,
-                    colors = hazeNavigationSuiteColors(hazeState),
-                    content = items,
-                )
-            }
+        movableContentOf { selectedScreen: Screen, onItemClick: (Screen) -> Unit ->
+            PillNavigationBar(
+                items = topLevelNavigationItems,
+                selectedScreen = selectedScreen,
+                onItemClick = onItemClick,
+                hazeState = LocalChromeHazeState.current,
+            )
         }
     }
 
@@ -853,7 +842,7 @@ fun HrtTrackerNavHost(
                 Screen.topLevelScreenForRoute(navController.currentBackStackEntry?.destination?.route) != null
         if (!navigationSuiteType.isBottomBar || isLeavingForTopLevel) return null
         return RoutedBottomBar(height = LocalTopLevelBottomBarHeight.current) {
-            topLevelNavigationBar(navigationSuiteType, navigationSuiteItems)
+            topLevelNavigationBar(selectedBottomScreen, onTopLevelItemClick)
         }
     }
 
@@ -862,6 +851,14 @@ fun HrtTrackerNavHost(
         navigationSuiteType = navigationSuiteType,
         navigationChromeHazeState = navigationChromeHazeState,
         navigationSuiteItems = navigationSuiteItems,
+        bottomBar = {
+            PillNavigationBar(
+                items = topLevelNavigationItems,
+                selectedScreen = selectedBottomScreen,
+                onItemClick = {},
+                hazeState = null,
+            )
+        },
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavHost(

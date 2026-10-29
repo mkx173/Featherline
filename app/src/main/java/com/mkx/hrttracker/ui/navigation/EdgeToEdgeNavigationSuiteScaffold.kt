@@ -40,11 +40,11 @@ internal val LocalTopLevelBottomBarHeight = compositionLocalOf { 0.dp }
  * inside each top-level destination, so the bar rides that page's transitions and sub pages show
  * none.
  *
- * The scaffold still measures a copy of that bar (never placed, no semantics) *before* content is
- * subcomposed and provides its height via [LocalTopLevelBottomBarHeight], so the top-level pages'
- * inset is exact in the same frame — no first-frame underlap and no stale value when the
- * navigation-suite type changes in place (fold, rotation, window resize). [content] itself gets
- * the system navigation-bar inset through [LocalAppContentBottomInset].
+ * The scaffold still measures a copy of that bar, [bottomBar] (never placed, no semantics),
+ * *before* content is subcomposed and provides its height via [LocalTopLevelBottomBarHeight], so
+ * the top-level pages' inset is exact in the same frame — no first-frame underlap and no stale
+ * value when the navigation-suite type changes in place (fold, rotation, window resize).
+ * [content] itself gets the system navigation-bar inset through [LocalAppContentBottomInset].
  *
  * @param navigationChromeHazeState stable Haze state for chrome hosted above the routed content
  *   (sheets and dialogs). The source is attached above the routed content so their blur sees
@@ -56,6 +56,7 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     navigationChromeHazeState: HazeState?,
     modifier: Modifier = Modifier,
     navigationSuiteItems: NavigationSuiteScope.() -> Unit,
+    bottomBar: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val isBottomBar = navigationSuiteType.isBottomBar
@@ -69,9 +70,13 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     ) {
         SubcomposeLayout { constraints ->
             val navigationPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
-                // In bottom-bar layouts this copy is only measured: the destinations draw
-                // the real bar, and its items must not show up twice to accessibility.
-                Box(if (isBottomBar) Modifier.clearAndSetSemantics { } else Modifier) {
+                if (isBottomBar) {
+                    // Only measured: the destinations draw the real bar, and its items must
+                    // not show up twice to accessibility.
+                    Box(Modifier.clearAndSetSemantics { }) {
+                        bottomBar()
+                    }
+                } else {
                     NavigationSuite(
                         layoutType = navigationSuiteType,
                         colors = hazeNavigationSuiteColors(navigationChromeHazeState),
