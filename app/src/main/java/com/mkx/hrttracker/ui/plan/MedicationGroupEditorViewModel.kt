@@ -145,7 +145,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     sinceDate = defaultDay,
                     // Starts now unless the default dose time already rolled the
                     // start date over to the next day.
-                    startsNow = defaultDay == appTimeSource.currentMinute.value.toLocalDate(),
+                    scheduleStart = if (defaultDay == appTimeSource.currentMinute.value.toLocalDate()) {
+                        ScheduleStart.Now
+                    } else {
+                        ScheduleStart.WholeDay
+                    },
                     weeklyDaysOfWeek = setOf(defaultDay.dayOfWeek),
                     weeklyTime = defaultScheduleDateTime.toLocalTime(),
                     dailyTimes = listOf(
@@ -473,7 +477,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (!it.canEditScheduleStart) {
                 it
             } else {
-                it.copy(startsNow = false, startTime = time, loadedStartAt = null)
+                it.copy(scheduleStart = ScheduleStart.At(time))
             }
         }
     }
@@ -1874,10 +1878,13 @@ private fun MedicationGroup.toEditorState(
         hasResolvedInitialGroupName = true,
         scheduleType = schedule.type,
         sinceDate = schedule.since,
-        loadedStartAt = loadedStartAt,
-        // A recreated plan's start at its cutoff is its date's day start, so on its day.
-        loadedStartIsMoment = loadedStartAt != null &&
-                medicationDay(loadedStartAt, schedule.dayBoundary) == schedule.since,
+        scheduleStart = loadedStartAt?.let { startAt ->
+            ScheduleStart.Loaded(
+                at = startAt,
+                // A recreated plan's start at its cutoff is its date's day start, so on its day.
+                isMoment = medicationDay(startAt, schedule.dayBoundary) == schedule.since,
+            )
+        } ?: ScheduleStart.WholeDay,
         medicationDayBoundary = schedule.dayBoundary,
         originalMedicationDayBoundary = schedule.dayBoundary,
         weeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
@@ -1967,9 +1974,7 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
-        startsNow = false,
-        startTime = null,
-        loadedStartAt = null,
+        scheduleStart = ScheduleStart.WholeDay,
     )
 }
 
@@ -1991,9 +1996,7 @@ private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
-        startsNow = true,
-        startTime = null,
-        loadedStartAt = null,
+        scheduleStart = ScheduleStart.Now,
     )
 }
 
@@ -2126,9 +2129,7 @@ internal fun editorStateWithUpdatedSinceDate(
     // Re-picking the same date does too, so "Now" can widen to today's earlier doses.
     val withDate = uiState.copy(
         sinceDate = date,
-        startsNow = false,
-        startTime = null,
-        loadedStartAt = null,
+        scheduleStart = ScheduleStart.WholeDay,
     )
     return if (
         uiState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
@@ -2150,9 +2151,7 @@ internal fun editorStateStartingNow(
 ): MedicationGroupEditorUiState {
     val startingNow = uiState.copy(
         sinceDate = today,
-        startsNow = true,
-        startTime = null,
-        loadedStartAt = null,
+        scheduleStart = ScheduleStart.Now,
     )
     return if (
         startingNow.scheduleType == MedicationGroupScheduleType.WEEKLY &&
@@ -2176,7 +2175,7 @@ internal fun MedicationGroupEditorUiState.withStartsNowOn(now: LocalDateTime): M
 
 /**
  * The draft with its day ending turned to [boundary]. A start that is a moment (starting
- * now, a picked start time, or a saved start that [loadedStartIsMoment] marks) keeps that
+ * now, a picked start time, or a saved start [ScheduleStart.Loaded.isMoment] marks) keeps that
  * moment, and its start date follows it; untouched weekdays follow the start date. Any
  * other start keeps its date. Turning it back restores the draft.
  */
@@ -2186,11 +2185,11 @@ internal fun MedicationGroupEditorUiState.withDayBoundary(
 ): MedicationGroupEditorUiState {
     if (boundary == medicationDayBoundary) return this
     val withBoundary = copy(medicationDayBoundary = boundary)
-    if (startsNow) {
-        return editorStateStartingNow(withBoundary, medicationDay(now, boundary))
-    }
-    if (startTime == null && (loadedStartAt == null || !loadedStartIsMoment)) {
-        return withBoundary
+    when (val start = scheduleStart) {
+        ScheduleStart.Now -> return editorStateStartingNow(withBoundary, medicationDay(now, boundary))
+        ScheduleStart.WholeDay -> return withBoundary
+        is ScheduleStart.Loaded -> if (!start.isMoment) return withBoundary
+        is ScheduleStart.At -> Unit
     }
     val withSinceDate = withBoundary.copy(sinceDate = medicationDay(scheduleStartAt(now), boundary))
     return if (
@@ -2209,15 +2208,15 @@ internal fun MedicationGroupEditorUiState.withDayBoundary(
  */
 internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): LocalDateTime {
     val dayStart = medicationDayStart(sinceDate, medicationDayBoundary)
-    if (startsNow) {
-        return maxOf(now, dayStart)
+    return when (val start = scheduleStart) {
+        ScheduleStart.Now -> maxOf(now, dayStart)
+        ScheduleStart.WholeDay -> dayStart
+        // Nothing before the start date's day can fall anyway, so an earlier saved start,
+        // left behind when night owl moves the day's start to 04:00, is that day's start.
+        is ScheduleStart.Loaded -> maxOf(start.at, dayStart)
+        // Small-hours times belong to the night after the start date.
+        is ScheduleStart.At -> medicationDayBoundary.dateTimeOn(sinceDate, start.time)
     }
-    // Nothing before the start date's day can fall anyway, so an earlier saved start,
-    // left behind when night owl moves the day's start to 04:00, is that day's start.
-    loadedStartAt?.let { return maxOf(it, dayStart) }
-    val time = startTime ?: return dayStart
-    // Small-hours times belong to the night after the start date.
-    return medicationDayBoundary.dateTimeOn(sinceDate, time)
 }
 
 internal fun hasSaveableMedicationGroupContent(
@@ -2396,6 +2395,25 @@ enum class MedicationGroupEditorCompletionEvent {
     DELETE_OR_ARCHIVE_COMPLETED,
 }
 
+/** Where a draft's schedule starts on its start date. */
+sealed interface ScheduleStart {
+    /** At the moment the plan is saved. */
+    data object Now : ScheduleStart
+
+    /** With the whole start date, from its day boundary on. */
+    data object WholeDay : ScheduleStart
+
+    /** At a picked time; a small-hours time of a night-owl plan is the night after the start date. */
+    data class At(val time: LocalTime) : ScheduleStart
+
+    /**
+     * The saved plan's start, kept until the start is edited. [isMoment], decided at load:
+     * a start on its start date's own day (such as a recreated plan's cutoff) is a moment
+     * night owl keeps; one past its date's own day keeps its date instead.
+     */
+    data class Loaded(val at: LocalDateTime, val isMoment: Boolean) : ScheduleStart
+}
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
@@ -2405,16 +2423,7 @@ data class MedicationGroupEditorUiState(
     val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
-    // The plan starts at the moment it's saved; startTime is ignored while set.
-    val startsNow: Boolean = false,
-    // Null starts with the whole start date, from the day boundary on.
-    val startTime: LocalTime? = null,
-    // The saved plan's start, kept until the start is edited; wins over startTime.
-    val loadedStartAt: LocalDateTime? = null,
-    // Decided once at load: a saved start on its start date's own day (such as a
-    // recreated plan's cutoff) is a moment that night owl keeps. A start past its
-    // date's own day keeps its date instead.
-    val loadedStartIsMoment: Boolean = false,
+    val scheduleStart: ScheduleStart = ScheduleStart.WholeDay,
     // This plan's own day ending (night owl). New plans end at midnight.
     val medicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     val weeklyIntervalWeeks: String = "1",
@@ -2491,6 +2500,9 @@ data class MedicationGroupEditorUiState(
     val duplicateArchivedGroupSkippedCount: Int? = null,
     val scrollToTopRequestVersion: Int = 0,
 ) {
+    val startsNow: Boolean
+        get() = scheduleStart == ScheduleStart.Now
+
     val isEditing: Boolean
         get() = editingGroupId != null
 

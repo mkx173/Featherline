@@ -4,7 +4,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
@@ -23,8 +22,11 @@ class MedicationGroupEditorScheduleStartTest {
         boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     ) = MedicationGroupEditorUiState(
         sinceDate = sinceDate,
-        startsNow = startsNow,
-        startTime = startTime,
+        scheduleStart = when {
+            startsNow -> ScheduleStart.Now
+            startTime != null -> ScheduleStart.At(startTime)
+            else -> ScheduleStart.WholeDay
+        },
         dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))),
         medicationDayBoundary = boundary,
     )
@@ -81,7 +83,7 @@ class MedicationGroupEditorScheduleStartTest {
         // a later save has: it holds until the start is edited.
         val loadedStartAt = LocalDateTime.of(today, LocalTime.of(23, 0))
         val loaded = state(sinceDate = today.minusDays(1), boundary = MedicationDayBoundary.FourAm)
-            .copy(loadedStartAt = loadedStartAt)
+            .copy(scheduleStart = ScheduleStart.Loaded(loadedStartAt, isMoment = false))
 
         assertEquals(loadedStartAt, loaded.scheduleStartAt(now))
         assertEquals(
@@ -94,7 +96,7 @@ class MedicationGroupEditorScheduleStartTest {
     fun loadedStart_isNeverBeforeTheStartDatesDay() {
         // 02:00 is still the previous day when the day ends at 04:00.
         val loaded = state(boundary = MedicationDayBoundary.FourAm)
-            .copy(loadedStartAt = today.atTime(2, 0))
+            .copy(scheduleStart = ScheduleStart.Loaded(today.atTime(2, 0), isMoment = false))
 
         assertEquals(today.atTime(4, 0), loaded.scheduleStartAt(now))
     }
@@ -104,9 +106,7 @@ class MedicationGroupEditorScheduleStartTest {
         val updated = editorStateWithUpdatedSinceDate(state(startsNow = true), today.minusDays(3))
 
         assertEquals(today.minusDays(3), updated.sinceDate)
-        assertFalse(updated.startsNow)
-        assertNull(updated.startTime)
-        assertNull(updated.loadedStartAt)
+        assertEquals(ScheduleStart.WholeDay, updated.scheduleStart)
         // Re-picking the same date also starts with the whole day, dropping "Now" or a
         // picked time.
         assertEquals(

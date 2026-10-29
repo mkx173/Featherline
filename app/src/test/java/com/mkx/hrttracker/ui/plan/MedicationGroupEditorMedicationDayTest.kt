@@ -445,7 +445,7 @@ class MedicationGroupEditorMedicationDayTest {
         val now = LocalDateTime.of(2026, 10, 20, 12, 0)
         val picked = MedicationGroupEditorUiState(
             sinceDate = LocalDate.of(2026, 10, 29),
-            startTime = LocalTime.of(2, 0),
+            scheduleStart = ScheduleStart.At(LocalTime.of(2, 0)),
             scheduleType = MedicationGroupScheduleType.WEEKLY,
             weeklyDaysOfWeek = setOf(DayOfWeek.THURSDAY),
         )
@@ -490,7 +490,7 @@ class MedicationGroupEditorMedicationDayTest {
         assertFalse(state.canEditDayBoundary)
         assertEquals(MedicationDayBoundary.Midnight, state.medicationDayBoundary)
         assertEquals(opened.sinceDate, state.sinceDate)
-        assertEquals(LocalTime.of(2, 0), state.startTime)
+        assertEquals(ScheduleStart.At(LocalTime.of(2, 0)), state.scheduleStart)
         viewModel.saveGroup()
         advanceUntilIdle()
         assertEquals(MedicationDayBoundary.Midnight, savedSchedule.captured.dayBoundary)
