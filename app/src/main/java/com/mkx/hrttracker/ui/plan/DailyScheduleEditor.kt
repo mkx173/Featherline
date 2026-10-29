@@ -32,7 +32,7 @@ import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -50,6 +50,7 @@ internal fun DailyScheduleEditor(
     currentDate: LocalDate,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
+    boundary: MedicationDayBoundary,
     onIntervalChange: (String) -> Unit,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
@@ -82,6 +83,7 @@ internal fun DailyScheduleEditor(
         DailyTimesCard(
             times = dailyTimes,
             timeFormatter = timeFormatter,
+            boundary = boundary,
             onAddTime = onAddTime,
             onTimeClick = onTimeClick,
             addRemoveTimeEnabled = addRemoveTimeEnabled,
@@ -111,6 +113,7 @@ internal fun DailyScheduleEditor(
 private fun DailyTimesCard(
     times: List<MedicationGroupScheduleTimeUiState>,
     timeFormatter: DateTimeFormatter,
+    boundary: MedicationDayBoundary,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
     addRemoveTimeEnabled: Boolean,
@@ -146,7 +149,6 @@ private fun DailyTimesCard(
                     AddChip(onClick = onAddTime)
                 }
             }
-            val boundary = LocalMedicationDayBoundary.current
             val sortedTimes = sortDailyTimesByOriginalTime(times, boundary)
             sortedTimes.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
@@ -322,6 +324,7 @@ private fun DailyScheduleEditorPreview() {
                 previewLocale,
                 uses24HourFormat = false,
             ),
+            boundary = MedicationDayBoundary.Midnight,
             onIntervalChange = {},
             onAddTime = {},
             onTimeClick = { _, _ -> },

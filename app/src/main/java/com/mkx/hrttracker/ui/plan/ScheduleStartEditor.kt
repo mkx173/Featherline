@@ -61,7 +61,8 @@ internal fun ScheduleStartEditor(
                 value = when {
                     startsNow -> stringResource(R.string.group_schedule_start_now)
                     // A saved start past the start date's own day: a plan that hid its
-                    // past from a later save, or one a night owl switch shifted.
+                    // past from a later save, or a small-hours start of a plan whose
+                    // night owl was turned off before it had records.
                     medicationDay(start, boundary) != sinceDate ->
                         stringResource(
                             R.string.plan_group_upcoming_format,

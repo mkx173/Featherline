@@ -33,7 +33,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -59,6 +59,7 @@ internal fun WeeklyScheduleEditor(
     appLocale: Locale,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
+    boundary: MedicationDayBoundary,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
     onResetDaysOfWeek: () -> Unit,
@@ -144,7 +145,7 @@ internal fun WeeklyScheduleEditor(
             formattedOriginalTime = originalTime?.format(timeFormatter),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
-            isPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(time),
+            isPastMidnight = boundary.isPastMidnight(time),
             showLockedTimeNote = showLockedTimeNote,
             index = itemIndex++,
             count = totalCount
@@ -243,6 +244,7 @@ private fun WeeklyScheduleEditorPreview() {
                 previewLocale,
                 uses24HourFormat = false,
             ),
+            boundary = MedicationDayBoundary.Midnight,
             onIntervalChange = {},
             onDayChange = {},
             onResetDaysOfWeek = {},

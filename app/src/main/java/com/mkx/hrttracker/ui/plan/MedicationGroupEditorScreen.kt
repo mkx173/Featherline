@@ -48,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldLabelPosition
@@ -351,6 +352,7 @@ fun MedicationGroupEditorScreen(
         onGroupNameChange = viewModel::updateGroupName,
         onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,
+        onDayEndsAtFourAmChange = viewModel::updateDayEndsAtFourAm,
         onSinceDateChange = viewModel::updateSinceDate,
         onStartTimeChange = viewModel::updateStartTime,
         onResetStartToNow = viewModel::resetStartToNow,
@@ -478,6 +480,7 @@ private fun MedicationGroupEditorScreenContent(
     onGroupNameChange: (String) -> Unit,
     onGroupColorChange: (MedicationGroupColorKey) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
+    onDayEndsAtFourAmChange: (Boolean) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onStartTimeChange: (LocalTime) -> Unit,
     onResetStartToNow: () -> Unit,
@@ -623,6 +626,9 @@ private fun MedicationGroupEditorScreenContent(
         uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
     val shouldShowLockedTimeChangeNote = shouldShowLockedScheduleTimeNote(uiState)
     val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
+    // Any record locks night owl, so the banner shows for unplanned records too.
+    val shouldShowLockedBanner = uiState.isEditing && !uiState.isArchived &&
+            uiState.relatedEntryCount > 0 && !shouldSuppressLockedStateDuringGeneratedHistorySave
     val openMedicationEditor = remember(
         focusManager,
         keyboardController,
@@ -1393,7 +1399,7 @@ private fun MedicationGroupEditorScreenContent(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (shouldRenderLockedState) {
+                if (shouldShowLockedBanner) {
                     item {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_locked_banner),
@@ -1625,6 +1631,7 @@ private fun MedicationGroupEditorScreenContent(
                                 appLocale = appLocale,
                                 dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
+                                boundary = uiState.medicationDayBoundary,
                                 onIntervalChange = onWeeklyIntervalChange,
                                 onDayChange = onWeeklyDayChange,
                                 onResetDaysOfWeek = onWeeklyResetDaysOfWeek,
@@ -1643,6 +1650,7 @@ private fun MedicationGroupEditorScreenContent(
                                 currentDate = currentDate,
                                 dateFormatter = dateFormatter,
                                 timeFormatter = timeFormatter,
+                                boundary = uiState.medicationDayBoundary,
                                 onIntervalChange = onDailyIntervalChange,
                                 onAddTime = {
                                     pendingNewDailyTime = LocalTime.now()
@@ -1661,6 +1669,39 @@ private fun MedicationGroupEditorScreenContent(
                                 showLockedTimeNote = shouldShowLockedTimeChangeNote,
                                 shapeLocked = areFieldsRenderedLocked,
                             )
+                        }
+                        // Disabled, not hidden, once the plan has any record or is archived.
+                        val dayEndsAtFourAm = uiState.medicationDayBoundary.endsAtFourAm
+                        val dayBoundaryEnabled = uiState.canEditDayBoundary
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HrtSection(title = null) {
+                            item {
+                                PreferenceSegmentedListItem(
+                                    title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                                    supportingText = stringResource(
+                                        R.string.settings_medication_day_ends_at_four_am_summary,
+                                        MedicationDayBoundary.FourAm.startTime.format(timeFormatter),
+                                    ),
+                                    leadingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_moon_stars),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    },
+                                    onClick = if (dayBoundaryEnabled) {
+                                        { onDayEndsAtFourAmChange(!dayEndsAtFourAm) }
+                                    } else null,
+                                    enabled = dayBoundaryEnabled,
+                                    trailingContent = {
+                                        Switch(
+                                            checked = dayEndsAtFourAm,
+                                            onCheckedChange = onDayEndsAtFourAmChange,
+                                            enabled = dayBoundaryEnabled
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -2420,6 +2461,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onGroupNameChange = { },
             onGroupColorChange = { },
             onScheduleTypeChange = { },
+            onDayEndsAtFourAmChange = { },
             onSinceDateChange = { },
             onStartTimeChange = { },
             onResetStartToNow = { },
@@ -2498,6 +2540,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onGroupNameChange = { },
             onGroupColorChange = { },
             onScheduleTypeChange = { },
+            onDayEndsAtFourAmChange = { },
             onSinceDateChange = { },
             onStartTimeChange = { },
             onResetStartToNow = { },
@@ -2617,6 +2660,7 @@ private fun MedicationGroupEditorPreviewContent(
         onGroupNameChange = { },
         onGroupColorChange = { },
         onScheduleTypeChange = { },
+        onDayEndsAtFourAmChange = { },
         onSinceDateChange = { },
         onStartTimeChange = { },
         onResetStartToNow = { },

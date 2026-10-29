@@ -33,8 +33,8 @@ class MedicationGroupEditorScheduleStartTest {
     fun scheduleStartAt_resolvesNowWholeDayAndSmallHours() {
         assertEquals(now, state(startsNow = true).scheduleStartAt(now))
         assertEquals(today.atStartOfDay(), state().scheduleStartAt(now))
-        // A whole day ending at 04:00 starts at 04:00, so turning the switch off
-        // later can't pull that night's doses in before the start.
+        // A whole start date starts at its day boundary, 04:00 when the plan's day
+        // ends then.
         assertEquals(
             LocalDateTime.of(today, LocalTime.of(4, 0)),
             state(boundary = MedicationDayBoundary.FourAm).scheduleStartAt(now),
@@ -77,8 +77,8 @@ class MedicationGroupEditorScheduleStartTest {
 
     @Test
     fun loadedStart_survivesUntilTheStartIsEdited() {
-        // An all-night plan shifted by turning night owl on: its start date moved
-        // back a day, its saved start didn't.
+        // A saved start past its start date's day, as a plan that hid its past from
+        // a later save has: it holds until the start is edited.
         val loadedStartAt = LocalDateTime.of(today, LocalTime.of(23, 0))
         val loaded = state(sinceDate = today.minusDays(1), boundary = MedicationDayBoundary.FourAm)
             .copy(loadedStartAt = loadedStartAt)
