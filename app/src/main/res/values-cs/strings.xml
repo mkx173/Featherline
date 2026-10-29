@@ -396,9 +396,6 @@
     <string name="increase_schedule_interval">Prodloužit interval rozvrhu</string>
     <string name="group_schedule_since">Datum zahájení</string>
     <string name="group_schedule_recreated_start_date_past_note">U znovu vytvořených skupin nelze nastavit datum zahájení v minulosti.</string>
-    <string name="group_past_schedule_do_not_show">Nezobrazovat</string>
-    <string name="group_past_schedule_show">Zobrazit</string>
-    <string name="group_past_schedule_show_and_generate_records">Také vytvořit minulé naplánované záznamy</string>
     <string name="group_past_schedule_recreated_locked_note">U znovu vytvořených skupin se minulý rozvrh nezobrazí.</string>
     <string name="group_schedule_backfill_records_empty">Nebyly přidány žádné záznamy.</string>
     <string name="group_schedule_backfill_records_failure">Skupina byla uložena, ale záznamy se nepodařilo přidat.</string>
@@ -1282,11 +1279,6 @@
     <string name="main_today_range_midnight">Po půlnoci</string>
     <string name="settings_medication_day_ends_at_four_am">Režim pro noční sovy</string>
     <string name="settings_medication_day_ends_at_four_am_summary">Dávky před %1$s se počítají do předchozího dne.</string>
-    <string name="settings_medication_day_enable_title">Zapnout režim pro noční sovy?</string>
-    <string name="settings_medication_day_disable_title">Vypnout režim pro noční sovy?</string>
-    <string name="settings_medication_day_moves_doses_body">Dávky před %1$s se posunou o jeden den pro tyto skupiny: %2$s. Minulé dávky se mohou zobrazit jako vynechané.</string>
-    <string name="settings_medication_day_enable_confirm">Zapnout</string>
-    <string name="settings_medication_day_disable_confirm">Vypnout</string>
     <string name="main_coming_up_morning_title">Dnes ráno</string>
     <string name="widget_this_morning">Dnes ráno</string>
     <string name="medication_day_past_midnight">Po půlnoci</string>

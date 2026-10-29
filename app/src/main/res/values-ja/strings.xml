@@ -369,9 +369,6 @@
     <string name="increase_schedule_interval">スケジュール間隔の延長</string>
     <string name="group_schedule_since">開始日</string>
     <string name="group_schedule_recreated_start_date_past_note">再作成されたグループでは、開始日を過去に設定することはできません。</string>
-    <string name="group_past_schedule_do_not_show">非表示</string>
-    <string name="group_past_schedule_show">表示</string>
-    <string name="group_past_schedule_show_and_generate_records">記録を計画通りに生成する</string>
     <string name="group_past_schedule_recreated_locked_note">再作成されたグループには、過去のスケジュールは表示されません。</string>
     <string name="group_schedule_backfill_records_empty">記録が追加されていません。</string>
     <string name="group_schedule_backfill_records_failure">グループは保存されましたが、記録を追加することはできません。</string>
