@@ -59,8 +59,11 @@ internal fun DailyScheduleEditor(
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
+    /** A row placed above the preview, given its segment index and the count. */
+    dayEndingItem: (@Composable (index: Int, count: Int) -> Unit)? = null,
 ) {
-    val totalCount = 2 + (if (previewOccurrences.isNotEmpty()) 1 else 0)
+    val totalCount = 2 + (if (dayEndingItem != null) 1 else 0) +
+            (if (previewOccurrences.isNotEmpty()) 1 else 0)
     var itemIndex = 0
     Column {
         IntervalStepperCard(
@@ -92,6 +95,11 @@ internal fun DailyScheduleEditor(
             index = itemIndex++,
             count = totalCount
         )
+
+        if (dayEndingItem != null) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            dayEndingItem(itemIndex++, totalCount)
+        }
 
         if (previewOccurrences.isNotEmpty()) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))

@@ -1614,6 +1614,38 @@ private fun MedicationGroupEditorScreenContent(
                                 expandOptions = true,
                             )
                         }
+                        // Disabled, not hidden, once the plan has any record or is archived.
+                        val dayEndsAtFourAm = uiState.medicationDayBoundary.endsAtFourAm
+                        val dayBoundaryEnabled = uiState.canEditDayBoundary
+                        val dayEndingItem: @Composable (Int, Int) -> Unit = { index, count ->
+                            PreferenceSegmentedListItem(
+                                title = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                                index = index,
+                                count = count,
+                                supportingText = stringResource(
+                                    R.string.settings_medication_day_ends_at_four_am_summary,
+                                    MedicationDayBoundary.FourAm.startTime.format(timeFormatter),
+                                ),
+                                leadingContent = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_moon_stars),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                onClick = if (dayBoundaryEnabled) {
+                                    { onDayEndsAtFourAmChange(!dayEndsAtFourAm) }
+                                } else null,
+                                enabled = dayBoundaryEnabled,
+                                trailingContent = {
+                                    Switch(
+                                        checked = dayEndsAtFourAm,
+                                        onCheckedChange = onDayEndsAtFourAmChange,
+                                        enabled = dayBoundaryEnabled
+                                    )
+                                },
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                             WeeklyScheduleEditor(
@@ -1641,6 +1673,7 @@ private fun MedicationGroupEditorScreenContent(
                                 timeEditEnabled = !uiState.isArchived,
                                 showLockedTimeNote = shouldShowLockedTimeChangeNote,
                                 shapeLocked = areFieldsRenderedLocked,
+                                dayEndingItem = dayEndingItem,
                             )
                         } else {
                             DailyScheduleEditor(
@@ -1668,40 +1701,8 @@ private fun MedicationGroupEditorScreenContent(
                                 timeEditEnabled = !uiState.isArchived,
                                 showLockedTimeNote = shouldShowLockedTimeChangeNote,
                                 shapeLocked = areFieldsRenderedLocked,
+                                dayEndingItem = dayEndingItem,
                             )
-                        }
-                        // Disabled, not hidden, once the plan has any record or is archived.
-                        val dayEndsAtFourAm = uiState.medicationDayBoundary.endsAtFourAm
-                        val dayBoundaryEnabled = uiState.canEditDayBoundary
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HrtSection(title = null) {
-                            item {
-                                PreferenceSegmentedListItem(
-                                    title = stringResource(R.string.settings_medication_day_ends_at_four_am),
-                                    supportingText = stringResource(
-                                        R.string.settings_medication_day_ends_at_four_am_summary,
-                                        MedicationDayBoundary.FourAm.startTime.format(timeFormatter),
-                                    ),
-                                    leadingContent = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_moon_stars),
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    },
-                                    onClick = if (dayBoundaryEnabled) {
-                                        { onDayEndsAtFourAmChange(!dayEndsAtFourAm) }
-                                    } else null,
-                                    enabled = dayBoundaryEnabled,
-                                    trailingContent = {
-                                        Switch(
-                                            checked = dayEndsAtFourAm,
-                                            onCheckedChange = onDayEndsAtFourAmChange,
-                                            enabled = dayBoundaryEnabled
-                                        )
-                                    },
-                                )
-                            }
                         }
                     }
                 }
