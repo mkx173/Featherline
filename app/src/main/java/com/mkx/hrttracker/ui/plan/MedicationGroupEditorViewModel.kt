@@ -345,9 +345,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         } else {
                             nextState
                         }
+                        // "Now" moves its start date along once the day ends, so a draft
+                        // left open past midnight (04:00 for night owl) starts today.
+                        val today = medicationDay(
+                            timeSnapshot.minute,
+                            lockedNextState.medicationDayBoundary,
+                        )
+                        val currentState = if (
+                            lockedNextState.startsNow && lockedNextState.sinceDate != today
+                        ) {
+                            editorStateStartingNow(lockedNextState, today)
+                        } else {
+                            lockedNextState
+                        }
                         resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
                             previousState = it,
-                            nextState = lockedNextState,
+                            nextState = currentState,
                         )
                     }
                 }

@@ -571,6 +571,30 @@ class MedicationGroupEditorMedicationDayTest {
         assertEquals(upcoming, buildMedicationGroupEditorUpcomingOccurrences(viewModel.uiState.value, now))
     }
 
+    @Test
+    fun aDraftStartingNowMovesItsStartDateOnceTheDayEnds() = runTest {
+        // Opened Thu Oct 29 at 23:20, still open at 00:10 on Friday.
+        val timeSource = FakeAppTimeSource(LocalDateTime.of(2026, 10, 29, 23, 20))
+        val viewModel = newViewModel(LocalDateTime.of(2026, 10, 29, 23, 20), timeSource)
+        advanceUntilIdle()
+        viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY)
+        assertTrue(viewModel.uiState.value.startsNow)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.sinceDate)
+
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 30, 0, 10))
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
+        assertEquals(setOf(DayOfWeek.FRIDAY), viewModel.uiState.value.weeklyDaysOfWeek)
+
+        // A night-owl draft's day only ends at 04:00.
+        viewModel.updateDayEndsAtFourAm(true)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.sinceDate)
+        timeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 30, 4, 0))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
+    }
+
     private fun stubSaveGroup(
         uuid: UUID?,
         returns: UUID,
@@ -645,8 +669,11 @@ class MedicationGroupEditorMedicationDayTest {
         updatedAt = Instant.parse("2026-10-01T00:00:00Z"),
     )
 
-    private fun newViewModel(now: LocalDateTime): MedicationGroupEditorViewModel =
-        viewModel(now, SavedStateHandle())
+    private fun newViewModel(
+        now: LocalDateTime,
+        timeSource: FakeAppTimeSource = FakeAppTimeSource(now),
+    ): MedicationGroupEditorViewModel =
+        viewModel(now, SavedStateHandle(), timeSource)
 
     private fun editingViewModel(
         now: LocalDateTime,
@@ -662,6 +689,7 @@ class MedicationGroupEditorMedicationDayTest {
     private fun viewModel(
         now: LocalDateTime,
         savedStateHandle: SavedStateHandle,
+        timeSource: FakeAppTimeSource = FakeAppTimeSource(now),
     ): MedicationGroupEditorViewModel {
         return MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -672,7 +700,7 @@ class MedicationGroupEditorMedicationDayTest {
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = savedStateHandle,
-            appTimeSource = FakeAppTimeSource(now),
+            appTimeSource = timeSource,
         )
     }
 }
