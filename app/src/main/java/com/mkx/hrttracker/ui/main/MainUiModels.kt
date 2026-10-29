@@ -1130,15 +1130,6 @@ internal fun buildMainUpcomingSection(
     )
 }
 
-internal fun buildMainPreviewRowsForDate(
-    date: LocalDate,
-    groups: List<MedicationGroup>,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): List<MainUpcomingDoseRowUiState> =
-    mainPreviewEntriesForDate(date = date, groups = groups, entries = entries, zoneId = zoneId)
-        .map(PlanDayScheduleEntry::toMainUpcomingDoseRow)
-
 private fun mainPreviewEntriesForDate(
     date: LocalDate,
     groups: List<MedicationGroup>,
