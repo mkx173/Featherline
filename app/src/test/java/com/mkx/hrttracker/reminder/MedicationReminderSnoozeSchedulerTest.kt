@@ -310,6 +310,54 @@ class MedicationReminderSnoozeSchedulerTest {
         assertEquals(listOf(currentRecord), storedRecords.captured)
     }
 
+    @Test
+    fun clearStaleSnoozesForGroup_removes_records_before_the_slots_start() = runTest {
+        // Today's 08:00 dose, once the plan's start moved to 10:00 today.
+        val groupUuid = UUID.fromString("7e2a1b0f-4d3c-4f9e-8b1a-2c6d5e4f3a21")
+        val scheduleTimeUuid = UUID.fromString("b5d4c3e2-8f7a-4b6c-9d0e-1f2a3b4c5d6e")
+        val staleRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 8, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 8, 15),
+        )
+        val currentRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = scheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 21, 8, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 21, 8, 15),
+        )
+        val storedRecords = slot<List<MedicationReminderSnoozeRecord>>()
+        coEvery { snoozeStore.getSnoozeRecords() } returns listOf(staleRecord, currentRecord)
+        coEvery { snoozeStore.replaceSnoozeRecords(capture(storedRecords)) } just Runs
+
+        scheduler.clearStaleSnoozesForGroup(
+            MedicationGroup(
+                uuid = groupUuid,
+                name = "Group",
+                schedule = MedicationGroupSchedule(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 20),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTime(
+                            uuid = scheduleTimeUuid,
+                            time = LocalTime.of(8, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 20, 10, 0),
+                        ),
+                    ),
+                ),
+                medications = emptyList(),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-20T00:00:00Z"),
+            )
+        )
+
+        assertEquals(listOf(currentRecord), storedRecords.captured)
+    }
+
     private fun snoozeRecord(
         groupUuid: UUID,
         scheduledAt: LocalDateTime,

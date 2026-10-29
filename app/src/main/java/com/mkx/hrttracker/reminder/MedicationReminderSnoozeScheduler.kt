@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.isScheduledAt
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
@@ -104,7 +103,7 @@ class MedicationReminderSnoozeScheduler private constructor(
                     (!slot.matchesCurrentScheduleTime(slotTimesByUuid) ||
                             // Same slot and time, but the dated dose is gone, as after
                             // a weekday, interval, start or day ending change.
-                            !group.schedule.isScheduledAt(slot.scheduledAt))
+                            !group.hasReminderOccurrence(slot))
         }
     }
 
