@@ -537,7 +537,6 @@ private fun MedicineDetailScreenContent(
                                         dateFormatter = dateFormatter,
                                         timeFormatter = timeFormatter,
                                         upcomingOccurrences = emptyList(),
-                                        today = today,
                                         onClick = { onGroupClick(group.uuid) },
                                         showNotificationIcon = false,
                                         showChevron = true,

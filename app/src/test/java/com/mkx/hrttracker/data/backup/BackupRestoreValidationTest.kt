@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
@@ -24,16 +25,21 @@ import java.util.UUID
 class BackupRestoreValidationTest {
 
     @Test
-    fun toValidatedSnapshot_preservesMedicationBoundarySwitch() {
+    fun toValidatedSnapshot_restoresABackupCarryingTheRetiredNightOwlSwitch() {
         val snapshot = BackupSnapshot(
             exportedAtEpochMillis = 1L, app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-            settings = baselineSettings().copy(medicationDayEndsAtFourAm = true),
+            settings = baselineSettings(),
             userProfile = baselineUserProfile(), medicines = emptyList(), medicationGroups = emptyList(),
             medicationLogs = emptyList(), customBloodAnalytes = emptyList(), bloodTestPanels = emptyList(),
         )
+        val json = BackupSnapshotJsonCodec.encode(snapshot)
+            .replace(""""settings":{""", """"settings":{"medicationDayEndsAtFourAm":true,""")
+        assertTrue(json.contains(""""medicationDayEndsAtFourAm":true"""))
+        val decoded = BackupSnapshotJsonCodec.decode(json)!!
+
         assertEquals(
-            true,
-            snapshot.toValidatedSnapshot("com.mkx.hrttracker").settings.medicationDayEndsAtFourAm,
+            snapshot.toValidatedSnapshot("com.mkx.hrttracker").settings,
+            decoded.toValidatedSnapshot("com.mkx.hrttracker").settings,
         )
     }
 
@@ -112,6 +118,7 @@ class BackupRestoreValidationTest {
                     updatedAtEpochMillis = 200L,
                     archivedAtEpochMillis = null,
                     recreatedFromGroupUuid = recreatedFromGroupUuid.toString(),
+                    dayEndsAtFourAm = true,
                 )
             ),
             medicationLogs = listOf(
@@ -219,6 +226,7 @@ class BackupRestoreValidationTest {
         assertEquals(groupUuid.toString(), restoredGroup.uuid)
         assertEquals(2, restoredGroup.scheduleInterval)
         assertEquals(recreatedFromGroupUuid.toString(), restoredGroup.recreatedFromGroupUuid)
+        assertEquals(true, restoredGroup.dayEndsAtFourAm)
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals(itemUuid.toString(), restoredItem.uuid)

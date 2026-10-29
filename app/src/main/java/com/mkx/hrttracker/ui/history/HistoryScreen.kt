@@ -108,6 +108,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
@@ -140,7 +141,6 @@ import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.medicationDayTimeText
@@ -502,49 +502,60 @@ private fun HistoryScreenContent(
             calendarEndMonth = uiState.calendarEndMonth
         )
     }
-    val monthDayStates = remember(
+    // Keyed on today, not now: only yesterday and today change minute to minute.
+    val settledMonthDayStates = remember(
         uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
-        uiState.medicationDayBoundary,
+        uiState.groupsByUuid,
+        today,
     ) {
-        dayStateMonthRanges.fold(linkedMapOf<LocalDate, HistoryCalendarDayUiState>()) { dayStates, range ->
-            dayStates.apply {
-                putAll(
-                    buildHistoryCalendarDayUiState(
-                        groups = uiState.calendarMedicationGroups,
-                        entries = uiState.entries,
-                        startDate = range.startMonth.atDay(1),
-                        endDate = range.endMonth.atEndOfMonth(),
-                        boundary = uiState.medicationDayBoundary,
-                    )
-                )
-            }
-        }
+        buildHistoryMonthDayStates(
+            ranges = dayStateMonthRanges,
+            groups = uiState.calendarMedicationGroups,
+            entries = uiState.entries,
+            now = uiState.now,
+            groupsByUuid = uiState.groupsByUuid,
+        )
     }
-    val recordDates = remember(uiState.entries, uiState.medicationDayBoundary) {
-        historyRecordDates(uiState.entries, boundary = uiState.medicationDayBoundary)
+    val monthDayStates = remember(
+        settledMonthDayStates,
+        uiState.calendarMedicationGroups,
+        uiState.entries,
+        uiState.groupsByUuid,
+        uiState.now,
+    ) {
+        withHistoryLiveDayStates(
+            dayStates = settledMonthDayStates,
+            groups = uiState.calendarMedicationGroups,
+            entries = uiState.entries,
+            now = uiState.now,
+            groupsByUuid = uiState.groupsByUuid,
+        )
     }
-    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.medicationDayBoundary) {
+    val recordDates = remember(uiState.entries, uiState.groupsByUuid) {
+        historyRecordDates(uiState.entries, groupsByUuid = uiState.groupsByUuid)
+    }
+    val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today, uiState.groupsByUuid) {
         buildHistoryMonthSummary(
             entries = uiState.entries,
             displayedMonth = displayedMonth.yearMonth,
             dayStates = monthDayStates,
             today = today,
-            boundary = uiState.medicationDayBoundary,
+            groupsByUuid = uiState.groupsByUuid,
         )
     }
     val visibleEntries =
-        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.medicationDayBoundary) {
+        remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate, uiState.groupsByUuid) {
             buildHistoryVisibleEntries(
                 entries = uiState.entries,
                 displayedMonth = displayedMonth.yearMonth,
                 selectedDate = effectiveSelectedDate,
-                boundary = uiState.medicationDayBoundary,
+                groupsByUuid = uiState.groupsByUuid,
             )
         }
-    val groupedEntries = remember(visibleEntries, uiState.medicationDayBoundary) {
-        groupHistoryEntriesByDate(visibleEntries, boundary = uiState.medicationDayBoundary)
+    val groupedEntries = remember(visibleEntries, uiState.groupsByUuid) {
+        groupHistoryEntriesByDate(visibleEntries, groupsByUuid = uiState.groupsByUuid)
     }
     val visibleEntryIds = remember(visibleEntries) {
         visibleEntries.mapTo(linkedSetOf()) { entry -> entry.uuid }
@@ -996,12 +1007,12 @@ private fun HistoryScreenContent(
                                     date = date,
                                     today = today,
                                     dayStatus = historyCalendarIndicatorStatus(
-                                        date = date,
-                                        today = today,
                                         dayStatus = monthDayStates[date]?.status
                                             ?: PlanCalendarDayStatus.NONE,
+                                        hasMissedDose = monthDayStates[date]?.hasMissedDose == true,
                                         hasRecord = dateEntries.isNotEmpty()
                                     ),
+                                    hasMissedDose = monthDayStates[date]?.hasMissedDose == true,
                                     hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
                                     countLabel = dateEntries.size.toString(),
                                     appLocale = appLocale
@@ -1029,6 +1040,7 @@ private fun HistoryScreenContent(
                                     HistoryEntryCardItem(
                                         entry = entry,
                                         dayDate = date,
+                                        dayBoundary = entry.dayBoundary(uiState.groupsByUuid),
                                         timeFormatter = timeFormatter,
                                         groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                                         isFromArchivedGroup = entry.sourceGroupUuid != null &&
@@ -1394,6 +1406,7 @@ private fun HistoryMonthCalendar(
                         day = day,
                         today = today,
                         dayStatus = dayState.status,
+                        hasMissedDose = dayState.hasMissedDose,
                         hasOffPlanRecord = dayState.hasOffPlanRecord,
                         hasRecord = hasRecord,
                         isSelected = day.date == selectedDate &&
@@ -1850,6 +1863,7 @@ private fun HistoryCalendarDay(
     day: CalendarDay,
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     hasOffPlanRecord: Boolean,
     hasRecord: Boolean,
     isSelected: Boolean,
@@ -1875,9 +1889,8 @@ private fun HistoryCalendarDay(
         else -> MaterialTheme.colorScheme.onSurface
     }
     val indicatorStatus = historyCalendarIndicatorStatus(
-        date = day.date,
-        today = today,
         dayStatus = dayStatus,
+        hasMissedDose = hasMissedDose,
         hasRecord = hasRecord
     )
     val showOffPlanBadge = historyShouldShowOffPlanBadge(
@@ -1915,8 +1928,7 @@ private fun HistoryCalendarDay(
             )
 
             HistoryCalendarDayIndicator(
-                date = day.date,
-                today = today,
+                hasMissedDose = hasMissedDose,
                 isSelected = isSelected,
                 dayStatus = indicatorStatus,
                 showOffPlanBadge = showOffPlanBadge,
@@ -1941,13 +1953,13 @@ internal fun historyCalendarDayAlpha(
 }
 
 internal fun historyCalendarIndicatorStatus(
-    date: LocalDate,
-    today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     hasRecord: Boolean
 ): PlanCalendarDayStatus {
+    // A day with no dose past due yet, today included, is drawn the way a future day is.
     return when {
-        !date.isAfter(today) -> dayStatus
+        hasMissedDose -> dayStatus
         !hasRecord -> PlanCalendarDayStatus.NONE
         // A planned dose is not missed before it is due, so the unplanned record is all
         // there is to show for that day.
@@ -1969,17 +1981,12 @@ internal fun historyCalendarDayClickTargetMonth(
 
 @Composable
 private fun HistoryCalendarDayIndicator(
-    date: LocalDate,
-    today: LocalDate,
+    hasMissedDose: Boolean,
     isSelected: Boolean,
     dayStatus: PlanCalendarDayStatus,
     showOffPlanBadge: Boolean,
 ) {
-    val indicatorMode = if (date.isBefore(today)) {
-        HistoryIndicatorColorMode.Emphasized
-    } else {
-        HistoryIndicatorColorMode.Neutral
-    }
+    val indicatorMode = historyIndicatorColorMode(hasMissedDose)
     val selectedColor = if (isSelected) {
         MaterialTheme.colorScheme.onPrimary
     } else {
@@ -2077,6 +2084,7 @@ internal fun HistoryEntryGroupHeader(
     date: LocalDate,
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     hasOffPlanRecord: Boolean,
     countLabel: String?,
     appLocale: Locale,
@@ -2119,19 +2127,8 @@ internal fun HistoryEntryGroupHeader(
             HistoryStatusIndicator(
                 status = dayStatus,
                 colors = historyIndicatorColors(
-                    scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(
-                            today
-                        )
-                    ) {
-                        HistoryIndicatorColorMode.Emphasized
-                    } else {
-                        HistoryIndicatorColorMode.Neutral
-                    },
-                    partialMode = if (isToday) {
-                        HistoryIndicatorColorMode.Neutral
-                    } else {
-                        HistoryIndicatorColorMode.Emphasized
-                    },
+                    scheduledMode = historyIndicatorColorMode(hasMissedDose),
+                    partialMode = historyIndicatorColorMode(hasMissedDose),
                     selectedColor = if (isToday) {
                         MaterialTheme.colorScheme.onTertiaryContainer
                     } else {
@@ -2180,7 +2177,11 @@ internal fun HistoryEntryGroupHeader(
     }
 }
 
-private enum class HistoryIndicatorColorMode {
+// A day with no dose past due yet, today included, is drawn neutral, the way a future day is.
+internal fun historyIndicatorColorMode(hasMissedDose: Boolean): HistoryIndicatorColorMode =
+    if (hasMissedDose) HistoryIndicatorColorMode.Emphasized else HistoryIndicatorColorMode.Neutral
+
+internal enum class HistoryIndicatorColorMode {
     Neutral,
     Emphasized
 }
@@ -2239,6 +2240,8 @@ internal fun HistoryEntryCardItem(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
     dayDate: LocalDate,
+    /** The record's own plan's day ending (midnight for one not from a plan): its moon and day label follow it. */
+    dayBoundary: MedicationDayBoundary,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2253,6 +2256,7 @@ internal fun HistoryEntryCardItem(
         HistoryEntryCard(
             entry = entry,
             dayDate = dayDate,
+            dayBoundary = dayBoundary,
             timeFormatter = timeFormatter,
             groupColorKey = groupColorKey,
             isFromArchivedGroup = isFromArchivedGroup,
@@ -2273,6 +2277,8 @@ private fun HistoryEntryCard(
     entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
     dayDate: LocalDate,
+    /** The record's own plan's day ending (midnight for one not from a plan): its moon and day label follow it. */
+    dayBoundary: MedicationDayBoundary,
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
@@ -2323,10 +2329,9 @@ private fun HistoryEntryCard(
             val indicatorContentDescriptionRes = historyEntryIndicatorContentDescriptionRes(entry)
             Column(horizontalAlignment = Alignment.End) {
                 val appliedAt = appliedAtAsLocalDateTime(entry, deviceZone)
-                val boundary = LocalMedicationDayBoundary.current
                 MedicationDayTimeLabel(
-                    text = medicationDayTimeText(LocalContext.current, appliedAt, dayDate, boundary, timeFormatter),
-                    isPastMidnight = boundary.isPastMidnight(appliedAt.toLocalTime()),
+                    text = medicationDayTimeText(LocalContext.current, appliedAt, dayDate, dayBoundary, timeFormatter),
+                    isPastMidnight = dayBoundary.isPastMidnight(appliedAt.toLocalTime()),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
@@ -2584,7 +2589,6 @@ private fun buildHistoryPreviewUiState(
     return HistoryUiState(
         isLoading = false,
         entries = entries,
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
         medicationGroups = groups,
         calendarStartMonth = month.minusMonths(1),
         calendarEndMonth = month,
@@ -2732,6 +2736,55 @@ internal fun historyCalendarDayStateMonthRanges(
 }
 
 private const val historyCalendarDayStatePreloadMonths = 2L
+
+internal fun buildHistoryMonthDayStates(
+    ranges: List<HistoryCalendarDayStateMonthRange>,
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): Map<LocalDate, HistoryCalendarDayUiState> =
+    ranges.fold(linkedMapOf()) { dayStates, range ->
+        dayStates.apply {
+            putAll(
+                buildHistoryCalendarDayUiState(
+                    groups = groups,
+                    entries = entries,
+                    startDate = range.startMonth.atDay(1),
+                    endDate = range.endMonth.atEndOfMonth(),
+                    now = now,
+                    groupsByUuid = groupsByUuid,
+                )
+            )
+        }
+    }
+
+/**
+ * Rebuilds yesterday and today in [dayStates] at [now]. Those are the only days a ticking clock
+ * can change: a medication day's slots all fall before 04:00 the next day, so they are past due
+ * by 04:59 then, and every day before yesterday is settled; a later day is all still to come.
+ * A day's state doesn't depend on the range it was built in.
+ */
+internal fun withHistoryLiveDayStates(
+    dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): Map<LocalDate, HistoryCalendarDayUiState> {
+    val today = now.toLocalDate()
+    val yesterday = today.minusDays(1)
+    if (yesterday !in dayStates && today !in dayStates) return dayStates
+    val liveDayStates = buildHistoryCalendarDayUiState(
+        groups = groups,
+        entries = entries,
+        startDate = yesterday,
+        endDate = today,
+        now = now,
+        groupsByUuid = groupsByUuid,
+    ).filterKeys { date -> date in dayStates }
+    return dayStates + liveDayStates
+}
 
 private fun CalendarLayoutInfo.mostVisibleMonth(): CalendarMonth? {
     return visibleMonthsInfo

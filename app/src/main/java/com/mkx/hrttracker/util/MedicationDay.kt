@@ -5,8 +5,8 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 
 /**
- * Which local times belong to the previous medication day. The app exposes one
- * switch: either the day ends at midnight, or it ends at 04:00.
+ * Which local times belong to the previous medication day: a plan's day ends at
+ * midnight, or at 04:00 for a night-owl plan (`MedicationGroupSchedule.dayBoundary`).
  */
 enum class MedicationDayBoundary(val startTime: LocalTime) {
     Midnight(LocalTime.MIDNIGHT),
@@ -36,6 +36,10 @@ fun MedicationDayBoundary.timeOfDayOrder(time: LocalTime): Int =
 
 /** Whether [time] falls in the small hours that count toward the night before; never with the day ending at midnight. */
 fun MedicationDayBoundary.isPastMidnight(time: LocalTime): Boolean = time.isBefore(startTime)
+
+/** When [time] falls on medication day [date]: small-hours times are on the next calendar date. */
+fun MedicationDayBoundary.dateTimeOn(date: LocalDate, time: LocalTime): LocalDateTime =
+    (if (isPastMidnight(time)) date.plusDays(1) else date).atTime(time)
 
 fun medicationDayStart(date: LocalDate, boundary: MedicationDayBoundary): LocalDateTime =
     date.atTime(boundary.startTime)

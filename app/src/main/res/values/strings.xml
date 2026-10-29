@@ -126,6 +126,9 @@
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">Today</string>
     <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
+    <string name="plan_group_upcoming_tonight">Tonight</string>
+    <string name="plan_group_upcoming_tomorrow_night">Tomorrow night</string>
+    <string name="plan_group_upcoming_night_of">%1$s night</string>
     <string name="plan_group_notifications_enabled">Reminders on</string>
     <string name="plan_group_notifications_disabled">Reminders off</string>
     <string name="plan_regimen_title">Regimen</string>
@@ -395,10 +398,14 @@
     <string name="decrease_schedule_interval">Decrease schedule interval</string>
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
+    <string name="group_start_title">Start</string>
+    <string name="group_schedule_start_time">Start time</string>
+    <string name="group_schedule_start_now">Now</string>
+    <string name="group_schedule_start_reset_to_now">Reset</string>
     <string name="group_schedule_recreated_start_date_past_note">Recreated groups can’t set a start date in the past.</string>
-    <string name="group_past_schedule_do_not_show">Do not show</string>
-    <string name="group_past_schedule_show">Show</string>
-    <string name="group_past_schedule_show_and_generate_records">Also generate past records as planned</string>
+    <string name="group_past_schedule_mark_completed">Mark as completed</string>
+    <string name="group_past_schedule_mark_missed">Mark as missed</string>
+    <string name="group_past_schedule_hide">Hide</string>
     <string name="group_past_schedule_recreated_locked_note">Recreated groups won’t show past schedule.</string>
     <string name="group_schedule_backfill_records_empty">No records added.</string>
     <string name="group_schedule_backfill_records_failure">Group saved, but unable to add records.</string>
@@ -900,6 +907,7 @@
         <item quantity="other">Added %1$d records.</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">Already logged.</string>
+    <string name="reminder_notification_no_longer_scheduled">This dose is no longer in the plan.</string>
     <string name="widget_quick_log_failed">Unable to quick-log dose.</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="one">%1$d group</item>
@@ -1120,11 +1128,6 @@
 
     <string name="settings_medication_day_ends_at_four_am">Night owl mode</string>
     <string name="settings_medication_day_ends_at_four_am_summary">Doses before %1$s count as the previous day.</string>
-    <string name="settings_medication_day_enable_title">Turn on night owl mode?</string>
-    <string name="settings_medication_day_disable_title">Turn off night owl mode?</string>
-    <string name="settings_medication_day_moves_doses_body">This will move doses before %1$s in %2$s by one day. Past doses may show as missed.</string>
-    <string name="settings_medication_day_enable_confirm">Turn on</string>
-    <string name="settings_medication_day_disable_confirm">Turn off</string>
     <string name="medication_day_past_midnight">After midnight</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->

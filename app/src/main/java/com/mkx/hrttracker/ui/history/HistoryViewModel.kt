@@ -7,26 +7,26 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
-import com.mkx.hrttracker.util.MedicationDayBoundary
-import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
+import com.mkx.hrttracker.util.tickWhileSubscribed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
 import javax.inject.Inject
@@ -46,140 +46,141 @@ class HistoryViewModel @Inject constructor(
     private val deleteSelectedEntriesResult =
         MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
     private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
-    private val currentDateTime = appTimeSource.currentMinute
+    private val _uiState = MutableStateFlow(
+        initialHistoryUiState(now = appTimeSource.currentMinute.value)
+    )
+    val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
+
+    // The minute ticks only while History is on screen; in the background only a new
+    // date passes, so the state isn't rebuilt every minute for the activity's lifetime.
+    private val currentDateTime =
+        appTimeSource.currentMinute.tickWhileSubscribed(_uiState.subscriptionCount) { minute ->
+            minute.toLocalDate()
+        }
     private val displayedMonth = MutableStateFlow(
         YearMonth.from(currentDateTime.value.toLocalDate())
     )
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
 
-    val uiState: StateFlow<HistoryUiState> = combine(
-        combine(
-            medicationLogRepository.observeEntries(),
-            medicationGroupRepository.observeGroups(),
-            settingsRepository.settingsState,
-            ::Triple,
-        ),
-        combine(
-            combine(
-                selectedEntryIds,
-                isDeleteConfirmationVisible,
-                isDeletingSelectedEntries,
-                isDeletingAllEntries,
-                ::HistoryDeleteInteractionUiState,
-            ),
-            combine(
-                deleteSelectedEntriesResult,
-                deleteAllEntriesResult,
-                ::Pair,
-            ),
-        ) { interactionState, deleteResults ->
-            val (selectedResult, allResult) = deleteResults
-            HistoryDeletionUiState(
-                selectedEntryIds = interactionState.selectedEntryIds,
-                isDeleteConfirmationVisible = interactionState.isDeleteConfirmationVisible,
-                isDeletingSelectedEntries = interactionState.isDeletingSelectedEntries,
-                isDeletingAllEntries = interactionState.isDeletingAllEntries,
-                deleteSelectedEntriesResult = selectedResult,
-                deleteAllEntriesResult = allResult,
-            )
-        },
-        combine(
-            displayedMonth,
-            selectedDate,
-            ::Pair
-        ),
-        currentDateTime,
-    ) { entriesAndGroups,
-        deletionUiState,
-        displayState,
-        now ->
-        val entriesOrNull = entriesAndGroups.first
-        val groupsOrNull = entriesAndGroups.second
-        val settingsState = entriesAndGroups.third
-        val (month, selectedDay) = displayState
-        val isLoading = entriesOrNull == null || groupsOrNull == null
-        val allGroups = groupsOrNull.orEmpty()
-        val allEntries = entriesOrNull.orEmpty()
-        val entries = visibleMedicationEntries(
-            entries = allEntries,
-            groups = allGroups,
-            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
-        )
-        val hiddenArchivedGroupRecordCount = allEntries.size - entries.size
-        val activeGroups = allGroups.filter(MedicationGroup::isActive)
-        val calendarGroups = if (settingsState.showArchivedGroupRecords) {
-            allGroups
-        } else {
-            activeGroups
-        }
-        val boundary = settingsState.medicationDayBoundary
-        val today = medicationDay(now, boundary)
-        val currentMonth = YearMonth.from(today)
-        val entryMonths = entries.map { entry -> YearMonth.from(entry.planCalendarDate(boundary)) }
-        val earliestEntryMonth = entryMonths.minOrNull()
-        val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
-            YearMonth.from(
-                group.schedule.times.minOrNull()?.let { time ->
-                    medicationDay(group.schedule.since.atTime(time), boundary)
-                } ?: group.schedule.since
-            )
-        }
-        val selectedMonth = selectedDay?.let(YearMonth::from)
-        val navigationStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
-            .minOrNull()
-            ?.coerceAtMost(currentMonth)
-            ?: currentMonth
-        // A record logged in a zone ahead of the device can land in next month.
-        val navigationEndMonth = maxOf(currentMonth, entryMonths.maxOrNull() ?: currentMonth)
-        // The pager also keeps the displayed and selected months, so deleting the last record
-        // there doesn't pull the page away. The navigation buttons stop at months with data.
-        val calendarStartMonth = listOfNotNull(navigationStartMonth, month, selectedMonth).min()
-        val calendarEndMonth = listOfNotNull(navigationEndMonth, month, selectedMonth).max()
-        val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
-        val visibleSelection = reconcileHistoryEntrySelection(
-            selectedEntryIds = deletionUiState.selectedEntryIds,
-            entries = entries,
-        )
-        HistoryUiState(
-            isLoading = isLoading,
-            today = today,
-            medicationDayBoundary = settingsState.medicationDayBoundary,
-            entries = entries,
-            allEntryCount = allEntries.size,
-            hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
-            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
-            medicationGroups = allGroups,
-            activeMedicationGroups = activeGroups,
-            calendarMedicationGroups = calendarGroups,
-            calendarFirstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
-            calendarStartMonth = calendarStartMonth,
-            calendarEndMonth = calendarEndMonth,
-            calendarNavigationStartMonth = navigationStartMonth,
-            calendarNavigationEndMonth = navigationEndMonth,
-            displayedMonth = visibleMonth,
-            selectedDate = selectedDay,
-            selectedEntryIds = visibleSelection,
-            isDeleteConfirmationVisible = deletionUiState.isDeleteConfirmationVisible &&
-                    visibleSelection.isNotEmpty(),
-            isDeletingSelectedEntries = deletionUiState.isDeletingSelectedEntries,
-            isDeletingAllEntries = deletionUiState.isDeletingAllEntries,
-            deleteSelectedEntriesResult = deletionUiState.deleteSelectedEntriesResult,
-            deleteAllEntriesResult = deletionUiState.deleteAllEntriesResult,
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = initialHistoryUiState(
-            today = currentDateTime.value.toLocalDate(),
-            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
-        )
-    )
-
     init {
-        // Turning night owl mode on between 00:00 and 04:00 moves today back a day, which can
-        // leave the selection on a date the calendar no longer lets you pick.
         viewModelScope.launch {
-            uiState.collect { state ->
+            combine(
+                combine(
+                    medicationLogRepository.observeEntries(),
+                    medicationGroupRepository.observeGroups(),
+                    settingsRepository.settingsState,
+                    ::Triple,
+                ),
+                combine(
+                    combine(
+                        selectedEntryIds,
+                        isDeleteConfirmationVisible,
+                        isDeletingSelectedEntries,
+                        isDeletingAllEntries,
+                        ::HistoryDeleteInteractionUiState,
+                    ),
+                    combine(
+                        deleteSelectedEntriesResult,
+                        deleteAllEntriesResult,
+                        ::Pair,
+                    ),
+                ) { interactionState, deleteResults ->
+                    val (selectedResult, allResult) = deleteResults
+                    HistoryDeletionUiState(
+                        selectedEntryIds = interactionState.selectedEntryIds,
+                        isDeleteConfirmationVisible = interactionState.isDeleteConfirmationVisible,
+                        isDeletingSelectedEntries = interactionState.isDeletingSelectedEntries,
+                        isDeletingAllEntries = interactionState.isDeletingAllEntries,
+                        deleteSelectedEntriesResult = selectedResult,
+                        deleteAllEntriesResult = allResult,
+                    )
+                },
+                combine(
+                    displayedMonth,
+                    selectedDate,
+                    ::Pair
+                ),
+                currentDateTime,
+            ) { entriesAndGroups,
+                deletionUiState,
+                displayState,
+                now ->
+                val entriesOrNull = entriesAndGroups.first
+                val groupsOrNull = entriesAndGroups.second
+                val settingsState = entriesAndGroups.third
+                val (month, selectedDay) = displayState
+                val isLoading = entriesOrNull == null || groupsOrNull == null
+                val allGroups = groupsOrNull.orEmpty()
+                val allEntries = entriesOrNull.orEmpty()
+                val entries = visibleMedicationEntries(
+                    entries = allEntries,
+                    groups = allGroups,
+                    showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
+                )
+                val hiddenArchivedGroupRecordCount = allEntries.size - entries.size
+                val activeGroups = allGroups.filter(MedicationGroup::isActive)
+                val calendarGroups = if (settingsState.showArchivedGroupRecords) {
+                    allGroups
+                } else {
+                    activeGroups
+                }
+                // Today is the calendar date; each record sits on the day its own plan's ending gives it.
+                val today = now.toLocalDate()
+                val currentMonth = YearMonth.from(today)
+                val groupsByUuid = allGroups.associateBy(MedicationGroup::uuid)
+                val entryMonths = entries.map { entry ->
+                    YearMonth.from(entry.planCalendarDate(entry.dayBoundary(groupsByUuid)))
+                }
+                val earliestEntryMonth = entryMonths.minOrNull()
+                // `since` is already a medication day in the plan's own ending.
+                val earliestGroupMonth = calendarGroups.minOfOrNull { group -> YearMonth.from(group.schedule.since) }
+                val selectedMonth = selectedDay?.let(YearMonth::from)
+                val navigationStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
+                    .minOrNull()
+                    ?.coerceAtMost(currentMonth)
+                    ?: currentMonth
+                // A record logged in a zone ahead of the device can land in next month.
+                val navigationEndMonth = maxOf(currentMonth, entryMonths.maxOrNull() ?: currentMonth)
+                // The pager also keeps the displayed and selected months, so deleting the last record
+                // there doesn't pull the page away. The navigation buttons stop at months with data.
+                val calendarStartMonth = listOfNotNull(navigationStartMonth, month, selectedMonth).min()
+                val calendarEndMonth = listOfNotNull(navigationEndMonth, month, selectedMonth).max()
+                val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
+                val visibleSelection = reconcileHistoryEntrySelection(
+                    selectedEntryIds = deletionUiState.selectedEntryIds,
+                    entries = entries,
+                )
+                HistoryUiState(
+                    isLoading = isLoading,
+                    now = now,
+                    today = today,
+                    entries = entries,
+                    allEntryCount = allEntries.size,
+                    hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
+                    showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
+                    medicationGroups = allGroups,
+                    groupsByUuid = groupsByUuid,
+                    activeMedicationGroups = activeGroups,
+                    calendarMedicationGroups = calendarGroups,
+                    calendarFirstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
+                    calendarStartMonth = calendarStartMonth,
+                    calendarEndMonth = calendarEndMonth,
+                    calendarNavigationStartMonth = navigationStartMonth,
+                    calendarNavigationEndMonth = navigationEndMonth,
+                    displayedMonth = visibleMonth,
+                    selectedDate = selectedDay,
+                    selectedEntryIds = visibleSelection,
+                    isDeleteConfirmationVisible = deletionUiState.isDeleteConfirmationVisible &&
+                            visibleSelection.isNotEmpty(),
+                    isDeletingSelectedEntries = deletionUiState.isDeletingSelectedEntries,
+                    isDeletingAllEntries = deletionUiState.isDeletingAllEntries,
+                    deleteSelectedEntriesResult = deletionUiState.deleteSelectedEntriesResult,
+                    deleteAllEntriesResult = deletionUiState.deleteAllEntriesResult,
+                )
+            }.collect { state ->
+                _uiState.value = state
+                // A zone change can move today back a day, which can leave the selection on a date
+                // the calendar no longer lets you pick.
                 val date = state.selectedDate ?: return@collect
                 if (!state.canSelectCalendarDate(date)) {
                     selectedDate.value = null
@@ -360,11 +361,11 @@ class HistoryViewModel @Inject constructor(
     }
 }
 
-private fun initialHistoryUiState(today: LocalDate, boundary: MedicationDayBoundary): HistoryUiState {
-    val currentMonth = YearMonth.from(today)
+private fun initialHistoryUiState(now: LocalDateTime): HistoryUiState {
+    val currentMonth = YearMonth.from(now)
     return HistoryUiState(
-        today = today,
-        medicationDayBoundary = boundary,
+        now = now,
+        today = now.toLocalDate(),
         calendarStartMonth = currentMonth,
         calendarEndMonth = currentMonth,
         displayedMonth = currentMonth,
@@ -375,19 +376,22 @@ private fun HistoryUiState.canSelectCalendarDate(date: LocalDate): Boolean {
     return canSelectHistoryCalendarDate(
         date = date,
         today = today,
-        hasRecord = entries.any { entry -> entry.planCalendarDate(medicationDayBoundary) == date },
+        hasRecord = entries.any { entry -> entry.planCalendarDate(entry.dayBoundary(groupsByUuid)) == date },
     )
 }
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
-    val today: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary,
+    /** Ticks each minute, so a day turns missed once its dose is past due. */
+    val now: LocalDateTime = LocalDateTime.now(),
+    val today: LocalDate = now.toLocalDate(),
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,
     val showArchivedGroupRecords: Boolean = true,
     val medicationGroups: List<MedicationGroup> = emptyList(),
+    /** Every plan, archived ones too: the record → plan lookup. */
+    val groupsByUuid: Map<UUID, MedicationGroup> = medicationGroups.associateBy(MedicationGroup::uuid),
     val activeMedicationGroups: List<MedicationGroup> = emptyList(),
     val calendarMedicationGroups: List<MedicationGroup> = activeMedicationGroups,
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,

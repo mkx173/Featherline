@@ -55,7 +55,6 @@ data class BackupSettingsSnapshot(
     // read new backups' scale/alpha/darkMode).
     val widgetAppearance: String? = null,
     val groupNameCounter: Int = 0,
-    val medicationDayEndsAtFourAm: Boolean = false,
     val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
     val stockNudgeEnabled: Boolean = true,
     val stockNudgeUserEnabled: Boolean = false,
@@ -133,6 +132,9 @@ data class BackupMedicationGroupSnapshot(
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
     val recreatedFromGroupUuid: String? = null,
+    // Added in v8: the plan's own day ending (night owl). A backup without it
+    // restores the plan at midnight, as it was before the setting existed.
+    val dayEndsAtFourAm: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
@@ -295,7 +297,11 @@ data class BackupNoteSnapshot(
 // v2–v6 backups remain readable, a pre-v7 app would ignore them and silently
 // lose explicit exclusions.
 //
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 7
+// The 7→8 bump added BackupMedicationGroupSnapshot.dayEndsAtFourAm (a plan's
+// own night owl day ending). A pre-v8 app would ignore it and silently move a
+// night owl plan's doses before 04:00 to the next day.
+//
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 8
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

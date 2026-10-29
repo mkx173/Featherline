@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Health Connect weight-sync fields are additive: snapshot version stays 7. */
+/** The Health Connect weight-sync fields are additive: they came without a snapshot version bump. */
 class HealthConnectWeightBackupTest {
 
     @Test
@@ -25,7 +25,7 @@ class HealthConnectWeightBackupTest {
         val decoded = BackupSnapshotJsonCodec.decode(BackupSnapshotJsonCodec.encode(snapshot))!!
         val validated = decoded.toValidatedSnapshot(expectedPackageName = PACKAGE)
 
-        assertEquals(7, decoded.snapshotVersion)
+        assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, decoded.snapshotVersion)
         assertTrue(validated.settings.healthConnectWeightSyncEnabled)
         val profile = validated.userProfile!!
         assertEquals(1_500L, profile.weightMeasuredAtEpochMillis)

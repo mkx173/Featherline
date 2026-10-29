@@ -12,7 +12,7 @@ that file is read back. The whole subsystem lives in
   breaking — they cover changes to the framing or to the
   cryptographic primitives.
 - **Snapshot JSON version** —
-  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 7`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
+  [`CURRENT_BACKUP_SNAPSHOT_VERSION = 8`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupSnapshot.kt).
   Describes the plaintext payload — the `BackupSnapshot` data-class
   tree serialized as JSON. Bumps are reserved for renames, removals,
   or semantic changes to existing fields. The restore path also
@@ -133,9 +133,7 @@ flattened into the parent's JSON.
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
   intro sheet), language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
-  last-seen time-zone, `hideMedicationDetails`, the medication-day
-  switch `medicationDayEndsAtFourAm` (false, midnight, when a backup
-  predates it), `widgetAppearance` (the
+  last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags
@@ -206,7 +204,9 @@ flattened into the parent's JSON.
   `doseValuePercent`, `doseReleaseRateMcgPerDay`) are gone — the
   referenced `BackupMedicineSnapshot` owns identity and per-medicine
   strength now. Weekly days are not a snapshot class — they
-  reconstruct from `schedule.weeklyDaysOfWeek`.
+  reconstruct from `schedule.weeklyDaysOfWeek`. The group's
+  `dayEndsAtFourAm` (added in v8) is the plan's own day ending, true
+  for night owl; a backup without it restores the plan at midnight.
 - `BackupMedicationLogSnapshot` →
   [`MedicationLogEntryEntity`](data-model.md#medicationlogentryentity);
   carries the historical `category` (preserved so logs stay
@@ -431,7 +431,10 @@ the missing key as the default, and the generated adapters skip the
 leftover key in backups written before the removal (the codec never
 sets `failOnUnknown`), so restores keep working in both directions. The
 retired "Adjust Chinese text display" setting left
-`BackupSettingsSnapshot` this way.
+`BackupSettingsSnapshot` this way, and so did the app-wide night owl
+switch `medicationDayEndsAtFourAm` once each plan carried its own day
+ending (`BackupMedicationGroupSnapshot.dayEndsAtFourAm`, v8). A backup
+that still carries the switch restores without it.
 The external-import provenance fields themselves are nullable/defaulted
 (`BackupMedicineSnapshot.importedFromExternalTracker`,
 `BackupMedicationLogSnapshot.importSourceApp` / `importExternalId`,
@@ -465,7 +468,10 @@ balance), per the caveat above. The v4 → v5 bump added
 apps would coerce unknown preparation types to `PILL`, silently
 corrupting imported medicine semantics. The v5 → v6 bump added
 `BackupTrackedDateSnapshot.heroBackgroundKey` so journal hero
-backgrounds are preserved across backup restore. The validator gates
+backgrounds are preserved across backup restore. The v7 → v8 bump added
+`BackupMedicationGroupSnapshot.dayEndsAtFourAm`, a plan's own night owl
+day ending; an older app would ignore it and silently move the plan's
+doses before 04:00 to the next day. The validator gates
 on `snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`,
 so bumping `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION` is how we drop
 support for a version when carrying its reader logic is no longer
@@ -485,11 +491,12 @@ inner snapshot version moved.
 
 | Envelope | Snapshot | Reader | Outcome |
 | --- | --- | --- | --- |
-| v2 | v2, v3, v4, v5, or v6 | This version | Restores. Legacy framing, payload uncompressed. |
+| v2 | v2, v3, v4, v5, v6, v7, or v8 | This version | Restores. Legacy framing, payload uncompressed. |
 | v3 | v2 | This version | Restores normally. |
-| v3 | v3, v4, v5, or v6 | This version | Restores normally. |
+| v3 | v3, v4, v5, v6, v7, or v8 | This version | Restores normally. |
+| v3 | v7 or older, with no group `dayEndsAtFourAm` | This version | Restores; every plan ends its day at midnight. |
 | v3 | v3 with omitted optional fields | This version | Restores; missing fields take their data-class defaults, including omitted journal `trackedDates` / `notes` lists defaulting empty. |
-| v3 | v4, v5, or v6 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
+| v3 | v4, v5, v6, v7, or v8 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
 | Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |

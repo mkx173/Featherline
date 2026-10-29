@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,14 +32,11 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.LocalDateFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -55,43 +51,24 @@ internal fun WeeklyScheduleEditor(
     firstDayOfWeek: DayOfWeek,
     time: LocalTime,
     originalTime: LocalTime? = null,
-    previewOccurrences: List<LocalDateTime>,
-    currentDate: LocalDate,
     appLocale: Locale,
-    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onSinceDateChange: (LocalDate) -> Unit,
+    boundary: MedicationDayBoundary,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
     onResetDaysOfWeek: () -> Unit,
     onTimeChange: (LocalTime) -> Unit,
-    pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
-    onPastScheduleShowPastChange: (Boolean) -> Unit = {},
-    onPastScheduleGenerateRecordsChange: (Boolean) -> Unit = {},
-    sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
     showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
+    /** A last row, given its segment index and the count. */
+    dayEndingItem: (@Composable (index: Int, count: Int) -> Unit)? = null,
 ) {
-    val totalCount = 4 +
-            (if (previewOccurrences.isNotEmpty()) 1 else 0) +
-            (if (pastScheduleSelectorState != null) 1 else 0)
+    val totalCount = 3 + (if (dayEndingItem != null) 1 else 0)
     var itemIndex = 0
     Column {
-        EditorFieldRow(
-            label = stringResource(R.string.group_schedule_since),
-            value = dateFormatter(sinceDate),
-            icon = painterResource(R.drawable.ic_event),
-            onClick = { onSinceDateChange(sinceDate) },
-            enabled = sinceEnabled,
-            locked = shapeLocked,
-            index = itemIndex++,
-            count = totalCount
-        )
-
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalWeeks),
@@ -164,35 +141,17 @@ internal fun WeeklyScheduleEditor(
             formattedOriginalTime = originalTime?.format(timeFormatter),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
-            isPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(time),
+            isPastMidnight = boundary.isPastMidnight(time),
             showLockedTimeNote = showLockedTimeNote,
             index = itemIndex++,
             count = totalCount
         )
 
-        if (previewOccurrences.isNotEmpty()) {
+        if (dayEndingItem != null) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            ScheduleOccurrencesCard(
-                title = stringResource(R.string.group_schedule_preview),
-                occurrences = previewOccurrences,
-                currentDate = currentDate,
-                dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter,
-                index = itemIndex++,
-                count = totalCount
-            )
+            dayEndingItem(itemIndex++, totalCount)
         }
 
-        pastScheduleSelectorState?.let { selectorState ->
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onShowPastChange = onPastScheduleShowPastChange,
-                onGenerateRecordsChange = onPastScheduleGenerateRecordsChange,
-                index = itemIndex,
-                count = totalCount,
-            )
-        }
     }
 }
 
@@ -257,24 +216,12 @@ private fun WeeklyScheduleEditorPreview() {
             ),
             firstDayOfWeek = DayOfWeek.MONDAY,
             time = LocalTime.of(9, 30),
-            previewOccurrences = listOf(
-                LocalDateTime.of(2026, 4, 22, 9, 30),
-                LocalDateTime.of(2026, 4, 23, 9, 30),
-                LocalDateTime.of(2026, 4, 27, 9, 30),
-                LocalDateTime.of(2026, 4, 29, 9, 30),
-                LocalDateTime.of(2026, 5, 1, 9, 30)
-            ),
-            currentDate = LocalDate.of(2026, 4, 22),
             appLocale = previewLocale,
-            dateFormatter = medicationGroupScheduleDateFormatter(
-                locale = previewLocale,
-                today = LocalDate.of(2026, 4, 22),
-            ),
             timeFormatter = localizedShortTimeFormatter(
                 previewLocale,
                 uses24HourFormat = false,
             ),
-            onSinceDateChange = {},
+            boundary = MedicationDayBoundary.Midnight,
             onIntervalChange = {},
             onDayChange = {},
             onResetDaysOfWeek = {},

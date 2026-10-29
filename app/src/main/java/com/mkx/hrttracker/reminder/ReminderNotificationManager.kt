@@ -295,6 +295,11 @@ class ReminderNotificationManager @Inject constructor(
         showToast { localized -> localized.getString(R.string.reminder_notification_nothing_to_add) }
     }
 
+    fun showDoseReminderNoLongerScheduledToast() {
+        diagnosticsLogger.info(TAG, "reminder_notification_no_longer_scheduled_toast")
+        showToast { localized -> localized.getString(R.string.reminder_notification_no_longer_scheduled) }
+    }
+
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
         diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
         showToast { localized ->

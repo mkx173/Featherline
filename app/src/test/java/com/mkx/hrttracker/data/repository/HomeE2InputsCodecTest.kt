@@ -46,7 +46,6 @@ class HomeE2InputsCodecTest {
         generation = 0L,
         anchorDateEpochDay = 0L,
         zoneId = "Asia/Tokyo",
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
         option = HomeE2ChartWindowOption.SEVEN_DAYS,
         weightKg = null,
         estradiolEntries = emptyList(),
@@ -66,6 +65,7 @@ class HomeE2InputsCodecTest {
                 since = LocalDate.of(2026, 4, 1),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
             ),
             medications = listOf(testMedicationGroupMedication(medicine = medicine)),
             createdAt = Instant.ofEpochMilli(11L),
@@ -76,7 +76,6 @@ class HomeE2InputsCodecTest {
             generation = 7L,
             anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
             zoneId = "Asia/Tokyo",
-            medicationDayBoundary = MedicationDayBoundary.FourAm,
             option = HomeE2ChartWindowOption.THIRTY_DAYS,
             weightKg = 61.5,
             estradiolEntries = listOf(
@@ -126,7 +125,7 @@ class HomeE2InputsCodecTest {
             decode = HomeSnapshotCodec::decodeE2Inputs,
         )
         val otherVersion = HomeSnapshotCodec.encodeE2Inputs(minimalRecord()).also { bytes ->
-            ByteBuffer.wrap(bytes).putInt(0, 3)
+            ByteBuffer.wrap(bytes).putInt(0, 5)
         }
 
         assertThrows(IllegalArgumentException::class.java) { HomeSnapshotCodec.decodeE2Inputs(otherVersion) }

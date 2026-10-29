@@ -8,7 +8,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotOccurrence
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -29,7 +28,6 @@ internal fun buildEstradiolPkSimulationEntries(
     activeGroups: List<MedicationGroup>,
     now: LocalDateTime,
     horizon: LocalDateTime,
-    boundary: MedicationDayBoundary,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): EstradiolPkSimulationEntries {
     if (!horizon.isAfter(now)) {
@@ -63,7 +61,6 @@ internal fun buildEstradiolPkSimulationEntries(
                 startDate = now.toLocalDate(),
                 endDate = horizon.toLocalDate(),
                 zoneId = zoneId,
-                boundary = boundary,
             ).asSequence()
                 .filter { occurrence -> occurrence.scheduledFor.isAfter(now) }
                 // `horizon` is an exclusive upper bound; callers pass midnight

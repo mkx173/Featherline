@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -25,6 +26,9 @@ data class MedicationGroupEntity(
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
     val recreatedFromGroupUuid: String? = null,
+
+    @ColumnInfo(defaultValue = "0")
+    val dayEndsAtFourAm: Boolean = false,
 )
 
 @Entity(

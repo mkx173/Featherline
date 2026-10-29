@@ -21,7 +21,6 @@ import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvent
 import com.mkx.hrttracker.model.pk.buildEstradiolPkDoseEvents
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
@@ -75,8 +74,6 @@ data class E2Inputs(
     /** Current Weight; unset falls back to the app default. */
     val weightKg: Double?,
     val option: HomeE2ChartWindowOption,
-    /** The medication-day boundary the planned slots were generated under. */
-    val boundary: MedicationDayBoundary,
     /** Null when no calibration ran. */
     val fit: E2FitRecord?,
 )
@@ -312,7 +309,6 @@ object E2Derivation {
             activeGroups = inputs.plannedSources,
             now = now,
             horizon = now.toLocalDate().plusDays(inputs.option.projectionFutureDays()).atStartOfDay(),
-            boundary = inputs.boundary,
             zoneId = zoneId,
         ).planned
 

@@ -80,7 +80,6 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
 import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
@@ -274,7 +273,6 @@ class MainActivity : AppCompatActivity() {
                 LocalActivity provides this@MainActivity,
                 LocalHazeBlurEnabled provides appHazeBlurEnabled,
                 LocalNavigationLock provides navigationLock,
-                LocalMedicationDayBoundary provides settingsState.medicationDayBoundary,
             ) {
                 HrtTrackerTheme(
                     darkTheme = isDarkTheme,

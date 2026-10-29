@@ -216,8 +216,6 @@ data class E2InputsRecord(
     val generation: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
-    /** The medication-day boundary the run planned its slots under. */
-    val medicationDayBoundary: MedicationDayBoundary,
     /** Home's chart window when the run read it: the one its estimates cover. */
     val option: HomeE2ChartWindowOption,
     /** Current Weight; unset falls back to the app default. */
@@ -372,7 +370,6 @@ internal object HomeSnapshotCodec {
         writeLong(record.generation)
         writeLong(record.anchorDateEpochDay)
         writeString(record.zoneId)
-        writeString(record.medicationDayBoundary.name)
         writeString(record.option.name)
         writeNullableDouble(record.weightKg)
         writePooledMedicationLogEntries(record.estradiolEntries)
@@ -397,7 +394,6 @@ internal object HomeSnapshotCodec {
             generation = readLong(),
             anchorDateEpochDay = readLong(),
             zoneId = readString(),
-            medicationDayBoundary = MedicationDayBoundary.valueOf(readString()),
             option = HomeE2ChartWindowOption.valueOf(readString()),
             weightKg = readNullableDouble(),
             estradiolEntries = readPooledMedicationLogEntries(),
@@ -737,6 +733,7 @@ internal object HomeSnapshotCodec {
         }
         writeList(schedule.times) { time -> writeLocalTime(time) }
         writeList(schedule.timeSlots) { timeSlot -> writeMedicationGroupScheduleTime(timeSlot) }
+        writeBoolean(schedule.dayBoundary.endsAtFourAm)
     }
 
     private fun DataInputStream.readMedicationGroupSchedule(): MedicationGroupSchedule {
@@ -747,6 +744,7 @@ internal object HomeSnapshotCodec {
             weeklyDaysOfWeek = readList { DayOfWeek.of(readInt()) }.toSet(),
             times = readList { readLocalTime() },
             timeSlots = readList { readMedicationGroupScheduleTime() },
+            dayBoundary = MedicationDayBoundary.fromSwitch(readBoolean()),
         )
     }
 
@@ -1358,10 +1356,11 @@ private const val TAG = "HomeSnapshotStore"
 // A bump drops Home data only: the next run reuses the fit published in the
 // still-valid E2 inputs part.
 // v30 appends the profile's Health Connect measured time.
-private const val SNAPSHOT_CODEC_VERSION = 30
+// v31 appends each plan's own day ending (night owl) to its schedule.
+private const val SNAPSHOT_CODEC_VERSION = 31
 // The E2 inputs record's own version, separate from the snapshot's. A bump
 // drops the inputs part, fit included, so the next run re-solves.
-private const val E2_INPUTS_CODEC_VERSION = 2
+private const val E2_INPUTS_CODEC_VERSION = 4
 // The Home E2 estimate record's own version, separate from the snapshot's.
 private const val HOME_E2_ESTIMATE_CODEC_VERSION = 1
 private const val FIT_OUTCOME_SOLVED = 0

@@ -61,19 +61,27 @@ application lifecycle. A Debug-only entry point provides fixture access; no
 repositories or time sources are mocked. Tests require an emulator, reset the
 Debug app's database, configure its settings, and temporarily change the device
 clock, timezone and 12/24-hour format. Device settings are restored in teardown,
-including on assertion failure.
+including on assertion failure. The suite also pins the Debug app's per-app
+locale to `en` for each test (`cmd locale set-app-locales`, API 33+), after
+marking AppCompat's one-time locale migration as done so it can't clear the pin,
+and resets it to the system language in teardown.
+
+Night owl is set per plan: the suite saves each plan with its own day ending
+(`MedicationGroupScheduleInput.dayBoundary`) and, wherever it shows the
+difference, puts a midnight plan next to the night-owl one. Records not from a
+plan always stay on their calendar day.
 
 Coverage includes:
 
 | Area | Scenarios |
 | --- | --- |
-| Settings | Switch persistence, recreation and activity relaunch |
-| Boundaries | Default midnight, 04:00 switch, exact boundary and the preceding second; fulfillment-window neighbours, stock runway and planned PK doses for daily intervals above 1 |
-| Home and plans | Midnight-last ordering, plain times, no duplicated context rows, quick-log confirmation, completion counts, weekly recurrence |
-| History | Manual versus linked records, regrouping existing records, edit/delete, archive visibility, month/year transitions and stored entry timezone |
-| Lifecycle | Natural foreground tick across the boundary, background clock change and relaunch |
-| System integration | Actual 01:00 notification delivery; real Android widget host, rendered counts, boundary refresh, Coming up parity with manual and archived rows, and Last night removal at noon |
-| Persistence | Encrypted backup restore and a legacy backup without the switch field |
+| Plan editor | Turning Night owl on for a plan, the saved ending surviving recreation and relaunch, and the toggle locking once the plan has a record |
+| Boundaries | Default midnight; a night-owl plan's 00:00–03:59 doses on the evening and its 04:00 dose on the new day, next to a midnight plan; manual records on their calendar day at 03:59:59 and 04:00; fulfillment-window neighbours, stock runway and planned PK doses for a night-owl plan every 2 days |
+| Home and plans | Each plan's own ordering (a midnight plan's 01:00 first, a night-owl plan's last), the moon without a day offset, no duplicated context rows, quick-log confirmation, completion counts, weekly Monday 01:00 recurrence; at 00:30 the Tomorrow header without a date until 04:00, the antiandrogen due label and the Coming up title each following its own plan, and the Plan tab's evening showing the 02:00 dose as Planned and the untaken 22:00 as Missed |
+| History and Plan | A night-owl 01:00 record on the evening's date with the moon and no "(+1)" in History and in the Plan tab's selected day, manual versus linked records, records never rewritten, edit/delete, archive visibility, month/year transitions and stored entry timezone |
+| Lifecycle | Natural foreground tick across 04:00, background clock changes across 00:00 and 04:00, and a relaunch |
+| System integration | Actual 01:00 notification delivery on Tuesday for a night-owl Monday plan; real Android widget host, rendered counts, the 04:00 re-anchor next to a midnight plan, Coming up parity with manual and archived rows, and Last night removal at noon |
+| Persistence | An encrypted backup restoring a plan's night owl, and an older backup (v7, without the field) restoring plans as midnight |
 | Other date features | Journal notes retain their civil day |
 
 Backup tests invoke the real export/encryption/restore services with generated

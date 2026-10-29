@@ -455,6 +455,5 @@ internal fun E2InputsRecord.e2Inputs() = E2Inputs(
     plannedSources = plannedSources,
     weightKg = weightKg,
     option = option,
-    boundary = medicationDayBoundary,
     fit = fit,
 )

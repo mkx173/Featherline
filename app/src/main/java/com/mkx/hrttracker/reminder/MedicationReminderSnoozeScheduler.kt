@@ -100,7 +100,10 @@ class MedicationReminderSnoozeScheduler private constructor(
         clearSnoozesMatching { record ->
             val slot = record.slot
             slot.groupUuid == group.uuid &&
-                    !slot.matchesCurrentScheduleTime(slotTimesByUuid)
+                    (!slot.matchesCurrentScheduleTime(slotTimesByUuid) ||
+                            // Same slot and time, but the dated dose is gone, as after
+                            // a weekday, interval, start or day ending change.
+                            !group.hasReminderOccurrence(slot))
         }
     }
 

@@ -32,7 +32,6 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.FakeAppTimeSource
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -87,7 +86,7 @@ class HomeRepositoryTest {
             medicationLogRepository.observeScheduledEntriesInWindow(any(), any())
         } returns flowOf(emptyList())
         every {
-            medicineStockRepository.projectAll(any(), any(), any(), any(), any(), any())
+            medicineStockRepository.projectAll(any(), any(), any(), any(), any())
         } returns emptyList()
         every { journalRepository.observePinnedTrackedDates() } returns flowOf(emptyList())
     }
@@ -401,7 +400,6 @@ class HomeRepositoryTest {
             generation = 0L,
             anchorDateEpochDay = snapshot.anchorDateEpochDay,
             zoneId = snapshot.zoneId,
-            medicationDayBoundary = settings.medicationDayBoundary,
             option = settings.homeE2ChartWindowOption,
             weightKg = null,
             estradiolEntries = emptyList(),
@@ -498,7 +496,6 @@ class HomeRepositoryTest {
                 logEntries = emptyList(),
                 now = now.atZone(providedZone).toInstant(),
                 zoneId = providedZone,
-                boundary = MedicationDayBoundary.Midnight,
             )
         } returns emptyList()
 
@@ -527,7 +524,6 @@ class HomeRepositoryTest {
                 logEntries = emptyList(),
                 now = now.atZone(providedZone).toInstant(),
                 zoneId = providedZone,
-                boundary = MedicationDayBoundary.Midnight,
             )
         }
     }
@@ -669,7 +665,6 @@ class HomeRepositoryTest {
                 logEntries = emptyList(),
                 now = now.atZone(zoneId).toInstant(),
                 zoneId = zoneId,
-                boundary = MedicationDayBoundary.Midnight,
             )
         } returns listOf(projection)
 
@@ -761,7 +756,7 @@ class HomeRepositoryTest {
         every { homeSnapshotRepository.currentCache } returns flowOf(null)
         every { journalRepository.observePinnedTrackedDates() } returns pinnedDates
         every {
-            medicineStockRepository.projectAll(any(), any(), any(), any(), any(), any())
+            medicineStockRepository.projectAll(any(), any(), any(), any(), any())
         } answers {
             projectionCalls += 1
             emptyList()
@@ -873,7 +868,6 @@ class HomeRepositoryTest {
                     logEntries = emptyList(),
                     now = nowInstant,
                     zoneId = zoneId,
-                    boundary = MedicationDayBoundary.Midnight,
                 )
             } returns emptyList()
             every {
@@ -883,7 +877,6 @@ class HomeRepositoryTest {
                     logEntries = emptyList(),
                     now = laterInstant,
                     zoneId = zoneId,
-                    boundary = MedicationDayBoundary.Midnight,
                 )
             } returns listOf(projection)
 
@@ -926,7 +919,6 @@ class HomeRepositoryTest {
                     logEntries = emptyList(),
                     now = nowInstant,
                     zoneId = zoneId,
-                    boundary = MedicationDayBoundary.Midnight,
                 )
             }
             verify(exactly = 1) {
@@ -936,7 +928,6 @@ class HomeRepositoryTest {
                     logEntries = emptyList(),
                     now = laterInstant,
                     zoneId = zoneId,
-                    boundary = MedicationDayBoundary.Midnight,
                 )
             }
             verify(exactly = 1) {
@@ -1002,7 +993,6 @@ class HomeRepositoryTest {
                 logEntries = emptyList(),
                 now = now.atZone(zoneId).toInstant(),
                 zoneId = zoneId,
-                boundary = MedicationDayBoundary.Midnight,
             )
         } returns listOf(projection)
 

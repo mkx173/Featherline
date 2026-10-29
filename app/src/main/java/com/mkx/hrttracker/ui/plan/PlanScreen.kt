@@ -104,7 +104,6 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.planUpcomingDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -250,13 +249,13 @@ private fun PlanScreenContent(
             now = uiState.now,
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = uiState.now,
-            boundary = uiState.medicationDayBoundary,
+            groupsByUuid = uiState.groupsByUuid,
         )
     } else {
         uiState.daySchedule
     }
     val displayedDate = daySchedule.date
-    val selectedDayRowModels = rememberSelectedDayRows(daySchedule)
+    val selectedDayRowModels = rememberSelectedDayRows(daySchedule, uiState.groupsByUuid)
 
     LaunchedEffect(
         visibleWeekStartDate,
@@ -427,6 +426,7 @@ private fun PlanScreenContent(
                     today = uiState.today,
                     overallStatus = uiState.calendarDays[displayedDate]?.status
                         ?: PlanCalendarDayStatus.NONE,
+                    hasMissedDose = uiState.calendarDays[displayedDate]?.hasMissedDose == true,
                     rows = selectedDayRowModels,
                     appLocale = appLocale,
                     timeFormatter = timeFormatter,
@@ -463,8 +463,7 @@ private fun PlanScreenContent(
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
                     nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                    // The upcoming chips print real dates, so "Today" is the calendar day.
-                    today = uiState.now.toLocalDate(),
+                    now = uiState.now,
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     onGroupClick = onGroupClick
                 )
@@ -677,7 +676,7 @@ private fun LazyListScope.regimenSectionItems(
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>>,
-    today: LocalDate,
+    now: LocalDateTime,
     firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
@@ -757,7 +756,7 @@ private fun LazyListScope.regimenSectionItems(
                         dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
                         upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
-                        today = today,
+                        now = now,
                         onClick = { onGroupClick(group.uuid) },
                         firstDayOfWeek = firstDayOfWeek,
                     )
@@ -840,9 +839,8 @@ private fun Day(
                 fontWeight = FontWeight.SemiBold
             )
             DayStatusIndicator(
-                date = date,
-                today = today,
                 dayStatus = dayState.status,
+                hasMissedDose = dayState.hasMissedDose,
                 hasOffPlanRecord = dayState.hasOffPlanRecord,
                 isSelected = isSelected
             )
@@ -866,13 +864,13 @@ internal fun planWeekCalendarDayAlpha(
 
 @Composable
 private fun DayStatusIndicator(
-    date: LocalDate,
-    today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     hasOffPlanRecord: Boolean,
     isSelected: Boolean
 ) {
-    val indicatorMode = if (date.isBefore(today)) {
+    // A day with no dose past due yet, today included, is drawn the way a future day is.
+    val indicatorMode = if (hasMissedDose) {
         PlanDayIndicatorColorMode.Emphasized
     } else {
         PlanDayIndicatorColorMode.Neutral
@@ -887,7 +885,7 @@ private fun DayStatusIndicator(
             selectedColor = selectedColor
         ),
         modifier = Modifier.size(12.dp),
-        showFutureMissedIcon = date.isAfter(today),
+        showFutureMissedIcon = !hasMissedDose,
         showOffPlanBadge = planShouldShowOffPlanBadge(
             status = dayStatus,
             hasOffPlanRecord = hasOffPlanRecord
@@ -1250,26 +1248,29 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         ),
     )
 
+    val groupsByUuid = groups.associateBy(MedicationGroup::uuid)
     val daySchedule = buildPlanDaySchedule(
         date = today,
         groups = groups,
         entries = entries,
-        boundary = MedicationDayBoundary.Midnight,
         now = now,
-        zoneId = zoneId
+        zoneId = zoneId,
+        groupsByUuid = groupsByUuid,
     )
     val calendarDays = buildPlanCalendarDayUiState(
         groups = groups,
         entries = entries,
         startDate = range.startDate,
         endDate = range.endDate,
-        boundary = MedicationDayBoundary.Midnight,
+        now = now,
+        groupsByUuid = groupsByUuid,
     )
 
     return PlanUiState(
         isLoading = false,
+        now = now,
         today = today,
-        medicationDayBoundary = MedicationDayBoundary.Midnight,
+        groupsByUuid = groupsByUuid,
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,
         calendarStartDate = range.startDate,
         calendarEndDate = range.endDate,

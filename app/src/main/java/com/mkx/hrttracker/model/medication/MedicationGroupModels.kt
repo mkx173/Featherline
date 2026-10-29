@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.nio.charset.StandardCharsets
 import java.time.DayOfWeek
 import java.time.Instant
@@ -76,6 +77,7 @@ data class MedicationGroupSchedule(
     val since: LocalDate,
     val weeklyDaysOfWeek: Set<DayOfWeek>,
     val times: List<LocalTime>,
+    val dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     val timeSlots: List<MedicationGroupScheduleTime> = times.mapIndexed { index, time ->
         MedicationGroupScheduleTime(
             uuid = defaultScheduleTimeUuid(index = index, time = time),

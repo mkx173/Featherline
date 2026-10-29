@@ -91,7 +91,6 @@ class HomeRepository @Inject constructor(
                 logEntries = homeData.stockFulfillmentEntries,
                 now = now.atZone(zoneId).toInstant(),
                 zoneId = zoneId,
-                boundary = settingsState.medicationDayBoundary,
             ).stockWarningsOnly()
             HomeInputs(
                 activeGroups = homeData.activeGroups,
@@ -166,7 +165,6 @@ class HomeRepository @Inject constructor(
                     logEntries = stockAndAnchorInputs.stockFulfillmentEntries,
                     now = now.atZone(zoneId).toInstant(),
                     zoneId = zoneId,
-                    boundary = inputs.settings.medicationDayBoundary,
                 ).stockWarningsOnly()
                 HomeInputs(
                     activeGroups = inputs.activeGroups,

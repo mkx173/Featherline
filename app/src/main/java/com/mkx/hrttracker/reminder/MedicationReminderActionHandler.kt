@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
@@ -68,8 +69,12 @@ class MedicationReminderActionHandler @Inject constructor(
                 ?.mapValues { (_, targets) ->
                     targets.mapTo(mutableSetOf(), MedicationReminderLogTarget::signature)
                 }
-        val entriesToSave = normalizedSlots.flatMap { slot ->
-            val group = groupsByUuid[slot.groupUuid] ?: return@flatMap emptyList()
+        // A reminder can outlive its dose: the plan moved, dropped or deleted it since.
+        val scheduledSlots = normalizedSlots.filter { slot ->
+            groupsByUuid[slot.groupUuid]?.hasReminderOccurrence(slot) == true
+        }
+        val entriesToSave = scheduledSlots.flatMap { slot ->
+            val group = groupsByUuid.getValue(slot.groupUuid)
             // With current-format extras present, a slot missing from the map
             // means every target for it failed to parse — restrict to nothing
             // so we don't silently write the legacy "everything missing" set.
@@ -107,6 +112,12 @@ class MedicationReminderActionHandler @Inject constructor(
                 beforeStatesByUuid = beforeStockStates,
                 hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
             )
+        } else if (scheduledSlots.isEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_log_now_no_scheduled_slots slots=${normalizedSlots.size}"
+            )
+            reminderNotificationManager.showDoseReminderNoLongerScheduledToast()
         } else {
             // Race: the slot was already fulfilled between the notification firing
             // and the tap. Don't render "Logged 0 doses" — show a separate
@@ -227,13 +238,14 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         val bundleItems = normalizedSlots
             .mapNotNull { slot ->
-                val group = groupsByUuid[slot.groupUuid] ?: return@mapNotNull null
+                val group = groupsByUuid[slot.groupUuid]
+                    ?.takeIf { group -> group.hasReminderOccurrence(slot) }
+                    ?: return@mapNotNull null
                 val planSlot = slot.toMedicationGroupSlotKey()
                 if (isSlotFulfilled(
                         group = group,
                         slot = planSlot,
                         entries = entries,
-                        boundary = settings.medicationDayBoundary,
                     )
                 ) {
                     return@mapNotNull null
@@ -244,7 +256,6 @@ class MedicationReminderActionHandler @Inject constructor(
                         slot = planSlot,
                         medication = medication,
                         entries = entries,
-                        boundary = settings.medicationDayBoundary,
                     )
                 }
                 if (displayedMedications.isEmpty()) {
@@ -303,12 +314,13 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         val groupsByUuid = loadRepresentedGroups(slots)
         val unfulfilledSlots = slots.filter { slot ->
-            val group = groupsByUuid[slot.groupUuid] ?: return@filter false
+            val group = groupsByUuid[slot.groupUuid]
+                ?.takeIf { group -> group.hasReminderOccurrence(slot) }
+                ?: return@filter false
             !isSlotFulfilled(
                 group = group,
                 slot = slot.toMedicationGroupSlotKey(),
                 entries = entries,
-                boundary = settingsRepository.getCurrentSettings().medicationDayBoundary,
             )
         }
         diagnosticsLogger.info(
@@ -414,6 +426,19 @@ internal fun buildMissingScheduledLogEntries(
             )
         }
 }
+
+/**
+ * Whether the plan still has the dated dose [slot] points at. A plan edit (weekdays,
+ * interval, start, day ending) can drop it while its notification is still showing.
+ */
+internal fun MedicationGroup.hasReminderOccurrence(slot: MedicationReminderSlot): Boolean =
+    occurrencesBetweenInPlanWindow(
+        startDate = slot.scheduledAt.toLocalDate(),
+        endDate = slot.scheduledAt.toLocalDate(),
+    ).any { occurrence ->
+        occurrence.scheduledFor == slot.scheduledAt &&
+                (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)
+    }
 
 internal fun MedicationReminderSlot.toMedicationGroupSlotKey(): MedicationGroupSlotKey {
     return MedicationGroupSlotKey(

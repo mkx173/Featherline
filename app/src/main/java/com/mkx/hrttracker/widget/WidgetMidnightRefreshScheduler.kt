@@ -17,11 +17,11 @@ internal const val ACTION_WIDGET_DATE_REFRESH = "com.mkx.hrttracker.widget.ACTIO
 
 /**
  * The next of civil midnight, 04:00 and noon. Midnight refreshes journal anchors (civil
- * dates), 04:00 the medication-day split when the day ends at 04:00, and noon drops
- * Last night, matching Home.
+ * dates), 04:00 the day split for night owl plans, and noon drops Last night, matching
+ * Home.
  */
-// ponytail: 04:00 is armed whatever the switch says, so the alarm never reads settings;
-// with the switch off that is one spare widget refresh a day.
+// ponytail: 04:00 is armed whatever the plans are, so the alarm never reads them;
+// with no night owl plan that is one spare widget refresh a day.
 internal fun nextWidgetDateRefreshAt(now: LocalDateTime): LocalDateTime {
     val date = now.toLocalDate()
     return listOf(

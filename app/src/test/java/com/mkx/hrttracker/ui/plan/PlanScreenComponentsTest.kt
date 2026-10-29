@@ -1,7 +1,10 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.testInstant
@@ -12,6 +15,7 @@ import com.mkx.hrttracker.util.MedicationDayBoundary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -45,7 +49,8 @@ class PlanScreenComponentsTest {
                 date = LocalDate.of(2026, 5, 18),
                 scheduledEntries = listOf(dawn),
                 unplannedEntries = listOf(evening),
-            )
+            ),
+            groupsByUuid = emptyMap(),
         )
 
         assertEquals(
@@ -54,6 +59,61 @@ class PlanScreenComponentsTest {
                 LocalDateTime.of(2026, 5, 19, 2, 0),
             ),
             rows.map { row -> row.sortTime },
+        )
+    }
+
+    @Test
+    fun selectedDayRows_takeEachRowsOwnPlanEnding() {
+        val nightOwl = MedicationGroup(
+            uuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
+            name = "Night",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 10, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(22, 0)),
+                dayBoundary = MedicationDayBoundary.FourAm,
+            ),
+            medications = listOf(testMedicationGroupMedication()),
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+        )
+        val scheduled = PlanDayScheduleEntry(
+            groupUuid = nightOwl.uuid,
+            groupName = nightOwl.name,
+            groupColorKey = MedicationGroupColorKey.ROSE,
+            scheduledTime = LocalTime.of(22, 0),
+            scheduledFor = LocalDateTime.of(2026, 10, 28, 22, 0),
+            medication = testMedicationGroupMedication(),
+            fulfillingEntryUuids = emptyList(),
+            isFulfilled = false,
+            isDueSoon = false,
+            isPastDue = false,
+            dayBoundary = MedicationDayBoundary.FourAm,
+        )
+        val offPlan = testMedicationLogEntry(
+            sourceGroupUuid = nightOwl.uuid,
+            appliedAt = testInstant(LocalDateTime.of(2026, 10, 29, 1, 0)),
+        )
+        val manual = testMedicationLogEntry(
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 10, 29, 1, 30)),
+        )
+
+        val rows = selectedDayRows(
+            PlanDaySchedule(
+                date = LocalDate.of(2026, 10, 28),
+                scheduledEntries = listOf(scheduled),
+                unplannedEntries = listOf(offPlan, manual),
+            ),
+            groupsByUuid = mapOf(nightOwl.uuid to nightOwl),
+        )
+
+        // The moon and day label follow each row's own plan; a record not from a plan uses midnight.
+        assertEquals(
+            listOf(MedicationDayBoundary.FourAm, MedicationDayBoundary.FourAm, MedicationDayBoundary.Midnight),
+            rows.map { row -> row.dayBoundary },
         )
     }
 

@@ -140,11 +140,12 @@ internal fun EditorFieldRow(
     value: String,
     icon: Painter,
     onClick: () -> Unit,
+    iconContentDescription: String? = null,
     originalValue: String? = null,
     enabled: Boolean = true,
     locked: Boolean = false,
-    index: Int = 0,
-    count: Int = 1
+    index: Int? = null,
+    count: Int? = null,
 ) {
     val fieldEnabled = enabled && !locked
     EditorSegmentedListItem(
@@ -157,7 +158,7 @@ internal fun EditorFieldRow(
         leadingContent = {
             Icon(
                 painter = icon,
-                contentDescription = null,
+                contentDescription = iconContentDescription,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )

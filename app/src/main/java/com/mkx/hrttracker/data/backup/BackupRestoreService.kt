@@ -318,7 +318,6 @@ class BackupRestoreService @Inject constructor(
                 hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
                 groupNameCounter = validatedSnapshot.settings.groupNameCounter,
                 firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
-                medicationDayEndsAtFourAm = validatedSnapshot.settings.medicationDayEndsAtFourAm,
                 stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
                 stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
                 homeCardLayout = validatedSnapshot.settings.homeCardLayout,
@@ -601,6 +600,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = replacedByGroupUuid,
             recreatedFromGroupUuid = recreatedFromGroupUuid,
+            dayEndsAtFourAm = group.dayEndsAtFourAm,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
             val scheduleTimeUuid = time.uuid
@@ -1072,7 +1072,6 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetAppearance = widgetAppearance,
         groupNameCounter = groupNameCounter,
         firstDayOfWeekOption = firstDayOfWeekOption,
-        medicationDayEndsAtFourAm = medicationDayEndsAtFourAm,
         stockNudgeEnabled = stockNudgeEnabled,
         stockNudgeUserEnabled = stockNudgeUserEnabled,
         homeCardLayout = homeCardLayout,
@@ -1728,7 +1727,6 @@ internal data class ValidatedBackupSettings(
     val widgetAppearance: WidgetAppearance?,
     val groupNameCounter: Int,
     val firstDayOfWeekOption: FirstDayOfWeekOption,
-    val medicationDayEndsAtFourAm: Boolean,
     val stockNudgeEnabled: Boolean,
     val stockNudgeUserEnabled: Boolean,
     val homeCardLayout: HomeCardLayout,

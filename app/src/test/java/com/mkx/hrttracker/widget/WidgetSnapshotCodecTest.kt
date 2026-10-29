@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,6 +17,8 @@ class WidgetSnapshotCodecTest {
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = "UTC",
         anchorDateEpochDay = LocalDateTime.of(2026, 5, 18, 0, 0, 0).toLocalDate().toEpochDay(),
+        // Built before 04:00, so the medication day at 04:00 is the day before.
+        fourAmAnchorDateEpochDay = LocalDateTime.of(2026, 5, 17, 0, 0, 0).toLocalDate().toEpochDay(),
         doneCount = 1,
         totalCount = 3,
         manualCount = 1,
@@ -101,11 +104,19 @@ class WidgetSnapshotCodecTest {
     )
 
     @Test
-    fun staleDateCheckUsesMedicationBoundary() {
-        val now = LocalDateTime.of(2026, 10, 2, 1, 0)
-        val record = baseRecord.copy(anchorDateEpochDay = now.toLocalDate().minusDays(1).toEpochDay())
-        assertFalse(record.isAnchoredBefore(now, MedicationDayBoundary.FourAm))
-        assertTrue(record.isAnchoredBefore(now.withHour(5), MedicationDayBoundary.FourAm))
+    fun staleDateCheck_catchesAMissedFourAmReAnchor() {
+        // Built at 01:00: the calendar day is Oct 2, the medication day at 04:00 still Oct 1.
+        val builtAt = LocalDateTime.of(2026, 10, 2, 1, 0)
+        val record = baseRecord.copy(
+            anchorDateEpochDay = builtAt.toLocalDate().toEpochDay(),
+            fourAmAnchorDateEpochDay = medicationDay(builtAt, MedicationDayBoundary.FourAm).toEpochDay(),
+        )
+        assertFalse(record.isAnchoredBefore(builtAt.withHour(3).withMinute(59)))
+        assertTrue(record.isAnchoredBefore(builtAt.withHour(4)))
+        // Built after 04:00, it holds until midnight.
+        val rebuilt = record.copy(fourAmAnchorDateEpochDay = builtAt.toLocalDate().toEpochDay())
+        assertFalse(rebuilt.isAnchoredBefore(builtAt.withHour(23).withMinute(59)))
+        assertTrue(rebuilt.isAnchoredBefore(builtAt.plusDays(1).withHour(0)))
     }
 
     @Test
@@ -183,20 +194,21 @@ class WidgetSnapshotCodecTest {
         val record = baseRecord.copy(
             anchorDateEpochDay = LocalDateTime.of(2026, 5, 19, 0, 0).toLocalDate().toEpochDay()
         )
-        assertEquals(
-            record.anchorDateEpochDay,
-            WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).anchorDateEpochDay,
-        )
+        val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
+        assertEquals(record.anchorDateEpochDay, decoded.anchorDateEpochDay)
+        assertEquals(record.fourAmAnchorDateEpochDay, decoded.fourAmAnchorDateEpochDay)
     }
 
     @Test
     fun staleDateCheck_marksOlderAnchorDateStale() {
         val now = LocalDateTime.of(2026, 5, 19, 0, 1)
 
-        assertTrue(baseRecord.isAnchoredBefore(now, MedicationDayBoundary.Midnight))
+        assertTrue(baseRecord.isAnchoredBefore(now))
         assertFalse(
-            baseRecord.copy(anchorDateEpochDay = now.toLocalDate().toEpochDay())
-                .isAnchoredBefore(now, MedicationDayBoundary.Midnight)
+            baseRecord.copy(
+                anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+                fourAmAnchorDateEpochDay = medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay(),
+            ).isAnchoredBefore(now)
         )
     }
 

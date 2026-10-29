@@ -10,9 +10,9 @@ format used for manual backups, see [backup-format.md](backup-format.md).
 ## Database setup
 
 - [`HrtTrackerDatabase`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt)
-  is the Room database at schema version 11. It declares 13 entities
+  is the Room database at schema version 12. It declares 13 entities
   and exposes 8 DAOs. `exportSchema` is on; compiler-produced schema
-  JSON for each schema version (v9 shipped in 1.3.x, v10 ships in 1.4.0, v11 adds read-only Health Connect weight sync) is committed under `app/schemas` and
+  JSON for each schema version (v9 shipped in 1.3.x, v10 ships in 1.4.0, v11 adds read-only Health Connect weight sync, v12 adds a plan's own day ending) is committed under `app/schemas` and
   is also packaged as an instrumentation-test asset for Room migration
   validation.
 - [`DatabaseHolder`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/DatabaseHolder.kt)
@@ -20,7 +20,8 @@ format used for manual backups, see [backup-format.md](backup-format.md).
   `SupportOpenHelperFactory` from SQLCipher's `net.zetetic` artifact,
   and registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`,
   `MIGRATION_4_5`, `MIGRATION_5_6`, `MIGRATION_6_7`, `MIGRATION_7_8`,
-  `MIGRATION_8_9`, `MIGRATION_9_10`, and `MIGRATION_10_11`.
+  `MIGRATION_8_9`, `MIGRATION_9_10`, `MIGRATION_10_11`, and
+  `MIGRATION_11_12`.
   No `fallbackToDestructiveMigration`
   is wired — a missing migration crashes loudly in every build, debug
   and release, so silent data loss can't slip through.
@@ -138,7 +139,9 @@ Annotated `@Entity(tableName = "medication_groups")` — one row per
 medication group, where a group is a set of medications that share
 a reminder schedule. Stores `name`,
 `colorKey`, `notificationsEnabled`, schedule type / interval / weekly
-anchor, and `includePastScheduledSlots`. Soft-deleted via
+anchor, `includePastScheduledSlots`, and `dayEndsAtFourAm` (the plan's
+own day ending: false ends its day at midnight, true at 04:00 for night
+owl; it can't change once the plan has records or is archived). Soft-deleted via
 `archivedAtEpochMillis` and `archivedAtLocalIso` (both null while
 active); the archived-at timestamp also acts as the plan's
 slot-generation end cutoff, and is user-selectable — it may be
@@ -520,7 +523,8 @@ fresh at v1 and bumps via `Migration` objects declared inline in
 [`HrtTrackerDatabase.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/HrtTrackerDatabase.kt).
 The chain today is `MIGRATION_1_2` → `MIGRATION_2_3` → `MIGRATION_3_4`
 → `MIGRATION_4_5` → `MIGRATION_5_6` → `MIGRATION_6_7` →
-`MIGRATION_7_8` → `MIGRATION_8_9` → `MIGRATION_9_10` → `MIGRATION_10_11`.
+`MIGRATION_7_8` → `MIGRATION_8_9` → `MIGRATION_9_10` → `MIGRATION_10_11`
+→ `MIGRATION_11_12`.
 `MIGRATION_1_2` adds the `displayDoseUnit` column to `medicines` with a
 `MG` default. `MIGRATION_2_3` adds the stock feature: the six stock
 columns on `medicines` (see [`MedicineEntity`](#medicineentity) above),
@@ -552,6 +556,9 @@ file through Room to exercise the runtime identity hash.
 `MIGRATION_10_11` adds the nullable `weightMeasuredAtEpochMillis` to
 `user_profile`; every existing weight was typed, so all rows start null
 (`Migration10To11Test`).
+`MIGRATION_11_12` adds `dayEndsAtFourAm INTEGER NOT NULL DEFAULT 0` to
+`medication_groups`, so every existing plan keeps midnight
+(`Migration11To12Test`).
 These migrations are additive and do not rewrite existing tables.
 The reset
 deliberately did not register a `MIGRATION_29_*` shim, and no

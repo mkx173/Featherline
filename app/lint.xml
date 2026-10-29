@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Only English and the Chinese variants are maintained (AGENTS.md), so the
+         other locales are left as they are, strings English has dropped included. -->
+    <issue id="ExtraTranslation">
+        <ignore path="**/values-cs/**" />
+        <ignore path="**/values-es/**" />
+        <ignore path="**/values-ja/**" />
+        <ignore path="**/values-ko/**" />
+        <ignore path="**/values-ta/**" />
+    </issue>
+</lint>

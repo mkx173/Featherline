@@ -61,6 +61,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
+import com.mkx.hrttracker.model.medication.dayBoundary
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
@@ -81,9 +82,6 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.LocalMedicationDayBoundary
-import com.mkx.hrttracker.util.PastMidnightMarkedText
-import com.mkx.hrttracker.util.PAST_MIDNIGHT_MARK
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.MedicationDayBoundary
@@ -98,6 +96,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.UUID
 
 internal val SelectedDayRowIndicatorSlotSize = 14.dp
 internal val SelectedDayCrossZoneIndicatorGlyphSize = 13.dp
@@ -124,14 +123,18 @@ private fun SelectedDayCrossZoneIndicatorIcon(modifier: Modifier = Modifier) {
  * changes — so callers compute the rows here, in composable scope, and pass them in.
  */
 @Composable
-internal fun rememberSelectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
-    return remember(daySchedule) { selectedDayRows(daySchedule) }
+internal fun rememberSelectedDayRows(
+    daySchedule: PlanDaySchedule,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): List<SelectedDayRowModel> {
+    return remember(daySchedule, groupsByUuid) { selectedDayRows(daySchedule, groupsByUuid) }
 }
 
 internal fun LazyListScope.selectedDaySectionItems(
     date: LocalDate,
     today: LocalDate,
     overallStatus: PlanCalendarDayStatus,
+    hasMissedDose: Boolean,
     rows: List<SelectedDayRowModel>,
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
@@ -158,6 +161,7 @@ internal fun LazyListScope.selectedDaySectionItems(
             date = date,
             today = today,
             dayStatus = overallStatus,
+            hasMissedDose = hasMissedDose,
             hasOffPlanRecord = offPlanCount > 0,
             countLabel = countLabel,
             appLocale = appLocale,
@@ -239,15 +243,7 @@ private fun SelectedDayRow(
 ) {
     val rowColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val rowState = when (row) {
-        is SelectedDayRowModel.Scheduled -> when {
-            row.entry.isFulfilled -> SelectedDayRowState.LOGGED
-            row.entry.hasOutsideScheduleWindowEntry -> SelectedDayRowState.MISSED
-            row.entry.isDueSoon -> SelectedDayRowState.DUE
-            date == today && row.entry.isPastDue -> SelectedDayRowState.PAST_DUE
-            date.isBefore(today) -> SelectedDayRowState.MISSED
-            else -> SelectedDayRowState.PLANNED
-        }
-
+        is SelectedDayRowModel.Scheduled -> selectedDayScheduledRowState(date, today, row.entry)
         is SelectedDayRowModel.Unplanned -> SelectedDayRowState.MANUAL
     }
     val labelText = when (rowState) {
@@ -276,7 +272,7 @@ private fun SelectedDayRow(
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = date,
                 loggedAt = displayedLoggedAt,
-                boundary = LocalMedicationDayBoundary.current,
+                boundary = row.dayBoundary,
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
                 stringResource(
@@ -339,12 +335,12 @@ private fun SelectedDayRow(
                 loggedDayOffsetText = loggedDayOffsetText
             )
         } else {
-            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, LocalMedicationDayBoundary.current, timeFormatter)
+            medicationDayTimeText(LocalContext.current, row.entry.scheduledFor, date, row.dayBoundary, timeFormatter)
         }
 
-        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, LocalMedicationDayBoundary.current, timeFormatter)
+        is SelectedDayRowModel.Unplanned -> medicationDayTimeText(LocalContext.current, row.sortTime, date, row.dayBoundary, timeFormatter)
     }
-    val timeLabelIsPastMidnight = LocalMedicationDayBoundary.current.isPastMidnight(
+    val timeLabelIsPastMidnight = row.dayBoundary.isPastMidnight(
         when (row) {
             is SelectedDayRowModel.Scheduled -> displayedLoggedAt ?: row.entry.scheduledFor
             is SelectedDayRowModel.Unplanned -> row.sortTime
@@ -440,7 +436,10 @@ private fun SelectedDayRow(
     }
 }
 
-internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowModel> {
+internal fun selectedDayRows(
+    daySchedule: PlanDaySchedule,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): List<SelectedDayRowModel> {
     return buildList {
         addAll(
             daySchedule.scheduledEntries.map { entry ->
@@ -451,7 +450,8 @@ internal fun selectedDayRows(daySchedule: PlanDaySchedule): List<SelectedDayRowM
             daySchedule.unplannedEntries.map { entry ->
                 SelectedDayRowModel.Unplanned(
                     entry = entry,
-                    sortTime = appliedAtAsLocalDateTime(entry)
+                    sortTime = appliedAtAsLocalDateTime(entry),
+                    dayBoundary = entry.dayBoundary(groupsByUuid),
                 )
             }
         )
@@ -525,7 +525,6 @@ internal fun RegimenGroupCard(
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     upcomingOccurrences: List<LocalDateTime>,
-    today: LocalDate,
     onClick: () -> Unit,
     index: Int? = null,
     itemCount: Int? = null,
@@ -536,6 +535,8 @@ internal fun RegimenGroupCard(
     showStartDate: Boolean = true,
     firstDayOfWeek: DayOfWeek,
     metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
+    /** Names [upcomingOccurrences]' days: today and tomorrow as the plan counts them. */
+    now: LocalDateTime = LocalDateTime.now(),
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
@@ -621,10 +622,8 @@ internal fun RegimenGroupCard(
                                 )
                             ),
                             firstDayOfWeek = firstDayOfWeek,
-                            boundary = LocalMedicationDayBoundary.current,
-                            pastMidnightMark = PAST_MIDNIGHT_MARK,
                         )
-                        PastMidnightMarkedText(
+                        Text(
                             text = groupScheduleSummary,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -648,6 +647,20 @@ internal fun RegimenGroupCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // One moon per night-owl plan, rather than one on each of its times.
+                    if (group.schedule.dayBoundary.endsAtFourAm) {
+                        Box(
+                            modifier = Modifier.size(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_moon_stars),
+                                contentDescription = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
                     if (showNotificationIcon &&
                         shouldShowRegimenNotificationIcon(remindersEnabled, hasNotificationAccess)
                     ) {
@@ -764,13 +777,13 @@ internal fun RegimenGroupCard(
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 6.dp)
                 ) {
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
-                        val dayLabel = when (occurrence.toLocalDate()) {
-                            today -> stringResource(R.string.plan_group_upcoming_today)
-                            today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                            else -> dateFormatter(occurrence.toLocalDate())
-                        }
                         UpcomingOccurrenceChip(
-                            label = dayLabel,
+                            label = upcomingDoseDayLabel(
+                                occurrence = occurrence,
+                                now = now,
+                                boundary = group.schedule.dayBoundary,
+                                dateFormatter = dateFormatter,
+                            ),
                             time = occurrence.toLocalTime().format(timeFormatter),
                             emphasized = index == 0
                         )
@@ -1045,6 +1058,9 @@ internal sealed interface SelectedDayRowModel {
     val medicationCount: Int
     val groupColorKey: MedicationGroupColorKey?
 
+    /** The row's own plan's day ending (midnight for a record not from a plan): its moon and day label follow it. */
+    val dayBoundary: MedicationDayBoundary
+
     data class Scheduled(
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
@@ -1055,11 +1071,13 @@ internal sealed interface SelectedDayRowModel {
         override val applicationType = entry.medication.applicationType
         override val medicationCount: Int = entry.medication.count
         override val groupColorKey: MedicationGroupColorKey = entry.groupColorKey
+        override val dayBoundary: MedicationDayBoundary = entry.dayBoundary
     }
 
     data class Unplanned(
         val entry: MedicationLogEntry,
-        override val sortTime: LocalDateTime
+        override val sortTime: LocalDateTime,
+        override val dayBoundary: MedicationDayBoundary,
     ) : SelectedDayRowModel {
         override val medicine = entry.medicine
         override val doseInstruction = entry.doseInstruction
@@ -1079,7 +1097,22 @@ private val selectedDayRowComparator = compareBy<SelectedDayRowModel> { row -> r
         (row as? SelectedDayRowModel.Scheduled)?.entry?.medicationSortOrder ?: 0
     }
 
-private enum class SelectedDayRowState {
+// A dose reads planned until an hour before its time, due within the hour and missed after
+// that, on any date: a night-owl plan's evening is yesterday by the calendar before 04:00.
+internal fun selectedDayScheduledRowState(
+    date: LocalDate,
+    today: LocalDate,
+    entry: PlanDayScheduleEntry,
+): SelectedDayRowState = when {
+    entry.isFulfilled -> SelectedDayRowState.LOGGED
+    entry.hasOutsideScheduleWindowEntry -> SelectedDayRowState.MISSED
+    entry.isDueSoon -> SelectedDayRowState.DUE
+    date == today && entry.isPastDue -> SelectedDayRowState.PAST_DUE
+    date.isBefore(today) && entry.isPastDue -> SelectedDayRowState.MISSED
+    else -> SelectedDayRowState.PLANNED
+}
+
+internal enum class SelectedDayRowState {
     LOGGED,
     DUE,
     PAST_DUE,
@@ -1098,13 +1131,14 @@ private fun SelectedDaySectionPreview() {
     // Renders through the same lazy builder production uses so the preview cannot
     // drift from the real section.
     PlanScreenComponentPreviewContainer {
-        val rows = rememberSelectedDayRows(uiState.daySchedule)
+        val rows = rememberSelectedDayRows(uiState.daySchedule, uiState.groupsByUuid)
         LazyColumn {
             selectedDaySectionItems(
                 date = uiState.daySchedule.date,
                 today = uiState.today,
                 overallStatus = uiState.calendarDays[uiState.daySchedule.date]?.status
                     ?: PlanCalendarDayStatus.NONE,
+                hasMissedDose = uiState.calendarDays[uiState.daySchedule.date]?.hasMissedDose == true,
                 rows = rows,
                 appLocale = appLocale,
                 timeFormatter = timeFormatter,
@@ -1148,7 +1182,8 @@ private fun SelectedDayManualRowPreview() {
             today = uiState.today,
             row = SelectedDayRowModel.Unplanned(
                 entry = entry,
-                sortTime = appliedAtAsLocalDateTime(entry)
+                sortTime = appliedAtAsLocalDateTime(entry),
+                dayBoundary = entry.dayBoundary(uiState.groupsByUuid),
             ),
             index = 0,
             itemCount = 1,
@@ -1178,7 +1213,7 @@ private fun RegimenGroupCardPreview() {
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
             upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-            today = uiState.today,
+            now = uiState.now,
             onClick = { },
             firstDayOfWeek = DayOfWeek.MONDAY,
         )

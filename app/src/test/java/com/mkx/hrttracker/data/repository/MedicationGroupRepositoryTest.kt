@@ -13,11 +13,16 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.MedicineDao
 import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.data.local.ScheduledEntryEntity
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
@@ -71,6 +76,8 @@ class MedicationGroupRepositoryTest {
         every { database.medicationGroupDao() } returns medicationGroupDao
         every { database.medicationLogDao() } returns medicationLogDao
         every { database.medicineDao() } returns medicineDao
+        // A group nobody stubbed doesn't exist (the relaxed default is a blank row).
+        coEvery { medicationGroupDao.getGroup(any()) } returns null
         coEvery { medicineDao.getByUuids(any()) } answers {
             firstArg<List<String>>().map { uuid ->
                 testMedicineEntity(
@@ -192,7 +199,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = archivedThroughDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
         coVerify(exactly = 1) {
@@ -234,7 +241,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate(),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected current or future planned slots to block archiving")
         } catch (_: CurrentOrFuturePlannedSlotsBlockArchiveException) {
         }
@@ -276,7 +283,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = archivedThroughDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -304,6 +311,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
             groupUuid = groupUuid,
             times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = true,
         )
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns listOf(
             testMedicationLogEntryEntity(
@@ -325,7 +333,6 @@ class MedicationGroupRepositoryTest {
         repository.archiveGroup(
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
-            boundary = MedicationDayBoundary.FourAm,
             now = now,
         )
 
@@ -363,7 +370,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
 
         repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now,
-            boundary = MedicationDayBoundary.Midnight)
+            )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -402,7 +409,7 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationLogDao.getEntriesForGroup(groupUuid.toString()) } returns emptyList()
 
         repository.archiveGroup(uuid = groupUuid, archivedThroughDate = null, now = now,
-            boundary = MedicationDayBoundary.Midnight)
+            )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -435,7 +442,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 4, 19),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected archive date before schedule start to be rejected")
         } catch (expected: ArchiveDateBeforeRecordedDoseException) {
             assertTrue(expected.message.orEmpty().contains("before minimum archive date"))
@@ -473,7 +480,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 6, 10),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected archive date after today to be rejected")
         } catch (expected: ArchiveDateAfterTodayException) {
             assertTrue(expected.message.orEmpty().contains("after maximum archive date"))
@@ -522,7 +529,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -561,7 +568,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 5, 8),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected backdate before ad-hoc entry date to be rejected")
         } catch (_: ArchiveDateBeforeRecordedDoseException) {
         }
@@ -598,7 +605,7 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid,
                 archivedThroughDate = LocalDate.of(2026, 5, 8),
                 now = now,
-                boundary = MedicationDayBoundary.Midnight)
+            )
             fail("Expected backdate before a logged scheduled dose date to be rejected")
         } catch (_: ArchiveDateBeforeRecordedDoseException) {
         }
@@ -638,7 +645,7 @@ class MedicationGroupRepositoryTest {
             uuid = groupUuid,
             archivedThroughDate = selectedDate,
             now = now,
-            boundary = MedicationDayBoundary.Midnight)
+        )
 
         coVerify(exactly = 1) {
             medicationGroupDao.updateGroupArchiveState(
@@ -978,6 +985,50 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun saveGroup_newGroupStartsItsSlotsAtStartAt() = runTest {
+        val savedTimes = mutableListOf<List<MedicationGroupScheduleTimeEntity>>()
+        val now = Instant.parse("2026-04-25T10:00:00Z")
+        val startAt = LocalDate.of(2026, 5, 1).atTime(13, 30)
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        listOf(true, false).forEach { includePast ->
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = startAt.toLocalDate(),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                    startAt = startAt,
+                ),
+                medications = emptyList(),
+                includePastScheduledSlots = includePast,
+                now = now,
+            )
+        }
+
+        coVerify(exactly = 2) {
+            medicationGroupDao.upsertGroupWithItems(
+                group = any(),
+                items = any(),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = any(),
+            )
+        }
+        assertEquals(
+            listOf(startAt.toString(), startAt.toString()),
+            savedTimes.map { it.single().effectiveFromLocalIso },
+        )
+    }
+
+    @Test
     fun saveGroup_forExistingFreshGroupWhenBackfillEnabled_movesCurrentRowsToSinceStart() =
         runTest {
             val groupUuid = UUID.fromString("30c4a905-64d5-4ef0-8096-60b7d1edc4c4")
@@ -1283,6 +1334,345 @@ class MedicationGroupRepositoryTest {
             listOf("2026-04-18T10:00", "2026-04-18T10:00"),
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
         )
+    }
+
+    @Test
+    fun saveGroup_forFreshGroup_writesItsDayEnding() = runTest {
+        val saved = saveWithDayBoundary(uuid = null, dayBoundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forReplacementCopy_writesItsDayEnding() = runTest {
+        val saved = saveWithDayBoundary(
+            uuid = null,
+            replacesGroupUuid = UUID.fromString("0b6f5a3c-8d1e-4f2a-9c7b-3e5d6f7a8b90"),
+            dayBoundary = MedicationDayBoundary.FourAm,
+        )
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forRecordlessRecreatedGroup_writesItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("7a1c2e3f-4b5d-4e6f-8a9b-0c1d2e3f4a5b")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            recreatedFromGroupUuid = "1d2e3f4a-5b6c-4d7e-8f90-a1b2c3d4e5f6",
+            dayEndsAtFourAm = false,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 0
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forExistingGroupWithRecords_keepsItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("5f0e8a4e-2f53-4d0c-9b8e-6a1f3c2d7e91")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = true,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forExistingGroupWithRecords_rejectsAnotherDayEnding() = runTest {
+        // A record logged while the editor had the toggle flipped: the draft's start
+        // date moved with it, so the save is refused rather than half applied.
+        val groupUuid = UUID.fromString("0c7b1e52-8d3f-4a6e-b2c9-5e4f3a2d1c0b")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = false,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        val thrown = runCatching {
+            saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
+        }.exceptionOrNull()
+
+        assertTrue(
+            "Expected LockedMedicationGroupDayBoundaryException but got $thrown",
+            thrown is LockedMedicationGroupDayBoundaryException,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun saveGroup_forArchivedGroupWithoutRecords_keepsItsDayEnding() = runTest {
+        val groupUuid = UUID.fromString("9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            archivedAtEpochMillis = Instant.parse("2026-04-20T12:00:00Z").toEpochMilli(),
+            dayEndsAtFourAm = true,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 0
+
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.Midnight)
+
+        assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_recreatedNightOwlPlanCantStartBeforeAMidnightPredecessorsCutoff() = runTest {
+        // Midnight predecessor archived through Oct 29; night owl turned on (start date
+        // Oct 29), then 22:00 picked: without the clamp both plans own Oct 29 22:00.
+        val effectiveFrom = saveRecreatedAgainstCutoff(
+            cutoff = LocalDateTime.of(2026, 10, 30, 0, 0),
+            predecessorEndsAtFourAm = false,
+            dayBoundary = MedicationDayBoundary.FourAm,
+            since = LocalDate.of(2026, 10, 29),
+            startAt = LocalDateTime.of(2026, 10, 29, 22, 0),
+            time = LocalTime.of(22, 0),
+        )
+
+        assertEquals(LocalDateTime.of(2026, 10, 30, 0, 0), effectiveFrom)
+        assertSeamOwnedOnce(
+            cutoff = LocalDateTime.of(2026, 10, 30, 0, 0),
+            predecessorBoundary = MedicationDayBoundary.Midnight,
+            recreatedBoundary = MedicationDayBoundary.FourAm,
+            recreatedSince = LocalDate.of(2026, 10, 29),
+            effectiveFrom = effectiveFrom,
+            time = LocalTime.of(22, 0),
+        )
+    }
+
+    @Test
+    fun saveGroup_recreatedMidnightPlanCantStartBeforeANightOwlPredecessorsCutoff() = runTest {
+        // Night-owl predecessor archived through Oct 29 (cutoff Oct 30 04:00); night owl
+        // turned off, then 01:00 picked: the start would be before the cutoff.
+        val effectiveFrom = saveRecreatedAgainstCutoff(
+            cutoff = LocalDateTime.of(2026, 10, 30, 4, 0),
+            predecessorEndsAtFourAm = true,
+            dayBoundary = MedicationDayBoundary.Midnight,
+            since = LocalDate.of(2026, 10, 30),
+            startAt = LocalDateTime.of(2026, 10, 30, 1, 0),
+            time = LocalTime.of(1, 0),
+        )
+
+        assertEquals(LocalDateTime.of(2026, 10, 30, 4, 0), effectiveFrom)
+        assertSeamOwnedOnce(
+            cutoff = LocalDateTime.of(2026, 10, 30, 4, 0),
+            predecessorBoundary = MedicationDayBoundary.FourAm,
+            recreatedBoundary = MedicationDayBoundary.Midnight,
+            recreatedSince = LocalDate.of(2026, 10, 30),
+            effectiveFrom = effectiveFrom,
+            time = LocalTime.of(1, 0),
+        )
+    }
+
+    @Test
+    fun saveGroup_replacementCopyCantStartBeforeItsPredecessorsCutoff() = runTest {
+        val effectiveFrom = saveRecreatedAgainstCutoff(
+            cutoff = LocalDateTime.of(2026, 10, 30, 4, 0),
+            predecessorEndsAtFourAm = true,
+            dayBoundary = MedicationDayBoundary.Midnight,
+            since = LocalDate.of(2026, 10, 30),
+            startAt = LocalDateTime.of(2026, 10, 30, 0, 0),
+            time = LocalTime.of(1, 0),
+            asReplacementCopy = true,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 10, 30, 4, 0), effectiveFrom)
+    }
+
+    @Test
+    fun saveGroup_recreatedPlanClampsToItsPredecessorsStoredLocalCutoffAfterAZoneMove() = runTest {
+        val effectiveFrom = saveRecreatedAgainstCutoff(
+            cutoff = LocalDateTime.of(2026, 10, 30, 4, 0),
+            predecessorEndsAtFourAm = true,
+            dayBoundary = MedicationDayBoundary.Midnight,
+            since = LocalDate.of(2026, 10, 30),
+            startAt = LocalDateTime.of(2026, 10, 30, 1, 0),
+            time = LocalTime.of(1, 0),
+            zoneMovedHours = 9,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 10, 30, 4, 0), effectiveFrom)
+    }
+
+    /** Saves a recordless plan recreated from an archived one and returns its effectiveFrom. */
+    private suspend fun saveRecreatedAgainstCutoff(
+        cutoff: LocalDateTime,
+        predecessorEndsAtFourAm: Boolean,
+        dayBoundary: MedicationDayBoundary,
+        since: LocalDate,
+        startAt: LocalDateTime,
+        time: LocalTime,
+        asReplacementCopy: Boolean = false,
+        // How far the zone has moved since the archive; the stored local cutoff holds.
+        zoneMovedHours: Long = 0,
+    ): LocalDateTime {
+        val predecessorUuid = UUID.fromString("4c5d6e7f-0000-4000-8000-000000000001")
+        val recreatedUuid = UUID.fromString("4c5d6e7f-0000-4000-8000-000000000002")
+        val zone = ZoneId.systemDefault()
+        coEvery { medicationGroupDao.getGroup(predecessorUuid.toString()) } returns testGroupEntity(
+            groupUuid = predecessorUuid,
+            times = listOf(time),
+            archivedAtEpochMillis = cutoff.plusHours(zoneMovedHours).atZone(zone).toInstant()
+                .toEpochMilli(),
+            archivedAtLocalIso = cutoff.toString(),
+            scheduleSinceEpochDay = LocalDate.of(2026, 10, 1).toEpochDay(),
+            dayEndsAtFourAm = predecessorEndsAtFourAm,
+        )
+        if (!asReplacementCopy) {
+            coEvery { medicationGroupDao.getGroup(recreatedUuid.toString()) } returns testGroupEntity(
+                groupUuid = recreatedUuid,
+                times = listOf(time),
+                scheduleSinceEpochDay = LocalDate.of(2026, 10, 30).toEpochDay(),
+                recreatedFromGroupUuid = predecessorUuid.toString(),
+                includePastScheduledSlots = false,
+                dayEndsAtFourAm = predecessorEndsAtFourAm,
+                effectiveFromLocalIso = listOf(cutoff.toString()),
+            )
+            coEvery { medicationLogDao.getEntryCountForGroup(recreatedUuid.toString()) } returns 0
+        }
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+
+        repository.saveGroup(
+            uuid = if (asReplacementCopy) null else recreatedUuid,
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(time),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTimeInput(
+                        uuid = if (asReplacementCopy) null else testScheduleTimeUuid(0),
+                        time = time,
+                    ),
+                ),
+                startAt = startAt,
+                dayBoundary = dayBoundary,
+            ),
+            medications = emptyList(),
+            includePastScheduledSlots = false,
+            replacesGroupUuid = if (asReplacementCopy) predecessorUuid else null,
+            now = LocalDateTime.of(2026, 10, 29, 14, 0).atZone(zone).toInstant(),
+        )
+
+        coVerify {
+            medicationGroupDao.upsertGroupWithItems(
+                group = any(),
+                items = any(),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = any(),
+            )
+        }
+        return LocalDateTime.parse(savedTimes.captured.single().effectiveFromLocalIso)
+    }
+
+    /** Each daily slot from Oct 28 to Oct 31 belongs to exactly one of the two plans. */
+    private fun assertSeamOwnedOnce(
+        cutoff: LocalDateTime,
+        predecessorBoundary: MedicationDayBoundary,
+        recreatedBoundary: MedicationDayBoundary,
+        recreatedSince: LocalDate,
+        effectiveFrom: LocalDateTime,
+        time: LocalTime,
+    ) {
+        fun plan(
+            since: LocalDate,
+            boundary: MedicationDayBoundary,
+            effectiveFrom: LocalDateTime,
+            archivedAtLocal: LocalDateTime?,
+        ) = MedicationGroup(
+            uuid = UUID.randomUUID(),
+            name = "Group",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(time),
+                dayBoundary = boundary,
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(UUID.randomUUID(), time, effectiveFrom),
+                ),
+            ),
+            medications = emptyList(),
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+            archivedAtLocal = archivedAtLocal,
+        )
+        val start = LocalDate.of(2026, 10, 27)
+        val end = LocalDate.of(2026, 11, 1)
+        val owners = (
+                plan(LocalDate.of(2026, 10, 1), predecessorBoundary, LocalDate.of(2026, 10, 1).atStartOfDay(), cutoff)
+                    .occurrencesBetweenInPlanWindow(start, end) +
+                        plan(recreatedSince, recreatedBoundary, effectiveFrom, null)
+                            .occurrencesBetweenInPlanWindow(start, end)
+                ).groupingBy { it.scheduledFor }.eachCount()
+        for (day in 28..31) {
+            val slot = LocalDateTime.of(LocalDate.of(2026, 10, day), time)
+            assertEquals("$slot", 1, owners[slot])
+        }
+    }
+
+    /** Saves a single-time daily plan at 01:00 and returns the group row written. */
+    private suspend fun saveWithDayBoundary(
+        uuid: UUID?,
+        dayBoundary: MedicationDayBoundary,
+        replacesGroupUuid: UUID? = null,
+    ): MedicationGroupEntity {
+        val savedGroup = slot<MedicationGroupEntity>()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        repository.saveGroup(
+            uuid = uuid,
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(1, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTimeInput(
+                        uuid = uuid?.let { testScheduleTimeUuid(0) },
+                        time = LocalTime.of(1, 0),
+                    ),
+                ),
+                dayBoundary = dayBoundary,
+            ),
+            medications = emptyList(),
+            replacesGroupUuid = replacesGroupUuid,
+            now = Instant.parse("2026-04-30T08:15:00Z"),
+        )
+
+        coVerify {
+            medicationGroupDao.upsertGroupWithItems(
+                group = capture(savedGroup),
+                items = any(),
+                scheduleTimes = any(),
+                weeklyDays = any(),
+            )
+        }
+        return savedGroup.captured
     }
 
     @Test
@@ -1651,19 +2041,19 @@ class MedicationGroupRepositoryTest {
             times = listOf(LocalTime.of(8, 0), LocalTime.of(9, 0))
         )
         coEvery {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(0).toString(),
                 "08:00",
             )
-        } returns listOf("entry-8")
+        } returns listOf(ScheduledEntryEntity("entry-8", "2026-04-29T08:00"))
         coEvery {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(1).toString(),
                 "09:00",
             )
-        } returns listOf("entry-9")
+        } returns listOf(ScheduledEntryEntity("entry-9", "2026-04-29T09:00"))
 
         repository.updateScheduleTimes(
             groupUuid = groupUuid,
@@ -1672,12 +2062,12 @@ class MedicationGroupRepositoryTest {
         )
 
         coVerifyOrder {
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(0).toString(),
                 "08:00",
             )
-            medicationLogDao.getPlannedEntryIdsForGroupSlotTime(
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(
                 groupUuid.toString(),
                 testScheduleTimeUuid(1).toString(),
                 "09:00",
@@ -1702,8 +2092,40 @@ class MedicationGroupRepositoryTest {
                     ),
                 )
             )
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-8"), "09:30")
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-9"), "08:30")
+            medicationLogDao.moveScheduledForEntries(listOf("entry-8"), "0 days", "09:30")
+            medicationLogDao.moveScheduledForEntries(listOf("entry-9"), "0 days", "08:30")
+        }
+    }
+
+    @Test
+    fun updateScheduleTimes_keepsEachRecordOnItsMedicationDayAcrossFourAm() = runTest {
+        val groupUuid = UUID.fromString("d5037093-0f98-4f24-a0d4-f4fb93a8d210")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0), LocalTime.of(23, 0)),
+            dayEndsAtFourAm = true,
+        )
+        // Both doses of medication day Oct 28: its 01:00 falls on the 29th.
+        coEvery {
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(any(), testScheduleTimeUuid(0).toString(), any())
+        } returns listOf(ScheduledEntryEntity("night", "2026-10-29T01:00"))
+        coEvery {
+            medicationLogDao.getPlannedEntriesForGroupSlotTime(any(), testScheduleTimeUuid(1).toString(), any())
+        } returns listOf(ScheduledEntryEntity("evening", "2026-10-28T23:00"))
+
+        repository.updateScheduleTimes(
+            groupUuid = groupUuid,
+            newTimes = listOf(LocalTime.of(23, 30), LocalTime.of(0, 30)),
+        )
+
+        coVerify {
+            medicationLogDao.moveScheduledForEntries(listOf("night"), "-1 days", "23:30")
+            medicationLogDao.moveScheduledForEntries(listOf("evening"), "1 days", "00:30")
         }
     }
 
@@ -1793,11 +2215,13 @@ class MedicationGroupRepositoryTest {
         items: List<MedicationGroupItemEntity> = emptyList(),
         weeklyDays: List<MedicationGroupWeeklyDayEntity> = emptyList(),
         archivedAtEpochMillis: Long? = null,
+        archivedAtLocalIso: String? = null,
         includePastScheduledSlots: Boolean = true,
         scheduleSinceEpochDay: Long = LocalDate.of(2026, 4, 1).toEpochDay(),
         createdAtEpochMillis: Long = 0,
         replacedByGroupUuid: String? = null,
         recreatedFromGroupUuid: String? = null,
+        dayEndsAtFourAm: Boolean = false,
         effectiveFromLocalIso: List<String> = List(times.size) {
             LocalDate.EPOCH.atStartOfDay().toString()
         },
@@ -1814,9 +2238,11 @@ class MedicationGroupRepositoryTest {
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = 0,
                 archivedAtEpochMillis = archivedAtEpochMillis,
+                archivedAtLocalIso = archivedAtLocalIso,
                 includePastScheduledSlots = includePastScheduledSlots,
                 replacedByGroupUuid = replacedByGroupUuid,
                 recreatedFromGroupUuid = recreatedFromGroupUuid,
+                dayEndsAtFourAm = dayEndsAtFourAm,
             ),
             items = items,
             scheduleTimes = times.mapIndexed { index, time ->

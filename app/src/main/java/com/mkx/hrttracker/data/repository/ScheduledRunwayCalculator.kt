@@ -12,7 +12,6 @@ import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.toStorageValue
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -29,7 +28,6 @@ object ScheduledRunwayCalculator {
         logEntries: List<MedicationLogEntry>,
         now: Instant,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        boundary: MedicationDayBoundary,
         // Preview-only: a future scheduled slot the caller is about to fulfill with
         // a not-yet-persisted log. Excluded from demand so a pre-deducted preview
         // stock is not charged twice for the same occurrence.
@@ -46,7 +44,6 @@ object ScheduledRunwayCalculator {
             nowLocal = nowLocal,
             horizonEnd = today.plusDays(HORIZON_DAYS),
             zoneId = zoneId,
-            boundary = boundary,
             fulfilledSlot = fulfilledSlot,
         )
         if (doses.isEmpty()) return RunwayProjection.NoSchedule
@@ -77,7 +74,6 @@ object ScheduledRunwayCalculator {
         nowLocal: LocalDateTime,
         horizonEnd: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
-        boundary: MedicationDayBoundary,
         fulfilledSlot: FulfilledScheduledSlot? = null,
     ): List<MedicineDoseOccurrence> {
         if (!medicine.stock.trackingEnabled) return emptyList()
@@ -92,7 +88,6 @@ object ScheduledRunwayCalculator {
                 startDate = nowLocal.toLocalDate(),
                 endDate = horizonEnd,
                 zoneId = zoneId,
-                boundary = boundary,
             )
             for (occurrence in occurrences) {
                 // Start-of-today cutoff: a scheduled dose is owed for the whole
@@ -124,7 +119,6 @@ object ScheduledRunwayCalculator {
                             slot = planSlot,
                             entry = entry,
                             zoneId = zoneId,
-                            boundary = boundary,
                         )
                     }
                     .groupBy(MedicationSignature::fromLogEntry)
@@ -154,29 +148,6 @@ object ScheduledRunwayCalculator {
                 .thenBy { dose -> dose.scheduleTimeUuid.toString() }
                 .thenBy { dose -> dose.signatureKey }
         )
-    }
-
-    internal fun upcomingOccurrenceDatesWithinHorizon(
-        medicine: Medicine,
-        activeGroups: List<MedicationGroup>,
-        logEntries: List<MedicationLogEntry>,
-        now: Instant,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-        boundary: MedicationDayBoundary,
-    ): List<LocalDate> {
-        val nowLocal = now.atZone(zoneId).toLocalDateTime()
-        return enumerateUnfulfilledOccurrencesForMedicine(
-            medicine = medicine,
-            activeGroups = activeGroups,
-            logEntries = logEntries,
-            nowLocal = nowLocal,
-            horizonEnd = nowLocal.toLocalDate().plusDays(HORIZON_DAYS),
-            zoneId = zoneId,
-            boundary = boundary,
-        )
-            .map { dose -> dose.scheduledFor.toLocalDate() }
-            .distinct()
-            .sorted()
     }
 
     internal fun maxPerAdministration(

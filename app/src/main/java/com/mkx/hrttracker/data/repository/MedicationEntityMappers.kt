@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -53,6 +54,7 @@ internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
                 .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
                 .toSet(),
             times = scheduleTimeSlots.map(MedicationGroupScheduleTime::time),
+            dayBoundary = MedicationDayBoundary.fromSwitch(group.dayEndsAtFourAm),
             timeSlots = scheduleTimeSlots,
         ),
         medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->

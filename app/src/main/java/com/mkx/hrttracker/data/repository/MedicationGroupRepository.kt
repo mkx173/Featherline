@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.data.local.ScheduledEntryEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -17,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.dateTimeOn
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -167,24 +169,25 @@ class MedicationGroupRepository @Inject constructor(
         // matching the original archive behavior; a non-null date archives
         // through the end of that medication day (the plan owns the whole day).
         archivedThroughDate: LocalDate? = null,
-        boundary: MedicationDayBoundary,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
         val systemZone = ZoneId.systemDefault()
         val nowLocal = now.toLocalDateTime(systemZone)
-        val archiveCutoffLocal = archivedThroughDate
-            ?.let { date -> medicationDayStart(date.plusDays(1), boundary) }
-            ?: nowLocal
-        val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
-            archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
-        } else {
-            nowEpochMillis
-        }
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
                 val groupRow = database.medicationGroupDao().getGroup(uuid.toString())
                     ?: throw MedicationGroupNotFoundException(uuid)
+                // The cutoff, the latest date and the record floor follow the plan's own day ending.
+                val boundary = MedicationDayBoundary.fromSwitch(groupRow.group.dayEndsAtFourAm)
+                val archiveCutoffLocal = archivedThroughDate
+                    ?.let { date -> medicationDayStart(date.plusDays(1), boundary) }
+                    ?: nowLocal
+                val archiveCutoffEpochMillis = if (archivedThroughDate != null) {
+                    archiveCutoffLocal.atZone(systemZone).toInstant().toEpochMilli()
+                } else {
+                    nowEpochMillis
+                }
                 val currentOrFuturePlannedSlotCount = database.medicationLogDao()
                     .getCurrentOrFuturePlannedSlotCountForGroup(
                         groupUuid = uuid.toString(),
@@ -262,6 +265,7 @@ class MedicationGroupRepository @Inject constructor(
                 val logDao = database.medicationLogDao()
                 val existingGroup = groupDao.getGroup(groupUuid.toString())
                     ?: throw MedicationGroupNotFoundException(groupUuid)
+                val boundary = MedicationDayBoundary.fromSwitch(existingGroup.group.dayEndsAtFourAm)
                 val oldTimeRows = existingGroup.scheduleTimes
                     .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
                 val oldTimes = oldTimeRows.map { time ->
@@ -273,11 +277,11 @@ class MedicationGroupRepository @Inject constructor(
 
                 validateScheduleTimeMigration(oldTimes, normalizedNewTimes)
 
-                val entryIdsBySlot = oldTimes.mapIndexed { index, oldTime ->
+                val entriesBySlot = oldTimes.mapIndexed { index, oldTime ->
                     if (oldTime == normalizedNewTimes[index]) {
                         emptyList()
                     } else {
-                        logDao.getPlannedEntryIdsForGroupSlotTime(
+                        logDao.getPlannedEntriesForGroupSlotTime(
                             groupUuid = groupUuid.toString(),
                             scheduleTimeUuid = oldTimeRows[index].uuid,
                             oldTimeIso = oldTime.toScheduleTimeIso(),
@@ -316,12 +320,26 @@ class MedicationGroupRepository @Inject constructor(
                             scheduleTime.copy(sortOrder = index)
                         }
                 )
-                entryIdsBySlot.forEachIndexed { index, entryUuids ->
-                    if (entryUuids.isNotEmpty()) {
-                        logDao.updateScheduledForTimeForEntries(
-                            entryUuids = entryUuids,
-                            newTimeIso = normalizedNewTimes[index].toScheduleTimeIso(),
+                entriesBySlot.forEachIndexed { index, entries ->
+                    val newTime = normalizedNewTimes[index]
+                    // Each record keeps its medication day: with the day ending at 04:00,
+                    // 23:00 moved to 01:00 is that night, not the morning before. A slot's
+                    // records share their old time, so they move by the same days, in bulk.
+                    entries.groupBy { entry ->
+                        val scheduledFor = LocalDateTime.parse(entry.scheduledForIso)
+                        ChronoUnit.DAYS.between(
+                            scheduledFor.toLocalDate(),
+                            boundary.dateTimeOn(medicationDay(scheduledFor, boundary), newTime).toLocalDate(),
                         )
+                    }.forEach { (dayShift, shiftedEntries) ->
+                        // ponytail: chunked under SQLite's oldest 999-variable limit.
+                        shiftedEntries.map(ScheduledEntryEntity::uuid).chunked(900).forEach { uuids ->
+                            logDao.moveScheduledForEntries(
+                                entryUuids = uuids,
+                                dayShift = "$dayShift days",
+                                newTimeIso = newTime.toScheduleTimeIso(),
+                            )
+                        }
                     }
                 }
             }
@@ -376,6 +394,25 @@ class MedicationGroupRepository @Inject constructor(
                     isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
                     else -> includePastScheduledSlots
                 }
+                // A record logged after the editor loaded locks the ending, and the
+                // draft's start date may have moved with its toggle: refuse the save
+                // rather than keep the ending but take the moved date.
+                if (
+                    hasExistingRecords &&
+                    schedule.dayBoundary.endsAtFourAm != existingGroupRow?.dayEndsAtFourAm
+                ) {
+                    throw LockedMedicationGroupDayBoundaryException(groupUuid)
+                }
+                // Once a plan has records or is archived, its day ending stays.
+                // A new or recreated plan (no row yet) takes the input.
+                val resolvedDayEndsAtFourAm = if (
+                    existingGroupRow != null &&
+                    (hasExistingRecords || existingGroupRow.archivedAtEpochMillis != null)
+                ) {
+                    existingGroupRow.dayEndsAtFourAm
+                } else {
+                    schedule.dayBoundary.endsAtFourAm
+                }
                 val didBackfillModeChange = existingGroupRow != null &&
                         !isExistingRecreatedGroup &&
                         !hasExistingRecords &&
@@ -383,14 +420,18 @@ class MedicationGroupRepository @Inject constructor(
                 val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
                         isExistingRecordlessRecreatedGroup &&
                         existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+                val scheduleStartLocal = schedule.startAt ?: schedule.since.atStartOfDay()
                 val recordlessRecreatedEffectiveFromLocal =
-                    if (schedule.since.isAfter(nowLocal.toLocalDate())) {
-                        schedule.since.atStartOfDay().toString()
-                    } else {
-                        nowLocal.toString()
-                    }
+                    maxOf(nowLocal, scheduleStartLocal).toString()
                 val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                     ?: replacesGroupUuid?.toString()
+                // A recreated plan never starts before its predecessor's archive cutoff,
+                // whatever start or day ending it's saved with, so no slot has two plans.
+                val predecessorCutoffLocal = resolvedRecreatedFromGroupUuid
+                    ?.let { predecessorUuid -> dao.getGroup(predecessorUuid)?.group }
+                    // The local cutoff its ownership window uses, whatever the zone now.
+                    ?.archivedAtLocalIso
+                    ?.let(LocalDateTime::parse)
                 val existingScheduleTimesByUuid = existingGroup
                     ?.scheduleTimes
                     ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
@@ -415,6 +456,7 @@ class MedicationGroupRepository @Inject constructor(
                         includePastScheduledSlots = resolvedIncludePastScheduledSlots,
                         replacedByGroupUuid = existingGroupRow?.replacedByGroupUuid,
                         recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
+                        dayEndsAtFourAm = resolvedDayEndsAtFourAm,
                     ),
                     items = medications.mapIndexed { index, medication ->
                         val preparationType = medication.medicineUuid
@@ -455,23 +497,22 @@ class MedicationGroupRepository @Inject constructor(
                                     recordlessRecreatedEffectiveFromLocal
 
                                 existingScheduleTime != null && existingTime == time ->
-                                    existingScheduleTime.effectiveFromLocalIso
+                                    existingScheduleTime.keptEffectiveFrom(nowLocal, schedule.startAt)
 
-                                isExistingRecordlessRecreatedGroup &&
-                                        schedule.since.isAfter(nowLocal.toLocalDate()) ->
-                                    schedule.since.atStartOfDay().toString()
+                                isExistingRecordlessRecreatedGroup ->
+                                    maxOf(nowLocal, scheduleStartLocal).toString()
 
                                 else -> nowLocal.toString()
                             }
 
                             resolvedIncludePastScheduledSlots ->
-                                schedule.since.atStartOfDay().toString()
+                                scheduleStartLocal.toString()
 
                             didBackfillModeChange ->
-                                nowLocal.toString()
+                                maxOf(nowLocal, schedule.startAt ?: nowLocal).toString()
 
                             existingScheduleTime != null && existingTime == time ->
-                                existingScheduleTime.effectiveFromLocalIso
+                                existingScheduleTime.keptEffectiveFrom(nowLocal, schedule.startAt)
 
                             // effectiveFrom marks when this time was added (now),
                             // not the start date. `since` already gates generation
@@ -479,8 +520,10 @@ class MedicationGroupRepository @Inject constructor(
                             // more here — and pinning effectiveFrom to `since`
                             // would orphan slots if the start is later edited
                             // earlier (the preserved future effectiveFrom would
-                            // filter the now-valid slots).
-                            else -> nowLocal.toString()
+                            // filter the now-valid slots). An explicit start later
+                            // than now still holds, and keptEffectiveFrom lowers it
+                            // again if the start later moves earlier.
+                            else -> maxOf(nowLocal, schedule.startAt ?: nowLocal).toString()
                         }
                         MedicationGroupScheduleTimeEntity(
                             uuid = scheduleTimeUuid.toString(),
@@ -488,7 +531,9 @@ class MedicationGroupRepository @Inject constructor(
                             sortOrder = index,
                             hourOfDay = time.hour,
                             minuteOfHour = time.minute,
-                            effectiveFromLocalIso = effectiveFromLocal,
+                            effectiveFromLocalIso = predecessorCutoffLocal
+                                ?.let { maxOf(LocalDateTime.parse(effectiveFromLocal), it).toString() }
+                                ?: effectiveFromLocal,
                         )
                     },
                     weeklyDays = schedule.weeklyDaysOfWeek
@@ -592,6 +637,12 @@ class LockedMedicationGroupSlotRepointException(
     "Medication group $uuid has logs and cannot change a slot medicine in place."
 )
 
+class LockedMedicationGroupDayBoundaryException(
+    uuid: UUID,
+) : IllegalStateException(
+    "Medication group $uuid has logs and cannot change its day ending."
+)
+
 internal fun validateScheduleTimeMigration(
     oldTimes: List<LocalTime>,
     newTimes: List<LocalTime>,
@@ -633,7 +684,24 @@ data class MedicationGroupScheduleInput(
     val timeSlots: List<MedicationGroupScheduleTimeInput> = times.map { time ->
         MedicationGroupScheduleTimeInput(time = time)
     },
+    /** The first moment a slot can fall on; null starts with the whole of [since]. */
+    val startAt: LocalDateTime? = null,
+    /** Ignored once the plan has records or is archived; it then keeps its stored day ending. */
+    val dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
 )
+
+/**
+ * Keeps an unchanged time's effectiveFrom, clamped to [startAt]. One still ahead
+ * of now was pinned by an earlier startAt, so it drops back to now before the
+ * clamp and an earlier start can reopen its slots.
+ */
+private fun MedicationGroupScheduleTimeEntity.keptEffectiveFrom(
+    nowLocal: LocalDateTime,
+    startAt: LocalDateTime?,
+): String {
+    val kept = minOf(LocalDateTime.parse(effectiveFromLocalIso), nowLocal)
+    return (startAt?.let { maxOf(kept, it) } ?: kept).toString()
+}
 
 data class MedicationGroupScheduleTimeInput(
     val uuid: UUID? = null,

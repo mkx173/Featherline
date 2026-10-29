@@ -123,6 +123,9 @@
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">今日</string>
     <string name="plan_group_upcoming_tomorrow">聽日</string>
+    <string name="plan_group_upcoming_tonight">今晚</string>
+    <string name="plan_group_upcoming_tomorrow_night">聽晚</string>
+    <string name="plan_group_upcoming_night_of">%1$s 晚上</string>
     <string name="plan_group_notifications_enabled">提醒已開啟</string>
     <string name="plan_group_notifications_disabled">提醒已關閉</string>
     <string name="plan_regimen_title">用藥方案</string>
@@ -376,10 +379,14 @@
     <string name="decrease_schedule_interval">減少計劃間隔</string>
     <string name="increase_schedule_interval">增加計劃間隔</string>
     <string name="group_schedule_since">開始日期</string>
+    <string name="group_start_title">開始</string>
+    <string name="group_schedule_start_time">開始時間</string>
+    <string name="group_schedule_start_now">而家</string>
+    <string name="group_schedule_start_reset_to_now">重設</string>
     <string name="group_schedule_recreated_start_date_past_note">重新建立嘅群組唔可以將開始日期設喺過去</string>
-    <string name="group_past_schedule_do_not_show">不顯示</string>
-    <string name="group_past_schedule_show">顯示</string>
-    <string name="group_past_schedule_show_and_generate_records">同時按計劃生成記錄</string>
+    <string name="group_past_schedule_mark_completed">標記做已完成</string>
+    <string name="group_past_schedule_mark_missed">標記做已錯過</string>
+    <string name="group_past_schedule_hide">隱藏</string>
     <string name="group_past_schedule_recreated_locked_note">重新建立嘅群組唔會顯示過去嘅計劃</string>
     <string name="group_schedule_backfill_records_empty">未新增記錄</string>
     <string name="group_schedule_backfill_records_failure">群組已儲存，但未能新增記錄</string>
@@ -867,6 +874,7 @@
         <item quantity="other">已新增 %1$d 條記錄</item>
     </plurals>
     <string name="reminder_notification_nothing_to_add">已經記錄咗喇</string>
+    <string name="reminder_notification_no_longer_scheduled">呢次劑量已經唔喺計劃入面</string>
     <string name="widget_quick_log_failed">未能快速記錄劑量</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 群組</item>
@@ -1038,11 +1046,6 @@
 
     <string name="settings_medication_day_ends_at_four_am">修仙模式</string>
     <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前嘅用藥計入前一日</string>
-    <string name="settings_medication_day_enable_title">開啟修仙模式？</string>
-    <string name="settings_medication_day_disable_title">關閉修仙模式？</string>
-    <string name="settings_medication_day_moves_doses_body">呢個操作會將 %2$s 入面 %1$s 前嘅用藥移動一日，之前嘅用藥可能顯示為已錯過</string>
-    <string name="settings_medication_day_enable_confirm">開啟</string>
-    <string name="settings_medication_day_disable_confirm">關閉</string>
     <string name="medication_day_past_midnight">凌晨</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->

@@ -37,6 +37,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -971,6 +972,39 @@ class MedicationReminderActionHandlerTest {
         coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
         coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+    }
+
+    @Test
+    fun actions_ignore_a_dose_the_plan_no_longer_has() = runTest {
+        // A Monday 09:00 reminder still on screen after the plan moved to Tuesdays.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val dailyGroup = medicationGroup(
+            uuid = UUID.fromString("5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = dailyGroup.toReminderSlot(scheduledAt)
+        val group = dailyGroup.copy(
+            schedule = dailyGroup.schedule.copy(
+                type = MedicationGroupScheduleType.WEEKLY,
+                weeklyDaysOfWeek = setOf(DayOfWeek.TUESDAY),
+            ),
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } returns Unit
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.remindLater(slots = listOf(slot), notificationTag = "tag", now = scheduledAt.plusMinutes(1))
+        actionHandler.showSnoozedReminder(slots = listOf(slot), notificationTag = "tag", now = scheduledAt.plusMinutes(15))
+        actionHandler.logNow(slots = listOf(slot), logTargets = null, notificationTag = "tag", now = scheduledAt.plusMinutes(20))
+
+        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
+        verify { notificationManager.showDoseReminderNoLongerScheduledToast() }
     }
 
     private fun medicationGroup(

@@ -10,8 +10,6 @@ import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.EntryPointAccessors
 import java.time.LocalDateTime
 
-private const val TAG = "WidgetDailyRefreshWorker"
-
 class WidgetDailyRefreshWorker(
     private val appContext: Context,
     workerParams: WorkerParameters,
@@ -20,19 +18,12 @@ class WidgetDailyRefreshWorker(
     override suspend fun doWork(): Result {
         val entryPoint =
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
-        val boundary = runCatching {
-            entryPoint.settingsRepository().getCurrentSettings().medicationDayBoundary
-        }.onFailure { throwable ->
-            if (throwable is kotlinx.coroutines.CancellationException) throw throwable
-            entryPoint.diagnosticsLogger().warning(TAG, "widget_day_boundary_read_failed", throwable)
-        }.getOrDefault(MedicationDayBoundary.Midnight)
         handleWidgetDailyRefresh(
             now = LocalDateTime.now(),
             snapshot = entryPoint.widgetSnapshotStore().readSnapshot(),
             homeSnapshotRepository = entryPoint.homeSnapshotRepository(),
             widgetSnapshotRepository = entryPoint.widgetSnapshotRepository(),
             e2EstimateRepository = entryPoint.e2EstimateRepository(),
-            boundary = boundary,
             rerender = { updateAllHrtWidgets(appContext) },
         )
         return Result.success()
@@ -48,7 +39,8 @@ class WidgetDailyRefreshWorker(
  * Otherwise it only re-renders the widget. Either way it then warms Home's
  * estimate.
  *
- * The rows' anchor is the medication day at [boundary], not the calendar day.
+ * The rows are stale once the calendar day or the medication day at 04:00
+ * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are.
  */
 internal suspend fun handleWidgetDailyRefresh(
     now: LocalDateTime,
@@ -56,10 +48,9 @@ internal suspend fun handleWidgetDailyRefresh(
     homeSnapshotRepository: HomeSnapshotRepository,
     widgetSnapshotRepository: WidgetSnapshotRepository,
     e2EstimateRepository: E2EstimateRepository,
-    boundary: MedicationDayBoundary,
     rerender: suspend () -> Unit,
 ) {
-    val anchorDateStale = snapshot?.isAnchoredBefore(now, boundary) == true
+    val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
     val doseStatusStale = snapshot?.doseRows?.any { row ->
         when (row.status) {
             WidgetDoseStatus.UPCOMING ->
@@ -92,7 +83,6 @@ internal suspend fun handleWidgetDailyRefresh(
     }
 }
 
-internal fun WidgetSnapshotRecord.isAnchoredBefore(
-    now: LocalDateTime,
-    boundary: MedicationDayBoundary,
-): Boolean = anchorDateEpochDay < medicationDay(now, boundary).toEpochDay()
+internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime): Boolean =
+    anchorDateEpochDay < now.toLocalDate().toEpochDay() ||
+        fourAmAnchorDateEpochDay < medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay()

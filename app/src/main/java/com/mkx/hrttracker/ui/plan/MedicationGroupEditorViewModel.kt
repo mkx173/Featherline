@@ -49,8 +49,10 @@ import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.ui.medication.withCountText
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import com.mkx.hrttracker.util.dateTimeOn
 import com.mkx.hrttracker.util.timeOfDayOrder
 import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayStart
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +68,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
@@ -129,26 +132,31 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private var latestGroups: List<MedicationGroup> = emptyList()
     private val _uiState = MutableStateFlow(
         run {
-            val boundary = settingsRepository.settingsState.value.medicationDayBoundary
-            val defaultDay = medicationDay(defaultScheduleDateTime, boundary)
+            // A new plan's day ends at midnight until the user turns night owl on.
+            val defaultDay = defaultScheduleDateTime.toLocalDate()
             val baseState = (
                 cachedEditingGroup?.toEditorState(
                     remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
                     relatedEntryCount = 0,
                     plannedEntryCount = 0,
-                    boundary = boundary,
                 ) ?: MedicationGroupEditorUiState(
                     editingGroupId = editingGroupId,
                     isLoadingGroupForEditing = editingGroupUuid != null,
                     sinceDate = defaultDay,
-                    medicationDayBoundary = boundary,
+                    // Starts now unless the default dose time already rolled the
+                    // start date over to the next day.
+                    scheduleStart = if (defaultDay == appTimeSource.currentMinute.value.toLocalDate()) {
+                        ScheduleStart.Now
+                    } else {
+                        ScheduleStart.WholeDay
+                    },
                     weeklyDaysOfWeek = setOf(defaultDay.dayOfWeek),
                     weeklyTime = defaultScheduleDateTime.toLocalTime(),
                     dailyTimes = listOf(
                         MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
                     )
                 )
-            ).copy(medicationDayBoundary = boundary)
+            )
             // Only restore pendingReplacementGroupId from SavedStateHandle when one
             // was actually persisted. Don't clobber recreatedFromGroupId — that's a
             // DB-derived lineage tag set by toEditorState above and is unrelated to
@@ -278,21 +286,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 medicationLogRepository.observeEntries(),
-                _uiState.map { it.editingGroupId }.distinctUntilChanged(),
+                // The saved plan's ending, as the repository archives with, not an
+                // unsaved toggle.
+                _uiState
+                    .map { it.editingGroupId to it.originalMedicationDayBoundary }
+                    .distinctUntilChanged(),
                 appTimeSource.currentSnapshot,
-                settingsRepository.settingsState,
-            ) { entriesOrNull, currentEditingGroupId, timeSnapshot, settings ->
+            ) { entriesOrNull, (currentEditingGroupId, boundary), timeSnapshot ->
                 Triple(
                     entryCountsForGroup(
                         entries = entriesOrNull.orEmpty(),
                         groupId = currentEditingGroupId,
                         currentMinute = timeSnapshot.minute,
-                        boundary = settings.medicationDayBoundary,
+                        boundary = boundary,
                         zoneId = timeSnapshot.zone,
                         areEntriesLoaded = entriesOrNull != null,
                     ),
                     timeSnapshot,
-                    settings.medicationDayBoundary,
+                    boundary,
                 )
             }
                 .collect { (counts, timeSnapshot, boundary) ->
@@ -307,7 +318,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             today = medicationDay(timeSnapshot.minute, boundary),
                         )
                         val nextState = it.copy(
-                            medicationDayBoundary = boundary,
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
                             currentOrFuturePlannedSlotCount =
@@ -326,9 +336,26 @@ class MedicationGroupEditorViewModel @Inject constructor(
                                 it.scheduleTimeOrderError
                             },
                         )
+                        // A record that arrived after the toggle locks the plan's saved
+                        // ending back in, as saveGroup would keep it anyway. Records a
+                        // save writes itself belong to the ending it is saving.
+                        val lockedNextState = if (
+                            nextState.isEditing &&
+                            !nextState.isSaving &&
+                            !nextState.isSaved &&
+                            counts.relatedEntryCount > 0 &&
+                            nextState.medicationDayBoundary != nextState.originalMedicationDayBoundary
+                        ) {
+                            nextState.withDayBoundary(
+                                nextState.originalMedicationDayBoundary,
+                                timeSnapshot.minute,
+                            )
+                        } else {
+                            nextState
+                        }
                         resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
                             previousState = it,
-                            nextState = nextState,
+                            nextState = lockedNextState.withStartsNowOn(timeSnapshot.minute),
                         )
                     }
                 }
@@ -423,10 +450,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            val today = medicationDay(
-                currentMinute.value,
-                settingsRepository.settingsState.value.medicationDayBoundary,
-            )
+            val today = medicationDay(currentMinute.value, it.medicationDayBoundary)
             editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
@@ -435,6 +459,39 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 // archived plan it was split from.
                 minimumRecreatedStartDate = maxOf(today, it.originalSinceDate ?: today),
             )
+        }
+    }
+
+    fun updateDayEndsAtFourAm(enabled: Boolean) {
+        _uiState.update {
+            if (!it.canEditDayBoundary) {
+                it
+            } else {
+                it.withDayBoundary(MedicationDayBoundary.fromSwitch(enabled), currentMinute.value)
+            }
+        }
+    }
+
+    fun updateStartTime(time: LocalTime) {
+        _uiState.update {
+            if (!it.canEditScheduleStart) {
+                it
+            } else {
+                it.copy(scheduleStart = ScheduleStart.At(time))
+            }
+        }
+    }
+
+    fun resetStartToNow() {
+        _uiState.update {
+            if (!it.canEditScheduleStart || it.recreatedFromGroupId != null) {
+                it
+            } else {
+                editorStateStartingNow(
+                    uiState = it,
+                    today = medicationDay(currentMinute.value, it.medicationDayBoundary),
+                )
+            }
         }
     }
 
@@ -519,7 +576,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 time = normalizedTime,
             )
             val updatedState = currentState.copy(
-                dailyTimes = sortDailyTimesByOriginalTime(updatedDailyTimesInCurrentOrder)
+                // Clock order on purpose, whatever the plan's ending: lockedScheduleTimesChanged
+                // compares these in order with originalDailyTimes.
+                dailyTimes = sortDailyTimesByOriginalTime(
+                    updatedDailyTimesInCurrentOrder,
+                    MedicationDayBoundary.Midnight,
+                )
             )
             updatedState.copy(scheduleTimeOrderError = false)
         }
@@ -963,7 +1025,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         onCreatePastScheduledSlotRecordsCompleted:
         ((CreatePastScheduledSlotRecordsSaveState) -> Unit)? = null,
     ) {
-        val currentState = _uiState.value
+        // A fresh clock read: the minute tick that moves "Now" past the day's end may not
+        // have run yet, so move it here, or the save pairs yesterday's date with today's time.
+        val recordGenerationNow = currentMinute.value
+        val currentState = _uiState.updateAndGet { it.withStartsNowOn(recordGenerationNow) }
         if (
             currentState.isSaving ||
             currentState.isDeleting ||
@@ -990,7 +1055,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             uiState = currentState,
             resolvedDailyTimes = resolvedDailyTimes,
         )
-        val recordGenerationNow = currentMinute.value
         val recordGenerationCutoff = minOf(
             recordGenerationNow,
             currentState.createPastScheduledSlotRecordsEnabledAt ?: recordGenerationNow,
@@ -1039,6 +1103,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
                             times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                             timeSlots = scheduleTimeInputs,
+                            startAt = currentState.scheduleStartAt(recordGenerationNow),
+                            dayBoundary = currentState.medicationDayBoundary,
                         )
 
                         MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
@@ -1048,6 +1114,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             weeklyDaysOfWeek = emptySet(),
                             times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                             timeSlots = scheduleTimeInputs,
+                            startAt = currentState.scheduleStartAt(recordGenerationNow),
+                            dayBoundary = currentState.medicationDayBoundary,
                         )
                     },
                     medications = currentState.medications.map { medication ->
@@ -1074,6 +1142,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         it.groupName
                     },
                     editingGroupId = savedGroupUuid?.toString() ?: it.editingGroupId,
+                    originalMedicationDayBoundary = if (isSaved) {
+                        currentState.medicationDayBoundary
+                    } else {
+                        it.originalMedicationDayBoundary
+                    },
                     pendingReplacementGroupId = if (isSaved) {
                         null
                     } else {
@@ -1218,10 +1291,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             resolvedGroupName = resolvedGroupName,
             defaultGroupName = source.defaultGroupName,
             colorKey = colorKey,
-            scheduleStartDate = medicationDay(
-                currentMinute.value,
-                settingsRepository.settingsState.value.medicationDayBoundary,
-            ),
+            scheduleStartDate = medicationDay(currentMinute.value, source.medicationDayBoundary),
         )
     }
 
@@ -1249,7 +1319,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
                 relatedEntryCount = 0,
                 plannedEntryCount = 0,
-                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             )
             _uiState.update { current ->
                 buildDuplicatedDraftState(sourceState).copy(
@@ -1292,7 +1361,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = archiveNow,
                 )
             }.fold(
@@ -1353,10 +1421,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         // never own the same day. An end-of-day archive of today pushes the new
         // start to tomorrow; "now" (null) or an earlier-date archive keeps it at
         // today.
-        val recreateToday = medicationDay(
-            recreateNow,
-            settingsRepository.settingsState.value.medicationDayBoundary,
-        )
+        val recreateToday = medicationDay(recreateNow, currentState.originalMedicationDayBoundary)
         val recreateScheduleStartDate =
             maxOf(recreateToday, archivedThroughDate?.plusDays(1) ?: recreateToday)
 
@@ -1384,7 +1449,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 remindersEnabled = currentState.remindersEnabled,
                 relatedEntryCount = currentState.relatedEntryCount,
                 plannedEntryCount = currentState.plannedEntryCount,
-                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             )
             val resolvedGroupName = resolveMedicationGroupName(
                 groupName = persistedState.groupName,
@@ -1401,7 +1465,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     now = recreateNowInstant,
                 )
             }.fold(
@@ -1448,7 +1511,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         remindersEnabled = remindersEnabled,
                         relatedEntryCount = 0,
                         plannedEntryCount = 0,
-                        boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                     ).copy(
                         isRecreatingAfterArchive = false,
                         archiveAndRecreateMedicationGroupResult =
@@ -1495,6 +1557,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 weeklyDaysOfWeek = draftState.weeklyDaysOfWeek,
                 times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                 timeSlots = scheduleTimeInputs,
+                startAt = draftState.scheduleStartAt(currentMinute.value),
+                dayBoundary = draftState.medicationDayBoundary,
             )
 
             MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
@@ -1504,6 +1568,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 weeklyDaysOfWeek = emptySet(),
                 times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
                 timeSlots = scheduleTimeInputs,
+                startAt = draftState.scheduleStartAt(currentMinute.value),
+                dayBoundary = draftState.medicationDayBoundary,
             )
         }
         return runCatching {
@@ -1659,7 +1725,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     plannedEntryCount = currentState.plannedEntryCount,
                     currentOrFuturePlannedSlotCount =
                         currentState.currentOrFuturePlannedSlotCount,
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                 ).copy(
                     areEntriesLoaded = currentState.areEntriesLoaded,
                     latestRecordedDoseDate = currentState.latestRecordedDoseDate,
@@ -1667,10 +1732,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         scheduleSince = group.schedule.since,
                         latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                         areEntriesLoaded = currentState.areEntriesLoaded,
-                        today = medicationDay(
-                            snapshot.minute,
-                            settingsRepository.settingsState.value.medicationDayBoundary,
-                        ),
+                        today = medicationDay(snapshot.minute, group.schedule.dayBoundary),
                     ),
                 )
             }
@@ -1684,14 +1746,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         return runCatching {
             val savedGroup = medicationGroupRepository.getGroup(groupUuid)
                 ?: throw NoSuchElementException("Medication group $groupUuid was not found.")
-            val boundary = settingsRepository.settingsState.value.medicationDayBoundary
             val entriesToSave = buildPlanBatchAddEntries(
                 group = savedGroup,
                 existingEntries = medicationLogRepository.getEntries(),
                 startDate = savedGroup.schedule.since,
-                endDate = medicationDay(now, boundary),
+                endDate = medicationDay(now, savedGroup.schedule.dayBoundary),
                 now = now,
-                boundary = boundary,
                 zoneId = ZoneId.systemDefault(),
             )
             medicationLogRepository.saveBackfillEntries(entriesToSave)
@@ -1785,7 +1845,6 @@ private fun MedicationGroup.toEditorState(
     relatedEntryCount: Int,
     plannedEntryCount: Int,
     currentOrFuturePlannedSlotCount: Int = 0,
-    boundary: MedicationDayBoundary,
 ): MedicationGroupEditorUiState {
     val normalizedScheduleTimeSlots = schedule.timeSlots
         .ifEmpty {
@@ -1799,6 +1858,16 @@ private fun MedicationGroup.toEditorState(
         }
         .sortedBy { slot -> slot.time }
     val normalizedScheduleTimes = normalizedScheduleTimeSlots.map { slot -> slot.time }
+    // Not stored on its own: the earliest effectiveFrom is the start. It's kept as
+    // is rather than split into a time of the start date, so turning night owl on
+    // or off can't move it to another night. A recreated plan's start is its
+    // predecessor's cutoff, kept even when it falls on the day start.
+    val loadedStartAt = schedule.timeSlots
+        .minOfOrNull(MedicationGroupScheduleTime::effectiveFrom)
+        ?.takeIf {
+            recreatedFromGroupUuid != null ||
+                    it.isAfter(medicationDayStart(schedule.since, schedule.dayBoundary))
+        }
     val editorMedications = medications.map { medication ->
         medication.toItemUiState()
     }
@@ -1809,7 +1878,15 @@ private fun MedicationGroup.toEditorState(
         hasResolvedInitialGroupName = true,
         scheduleType = schedule.type,
         sinceDate = schedule.since,
-        medicationDayBoundary = boundary,
+        scheduleStart = loadedStartAt?.let { startAt ->
+            ScheduleStart.Loaded(
+                at = startAt,
+                // A recreated plan's start at its cutoff is its date's day start, so on its day.
+                isMoment = medicationDay(startAt, schedule.dayBoundary) == schedule.since,
+            )
+        } ?: ScheduleStart.WholeDay,
+        medicationDayBoundary = schedule.dayBoundary,
+        originalMedicationDayBoundary = schedule.dayBoundary,
         weeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
             parseScheduleInterval(schedule.interval.toString()).toString()
         } else {
@@ -1897,6 +1974,7 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
+        scheduleStart = ScheduleStart.WholeDay,
     )
 }
 
@@ -1918,6 +1996,7 @@ private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
+        scheduleStart = ScheduleStart.Now,
     )
 }
 
@@ -2037,7 +2116,6 @@ internal fun editorStateWithUpdatedSinceDate(
     if (
         uiState.areScheduleShapeFieldsLocked ||
         uiState.isScheduleStartDateLocked ||
-        uiState.sinceDate == date ||
         (
                 uiState.recreatedFromGroupId != null &&
                         minimumRecreatedStartDate != null &&
@@ -2047,10 +2125,97 @@ internal fun editorStateWithUpdatedSinceDate(
         return uiState
     }
 
-    return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-        editorStateWithResetWeeklyDaysOfWeek(uiState.copy(sinceDate = date))
+    // A picked date starts with the whole day: 00:00, or 04:00 when the day ends then.
+    // Re-picking the same date does too, so "Now" can widen to today's earlier doses.
+    val withDate = uiState.copy(
+        sinceDate = date,
+        scheduleStart = ScheduleStart.WholeDay,
+    )
+    return if (
+        uiState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        uiState.sinceDate != date
+    ) {
+        editorStateWithResetWeeklyDaysOfWeek(withDate)
     } else {
-        uiState.copy(sinceDate = date)
+        withDate
+    }
+}
+
+/**
+ * The draft starting now, on [today]. Unlike picking a date, it keeps weekdays the user
+ * chose, since only the start changed; untouched ones still follow the start date.
+ */
+internal fun editorStateStartingNow(
+    uiState: MedicationGroupEditorUiState,
+    today: LocalDate,
+): MedicationGroupEditorUiState {
+    val startingNow = uiState.copy(
+        sinceDate = today,
+        scheduleStart = ScheduleStart.Now,
+    )
+    return if (
+        startingNow.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        !startingNow.hasUserCustomizedWeeklyDays
+    ) {
+        editorStateWithResetWeeklyDaysOfWeek(startingNow)
+    } else {
+        startingNow
+    }
+}
+
+/**
+ * A draft starting now, on [now]'s medication day: one left open past the day's end
+ * (midnight, or 04:00 for night owl) starts today.
+ */
+internal fun MedicationGroupEditorUiState.withStartsNowOn(now: LocalDateTime): MedicationGroupEditorUiState {
+    if (!startsNow) return this
+    val today = medicationDay(now, medicationDayBoundary)
+    return if (sinceDate == today) this else editorStateStartingNow(this, today)
+}
+
+/**
+ * The draft with its day ending turned to [boundary]. A start that is a moment (starting
+ * now, a picked start time, or a saved start [ScheduleStart.Loaded.isMoment] marks) keeps that
+ * moment, and its start date follows it; untouched weekdays follow the start date. Any
+ * other start keeps its date. Turning it back restores the draft.
+ */
+internal fun MedicationGroupEditorUiState.withDayBoundary(
+    boundary: MedicationDayBoundary,
+    now: LocalDateTime,
+): MedicationGroupEditorUiState {
+    if (boundary == medicationDayBoundary) return this
+    val withBoundary = copy(medicationDayBoundary = boundary)
+    when (val start = scheduleStart) {
+        ScheduleStart.Now -> return editorStateStartingNow(withBoundary, medicationDay(now, boundary))
+        ScheduleStart.WholeDay -> return withBoundary
+        is ScheduleStart.Loaded -> if (!start.isMoment) return withBoundary
+        is ScheduleStart.At -> Unit
+    }
+    val withSinceDate = withBoundary.copy(sinceDate = medicationDay(scheduleStartAt(now), boundary))
+    return if (
+        withSinceDate.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        !withSinceDate.hasUserCustomizedWeeklyDays
+    ) {
+        editorStateWithResetWeeklyDaysOfWeek(withSinceDate)
+    } else {
+        withSinceDate
+    }
+}
+
+/**
+ * The first moment a slot can fall on. A whole start date starts at its day
+ * boundary, 04:00 when the plan's day ends then.
+ */
+internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): LocalDateTime {
+    val dayStart = medicationDayStart(sinceDate, medicationDayBoundary)
+    return when (val start = scheduleStart) {
+        ScheduleStart.Now -> maxOf(now, dayStart)
+        ScheduleStart.WholeDay -> dayStart
+        // Nothing before the start date's day can fall anyway, so an earlier saved start,
+        // left behind when night owl moves the day's start to 04:00, is that day's start.
+        is ScheduleStart.Loaded -> maxOf(start.at, dayStart)
+        // Small-hours times belong to the night after the start date.
+        is ScheduleStart.At -> medicationDayBoundary.dateTimeOn(sinceDate, start.time)
     }
 }
 
@@ -2080,7 +2245,8 @@ internal fun appendDailyTime(
     return sortDailyTimesByOriginalTime(
         dailyTimes + MedicationGroupScheduleTimeUiState(
             time = time.withSecond(0).withNano(0)
-        )
+        ),
+        MedicationDayBoundary.Midnight,
     )
 }
 
@@ -2094,7 +2260,8 @@ internal fun dailyTimesWithUpdatedTime(
             dailyTimes = dailyTimes,
             localId = localId,
             time = time,
-        )
+        ),
+        MedicationDayBoundary.Midnight,
     )
 }
 
@@ -2115,8 +2282,9 @@ private fun dailyTimesWithUpdatedTimeInCurrentOrder(
 
 internal fun sortDailyTimesByOriginalTime(
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
-    // Display order only: the editor state and save path keep plain clock order.
-    boundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+    // The plan's ending for display order only. The editor state and save path keep
+    // plain clock order (Midnight), which the locked time-change check compares with.
+    boundary: MedicationDayBoundary,
 ): List<MedicationGroupScheduleTimeUiState> {
     return dailyTimes.sortedWith(
         compareBy<MedicationGroupScheduleTimeUiState> { dailyTime ->
@@ -2227,6 +2395,25 @@ enum class MedicationGroupEditorCompletionEvent {
     DELETE_OR_ARCHIVE_COMPLETED,
 }
 
+/** Where a draft's schedule starts on its start date. */
+sealed interface ScheduleStart {
+    /** At the moment the plan is saved. */
+    data object Now : ScheduleStart
+
+    /** With the whole start date, from its day boundary on. */
+    data object WholeDay : ScheduleStart
+
+    /** At a picked time; a small-hours time of a night-owl plan is the night after the start date. */
+    data class At(val time: LocalTime) : ScheduleStart
+
+    /**
+     * The saved plan's start, kept until the start is edited. [isMoment], decided at load:
+     * a start on its start date's own day (such as a recreated plan's cutoff) is a moment
+     * night owl keeps; one past its date's own day keeps its date instead.
+     */
+    data class Loaded(val at: LocalDateTime, val isMoment: Boolean) : ScheduleStart
+}
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
@@ -2236,7 +2423,9 @@ data class MedicationGroupEditorUiState(
     val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
-    val medicationDayBoundary: MedicationDayBoundary,
+    val scheduleStart: ScheduleStart = ScheduleStart.WholeDay,
+    // This plan's own day ending (night owl). New plans end at midnight.
+    val medicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
     val hasUserCustomizedWeeklyDays: Boolean = false,
@@ -2283,6 +2472,8 @@ data class MedicationGroupEditorUiState(
     val scheduleTimeOrderError: Boolean = false,
     val originalScheduleType: MedicationGroupScheduleType? = null,
     val originalSinceDate: LocalDate? = null,
+    // The saved plan's ending, which archiving uses. An unsaved toggle doesn't change it.
+    val originalMedicationDayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     val originalWeeklyIntervalWeeks: String = "1",
     val originalWeeklyDaysOfWeek: Set<DayOfWeek> = emptySet(),
     val originalWeeklyTime: LocalTime = LocalTime.of(9, 0),
@@ -2309,6 +2500,9 @@ data class MedicationGroupEditorUiState(
     val duplicateArchivedGroupSkippedCount: Int? = null,
     val scrollToTopRequestVersion: Int = 0,
 ) {
+    val startsNow: Boolean
+        get() = scheduleStart == ScheduleStart.Now
+
     val isEditing: Boolean
         get() = editingGroupId != null
 
@@ -2320,6 +2514,14 @@ data class MedicationGroupEditorUiState(
 
     val areMedicationsLocked: Boolean
         get() = isLocked || isArchived
+
+    val canEditScheduleStart: Boolean
+        get() = !areScheduleShapeFieldsLocked && !isScheduleStartDateLocked
+
+    // Locked once the plan has any record or is archived, as saveGroup enforces.
+    // Changing it then means archive and recreate.
+    val canEditDayBoundary: Boolean
+        get() = !isArchived && (!isEditing || (areEntriesLoaded && relatedEntryCount == 0))
 
     val canEditBackfillOption: Boolean
         get() = !isArchived &&

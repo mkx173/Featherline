@@ -26,6 +26,7 @@ import com.mkx.hrttracker.ui.components.MedicationCardLeadingIconContainerColorA
 import com.mkx.hrttracker.ui.components.MedicationCardLeadingIconTestTag
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +71,7 @@ class HistoryEntryCardIdentityTest {
                     entry = visibleEntry,
                     timeFormatter = DateTimeFormatter.ofPattern("HH:mm"),
                     dayDate = appliedAtAsLocalDateTime(visibleEntry).toLocalDate(),
+                    dayBoundary = MedicationDayBoundary.Midnight,
                     groupColorKey = visibleColorKey,
                     isFromArchivedGroup = false,
                     isSelected = false,

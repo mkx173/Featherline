@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.displayZoneOf
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -30,7 +29,6 @@ internal fun slotRecords(
     slot: MedicationGroupSlotKey,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): List<MedicationLogEntry> {
     return entries.filter { entry ->
         isEntryFulfillingPlanSlot(
@@ -38,7 +36,6 @@ internal fun slotRecords(
             slot = slot,
             entry = entry,
             zoneId = zoneId,
-            boundary = boundary,
         )
     }
 }
@@ -48,7 +45,6 @@ internal fun isEntryFulfillingPlanSlot(
     slot: MedicationGroupSlotKey,
     entry: MedicationLogEntry,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     return isEntryForPlanSlot(
         group = group,
@@ -58,7 +54,6 @@ internal fun isEntryFulfillingPlanSlot(
         group = group,
         entry = entry,
         zoneId = zoneId,
-        boundary = boundary,
     )
 }
 
@@ -83,7 +78,6 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
     group: MedicationGroup,
     entry: MedicationLogEntry,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     val scheduledFor = entry.scheduledFor ?: return false
     val appliedAtZoneId = displayZoneOf(entry.appliedAtTimeZoneId, zoneId)
@@ -94,12 +88,10 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
         previousScheduledFor = group.previousScheduledForBefore(
             scheduledFor,
             zoneId = appliedAtZoneId,
-            boundary = boundary,
         ),
         nextScheduledFor = group.nextScheduledForAfter(
             scheduledFor,
             zoneId = appliedAtZoneId,
-            boundary = boundary,
         )
     )
 }
@@ -110,7 +102,6 @@ internal fun isSlotFulfilled(
     time: LocalTime,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     return isSlotFulfilled(
         group = group,
@@ -122,7 +113,6 @@ internal fun isSlotFulfilled(
         ),
         entries = entries,
         zoneId = zoneId,
-        boundary = boundary,
     )
 }
 
@@ -131,13 +121,12 @@ internal fun isSlotFulfilled(
     slot: MedicationGroupSlotKey,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     if (group.medications.isEmpty()) {
         return false
     }
 
-    val slotLogs = slotRecords(group, slot, entries, zoneId, boundary)
+    val slotLogs = slotRecords(group, slot, entries, zoneId)
     if (slotLogs.isEmpty()) {
         return false
     }
@@ -162,7 +151,6 @@ internal fun hasMatchingSlotRecord(
     time: LocalTime,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     return hasMatchingSlotRecord(
         group = group,
@@ -174,7 +162,6 @@ internal fun hasMatchingSlotRecord(
         ),
         entries = entries,
         zoneId = zoneId,
-        boundary = boundary,
     )
 }
 
@@ -183,13 +170,12 @@ internal fun hasMatchingSlotRecord(
     slot: MedicationGroupSlotKey,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     if (group.medications.isEmpty()) {
         return false
     }
 
-    val slotLogs = slotRecords(group, slot, entries, zoneId, boundary)
+    val slotLogs = slotRecords(group, slot, entries, zoneId)
     if (slotLogs.isEmpty()) {
         return false
     }
@@ -210,7 +196,6 @@ internal fun isSlotFulfilledForMedication(
     medication: MedicationGroupMedication,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
-    boundary: MedicationDayBoundary,
 ): Boolean {
     val signature = MedicationSignature.fromGroupMedication(medication)
     val loggedCount = entries
@@ -222,7 +207,6 @@ internal fun isSlotFulfilledForMedication(
                 slot = slot,
                 entry = entry,
                 zoneId = zoneId,
-                boundary = boundary,
             )
         }
         .sumOf { entry -> entry.count }

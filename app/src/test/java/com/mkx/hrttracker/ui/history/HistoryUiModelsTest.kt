@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.history
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import androidx.compose.ui.unit.dp
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
@@ -32,6 +31,7 @@ import java.util.Locale
 import java.util.UUID
 
 class HistoryUiModelsTest {
+    private val afterEveryDose = LocalDateTime.of(2027, 1, 1, 0, 0)
     // Shared so the (medicineUuid, applicationType, doseInstruction) signature
     // matches between scheduled group slots and the log entries used to
     // fulfill them. A random per-call UUID would mean no entry ever matches
@@ -233,7 +233,8 @@ class HistoryUiModelsTest {
             entries = entries,
             displayedMonth = YearMonth.of(2026, 4),
             selectedDate = LocalDate.of(2026, 4, 11),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(1, visibleEntries.size)
         assertEquals(
@@ -253,7 +254,8 @@ class HistoryUiModelsTest {
             entries = entries,
             displayedMonth = YearMonth.of(2026, 4),
             selectedDate = LocalDate.of(2026, 3, 30),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(1, visibleEntries.size)
         assertEquals(
@@ -664,13 +666,14 @@ class HistoryUiModelsTest {
             displayedMonth = YearMonth.of(2026, 4),
             dayStates = mapOf(
                 LocalDate.of(2026, 4, 10) to stateFor(PlanCalendarDayStatus.FULFILLED),
-                LocalDate.of(2026, 4, 11) to stateFor(PlanCalendarDayStatus.PARTIAL),
-                LocalDate.of(2026, 4, 12) to stateFor(PlanCalendarDayStatus.MISSED),
+                LocalDate.of(2026, 4, 11) to stateFor(PlanCalendarDayStatus.PARTIAL, hasMissedDose = true),
+                LocalDate.of(2026, 4, 12) to stateFor(PlanCalendarDayStatus.MISSED, hasMissedDose = true),
                 LocalDate.of(2026, 4, 13) to stateFor(PlanCalendarDayStatus.OFFPLAN),
                 LocalDate.of(2026, 4, 25) to stateFor(PlanCalendarDayStatus.MISSED)
             ),
             today = LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(3, summary.logged)
         assertEquals(1, summary.onTrack)
@@ -700,7 +703,8 @@ class HistoryUiModelsTest {
                 )
             ),
             today = LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(2, summary.logged)
         assertEquals(1, summary.onTrack)
@@ -720,7 +724,8 @@ class HistoryUiModelsTest {
                 )
             ),
             today = LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(1, summary.onTrack)
         assertEquals(1, summary.offPlan)
@@ -774,7 +779,9 @@ class HistoryUiModelsTest {
             ),
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 10),
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -830,7 +837,9 @@ class HistoryUiModelsTest {
             ),
             startDate = LocalDate.of(2026, 4, 16),
             endDate = LocalDate.of(2026, 4, 17),
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -894,7 +903,9 @@ class HistoryUiModelsTest {
             ),
             startDate = appliedDate,
             endDate = scheduledDate,
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         // With planCalendarDate, scheduledFor wins for bucketing: entry lands on scheduledDate.
         assertEquals(
@@ -907,7 +918,8 @@ class HistoryUiModelsTest {
         assertEquals(
             HistoryCalendarDayUiState(
                 status = PlanCalendarDayStatus.MISSED,
-                hasOffPlanRecord = true
+                hasOffPlanRecord = true,
+                hasMissedDose = true,
             ),
             dayStates.getValue(scheduledDate)
         )
@@ -958,7 +970,9 @@ class HistoryUiModelsTest {
             ),
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 11),
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -1021,7 +1035,9 @@ class HistoryUiModelsTest {
             ),
             startDate = LocalDate.of(2026, 4, 10),
             endDate = LocalDate.of(2026, 4, 11),
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(archivedGroup).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -1083,7 +1099,9 @@ class HistoryUiModelsTest {
             ),
             startDate = LocalDate.of(2026, 4, 17),
             endDate = LocalDate.of(2026, 4, 17),
-            boundary = MedicationDayBoundary.Midnight)
+            now = afterEveryDose,
+            groupsByUuid = listOf(group).associateBy(MedicationGroup::uuid),
+        )
 
         assertEquals(
             HistoryCalendarDayUiState(
@@ -1117,7 +1135,8 @@ class HistoryUiModelsTest {
             displayedMonth = YearMonth.of(2026, 4),
             dayStates = emptyMap(),
             today = LocalDate.of(2026, 4, 20),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(2, summary.logged)
         assertEquals(0, summary.offPlan)
@@ -1131,7 +1150,8 @@ class HistoryUiModelsTest {
                 entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
                 entryAt(LocalDateTime.of(2026, 4, 10, 20, 0)),
             ),
-            boundary = MedicationDayBoundary.Midnight)
+            groupsByUuid = emptyMap(),
+        )
 
         assertEquals(
             listOf(LocalDate.of(2026, 4, 11), LocalDate.of(2026, 4, 10)),
@@ -1418,51 +1438,53 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarIndicatorStatus_uses_none_for_future_dates_without_records() {
-        val today = LocalDate.of(2026, 4, 20)
-
+    fun historyCalendarIndicatorStatus_drawsADayWithoutAMissedDoseAsAFutureDay() {
+        // No dose past due yet, on any date: nothing without a record.
         assertEquals(
             PlanCalendarDayStatus.NONE,
             historyCalendarIndicatorStatus(
-                date = today.plusDays(1),
-                today = today,
                 dayStatus = PlanCalendarDayStatus.MISSED,
+                hasMissedDose = false,
                 hasRecord = false
             )
         )
         assertEquals(
             PlanCalendarDayStatus.PARTIAL,
             historyCalendarIndicatorStatus(
-                date = today.minusDays(1),
-                today = today,
                 dayStatus = PlanCalendarDayStatus.PARTIAL,
+                hasMissedDose = true,
                 hasRecord = false
             )
         )
         assertEquals(
             PlanCalendarDayStatus.FULFILLED,
             historyCalendarIndicatorStatus(
-                date = today.plusDays(1),
-                today = today,
                 dayStatus = PlanCalendarDayStatus.FULFILLED,
+                hasMissedDose = false,
                 hasRecord = true
             )
         )
         assertEquals(
             PlanCalendarDayStatus.OFFPLAN,
             historyCalendarIndicatorStatus(
-                date = today.plusDays(1),
-                today = today,
                 dayStatus = PlanCalendarDayStatus.MISSED,
+                hasMissedDose = false,
+                hasRecord = true
+            )
+        )
+        assertEquals(
+            PlanCalendarDayStatus.PARTIAL,
+            historyCalendarIndicatorStatus(
+                dayStatus = PlanCalendarDayStatus.PARTIAL,
+                hasMissedDose = false,
                 hasRecord = true
             )
         )
         assertEquals(
             PlanCalendarDayStatus.MISSED,
             historyCalendarIndicatorStatus(
-                date = today,
-                today = today,
                 dayStatus = PlanCalendarDayStatus.MISSED,
+                hasMissedDose = true,
                 hasRecord = true
             )
         )
@@ -1499,34 +1521,14 @@ class HistoryUiModelsTest {
 
     private fun stateFor(
         status: PlanCalendarDayStatus,
-        hasOffPlanRecord: Boolean = status == PlanCalendarDayStatus.OFFPLAN
+        hasOffPlanRecord: Boolean = status == PlanCalendarDayStatus.OFFPLAN,
+        hasMissedDose: Boolean = false,
     ): HistoryCalendarDayUiState {
-        return when (status) {
-            PlanCalendarDayStatus.NONE -> HistoryCalendarDayUiState(
-                status = status,
-                hasOffPlanRecord = hasOffPlanRecord
-            )
-
-            PlanCalendarDayStatus.OFFPLAN -> HistoryCalendarDayUiState(
-                status = status,
-                hasOffPlanRecord = hasOffPlanRecord
-            )
-
-            PlanCalendarDayStatus.MISSED -> HistoryCalendarDayUiState(
-                status = status,
-                hasOffPlanRecord = hasOffPlanRecord
-            )
-
-            PlanCalendarDayStatus.PARTIAL -> HistoryCalendarDayUiState(
-                status = status,
-                hasOffPlanRecord = hasOffPlanRecord
-            )
-
-            PlanCalendarDayStatus.FULFILLED -> HistoryCalendarDayUiState(
-                status = status,
-                hasOffPlanRecord = hasOffPlanRecord
-            )
-        }
+        return HistoryCalendarDayUiState(
+            status = status,
+            hasOffPlanRecord = hasOffPlanRecord,
+            hasMissedDose = hasMissedDose,
+        )
     }
 
     private fun entryAt(dateTime: LocalDateTime): MedicationLogEntry {

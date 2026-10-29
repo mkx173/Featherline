@@ -6,7 +6,6 @@ import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -46,7 +45,6 @@ import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validatedWith
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.zoneDisplayName
@@ -74,7 +72,6 @@ class MedicationLogEntryViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicineStockRepository: MedicineStockRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MedicationLogEntryUiState())
     val uiState: StateFlow<MedicationLogEntryUiState> = _uiState.asStateFlow()
@@ -116,9 +113,7 @@ class MedicationLogEntryViewModel @Inject constructor(
         val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
         val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
         val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
-        val initialEditingState = matchingEditSnapshot?.toEditingUiState(
-            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
-        )
+        val initialEditingState = matchingEditSnapshot?.toEditingUiState()
         val initialState = initialEditingState
             ?.copy(isLoading = normalizedEntryIds.isNotEmpty())
             ?: MedicationLogEntryUiState(
@@ -169,7 +164,6 @@ class MedicationLogEntryViewModel @Inject constructor(
             sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
             sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
             appliedAt = LocalDateTime.now(),
-            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             isLoading = cachedGroup == null && !hasSourceGroupSnapshot,
         ).withSelectedStockProjection()
 
@@ -211,11 +205,9 @@ class MedicationLogEntryViewModel @Inject constructor(
                         sourceGroupIsArchived = group.isArchived(),
                         sourceGroupPreviousScheduledFor = group.previousScheduledForBefore(
                             scheduledFor,
-                            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                         ),
                         sourceGroupNextScheduledFor = group.nextScheduledForAfter(
                             scheduledFor,
-                            boundary = settingsRepository.settingsState.value.medicationDayBoundary,
                         ),
                         isLoading = false,
                     )
@@ -622,11 +614,8 @@ class MedicationLogEntryViewModel @Inject constructor(
                 sourceGroupIsArchived = editSnapshot?.sourceGroupIsArchived ?: false,
                 sourceGroupPreviousScheduledFor = editSnapshot?.sourceGroupPreviousScheduledFor,
                 sourceGroupNextScheduledFor = editSnapshot?.sourceGroupNextScheduledFor,
-                boundary = settingsRepository.settingsState.value.medicationDayBoundary,
             ) ?: editSnapshot
-                ?.toEditingUiState(
-                    boundary = settingsRepository.settingsState.value.medicationDayBoundary,
-                )
+                ?.toEditingUiState()
                 ?.copy(isLoading = false)
                     ?: MedicationLogEntryUiState()
             _uiState.value = _uiState.value.withSelectedStockProjection()
@@ -850,7 +839,6 @@ internal fun buildEditingUiState(
     sourceGroupIsArchived: Boolean = false,
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
-    boundary: MedicationDayBoundary,
 ): MedicationLogEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
@@ -876,11 +864,11 @@ internal fun buildEditingUiState(
             ?: (hasMatchingSourceGroupSnapshot && sourceGroupIsArchived),
         scheduledFor = representativeEntry.scheduledFor,
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.previousScheduledForBefore(scheduledFor, boundary = boundary)
+            matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
                 ?: sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.nextScheduledForAfter(scheduledFor, boundary = boundary)
+            matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
                 ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         recordIndicator = medicationLogRecordIndicator(representativeEntry),
@@ -948,9 +936,7 @@ private fun MedicationLogEntryEditSnapshot.matchingEntries(entryUuids: List<UUID
     return takeIf { matchingEntries.isNotEmpty() }?.copy(entries = matchingEntries)
 }
 
-private fun MedicationLogEntryEditSnapshot.toEditingUiState(
-    boundary: MedicationDayBoundary,
-): MedicationLogEntryUiState? {
+private fun MedicationLogEntryEditSnapshot.toEditingUiState(): MedicationLogEntryUiState? {
     return buildEditingUiState(
         entries = entries,
         sourceGroupName = sourceGroupName,
@@ -958,7 +944,6 @@ private fun MedicationLogEntryEditSnapshot.toEditingUiState(
         sourceGroupIsArchived = sourceGroupIsArchived,
         sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
-        boundary = boundary,
     )
 }
 
@@ -977,7 +962,6 @@ internal fun buildQuickLogUiState(
     sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     sourceGroupNextScheduledFor: LocalDateTime? = null,
     appliedAt: LocalDateTime,
-    boundary: MedicationDayBoundary,
     isLoading: Boolean = false,
 ): MedicationLogEntryUiState {
     return MedicationLogEntryUiState(
@@ -999,11 +983,9 @@ internal fun buildQuickLogUiState(
         scheduledFor = scheduledFor,
         sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(
             scheduledFor,
-            boundary = boundary,
         ) ?: sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = group?.nextScheduledForAfter(
             scheduledFor,
-            boundary = boundary,
         ) ?: sourceGroupNextScheduledFor,
         countText = normalizeMedicationCount(
             applicationType = applicationType,

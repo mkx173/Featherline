@@ -85,8 +85,9 @@ class PkCalibrationBackupTest {
     @Test
     fun snapshotVersionAboveCurrent_isRejected() {
         try {
-            snapshot(version = 8, results = emptyList()).toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
-            fail("Expected snapshotVersion 8 to be rejected.")
+            snapshot(version = CURRENT_BACKUP_SNAPSHOT_VERSION + 1, results = emptyList())
+                .toValidatedSnapshot(BACKUP_APP_PACKAGE_NAME)
+            fail("Expected a snapshotVersion above current to be rejected.")
         } catch (_: IllegalArgumentException) {
             // Expected.
         }

@@ -25,21 +25,16 @@ class BackupSnapshotJsonCodecTest {
         assertEquals(1, BackupSnapshotJsonCodec.peekSnapshotVersion(v1Json))
     }
 
+    // The app-wide night owl switch left BackupSettingsSnapshot without a version
+    // bump; backups written while it existed still carry its key.
     @Test
-    fun roundTrip_preservesMedicationDayBoundaryAndOldBackupsDefaultToMidnight() {
-        val snapshot = baselineSnapshot().let {
-            it.copy(settings = it.settings.copy(medicationDayEndsAtFourAm = true))
-        }
+    fun decodingABackupWithTheRetiredNightOwlSwitch_restoresTheRest() {
+        val snapshot = baselineSnapshot()
         val json = BackupSnapshotJsonCodec.encode(snapshot)
-        assertEquals(
-            true,
-            BackupSnapshotJsonCodec.decode(json)!!.settings.medicationDayEndsAtFourAm,
-        )
-        val legacyJson = json.replace("\"medicationDayEndsAtFourAm\":true,", "")
-        assertEquals(
-            false,
-            BackupSnapshotJsonCodec.decode(legacyJson)!!.settings.medicationDayEndsAtFourAm,
-        )
+            .replace(""""settings":{""", """"settings":{"medicationDayEndsAtFourAm":true,""")
+        assertTrue(json.contains(""""medicationDayEndsAtFourAm":true"""))
+
+        assertEquals(snapshot, BackupSnapshotJsonCodec.decode(json))
     }
 
     @Test
@@ -321,8 +316,8 @@ class BackupSnapshotJsonCodecTest {
     }
 
     @Test
-    fun currentBackupSnapshotVersion_isNine() {
-        assertEquals(7, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    fun currentBackupSnapshotVersion_isEightForPlanDayEnding() {
+        assertEquals(8, CURRENT_BACKUP_SNAPSHOT_VERSION)
     }
 
     private fun makeSnapshotWithSingleMedicine(

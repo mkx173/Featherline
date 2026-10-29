@@ -1791,6 +1791,32 @@ class MedicationGroupEditorLoadStateTest {
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     sinceDate = LocalDate.of(2026, 4, 30),
+                    areEntriesLoaded = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                ),
+                referenceTime = now,
+            )
+        )
+        // Once the recreated plan has records it's locked, and the note goes too.
+        assertFalse(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    sinceDate = LocalDate.of(2026, 4, 30),
+                    areEntriesLoaded = true,
+                    plannedEntryCount = 1,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                ),
+                referenceTime = now,
+            )
+        )
+        // An unsaved recreated draft shows the note while it's being created.
+        assertTrue(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    pendingReplacementGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
                     medicationDayBoundary = MedicationDayBoundary.Midnight,
                 ),
                 referenceTime = now,

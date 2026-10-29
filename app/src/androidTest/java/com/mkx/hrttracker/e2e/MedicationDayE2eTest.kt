@@ -1,9 +1,13 @@
 package com.mkx.hrttracker.e2e
 
 import com.mkx.hrttracker.util.MedicationDayBoundary
+import android.app.Notification
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -12,12 +16,16 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasParent
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isNotEnabled
+import androidx.compose.ui.test.isOn
 import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -76,12 +84,16 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Runs MainActivity, its real navigation, SQLCipher/Room, DataStore and application lifecycle. */
+/**
+ * Runs MainActivity, its real navigation, SQLCipher/Room, DataStore and application lifecycle.
+ * Each plan carries its own day ending: night-owl plans end their day at 04:00, the rest at midnight.
+ */
 @RunWith(AndroidJUnit4::class)
 class MedicationDayE2eTest {
     @get:Rule val compose = createEmptyComposeRule()
@@ -91,11 +103,18 @@ class MedicationDayE2eTest {
     private lateinit var context: Context
     private val day = LocalDate.of(2026, 10, 31)
     private val dose = DoseInstruction.TabletFraction(1, 1)
+    private val nightOwl = MedicationDayBoundary.FourAm
+    // The migration marker's state before pinEnglish, put back afterwards; null until pinned.
+    private var originalLocaleMarkerState: Int? = null
+    private val localeMarker
+        get() = ComponentName(context, "androidx.appcompat.app.AppLocalesMetadataHolderService")
 
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".debug")) { "Run the Debug variant." }
+        assumeTrue("Per-app locales need API 33 or later.", Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        pinEnglish()
         device.captureAndConfigure()
         device.setTime(day.plusDays(1).atTime(6, 0))
         entryPoint = EntryPointAccessors.fromApplication(context, E2eEntryPoint::class.java)
@@ -105,7 +124,6 @@ class MedicationDayE2eTest {
                 setScreenLockProtectionEnabled(false)
                 setHideScreenContentEnabled(false)
                 setHideMedicationDetails(false)
-                setMedicationDayEndsAtFourAm(false)
                 setRemindersEnabled(false)
                 setShowArchivedGroupRecords(true)
                 setHazeBlurEnabled(false)
@@ -117,9 +135,7 @@ class MedicationDayE2eTest {
                 setAppLanguageOption(AppLanguageOption.ENGLISH)
                 acknowledgeTimeZone(ZoneId.systemDefault().id)
             }
-            entryPoint.homeSnapshotRepository().runHomeDataMutation {
-                entryPoint.databaseHolder().awaitOpen().clearAllTables()
-            }
+            clearDatabase()
             entryPoint.reminderScheduler().rescheduleAll()
         }
         launch()
@@ -134,21 +150,44 @@ class MedicationDayE2eTest {
                 entryPoint.reminderScheduler().rescheduleAll()
             }
         } finally {
-            device.close()
+            try {
+                if (originalLocaleMarkerState != null) resetAppLocale()
+            } finally {
+                device.close()
+            }
         }
     }
 
     @Test
-    fun switchAndActivityRelaunchPersistToDataStore() {
-        setBoundary(true)
-        assertEquals(true, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
+    fun planEditorTurnsNightOwlOnSurvivesRelaunchAndLocksOnceThePlanHasRecords() {
+        val medicine = medicine("Editor dose")
+        group(medicine, listOf(LocalTime.of(1, 0)), name = "Editor plan")
+        openPlanEditor("Editor plan")
+        val nightOwlRow = hasText(text(R.string.settings_medication_day_ends_at_four_am)) and hasClickAction()
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am))
+        await { compose.onAllNodes(nightOwlRow).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(nightOwlRow).performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNode(hasText(text(R.string.save)) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        await { io { entryPoint.medicationGroupRepository().getGroups() }.single().schedule.dayBoundary == nightOwl }
+
+        // After a relaunch Home reads the stored ending: at 06:00 tonight's 01:00 is the evening's, with the moon.
         scenario!!.recreate()
-        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
         scenario!!.close()
         launch()
-        tab(R.string.tab_settings)
-        compose.onNodeWithText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
-            .performScrollTo().assertExists()
+        await { todayExists(hasText(moon(clock(1, 0)))) }
+
+        val plan = io { entryPoint.medicationGroupRepository().getGroups() }.single()
+        log(medicine, day.plusDays(1).atTime(1, 0), plan, day.plusDays(1).atTime(1, 0))
+        openPlanEditor("Editor plan")
+        awaitText(text(R.string.group_locked_banner))
+        awaitText(text(R.string.settings_medication_day_ends_at_four_am))
+        // Locked: the row no longer turns it off, and its switch stays on but disabled.
+        val nightOwlSwitch = isToggleable() and hasParent(hasText(text(R.string.settings_medication_day_ends_at_four_am)))
+        await {
+            compose.onAllNodes(nightOwlRow and isEnabled()).fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodes(nightOwlSwitch and isOn() and isNotEnabled()).fetchSemanticsNodes().size == 1
+        }
+        assertEquals(nightOwl, io { entryPoint.medicationGroupRepository().getGroup(plan.uuid)!! }.schedule.dayBoundary)
     }
 
     @Test
@@ -163,78 +202,103 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun minuteBoundaryRegroupsManualHistoryAcrossMonths() {
-        setBoundary(true)
+    fun manualRecordsStayOnTheCalendarDayAtFourAmWhileANightOwlDoseCrossesTheMonth() {
+        val nightOwlDose = medicine("Night owl dose")
+        val plan = group(nightOwlDose, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
         val before = medicine("Before boundary")
         val exact = medicine("At boundary")
+        log(nightOwlDose, day.plusDays(1).atTime(3, 59, 59), plan, day.plusDays(1).atTime(1, 0))
         log(before, day.plusDays(1).atTime(3, 59, 59))
         log(exact, day.plusDays(1).atTime(4, 0))
-        tab(R.string.tab_main)
+
+        // The app reads the clock by the minute, so 03:59:00 shows the same Home as 03:59:59.
+        device.setTime(day.plusDays(1).atTime(3, 59))
+        // The night-owl plan's evening is still today, with its dose done; only 03:59 reads 1/1.
+        assertTodayCount("1/1")
+        assertTodayDate(day.plusDays(1))
+        assertTodayMedicine(before)
         assertTodayMedicine(exact)
-        todayNode(hasText("Before boundary")).assertDoesNotExist()
+        assertTrue(compose.onAllNodes(hasText(text(R.string.main_last_night_title).uppercase())).fetchSemanticsNodes().isEmpty())
+        device.setTime(day.plusDays(1).atTime(4, 0))
+        assertTodayCount("0/1")
+        assertTodayDate(day.plusDays(1))
+        assertTodayMedicine(before)
+        assertTodayMedicine(exact)
+        awaitText(text(R.string.main_last_night_title).uppercase())
+
         history()
         selectHistoryDate(day.plusDays(1))
-        awaitText("At boundary")
-        compose.onNodeWithText("Before boundary").assertDoesNotExist()
-        selectHistoryDate(day)
         awaitText("Before boundary")
+        awaitText("At boundary")
+        selectHistoryDate(day)
+        awaitText("Night owl dose")
+        compose.onNodeWithText("Before boundary").assertDoesNotExist()
         compose.onNodeWithText("At boundary").assertDoesNotExist()
     }
 
     @Test
-    fun fourAmIncludesMidnightAndDawnButExcludesExactBoundary() {
-        boundary(true)
-        listOf(0, 1, 3).forEach { hour ->
-            log(medicine("Dawn $hour"), day.plusDays(1).atTime(hour, if (hour == 3) 59 else 0))
+    fun nightOwlPlanKeepsItsSmallHoursOnTheEveningButNotFourAm() {
+        val dawnPlans = listOf(LocalTime.of(0, 0), LocalTime.of(1, 0), LocalTime.of(3, 59)).map { time ->
+            val medicine = medicine("Dawn ${time.hour}")
+            log(medicine, day.plusDays(1).atTime(time), group(medicine, listOf(time), dayBoundary = nightOwl, since = day), day.plusDays(1).atTime(time))
+            medicine
         }
-        val exact = medicine("Four o'clock")
-        log(exact, day.plusDays(1).atTime(4, 0))
-        assertTodayMedicine(exact)
-        listOf(0, 1, 3).forEach { todayNode(hasText("Dawn $it")).assertDoesNotExist() }
+        val fourAm = medicine("Four o'clock")
+        val fourAmPlan = group(fourAm, listOf(LocalTime.of(4, 0)), dayBoundary = nightOwl, since = day.plusDays(1))
+        log(fourAm, day.plusDays(1).atTime(4, 0), fourAmPlan, day.plusDays(1).atTime(4, 0))
+        val midnight = medicine("Midnight dawn")
+        val midnightPlan = group(midnight, listOf(LocalTime.of(1, 0)), since = day.plusDays(1))
+        log(midnight, day.plusDays(1).atTime(1, 0), midnightPlan, day.plusDays(1).atTime(1, 0))
+
+        assertTodayMedicine(fourAm)
+        assertTodayMedicine(midnight)
         history()
+        selectHistoryDate(day.plusDays(1))
+        awaitText("Four o'clock")
+        awaitText("Midnight dawn")
+        dawnPlans.forEach { compose.onNodeWithText((it.selection as MedicineSelection.Custom).medicationName).assertDoesNotExist() }
         selectHistoryDate(day)
         listOf(0, 1, 3).forEach { awaitText("Dawn $it") }
         compose.onNodeWithText("Four o'clock").assertDoesNotExist()
-    }
-
-    @Test
-    fun switchOffKeepsFourthHourInTheCivilDay() {
-        boundary(false)
-        device.setTime(day.plusDays(1).atTime(4, 0))
-        val before = medicine("03:59 dose")
-        val after = medicine("04:00 dose")
-        log(before, day.plusDays(1).atTime(3, 59))
-        log(after, day.plusDays(1).atTime(4, 0))
-        assertTodayDate(day.plusDays(1))
-        assertTodayMedicine(before)
-        assertTodayMedicine(after)
-        history()
-        selectHistoryDate(day.plusDays(1))
-        awaitText("03:59 dose")
-        awaitText("04:00 dose")
+        compose.onNodeWithText("Midnight dawn").assertDoesNotExist()
     }
 
     @Test
     fun dailyPlanOrdersNextDayDawnLastAndDoesNotDuplicateContextRows() {
-        boundary(true)
         device.setTime(day.atTime(20, 0))
-        group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)))
+        group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        val midnight = medicine("Midnight dose")
+        group(midnight, listOf(LocalTime.of(1, 0)))
         assertTodayDate(day)
-        assertTodayCount("0/3")
-        val morning = todayNode(hasText(text(R.string.main_today_range_morning), substring = true)).fetchSemanticsNode().boundsInRoot.top
-        val midnight = todayNode(hasText(text(R.string.main_today_range_midnight), substring = true)).fetchSemanticsNode().boundsInRoot.top
-        assertTrue("Midnight should follow daytime doses", midnight > morning)
-        compose.onAllNodes(hasContentDescription(text(R.string.main_today_quick_log)) and hasAnyAncestor(hasTestTag("main_today_section"))).assertCountEquals(3)
+        assertTodayCount("0/4")
+        await { todayExists(hasText(moon(clock(1, 0)))) }
+        // The midnight plan's 01:00 opens the day; the night-owl plan's comes after its evening.
+        val midnightRow = todayTop(hasText("Midnight dose"))
+        val morning = todayTop(hasText(text(R.string.main_today_range_morning), substring = true))
+        val nightOwlDawn = todayTop(hasText(moon(clock(1, 0))))
+        assertTrue("The midnight plan's 01:00 should open the day", midnightRow < morning)
+        assertTrue("The night-owl plan's 01:00 should follow daytime doses", nightOwlDawn > morning)
+        compose.onAllNodes(hasContentDescription(text(R.string.main_today_quick_log)) and hasAnyAncestor(hasTestTag("main_today_section"))).assertCountEquals(4)
+        // Tonight previews only the midnight plan's next 01:00.
+        val tonight = text(R.string.main_coming_up_title).uppercase()
+        awaitText(tonight)
+        val tomorrow = text(R.string.main_tomorrow_title).uppercase()
+        awaitText(tomorrow)
+        fun inTonight(name: String) = compose.onAllNodes(hasText(name) and !hasAnyAncestor(hasTestTag("main_today_section")))
+            .fetchSemanticsNodes().filter { node -> node.boundsInRoot.top > top(hasText(tonight)) && node.boundsInRoot.top < top(hasText(tomorrow)) }
+        assertEquals(1, inTonight("Midnight dose").size)
+        assertEquals(0, inTonight("Daily dose").size)
     }
 
     @Test
     fun quickLogThreeSlotsUpdatesHomeCalendarAndStoredOccurrenceTimes() {
-        boundary(true)
         device.setTime(day.atTime(8, 0))
-        group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)))
+        group(medicine("Daily dose"), listOf(LocalTime.of(8, 0), LocalTime.of(16, 0), LocalTime.of(1, 0)), dayBoundary = nightOwl)
         listOf(day.atTime(8, 0), day.atTime(16, 0), day.plusDays(1).atTime(1, 0)).forEachIndexed { index, time ->
             device.setTime(time)
-            assertTodayDate(day)
+            // Today's header is the calendar date; the 01:00 dose still counts toward the evening.
+            assertTodayDate(time.toLocalDate())
+            assertTodayCount("$index/3")
             compose.onAllNodes(hasContentDescription(text(R.string.main_today_quick_log)) and hasAnyAncestor(hasTestTag("main_today_section")))[0]
                 .performSemanticsAction(SemanticsActions.OnClick)
             awaitText(text(R.string.save))
@@ -251,7 +315,7 @@ class MedicationDayE2eTest {
         scenario!!.recreate()
         assertTodayCount("3/3")
         tab(R.string.tab_plan)
-        compose.onNodeWithTag("plan_calendar_day_$day").performClick()
+        selectPlanDate(day)
         await { compose.onAllNodesWithTag("plan_day_row").fetchSemanticsNodes().size == 3 }
         history()
         selectHistoryDate(day)
@@ -260,10 +324,11 @@ class MedicationDayE2eTest {
 
     @Test
     fun manualDoseDoesNotFulfillPlanAndLinkedSupplementKeepsScheduledDay() {
-        boundary(true)
         val medicine = medicine("Evening dose")
-        val group = group(medicine, listOf(LocalTime.of(23, 0)))
+        val group = group(medicine, listOf(LocalTime.of(23, 0)), dayBoundary = nightOwl)
         device.setTime(day.plusDays(1).atTime(1, 0))
+        // At 01:00 Today holds the evening's overdue 23:00 (no plain time), not tonight's.
+        await { todayExists(hasText("Evening dose")) && !todayExists(hasText(clock(23, 0))) }
         val manual = log(medicine, day.plusDays(1).atTime(1, 0))
         assertTodayCount("0/1")
         io { entryPoint.medicationLogRepository().deleteEntries(listOf(manual.uuid)) }
@@ -278,77 +343,194 @@ class MedicationDayE2eTest {
 
     @Test
     fun mondayDawnSlotStaysOnMondayAndFiresInItsEarlyHours() {
-        boundary(true)
         val monday = LocalDate.of(2026, 11, 2)
         device.setTime(monday.atTime(20, 0))
-        val group = group(medicine("Weekly dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY))
+        val nightOwlPlan = group(medicine("Weekly night owl"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY), dayBoundary = nightOwl)
+        val midnightPlan = group(medicine("Weekly midnight"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY))
         assertTodayDate(monday)
-        assertTodayCount("0/1")
+        assertTodayCount("0/2")
         tab(R.string.tab_plan)
         compose.onNodeWithTag("plan_calendar_day_$monday").performClick()
-        await { compose.onAllNodesWithTag("plan_day_row").fetchSemanticsNodes().size == 1 }
+        await { compose.onAllNodesWithTag("plan_day_row").fetchSemanticsNodes().size == 2 }
         compose.onNodeWithTag("plan_calendar_day_${monday.plusDays(1)}").performClick()
         awaitText(text(R.string.plan_selected_day_records_empty))
         assertEquals(
             listOf(monday.plusDays(1).atTime(1, 0)),
-            io { entryPoint.medicationGroupRepository().getGroup(group.uuid)!! }
-                .schedule.nextOccurrencesFrom(monday.atTime(20, 0), limit = 1, boundary = MedicationDayBoundary.FourAm),
+            io { entryPoint.medicationGroupRepository().getGroup(nightOwlPlan.uuid)!! }
+                .schedule.nextOccurrencesFrom(monday.atTime(20, 0), limit = 1),
+        )
+        assertEquals(
+            listOf(monday.plusDays(7).atTime(1, 0)),
+            io { entryPoint.medicationGroupRepository().getGroup(midnightPlan.uuid)!! }
+                .schedule.nextOccurrencesFrom(monday.atTime(20, 0), limit = 1),
         )
     }
 
     @Test
-    fun changingBoundaryRegroupsExistingRecordsWithoutRewritingTimestamps() {
-        val medicine = medicine("Existing dawn dose")
-        val record = log(medicine, day.plusDays(1).atTime(1, 0))
-        assertTodayMedicine(medicine)
-        setBoundary(true)
-        tab(R.string.tab_main)
-        await { !todayExists(hasText("Existing dawn dose")) }
+    fun nightOwlDawnRecordShowsTheMoonOnItsEveningAndNoRecordIsRewritten() {
+        val nightOwlDose = medicine("Night owl dose")
+        val plan = group(nightOwlDose, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        val linked = log(nightOwlDose, day.plusDays(1).atTime(1, 0), plan, day.plusDays(1).atTime(1, 0))
+        val manual = log(medicine("Manual dawn dose"), day.plusDays(1).atTime(1, 0))
+
+        tab(R.string.tab_plan)
+        selectPlanDate(day)
+        await {
+            compose.onAllNodes(hasText(moon(clock(1, 0))) and hasAnyAncestor(hasTestTag("plan_day_row")))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertNoDayOffset()
+
         history()
         selectHistoryDate(day)
-        awaitText("Existing dawn dose")
-        setBoundary(false)
-        tab(R.string.tab_main)
-        assertTodayMedicine(medicine)
-        assertEquals(record, io { entryPoint.medicationLogRepository().getEntry(record.uuid) })
+        awaitText("Night owl dose")
+        awaitText(moon(clock(1, 0)))
+        assertNoDayOffset()
+        compose.onNodeWithText("Manual dawn dose").assertDoesNotExist()
+        selectHistoryDate(day.plusDays(1))
+        awaitText("Manual dawn dose")
+        awaitText(clock(1, 0))
+        compose.onNodeWithText(moon(clock(1, 0))).assertDoesNotExist()
+
+        assertEquals(linked, io { entryPoint.medicationLogRepository().getEntry(linked.uuid) })
+        assertEquals(manual, io { entryPoint.medicationLogRepository().getEntry(manual.uuid) })
     }
 
     @Test
-    fun foregroundTickerChangesDayAtBoundaryWithoutNavigationOrDataWrites() {
-        boundary(true)
+    fun homeAtHalfPastMidnightReadsEachRowsOwnPlan() {
+        group(medicine("Night owl dose"), listOf(LocalTime.of(22, 0), LocalTime.of(2, 0)), dayBoundary = nightOwl)
+        val morning = medicine("Morning dose")
+        group(morning, listOf(LocalTime.of(8, 0)))
+        device.setTime(day.plusDays(1).atTime(0, 30))
+        assertTodayDate(day.plusDays(1))
+        assertTodayMedicine(morning)
+        // Tonight's 02:00 is the evening's: the moon, and no day offset. The evening's 22:00 is
+        // overdue, so it shows no plain time; at 06:00 it would be tonight's, with one.
+        await { todayExists(hasText(moon(clock(2, 0)))) && !todayExists(hasText(clock(22, 0))) }
+        assertNoDayOffset()
+        val tomorrow = text(R.string.main_tomorrow_title).uppercase()
+        awaitText(tomorrow)
+        assertEquals(emptyList<String>(), headerSummary(tomorrow))
+
+        // The Plan tab's Oct 31: tonight's 02:00 is still to come (planned, not missed); the untaken 22:00 is missed.
+        tab(R.string.tab_plan)
+        selectPlanDate(day)
+        val planned = text(R.string.plan_schedule_entry_planned).uppercase()
+        val missed = text(R.string.plan_schedule_entry_missed).uppercase()
+        fun planRow(vararg texts: String) = compose.onAllNodes(
+            texts.map { hasText(it) }.reduce { a, b -> a and b } and hasAnyAncestor(hasTestTag("plan_day_row"))
+        ).fetchSemanticsNodes()
+        await { planRow(moon(clock(2, 0)), planned).isNotEmpty() && planRow(clock(22, 0), missed).isNotEmpty() }
+        assertTrue(planRow(moon(clock(2, 0)), missed).isEmpty())
+        tab(R.string.tab_main)
+
+        device.setTime(day.plusDays(1).atTime(4, 0))
+        await { headerSummary(tomorrow).any { it.contains(dateText(day.plusDays(2)), ignoreCase = true) } }
+        assertTodayDate(day.plusDays(1))
+        await { todayExists(hasText(moon(clock(2, 0)))) }
+    }
+
+    @Test
+    fun antiandrogenDueLabelAndComingUpTitleFollowEachCardsOwnPlan() {
+        io {
+            entryPoint.settingsRepository().setHomeCardLayout(
+                HomeCardType.entries,
+                HomeCardType.entries.filter { it != HomeCardType.TIMELINE && it != HomeCardType.ANTIANDROGEN }.toSet(),
+            )
+        }
+        val nightOwlBlocker = medicine("Night owl blocker", MedicationCategory.ANTIANDROGEN)
+        val nightOwlPlan = group(nightOwlBlocker, listOf(LocalTime.of(8, 0), LocalTime.of(22, 0)), dayBoundary = nightOwl, since = day)
+        log(nightOwlBlocker, day.atTime(8, 0), nightOwlPlan, day.atTime(8, 0))
+        log(nightOwlBlocker, day.atTime(22, 0), nightOwlPlan, day.atTime(22, 0))
+        val midnightBlocker = medicine("Midnight blocker", MedicationCategory.ANTIANDROGEN)
+        val midnightPlan = group(midnightBlocker, listOf(LocalTime.of(22, 0)), since = day)
+        log(midnightBlocker, day.atTime(22, 0), midnightPlan, day.atTime(22, 0))
+        device.setTime(day.plusDays(1).atTime(0, 30))
+        assertTodayDate(day.plusDays(1))
+
+        // Both next doses are Nov 1; only the night-owl plan's day is still Oct 31.
+        val dueTomorrow = text(R.string.main_antiandrogen_next_dose, text(R.string.main_relative_tomorrow))
+        val dueTonight = text(R.string.main_antiandrogen_next_dose, clock(22, 0))
+        awaitText(dueTomorrow)
+        awaitText(dueTonight)
+        assertTrue(
+            "The night-owl card, created first, should say tomorrow",
+            top(hasText(dueTomorrow)) < top(hasText(dueTonight)),
+        )
+        // Coming up is the night-owl plan's next morning, not the midnight plan's tonight.
+        awaitText(text(R.string.main_coming_up_morning_title).uppercase())
+        compose.onNodeWithText(text(R.string.main_coming_up_title).uppercase()).assertDoesNotExist()
+    }
+
+    @Test
+    fun foregroundTickerMovesANightOwlPlanToItsNewDayAtFourAm() {
+        group(medicine("Night owl dose"), listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        val midnight = medicine("Midnight dose")
+        group(midnight, listOf(LocalTime.of(1, 0)))
         device.setTime(day.plusDays(1).atTime(3, 59, 50))
-        assertTodayDate(day)
-        await(timeout = 25_000) { todayExists(hasText(dateText(day.plusDays(1)), substring = true, ignoreCase = true)) }
+        assertTodayDate(day.plusDays(1))
+        val lastNight = text(R.string.main_last_night_title).uppercase()
+        // Before 04:00 both plans' 01:00 doses are Today's and overdue, and nothing is Last night.
+        await {
+            todayExists(hasText("0/2", substring = true)) &&
+                compose.onAllNodes(hasText(lastNight)).fetchSemanticsNodes().isEmpty() &&
+                !todayExists(hasText(moon(clock(1, 0))))
+        }
+        await(timeout = 25_000) {
+            todayExists(hasText(moon(clock(1, 0)))) && compose.onAllNodes(hasText(lastNight)).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTodayDate(day.plusDays(1))
+        assertTodayMedicine(midnight)
     }
 
     @Test
     fun backgroundAndActivityRelaunchReadNewDayAfterClockChange() {
-        boundary(true)
-        device.setTime(day.plusDays(1).atTime(3, 59))
+        group(medicine("Night owl dose"), listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        group(medicine("Midnight dose"), listOf(LocalTime.of(1, 0)))
+        device.setTime(day.atTime(23, 59))
         assertTodayDate(day)
+        await { todayExists(hasText(moon(clock(1, 0)))) }
+        assertFalse(todayExists(hasText(clock(1, 0))))
+        scenario!!.moveToState(Lifecycle.State.CREATED)
+        device.setTime(day.plusDays(1).atTime(0, 0))
+        scenario!!.moveToState(Lifecycle.State.RESUMED)
+        // The midnight plan rolls over at 00:00; the night-owl plan's 01:00 stays the evening's.
+        assertTodayDate(day.plusDays(1))
+        await { todayExists(hasText(clock(1, 0))) }
+        assertTrue(todayExists(hasText(moon(clock(1, 0)))))
+        // The night-owl plan re-anchors at 04:00 while backgrounded: its 01:00 moves to Last night.
+        val lastNight = text(R.string.main_last_night_title).uppercase()
+        device.setTime(day.plusDays(1).atTime(3, 59))
+        await { compose.onAllNodes(hasText(lastNight)).fetchSemanticsNodes().isEmpty() }
         scenario!!.moveToState(Lifecycle.State.CREATED)
         device.setTime(day.plusDays(1).atTime(4, 0))
         scenario!!.moveToState(Lifecycle.State.RESUMED)
+        awaitText(lastNight)
         assertTodayDate(day.plusDays(1))
         scenario!!.close()
         launch()
         assertTodayDate(day.plusDays(1))
+        awaitText(text(R.string.main_last_night_title).uppercase())
     }
 
     @Test
     fun yearBoundaryPlacesJanuaryDawnInDecemberHistory() {
-        boundary(true)
         val december = LocalDate.of(2026, 12, 31)
         device.setTime(december.plusDays(1).atTime(6, 0))
-        log(medicine("New year dawn dose"), december.plusDays(1).atTime(1, 0))
+        val nightOwlDose = medicine("New year dawn dose")
+        val plan = group(nightOwlDose, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        log(nightOwlDose, december.plusDays(1).atTime(1, 0), plan, december.plusDays(1).atTime(1, 0))
+        log(medicine("New year manual dose"), december.plusDays(1).atTime(1, 0))
         history()
+        selectHistoryDate(december.plusDays(1))
+        awaitText("New year manual dose")
         selectHistoryDate(december)
         awaitText("New year dawn dose")
+        compose.onNodeWithText("New year manual dose").assertDoesNotExist()
     }
 
     @Test
     fun storedEntryZoneStillControlsManualDayAfterDeviceZoneChanges() {
-        boundary(true)
         val medicine = medicine("Tokyo dose")
         log(medicine, day.plusDays(1).atTime(6, 0), zone = ZoneId.of("Asia/Tokyo"))
         assertTodayMedicine(medicine)
@@ -362,12 +544,12 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun editingAndDeletingManualRecordUpdatesBothDays() {
-        boundary(true)
+    fun editingAndDeletingManualDawnRecordKeepsItOnItsCalendarDay() {
         val medicine = medicine("Editable dose")
         val record = log(medicine, day.plusDays(1).atTime(3, 59))
+        assertTodayMedicine(medicine)
         history()
-        selectHistoryDate(day)
+        selectHistoryDate(day.plusDays(1))
         awaitText("Editable dose")
         compose.onNodeWithText("Editable dose").performSemanticsAction(SemanticsActions.OnClick)
         awaitText(text(R.string.save))
@@ -396,14 +578,12 @@ class MedicationDayE2eTest {
 
     @Test
     fun archiveVisibilitySettingHidesAndRestoresHistoryWithoutDeletingRecords() {
-        boundary(true)
         val medicine = medicine("Archived dawn dose")
-        val group = group(medicine, listOf(LocalTime.of(1, 0)))
+        val group = group(medicine, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
         val record = log(medicine, day.plusDays(1).atTime(1, 0), group, day.plusDays(1).atTime(1, 0))
         io {
             entryPoint.medicationGroupRepository().archiveGroup(
                 uuid = group.uuid,
-                boundary = MedicationDayBoundary.FourAm,
             )
         }
         history()
@@ -426,111 +606,137 @@ class MedicationDayE2eTest {
     }
 
     @Test
-    fun encryptedBackupRestoresBoundaryAndLegacyBackupDefaultsToMidnight() {
-        setBoundary(true)
+    fun encryptedBackupRestoresAPlansNightOwl() {
         val medicine = medicine("Backed up dawn dose")
-        log(medicine, day.plusDays(1).atTime(1, 0))
-        val json = io { entryPoint.backupExportService().buildBackupSnapshotJson() }
+        val plan = group(medicine, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        log(medicine, day.plusDays(1).atTime(1, 0), plan, day.plusDays(1).atTime(1, 0))
         val encrypted = io { entryPoint.backupExportService().buildEncryptedBackupBytes("e2e-password") }
-        boundary(false)
-        io { entryPoint.medicationLogRepository().deleteAllEntries() }
+        io { clearDatabase() }
         io { entryPoint.backupRestoreService().restoreBackupBytes(encrypted, "e2e-password") }
-        assertEquals(true, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
+        assertEquals(nightOwl, io { entryPoint.medicationGroupRepository().getGroups() }.single().schedule.dayBoundary)
         history()
         selectHistoryDate(day)
         awaitText("Backed up dawn dose")
-        val legacy = JSONObject(json).apply { getJSONObject("settings").remove("medicationDayEndsAtFourAm") }.toString()
-        val oldEncrypted = io { entryPoint.backupCrypto().encryptSnapshotJson(legacy, "e2e-password".toCharArray()) }
-        io { entryPoint.backupRestoreService().restoreBackupBytes(oldEncrypted, "e2e-password") }
-        assertEquals(false, io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm })
-        tab(R.string.tab_main)
-        assertTodayMedicine(medicine)
+    }
+
+    @Test
+    fun olderBackupRestoresPlansAsMidnight() {
+        val medicine = medicine("Backed up dawn dose")
+        val plan = group(medicine, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
+        log(medicine, day.plusDays(1).atTime(1, 0), plan, day.plusDays(1).atTime(1, 0))
+        val json = JSONObject(io { entryPoint.backupExportService().buildBackupSnapshotJson() })
+        val groups = json.getJSONArray("medicationGroups")
+        assertEquals(1, groups.length())
+        assertTrue(groups.getJSONObject(0).getBoolean("dayEndsAtFourAm"))
+        groups.getJSONObject(0).remove("dayEndsAtFourAm")
+        json.put("snapshotVersion", 7)
+        val older = io { entryPoint.backupCrypto().encryptSnapshotJson(json.toString(), "e2e-password".toCharArray()) }
+        io { clearDatabase() }
+        io { entryPoint.backupRestoreService().restoreBackupBytes(older, "e2e-password") }
+        assertEquals(MedicationDayBoundary.Midnight, io { entryPoint.medicationGroupRepository().getGroups() }.single().schedule.dayBoundary)
+        history()
+        selectHistoryDate(day.plusDays(1))
+        awaitText("Backed up dawn dose")
+        selectHistoryDate(day)
+        awaitText(text(R.string.history_selected_day_empty_state))
+        compose.onNodeWithText("Backed up dawn dose").assertDoesNotExist()
     }
 
     @Test
     fun realWidgetUpdatesCountsAndRefreshesAtMedicationDayBoundary() {
-        boundary(true)
         val medicine = medicine("Widget dose")
-        val group = group(medicine, listOf(LocalTime.of(1, 0)))
+        val group = group(medicine, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
         log(medicine, day.plusDays(1).atTime(1, 0), group, day.plusDays(1).atTime(1, 0))
+        val midnight = medicine("Midnight widget dose")
+        val midnightGroup = group(midnight, listOf(LocalTime.of(1, 0)))
+        log(midnight, day.plusDays(1).atTime(1, 0), midnightGroup, day.plusDays(1).atTime(1, 0))
         device.setTime(day.plusDays(1).atTime(3, 58))
-        assertTodayCount("1/1")
+        assertTodayCount("2/2")
         E2eWidgetHost(context).use { host ->
             host.attach(scenario!!)
-            awaitWidgetCount(host, "1/1")
-            assertEquals(day.toEpochDay(), io { entryPoint.widgetSnapshotStore().readSnapshot()!! }.anchorDateEpochDay)
+            awaitWidgetCount(host, "2/2")
+            val before = io { entryPoint.widgetSnapshotStore().readSnapshot()!! }
+            assertEquals(day.plusDays(1).toEpochDay(), before.anchorDateEpochDay)
+            assertEquals(day.toEpochDay(), before.fourAmAnchorDateEpochDay)
             device.setTime(day.plusDays(1).atTime(3, 59, 50))
+            // At 04:00 the night-owl plan's next 01:00 is due; the midnight plan keeps its logged dose.
             EmulatorDeviceState.waitFor("widget date alarm", 25_000) {
                 val snapshot = io { entryPoint.widgetSnapshotStore().readSnapshot() }
-                snapshot?.anchorDateEpochDay == day.plusDays(1).toEpochDay() && snapshot.doneCount == 0 && snapshot.totalCount == 1
+                snapshot?.fourAmAnchorDateEpochDay == day.plusDays(1).toEpochDay() &&
+                    snapshot.anchorDateEpochDay == day.plusDays(1).toEpochDay() &&
+                    snapshot.doneCount == 1 && snapshot.totalCount == 2
             }
-            awaitWidgetCount(host, "0/1")
+            awaitWidgetCount(host, "1/2")
         }
     }
 
     @Test
-    fun actualReminderStillFiresAtOneOClockAfterBoundaryChanges() {
+    fun actualReminderFiresOnTuesdayAtOneForANightOwlMondayPlan() {
         EmulatorDeviceState.shell("pm grant ${context.packageName} android.permission.POST_NOTIFICATIONS")
         EmulatorDeviceState.shell("appops set ${context.packageName} SCHEDULE_EXACT_ALARM allow")
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.cancelAll()
-        device.setTime(day.plusDays(1).atTime(0, 58))
-        group(medicine("Reminder dose"), listOf(LocalTime.of(1, 0)), notifications = true)
+        val tuesday = LocalDate.of(2026, 11, 3)
+        device.setTime(tuesday.atTime(0, 58))
+        group(medicine("Reminder dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY), notifications = true, dayBoundary = nightOwl, name = "Night owl plan")
+        group(medicine("Midnight reminder dose"), listOf(LocalTime.of(1, 0)), setOf(DayOfWeek.MONDAY), notifications = true, name = "Midnight plan")
         io {
             entryPoint.settingsRepository().setRemindersEnabled(true)
             entryPoint.reminderScheduler().rescheduleAll()
         }
-        setBoundary(true)
         assertTrue(manager.activeNotifications.none { it.notification.channelId == REMINDER_CHANNEL_ID })
-        device.setTime(day.plusDays(1).atTime(0, 59, 50))
+        device.setTime(tuesday.atTime(0, 59, 50))
         EmulatorDeviceState.waitFor("real 01:00 reminder", 25_000) {
             manager.activeNotifications.any { it.notification.channelId == REMINDER_CHANNEL_ID }
         }
         assertEquals(LocalTime.of(1, 0), LocalTime.now().withSecond(0).withNano(0))
+        val texts = manager.activeNotifications
+            .filter { it.notification.channelId == REMINDER_CHANNEL_ID }
+            .map { it.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() }
+        assertTrue("Expected the night-owl plan's reminder; got $texts", "Night owl plan" in texts)
+        assertTrue("The midnight plan reminded on Tuesday: $texts", texts.none { it?.contains("Midnight plan") == true })
         manager.cancelAll()
     }
 
     @Test
-    fun journalStillUsesCivilDayWhenMedicationDayIsYesterday() {
-        boundary(true)
+    fun journalStillUsesCivilDayWhenANightOwlPlansDayIsYesterday() {
+        val medicine = medicine("Night owl dose")
+        group(medicine, listOf(LocalTime.of(1, 0)), dayBoundary = nightOwl)
         device.setTime(day.plusDays(1).atTime(1, 32))
-        assertTodayDate(day)
+        assertTodayDate(day.plusDays(1))
+        assertTodayMedicine(medicine)
+        // Only 01:32 has the evening's 01:00 in Today with no Last night (06:00 has one).
+        await {
+            todayExists(hasText(moon(clock(1, 0)))) &&
+                compose.onAllNodes(hasText(text(R.string.main_last_night_title).uppercase())).fetchSemanticsNodes().isEmpty()
+        }
         io { entryPoint.journalRepository().saveNoteForDate(day.plusDays(1), "Civil-day note") }
         tab(R.string.tab_journal)
         awaitText("Civil-day note")
         await { compose.onAllNodes(hasText("Nov 1", substring = true)).fetchSemanticsNodes().isNotEmpty() }
-        boundary(false)
-        awaitText("Civil-day note")
         assertEquals(day.plusDays(1).toString(), io { entryPoint.journalRepository().getNoteEntities().single().dateIso })
     }
 
     @Test
     fun lateDoseFulfillsFourAmIntervalPlan() {
-        boundary(true)
         device.setTime(day.plusDays(1).atTime(20, 0))
         val medicine = medicine("Interval dose")
-        val group = group(medicine, listOf(LocalTime.of(1, 0)), interval = 2)
+        val group = group(medicine, listOf(LocalTime.of(1, 0)), interval = 2, dayBoundary = nightOwl)
         val scheduled = day.plusDays(1).atTime(1, 0)
         log(medicine, day.plusDays(1).atTime(20, 0), group, scheduled)
 
         tab(R.string.tab_plan)
-        if (compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isEmpty()) {
-            compose.onNodeWithContentDescription(text(R.string.plan_previous_week))
-                .performSemanticsAction(SemanticsActions.OnClick)
-        }
-        await { compose.onAllNodesWithTag("plan_calendar_day_$day").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("plan_calendar_day_$day").performClick()
+        selectPlanDate(day)
         awaitText("1/1")
         compose.onNodeWithText("0/1", substring = true).assertDoesNotExist()
     }
 
     @Test
     fun stockRunwayUsesFourAmIntervalPlan() {
-        boundary(true)
         val now = day.plusDays(1).atTime(6, 0)
         device.setTime(now)
         val medicine = medicine("Runway dose")
-        group(medicine, listOf(LocalTime.of(1, 0)), interval = 2)
+        group(medicine, listOf(LocalTime.of(1, 0)), interval = 2, dayBoundary = nightOwl)
         io {
             entryPoint.medicineRepository().enableTracking(
                 uuid = medicine.uuid,
@@ -556,7 +762,6 @@ class MedicationDayE2eTest {
 
     @Test
     fun pkPlannedDosesUseFourAmIntervalPlan() {
-        boundary(true)
         val now = day.plusDays(1).atTime(6, 0)
         device.setTime(now)
         val estradiol = io {
@@ -565,7 +770,7 @@ class MedicationDayE2eTest {
                 preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
             )
         }
-        group(estradiol, listOf(LocalTime.of(1, 0)), interval = 2)
+        group(estradiol, listOf(LocalTime.of(1, 0)), interval = 2, dayBoundary = nightOwl)
         io { entryPoint.homeSnapshotRepository().rebuildNow() }
 
         val estimate = io {
@@ -598,40 +803,13 @@ class MedicationDayE2eTest {
             hasDoseAt(fourAmDoseTimes, day.plusDays(3).atTime(1, 0)),
         )
         assertFalse(
-            "Calendar-day planned dose leaked into FourAm: $fourAmDoseTimes",
+            "Calendar-day planned dose leaked into the night-owl plan: $fourAmDoseTimes",
             hasDoseAt(fourAmDoseTimes, day.plusDays(2).atTime(1, 0)),
-        )
-
-        // Toggling the boundary must rebuild the cached planned slots on its
-        // own: no rebuildNow() here, the estimate has to follow the setting.
-        boundary(false)
-        val midnightEstimate = io {
-            withTimeout(20_000) {
-                entryPoint.e2EstimateRepository()
-                    .observeHome(flowOf(now))
-                    .first { state ->
-                        val times = state.value?.let { value -> plannedDoseTimes(value) }.orEmpty()
-                        hasDoseAt(times, day.plusDays(2).atTime(1, 0)) &&
-                            !hasDoseAt(times, day.plusDays(3).atTime(1, 0))
-                    }
-                    .value!!
-            }
-        }
-        val midnightDoseTimes = plannedDoseTimes(midnightEstimate)
-        assertTrue(
-            "Expected the rebuilt plan to move the dose to ${day.plusDays(2).atTime(1, 0)}; " +
-                "got $midnightDoseTimes",
-            hasDoseAt(midnightDoseTimes, day.plusDays(2).atTime(1, 0)),
-        )
-        assertFalse(
-            "FourAm planned dose survived the toggle: $midnightDoseTimes",
-            hasDoseAt(midnightDoseTimes, day.plusDays(3).atTime(1, 0)),
         )
     }
 
     @Test
     fun widgetComingUpMirrorsManualAndArchivedRows() {
-        boundary(false)
         device.setTime(day.plusDays(1).atTime(20, 0))
 
         val manualMedicine = medicine("Manual midnight")
@@ -642,7 +820,6 @@ class MedicationDayE2eTest {
         io {
             entryPoint.medicationGroupRepository().archiveGroup(
                 uuid = archivedGroup.uuid,
-                boundary = MedicationDayBoundary.Midnight,
             )
         }
         log(
@@ -670,19 +847,20 @@ class MedicationDayE2eTest {
 
     @Test
     fun widgetDropsLastNightAtNoon() {
-        boundary(true)
         device.setTime(day.plusDays(1).atTime(11, 59, 50))
         val medicine = medicine("Last night dose")
-        val group = group(medicine, listOf(LocalTime.of(20, 0)))
+        val group = group(medicine, listOf(LocalTime.of(20, 0), LocalTime.of(1, 0)), dayBoundary = nightOwl)
         log(medicine, day.atTime(20, 0), group, day.atTime(20, 0))
+        log(medicine, day.plusDays(1).atTime(1, 0), group, day.plusDays(1).atTime(1, 0))
         io { entryPoint.homeSnapshotRepository().rebuildNow() }
 
         E2eWidgetHost(context).use { host ->
             host.attach(scenario!!)
-            EmulatorDeviceState.waitFor("last night row before noon", 20_000) {
+            // Last night holds the night-owl plan's 01:00 next to its 20:00.
+            EmulatorDeviceState.waitFor("last night rows before noon", 20_000) {
                 io {
                     entryPoint.widgetSnapshotStore().readSnapshot()?.doseRows
-                        ?.any { row -> row.contextChip == WidgetDoseChip.LAST_NIGHT } == true
+                        ?.count { row -> row.contextChip == WidgetDoseChip.LAST_NIGHT } == 2
                 }
             }
             EmulatorDeviceState.waitFor("last night removed at noon", 25_000) {
@@ -698,8 +876,55 @@ class MedicationDayE2eTest {
     }
 
     private fun launch() {
+        assertAppLocaleIsEnglish()
         scenario = ActivityScenario.launch(MainActivity::class.java)
         await { compose.onAllNodesWithTag("main_today_section").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /**
+     * Pins the app's per-app locale to en at the platform, for the emulator's own language may not
+     * be English. First marks AppCompat's one-time locale migration as done: with `autoStoreLocales`,
+     * the first AppCompat activity start after install (AGP reinstalls on every run) sees no app
+     * locales yet and writes AppCompat's own stored list, empty on a fresh install, to the platform,
+     * clearing the pin to the system language. Enabling AppLocalesMetadataHolderService is the
+     * migration's done marker; only the app's own uid may set it, so shell `pm enable` can't.
+     */
+    private fun pinEnglish() {
+        originalLocaleMarkerState = context.packageManager.getComponentEnabledSetting(localeMarker)
+        context.packageManager.setComponentEnabledSetting(
+            localeMarker,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        val setLocale = EmulatorDeviceState.shell("cmd locale set-app-locales ${context.packageName} --locales en").trim()
+        check(setLocale.isEmpty()) { "Could not pin the app locale to en: $setLocale" }
+        assertAppLocaleIsEnglish()
+    }
+
+    /**
+     * Back to the system language and AppCompat's migration marker as it was, so later
+     * instrumented tests in the same run see the device's own locale and first launch.
+     */
+    private fun resetAppLocale() {
+        context.packageManager.setComponentEnabledSetting(
+            localeMarker,
+            checkNotNull(originalLocaleMarkerState),
+            PackageManager.DONT_KILL_APP,
+        )
+        val reset = EmulatorDeviceState.shell("cmd locale set-app-locales ${context.packageName}").trim()
+        val appLocales = EmulatorDeviceState.shell("cmd locale get-app-locales ${context.packageName}").trim()
+        check(reset.isEmpty() && appLocales.endsWith("[]")) { "Could not reset the app locale: $reset / $appLocales" }
+    }
+
+    private fun assertAppLocaleIsEnglish() {
+        val appLocales = EmulatorDeviceState.shell("cmd locale get-app-locales ${context.packageName}").trim()
+        check("[en]" in appLocales) { "The app locale isn't pinned to en: $appLocales" }
+    }
+
+    private suspend fun clearDatabase() {
+        entryPoint.homeSnapshotRepository().runHomeDataMutation {
+            entryPoint.databaseHolder().awaitOpen().clearAllTables()
+        }
     }
 
     private fun tab(id: Int) {
@@ -732,18 +957,23 @@ class MedicationDayE2eTest {
         compose.waitForIdle()
     }
 
-    private fun setBoundary(enabled: Boolean) {
-        if (io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm } == enabled) {
-            return
+    /** Plan's week strip opens on the calendar today's week, which can leave out the day before. */
+    private fun selectPlanDate(date: LocalDate) {
+        val matcher = hasTestTag("plan_calendar_day_$date")
+        await { compose.onAllNodes(hasTestTag("plan_calendar_day_${LocalDate.now()}")).fetchSemanticsNodes().isNotEmpty() }
+        if (compose.onAllNodes(matcher).fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithContentDescription(text(R.string.plan_previous_week))
+                .performSemanticsAction(SemanticsActions.OnClick)
         }
-        tab(R.string.tab_settings)
-        compose.onNode(
-            hasText(text(R.string.settings_medication_day_ends_at_four_am)) and hasClickAction()
-        ).performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
-        await {
-            io { entryPoint.settingsRepository().getCurrentSettings().medicationDayEndsAtFourAm } == enabled
-        }
-        awaitText(text(R.string.settings_medication_day_ends_at_four_am_summary, nightOwlBoundaryTime()))
+        await { compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodes(matcher)[0].performClick()
+    }
+
+    private fun openPlanEditor(name: String) {
+        tab(R.string.tab_plan)
+        awaitText(name)
+        compose.onAllNodes(hasText(name) and hasClickAction())[0].performSemanticsAction(SemanticsActions.OnClick)
+        awaitText(text(R.string.edit_medication_group))
     }
 
     private fun pickTime(hour: Int, minute: Int) {
@@ -754,10 +984,8 @@ class MedicationDayE2eTest {
         }
     }
 
-    private fun boundary(enabled: Boolean) = io { entryPoint.settingsRepository().setMedicationDayEndsAtFourAm(enabled) }
-
-    private fun medicine(name: String): Medicine = io {
-        entryPoint.medicineRepository().findOrCreateForCustom(name, null, MedicationCategory.CUSTOM, MedicinePreparation.Pill(1.0))
+    private fun medicine(name: String, category: MedicationCategory = MedicationCategory.CUSTOM): Medicine = io {
+        entryPoint.medicineRepository().findOrCreateForCustom(name, null, category, MedicinePreparation.Pill(1.0))
     }
 
     private fun group(
@@ -766,17 +994,21 @@ class MedicationDayE2eTest {
         weekdays: Set<DayOfWeek> = emptySet(),
         notifications: Boolean = false,
         interval: Int = 1,
+        dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
+        name: String = "E2E plan",
+        since: LocalDate = day.minusDays(2),
     ): MedicationGroup = io {
         val uuid = entryPoint.medicationGroupRepository().saveGroup(
-            uuid = null, name = "E2E plan", colorKey = MedicationGroupColorKey.ROSE,
+            uuid = null, name = name, colorKey = MedicationGroupColorKey.ROSE,
             schedule = MedicationGroupScheduleInput(
                 if (weekdays.isEmpty()) MedicationGroupScheduleType.DAILY else MedicationGroupScheduleType.WEEKLY,
-                interval, day.minusDays(2), weekdays, times,
+                interval, since, weekdays, times,
+                dayBoundary = dayBoundary,
             ),
             medications = listOf(MedicationGroupMedicationInput(medicineUuid = medicine.uuid, applicationType = MedicationApplicationType.ORAL, doseInstruction = dose)),
             notificationsEnabled = notifications,
         )
-        entryPoint.medicationGroupRepository().getGroup(uuid)!!
+        entryPoint.medicationGroupRepository().getGroup(uuid)!!.also { check(it.schedule.dayBoundary == dayBoundary) }
     }
 
     private fun log(medicine: Medicine, time: LocalDateTime, group: MedicationGroup? = null, scheduled: LocalDateTime? = null, zone: ZoneId = ZoneId.systemDefault()): MedicationLogEntry = io {
@@ -790,6 +1022,23 @@ class MedicationDayE2eTest {
     }
 
     private fun todayNode(matcher: SemanticsMatcher) = compose.onNode(matcher and hasAnyAncestor(hasTestTag("main_today_section")))
+    private fun todayTop(matcher: SemanticsMatcher) = todayNode(matcher).fetchSemanticsNode().boundsInRoot.top
+    private fun top(matcher: SemanticsMatcher) = compose.onAllNodes(matcher)[0].fetchSemanticsNode().boundsInRoot.top
+
+    /** The other texts on a Home section header's line, such as its date. */
+    private fun headerSummary(title: String): List<String> {
+        val header = compose.onAllNodes(hasText(title)).fetchSemanticsNodes().firstOrNull()?.boundsInRoot ?: return emptyList()
+        return compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)).fetchSemanticsNodes()
+            .filter { node -> node.boundsInRoot.top < header.bottom && node.boundsInRoot.bottom > header.top }
+            .flatMap { node -> node.config[SemanticsProperties.Text].map { it.text } }
+            .filter { it != title }
+    }
+
+    private fun assertNoDayOffset() {
+        val offset = "(${text(R.string.plan_schedule_entry_logged_day_offset_later, 1)})"
+        assertTrue(compose.onAllNodes(hasText(offset, substring = true)).fetchSemanticsNodes().isEmpty())
+    }
+
     private fun awaitWidgetCount(host: E2eWidgetHost, expected: String) {
         try {
             EmulatorDeviceState.waitFor("rendered widget count $expected") {
@@ -804,8 +1053,10 @@ class MedicationDayE2eTest {
     private fun assertTodayDate(date: LocalDate) = await { todayExists(hasText(dateText(date), substring = true, ignoreCase = true)) }
     private fun assertTodayCount(count: String) = await { todayExists(hasText(count, substring = true)) }
     private fun dateText(date: LocalDate) = dateLabelFormatter(Locale.ENGLISH, LocalDate.now())(date)
-    private fun nightOwlBoundaryTime(): String = MedicationDayBoundary.FourAm.startTime
+    private fun clock(hour: Int, minute: Int): String = LocalTime.of(hour, minute)
         .format(localizedShortTimeFormatter(Locale.ENGLISH, context.uses24HourTimeFormat()))
+    /** A time label led by the night owl moon, which reads as "After midnight". */
+    private fun moon(time: String): String = "${text(R.string.medication_day_past_midnight)} $time"
     private fun text(id: Int, vararg args: Any): String = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.ENGLISH) }).getString(id, *args)
     private fun awaitText(text: String) = await {
         val matcher = hasText(text)

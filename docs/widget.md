@@ -368,10 +368,9 @@ graph TD
   `settingsRepository.settingsState`, projects it to the tuple
   (`hideMedicationDetails`, `adaptiveColorEnabled`,
   `homeE2DisplayUnit`, `appLanguageOption`,
-  `showArchivedGroupRecords`, `medicationDayEndsAtFourAm`), then
-  `distinctUntilChangedBy` and `drop(1)`, and calls
-  `refreshWidgetSnapshot()`. It also re-arms the date alarm when the
-  loaded switch disagrees with the cached value used at startup. This re-derives the
+  `showArchivedGroupRecords`), then `distinctUntilChanged` and
+  `drop(1)`, and calls `refreshWidgetSnapshot()`. Each plan carries
+  its own day ending, so no setting moves the rows' day. This re-derives the
   widget snapshot from the current state without a home rebuild — Home
   data itself is unchanged when only widget-only inputs change. Unless
   the current state has both parts, it asks the worker for a run and
@@ -386,9 +385,10 @@ graph TD
   [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
   one-shot at app start). It reads the persisted snapshot and checks
-  whether there is none, whether its `anchorDateEpochDay` is before the
-  current medication day (the calendar date with the default midnight
-  boundary), or whether any row's `UPCOMING`/`DUE_SOON` status should
+  whether there is none, whether its `anchorDateEpochDay` is before
+  today's calendar date or its `fourAmAnchorDateEpochDay` before the
+  medication day at 04:00 (a night-owl plan's rows leave Today at
+  04:00, whatever the plans are), or whether any row's `UPCOMING`/`DUE_SOON` status should
   have transitioned by `now`. If so, it rebuilds the widget snapshot
   from the current cache state and `now` through `writeWidgetSnapshot`
   (the rows from its Home data, the estimate from its E2 inputs), with
@@ -414,8 +414,8 @@ graph TD
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the earlier of the next local midnight, the medication-day
-  boundary (04:00 when the switch is on), and noon, when `Last night`
+  for the earlier of the next local midnight, 04:00 (when a night-owl
+  plan's rows leave Today), and noon, when `Last night`
   stops being visible. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and, under `goAsync()`, waits for `rebuildNow()` within its budget,
