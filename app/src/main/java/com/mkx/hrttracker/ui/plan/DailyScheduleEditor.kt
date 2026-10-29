@@ -5,24 +5,26 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -203,45 +205,50 @@ internal fun schedulePreviewRelativeDateLabel(
     else -> null
 }
 
-/** One upcoming dose in the plan editor's Preview section. */
+/**
+ * The plan editor's Preview: its upcoming doses in one row that scrolls sideways,
+ * each a standalone section row (same corners, color and type) sized to its text.
+ */
 @Composable
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-internal fun ScheduleOccurrenceRow(
-    occurrence: LocalDateTime,
+internal fun SchedulePreviewRow(
+    occurrences: List<LocalDateTime>,
     currentDate: LocalDate,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
 ) {
-    val occurrenceDate = occurrence.toLocalDate()
-    val formattedDate = dateFormatter(occurrenceDate)
-    val relativeDateLabel = schedulePreviewRelativeDateLabel(
-        date = occurrenceDate,
-        currentDate = currentDate,
-        todayLabel = stringResource(R.string.plan_group_upcoming_today),
-        tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow),
-    )
-    EditorSegmentedListItem(
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_event_upcoming),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = relativeDateLabel?.let { label ->
-                    stringResource(R.string.plan_group_upcoming_format, label, formattedDate)
-                } ?: formattedDate,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        },
+    val todayLabel = stringResource(R.string.plan_group_upcoming_today)
+    val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
     ) {
-        Text(
-            text = occurrence.toLocalTime().format(timeFormatter),
-            style = MaterialTheme.typography.titleMedium,
-        )
+        occurrences.forEach { occurrence ->
+            val date = occurrence.toLocalDate()
+            EditorSegmentedListItem(
+                index = 0,
+                count = 1,
+                modifier = Modifier.width(IntrinsicSize.Max),
+                supportingContent = {
+                    Text(
+                        text = schedulePreviewRelativeDateLabel(
+                            date = date,
+                            currentDate = currentDate,
+                            todayLabel = todayLabel,
+                            tomorrowLabel = tomorrowLabel,
+                        ) ?: dateFormatter(date),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            ) {
+                Text(
+                    text = occurrence.toLocalTime().format(timeFormatter),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
     }
 }
 

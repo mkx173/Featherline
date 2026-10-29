@@ -1704,15 +1704,13 @@ private fun MedicationGroupEditorScreenContent(
                 if (upcomingOccurrences.isNotEmpty()) {
                     item {
                         HrtSection(title = stringResource(R.string.group_schedule_preview)) {
-                            upcomingOccurrences.forEach { occurrence ->
-                                item {
-                                    ScheduleOccurrenceRow(
-                                        occurrence = occurrence,
-                                        currentDate = currentDate,
-                                        dateFormatter = dateFormatter,
-                                        timeFormatter = timeFormatter,
-                                    )
-                                }
+                            item {
+                                SchedulePreviewRow(
+                                    occurrences = upcomingOccurrences,
+                                    currentDate = currentDate,
+                                    dateFormatter = dateFormatter,
+                                    timeFormatter = timeFormatter,
+                                )
                             }
                         }
                     }
