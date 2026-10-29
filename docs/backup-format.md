@@ -133,9 +133,7 @@ flattened into the parent's JSON.
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
   intro sheet), language, `firstDayOfWeekOption`, home E2 display unit,
   home E2 chart window, per-analyte calibration default units,
-  last-seen time-zone, `hideMedicationDetails`, the medication-day
-  switch `medicationDayEndsAtFourAm` (false, midnight, when a backup
-  predates it), `widgetAppearance` (the
+  last-seen time-zone, `hideMedicationDetails`, `widgetAppearance` (the
   encoded widget-appearance default — accent hue, saturation, light
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags
@@ -433,7 +431,10 @@ the missing key as the default, and the generated adapters skip the
 leftover key in backups written before the removal (the codec never
 sets `failOnUnknown`), so restores keep working in both directions. The
 retired "Adjust Chinese text display" setting left
-`BackupSettingsSnapshot` this way.
+`BackupSettingsSnapshot` this way, and so did the app-wide night owl
+switch `medicationDayEndsAtFourAm` once each plan carried its own day
+ending (`BackupMedicationGroupSnapshot.dayEndsAtFourAm`, v8). A backup
+that still carries the switch restores without it.
 The external-import provenance fields themselves are nullable/defaulted
 (`BackupMedicineSnapshot.importedFromExternalTracker`,
 `BackupMedicationLogSnapshot.importSourceApp` / `importExternalId`,

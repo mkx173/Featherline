@@ -7,7 +7,6 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -26,9 +25,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.absoluteValue
-
-/** The 04:00 switch for display code, provided from settings by MainActivity. */
-val LocalMedicationDayBoundary = staticCompositionLocalOf { MedicationDayBoundary.Midnight }
 
 /**
  * Formats [dateTime]'s time and, when its medication day is not [dayDate], appends

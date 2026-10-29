@@ -13,7 +13,6 @@ import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
 import com.mkx.hrttracker.data.importer.ExternalImportService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
-import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
@@ -21,10 +20,6 @@ import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.healthconnect.WeightSyncCoordinator
-import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.isArchived
-import com.mkx.hrttracker.model.medication.movesWithMedicationDayBoundary
-import com.mkx.hrttracker.ui.plan.sortPlanMedicationGroups
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -77,7 +72,6 @@ class SettingsViewModel @Inject constructor(
     private val diagnosticsExportService: AppDiagnosticsExportService,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     e2EstimateRepository: E2EstimateRepository,
-    medicationGroupRepository: MedicationGroupRepository,
     private val weightSyncCoordinator: WeightSyncCoordinator,
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
 ) : ViewModel() {
@@ -272,18 +266,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Plans whose doses the 04:00 switch moves; Settings asks before toggling it. */
-    val medicationDayMovingGroupNames: StateFlow<List<String>> = medicationGroupRepository
-        .observeGroups()
-        .map { groups ->
-            // Plan's order, with archived plans after the active ones.
-            sortPlanMedicationGroups(groups.orEmpty())
-                .filter { group -> group.schedule.movesWithMedicationDayBoundary }
-                .sortedBy { group -> group.isArchived() }
-                .map(MedicationGroup::name)
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     val widgetAppearance: StateFlow<WidgetAppearance> = widgetAppearanceRepository
         .effectiveFor(null)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WidgetAppearance.Default)
@@ -324,17 +306,6 @@ class SettingsViewModel @Inject constructor(
 
     fun setAppLanguageOption(option: AppLanguageOption) {
         settingsRepository.setAppLanguageOption(option)
-    }
-
-    fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
-        launchSettingsMutation {
-            settingsRepository.setMedicationDayEndsAtFourAm(enabled)
-            // Every-N-days and weekly cadence count medication days, so a dose before
-            // 04:00 moves to another calendar date; Settings warns before this.
-            runReminderSideEffectBestEffort {
-                medicationReminderScheduler.rescheduleAll()
-            }
-        }
     }
 
     fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {

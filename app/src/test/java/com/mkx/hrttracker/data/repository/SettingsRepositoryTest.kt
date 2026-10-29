@@ -68,15 +68,6 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `four am day ending persists and defaults to midnight`() = runTest(testDispatcher) {
-        assertEquals(false, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
-        settingsRepository.setMedicationDayEndsAtFourAm(true)
-        assertEquals(true, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
-        settingsRepository.setMedicationDayEndsAtFourAm(false)
-        assertEquals(false, settingsRepository.getCurrentSettings().medicationDayEndsAtFourAm)
-    }
-
-    @Test
     fun pkCalibrationIntroSeen_defaultsFalse_andPersistsOnceSet() = testScope.runTest {
         assertEquals(false, settingsRepository.pkCalibrationIntroSeen.first())
         settingsRepository.setPkCalibrationIntroSeen(true)

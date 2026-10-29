@@ -453,21 +453,6 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setMedicationDayEndsAtFourAm_reschedulesRemindersAfterSaving() = runTest {
-        coEvery { settingsRepository.setMedicationDayEndsAtFourAm(any()) } just Runs
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.setMedicationDayEndsAtFourAm(true)
-        advanceUntilIdle()
-
-        coVerifyOrder {
-            settingsRepository.setMedicationDayEndsAtFourAm(true)
-            medicationReminderScheduler.rescheduleAll(any())
-        }
-    }
-
-    @Test
     fun setRemindersEnabled_schedulerFailureDoesNotEmitSettingFailureEvent() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -652,9 +637,6 @@ class SettingsViewModelTest {
             e2EstimateRepository = e2EstimateRepository,
             weightSyncCoordinator = weightSyncCoordinator,
             healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
-            medicationGroupRepository = mockk {
-                every { observeGroups() } returns flowOf(emptyList())
-            },
         )
     }
 

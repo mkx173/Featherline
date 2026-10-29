@@ -97,7 +97,6 @@ class SettingsRepository internal constructor(
     private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
-    private val medicationDayEndsAtFourAmKey = booleanPreferencesKey("medication_day_ends_at_four_am")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
@@ -351,12 +350,6 @@ class SettingsRepository internal constructor(
         }
     }
 
-    suspend fun setMedicationDayEndsAtFourAm(enabled: Boolean) {
-        activeDataStore().edit { preferences ->
-            preferences[medicationDayEndsAtFourAmKey] = enabled
-        }
-    }
-
     suspend fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
         activeDataStore().edit { preferences ->
             if (option == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
@@ -463,7 +456,6 @@ class SettingsRepository internal constructor(
         stockNudgeEnabled: Boolean = true,
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
-        medicationDayEndsAtFourAm: Boolean = false,
         pkCalibrationIntroSeen: Boolean = false,
         healthConnectWeightSyncEnabled: Boolean = false,
     ) {
@@ -512,7 +504,6 @@ class SettingsRepository internal constructor(
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
             preferences[groupNameCounterKey] = groupNameCounter
-            preferences[medicationDayEndsAtFourAmKey] = medicationDayEndsAtFourAm
 
             if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
                 preferences.remove(firstDayOfWeekKey)
@@ -572,7 +563,6 @@ class SettingsRepository internal constructor(
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
-            medicationDayEndsAtFourAm = preferences[medicationDayEndsAtFourAmKey] ?: false,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
     }

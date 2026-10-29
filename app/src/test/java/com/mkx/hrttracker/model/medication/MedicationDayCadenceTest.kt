@@ -25,19 +25,6 @@ class MedicationDayCadenceTest {
     private val since = LocalDate.of(2026, 10, 18)
 
     @Test
-    fun onlyPlansThatSkipDaysWithADawnTimeMoveWithTheSwitch() {
-        val dawnAndEvening = listOf(LocalTime.of(2, 0), LocalTime.of(22, 0))
-        fun moves(type: MedicationGroupScheduleType, interval: Int, times: List<LocalTime>) =
-            group(type, interval = interval, times = times, weeklyDays = setOf(DayOfWeek.MONDAY))
-                .schedule.movesWithMedicationDayBoundary
-
-        assertEquals(false, moves(MedicationGroupScheduleType.DAILY, 1, dawnAndEvening))
-        assertEquals(true, moves(MedicationGroupScheduleType.DAILY, 2, dawnAndEvening))
-        assertEquals(true, moves(MedicationGroupScheduleType.WEEKLY, 1, dawnAndEvening))
-        assertEquals(false, moves(MedicationGroupScheduleType.DAILY, 2, listOf(LocalTime.of(4, 0))))
-    }
-
-    @Test
     fun fourAmOrdersDawnTimesAfterTheEvening() {
         val times = listOf(LocalTime.of(22, 0), LocalTime.of(2, 0), LocalTime.of(4, 0))
 

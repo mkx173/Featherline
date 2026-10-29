@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationDayStart
 import java.time.LocalDate
@@ -17,14 +16,6 @@ data class MedicationGroupSlotOccurrence(
 
 fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean =
     isScheduledAt(medicationDayStart(date, dayBoundary))
-
-/**
- * Whether the 04:00 switch moves this plan's doses: its times before 04:00 belong to
- * the night before, so a plan that skips days fires them on another calendar day.
- */
-val MedicationGroupSchedule.movesWithMedicationDayBoundary: Boolean
-    get() = (type == MedicationGroupScheduleType.WEEKLY || interval > 1) &&
-        times.any { time -> time.isBefore(MedicationDayBoundary.FourAm.startTime) }
 
 /**
  * Whether an occurrence at [dateTime] fires under this plan's [dayBoundary]. Both

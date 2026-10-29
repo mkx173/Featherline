@@ -1282,9 +1282,4 @@
     <string name="main_today_range_midnight">Po půlnoci</string>
     <string name="settings_medication_day_ends_at_four_am">Režim pro noční sovy</string>
     <string name="settings_medication_day_ends_at_four_am_summary">Dávky před %1$s se počítají do předchozího dne.</string>
-    <string name="settings_medication_day_enable_title">Zapnout režim pro noční sovy?</string>
-    <string name="settings_medication_day_disable_title">Vypnout režim pro noční sovy?</string>
-    <string name="settings_medication_day_moves_doses_body">Dávky před %1$s se posunou o jeden den pro tyto skupiny: %2$s. Minulé dávky se mohou zobrazit jako vynechané.</string>
-    <string name="settings_medication_day_enable_confirm">Zapnout</string>
-    <string name="settings_medication_day_disable_confirm">Vypnout</string>
 </resources>

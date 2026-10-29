@@ -1124,11 +1124,6 @@
 
     <string name="settings_medication_day_ends_at_four_am">Night owl mode</string>
     <string name="settings_medication_day_ends_at_four_am_summary">Doses before %1$s count as the previous day.</string>
-    <string name="settings_medication_day_enable_title">Turn on night owl mode?</string>
-    <string name="settings_medication_day_disable_title">Turn off night owl mode?</string>
-    <string name="settings_medication_day_moves_doses_body">This will move doses before %1$s in %2$s by one day. Past doses may show as missed.</string>
-    <string name="settings_medication_day_enable_confirm">Turn on</string>
-    <string name="settings_medication_day_disable_confirm">Turn off</string>
     <string name="medication_day_past_midnight">After midnight</string>
 
     <!-- Route-isolated E2 calibration (PK) — global prerequisite states -->
