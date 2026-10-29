@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
@@ -69,7 +70,9 @@ class MedicationReminderActionHandler @Inject constructor(
                     targets.mapTo(mutableSetOf(), MedicationReminderLogTarget::signature)
                 }
         val entriesToSave = normalizedSlots.flatMap { slot ->
-            val group = groupsByUuid[slot.groupUuid] ?: return@flatMap emptyList()
+            val group = groupsByUuid[slot.groupUuid]
+                ?.takeIf { group -> group.hasReminderOccurrence(slot) }
+                ?: return@flatMap emptyList()
             // With current-format extras present, a slot missing from the map
             // means every target for it failed to parse — restrict to nothing
             // so we don't silently write the legacy "everything missing" set.
@@ -227,7 +230,9 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         val bundleItems = normalizedSlots
             .mapNotNull { slot ->
-                val group = groupsByUuid[slot.groupUuid] ?: return@mapNotNull null
+                val group = groupsByUuid[slot.groupUuid]
+                    ?.takeIf { group -> group.hasReminderOccurrence(slot) }
+                    ?: return@mapNotNull null
                 val planSlot = slot.toMedicationGroupSlotKey()
                 if (isSlotFulfilled(
                         group = group,
@@ -301,7 +306,9 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         val groupsByUuid = loadRepresentedGroups(slots)
         val unfulfilledSlots = slots.filter { slot ->
-            val group = groupsByUuid[slot.groupUuid] ?: return@filter false
+            val group = groupsByUuid[slot.groupUuid]
+                ?.takeIf { group -> group.hasReminderOccurrence(slot) }
+                ?: return@filter false
             !isSlotFulfilled(
                 group = group,
                 slot = slot.toMedicationGroupSlotKey(),
@@ -411,6 +418,19 @@ internal fun buildMissingScheduledLogEntries(
             )
         }
 }
+
+/**
+ * Whether the plan still has the dated dose [slot] points at. A plan edit (weekdays,
+ * interval, start, day ending) can drop it while its notification is still showing.
+ */
+internal fun MedicationGroup.hasReminderOccurrence(slot: MedicationReminderSlot): Boolean =
+    occurrencesBetweenInPlanWindow(
+        startDate = slot.scheduledAt.toLocalDate(),
+        endDate = slot.scheduledAt.toLocalDate(),
+    ).any { occurrence ->
+        occurrence.scheduledFor == slot.scheduledAt &&
+                (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)
+    }
 
 internal fun MedicationReminderSlot.toMedicationGroupSlotKey(): MedicationGroupSlotKey {
     return MedicationGroupSlotKey(
