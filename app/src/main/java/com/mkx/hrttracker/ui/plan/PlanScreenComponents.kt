@@ -82,8 +82,6 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.PastMidnightMarkedText
-import com.mkx.hrttracker.util.PAST_MIDNIGHT_MARK
 import com.mkx.hrttracker.util.MedicationDayTimeLabel
 import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.MedicationDayBoundary
@@ -624,9 +622,8 @@ internal fun RegimenGroupCard(
                                 )
                             ),
                             firstDayOfWeek = firstDayOfWeek,
-                            pastMidnightMark = PAST_MIDNIGHT_MARK,
                         )
-                        PastMidnightMarkedText(
+                        Text(
                             text = groupScheduleSummary,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -650,6 +647,20 @@ internal fun RegimenGroupCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // One moon per night-owl plan, rather than one on each of its times.
+                    if (group.schedule.dayBoundary.endsAtFourAm) {
+                        Box(
+                            modifier = Modifier.size(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_moon_stars),
+                                contentDescription = stringResource(R.string.settings_medication_day_ends_at_four_am),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
                     if (showNotificationIcon &&
                         shouldShowRegimenNotificationIcon(remindersEnabled, hasNotificationAccess)
                     ) {
@@ -778,9 +789,6 @@ internal fun RegimenGroupCard(
                                 dateFormatter = dateFormatter,
                             ),
                             time = occurrence.toLocalTime().format(timeFormatter),
-                            isPastMidnight = group.schedule.dayBoundary.isPastMidnight(
-                                occurrence.toLocalTime()
-                            ),
                             emphasized = index == 0
                         )
                     }
@@ -1015,7 +1023,6 @@ private fun RegimenMedicationChip(
 private fun UpcomingOccurrenceChip(
     label: String,
     time: String,
-    isPastMidnight: Boolean,
     emphasized: Boolean
 ) {
     Surface(
@@ -1035,9 +1042,8 @@ private fun UpcomingOccurrenceChip(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            MedicationDayTimeLabel(
+            Text(
                 text = time,
-                isPastMidnight = isPastMidnight,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
