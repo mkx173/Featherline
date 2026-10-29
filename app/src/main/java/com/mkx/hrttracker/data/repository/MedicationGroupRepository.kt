@@ -385,6 +385,15 @@ class MedicationGroupRepository @Inject constructor(
                     isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
                     else -> includePastScheduledSlots
                 }
+                // A record logged after the editor loaded locks the ending, and the
+                // draft's start date may have moved with its toggle: refuse the save
+                // rather than keep the ending but take the moved date.
+                if (
+                    hasExistingRecords &&
+                    schedule.dayBoundary.endsAtFourAm != existingGroupRow?.dayEndsAtFourAm
+                ) {
+                    throw LockedMedicationGroupDayBoundaryException(groupUuid)
+                }
                 // Once a plan has records or is archived, its day ending stays.
                 // A new or recreated plan (no row yet) takes the input.
                 val resolvedDayEndsAtFourAm = if (
@@ -617,6 +626,12 @@ class LockedMedicationGroupSlotRepointException(
     uuid: UUID,
 ) : IllegalStateException(
     "Medication group $uuid has logs and cannot change a slot medicine in place."
+)
+
+class LockedMedicationGroupDayBoundaryException(
+    uuid: UUID,
+) : IllegalStateException(
+    "Medication group $uuid has logs and cannot change its day ending."
 )
 
 internal fun validateScheduleTimeMigration(

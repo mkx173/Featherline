@@ -1380,9 +1380,32 @@ class MedicationGroupRepositoryTest {
         )
         coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
 
-        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.Midnight)
+        val saved = saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
 
         assertEquals(true, saved.dayEndsAtFourAm)
+    }
+
+    @Test
+    fun saveGroup_forExistingGroupWithRecords_rejectsAnotherDayEnding() = runTest {
+        // A record logged while the editor had the toggle flipped: the draft's start
+        // date moved with it, so the save is refused rather than half applied.
+        val groupUuid = UUID.fromString("0c7b1e52-8d3f-4a6e-b2c9-5e4f3a2d1c0b")
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(1, 0)),
+            dayEndsAtFourAm = false,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        val thrown = runCatching {
+            saveWithDayBoundary(uuid = groupUuid, dayBoundary = MedicationDayBoundary.FourAm)
+        }.exceptionOrNull()
+
+        assertTrue(
+            "Expected LockedMedicationGroupDayBoundaryException but got $thrown",
+            thrown is LockedMedicationGroupDayBoundaryException,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
     }
 
     @Test
