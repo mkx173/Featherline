@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -87,6 +88,7 @@ class ReminderNotificationManager @Inject constructor(
         bundle: MedicationReminderBundle,
         canSnooze: Boolean = true,
         hideMedicationDetails: Boolean = false,
+        silent: Boolean = false,
     ) {
         if (!canPostNotifications()) {
             diagnosticsLogger.info(
@@ -143,6 +145,19 @@ class ReminderNotificationManager @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
+            // A trimmed repost has a new tag, so setOnlyAlertOnce can't stop the sound.
+            .setSilent(silent)
+            // Read back by activeDoseReminders to tell which doses this one is
+            // for, and whether what it shows has changed since.
+            .addExtras(
+                Bundle().apply {
+                    putStringArrayList(
+                        EXTRA_REMINDER_SLOTS,
+                        ArrayList(bundle.slots.map(MedicationReminderSlot::toStorageValue)),
+                    )
+                    putString(EXTRA_REMINDER_CONTENT_HASH, bundle.contentHash)
+                }
+            )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
                     if (hideMedicationDetails) {
@@ -185,7 +200,7 @@ class ReminderNotificationManager @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "reminder_notification_shown tag=$notificationTag " +
-                        "items=${bundle.items.size} canSnooze=$canSnooze isMerged=$isMerged"
+                        "items=${bundle.items.size} canSnooze=$canSnooze isMerged=$isMerged silent=$silent"
             )
         } catch (_: SecurityException) {
             // Notification permission can be revoked after the preflight check.
@@ -327,6 +342,36 @@ class ReminderNotificationManager @Inject constructor(
     fun cancelAllDoseReminderNotifications() {
         NotificationManagerCompat.from(context).cancelAll()
         diagnosticsLogger.info(TAG, "reminder_notifications_cancelled_all")
+    }
+
+    /**
+     * The dose reminders still on screen, by tag. One posted before its doses went
+     * into its extras is left out.
+     */
+    fun activeDoseReminders(): Map<String, ShownDoseReminder> {
+        val active = try {
+            context.getSystemService(NotificationManager::class.java).activeNotifications
+        } catch (_: Throwable) {
+            // As in canPostNotifications: no notification service in some environments.
+            return emptyMap()
+        }
+        return active
+            .filter { notification ->
+                notification.id == DOSE_REMINDER_NOTIFICATION_ID &&
+                        notification.tag?.startsWith(DOSE_REMINDER_TAG_PREFIX) == true
+            }
+            .mapNotNull { notification ->
+                val extras = notification.notification.extras
+                val slots = extras.getStringArrayList(EXTRA_REMINDER_SLOTS)
+                    ?.mapNotNull(::medicationReminderSlotFromStorageValue)
+                    ?.takeIf(List<MedicationReminderSlot>::isNotEmpty)
+                    ?: return@mapNotNull null
+                notification.tag to ShownDoseReminder(
+                    slots = slots,
+                    contentHash = extras.getString(EXTRA_REMINDER_CONTENT_HASH),
+                )
+            }
+            .toMap()
     }
 
     fun canPostNotifications(): Boolean {
@@ -485,4 +530,5 @@ private const val REMINDER_NOTIFICATION_CONTENT_URI_PREFIX =
 private const val REMINDER_NOTIFICATION_ACTION_URI_PREFIX =
     "hrttracker://medication-reminder-action"
 const val REMINDER_CHANNEL_ID = "dose_reminders"
+private const val EXTRA_REMINDER_CONTENT_HASH = "reminderContentHash"
 private const val TAG = "ReminderNotificationManager"
