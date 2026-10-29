@@ -373,8 +373,8 @@ class MedicineDetailViewModel @Inject constructor(
         runCatching {
             medicineRepository.setDisplayName(medicineUuid, sanitized)
         }.onSuccess {
-            refreshReminders()
             saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
+            refreshReminders()
         }.onFailure {
             saveResultFlow.value = MedicineDetailSaveResult.FAILURE_OTHER
         }
@@ -408,8 +408,6 @@ class MedicineDetailViewModel @Inject constructor(
                 )
             }
             if (result.isFailure) {
-                // The name may already have been saved even if the preparation failed.
-                if (displayNameDraft != null) refreshReminders()
                 saveResultFlow.value = when (result.exceptionOrNull()) {
                     is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
                     is MedicineIdentityCollisionException ->
@@ -417,12 +415,14 @@ class MedicineDetailViewModel @Inject constructor(
 
                     else -> MedicineDetailSaveResult.FAILURE_OTHER
                 }
+                // The name may already have been saved even if the preparation failed.
+                if (displayNameDraft != null) refreshReminders()
                 return@launch
             }
             isLockedFlow.value = medicineRepository.isLocked(medicineUuid)
         }
-        if (displayNameDraft != null || preparation != null) refreshReminders()
         saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
+        if (displayNameDraft != null || preparation != null) refreshReminders()
     }
 
     fun savePreparation(
@@ -436,11 +436,11 @@ class MedicineDetailViewModel @Inject constructor(
                 displayDoseUnit = displayDoseUnit,
             )
         }.onSuccess {
-            refreshReminders()
             saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
             // The preparation update may have unlocked nothing, but the
             // medicine's identityKey changed — re-read isLocked to be safe.
             isLockedFlow.value = medicineRepository.isLocked(medicineUuid)
+            refreshReminders()
         }.onFailure { error ->
             saveResultFlow.value = when (error) {
                 is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
