@@ -84,6 +84,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -103,11 +104,16 @@ class MedicationDayE2eTest {
     private val day = LocalDate.of(2026, 10, 31)
     private val dose = DoseInstruction.TabletFraction(1, 1)
     private val nightOwl = MedicationDayBoundary.FourAm
+    // The migration marker's state before pinEnglish, put back afterwards; null until pinned.
+    private var originalLocaleMarkerState: Int? = null
+    private val localeMarker
+        get() = ComponentName(context, "androidx.appcompat.app.AppLocalesMetadataHolderService")
 
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".debug")) { "Run the Debug variant." }
+        assumeTrue("Per-app locales need API 33 or later.", Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
         pinEnglish()
         device.captureAndConfigure()
         device.setTime(day.plusDays(1).atTime(6, 0))
@@ -145,7 +151,7 @@ class MedicationDayE2eTest {
             }
         } finally {
             try {
-                resetAppLocale()
+                if (originalLocaleMarkerState != null) resetAppLocale()
             } finally {
                 device.close()
             }
@@ -884,9 +890,9 @@ class MedicationDayE2eTest {
      * migration's done marker; only the app's own uid may set it, so shell `pm enable` can't.
      */
     private fun pinEnglish() {
-        check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { "Per-app locales need API 33 or later." }
+        originalLocaleMarkerState = context.packageManager.getComponentEnabledSetting(localeMarker)
         context.packageManager.setComponentEnabledSetting(
-            ComponentName(context, "androidx.appcompat.app.AppLocalesMetadataHolderService"),
+            localeMarker,
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
             PackageManager.DONT_KILL_APP,
         )
@@ -895,8 +901,16 @@ class MedicationDayE2eTest {
         assertAppLocaleIsEnglish()
     }
 
-    /** Back to the system language, so later instrumented tests in the same run see the device's own locale. */
+    /**
+     * Back to the system language and AppCompat's migration marker as it was, so later
+     * instrumented tests in the same run see the device's own locale and first launch.
+     */
     private fun resetAppLocale() {
+        context.packageManager.setComponentEnabledSetting(
+            localeMarker,
+            checkNotNull(originalLocaleMarkerState),
+            PackageManager.DONT_KILL_APP,
+        )
         val reset = EmulatorDeviceState.shell("cmd locale set-app-locales ${context.packageName}").trim()
         val appLocales = EmulatorDeviceState.shell("cmd locale get-app-locales ${context.packageName}").trim()
         check(reset.isEmpty() && appLocales.endsWith("[]")) { "Could not reset the app locale: $reset / $appLocales" }
