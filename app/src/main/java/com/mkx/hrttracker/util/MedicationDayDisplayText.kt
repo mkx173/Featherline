@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -125,7 +126,8 @@ fun PastMidnightMarkedText(
                 Icon(
                     painter = painterResource(R.drawable.ic_moon_stars),
                     contentDescription = null,
-                    tint = color,
+                    // Like the app's other icons, not the text's color.
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxSize(),
                 )
             },
