@@ -100,16 +100,13 @@ fun buildPlanCalendarDayUiState(
                 )
             }
         }
-        val matchedOccurrenceCount = scheduledSlotsByGroup.entries.sumOf { (group, slots) ->
-            slots.count { slot ->
-                isSlotFulfilled(group, slot, dayEntries, zoneId)
-            }
-        }.coerceAtMost(expectedOccurrenceCount)
-        val pendingOccurrenceCount = scheduledSlotsByGroup.entries.sumOf { (group, slots) ->
-            slots.count { slot ->
-                !isPastDue(slot.scheduledFor, now) && !isSlotFulfilled(group, slot, dayEntries, zoneId)
-            }
+        // Each slot's fulfilment is checked once: it is the costly part, and both counts need it.
+        val unfulfilledSlots = scheduledSlotsByGroup.flatMap { (group, slots) ->
+            slots.filterNot { slot -> isSlotFulfilled(group, slot, dayEntries, zoneId) }
         }
+        val matchedOccurrenceCount = (expectedOccurrenceCount - unfulfilledSlots.size)
+            .coerceAtMost(expectedOccurrenceCount)
+        val pendingOccurrenceCount = unfulfilledSlots.count { slot -> !isPastDue(slot.scheduledFor, now) }
 
         dayStates[currentDate] = PlanCalendarDayUiState(
             expectedOccurrenceCount = expectedOccurrenceCount,

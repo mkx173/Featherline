@@ -2092,8 +2092,8 @@ class MedicationGroupRepositoryTest {
                     ),
                 )
             )
-            medicationLogDao.updateScheduledFor("entry-8", "2026-04-29T09:30")
-            medicationLogDao.updateScheduledFor("entry-9", "2026-04-29T08:30")
+            medicationLogDao.moveScheduledForEntries(listOf("entry-8"), "0 days", "09:30")
+            medicationLogDao.moveScheduledForEntries(listOf("entry-9"), "0 days", "08:30")
         }
     }
 
@@ -2124,8 +2124,8 @@ class MedicationGroupRepositoryTest {
         )
 
         coVerify {
-            medicationLogDao.updateScheduledFor("night", "2026-10-28T23:30")
-            medicationLogDao.updateScheduledFor("evening", "2026-10-29T00:30")
+            medicationLogDao.moveScheduledForEntries(listOf("night"), "-1 days", "23:30")
+            medicationLogDao.moveScheduledForEntries(listOf("evening"), "1 days", "00:30")
         }
     }
 

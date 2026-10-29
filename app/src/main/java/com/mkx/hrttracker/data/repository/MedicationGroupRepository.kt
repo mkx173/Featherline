@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.data.local.ScheduledEntryEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -320,17 +321,25 @@ class MedicationGroupRepository @Inject constructor(
                         }
                 )
                 entriesBySlot.forEachIndexed { index, entries ->
-                    entries.forEach { entry ->
-                        // Each record keeps its medication day: with the day ending at 04:00,
-                        // 23:00 moved to 01:00 is that night, not the morning before.
+                    val newTime = normalizedNewTimes[index]
+                    // Each record keeps its medication day: with the day ending at 04:00,
+                    // 23:00 moved to 01:00 is that night, not the morning before. A slot's
+                    // records share their old time, so they move by the same days, in bulk.
+                    entries.groupBy { entry ->
                         val scheduledFor = LocalDateTime.parse(entry.scheduledForIso)
-                        logDao.updateScheduledFor(
-                            uuid = entry.uuid,
-                            scheduledForIso = boundary.dateTimeOn(
-                                medicationDay(scheduledFor, boundary),
-                                normalizedNewTimes[index],
-                            ).toString(),
+                        ChronoUnit.DAYS.between(
+                            scheduledFor.toLocalDate(),
+                            boundary.dateTimeOn(medicationDay(scheduledFor, boundary), newTime).toLocalDate(),
                         )
+                    }.forEach { (dayShift, shiftedEntries) ->
+                        // ponytail: chunked under SQLite's oldest 999-variable limit.
+                        shiftedEntries.map(ScheduledEntryEntity::uuid).chunked(900).forEach { uuids ->
+                            logDao.moveScheduledForEntries(
+                                entryUuids = uuids,
+                                dayShift = "$dayShift days",
+                                newTimeIso = newTime.toScheduleTimeIso(),
+                            )
+                        }
                     }
                 }
             }

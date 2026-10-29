@@ -51,15 +51,20 @@ fun buildMedicationDaySections(
     zoneId: ZoneId = ZoneId.systemDefault(),
     comingUpSource: MedicationDaySectionSource = source,
 ): MedicationDaySections {
+    // Built once per source: the partitions keep every plan these maps hold.
+    val groupsByUuid = source.groupsByUuid()
+    val comingUpGroupsByUuid = if (comingUpSource === source) groupsByUuid else comingUpSource.groupsByUuid()
     val midnight = buildSingleEndingDaySections(
-        source = source.partitionedTo(MedicationDayBoundary.Midnight),
+        source = source.partitionedTo(MedicationDayBoundary.Midnight, groupsByUuid),
         now = now,
         boundary = MedicationDayBoundary.Midnight,
         zoneId = zoneId,
-        comingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.Midnight),
+        comingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.Midnight, comingUpGroupsByUuid),
+        groupsByUuid = groupsByUuid,
+        comingUpGroupsByUuid = comingUpGroupsByUuid,
     )
-    val nightOwlSource = source.partitionedTo(MedicationDayBoundary.FourAm)
-    val nightOwlComingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.FourAm)
+    val nightOwlSource = source.partitionedTo(MedicationDayBoundary.FourAm, groupsByUuid)
+    val nightOwlComingUpSource = comingUpSource.partitionedTo(MedicationDayBoundary.FourAm, comingUpGroupsByUuid)
     // With every plan ending at midnight this is the single-boundary result as it was.
     if (nightOwlSource.isEmpty() && nightOwlComingUpSource.isEmpty()) {
         return midnight
@@ -70,6 +75,8 @@ fun buildMedicationDaySections(
         boundary = MedicationDayBoundary.FourAm,
         zoneId = zoneId,
         comingUpSource = nightOwlComingUpSource,
+        groupsByUuid = groupsByUuid,
+        comingUpGroupsByUuid = comingUpGroupsByUuid,
     )
     val today = now.toLocalDate()
     // The two Coming up windows (18:00-24:00 and 00:00-04:00) never overlap.
@@ -94,14 +101,17 @@ private fun buildSingleEndingDaySections(
     boundary: MedicationDayBoundary,
     zoneId: ZoneId,
     comingUpSource: MedicationDaySectionSource,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+    comingUpGroupsByUuid: Map<UUID, MedicationGroup>,
 ): MedicationDaySections {
     val today = medicationDay(now, boundary)
-    val todaySchedule = source.scheduleFor(date = today, now = now, zoneId = zoneId)
+    val todaySchedule = source.scheduleFor(date = today, now = now, zoneId = zoneId, groupsByUuid = groupsByUuid)
     val lastNight = if (boundary.isLastNightVisible(now)) {
         source.scheduleFor(
             date = boundary.lastNightMedicationDay(now),
             now = now,
             zoneId = zoneId,
+            groupsByUuid = groupsByUuid,
         ).filteredToLastNight(boundary = boundary, zoneId = zoneId)
     } else {
         null
@@ -111,6 +121,7 @@ private fun buildSingleEndingDaySections(
             date = boundary.comingUpMedicationDay(now),
             now = now,
             zoneId = zoneId,
+            groupsByUuid = comingUpGroupsByUuid,
         ).filteredTo(range = boundary.comingUpTimeRange, zoneId = zoneId)
     } else {
         null
@@ -126,8 +137,10 @@ private fun buildSingleEndingDaySections(
 }
 
 /** The plans ending at [boundary], with their records; records not from a plan go with midnight. */
-private fun MedicationDaySectionSource.partitionedTo(boundary: MedicationDayBoundary): MedicationDaySectionSource {
-    val groupsByUuid = groupsByUuid()
+private fun MedicationDaySectionSource.partitionedTo(
+    boundary: MedicationDayBoundary,
+    groupsByUuid: Map<UUID, MedicationGroup>,
+): MedicationDaySectionSource {
     return copy(
         groups = groups.filter { group -> group.schedule.dayBoundary == boundary },
         entries = entries.filter { entry -> entry.dayBoundary(groupsByUuid) == boundary },
@@ -160,6 +173,7 @@ private fun MedicationDaySectionSource.scheduleFor(
     date: LocalDate,
     now: LocalDateTime,
     zoneId: ZoneId,
+    groupsByUuid: Map<UUID, MedicationGroup>,
 ): PlanDaySchedule = buildPlanDaySchedule(
     date = date,
     groups = groups,
@@ -168,7 +182,7 @@ private fun MedicationDaySectionSource.scheduleFor(
     zoneId = zoneId,
     includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
     unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    groupsByUuid = groupsByUuid(),
+    groupsByUuid = groupsByUuid,
 )
 
 private fun PlanDaySchedule.filteredToLastNight(

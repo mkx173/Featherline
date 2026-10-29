@@ -194,8 +194,19 @@ interface MedicationLogDao {
         oldTimeIso: String,
     ): List<ScheduledEntryEntity>
 
-    @Query("UPDATE medication_log_entries SET scheduledForIso = :scheduledForIso WHERE uuid = :uuid")
-    suspend fun updateScheduledFor(uuid: String, scheduledForIso: String)
+    /** Moves each record to [newTimeIso], [dayShift] days on (an SQLite modifier: "1 days", "-1 days"). */
+    @Query(
+        """
+        UPDATE medication_log_entries
+        SET scheduledForIso = date(substr(scheduledForIso, 1, 10), :dayShift) || 'T' || :newTimeIso
+        WHERE uuid IN (:entryUuids)
+        """
+    )
+    suspend fun moveScheduledForEntries(
+        entryUuids: List<String>,
+        dayShift: String,
+        newTimeIso: String,
+    )
 
     @Query(
         """
