@@ -6,6 +6,7 @@ import com.mkx.hrttracker.util.medicationDay
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.UUID
 
 /**
  * The plan data a section is built from. Home and the widget pass their own
@@ -126,13 +127,17 @@ private fun buildSingleEndingDaySections(
 
 /** The plans ending at [boundary], with their records; records not from a plan go with midnight. */
 private fun MedicationDaySectionSource.partitionedTo(boundary: MedicationDayBoundary): MedicationDaySectionSource {
-    // With [groups] too, a scheduled plan is always found even if a caller's allGroups left it out.
-    val groupsByUuid = (allGroups + groups).associateBy(MedicationGroup::uuid)
+    val groupsByUuid = groupsByUuid()
     return copy(
         groups = groups.filter { group -> group.schedule.dayBoundary == boundary },
         entries = entries.filter { entry -> entry.dayBoundary(groupsByUuid) == boundary },
     )
 }
+
+// With [groups] too, a scheduled plan is always found even if a caller's allGroups left it
+// out, so partitioning and dating a record agree on its plan's day ending.
+private fun MedicationDaySectionSource.groupsByUuid(): Map<UUID, MedicationGroup> =
+    (allGroups + groups).associateBy(MedicationGroup::uuid)
 
 private fun MedicationDaySectionSource.isEmpty(): Boolean = groups.isEmpty() && entries.isEmpty()
 
@@ -163,7 +168,7 @@ private fun MedicationDaySectionSource.scheduleFor(
     zoneId = zoneId,
     includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
     unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    groupsByUuid = allGroups.associateBy(MedicationGroup::uuid),
+    groupsByUuid = groupsByUuid(),
 )
 
 private fun PlanDaySchedule.filteredToLastNight(
