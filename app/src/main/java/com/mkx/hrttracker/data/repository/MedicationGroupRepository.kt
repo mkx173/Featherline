@@ -407,6 +407,13 @@ class MedicationGroupRepository @Inject constructor(
                     maxOf(nowLocal, scheduleStartLocal).toString()
                 val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                     ?: replacesGroupUuid?.toString()
+                // A recreated plan never starts before its predecessor's archive cutoff,
+                // whatever start or day ending it's saved with, so no slot has two plans.
+                val predecessorCutoffLocal = resolvedRecreatedFromGroupUuid
+                    ?.let { predecessorUuid -> dao.getGroup(predecessorUuid)?.group }
+                    // The local cutoff its ownership window uses, whatever the zone now.
+                    ?.archivedAtLocalIso
+                    ?.let(LocalDateTime::parse)
                 val existingScheduleTimesByUuid = existingGroup
                     ?.scheduleTimes
                     ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
@@ -506,7 +513,9 @@ class MedicationGroupRepository @Inject constructor(
                             sortOrder = index,
                             hourOfDay = time.hour,
                             minuteOfHour = time.minute,
-                            effectiveFromLocalIso = effectiveFromLocal,
+                            effectiveFromLocalIso = predecessorCutoffLocal
+                                ?.let { maxOf(LocalDateTime.parse(effectiveFromLocal), it).toString() }
+                                ?: effectiveFromLocal,
                         )
                     },
                     weeklyDays = schedule.weeklyDaysOfWeek
