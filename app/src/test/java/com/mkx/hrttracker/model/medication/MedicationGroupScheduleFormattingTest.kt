@@ -55,7 +55,7 @@ class MedicationGroupScheduleFormattingTest {
     }
 
     @Test
-    fun formatSummary_marks_times_before_four_when_the_day_ends_at_four() {
+    fun formatSummary_lists_times_before_four_last_when_the_day_ends_at_four() {
         val formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
         val daily = MedicationGroupSchedule(
             type = MedicationGroupScheduleType.DAILY,
@@ -74,11 +74,10 @@ class MedicationGroupScheduleFormattingTest {
             timeFormatter = formatter,
             dailyIntervalLabel = "Every day",
             weeklyIntervalLabel = "Every week",
-            pastMidnightMark = '*',
         )
 
-        assertEquals("Every day · 22:00/* 01:00", daily.summary(MedicationDayBoundary.FourAm))
-        assertEquals("Every week · Mon · * 01:00", weekly.summary(MedicationDayBoundary.FourAm))
+        assertEquals("Every day · 22:00/01:00", daily.summary(MedicationDayBoundary.FourAm))
+        assertEquals("Every week · Mon · 01:00", weekly.summary(MedicationDayBoundary.FourAm))
         assertEquals("Every day · 01:00/22:00", daily.summary(MedicationDayBoundary.Midnight))
     }
 }

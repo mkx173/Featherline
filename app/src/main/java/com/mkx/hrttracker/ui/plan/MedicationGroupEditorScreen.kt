@@ -117,6 +117,7 @@ import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -1591,7 +1592,7 @@ private fun MedicationGroupEditorScreenContent(
 
                 item {
                     Column {
-                        HrtSection(title = stringResource(R.string.group_schedule_title)) {}
+                        HrtSectionHeader(text = stringResource(R.string.group_schedule_title))
                         CompositionLocalProvider(
                             LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                         ) {
