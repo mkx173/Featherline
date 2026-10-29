@@ -144,7 +144,11 @@ class MedicationDayE2eTest {
                 entryPoint.reminderScheduler().rescheduleAll()
             }
         } finally {
-            device.close()
+            try {
+                resetAppLocale()
+            } finally {
+                device.close()
+            }
         }
     }
 
@@ -889,6 +893,13 @@ class MedicationDayE2eTest {
         val setLocale = EmulatorDeviceState.shell("cmd locale set-app-locales ${context.packageName} --locales en").trim()
         check(setLocale.isEmpty()) { "Could not pin the app locale to en: $setLocale" }
         assertAppLocaleIsEnglish()
+    }
+
+    /** Back to the system language, so later instrumented tests in the same run see the device's own locale. */
+    private fun resetAppLocale() {
+        val reset = EmulatorDeviceState.shell("cmd locale set-app-locales ${context.packageName}").trim()
+        val appLocales = EmulatorDeviceState.shell("cmd locale get-app-locales ${context.packageName}").trim()
+        check(reset.isEmpty() && appLocales.endsWith("[]")) { "Could not reset the app locale: $reset / $appLocales" }
     }
 
     private fun assertAppLocaleIsEnglish() {

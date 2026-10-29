@@ -62,8 +62,9 @@ repositories or time sources are mocked. Tests require an emulator, reset the
 Debug app's database, configure its settings, and temporarily change the device
 clock, timezone and 12/24-hour format. Device settings are restored in teardown,
 including on assertion failure. The suite also pins the Debug app's per-app
-locale to `en` for the run (`cmd locale set-app-locales`, API 33+), after
-marking AppCompat's one-time locale migration as done so it can't clear the pin.
+locale to `en` for each test (`cmd locale set-app-locales`, API 33+), after
+marking AppCompat's one-time locale migration as done so it can't clear the pin,
+and resets it to the system language in teardown.
 
 Night owl is set per plan: the suite saves each plan with its own day ending
 (`MedicationGroupScheduleInput.dayBoundary`) and, wherever it shows the
