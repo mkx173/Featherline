@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -319,6 +320,38 @@ class MedicationReminderSchedulerTest {
                 silent = true,
             )
         }
+    }
+
+    @Test
+    fun rescheduleAll_refreshes_changed_medicine_name_or_strength_silently_in_place() = runTest {
+        val group = medicationGroup(UUID.randomUUID(), notificationsEnabled = true)
+        val shown = shownReminder(listOf(group))
+        val edits = listOf(
+            estradiol.copy(displayName = "New name"),
+            estradiol.copy(preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0)),
+        )
+        edits.forEach { medicine ->
+            val edited = group.copy(
+                medications = group.medications.map { it.copy(medicine = medicine) },
+            )
+            givenPlans(listOf(edited), shown)
+
+            scheduler.rescheduleAll(reminderNow)
+
+            verify(exactly = 1) {
+                notificationManager.showDoseReminderNotification(
+                    bundle = match {
+                        it.notificationTag == shown.notificationTag &&
+                                it.contentHash != shown.contentHash &&
+                                it.items.single().medications.single().medicine == medicine
+                    },
+                    canSnooze = true,
+                    hideMedicationDetails = false,
+                    silent = true,
+                )
+            }
+        }
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
     }
 
     private val reminderNow = LocalDateTime.of(2026, 4, 20, 9, 30)

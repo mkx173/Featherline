@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -54,6 +55,7 @@ class MedicineDetailViewModelTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val stockRepository: MedicineStockRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
+    private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -84,6 +86,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -113,6 +116,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -172,6 +176,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -215,6 +220,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -262,6 +268,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -294,6 +301,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -328,6 +336,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -362,6 +371,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -392,6 +402,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -400,6 +411,7 @@ class MedicineDetailViewModelTest {
         viewModel.savePreparation(MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0))
         advanceUntilIdle()
 
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) {
             medicineRepository.updatePreparation(
                 medicineUuid,
@@ -430,6 +442,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -464,6 +477,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -504,6 +518,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -514,6 +529,74 @@ class MedicineDetailViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { medicineRepository.setDisplayName(medicineUuid, null, any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun saveAllRefreshesOnceAfterBothEditsAndKeepsSuccessIfRefreshFails() = runTest {
+        val medicine = testMedicine()
+        every { medicineRepository.observeByUuid(medicine.uuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicine.uuid) } returns false
+        coEvery { medicineRepository.setDisplayName(medicine.uuid, any(), any()) } just Runs
+        var preparationSaved = false
+        var preparationWasSavedAtRefresh = false
+        coEvery { medicineRepository.updatePreparation(medicine.uuid, any(), any(), any()) } coAnswers {
+            preparationSaved = true
+        }
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
+            preparationWasSavedAtRefresh = preparationSaved
+            throw IllegalStateException("Notification service unavailable")
+        }
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicine.uuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.updateDisplayNameText("New name")
+        viewModel.saveAll(MedicinePreparation.Pill(strengthMgPerTablet = 4.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(preparationWasSavedAtRefresh)
+        assertEquals(MedicineDetailSaveResult.SUCCESS, viewModel.uiState.value.saveResult)
+    }
+
+    @Test
+    fun saveAllRefreshesSavedNameEvenWhenPreparationIsRejected() = runTest {
+        val medicine = testMedicine()
+        every { medicineRepository.observeByUuid(medicine.uuid) } returns flowOf(medicine)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicine.uuid) } returns true
+        coEvery { medicineRepository.setDisplayName(medicine.uuid, any(), any()) } just Runs
+        coEvery { medicineRepository.updatePreparation(medicine.uuid, any(), any(), any()) } throws
+                MedicineLockedException(medicine.uuid)
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            stockRepository = stockRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicine.uuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.updateDisplayNameText("New name")
+        viewModel.saveAll(MedicinePreparation.Pill(strengthMgPerTablet = 4.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { medicineRepository.setDisplayName(medicine.uuid, "New name", any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertEquals(MedicineDetailSaveResult.FAILURE_LOCKED, viewModel.uiState.value.saveResult)
     }
 
     // Why this matters: the lock state is the editor's gate-keeper — if it
@@ -534,6 +617,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -575,6 +659,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -620,6 +705,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -673,6 +759,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -713,6 +800,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -783,6 +871,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -826,6 +915,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -869,6 +959,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -918,6 +1009,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -954,6 +1046,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -982,6 +1075,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -1052,6 +1146,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
             ),
@@ -1105,6 +1200,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = savedStateHandle,
         )
         advanceUntilIdle()
@@ -1154,6 +1250,7 @@ class MedicineDetailViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
             savedStateHandle = savedStateHandle,
         )
         advanceUntilIdle()

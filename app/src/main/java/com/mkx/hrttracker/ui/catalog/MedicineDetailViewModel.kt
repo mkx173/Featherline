@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.RunwayProjection
 import com.mkx.hrttracker.model.medication.isArchived
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,6 +60,7 @@ class MedicineDetailViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     private val stockRepository: MedicineStockRepository,
     private val settingsRepository: SettingsRepository,
+    private val medicationReminderScheduler: MedicationReminderScheduler,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -371,6 +373,7 @@ class MedicineDetailViewModel @Inject constructor(
         runCatching {
             medicineRepository.setDisplayName(medicineUuid, sanitized)
         }.onSuccess {
+            refreshReminders()
             saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
         }.onFailure {
             saveResultFlow.value = MedicineDetailSaveResult.FAILURE_OTHER
@@ -405,6 +408,8 @@ class MedicineDetailViewModel @Inject constructor(
                 )
             }
             if (result.isFailure) {
+                // The name may already have been saved even if the preparation failed.
+                if (displayNameDraft != null) refreshReminders()
                 saveResultFlow.value = when (result.exceptionOrNull()) {
                     is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
                     is MedicineIdentityCollisionException ->
@@ -416,6 +421,7 @@ class MedicineDetailViewModel @Inject constructor(
             }
             isLockedFlow.value = medicineRepository.isLocked(medicineUuid)
         }
+        if (displayNameDraft != null || preparation != null) refreshReminders()
         saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
     }
 
@@ -430,6 +436,7 @@ class MedicineDetailViewModel @Inject constructor(
                 displayDoseUnit = displayDoseUnit,
             )
         }.onSuccess {
+            refreshReminders()
             saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
             // The preparation update may have unlocked nothing, but the
             // medicine's identityKey changed — re-read isLocked to be safe.
@@ -442,6 +449,12 @@ class MedicineDetailViewModel @Inject constructor(
 
                 else -> MedicineDetailSaveResult.FAILURE_OTHER
             }
+        }
+    }
+
+    private suspend fun refreshReminders() {
+        withContext(NonCancellable) {
+            runCatching { medicationReminderScheduler.rescheduleAll() }
         }
     }
 

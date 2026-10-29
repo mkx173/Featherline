@@ -60,6 +60,7 @@ class MedicineDetailScreenPatchOffTest {
             medicationGroupRepository = medicationGroupRepository,
             stockRepository = stockRepository,
             settingsRepository = settingsRepository,
+            medicationReminderScheduler = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to patchOff.uuid.toString()),
             ),
