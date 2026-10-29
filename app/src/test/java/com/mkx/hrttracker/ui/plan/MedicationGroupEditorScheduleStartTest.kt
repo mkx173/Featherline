@@ -107,8 +107,17 @@ class MedicationGroupEditorScheduleStartTest {
         assertFalse(updated.startsNow)
         assertNull(updated.startTime)
         assertNull(updated.loadedStartAt)
-        // Re-picking the same date keeps "Now".
-        assertTrue(editorStateWithUpdatedSinceDate(state(startsNow = true), today).startsNow)
+        // Re-picking the same date also starts with the whole day, dropping "Now" or a
+        // picked time.
+        assertEquals(
+            today.atStartOfDay(),
+            editorStateWithUpdatedSinceDate(state(startsNow = true), today).scheduleStartAt(now),
+        )
+        assertEquals(
+            today.atStartOfDay(),
+            editorStateWithUpdatedSinceDate(state(startTime = LocalTime.of(9, 30)), today)
+                .scheduleStartAt(now),
+        )
     }
 
     @Test

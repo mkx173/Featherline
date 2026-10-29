@@ -2102,7 +2102,6 @@ internal fun editorStateWithUpdatedSinceDate(
     if (
         uiState.areScheduleShapeFieldsLocked ||
         uiState.isScheduleStartDateLocked ||
-        uiState.sinceDate == date ||
         (
                 uiState.recreatedFromGroupId != null &&
                         minimumRecreatedStartDate != null &&
@@ -2113,13 +2112,17 @@ internal fun editorStateWithUpdatedSinceDate(
     }
 
     // A picked date starts with the whole day: 00:00, or 04:00 when the day ends then.
+    // Re-picking the same date does too, so "Now" can widen to today's earlier doses.
     val withDate = uiState.copy(
         sinceDate = date,
         startsNow = false,
         startTime = null,
         loadedStartAt = null,
     )
-    return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
+    return if (
+        uiState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        uiState.sinceDate != date
+    ) {
         editorStateWithResetWeeklyDaysOfWeek(withDate)
     } else {
         withDate
