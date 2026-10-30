@@ -1282,4 +1282,15 @@
     <string name="main_coming_up_morning_title">Dnes ráno</string>
     <string name="widget_this_morning">Dnes ráno</string>
     <string name="medication_day_past_midnight">Po půlnoci</string>
+    <string name="plan_group_upcoming_tonight">Dnes v noci</string>
+    <string name="plan_group_upcoming_tomorrow_night">Zítra v noci</string>
+    <string name="plan_group_upcoming_night_of">Noc: %1$s</string>
+    <string name="group_start_title">Zahájení</string>
+    <string name="group_schedule_start_time">Čas zahájení</string>
+    <string name="group_schedule_start_now">Nyní</string>
+    <string name="group_schedule_start_reset_to_now">Obnovit</string>
+    <string name="group_past_schedule_mark_completed">Označit jako splněné</string>
+    <string name="group_past_schedule_mark_missed">Označit jako vynechané</string>
+    <string name="group_past_schedule_hide">Skrýt</string>
+    <string name="reminder_notification_no_longer_scheduled">Tato dávka už není v plánu.</string>
 </resources>
