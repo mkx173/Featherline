@@ -18,6 +18,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -41,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -383,14 +386,23 @@ private fun TopLevelNavigationBar(
             )
         }
     } else {
-        PillNavigationBar(
-            items = topLevelNavigationItems,
-            selectedScreen = selectedScreen,
-            onItemClick = onItemClick,
-            hazeState = hazeState,
-            pagerState = pagerState,
-            pagerDragInteractions = pagerDragInteractions,
-        )
+        // The page fades into its background under the floating pill instead of running
+        // into the screen edge behind it.
+        val fadeColor = MaterialTheme.colorScheme.background
+        Box(
+            Modifier.drawBehind {
+                drawRect(Brush.verticalGradient(listOf(fadeColor.copy(alpha = 0f), fadeColor.copy(alpha = 0.5f))))
+            }
+        ) {
+            PillNavigationBar(
+                items = topLevelNavigationItems,
+                selectedScreen = selectedScreen,
+                onItemClick = onItemClick,
+                hazeState = hazeState,
+                pagerState = pagerState,
+                pagerDragInteractions = pagerDragInteractions,
+            )
+        }
     }
 }
 
