@@ -56,17 +56,21 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -81,6 +85,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -147,11 +152,13 @@ import com.mkx.hrttracker.util.medicationDayTimeText
 import com.swmansion.kmpwheelpicker.WheelPicker
 import com.swmansion.kmpwheelpicker.WheelPickerState
 import com.swmansion.kmpwheelpicker.rememberWheelPickerState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.DayOfWeek
 import java.time.Instant
@@ -163,6 +170,8 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.UUID
 
@@ -502,21 +511,43 @@ private fun HistoryScreenContent(
             calendarEndMonth = uiState.calendarEndMonth
         )
     }
+    // Built off the main thread: with a few months of records this takes tens of milliseconds
+    // per month, which held History's first frame for the whole push transition. The displayed
+    // month comes first so it lands while the transition still hides the page, then the
+    // preloaded neighbors; the previous states stay up until then.
     // Keyed on today, not now: only yesterday and today change minute to minute.
-    val settledMonthDayStates = remember(
+    val settledMonthDayStates by produceState(
+        initialValue = emptyMap<LocalDate, HistoryCalendarDayUiState>(),
         uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
         uiState.groupsByUuid,
         today,
     ) {
-        buildHistoryMonthDayStates(
-            ranges = dayStateMonthRanges,
-            groups = uiState.calendarMedicationGroups,
-            entries = uiState.entries,
-            now = uiState.now,
-            groupsByUuid = uiState.groupsByUuid,
-        )
+        val groups = uiState.calendarMedicationGroups
+        val entries = uiState.entries
+        val now = uiState.now
+        val groupsByUuid = uiState.groupsByUuid
+        val month = displayedMonth.yearMonth
+        val ranges = dayStateMonthRanges
+        value = value + withContext(Dispatchers.Default) {
+            buildHistoryMonthDayStates(
+                ranges = listOf(HistoryCalendarDayStateMonthRange(startMonth = month, endMonth = month)),
+                groups = groups,
+                entries = entries,
+                now = now,
+                groupsByUuid = groupsByUuid,
+            )
+        }
+        value = withContext(Dispatchers.Default) {
+            buildHistoryMonthDayStates(
+                ranges = ranges,
+                groups = groups,
+                entries = entries,
+                now = now,
+                groupsByUuid = groupsByUuid,
+            )
+        }
     }
     val monthDayStates = remember(
         settledMonthDayStates,
@@ -554,6 +585,7 @@ private fun HistoryScreenContent(
                 groupsByUuid = uiState.groupsByUuid,
             )
         }
+    val contentStage by rememberHistoryContentStage()
     val groupedEntries = remember(visibleEntries, uiState.groupsByUuid) {
         groupHistoryEntriesByDate(visibleEntries, groupsByUuid = uiState.groupsByUuid)
     }
@@ -948,6 +980,7 @@ private fun HistoryScreenContent(
                                 pendingSelectedDate.value = it
                             },
                             onNavigationMonthChange = { calendarNavigationMonth = it },
+                            composedWeekRows = contentStage,
                         )
                     }
                 }
@@ -972,6 +1005,9 @@ private fun HistoryScreenContent(
                         )
                     }
                 }
+
+                // The records list composes after the calendar grid: see rememberHistoryContentStage.
+                if (contentStage <= HistoryCalendarWeekRowCount) return@LazyColumn
 
                 if (visibleEntries.isEmpty()) {
                     item(
@@ -1250,6 +1286,8 @@ private fun HistoryMonthCalendar(
     onSelectionReset: (YearMonth) -> Unit,
     onDeferredDaySelectionRequested: (LocalDate) -> Unit,
     onNavigationMonthChange: (YearMonth) -> Unit,
+    /** Week rows composed so far; later rows hold their space with placeholders. */
+    composedWeekRows: Int,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -1338,6 +1376,8 @@ private fun HistoryMonthCalendar(
         navigateToMonth(month = month, animate = false)
     }
 
+    val dayHeight = historyCalendarDayHeight()
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1393,6 +1433,10 @@ private fun HistoryMonthCalendar(
                 state = calendarState,
                 monthHeader = { _ -> },
                 dayContent = { day ->
+                    if (historyCalendarWeekRow(day, firstDayOfWeek) >= composedWeekRows) {
+                        Spacer(Modifier.fillMaxWidth().height(dayHeight))
+                        return@HorizontalCalendar
+                    }
                     val dayState = dayStates[day.date] ?: HistoryCalendarDayUiState()
                     val hasRecord = day.date in recordDates
                     val targetMonth = historyCalendarDayClickTargetMonth(
@@ -1966,6 +2010,52 @@ internal fun historyCalendarIndicatorStatus(
         else -> dayStatus
     }
 }
+
+// The height of a HistoryCalendarDay, for the placeholder of a day not composed yet: its label,
+// measured the way the cell sets it so it holds at any font scale, plus 32 dp for the paddings
+// (2 + 2 outside, 6 + 8 inside), the 2 dp gap and the 12 dp indicator.
+@Composable
+private fun historyCalendarDayHeight(): Dp {
+    val textMeasurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+    val density = LocalDensity.current
+    return remember(textMeasurer, style, density) {
+        with(density) { textMeasurer.measure("30", style).size.height.toDp() } + 32.dp
+    }
+}
+
+/** The row [day] sits in on its month's grid, counting from 0. */
+internal fun historyCalendarWeekRow(day: CalendarDay, firstDayOfWeek: DayOfWeek): Int {
+    val month = when (day.position) {
+        DayPosition.InDate -> YearMonth.from(day.date).plusMonths(1)
+        DayPosition.MonthDate -> YearMonth.from(day.date)
+        DayPosition.OutDate -> YearMonth.from(day.date).minusMonths(1)
+    }
+    val gridStart = month.atDay(1).with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
+    return (ChronoUnit.DAYS.between(gridStart, day.date) / 7).toInt()
+}
+
+// The month grid and the records list made History's first frame its slowest, so they compose
+// over the frames after it, while a push transition still hides most of the page: one week row
+// a frame, behind placeholders of the same height, then the list. Counts frames from 0 to one
+// past the last row; previews, which run no effects, start with everything composed.
+@Composable
+private fun rememberHistoryContentStage(): State<Int> {
+    val inspectionMode = LocalInspectionMode.current
+    val stage = remember {
+        mutableIntStateOf(if (inspectionMode) HistoryCalendarWeekRowCount + 1 else 0)
+    }
+    LaunchedEffect(Unit) {
+        while (stage.intValue <= HistoryCalendarWeekRowCount) {
+            withFrameNanos { }
+            stage.intValue++
+        }
+    }
+    return stage
+}
+
+// OutDateStyle.EndOfGrid always lays a month out in six rows.
+private const val HistoryCalendarWeekRowCount = 6
 
 internal fun historyCalendarDayClickTargetMonth(
     position: DayPosition,
