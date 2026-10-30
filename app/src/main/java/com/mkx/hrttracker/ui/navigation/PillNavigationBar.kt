@@ -69,15 +69,16 @@ import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * The bottom navigation bar: a capsule floating above the gesture area, its items sharing the
  * width evenly, with a selection pill covering the selected item. Each item, and so the pill, is
  * [PillAspectRatio] times as wide as it is tall, unless the bar would then crowd the screen
- * edges closer than padding_medium; then the items narrow to fit. The pill jumps
- * under the finger on touch down, follows it while dragging, and on release settles on the
- * nearest item and selects it. While the user swipes [pagerState] (reported to
+ * edges closer than padding_medium; then the items narrow to fit. On touch down the pill
+ * slides to the item under the finger, follows the finger once it drags, and on release
+ * settles on the nearest item and selects it. While the user swipes [pagerState] (reported to
  * [pagerDragInteractions]), the pill tracks the pages.
  *
  * The items are drawn twice: outlined everywhere but under the pill, and filled only under it.
@@ -188,7 +189,11 @@ internal fun PillNavigationBar(
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
                         down.consume()
-                        follow(down.position.x)
+                        // A touch picks the tab under it, so the pill goes to that tab, not
+                        // to the finger; only a drag past the slop has it follow the finger.
+                        val downSlot = positionAt(down.position.x).roundToInt().toFloat()
+                        scope.launch { indicator.animateTo(downSlot, settleSpec) }
+                        var dragging = false
                         var released = false
                         while (true) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes
@@ -199,7 +204,10 @@ internal fun PillNavigationBar(
                                 released = true
                                 break
                             }
-                            follow(change.position.x)
+                            if (!dragging) {
+                                dragging = abs(change.position.x - down.position.x) > viewConfiguration.touchSlop
+                            }
+                            if (dragging) follow(change.position.x)
                         }
                         if (released) {
                             val target = indicator.targetValue.roundToInt()
