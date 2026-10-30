@@ -620,6 +620,7 @@
     <string name="settings_adaptive_color">自動調整配色</string>
     <string name="settings_amoled_black">純黑深色主題</string>
     <string name="settings_haze_blur">背景模糊效果</string>
+    <string name="settings_classic_navigation_bar">經典導覽列</string>
     <string name="settings_widget_appearance">小工具</string>
     <string name="settings_widget_content_scale">內容大小</string>
     <string name="settings_widget_background_opacity">背景不透明度</string>

@@ -644,6 +644,7 @@
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_amoled_black">Pure black dark theme</string>
     <string name="settings_haze_blur">Background blur effect</string>
+    <string name="settings_classic_navigation_bar">Classic navigation bar</string>
     <string name="settings_widget_appearance">Widgets</string>
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>

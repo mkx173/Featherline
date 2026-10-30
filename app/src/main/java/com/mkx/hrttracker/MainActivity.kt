@@ -432,6 +432,8 @@ class MainActivity : AppCompatActivity() {
                                             awaitingMilestonesEntry = false
                                         },
                                         highlightEffectsEnabled = highlightEffectsEnabled,
+                                        classicNavigationBar =
+                                            settingsState.classicNavigationBarEnabled,
                                     )
                                 }
 

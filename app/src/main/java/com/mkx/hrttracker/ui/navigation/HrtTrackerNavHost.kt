@@ -20,7 +20,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -87,6 +89,8 @@ import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
+import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
 import com.mkx.hrttracker.ui.components.stockInventoryCountText
 import com.mkx.hrttracker.ui.history.HistoryScreen
@@ -108,6 +112,7 @@ import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
+import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -329,6 +334,59 @@ internal val topLevelNavigationItems = listOf(
     NavigationItemContent(Screen.Settings, R.drawable.ic_settings, R.drawable.ic_settings_alt),
 )
 
+// The rail's items, and the classic bottom bar's.
+private fun topLevelNavigationSuiteItems(
+    selectedScreen: Screen,
+    onItemClick: (Screen) -> Unit,
+): NavigationSuiteScope.() -> Unit = {
+    topLevelNavigationItems.forEach { navItem ->
+        val isSelected = selectedScreen == navItem.screen
+        item(
+            selected = isSelected,
+            onClick = { onItemClick(navItem.screen) },
+            icon = {
+                Icon(
+                    painter = painterResource(
+                        if (isSelected) navItem.icon else navItem.iconAlt
+                    ),
+                    contentDescription = stringResource(navItem.screen.label)
+                )
+            },
+            label = {
+                Text(text = stringResource(navItem.screen.label))
+            }
+        )
+    }
+}
+
+// The top-level pages' bottom bar: the floating pill, or with the classic navigation bar
+// setting on, the stock Material bar spanning the bottom edge.
+@Composable
+private fun TopLevelNavigationBar(
+    classic: Boolean,
+    layoutType: NavigationSuiteType,
+    selectedScreen: Screen,
+    onItemClick: (Screen) -> Unit,
+    hazeState: HazeState?,
+) {
+    if (classic) {
+        Box(Modifier.hazeChrome(hazeState)) {
+            NavigationSuite(
+                layoutType = layoutType,
+                colors = hazeNavigationSuiteColors(hazeState),
+                content = topLevelNavigationSuiteItems(selectedScreen, onItemClick),
+            )
+        }
+    } else {
+        PillNavigationBar(
+            items = topLevelNavigationItems,
+            selectedScreen = selectedScreen,
+            onItemClick = onItemClick,
+            hazeState = hazeState,
+        )
+    }
+}
+
 internal enum class TopLevelNavigationTapAction {
     NAVIGATE,
     POP_TO_TOP_LEVEL,
@@ -472,6 +530,7 @@ fun HrtTrackerNavHost(
     onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean = true,
+    classicNavigationBar: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var medicationLogEntrySheetRequest by rememberSaveable(stateSaver = MedicationLogEntrySheetRequestSaver) {
@@ -796,35 +855,14 @@ fun HrtTrackerNavHost(
         }
     }
 
-    // The wide rail's items.
-    val navigationSuiteItems: NavigationSuiteScope.() -> Unit = {
-        topLevelNavigationItems.forEach { navItem ->
-            val isSelected = selectedBottomScreen == navItem.screen
-            item(
-                selected = isSelected,
-                onClick = { onTopLevelItemClick(navItem.screen) },
-                icon = {
-                    Icon(
-                        painter = painterResource(
-                            if (isSelected) navItem.icon else navItem.iconAlt
-                        ),
-                        contentDescription = stringResource(navItem.screen.label)
-                    )
-                },
-                label = {
-                    Text(text = stringResource(navItem.screen.label))
-                }
-            )
-        }
-    }
-
     // One bar instance shared by the top-level destinations: a tab switch moves it to
-    // the incoming page, so the selection pill settles from where the finger left it,
-    // instead of a fresh bar appearing there.
-    val topLevelNavigationBar = remember {
+    // the incoming page, so the selection pill settles from where the finger left it (or
+    // the classic bar's ripple carries on), instead of a fresh bar appearing there.
+    val topLevelNavigationBar = remember(classicNavigationBar, navigationSuiteType) {
         movableContentOf { selectedScreen: Screen, onItemClick: (Screen) -> Unit ->
-            PillNavigationBar(
-                items = topLevelNavigationItems,
+            TopLevelNavigationBar(
+                classic = classicNavigationBar,
+                layoutType = navigationSuiteType,
                 selectedScreen = selectedScreen,
                 onItemClick = onItemClick,
                 hazeState = LocalChromeHazeState.current,
@@ -850,10 +888,11 @@ fun HrtTrackerNavHost(
         modifier = modifier,
         navigationSuiteType = navigationSuiteType,
         navigationChromeHazeState = navigationChromeHazeState,
-        navigationSuiteItems = navigationSuiteItems,
+        navigationSuiteItems = topLevelNavigationSuiteItems(selectedBottomScreen, onTopLevelItemClick),
         bottomBar = {
-            PillNavigationBar(
-                items = topLevelNavigationItems,
+            TopLevelNavigationBar(
+                classic = classicNavigationBar,
+                layoutType = navigationSuiteType,
                 selectedScreen = selectedBottomScreen,
                 onItemClick = {},
                 hazeState = null,
