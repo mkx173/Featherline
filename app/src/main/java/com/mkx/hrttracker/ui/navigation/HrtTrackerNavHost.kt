@@ -819,8 +819,8 @@ fun HrtTrackerNavHost(
     }
 
     // One bar instance shared by the top-level destinations: a tab switch moves it to
-    // the incoming page, so the selection pill slides from the old tab and the tapped
-    // item's ripple carries on, instead of a fresh bar appearing there.
+    // the incoming page, so the selection pill settles from where the finger left it,
+    // instead of a fresh bar appearing there.
     val topLevelNavigationBar = remember {
         movableContentOf { selectedScreen: Screen, onItemClick: (Screen) -> Unit ->
             PillNavigationBar(

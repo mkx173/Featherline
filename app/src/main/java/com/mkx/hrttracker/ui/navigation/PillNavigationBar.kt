@@ -1,6 +1,10 @@
 package com.mkx.hrttracker.ui.navigation
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +18,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -27,8 +31,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +47,10 @@ import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -49,15 +60,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeChrome
 import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * The bottom navigation bar: a capsule floating above the gesture area, its items sharing the
- * width evenly, with a selection pill that slides to the selected item. The pill is as tall as
- * the items, so it grows with the font scale, and at most [PillAspectRatio] times as wide.
+ * width evenly, with a selection pill covering the selected item. Each item, and so the pill, is
+ * [PillAspectRatio] times as wide as it is tall, unless the bar would then crowd the screen
+ * edges closer than padding_medium; then the items narrow to fit. The pill jumps
+ * under the finger on touch down, follows it while dragging, and on release settles on the
+ * nearest item and selects it.
  *
  * The items are drawn twice: outlined everywhere but under the pill, and filled only under it.
  * The pill is the mask between the two, so while it slides, every item it passes reads as
@@ -75,11 +90,13 @@ internal fun PillNavigationBar(
     modifier: Modifier = Modifier,
 ) {
     val selectedIndex = items.indexOfFirst { item -> item.screen == selectedScreen }.coerceAtLeast(0)
-    val indicatorPosition by animateFloatAsState(
-        targetValue = selectedIndex.toFloat(),
-        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
-        label = "pillNavigationIndicator",
-    )
+    val currentSelectedIndex by rememberUpdatedState(selectedIndex)
+    val currentOnItemClick by rememberUpdatedState(onItemClick)
+    val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    val indicator = remember { Animatable(selectedIndex.toFloat()) }
+    LaunchedEffect(selectedIndex) { indicator.animateTo(selectedIndex.toFloat(), settleSpec) }
+    val scope = rememberCoroutineScope()
+    val layoutDirection = LocalLayoutDirection.current
     val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
     val containerModifier = if (LocalHazeBlurEnabled.current && hazeState != null) {
         Modifier.hazeChrome(hazeState)
@@ -90,37 +107,85 @@ internal fun PillNavigationBar(
     val pillPath = remember { Path() }
     fun DrawScope.pill(): Path {
         val itemWidth = size.width / items.size
-        val pillWidth = minOf(itemWidth, size.height * PillAspectRatio)
-        val center = (indicatorPosition + 0.5f) * itemWidth
-        val left = (if (layoutDirection == LayoutDirection.Rtl) size.width - center else center) - pillWidth / 2
+        val center = (indicator.value + 0.5f) * itemWidth
+        val left = (if (layoutDirection == LayoutDirection.Rtl) size.width - center else center) - itemWidth / 2
         pillPath.reset()
         pillPath.addRoundRect(
-            RoundRect(left, 0f, left + pillWidth, size.height, CornerRadius(size.height / 2))
+            RoundRect(left, 0f, left + itemWidth, size.height, CornerRadius(size.height / 2))
         )
         return pillPath
     }
     val pagePadding = dimensionResource(R.dimen.padding_medium)
 
-    // Sized and inset like a page's body (AppContentContainer, padded by padding_medium), so the
-    // bar lines up with the cards above it at any window width.
+    // Sits right on the gesture area or the 3-button bar; without either it keeps 8dp off the
+    // screen edge (union takes the larger of the two, not their sum).
     Box(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(
                 WindowInsets.navigationBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
-            ),
+                    .union(WindowInsets(bottom = 8.dp))
+            )
+            .padding(horizontal = pagePadding),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = AppContentMaxWidth)
-                .fillMaxWidth()
-                .padding(start = pagePadding, end = pagePadding, bottom = pagePadding)
+                // Items as tall as their content (at least 56dp, growing with the font scale)
+                // and PillAspectRatio times as wide, capped at the width left between the
+                // side paddings.
+                .layout { measurable, constraints ->
+                    val inset = BarInset.roundToPx() * 2
+                    val itemHeight = measurable.minIntrinsicHeight(constraints.maxWidth) - inset
+                    val width = (items.size * itemHeight * PillAspectRatio + inset).roundToInt()
+                        .coerceIn(constraints.minWidth, constraints.maxWidth)
+                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                }
                 .height(IntrinsicSize.Min)
                 .clip(CircleShape)
                 .then(containerModifier)
-                .padding(4.dp)
-                .drawBehind { drawPath(pill(), indicatorColor) },
+                .padding(BarInset)
+                .drawBehind { drawPath(pill(), indicatorColor) }
+                // Touch drives the pill directly, taken in the Initial pass so the items'
+                // selectable (kept for accessibility and keys) never sees it.
+                .pointerInput(items.size, layoutDirection) {
+                    fun positionAt(x: Float): Float {
+                        val ltrX = if (layoutDirection == LayoutDirection.Rtl) size.width - x else x
+                        return (ltrX / (size.width / items.size) - 0.5f).coerceIn(0f, items.lastIndex.toFloat())
+                    }
+                    fun follow(x: Float) {
+                        scope.launch { indicator.animateTo(positionAt(x), FollowSpec) }
+                    }
+                    awaitEachGesture {
+                        val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                        down.consume()
+                        follow(down.position.x)
+                        var released = false
+                        while (true) {
+                            val change = awaitPointerEvent(PointerEventPass.Initial).changes
+                                .firstOrNull { it.id == down.id }
+                            if (change == null || change.isConsumed) break
+                            change.consume()
+                            if (!change.pressed) {
+                                released = true
+                                break
+                            }
+                            follow(change.position.x)
+                        }
+                        if (released) {
+                            val target = indicator.targetValue.roundToInt()
+                            scope.launch {
+                                indicator.animateTo(target.toFloat(), settleSpec)
+                                // Back to the real selection if the click did not change it.
+                                indicator.animateTo(currentSelectedIndex.toFloat(), settleSpec)
+                            }
+                            currentOnItemClick(items[target].screen)
+                        } else {
+                            scope.launch { indicator.animateTo(currentSelectedIndex.toFloat(), settleSpec) }
+                        }
+                    }
+                },
         ) {
             // The tabs themselves, with their selection and clicks; outlined, outside the pill.
             Row(
@@ -179,9 +244,13 @@ private fun RowScope.PillNavigationBarItem(
                 if (onClick == null) {
                     Modifier
                 } else {
-                    Modifier
-                        .clip(CircleShape)
-                        .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+                    Modifier.selectable(
+                        selected = selected,
+                        interactionSource = null,
+                        indication = null,
+                        role = Role.Tab,
+                        onClick = onClick,
+                    )
                 }
             )
             .padding(horizontal = 4.dp, vertical = 6.dp),
@@ -204,6 +273,11 @@ private fun RowScope.PillNavigationBarItem(
     }
 }
 
-// Width to height: the pill covers one item's icon and label, and stays this shape (if the item
-// is wide enough) instead of stretching across a wide bar.
-private const val PillAspectRatio = 1.5f
+// Width to height of each item and so of the pill, kept unless the side paddings squeeze it.
+private const val PillAspectRatio = 1.67f
+
+// Between the capsule's edge and the items, all around.
+private val BarInset = 4.dp
+
+// Stiff enough that the pill reads as stuck to the finger, with a frame or two of give.
+private val FollowSpec = spring<Float>(stiffness = Spring.StiffnessMedium)
