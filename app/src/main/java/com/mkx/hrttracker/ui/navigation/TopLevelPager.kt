@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -88,6 +91,12 @@ internal fun TopLevelPager(
             }
             var shown by remember { mutableStateOf(false) }
             if (visible && !shown) SideEffect { shown = true }
+            // A field focused on a page swiped away would keep the keyboard up and take typing.
+            var hasFocus by remember { mutableStateOf(false) }
+            val focusManager = LocalFocusManager.current
+            LaunchedEffect(visible) {
+                if (!visible && hasFocus) focusManager.clearFocus(force = true)
+            }
 
             LifecycleCapped(if (visible) Lifecycle.State.RESUMED else Lifecycle.State.STARTED) {
                 BackHandledOnlyWhen(visible) {
@@ -97,7 +106,9 @@ internal fun TopLevelPager(
                         Modifier
                             .fillMaxSize()
                             .graphicsLayer()
-                            .then(if (visible) Modifier else Modifier.clearAndSetSemantics { }),
+                            .then(if (visible) Modifier else Modifier.clearAndSetSemantics { })
+                            .onFocusChanged { state -> hasFocus = state.hasFocus }
+                            .focusGroup(),
                     ) {
                         if (visible || shown || prewarmed) pageContent(topLevelNavigationItems[page].screen)
                     }

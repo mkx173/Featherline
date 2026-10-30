@@ -67,6 +67,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.exemptFromPagerSwipe
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
@@ -771,10 +772,15 @@ internal fun RegimenGroupCard(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
 
+                val upcomingScrollState = rememberScrollState()
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp, bottom = 6.dp)
+                    modifier = Modifier
+                        // Overflowing chips scroll sideways; otherwise the swipe switches tabs.
+                        .exemptFromPagerSwipe { upcomingScrollState.maxValue > 0 }
+                        .horizontalScroll(upcomingScrollState)
+                        .padding(top = 2.dp, bottom = 6.dp)
                 ) {
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
                         UpcomingOccurrenceChip(

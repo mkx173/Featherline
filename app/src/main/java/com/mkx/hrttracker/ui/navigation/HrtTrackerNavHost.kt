@@ -891,6 +891,10 @@ fun HrtTrackerNavHost(
     val latestOnTopLevelItemClick by rememberUpdatedState(onTopLevelItemClick)
     val latestShowPostLogStockWarning by rememberUpdatedState(showPostLogStockWarning)
     val latestTopLevelNavigationChromeLocked by rememberUpdatedState(topLevelNavigationChromeLocked)
+    // Also the bar's layout and style, which a rotation, window resize or setting changes.
+    val latestNavigationSuiteType by rememberUpdatedState(navigationSuiteType)
+    val latestClassicNavigationBar by rememberUpdatedState(classicNavigationBar)
+    val latestHomeDeepLinkHighlightEffectsEnabled by rememberUpdatedState(homeDeepLinkHighlightEffectsEnabled)
 
     EdgeToEdgeNavigationSuiteScaffold(
         modifier = modifier,
@@ -917,11 +921,11 @@ fun HrtTrackerNavHost(
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
                 composable(Screen.Main.route) { backStackEntry ->
-                    val bottomBar = if (navigationSuiteType.isBottomBar) {
+                    val bottomBar = if (latestNavigationSuiteType.isBottomBar) {
                         RoutedBottomBar(height = LocalTopLevelBottomBarHeight.current) {
                             TopLevelNavigationBar(
-                                classic = classicNavigationBar,
-                                layoutType = navigationSuiteType,
+                                classic = latestClassicNavigationBar,
+                                layoutType = latestNavigationSuiteType,
                                 selectedScreen = latestSelectedBottomScreen,
                                 onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
                                 hazeState = LocalChromeHazeState.current,
@@ -942,7 +946,7 @@ fun HrtTrackerNavHost(
                                 Screen.Main -> MainScreen(
                                     modifier,
                                     scrollToTopSignal = mainScrollToTopSignal,
-                                    highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
+                                    highlightEffectsEnabled = latestHomeDeepLinkHighlightEffectsEnabled,
                                     onEntryClick = { request ->
                                         if (canOpenOverlaySheet(backStackEntry)) {
                                             medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
