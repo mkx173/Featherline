@@ -593,8 +593,9 @@ class MedicationDayE2eTest {
         compose.onNode(hasText(text(R.string.settings_hide_archived_group_records)) and hasClickAction())
             .performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
         await { !io { entryPoint.settingsRepository().getCurrentSettings().showArchivedGroupRecords } }
+        // History opens fresh on today, and with the only record hidden there is none to show.
         history()
-        awaitText(text(R.string.history_selected_day_empty_state))
+        awaitText(text(R.string.history_empty_state))
         compose.onNodeWithText("Archived dawn dose").assertDoesNotExist()
         tab(R.string.tab_settings)
         compose.onNode(hasText(text(R.string.settings_hide_archived_group_records)) and hasClickAction())
@@ -929,6 +930,12 @@ class MedicationDayE2eTest {
 
     private fun tab(id: Int) {
         val matcher = hasText(text(id)) and hasClickAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
+        // Sub pages have no bottom bar, so back out to the top-level pages first.
+        repeat(3) {
+            if (compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()) return@repeat
+            scenario!!.onActivity { activity -> activity.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
+        }
         compose.onNode(matcher).performSemanticsAction(SemanticsActions.OnClick)
         await { compose.onNode(matcher).fetchSemanticsNode().config[SemanticsProperties.Selected] }
         compose.waitForIdle()
