@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The plan editor has a Start section above Schedule, with the start date, a start time and the past schedule choice. A new plan starts Now; picking a date starts it with the whole day, and the start time picker's Reset button goes back to Now. No dose is scheduled or reminded before the start. Past schedule now offers Mark as completed, Mark as missed and Hide, and only shows while the plan has no records and a dose falls between the start and now.
 - With a night-owl plan, between midnight and 04:00 Home and the home-screen widget show its doses due later that morning under This morning, so the next dose no longer stays hidden until 04:00.
 - Body weight can sync from Health Connect. Settings' Body weight is now a sheet with a Health Connect switch and Sync now, and onboarding's weight step uses the same sheet. With sync on, the app reads your latest weight when you open it, when you tap Sync now and when you turn sync on, and shows the date it was recorded. It only reads your weight and never writes to Health Connect. While sync is on, the weight can't be typed; turn sync off to enter one. If you deny access, a message under the switch opens Health Connect, and if access is removed later, sync turns off. The kg and lb switch is now inside the weight field and converts the value.
+- You can swipe sideways between Home, Plan, Journal and Settings, even while a list is still scrolling. On Home, the estradiol chart and its overview strip pan when zoomed in and switch pages at the full view, and on Plan, swiping the week strip still changes the week.
+- Settings has a Classic navigation bar switch at the end of Appearance, which brings back the standard bottom bar in place of the floating one. It is off by default, and backups keep it.
 
 ### Fixed
 
@@ -44,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The first time you open the app after this update, Home's lists take a moment longer to appear, and the estradiol card shows a loading placeholder until the estimate is worked out. This happens once.
 - The language list calls Cantonese 廣東話 instead of 粵語.
 - Simplified and Traditional Chinese address you as 你 instead of 您. Chinese text puts a space between Chinese and Latin letters or digits, as in 24 小时, and short messages no longer end with 。.
+- The bottom navigation bar now floats above the bottom edge as a rounded bar, with a highlight that slides to the selected tab. Touch the bar and the highlight jumps under your finger, follows it as you drag and picks the tab you let go on. Page content fades out under the bar.
+- The bottom navigation bar now shows only on Home, Plan, Journal and Settings, and slides away with the page when you open something from them.
+- Switching tabs no longer pauses while the page loads, so the bar's animation no longer freezes. Pages stay loaded once opened, and a tab tapped from the bar slides in with a soft spring.
+- With the side navigation rail on tablets and foldables, tapping another tab from a page you opened, such as History, now closes that page instead of keeping it for when you come back to the tab.
+- History opens more smoothly: its calendar fills in over the first few frames instead of holding up the opening animation.
 
 ## [1.4.2] - 2026-10-14
 
