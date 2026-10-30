@@ -73,6 +73,7 @@ class SettingsRepository internal constructor(
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val pureBlackKey = booleanPreferencesKey("pure_black")
     private val hazeBlurKey = booleanPreferencesKey("haze_blur")
+    private val classicNavigationBarKey = booleanPreferencesKey("classic_navigation_bar")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val healthConnectWeightSyncEnabledKey =
         booleanPreferencesKey("health_connect_weight_sync_enabled")
@@ -212,6 +213,12 @@ class SettingsRepository internal constructor(
     suspend fun setHazeBlurEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[hazeBlurKey] = enabled
+        }
+    }
+
+    suspend fun setClassicNavigationBarEnabled(enabled: Boolean) {
+        activeDataStore().edit { preferences ->
+            preferences[classicNavigationBarKey] = enabled
         }
     }
 
@@ -458,6 +465,7 @@ class SettingsRepository internal constructor(
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
         pkCalibrationIntroSeen: Boolean = false,
         healthConnectWeightSyncEnabled: Boolean = false,
+        classicNavigationBarEnabled: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -468,6 +476,7 @@ class SettingsRepository internal constructor(
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[pureBlackKey] = pureBlackEnabled
             preferences[hazeBlurKey] = hazeBlurEnabled
+            preferences[classicNavigationBarKey] = classicNavigationBarEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             preferences[healthConnectWeightSyncEnabledKey] = healthConnectWeightSyncEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
@@ -542,6 +551,7 @@ class SettingsRepository internal constructor(
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
             pureBlackEnabled = preferences[pureBlackKey] ?: false,
             hazeBlurEnabled = preferences[hazeBlurKey] ?: true,
+            classicNavigationBarEnabled = preferences[classicNavigationBarKey] ?: false,
             calibrationDefaultUnits = BloodAnalyteKey.entries.mapNotNull { analyteKey ->
                 preferences[calibrationDefaultUnitKeys.getValue(analyteKey)]
                     ?.let(BloodUnitKey::fromStorageValue)

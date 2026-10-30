@@ -553,6 +553,7 @@ fun SettingsScreen(
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onPureBlackEnabledChange = viewModel::setPureBlackEnabled,
         onHazeBlurEnabledChange = viewModel::setHazeBlurEnabled,
+        onClassicNavigationBarEnabledChange = viewModel::setClassicNavigationBarEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
@@ -979,6 +980,7 @@ internal fun SettingsScreenContent(
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onPureBlackEnabledChange: (Boolean) -> Unit,
     onHazeBlurEnabledChange: (Boolean) -> Unit,
+    onClassicNavigationBarEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
@@ -1541,6 +1543,28 @@ internal fun SettingsScreenContent(
                                 }
                             )
                         }
+                    }
+
+                    item {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_classic_navigation_bar),
+                            onClick = {
+                                onClassicNavigationBarEnabledChange(
+                                    !settingsState.classicNavigationBarEnabled
+                                )
+                            },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_bottom_navigation)
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = settingsState.classicNavigationBarEnabled,
+                                    onCheckedChange = onClassicNavigationBarEnabledChange
+                                )
+                            }
+                        )
                     }
                 }
 
@@ -2196,6 +2220,7 @@ private fun SettingsScreenPreview() {
             onAdaptiveColorEnabledChange = { },
             onPureBlackEnabledChange = { },
             onHazeBlurEnabledChange = { },
+            onClassicNavigationBarEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },

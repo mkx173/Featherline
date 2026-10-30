@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.history
 
 import androidx.compose.ui.unit.dp
+import com.kizitonwose.calendar.core.CalendarDay
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -22,6 +23,7 @@ import com.mkx.hrttracker.util.historyEntryGroupDayFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -1517,6 +1519,22 @@ class HistoryUiModelsTest {
                 date = LocalDate.of(2026, 5, 1)
             )
         )
+    }
+
+    @Test
+    fun historyCalendarWeekRow_counts_rows_from_the_grid_start() {
+        fun row(date: LocalDate, position: DayPosition, firstDayOfWeek: DayOfWeek) =
+            historyCalendarWeekRow(CalendarDay(date, position), firstDayOfWeek)
+
+        // October 2026 starts on a Thursday; a Sunday-first grid opens on September 27.
+        assertEquals(0, row(LocalDate.of(2026, 9, 27), DayPosition.InDate, DayOfWeek.SUNDAY))
+        assertEquals(0, row(LocalDate.of(2026, 10, 3), DayPosition.MonthDate, DayOfWeek.SUNDAY))
+        assertEquals(1, row(LocalDate.of(2026, 10, 4), DayPosition.MonthDate, DayOfWeek.SUNDAY))
+        assertEquals(4, row(LocalDate.of(2026, 10, 31), DayPosition.MonthDate, DayOfWeek.SUNDAY))
+        assertEquals(5, row(LocalDate.of(2026, 11, 7), DayPosition.OutDate, DayOfWeek.SUNDAY))
+        // A Monday-first grid opens on September 28, so October 4 is still in the first row.
+        assertEquals(0, row(LocalDate.of(2026, 10, 4), DayPosition.MonthDate, DayOfWeek.MONDAY))
+        assertEquals(5, row(LocalDate.of(2026, 11, 8), DayPosition.OutDate, DayOfWeek.MONDAY))
     }
 
     private fun stateFor(

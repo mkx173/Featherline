@@ -237,28 +237,28 @@ class HazeChromeIntegrationTest {
 
     @Test
     fun bottom_navigation_bar_uses_haze_chrome_and_transparent_haze_colors() {
-        val scaffoldFile =
+        val scaffoldText =
             File("src/main/java/com/mkx/hrttracker/ui/navigation/EdgeToEdgeNavigationSuiteScaffold.kt")
-        val text = scaffoldFile.readText()
+                .readText()
         val navHostText = navHostText()
 
+        val pillBarText =
+            File("src/main/java/com/mkx/hrttracker/ui/navigation/PillNavigationBar.kt").readText()
         assertTrue(
-            "Bottom navigation scaffold should apply the Haze chrome modifier.",
-            text.contains(".hazeChrome("),
+            "The bottom bar is drawn inside each top-level destination, so it should blur " +
+                    "that destination's own Haze source (like the top app bar), and fall back " +
+                    "to an opaque container on the same condition hazeChrome checks, so the " +
+                    "bar can never go transparent while hazeChrome no-ops.",
+            navHostText.contains("hazeState = LocalChromeHazeState.current") &&
+                    pillBarText.contains("if (LocalHazeBlurEnabled.current && hazeState != null)") &&
+                    pillBarText.contains("Modifier.hazeChrome(hazeState)") &&
+                    pillBarText.contains("Modifier.background(MaterialTheme.colorScheme.surfaceContainer)"),
         )
         assertTrue(
-            "Bottom navigation scaffold should make navigation containers transparent for " +
-                    "Haze, gated on the same state the chrome blur uses so the bar can " +
-                    "never go transparent while hazeChrome(null) no-ops.",
-            text.contains("hazeNavigationSuiteColors(navigationChromeHazeState)"),
-        )
-        assertTrue(
-            "Bottom navigation chrome needs a stable route-level Haze source so page " +
-                    "transitions update the blur from the composed NavHost frame instead of " +
-                    "detaching and reattaching per-screen source layers.",
-            text.contains("navigationChromeHazeState: HazeState?") &&
-                    text.contains(".hazeSourceArea(navigationChromeHazeState)") &&
-                    text.contains(".hazeChrome(navigationChromeHazeState") &&
+            "Sheets and dialogs hosted above the routed content need a stable route-level " +
+                    "Haze source so their blur sees the composed NavHost frame.",
+            scaffoldText.contains("navigationChromeHazeState: HazeState?") &&
+                    scaffoldText.contains(".hazeSourceArea(navigationChromeHazeState)") &&
                     navHostText.contains("val navigationChromeHazeState = rememberChromeHazeState()") &&
                     navHostText.contains("navigationChromeHazeState = navigationChromeHazeState"),
         )

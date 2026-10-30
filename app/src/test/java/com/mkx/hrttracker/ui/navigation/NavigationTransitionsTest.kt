@@ -268,6 +268,20 @@ class NavigationTransitionsTest {
         )
     }
 
+    // The top-level pager is registered as Screen.Main.route whichever page it shows.
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_from_pager_to_another_section() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Main.route,
+                targetRoute = Screen.History.createRoute(Screen.Plan.route),
+                isPop = false,
+                targetTopLevelParentRoute = Screen.Plan.route,
+            )
+        )
+    }
+
     @Test
     fun resolveNavigationMotionPattern_returnsNone_for_unknown_destination() {
         assertEquals(

@@ -50,6 +50,7 @@ class SettingsScreenWeightRowTest {
                     onAdaptiveColorEnabledChange = {},
                     onPureBlackEnabledChange = {},
                     onHazeBlurEnabledChange = {},
+                    onClassicNavigationBarEnabledChange = {},
                     onShowArchivedGroupRecordsChange = {},
                     onHideReferenceRangesChange = {},
                     onHideMedicationDetailsChange = {},

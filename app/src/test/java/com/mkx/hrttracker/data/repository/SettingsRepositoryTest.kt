@@ -145,6 +145,17 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `classic navigation bar setting persists and defaults off`() = runTest(testDispatcher) {
+        assertEquals(false, settingsRepository.getCurrentSettings().classicNavigationBarEnabled)
+
+        settingsRepository.setClassicNavigationBarEnabled(true)
+        assertEquals(true, settingsRepository.getCurrentSettings().classicNavigationBarEnabled)
+
+        settingsRepository.setClassicNavigationBarEnabled(false)
+        assertEquals(false, settingsRepository.getCurrentSettings().classicNavigationBarEnabled)
+    }
+
+    @Test
     fun `restoreSettings restores haze blur setting`() = runTest(testDispatcher) {
         restoreSettingsWithHazeBlurEnabled(false)
 

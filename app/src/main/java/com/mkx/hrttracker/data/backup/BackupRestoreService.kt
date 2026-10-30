@@ -301,6 +301,7 @@ class BackupRestoreService @Inject constructor(
                 adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
                 pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
                 hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
+                classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
                 remindersEnabled = validatedSnapshot.settings.remindersEnabled,
                 healthConnectWeightSyncEnabled =
                     validatedSnapshot.settings.healthConnectWeightSyncEnabled,
@@ -1049,6 +1050,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         adaptiveColorEnabled = adaptiveColorEnabled,
         pureBlackEnabled = pureBlackEnabled,
         hazeBlurEnabled = hazeBlurEnabled,
+        classicNavigationBarEnabled = classicNavigationBarEnabled,
         remindersEnabled = remindersEnabled,
         healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
@@ -1707,6 +1709,7 @@ internal data class ValidatedBackupSettings(
     val adaptiveColorEnabled: Boolean,
     val pureBlackEnabled: Boolean,
     val hazeBlurEnabled: Boolean,
+    val classicNavigationBarEnabled: Boolean,
     val remindersEnabled: Boolean,
     val healthConnectWeightSyncEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,

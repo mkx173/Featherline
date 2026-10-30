@@ -381,10 +381,17 @@ above the bar via `LocalAppContentBottomInset`. Layout configuration
 changes (rotation, fold posture, window resize) are declared in
 `configChanges` and handled in place by recomposition rather than
 activity recreation. The
-suite surfaces four of the destinations (Main, Plan, Journal, Settings) from
-the `topLevelNavigationItems` list; the rest are reached via in-screen
-actions and tracked back to their top-level parent via the
-`topLevelParent` nav-argument.
+suite surfaces four of the screens (Main, Plan, Journal, Settings) from
+the `topLevelNavigationItems` list. They are not destinations of their
+own but the pages of
+[`TopLevelPager`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/TopLevelPager.kt),
+a `HorizontalPager` registered as the `Main` route: the pages stay
+composed, so a tab switch or swipe only moves them, and a page off screen
+is held at STARTED, so its data stays current but only the pages on
+screen are resumed. Sideways swipes are taken from page content even
+while a list is still scrolling (`pagerSwipe`). The rest
+are reached via in-screen actions, pushed over the pager, and tracked back
+to their top-level parent via the `topLevelParent` nav-argument.
 
 Routed-screen body content is capped at 640dp by
 [`AppContentContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/components/AppContentContainer.kt),

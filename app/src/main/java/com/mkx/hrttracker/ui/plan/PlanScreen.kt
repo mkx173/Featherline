@@ -96,6 +96,7 @@ import com.mkx.hrttracker.ui.components.HrtSectionHeader
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
+import com.mkx.hrttracker.ui.components.exemptFromPagerSwipe
 import com.mkx.hrttracker.ui.components.hrtSection
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
@@ -401,7 +402,10 @@ private fun PlanScreenContent(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         WeekCalendar(
-                            modifier = Modifier.fillMaxWidth(),
+                            // Its swipes change the week, not the tab.
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .exemptFromPagerSwipe(),
                             state = state,
                             dayContent = { day ->
                                 val dayState =

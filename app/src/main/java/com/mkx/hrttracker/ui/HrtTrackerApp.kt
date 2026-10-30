@@ -18,6 +18,7 @@ fun HrtTrackerApp(
     onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
     highlightEffectsEnabled: Boolean,
+    classicNavigationBar: Boolean,
 ) {
     // The post-log stock snackbar is hosted inside HrtTrackerNavHost so it sits
     // above the app's bottom navigation bar rather than overlapping it.
@@ -28,6 +29,7 @@ fun HrtTrackerApp(
         onConsumeMilestonesDeepLink = onConsumeMilestonesDeepLink,
         onMilestonesDeepLinkSettled = onMilestonesDeepLinkSettled,
         highlightEffectsEnabled = highlightEffectsEnabled,
+        classicNavigationBar = classicNavigationBar,
     )
 }
 

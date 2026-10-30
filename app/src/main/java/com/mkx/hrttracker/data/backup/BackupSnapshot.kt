@@ -32,6 +32,7 @@ data class BackupSettingsSnapshot(
     val adaptiveColorEnabled: Boolean,
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
+    val classicNavigationBarEnabled: Boolean = false,
     val remindersEnabled: Boolean,
     val healthConnectWeightSyncEnabled: Boolean = false,
     val showArchivedGroupRecords: Boolean = true,

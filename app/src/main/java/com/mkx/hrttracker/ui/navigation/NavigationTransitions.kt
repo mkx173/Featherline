@@ -73,7 +73,11 @@ internal fun resolveNavigationMotionPattern(
     )
         ?: return NavigationMotionPattern.NONE
 
-    if (initialContext.topLevelScreen != targetContext.topLevelScreen) {
+    // The top-level pager (Screen.Main.route) shows the page of whichever section its child
+    // was opened from, so it shares the other side's section.
+    val eitherIsTopLevelPager =
+        normalizedInitialRoute == Screen.Main.route || normalizedTargetRoute == Screen.Main.route
+    if (!eitherIsTopLevelPager && initialContext.topLevelScreen != targetContext.topLevelScreen) {
         return NavigationMotionPattern.NONE
     }
 

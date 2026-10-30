@@ -248,6 +248,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setClassicNavigationBarEnabled(enabled: Boolean) {
+        launchSettingsMutation {
+            settingsRepository.setClassicNavigationBarEnabled(enabled)
+        }
+    }
+
     fun setShowArchivedGroupRecords(enabled: Boolean) {
         launchSettingsMutation {
             settingsRepository.setShowArchivedGroupRecords(enabled)

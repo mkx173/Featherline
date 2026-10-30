@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -21,10 +22,12 @@ import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.tickWhileSubscribed
 import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -37,7 +40,8 @@ class PlanViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
-    appTimeSource: AppTimeSource
+    appTimeSource: AppTimeSource,
+    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
 
@@ -89,7 +93,7 @@ class PlanViewModel @Inject constructor(
                     selection = selection,
                     now = now,
                 )
-            }.collect { state ->
+            }.flowOn(defaultDispatcher).collect { state ->
                 _uiState.value = state
                 // Today is never a stored selection (tapping it clears one). Midnight can move
                 // today onto a selected next day.

@@ -95,6 +95,7 @@ data class SettingsState(
     val adaptiveColorEnabled: Boolean = true,
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
+    val classicNavigationBarEnabled: Boolean = false,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),

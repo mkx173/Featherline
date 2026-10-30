@@ -56,6 +56,7 @@ class SettingsScreenExternalImportTest {
                     onAdaptiveColorEnabledChange = {},
                     onPureBlackEnabledChange = {},
                     onHazeBlurEnabledChange = {},
+                    onClassicNavigationBarEnabledChange = {},
                     onShowArchivedGroupRecordsChange = {},
                     onHideReferenceRangesChange = {},
                     onHideMedicationDetailsChange = {},

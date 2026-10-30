@@ -78,7 +78,7 @@ class PlanViewModelTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(
             listOf(medicationGroup(times = listOf(LocalTime.of(1, 0))).nightOwl())
         )
-        val viewModel = PlanViewModel(medicationGroupRepository, medicationLogRepository, settingsRepository, appTimeSource)
+        val viewModel = PlanViewModel(medicationGroupRepository, medicationLogRepository, settingsRepository, appTimeSource, dispatcher)
         advanceUntilIdle()
         // Today is the calendar date; the plan's dawn slot sits on its own medication day.
         assertEquals(firstMinute.toLocalDate(), viewModel.uiState.value.today)
@@ -106,6 +106,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -137,6 +138,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -167,6 +169,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -201,6 +204,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -247,6 +251,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -299,6 +304,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -346,6 +352,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -379,6 +386,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -454,6 +462,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -491,6 +500,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         val subscription = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -530,6 +540,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         val subscription = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -584,6 +595,7 @@ class PlanViewModelTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
