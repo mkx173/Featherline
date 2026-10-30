@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -124,6 +125,7 @@ import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.LocalPagerSwipeExemption
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.exemptFromPagerSwipe
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
@@ -980,6 +982,7 @@ internal fun MainE2ChartCard(
     val chartViewportResetVersion = rememberSaveable { mutableIntStateOf(0) }
     // Hoisted above the marker-label computation, which reads the viewport
     // snapshot to apply the end-boundary display convention at the right edge.
+    val pagerSwipeExemption = LocalPagerSwipeExemption.current
     val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
         MainE2ChartCoordinateMapper()
     }
@@ -1367,16 +1370,23 @@ internal fun MainE2ChartCard(
                         Box(
                             modifier = Modifier
                                 .testTag(MainE2ChartContentTestTag)
-                                // Its pan, zoom and marker scrub keep sideways drags.
-                                .exemptFromPagerSwipe()
+                                // Zoomed in, its sideways drags pan it; at the full view
+                                // there is nothing to pan, so they swipe tabs instead.
+                                .exemptFromPagerSwipe {
+                                    chartCoordinateMapper.viewportSnapshot.value
+                                        ?.takeIf { it.spec?.chartWindowHours == chartWindowHours }
+                                        ?.let { mainE2ChartMinimapIsZoomed(it.visibleRange, chartWindowHours) } == true
+                                }
                                 .fillMaxWidth()
                                 .height(MainE2ChartPlotHeight)
                                 .padding(MainE2ChartContentPadding)
                                 .onSizeChanged { chartWidthPx.intValue = it.width }
-                                .pointerInput(chartCoordinateMapper, chartWindowHours) {
+                                .pointerInput(chartCoordinateMapper, chartWindowHours, pagerSwipeExemption) {
                                     detectMainE2ChartMarkerGestures(
                                         coordinateMapper = chartCoordinateMapper,
                                         chartWindowHours = chartWindowHours,
+                                        // The marker scrub keeps its drag at any zoom.
+                                        onMarkerStart = { pointer -> pagerSwipeExemption?.claim(pointer) },
                                         onMarkerXChanged = { xHours ->
                                             interactiveMarkerXHours.value = xHours
                                         },
@@ -2056,7 +2066,8 @@ private fun MainE2ChartMinimap(
                     Spacer(
                         modifier = Modifier
                             .matchParentSize()
-                            .exemptFromPagerSwipe()
+                            // Zoomed out, the viewport has nowhere to go: tabs swipe instead.
+                            .exemptFromPagerSwipe { resetEnabled }
                             .onSizeChanged { minimapCanvasSize.value = it }
                             .pointerInput(
                                 chartWindowHours,
@@ -2665,6 +2676,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
     chartWindowHours: Int,
     onMarkerXChanged: (Double?) -> Unit,
     onTouchActiveChange: (Boolean) -> Unit = {},
+    onMarkerStart: (PointerId) -> Unit = {},
 ) {
     fun markerXFor(pointerX: Float): Double {
         val fallbackX = if (size.width > 0) {
@@ -2694,6 +2706,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
             }
 
             longPress.consume()
+            onMarkerStart(down.id)
             onMarkerXChanged(markerXFor(longPress.position.x))
 
             while (true) {

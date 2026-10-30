@@ -25,6 +25,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.mkx.hrttracker.ui.components.LocalPagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeNestedScrollConnection
@@ -88,15 +90,17 @@ internal fun TopLevelPager(
             if (visible && !shown) SideEffect { shown = true }
 
             LifecycleCapped(if (visible) Lifecycle.State.RESUMED else Lifecycle.State.STARTED) {
-                // Its own layer, so a swipe only moves the page instead of redrawing it. Off
-                // screen, it is hidden from accessibility as a destination left behind was.
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer()
-                        .then(if (visible) Modifier else Modifier.clearAndSetSemantics { }),
-                ) {
-                    if (visible || shown || prewarmed) pageContent(topLevelNavigationItems[page].screen)
+                BackHandledOnlyWhen(visible) {
+                    // Its own layer, so a swipe only moves the page instead of redrawing it. Off
+                    // screen, it is hidden from accessibility as a destination left behind was.
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer()
+                            .then(if (visible) Modifier else Modifier.clearAndSetSemantics { }),
+                    ) {
+                        if (visible || shown || prewarmed) pageContent(topLevelNavigationItems[page].screen)
+                    }
                 }
             }
         }
@@ -106,6 +110,15 @@ internal fun TopLevelPager(
 // ponytail: a fixed wait for launch to settle, not an idle signal; measure if pages still
 // compose while the first screen is busy.
 private const val PrewarmDelayMillis = 1_000L
+
+// Off screen, a page stays started for its data, which would leave its back handlers live and
+// let a hidden editor take Back. They stay registered, on a child dispatcher off unless [enabled].
+@Composable
+private fun BackHandledOnlyWhen(enabled: Boolean, content: @Composable () -> Unit) {
+    val parent = LocalNavigationEventDispatcherOwner.current ?: return content()
+    val owner = rememberNavigationEventDispatcherOwner(enabled = enabled, parent = parent)
+    CompositionLocalProvider(LocalNavigationEventDispatcherOwner provides owner, content = content)
+}
 
 // Provides a lifecycle that follows the surrounding one but never goes above [maxState].
 @Composable

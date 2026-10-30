@@ -15,6 +15,8 @@ import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -128,6 +130,8 @@ private suspend fun PointerInputScope.swipe(
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val change = event.changes.fastFirstOrNull { it.id == pointerId } ?: break
                     if (change.isConsumed || exemption.pointer == down.id) break
+                    // A second finger before the swipe starts is a pinch, not a swipe.
+                    if (drag == null && event.changes.count { it.pressed } > 1) break
                     if (!change.pressed) {
                         // Another finger still down carries the swipe on.
                         val next = event.changes.fastFirstOrNull { it.pressed }
@@ -191,21 +195,31 @@ fun Modifier.redrawWhilePagesMove(state: PagerState?): Modifier =
 /** Which touch content inside a [pagerSwipe] pager has claimed for its own sideways drags. */
 class PagerSwipeExemption {
     internal var pointer: PointerId? = null
+
+    /**
+     * Takes the touch of [pointer] from the pager, as long as the pager hasn't started swiping
+     * with it yet, for a gesture recognized after touch down, such as a long press.
+     */
+    fun claim(pointer: PointerId) {
+        this.pointer = pointer
+    }
 }
 
 val LocalPagerSwipeExemption = staticCompositionLocalOf<PagerSwipeExemption?> { null }
 
 /**
  * Keeps sideways drags that begin here, such as a chart's pan, from swiping the surrounding
- * [pagerSwipe] pager. The pager sees the touch first, so this marks it on touch down, before
- * the pager acts on any movement.
+ * [pagerSwipe] pager, whenever [enabled] says so at touch down. The pager sees the touch
+ * first, so this marks it on touch down, before the pager acts on any movement.
  */
 @Composable
-fun Modifier.exemptFromPagerSwipe(): Modifier {
+fun Modifier.exemptFromPagerSwipe(enabled: () -> Boolean = { true }): Modifier {
     val exemption = LocalPagerSwipeExemption.current ?: return this
+    val currentEnabled by rememberUpdatedState(enabled)
     return pointerInput(exemption) {
         awaitEachGesture {
-            exemption.pointer = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial).id
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (currentEnabled()) exemption.claim(down.id)
         }
     }
 }
