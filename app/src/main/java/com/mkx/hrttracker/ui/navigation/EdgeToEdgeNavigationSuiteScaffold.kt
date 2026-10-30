@@ -37,7 +37,7 @@ internal val LocalTopLevelBottomBarHeight = compositionLocalOf { 0.dp }
 /**
  * A [androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold] variant that
  * draws only the wide navigation rail. In the bottom-bar layouts [HrtTrackerNavHost] draws the bar
- * inside each top-level destination, so the bar rides that page's transitions and sub pages show
+ * inside the top-level pager's destination, so the bar rides its transitions and sub pages show
  * none.
  *
  * The scaffold still measures a copy of that bar, [bottomBar] (never placed, no semantics),

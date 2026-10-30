@@ -125,6 +125,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.exemptFromPagerSwipe
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
@@ -1366,6 +1367,8 @@ internal fun MainE2ChartCard(
                         Box(
                             modifier = Modifier
                                 .testTag(MainE2ChartContentTestTag)
+                                // Its pan, zoom and marker scrub keep sideways drags.
+                                .exemptFromPagerSwipe()
                                 .fillMaxWidth()
                                 .height(MainE2ChartPlotHeight)
                                 .padding(MainE2ChartContentPadding)
@@ -2053,6 +2056,7 @@ private fun MainE2ChartMinimap(
                     Spacer(
                         modifier = Modifier
                             .matchParentSize()
+                            .exemptFromPagerSwipe()
                             .onSizeChanged { minimapCanvasSize.value = it }
                             .pointerInput(
                                 chartWindowHours,

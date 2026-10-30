@@ -61,6 +61,18 @@ Connect app, unchanged, to label Health Connect sync.
 - Source: [platform/packages/modules/HealthFitness](https://android.googlesource.com/platform/packages/modules/HealthFitness/+/refs/heads/main/apk/res/drawable/ic_health_connect.xml)
 - Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
 
+### miuix
+
+The top-level pager's swipe handling (`ui/components/PagerSwipe.kt`), which
+takes sideways swipes from page content even while a list is still scrolling,
+and its settle spring are adapted from `horizontalPagerSwipeOverride` and
+`PagerNavigationSpringSpec` in miuix's `PagerGestureUtils.kt` (v0.9.4).
+
+- License: Apache License, Version 2.0
+- Copyright: Copyright 2026 compose-miuix-ui contributors
+- Source: [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix/blob/v0.9.4/miuix-ui/src/commonMain/kotlin/top/yukonga/miuix/kmp/utils/PagerGestureUtils.kt)
+- Local license text: [APACHE-2.0.txt](licenses/APACHE-2.0.txt)
+
 ### Oyama's HRT Tracker
 
 Featherline adapts plot display logic from

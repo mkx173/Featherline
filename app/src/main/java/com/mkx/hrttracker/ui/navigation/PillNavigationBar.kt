@@ -5,6 +5,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeChrome
+import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -72,7 +77,8 @@ import kotlin.math.roundToInt
  * [PillAspectRatio] times as wide as it is tall, unless the bar would then crowd the screen
  * edges closer than padding_medium; then the items narrow to fit. The pill jumps
  * under the finger on touch down, follows it while dragging, and on release settles on the
- * nearest item and selects it.
+ * nearest item and selects it. While the user swipes [pagerState] (reported to
+ * [pagerDragInteractions]), the pill tracks the pages.
  *
  * The items are drawn twice: outlined everywhere but under the pill, and filled only under it.
  * The pill is the mask between the two, so while it slides, every item it passes reads as
@@ -88,6 +94,8 @@ internal fun PillNavigationBar(
     onItemClick: (Screen) -> Unit,
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
+    pagerState: PagerState? = null,
+    pagerDragInteractions: InteractionSource? = pagerState?.interactionSource,
 ) {
     val selectedIndex = items.indexOfFirst { item -> item.screen == selectedScreen }.coerceAtLeast(0)
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)
@@ -95,6 +103,25 @@ internal fun PillNavigationBar(
     val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val indicator = remember { Animatable(selectedIndex.toFloat()) }
     LaunchedEffect(selectedIndex) { indicator.animateTo(selectedIndex.toFloat(), settleSpec) }
+    if (pagerState != null && pagerDragInteractions != null) {
+        val pagerDragged by pagerDragInteractions.collectIsDraggedAsState()
+        // From a swipe's start until the pages settle; a scroll the pill started keeps
+        // the pill's own settle instead.
+        LaunchedEffect(pagerState) {
+            var following = false
+            snapshotFlow {
+                Triple(
+                    pagerState.currentPage + pagerState.currentPageOffsetFraction,
+                    pagerDragged,
+                    pagerState.isScrollInProgress,
+                )
+            }.collect { (position, dragged, scrolling) ->
+                if (dragged) following = true
+                if (!scrolling) following = false
+                if (following) indicator.snapTo(position)
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val layoutDirection = LocalLayoutDirection.current
     val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
@@ -146,6 +173,7 @@ internal fun PillNavigationBar(
                 .clip(CircleShape)
                 .then(containerModifier)
                 .padding(BarInset)
+                .redrawWhilePagesMove(pagerState)
                 .drawBehind { drawPath(pill(), indicatorColor) }
                 // Touch drives the pill directly, taken in the Initial pass so the items'
                 // selectable (kept for accessibility and keys) never sees it.

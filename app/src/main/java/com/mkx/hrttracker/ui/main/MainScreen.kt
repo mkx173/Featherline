@@ -38,7 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.mkx.hrttracker.R
@@ -137,9 +137,10 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val highlightRequest by viewModel.highlightRequest.collectAsStateWithLifecycle()
-    LifecycleStartEffect(viewModel) {
+    // Resumed, not started: off screen in the top-level pager, Home stays started.
+    LifecycleResumeEffect(viewModel) {
         viewModel.setScreenVisible(true)
-        onStopOrDispose { viewModel.setScreenVisible(false) }
+        onPauseOrDispose { viewModel.setScreenVisible(false) }
     }
     val scrollState = rememberScrollState()
     var highlightFlashReady by remember { mutableStateOf(false) }
