@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withResumed
@@ -487,9 +488,9 @@ internal fun homeDeepLinkHighlightEffectsEnabled(
     shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
 
 // The bottom navigation bar a top-level destination draws over its own bottom edge, and
-// the bar's height its content pads for.
+// where its measured height goes besides the content's inset.
 internal class RoutedBottomBar(
-    val height: Dp,
+    val onHeightChange: (Dp) -> Unit,
     val content: @Composable () -> Unit,
 )
 
@@ -525,14 +526,11 @@ private fun RoutedTopChromeHazeProvider(
         if (bottomBar == null) {
             page()
         } else {
-            Box(Modifier.fillMaxSize()) {
-                CompositionLocalProvider(LocalAppContentBottomInset provides bottomBar.height) {
-                    page()
-                }
-                Box(Modifier.align(Alignment.BottomCenter)) {
-                    bottomBar.content()
-                }
-            }
+            BottomBarOverPage(
+                bar = bottomBar.content,
+                onBarHeightChange = bottomBar.onHeightChange,
+                page = page,
+            )
         }
     }
 }
@@ -900,19 +898,12 @@ fun HrtTrackerNavHost(
     val latestClassicNavigationBar by rememberUpdatedState(classicNavigationBar)
     val latestHomeDeepLinkHighlightEffectsEnabled by rememberUpdatedState(homeDeepLinkHighlightEffectsEnabled)
 
+    // For the snackbar, which rides above the bar on the top-level pages; their own content gets
+    // it in the frame the bar is measured.
+    var topLevelBottomBarHeight by remember { mutableStateOf(0.dp) }
     EdgeToEdgeNavigationSuiteScaffold(
         modifier = modifier,
-        navigationSuiteType = navigationSuiteType,
         navigationChromeHazeState = navigationChromeHazeState,
-        bottomBar = {
-            TopLevelNavigationBar(
-                classic = classicNavigationBar,
-                layoutType = navigationSuiteType,
-                selectedScreen = selectedBottomScreen,
-                onItemClick = {},
-                hazeState = null,
-            )
-        },
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
@@ -927,12 +918,7 @@ fun HrtTrackerNavHost(
                     // Passed beside the rail too, empty, so a switch between the two keeps the
                     // pages where they are in the composition and with them their state.
                     val isBottomBar = latestNavigationSuiteType.isBottomBar
-                    val bottomBarHeight = if (isBottomBar) {
-                        LocalTopLevelBottomBarHeight.current
-                    } else {
-                        LocalAppContentBottomInset.current
-                    }
-                    val bottomBar = RoutedBottomBar(height = bottomBarHeight) {
+                    val bottomBar = RoutedBottomBar(onHeightChange = { height -> topLevelBottomBarHeight = height }) {
                         if (isBottomBar) {
                             TopLevelNavigationBar(
                                 classic = latestClassicNavigationBar,
@@ -1545,7 +1531,7 @@ fun HrtTrackerNavHost(
                             navigationSuiteType.isBottomBar &&
                             Screen.topLevelScreenForRoute(currentRoute) != null
                         ) {
-                            LocalTopLevelBottomBarHeight.current
+                            topLevelBottomBarHeight
                         } else {
                             LocalAppContentBottomInset.current
                         },

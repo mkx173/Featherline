@@ -33,6 +33,26 @@ import java.util.Locale
 import java.util.UUID
 
 class HistoryUiModelsTest {
+    @Test
+    fun dayStateMonthRangeWithoutAMonthKeepsEitherSide() {
+        val range = HistoryCalendarDayStateMonthRange(YearMonth.of(2026, 1), YearMonth.of(2026, 5))
+
+        assertEquals(
+            listOf(
+                HistoryCalendarDayStateMonthRange(YearMonth.of(2026, 1), YearMonth.of(2026, 2)),
+                HistoryCalendarDayStateMonthRange(YearMonth.of(2026, 4), YearMonth.of(2026, 5)),
+            ),
+            range.without(YearMonth.of(2026, 3)),
+        )
+        assertEquals(
+            listOf(HistoryCalendarDayStateMonthRange(YearMonth.of(2026, 2), YearMonth.of(2026, 5))),
+            range.without(YearMonth.of(2026, 1)),
+        )
+        assertEquals(listOf(range), range.without(YearMonth.of(2026, 6)))
+        val single = HistoryCalendarDayStateMonthRange(YearMonth.of(2026, 3), YearMonth.of(2026, 3))
+        assertEquals(emptyList<HistoryCalendarDayStateMonthRange>(), single.without(YearMonth.of(2026, 3)))
+    }
+
     private val afterEveryDose = LocalDateTime.of(2027, 1, 1, 0, 0)
     // Shared so the (medicineUuid, applicationType, doseInstruction) signature
     // matches between scheduled group slots and the log entries used to

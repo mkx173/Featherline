@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -43,7 +44,9 @@ import kotlin.math.abs
  *
  * Every page stays composed once it has been shown, so a switch only moves pages instead of
  * composing one from scratch in a single frame. The pages not shown yet are composed one per
- * frame shortly after launch, so the first visit to each is cheap too.
+ * frame shortly after launch, so the first visit to each is cheap too. Covered by a sub page,
+ * the pages leave the composition with their destination, and on the way back they are composed
+ * again the same way, but straight away.
  *
  * Pages swipe sideways even while a page's list is still scrolling, see [pagerSwipe].
  *
@@ -59,14 +62,17 @@ internal fun TopLevelPager(
     pageContent: @Composable (Screen) -> Unit,
 ) {
     var prewarmedPages by remember { mutableIntStateOf(0) }
+    // Kept with the destination while a sub page covers it, unlike the pages themselves.
+    var prewarmedBefore by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state) {
-        delay(PrewarmDelayMillis)
+        if (!prewarmedBefore) delay(PrewarmDelayMillis)
         // Nearest pages first, each in a frame of its own with an idle one after it.
         while (prewarmedPages < topLevelNavigationItems.size) {
             prewarmedPages++
             withFrameNanos { }
             withFrameNanos { }
         }
+        prewarmedBefore = true
     }
 
     val swipeExemption = remember { PagerSwipeExemption() }
