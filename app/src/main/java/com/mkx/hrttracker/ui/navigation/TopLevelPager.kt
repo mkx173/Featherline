@@ -30,6 +30,7 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
+import com.mkx.hrttracker.ui.components.LocalModalHostShown
 import com.mkx.hrttracker.ui.components.LocalPagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeNestedScrollConnection
@@ -47,7 +48,8 @@ import kotlin.math.abs
  * Pages swipe sideways even while a page's list is still scrolling, see [pagerSwipe].
  *
  * A page off screen is held at [Lifecycle.State.STARTED]: its flows keep it current, so it never
- * slides into view stale or stuck loading, but only the pages on screen are resumed.
+ * slides into view stale or stuck loading, but only the pages on screen are resumed. A dialog or
+ * sheet left open on a page sliding off screen is dismissed.
  */
 @Composable
 internal fun TopLevelPager(
@@ -110,7 +112,11 @@ internal fun TopLevelPager(
                             .onFocusChanged { state -> hasFocus = state.hasFocus }
                             .focusGroup(),
                     ) {
-                        if (visible || shown || prewarmed) pageContent(topLevelNavigationItems[page].screen)
+                        if (visible || shown || prewarmed) {
+                            CompositionLocalProvider(LocalModalHostShown provides visible) {
+                                pageContent(topLevelNavigationItems[page].screen)
+                            }
+                        }
                     }
                 }
             }
