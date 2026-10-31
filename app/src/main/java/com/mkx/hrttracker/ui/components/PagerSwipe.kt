@@ -61,7 +61,8 @@ suspend fun PagerState.springToPage(page: Int) {
  * Swipes the pager sideways from anywhere on it, even while a page's list is still flinging,
  * which the pager's own swipe can't do: a moving list takes the next touch for itself. Touch
  * takes the pages over where they are, and a release settles them with the finger's speed.
- * A touch that begins on [exemptFromPagerSwipe] content is left to that content.
+ * A touch that begins on [exemptFromPagerSwipe] content is left to that content, and so is one
+ * that only moves after a long press.
  *
  * Give the pager userScrollEnabled = false and [PagerSwipeNestedScrollConnection] as its
  * pageNestedScrollConnection, so its own swipe doesn't compete. Swipes are reported to
@@ -158,7 +159,14 @@ private suspend fun PointerInputScope.swipe(
                         accumulated += delta
                         val x = abs(accumulated.x)
                         val y = abs(accumulated.y)
-                        if (x > viewConfiguration.touchSlop && x > y) {
+                        if (
+                            (x > viewConfiguration.touchSlop || y > viewConfiguration.touchSlop) &&
+                            change.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis
+                        ) {
+                            // Moving only after a long press, such as extending a text
+                            // selection: the content's own drag.
+                            break
+                        } else if (x > viewConfiguration.touchSlop && x > y) {
                             drag = DragInteraction.Start().also(dragInteractions::tryEmit)
                             change.consume()
                             // Keep the movement past the slop.
