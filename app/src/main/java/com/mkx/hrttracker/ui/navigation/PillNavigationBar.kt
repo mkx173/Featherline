@@ -36,9 +36,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,12 +106,12 @@ internal fun PillNavigationBar(
     val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val indicator = remember { Animatable(selectedIndex.toFloat()) }
     LaunchedEffect(selectedIndex) { indicator.animateTo(selectedIndex.toFloat(), settleSpec) }
+    // From a swipe's start until the pages settle or the pill is touched; a scroll the pill
+    // started keeps the pill's own settle instead.
+    var following by remember { mutableStateOf(false) }
     if (pagerState != null && pagerDragInteractions != null) {
         val pagerDragged by pagerDragInteractions.collectIsDraggedAsState()
-        // From a swipe's start until the pages settle; a scroll the pill started keeps
-        // the pill's own settle instead.
         LaunchedEffect(pagerState) {
-            var following = false
             snapshotFlow {
                 Triple(
                     pagerState.currentPage + pagerState.currentPageOffsetFraction,
@@ -189,10 +191,12 @@ internal fun PillNavigationBar(
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
                         down.consume()
+                        following = false
                         // A touch picks the tab under it, so the pill goes to that tab, not
                         // to the finger; only a drag past the slop has it follow the finger.
                         val downSlot = positionAt(down.position.x).roundToInt().toFloat()
                         scope.launch { indicator.animateTo(downSlot, settleSpec) }
+                        var lastX = down.position.x
                         var dragging = false
                         var released = false
                         while (true) {
@@ -204,13 +208,13 @@ internal fun PillNavigationBar(
                                 released = true
                                 break
                             }
-                            if (!dragging) {
-                                dragging = abs(change.position.x - down.position.x) > viewConfiguration.touchSlop
-                            }
-                            if (dragging) follow(change.position.x)
+                            lastX = change.position.x
+                            if (!dragging) dragging = abs(lastX - down.position.x) > viewConfiguration.touchSlop
+                            if (dragging) follow(lastX)
                         }
                         if (released) {
-                            val target = indicator.targetValue.roundToInt()
+                            // From the touch itself: the pill's animation may not have caught up.
+                            val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
                             scope.launch {
                                 indicator.animateTo(target.toFloat(), settleSpec)
                                 // Back to the real selection if the click did not change it.
