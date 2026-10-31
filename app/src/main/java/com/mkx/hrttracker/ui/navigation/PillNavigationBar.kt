@@ -36,9 +36,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,8 +80,9 @@ import kotlin.math.roundToInt
  * [PillAspectRatio] times as wide as it is tall, unless the bar would then crowd the screen
  * edges closer than padding_medium; then the items narrow to fit. On touch down the pill
  * slides to the item under the finger, follows the finger once it drags, and on release
- * settles on the nearest item and selects it. While the user swipes [pagerState] (reported to
- * [pagerDragInteractions]), the pill tracks the pages.
+ * settles on the nearest item and selects it. While the user swipes [pagerState], as reported to
+ * [pagerDragInteractions] (the pager's own interactions see no drags with pagerSwipe), the pill
+ * tracks the pages.
  *
  * The items are drawn twice: outlined everywhere but under the pill, and filled only under it.
  * The pill is the mask between the two, so while it slides, every item it passes reads as
@@ -96,7 +99,7 @@ internal fun PillNavigationBar(
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
     pagerState: PagerState? = null,
-    pagerDragInteractions: InteractionSource? = pagerState?.interactionSource,
+    pagerDragInteractions: InteractionSource? = null,
 ) {
     val selectedIndex = items.indexOfFirst { item -> item.screen == selectedScreen }.coerceAtLeast(0)
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)
@@ -104,12 +107,12 @@ internal fun PillNavigationBar(
     val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val indicator = remember { Animatable(selectedIndex.toFloat()) }
     LaunchedEffect(selectedIndex) { indicator.animateTo(selectedIndex.toFloat(), settleSpec) }
+    // From a swipe's start until the pages settle or the pill is touched; a scroll the pill
+    // started keeps the pill's own settle instead.
+    var following by remember { mutableStateOf(false) }
     if (pagerState != null && pagerDragInteractions != null) {
         val pagerDragged by pagerDragInteractions.collectIsDraggedAsState()
-        // From a swipe's start until the pages settle; a scroll the pill started keeps
-        // the pill's own settle instead.
         LaunchedEffect(pagerState) {
-            var following = false
             snapshotFlow {
                 Triple(
                     pagerState.currentPage + pagerState.currentPageOffsetFraction,
@@ -189,10 +192,12 @@ internal fun PillNavigationBar(
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
                         down.consume()
+                        following = false
                         // A touch picks the tab under it, so the pill goes to that tab, not
                         // to the finger; only a drag past the slop has it follow the finger.
                         val downSlot = positionAt(down.position.x).roundToInt().toFloat()
                         scope.launch { indicator.animateTo(downSlot, settleSpec) }
+                        var lastX = down.position.x
                         var dragging = false
                         var released = false
                         while (true) {
@@ -200,17 +205,21 @@ internal fun PillNavigationBar(
                                 .firstOrNull { it.id == down.id }
                             if (change == null || change.isConsumed) break
                             change.consume()
+                            // The lift too: a quick drag can cross into the next tab with it.
+                            lastX = change.position.x
                             if (!change.pressed) {
                                 released = true
                                 break
                             }
-                            if (!dragging) {
-                                dragging = abs(change.position.x - down.position.x) > viewConfiguration.touchSlop
-                            }
-                            if (dragging) follow(change.position.x)
+                            if (!dragging) dragging = abs(lastX - down.position.x) > viewConfiguration.touchSlop
+                            if (dragging) follow(lastX)
                         }
-                        if (released) {
-                            val target = indicator.targetValue.roundToInt()
+                        // From the touch itself: the pill's animation may not have caught up.
+                        val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
+                        // Dragged back to the selected tab, wherever the drag began: a switch
+                        // called off, not a tap on the selected tab, which scrolls it to the top.
+                        val cancelled = dragging && target == currentSelectedIndex
+                        if (released && !cancelled) {
                             scope.launch {
                                 indicator.animateTo(target.toFloat(), settleSpec)
                                 // Back to the real selection if the click did not change it.

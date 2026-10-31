@@ -36,7 +36,12 @@ fun pinnedTopAppBarScrollBehavior(
     lazyListState: LazyListState,
     state: TopAppBarState = rememberTopAppBarState(),
 ): TopAppBarScrollBehavior {
-    ResetContentOffsetWhenAtStart(state) { !lazyListState.canScrollBackward }
+    // From its scroll position, not canScrollBackward: a list restored deep into its items
+    // (process death) reports no way back until it lays out with items, so it would read as at
+    // its start and start easing the restored offset off. The restored position is there before.
+    ResetContentOffsetWhenAtStart(state) {
+        lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+    }
     return TopAppBarDefaults.pinnedScrollBehavior(lazyListState = lazyListState, state = state)
 }
 

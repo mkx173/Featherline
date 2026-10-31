@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,11 +14,11 @@ import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.window.PopupProperties
 
 data class HrtDropdownMenuItem(
     val text: String,
@@ -47,7 +48,6 @@ fun HrtDropdownMenu(
     items: List<HrtDropdownMenuItem>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuGroupContentPadding,
-    properties: PopupProperties = PopupProperties(focusable = true),
     // Invoked once the popup has fully dismissed (after its exit animation), when the
     // menu content actually leaves the composition. Callers that must avoid disrupting
     // the UI while the menu is still animating out — e.g. a language switch that
@@ -60,11 +60,10 @@ fun HrtDropdownMenu(
     val scrollState = rememberScrollState()
     val currentOnExitFinished by rememberUpdatedState(onExitFinished)
 
-    DropdownMenuPopup(
+    HrtDropdownMenuPopup(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
-        properties = properties,
     ) {
         DisposableEffect(Unit) {
             onDispose { currentOnExitFinished() }
@@ -94,6 +93,34 @@ fun HrtDropdownMenu(
                 )
             }
         }
+    }
+}
+
+/**
+ * [DropdownMenuPopup] for the app's menus: over the top-level pages, a swipe outside it turns
+ * them as it closes (see [pagerMenuPopupProperties]), and it closes with a page sliding away.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun HrtDropdownMenuPopup(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val exemption = LocalPagerSwipeExemption.current
+    val shown = LocalModalHostShown.current
+    val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    if (expanded && !shown) LaunchedEffect(Unit) { currentOnDismissRequest() }
+    DropdownMenuPopup(
+        // Closed at once, even while the caller hasn't caught up.
+        expanded = expanded && shown,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        properties = pagerMenuPopupProperties(exemption),
+    ) {
+        CountOpenMenu(exemption)
+        content()
     }
 }
 

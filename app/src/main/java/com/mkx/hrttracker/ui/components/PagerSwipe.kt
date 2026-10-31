@@ -4,6 +4,8 @@
 
 package com.mkx.hrttracker.ui.components
 
+import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+import android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
@@ -15,9 +17,10 @@ import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -33,6 +36,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFirstOrNull
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -61,11 +65,13 @@ suspend fun PagerState.springToPage(page: Int) {
  * Swipes the pager sideways from anywhere on it, even while a page's list is still flinging,
  * which the pager's own swipe can't do: a moving list takes the next touch for itself. Touch
  * takes the pages over where they are, and a release settles them with the finger's speed.
- * A touch that begins on [exemptFromPagerSwipe] content is left to that content.
+ * A touch that begins on [exemptFromPagerSwipe] content is left to that content, and so is one
+ * that only moves after a long press.
  *
  * Give the pager userScrollEnabled = false and [PagerSwipeNestedScrollConnection] as its
  * pageNestedScrollConnection, so its own swipe doesn't compete. Swipes are reported to
- * [dragInteractions] as drags.
+ * [dragInteractions] as drags. While not [enabled], new touches are left alone, but a swipe
+ * already settling still lands on its page.
  */
 @Composable
 fun Modifier.pagerSwipe(
@@ -74,11 +80,11 @@ fun Modifier.pagerSwipe(
     exemption: PagerSwipeExemption,
     enabled: Boolean = true,
 ): Modifier {
-    if (!enabled) return this
+    val currentEnabled by rememberUpdatedState(enabled)
     // Finger to the right scrolls back, unless right to left.
     val scrollSign = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 1f else -1f
     return pointerInput(state, dragInteractions, exemption, scrollSign) {
-        swipe(state, dragInteractions, exemption, scrollSign)
+        swipe(state, dragInteractions, exemption, scrollSign) { currentEnabled }
     }
 }
 
@@ -87,6 +93,7 @@ private suspend fun PointerInputScope.swipe(
     dragInteractions: MutableInteractionSource,
     exemption: PagerSwipeExemption,
     scrollSign: Float,
+    enabled: () -> Boolean,
 ) {
     coroutineScope {
         val velocityTracker = VelocityTracker()
@@ -94,6 +101,7 @@ private suspend fun PointerInputScope.swipe(
         var motion: Job? = null
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (!enabled()) return@awaitEachGesture
             exemption.pointer = null
             val minFlingVelocity = 400.dp.toPx()
             val events = Channel<SwipeEvent>(Channel.UNLIMITED)
@@ -142,8 +150,8 @@ private suspend fun PointerInputScope.swipe(
                             continue
                         }
                         velocityTracker.addPointerInputChange(change)
+                        if (drag != null) change.consume()
                         if (drag != null) {
-                            change.consume()
                             releaseVelocity = velocityTracker
                                 .calculateVelocity(Velocity(maxVelocity, maxVelocity)).x * scrollSign
                         }
@@ -155,7 +163,19 @@ private suspend fun PointerInputScope.swipe(
                         accumulated += delta
                         val x = abs(accumulated.x)
                         val y = abs(accumulated.y)
-                        if (x > viewConfiguration.touchSlop && x > y) {
+                        val pastSlop = x > viewConfiguration.touchSlop || y > viewConfiguration.touchSlop
+                        if (
+                            pastSlop &&
+                            change.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis &&
+                            // Seen once the content has had the move, the pass after its own.
+                            awaitPointerEvent(PointerEventPass.Final).changes
+                                .fastFirstOrNull { it.id == pointerId }?.isConsumed == true
+                        ) {
+                            // Moving after a long press the content took the touch with, such
+                            // as to extend a text selection: the content's own drag. Content
+                            // with no such gesture still swipes, however long the finger rested.
+                            break
+                        } else if (x > viewConfiguration.touchSlop && x > y) {
                             drag = DragInteraction.Start().also(dragInteractions::tryEmit)
                             change.consume()
                             // Keep the movement past the slop.
@@ -196,6 +216,9 @@ fun Modifier.redrawWhilePagesMove(state: PagerState?): Modifier =
 class PagerSwipeExemption {
     internal var pointer: PointerId? = null
 
+    // Menus open over the pages, see [HrtDropdownMenuPopup] and [consumeTapsClosingMenus].
+    internal var openMenus = 0
+
     /**
      * Takes the touch of [pointer] from the pager, as long as the pager hasn't started swiping
      * with it yet, for a gesture recognized after touch down, such as a long press.
@@ -205,7 +228,62 @@ class PagerSwipeExemption {
     }
 }
 
-val LocalPagerSwipeExemption = staticCompositionLocalOf<PagerSwipeExemption?> { null }
+/** The exemption of the [pagerSwipe] pager around, while it swipes. */
+val LocalPagerSwipeExemption = compositionLocalOf<PagerSwipeExemption?> { null }
+
+/**
+ * Popup properties for a menu that lets touch outside it reach [pagerSwipe] pages beneath, so a
+ * swipe turns the pages as the menu closes. Outside such pages, or while they don't swipe, those
+ * of a plain focusable popup. The menu counts as open in [exemption] for as long as its window
+ * is up, exit animation included, so [consumeTapsClosingMenus] keeps a tap outside it from
+ * reaching anything beneath. Call [CountOpenMenu] in the popup's content.
+ */
+internal fun pagerMenuPopupProperties(exemption: PagerSwipeExemption?): PopupProperties =
+    if (exemption == null) {
+        PopupProperties(focusable = true)
+    } else {
+        // Focusable for Back and keys, but no longer touch modal: a touch outside goes to the
+        // window beneath, and the popup only hears of it to close.
+        PopupProperties(flags = FLAG_WATCH_OUTSIDE_TOUCH or FLAG_NOT_TOUCH_MODAL)
+    }
+
+/** Counts a menu as open in [exemption] while this is composed, see [pagerMenuPopupProperties]. */
+@Composable
+internal fun CountOpenMenu(exemption: PagerSwipeExemption?) {
+    if (exemption != null) {
+        DisposableEffect(exemption) {
+            exemption.openMenus++
+            onDispose { exemption.openMenus-- }
+        }
+    }
+}
+
+/**
+ * Keeps a touch that begins while a menu of [exemption] is open from clicking anything here,
+ * as a touch outside a menu only closes it on any other menu. Content that takes the touch for
+ * a drag, such as the pages for a swipe, still ends it as its own.
+ *
+ * Put this on the layout holding both the pages and what sits beside them, such as the
+ * navigation bar and the snackbar, which the pager never sees touches on.
+ */
+fun Modifier.consumeTapsClosingMenus(exemption: PagerSwipeExemption): Modifier =
+    pointerInput(exemption) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (exemption.openMenus == 0) return@awaitEachGesture
+            var dragged = false
+            do {
+                // Ahead of the content, which acts on a release in a later pass.
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (!dragged) event.changes.forEach { if (!it.pressed) it.consume() }
+                // After the content: a move past the slop that it took is a drag.
+                dragged = dragged || awaitPointerEvent(PointerEventPass.Final).changes.any {
+                    it.pressed && it.isConsumed &&
+                            (it.position - down.position).getDistance() > viewConfiguration.touchSlop
+                }
+            } while (event.changes.any { it.pressed })
+        }
+    }
 
 /**
  * Keeps sideways drags that begin here, such as a chart's pan, from swiping the surrounding

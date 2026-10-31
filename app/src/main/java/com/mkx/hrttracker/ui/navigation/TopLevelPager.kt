@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
@@ -28,8 +29,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
+import com.mkx.hrttracker.ui.components.LocalModalHostShown
 import com.mkx.hrttracker.ui.components.LocalPagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.PagerSwipeNestedScrollConnection
@@ -42,33 +45,43 @@ import kotlin.math.abs
  *
  * Every page stays composed once it has been shown, so a switch only moves pages instead of
  * composing one from scratch in a single frame. The pages not shown yet are composed one per
- * frame shortly after launch, so the first visit to each is cheap too.
+ * frame shortly after launch, so the first visit to each is cheap too. Covered by a sub page,
+ * the pages leave the composition with their destination, and on the way back they are composed
+ * again the same way once it has settled, without the wait.
  *
  * Pages swipe sideways even while a page's list is still scrolling, see [pagerSwipe].
  *
  * A page off screen is held at [Lifecycle.State.STARTED]: its flows keep it current, so it never
- * slides into view stale or stuck loading, but only the pages on screen are resumed.
+ * slides into view stale or stuck loading, but only the pages on screen are resumed. A dialog or
+ * sheet left open on a page sliding off screen is dismissed.
  */
 @Composable
 internal fun TopLevelPager(
     state: PagerState,
     dragInteractions: MutableInteractionSource,
+    swipeExemption: PagerSwipeExemption,
     swipeEnabled: Boolean,
     pageContent: @Composable (Screen) -> Unit,
 ) {
     var prewarmedPages by remember { mutableIntStateOf(0) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(state) {
-        delay(PrewarmDelayMillis)
+        if (!prewarmedInProcess) delay(PrewarmDelayMillis)
+        // Not while the destination still slides in, or comes back under a back gesture that
+        // may yet be called off.
+        lifecycle.withResumed { }
         // Nearest pages first, each in a frame of its own with an idle one after it.
         while (prewarmedPages < topLevelNavigationItems.size) {
             prewarmedPages++
             withFrameNanos { }
             withFrameNanos { }
         }
+        prewarmedInProcess = true
     }
 
-    val swipeExemption = remember { PagerSwipeExemption() }
-    CompositionLocalProvider(LocalPagerSwipeExemption provides swipeExemption) {
+    // Only while the pages swipe: menus let touch outside them through to the pages for a swipe,
+    // and there's none to take beside the rail, or under a sheet or dialog locking the chrome.
+    CompositionLocalProvider(LocalPagerSwipeExemption provides swipeExemption.takeIf { swipeEnabled }) {
         HorizontalPager(
             state = state,
             modifier = Modifier.pagerSwipe(state, dragInteractions, swipeExemption, enabled = swipeEnabled),
@@ -108,9 +121,15 @@ internal fun TopLevelPager(
                             .graphicsLayer()
                             .then(if (visible) Modifier else Modifier.clearAndSetSemantics { })
                             .onFocusChanged { state -> hasFocus = state.hasFocus }
+                            // Nor can keys or a D-pad move focus into it.
+                            .focusProperties { onEnter = { if (!visible) cancelFocusChange() } }
                             .focusGroup(),
                     ) {
-                        if (visible || shown || prewarmed) pageContent(topLevelNavigationItems[page].screen)
+                        if (visible || shown || prewarmed) {
+                            CompositionLocalProvider(LocalModalHostShown provides visible) {
+                                pageContent(topLevelNavigationItems[page].screen)
+                            }
+                        }
                     }
                 }
             }
@@ -121,6 +140,9 @@ internal fun TopLevelPager(
 // ponytail: a fixed wait for launch to settle, not an idle signal; measure if pages still
 // compose while the first screen is busy.
 private const val PrewarmDelayMillis = 1_000L
+
+// Once per process, so a launch restored after the process was killed waits too.
+private var prewarmedInProcess = false
 
 // Off screen, a page stays started for its data, which would leave its back handlers live and
 // let a hidden editor take Back. They stay registered, on a child dispatcher off unless [enabled].

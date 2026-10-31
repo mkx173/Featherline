@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -390,6 +391,11 @@ fun hazeDatePickerColors(
 internal val LocalModalHostIsCurrentDestination =
     staticCompositionLocalOf<(() -> Boolean)?> { null }
 
+// Whether the page hosting a modal is on screen, false for a top-level pager page slid away
+// by a deep link while the modal was open. A modal already shown is dismissed with it, as it
+// was with a route left behind, and hidden until its page is back if it doesn't close.
+internal val LocalModalHostShown = compositionLocalOf { true }
+
 // Route content stays composed and interactive while its exit transition
 // runs, so a tap can open a dialog/sheet after navigation has already begun.
 // The modal window renders above everything — it would blink over the
@@ -414,8 +420,12 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     var allowed by remember {
         mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
+    val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
+    val hostShown = LocalModalHostShown.current
+    if (allowed && !hostShown) {
+        LaunchedEffect(Unit) { currentOnDismissRequest() }
+    }
     if (!allowed) {
-        val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
         // One drop per held window, whichever of the two checks fires first.
         val dropped = remember { mutableStateOf(false) }
         val leaving = isHostCurrentDestination?.invoke() == false
@@ -439,7 +449,9 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
             }
         }
     }
-    return allowed
+    // Hidden too, for a modal that won't close yet, such as while it saves: it waits off screen,
+    // without locking the chrome, and shows again over its page.
+    return allowed && hostShown
 }
 
 /**

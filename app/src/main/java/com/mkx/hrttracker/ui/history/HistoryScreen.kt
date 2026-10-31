@@ -530,7 +530,7 @@ private fun HistoryScreenContent(
         val groupsByUuid = uiState.groupsByUuid
         val month = displayedMonth.yearMonth
         val ranges = dayStateMonthRanges
-        value = value + withContext(Dispatchers.Default) {
+        val displayedMonthStates = withContext(Dispatchers.Default) {
             buildHistoryMonthDayStates(
                 ranges = listOf(HistoryCalendarDayStateMonthRange(startMonth = month, endMonth = month)),
                 groups = groups,
@@ -539,15 +539,17 @@ private fun HistoryScreenContent(
                 groupsByUuid = groupsByUuid,
             )
         }
+        value = value + displayedMonthStates
+        // The neighbors around it, not the displayed month again.
         value = withContext(Dispatchers.Default) {
             buildHistoryMonthDayStates(
-                ranges = ranges,
+                ranges = ranges.flatMap { range -> range.without(month) },
                 groups = groups,
                 entries = entries,
                 now = now,
                 groupsByUuid = groupsByUuid,
             )
-        }
+        } + displayedMonthStates
     }
     val monthDayStates = remember(
         settledMonthDayStates,
@@ -2787,7 +2789,18 @@ private fun rememberVisibleHistoryCalendarMonths(state: CalendarState): Set<Year
 internal data class HistoryCalendarDayStateMonthRange(
     val startMonth: YearMonth,
     val endMonth: YearMonth,
-)
+) {
+    // This range less [month]: itself, the part on either side, or nothing.
+    fun without(month: YearMonth): List<HistoryCalendarDayStateMonthRange> =
+        if (month < startMonth || month > endMonth) {
+            listOf(this)
+        } else {
+            listOfNotNull(
+                copy(endMonth = month.minusMonths(1)).takeIf { month > startMonth },
+                copy(startMonth = month.plusMonths(1)).takeIf { month < endMonth },
+            )
+        }
+}
 
 internal fun historyCalendarDayStateMonthRanges(
     displayedMonth: YearMonth,
