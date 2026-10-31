@@ -65,7 +65,8 @@ suspend fun PagerState.springToPage(page: Int) {
  *
  * Give the pager userScrollEnabled = false and [PagerSwipeNestedScrollConnection] as its
  * pageNestedScrollConnection, so its own swipe doesn't compete. Swipes are reported to
- * [dragInteractions] as drags.
+ * [dragInteractions] as drags. While not [enabled], new touches are left alone, but a swipe
+ * already settling still lands on its page.
  */
 @Composable
 fun Modifier.pagerSwipe(
@@ -74,11 +75,11 @@ fun Modifier.pagerSwipe(
     exemption: PagerSwipeExemption,
     enabled: Boolean = true,
 ): Modifier {
-    if (!enabled) return this
+    val currentEnabled by rememberUpdatedState(enabled)
     // Finger to the right scrolls back, unless right to left.
     val scrollSign = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 1f else -1f
     return pointerInput(state, dragInteractions, exemption, scrollSign) {
-        swipe(state, dragInteractions, exemption, scrollSign)
+        swipe(state, dragInteractions, exemption, scrollSign) { currentEnabled }
     }
 }
 
@@ -87,6 +88,7 @@ private suspend fun PointerInputScope.swipe(
     dragInteractions: MutableInteractionSource,
     exemption: PagerSwipeExemption,
     scrollSign: Float,
+    enabled: () -> Boolean,
 ) {
     coroutineScope {
         val velocityTracker = VelocityTracker()
@@ -94,6 +96,7 @@ private suspend fun PointerInputScope.swipe(
         var motion: Job? = null
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (!enabled()) return@awaitEachGesture
             exemption.pointer = null
             val minFlingVelocity = 400.dp.toPx()
             val events = Channel<SwipeEvent>(Channel.UNLIMITED)
