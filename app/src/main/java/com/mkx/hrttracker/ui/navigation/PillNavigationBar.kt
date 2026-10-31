@@ -212,9 +212,12 @@ internal fun PillNavigationBar(
                             if (!dragging) dragging = abs(lastX - down.position.x) > viewConfiguration.touchSlop
                             if (dragging) follow(lastX)
                         }
-                        if (released) {
-                            // From the touch itself: the pill's animation may not have caught up.
-                            val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
+                        // From the touch itself: the pill's animation may not have caught up.
+                        val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
+                        // Dragged from another tab back to the selected one: a switch called
+                        // off, not a tap on the selected tab, which scrolls it to the top.
+                        val cancelled = target == currentSelectedIndex && target != downSlot.toInt()
+                        if (released && !cancelled) {
                             scope.launch {
                                 indicator.animateTo(target.toFloat(), settleSpec)
                                 // Back to the real selection if the click did not change it.
