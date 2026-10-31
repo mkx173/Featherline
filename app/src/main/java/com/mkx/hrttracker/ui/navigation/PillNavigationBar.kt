@@ -205,11 +205,12 @@ internal fun PillNavigationBar(
                                 .firstOrNull { it.id == down.id }
                             if (change == null || change.isConsumed) break
                             change.consume()
+                            // The lift too: a quick drag can cross into the next tab with it.
+                            lastX = change.position.x
                             if (!change.pressed) {
                                 released = true
                                 break
                             }
-                            lastX = change.position.x
                             if (!dragging) dragging = abs(lastX - down.position.x) > viewConfiguration.touchSlop
                             if (dragging) follow(lastX)
                         }

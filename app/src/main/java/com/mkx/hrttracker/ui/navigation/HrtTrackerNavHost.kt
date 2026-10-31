@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -902,6 +903,8 @@ fun HrtTrackerNavHost(
     // For the snackbar, which rides above the bar on the top-level pages; their own content gets
     // it in the frame the bar is measured.
     var topLevelBottomBarHeight by remember { mutableStateOf(0.dp) }
+    // Likewise the rail's width, which the snackbar keeps clear of beside the top-level pages.
+    var topLevelRailWidth by remember { mutableStateOf(0.dp) }
     EdgeToEdgeNavigationSuiteScaffold(
         modifier = modifier,
         navigationChromeHazeState = navigationChromeHazeState,
@@ -936,13 +939,17 @@ fun HrtTrackerNavHost(
                     // sub pages show neither and are left with Back on every screen size.
                     Row(Modifier.fillMaxSize()) {
                         if (!isBottomBar) {
-                            TopLevelNavigationBar(
-                                classic = true,
-                                layoutType = latestNavigationSuiteType,
-                                selectedScreen = latestSelectedBottomScreen,
-                                onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
-                                hazeState = null,
-                            )
+                            Box(
+                                Modifier.onSizeChanged { size -> topLevelRailWidth = with(density) { size.width.toDp() } },
+                            ) {
+                                TopLevelNavigationBar(
+                                    classic = true,
+                                    layoutType = latestNavigationSuiteType,
+                                    selectedScreen = latestSelectedBottomScreen,
+                                    onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
+                                    hazeState = null,
+                                )
+                            }
                         }
                         Box(Modifier.weight(1f)) {
                             RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
@@ -1528,6 +1535,14 @@ fun HrtTrackerNavHost(
                     // snackbar above it there; elsewhere clear the scaffold-provided
                     // gesture inset.
                     .padding(
+                        start = if (
+                            !navigationSuiteType.isBottomBar &&
+                            Screen.topLevelScreenForRoute(currentRoute) != null
+                        ) {
+                            topLevelRailWidth
+                        } else {
+                            0.dp
+                        },
                         bottom = if (
                             navigationSuiteType.isBottomBar &&
                             Screen.topLevelScreenForRoute(currentRoute) != null

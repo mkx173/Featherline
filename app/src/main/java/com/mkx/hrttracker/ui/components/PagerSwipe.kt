@@ -18,9 +18,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -225,12 +225,13 @@ class PagerSwipeExemption {
     }
 }
 
-val LocalPagerSwipeExemption = staticCompositionLocalOf<PagerSwipeExemption?> { null }
+/** The exemption of the [pagerSwipe] pager around, while it swipes. */
+val LocalPagerSwipeExemption = compositionLocalOf<PagerSwipeExemption?> { null }
 
 /**
  * Popup properties for a menu that lets touch outside it reach [pagerSwipe] pages beneath, so a
  * swipe turns the pages as the menu closes, while a tap only closes it, as on any other menu.
- * Outside such pages, those of a plain focusable popup.
+ * Outside such pages, or while they don't swipe, those of a plain focusable popup.
  */
 @Composable
 fun pagerMenuPopupProperties(expanded: Boolean): PopupProperties {

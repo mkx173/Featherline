@@ -77,7 +77,10 @@ internal fun TopLevelPager(
     }
 
     val swipeExemption = remember { PagerSwipeExemption() }
-    CompositionLocalProvider(LocalPagerSwipeExemption provides swipeExemption) {
+    // Only while the pages swipe: menus let touch outside them through to the pages for a swipe,
+    // and with no swipe to take it (beside the rail, or under a sheet or dialog locking the
+    // chrome) a tap outside would reach the control beneath as well as close the menu.
+    CompositionLocalProvider(LocalPagerSwipeExemption provides swipeExemption.takeIf { swipeEnabled }) {
         HorizontalPager(
             state = state,
             modifier = Modifier.pagerSwipe(state, dragInteractions, swipeExemption, enabled = swipeEnabled),
