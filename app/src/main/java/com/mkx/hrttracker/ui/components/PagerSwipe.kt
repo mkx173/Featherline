@@ -4,6 +4,8 @@
 
 package com.mkx.hrttracker.ui.components
 
+import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+import android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
@@ -15,6 +17,7 @@ import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -33,6 +36,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFirstOrNull
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -99,6 +103,8 @@ private suspend fun PointerInputScope.swipe(
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             if (!enabled()) return@awaitEachGesture
             exemption.pointer = null
+            // The touch that closes a menu, which a tap only does.
+            val closingMenu = exemption.openMenus > 0
             val minFlingVelocity = 400.dp.toPx()
             val events = Channel<SwipeEvent>(Channel.UNLIMITED)
             motion?.cancel()
@@ -146,8 +152,8 @@ private suspend fun PointerInputScope.swipe(
                             continue
                         }
                         velocityTracker.addPointerInputChange(change)
+                        if (drag != null || closingMenu) change.consume()
                         if (drag != null) {
-                            change.consume()
                             releaseVelocity = velocityTracker
                                 .calculateVelocity(Velocity(maxVelocity, maxVelocity)).x * scrollSign
                         }
@@ -207,6 +213,9 @@ fun Modifier.redrawWhilePagesMove(state: PagerState?): Modifier =
 class PagerSwipeExemption {
     internal var pointer: PointerId? = null
 
+    // Menus open over the pages, see [pagerMenuPopupProperties].
+    internal var openMenus = 0
+
     /**
      * Takes the touch of [pointer] from the pager, as long as the pager hasn't started swiping
      * with it yet, for a gesture recognized after touch down, such as a long press.
@@ -217,6 +226,25 @@ class PagerSwipeExemption {
 }
 
 val LocalPagerSwipeExemption = staticCompositionLocalOf<PagerSwipeExemption?> { null }
+
+/**
+ * Popup properties for a menu that lets touch outside it reach [pagerSwipe] pages beneath, so a
+ * swipe turns the pages as the menu closes, while a tap only closes it, as on any other menu.
+ * Outside such pages, those of a plain focusable popup.
+ */
+@Composable
+fun pagerMenuPopupProperties(expanded: Boolean): PopupProperties {
+    val exemption = LocalPagerSwipeExemption.current ?: return PopupProperties(focusable = true)
+    if (expanded) {
+        DisposableEffect(exemption) {
+            exemption.openMenus++
+            onDispose { exemption.openMenus-- }
+        }
+    }
+    // Focusable for Back and keys, but no longer touch modal: a touch outside goes to the
+    // window beneath, and the popup only hears of it to close.
+    return PopupProperties(flags = FLAG_WATCH_OUTSIDE_TOUCH or FLAG_NOT_TOUCH_MODAL)
+}
 
 /**
  * Keeps sideways drags that begin here, such as a chart's pan, from swiping the surrounding

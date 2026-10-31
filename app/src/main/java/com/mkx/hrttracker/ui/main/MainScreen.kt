@@ -55,6 +55,7 @@ import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.TopUpdatingIndicator
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
+import com.mkx.hrttracker.ui.components.pagerMenuPopupProperties
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -360,6 +361,7 @@ internal fun HomeMoreOptionsMenu(
         DropdownMenuPopup(
             expanded = menuExpansion.optionsExpanded,
             onDismissRequest = ::dismissMenus,
+            properties = pagerMenuPopupProperties(menuExpansion.optionsExpanded),
         ) {
             DropdownMenuGroup(
                 shapes = MenuDefaults.groupShape(0, 1),
@@ -402,6 +404,7 @@ internal fun HomeMoreOptionsMenu(
         DropdownMenuPopup(
             expanded = menuExpansion.displayUnitExpanded,
             onDismissRequest = ::dismissMenus,
+            properties = pagerMenuPopupProperties(menuExpansion.displayUnitExpanded),
         ) {
             DisposableEffect(Unit) {
                 onDispose {

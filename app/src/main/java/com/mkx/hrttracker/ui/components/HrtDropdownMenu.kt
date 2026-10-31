@@ -17,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.window.PopupProperties
 
 data class HrtDropdownMenuItem(
     val text: String,
@@ -47,7 +46,6 @@ fun HrtDropdownMenu(
     items: List<HrtDropdownMenuItem>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuGroupContentPadding,
-    properties: PopupProperties = PopupProperties(focusable = true),
     // Invoked once the popup has fully dismissed (after its exit animation), when the
     // menu content actually leaves the composition. Callers that must avoid disrupting
     // the UI while the menu is still animating out — e.g. a language switch that
@@ -64,7 +62,7 @@ fun HrtDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
-        properties = properties,
+        properties = pagerMenuPopupProperties(expanded),
     ) {
         DisposableEffect(Unit) {
             onDispose { currentOnExitFinished() }
