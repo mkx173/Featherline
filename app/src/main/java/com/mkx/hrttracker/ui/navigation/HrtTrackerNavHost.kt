@@ -946,7 +946,9 @@ fun HrtTrackerNavHost(
                         TopLevelPager(
                             state = topLevelPagerState,
                             dragInteractions = topLevelPagerDrags,
-                            swipeEnabled = !latestTopLevelNavigationChromeLocked,
+                            // Beside the rail, tabs are picked from the rail alone, as Material has rail
+                            // destinations switched.
+                            swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
                         ) { screen ->
                             when (screen) {
                                 Screen.Main -> MainScreen(
