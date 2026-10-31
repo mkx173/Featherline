@@ -624,14 +624,17 @@ fun HrtTrackerNavHost(
         Screen.topLevelScreenForRoute(explicitParentRoute)
             ?: Screen.topLevelScreenForRoute(currentRoute)
             ?: Screen.Main
+    val navigationSuiteType = rememberNavigationSuiteType()
     val pagerScope = rememberCoroutineScope()
-    // Back on the pager, on [screen]'s page: slid to when already there, else shown at once
-    // beneath the page being popped.
+    // Back on the pager, on [screen]'s page: slid to when already there beside the bottom bar,
+    // where the pages are swiped between too, else shown at once: beside the rail, as its
+    // destinations switch, or beneath the page being popped.
     fun showTopLevelPage(screen: Screen) {
-        if (navController.currentDestination?.route == Screen.Main.route) {
+        val onPager = navController.currentDestination?.route == Screen.Main.route
+        if (onPager && navigationSuiteType.isBottomBar) {
             pagerScope.launch { topLevelPagerState.springToPage(screen.topLevelPage) }
         } else {
-            navController.popBackStack(Screen.Main.route, inclusive = false)
+            if (!onPager) navController.popBackStack(Screen.Main.route, inclusive = false)
             topLevelPagerState.requestScrollToPage(screen.topLevelPage)
         }
     }
@@ -844,7 +847,6 @@ fun HrtTrackerNavHost(
         hasPendingStockOptInSheet = optInTarget != null || optInResolving,
     )
 
-    val navigationSuiteType = rememberNavigationSuiteType()
     val navigationChromeHazeState = rememberChromeHazeState()
 
     // Re-evaluates the chrome lock at tap time (not captured at composition) so a row tap
