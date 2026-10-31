@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Surface
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -18,7 +16,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
-import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.hazeSourceArea
 import dev.chrisbanes.haze.HazeState
 
@@ -36,14 +33,14 @@ internal val LocalTopLevelBottomBarHeight = compositionLocalOf { 0.dp }
 
 /**
  * A [androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold] variant that
- * draws only the wide navigation rail. In the bottom-bar layouts [HrtTrackerNavHost] draws the bar
- * inside the top-level pager's destination, so the bar rides its transitions and sub pages show
- * none.
+ * draws no navigation of its own. [HrtTrackerNavHost] draws the bar, or the rail, inside the
+ * top-level pager's destination, so it rides its transitions and sub pages show none.
  *
- * The scaffold still measures a copy of that bar, [bottomBar] (never placed, no semantics),
- * *before* content is subcomposed and provides its height via [LocalTopLevelBottomBarHeight], so
- * the top-level pages' inset is exact in the same frame — no first-frame underlap and no stale
- * value when the navigation-suite type changes in place (fold, rotation, window resize).
+ * In the bottom-bar layouts the scaffold still measures a copy of that bar, [bottomBar] (never
+ * placed, no semantics), *before* content is subcomposed and provides its height via
+ * [LocalTopLevelBottomBarHeight], so the top-level pages' inset is exact in the same frame — no
+ * first-frame underlap and no stale value when the navigation-suite type changes in place (fold,
+ * rotation, window resize).
  * [content] itself gets the system navigation-bar inset through [LocalAppContentBottomInset].
  *
  * @param navigationChromeHazeState stable Haze state for chrome hosted above the routed content
@@ -55,7 +52,6 @@ fun EdgeToEdgeNavigationSuiteScaffold(
     navigationSuiteType: NavigationSuiteType,
     navigationChromeHazeState: HazeState?,
     modifier: Modifier = Modifier,
-    navigationSuiteItems: NavigationSuiteScope.() -> Unit,
     bottomBar: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -69,25 +65,19 @@ fun EdgeToEdgeNavigationSuiteScaffold(
         contentColor = NavigationSuiteScaffoldDefaults.contentColor,
     ) {
         SubcomposeLayout { constraints ->
-            val navigationPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
-                if (isBottomBar) {
-                    // Only measured: the destinations draw the real bar, and its items must
-                    // not show up twice to accessibility.
+            // Only measured: the destination draws the real bar, and its items must not show
+            // up twice to accessibility.
+            val bottomBarHeight = if (isBottomBar) {
+                subcompose(EdgeToEdgeScaffoldSlot.Navigation) {
                     Box(Modifier.clearAndSetSemantics { }) {
                         bottomBar()
                     }
-                } else {
-                    NavigationSuite(
-                        layoutType = navigationSuiteType,
-                        colors = hazeNavigationSuiteColors(navigationChromeHazeState),
-                        content = navigationSuiteItems,
-                    )
-                }
-            }.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
+                }.first().measure(constraints.copy(minWidth = 0, minHeight = 0)).height.toDp()
+            } else {
+                0.dp
+            }
             val layoutWidth = constraints.maxWidth
             val layoutHeight = constraints.maxHeight
-            val railWidth = if (isBottomBar) 0 else navigationPlaceable.width
-            val bottomBarHeight = if (isBottomBar) navigationPlaceable.height.toDp() else 0.dp
             val contentPlaceable = subcompose(EdgeToEdgeScaffoldSlot.Content) {
                 // The source area is attached in every layout: sheets and dialogs blur
                 // through this same state, and Haze draws nothing at all (leaving their
@@ -100,10 +90,9 @@ fun EdgeToEdgeNavigationSuiteScaffold(
                         content()
                     }
                 }
-            }.first().measure(Constraints.fixed(layoutWidth - railWidth, layoutHeight))
+            }.first().measure(Constraints.fixed(layoutWidth, layoutHeight))
             layout(layoutWidth, layoutHeight) {
-                if (!isBottomBar) navigationPlaceable.placeRelative(0, 0)
-                contentPlaceable.placeRelative(railWidth, 0)
+                contentPlaceable.placeRelative(0, 0)
             }
         }
     }

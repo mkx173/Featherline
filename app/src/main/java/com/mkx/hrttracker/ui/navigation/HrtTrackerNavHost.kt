@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -365,8 +366,9 @@ private fun topLevelNavigationSuiteItems(
     }
 }
 
-// The top-level pages' bottom bar: the floating pill, or with the classic navigation bar
-// setting on, the stock Material bar spanning the bottom edge.
+// The top-level pages' navigation: the floating pill, or with the classic navigation bar
+// setting on, the stock Material bar spanning the bottom edge; [classic] with a rail
+// [layoutType], the rail.
 @Composable
 private fun TopLevelNavigationBar(
     classic: Boolean,
@@ -900,7 +902,6 @@ fun HrtTrackerNavHost(
         modifier = modifier,
         navigationSuiteType = navigationSuiteType,
         navigationChromeHazeState = navigationChromeHazeState,
-        navigationSuiteItems = topLevelNavigationSuiteItems(selectedBottomScreen, onTopLevelItemClick),
         bottomBar = {
             TopLevelNavigationBar(
                 classic = classicNavigationBar,
@@ -942,178 +943,193 @@ fun HrtTrackerNavHost(
                             )
                         }
                     }
-                    RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
-                        TopLevelPager(
-                            state = topLevelPagerState,
-                            dragInteractions = topLevelPagerDrags,
-                            // Beside the rail, tabs are picked from the rail alone, as Material has rail
-                            // destinations switched.
-                            swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
-                        ) { screen ->
-                            when (screen) {
-                                Screen.Main -> MainScreen(
-                                    modifier,
-                                    scrollToTopSignal = mainScrollToTopSignal,
-                                    highlightEffectsEnabled = latestHomeDeepLinkHighlightEffectsEnabled,
-                                    onEntryClick = { request ->
-                                        if (canOpenOverlaySheet(backStackEntry)) {
-                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                entryIds = request.entryUuids.map(UUID::toString),
-                                                editSnapshot = request.toMedicationLogEntryEditSnapshot(),
-                                            )
-                                        }
-                                    },
-                                    onMedicineDetailClick = { medicineId ->
-                                        // Root the detail under the current tab (Home) so the
-                                        // highlighted tab stays put and back returns straight
-                                        // here, instead of stacking under a different tab.
-                                        navController.navigate(
-                                            Screen.MedicineDetail.createRoute(
-                                                medicineId = medicineId.toString(),
-                                                topLevelParentRoute = Screen.Main.route,
-                                            ),
-                                        )
-                                    },
-                                    onAddEntryClick = {
-                                        // Jump straight to the manager; its dose sheet saves
-                                        // the manual log directly in manual-log mode.
-                                        navController.navigate(
-                                            Screen.Medicines.createRoute(
-                                                topLevelParentRoute = Screen.Main.route,
-                                                slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
-                                            ),
-                                        )
-                                    },
-                                    onOpenTimeline = {
-                                        // Open the timeline (Milestones) page on top of the current
-                                        // home tab rather than switching to the Journal tab, so the
-                                        // bottom bar stays on Home and Back returns here.
-                                        navController.navigate(
-                                            Screen.JournalMilestones.createRoute(
-                                                topLevelParentRoute = Screen.Main.route,
-                                            ),
-                                        )
-                                    },
-                                    onQuickLogDoseClick = { request ->
-                                        if (
-                                            request.medicationCount > 0 &&
-                                            canOpenOverlaySheet(backStackEntry)
-                                        ) {
-                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                                    groupId = request.groupUuid,
-                                                    scheduleTimeUuid = request.scheduleTimeUuid,
-                                                    scheduledFor = request.scheduledAt,
-                                                    medicine = request.medicine,
-                                                    applicationType = request.applicationType,
-                                                    doseInstruction = request.doseInstruction,
-                                                    medicationCount = request.medicationCount,
-                                                    sourceGroupName = request.sourceGroupName,
-                                                    sourceGroupColorKey = request.sourceGroupColorKey,
-                                                    sourceGroupIsArchived = request.sourceGroupIsArchived,
-                                                    sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
-                                                    sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
+                    // The rail sits beside the pages, in this destination like the bottom bar, so
+                    // sub pages show neither and are left with Back on every screen size.
+                    Row(Modifier.fillMaxSize()) {
+                        if (!isBottomBar) {
+                            TopLevelNavigationBar(
+                                classic = true,
+                                layoutType = latestNavigationSuiteType,
+                                selectedScreen = latestSelectedBottomScreen,
+                                onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
+                                hazeState = null,
+                            )
+                        }
+                        Box(Modifier.weight(1f)) {
+                            RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
+                                TopLevelPager(
+                                    state = topLevelPagerState,
+                                    dragInteractions = topLevelPagerDrags,
+                                    // Beside the rail, tabs are picked from the rail alone, as Material has rail
+                                    // destinations switched.
+                                    swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
+                                ) { screen ->
+                                    when (screen) {
+                                        Screen.Main -> MainScreen(
+                                            modifier,
+                                            scrollToTopSignal = mainScrollToTopSignal,
+                                            highlightEffectsEnabled = latestHomeDeepLinkHighlightEffectsEnabled,
+                                            onEntryClick = { request ->
+                                                if (canOpenOverlaySheet(backStackEntry)) {
+                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                        entryIds = request.entryUuids.map(UUID::toString),
+                                                        editSnapshot = request.toMedicationLogEntryEditSnapshot(),
+                                                    )
+                                                }
+                                            },
+                                            onMedicineDetailClick = { medicineId ->
+                                                // Root the detail under the current tab (Home) so the
+                                                // highlighted tab stays put and back returns straight
+                                                // here, instead of stacking under a different tab.
+                                                navController.navigate(
+                                                    Screen.MedicineDetail.createRoute(
+                                                        medicineId = medicineId.toString(),
+                                                        topLevelParentRoute = Screen.Main.route,
+                                                    ),
                                                 )
-                                            )
-                                        }
-                                    }
-                                )
-                                Screen.Plan -> PlanScreen(
-                                    modifier = modifier,
-                                    scrollToTopSignal = planScrollToTopSignal,
-                                    onGroupClick = { groupId ->
-                                        navController.navigate(
-                                            Screen.EditMedicationGroup.createRoute(
-                                                topLevelParentRoute = Screen.Plan.route,
-                                                groupId = groupId.toString()
-                                            )
-                                        )
-                                    },
-                                    onEntryClick = { entryIds ->
-                                        if (canOpenOverlaySheet(backStackEntry)) {
-                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                entryIds = entryIds.map(UUID::toString)
-                                            )
-                                        }
-                                    },
-                                    onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
-                                        if (
-                                            medicationCount > 0 &&
-                                            canOpenOverlaySheet(backStackEntry)
-                                        ) {
-                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                                    groupId = groupId,
-                                                    scheduleTimeUuid = scheduleTimeUuid,
-                                                    scheduledFor = scheduledAt,
-                                                    medicine = medication.medicine,
-                                                    applicationType = medication.applicationType,
-                                                    doseInstruction = medication.doseInstruction,
-                                                    medicationCount = medicationCount
+                                            },
+                                            onAddEntryClick = {
+                                                // Jump straight to the manager; its dose sheet saves
+                                                // the manual log directly in manual-log mode.
+                                                navController.navigate(
+                                                    Screen.Medicines.createRoute(
+                                                        topLevelParentRoute = Screen.Main.route,
+                                                        slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                                                    ),
                                                 )
-                                            )
-                                        }
-                                    },
-                                    onAddGroupClick = {
-                                        navController.navigate(
-                                            Screen.EditMedicationGroup.createRoute(
-                                                topLevelParentRoute = Screen.Plan.route
-                                            )
+                                            },
+                                            onOpenTimeline = {
+                                                // Open the timeline (Milestones) page on top of the current
+                                                // home tab rather than switching to the Journal tab, so the
+                                                // bottom bar stays on Home and Back returns here.
+                                                navController.navigate(
+                                                    Screen.JournalMilestones.createRoute(
+                                                        topLevelParentRoute = Screen.Main.route,
+                                                    ),
+                                                )
+                                            },
+                                            onQuickLogDoseClick = { request ->
+                                                if (
+                                                    request.medicationCount > 0 &&
+                                                    canOpenOverlaySheet(backStackEntry)
+                                                ) {
+                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                                            groupId = request.groupUuid,
+                                                            scheduleTimeUuid = request.scheduleTimeUuid,
+                                                            scheduledFor = request.scheduledAt,
+                                                            medicine = request.medicine,
+                                                            applicationType = request.applicationType,
+                                                            doseInstruction = request.doseInstruction,
+                                                            medicationCount = request.medicationCount,
+                                                            sourceGroupName = request.sourceGroupName,
+                                                            sourceGroupColorKey = request.sourceGroupColorKey,
+                                                            sourceGroupIsArchived = request.sourceGroupIsArchived,
+                                                            sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
+                                                            sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         )
-                                    },
-                                    onHistoryClick = {
-                                        navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
-                                            launchSingleTop = true
-                                        }
-                                    },
-                                    onBatchAddClick = {
-                                        navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
-                                            launchSingleTop = true
-                                        }
-                                    },
-                                    onArchivedGroupsClick = {
-                                        navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
-                                            launchSingleTop = true
-                                        }
-                                    },
-                                    onMedicinesClick = {
-                                        navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
-                                            launchSingleTop = true
-                                        }
+                                        Screen.Plan -> PlanScreen(
+                                            modifier = modifier,
+                                            scrollToTopSignal = planScrollToTopSignal,
+                                            onGroupClick = { groupId ->
+                                                navController.navigate(
+                                                    Screen.EditMedicationGroup.createRoute(
+                                                        topLevelParentRoute = Screen.Plan.route,
+                                                        groupId = groupId.toString()
+                                                    )
+                                                )
+                                            },
+                                            onEntryClick = { entryIds ->
+                                                if (canOpenOverlaySheet(backStackEntry)) {
+                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                        entryIds = entryIds.map(UUID::toString)
+                                                    )
+                                                }
+                                            },
+                                            onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
+                                                if (
+                                                    medicationCount > 0 &&
+                                                    canOpenOverlaySheet(backStackEntry)
+                                                ) {
+                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                                            groupId = groupId,
+                                                            scheduleTimeUuid = scheduleTimeUuid,
+                                                            scheduledFor = scheduledAt,
+                                                            medicine = medication.medicine,
+                                                            applicationType = medication.applicationType,
+                                                            doseInstruction = medication.doseInstruction,
+                                                            medicationCount = medicationCount
+                                                        )
+                                                    )
+                                                }
+                                            },
+                                            onAddGroupClick = {
+                                                navController.navigate(
+                                                    Screen.EditMedicationGroup.createRoute(
+                                                        topLevelParentRoute = Screen.Plan.route
+                                                    )
+                                                )
+                                            },
+                                            onHistoryClick = {
+                                                navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
+                                                    launchSingleTop = true
+                                                }
+                                            },
+                                            onBatchAddClick = {
+                                                navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
+                                                    launchSingleTop = true
+                                                }
+                                            },
+                                            onArchivedGroupsClick = {
+                                                navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
+                                                    launchSingleTop = true
+                                                }
+                                            },
+                                            onMedicinesClick = {
+                                                navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
+                                                    launchSingleTop = true
+                                                }
+                                            }
+                                        )
+                                        Screen.Journal -> JournalScreen(
+                                            onOpenMilestones = {
+                                                navController.navigate(
+                                                    Screen.JournalMilestones.createRoute(Screen.Journal.route)
+                                                )
+                                            },
+                                            onAddDate = {
+                                                navController.navigate(
+                                                    Screen.JournalMilestones.createRoute(
+                                                        Screen.Journal.route,
+                                                        openAddDate = true,
+                                                    )
+                                                )
+                                            },
+                                            onOpenAllNotes = {
+                                                navController.navigate(
+                                                    Screen.JournalAllNotes.createRoute(Screen.Journal.route)
+                                                )
+                                            },
+                                            scrollToTopSignal = journalScrollToTopSignal,
+                                            modifier = modifier,
+                                        )
+                                        Screen.Settings -> SettingsScreen(
+                                            modifier = modifier,
+                                            scrollToTopSignal = settingsScrollToTopSignal,
+                                            onCalibrationClick = {
+                                                navController.navigate(
+                                                    Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                                                )
+                                            }
+                                        )
+                                        else -> Unit
                                     }
-                                )
-                                Screen.Journal -> JournalScreen(
-                                    onOpenMilestones = {
-                                        navController.navigate(
-                                            Screen.JournalMilestones.createRoute(Screen.Journal.route)
-                                        )
-                                    },
-                                    onAddDate = {
-                                        navController.navigate(
-                                            Screen.JournalMilestones.createRoute(
-                                                Screen.Journal.route,
-                                                openAddDate = true,
-                                            )
-                                        )
-                                    },
-                                    onOpenAllNotes = {
-                                        navController.navigate(
-                                            Screen.JournalAllNotes.createRoute(Screen.Journal.route)
-                                        )
-                                    },
-                                    scrollToTopSignal = journalScrollToTopSignal,
-                                    modifier = modifier,
-                                )
-                                Screen.Settings -> SettingsScreen(
-                                    modifier = modifier,
-                                    scrollToTopSignal = settingsScrollToTopSignal,
-                                    onCalibrationClick = {
-                                        navController.navigate(
-                                            Screen.SettingsCalibration.createRoute(Screen.Settings.route)
-                                        )
-                                    }
-                                )
-                                else -> Unit
+                                }
                             }
                         }
                     }

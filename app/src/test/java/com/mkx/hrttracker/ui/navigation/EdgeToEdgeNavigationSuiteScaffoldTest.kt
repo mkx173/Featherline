@@ -46,13 +46,6 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
             EdgeToEdgeNavigationSuiteScaffold(
                 navigationSuiteType = suiteType,
                 navigationChromeHazeState = null,
-                navigationSuiteItems = {
-                    item(
-                        selected = true,
-                        onClick = { },
-                        icon = { Box(Modifier.size(24.dp)) },
-                    )
-                },
                 bottomBar = {
                     PillNavigationBar(
                         items = topLevelNavigationItems,
@@ -106,15 +99,16 @@ class EdgeToEdgeNavigationSuiteScaffoldTest {
     }
 
     @Test
-    fun bottomBarLayoutsLeaveTheVisibleBarToTheDestinations() {
+    fun everyLayoutLeavesTheVisibleNavigationToTheDestinations() {
         setScaffold()
 
         // The measured-only copy must not reach accessibility as a second, tappable bar.
         composeRule.onAllNodes(hasClickAction()).assertCountEquals(0)
 
+        // Nor does the scaffold draw a rail: the top-level destination does, beside its pages.
         suiteType = NavigationSuiteType.WideNavigationRailCollapsed
         composeRule.waitForIdle()
 
-        composeRule.onAllNodes(hasClickAction()).assertCountEquals(1)
+        composeRule.onAllNodes(hasClickAction()).assertCountEquals(0)
     }
 }
