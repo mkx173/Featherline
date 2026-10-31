@@ -103,8 +103,6 @@ private suspend fun PointerInputScope.swipe(
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             if (!enabled()) return@awaitEachGesture
             exemption.pointer = null
-            // The touch that closes a menu, which a tap only does.
-            val closingMenu = exemption.openMenus > 0
             val minFlingVelocity = 400.dp.toPx()
             val events = Channel<SwipeEvent>(Channel.UNLIMITED)
             motion?.cancel()
@@ -152,7 +150,7 @@ private suspend fun PointerInputScope.swipe(
                             continue
                         }
                         velocityTracker.addPointerInputChange(change)
-                        if (drag != null || closingMenu) change.consume()
+                        if (drag != null) change.consume()
                         if (drag != null) {
                             releaseVelocity = velocityTracker
                                 .calculateVelocity(Velocity(maxVelocity, maxVelocity)).x * scrollSign
@@ -165,12 +163,17 @@ private suspend fun PointerInputScope.swipe(
                         accumulated += delta
                         val x = abs(accumulated.x)
                         val y = abs(accumulated.y)
+                        val pastSlop = x > viewConfiguration.touchSlop || y > viewConfiguration.touchSlop
                         if (
-                            (x > viewConfiguration.touchSlop || y > viewConfiguration.touchSlop) &&
-                            change.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis
+                            pastSlop &&
+                            change.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis &&
+                            // Seen once the content has had the move, the pass after its own.
+                            awaitPointerEvent(PointerEventPass.Final).changes
+                                .fastFirstOrNull { it.id == pointerId }?.isConsumed == true
                         ) {
-                            // Moving only after a long press, such as extending a text
-                            // selection: the content's own drag.
+                            // Moving after a long press the content took the touch with, such
+                            // as to extend a text selection: the content's own drag. Content
+                            // with no such gesture still swipes, however long the finger rested.
                             break
                         } else if (x > viewConfiguration.touchSlop && x > y) {
                             drag = DragInteraction.Start().also(dragInteractions::tryEmit)
@@ -213,7 +216,7 @@ fun Modifier.redrawWhilePagesMove(state: PagerState?): Modifier =
 class PagerSwipeExemption {
     internal var pointer: PointerId? = null
 
-    // Menus open over the pages, see [pagerMenuPopupProperties].
+    // Menus open over the pages, see [HrtDropdownMenuPopup] and [consumeTapsClosingMenus].
     internal var openMenus = 0
 
     /**
@@ -230,22 +233,57 @@ val LocalPagerSwipeExemption = compositionLocalOf<PagerSwipeExemption?> { null }
 
 /**
  * Popup properties for a menu that lets touch outside it reach [pagerSwipe] pages beneath, so a
- * swipe turns the pages as the menu closes, while a tap only closes it, as on any other menu.
- * Outside such pages, or while they don't swipe, those of a plain focusable popup.
+ * swipe turns the pages as the menu closes. Outside such pages, or while they don't swipe, those
+ * of a plain focusable popup. The menu counts as open in [exemption] for as long as its window
+ * is up, exit animation included, so [consumeTapsClosingMenus] keeps a tap outside it from
+ * reaching anything beneath. Call [CountOpenMenu] in the popup's content.
  */
+internal fun pagerMenuPopupProperties(exemption: PagerSwipeExemption?): PopupProperties =
+    if (exemption == null) {
+        PopupProperties(focusable = true)
+    } else {
+        // Focusable for Back and keys, but no longer touch modal: a touch outside goes to the
+        // window beneath, and the popup only hears of it to close.
+        PopupProperties(flags = FLAG_WATCH_OUTSIDE_TOUCH or FLAG_NOT_TOUCH_MODAL)
+    }
+
+/** Counts a menu as open in [exemption] while this is composed, see [pagerMenuPopupProperties]. */
 @Composable
-fun pagerMenuPopupProperties(expanded: Boolean): PopupProperties {
-    val exemption = LocalPagerSwipeExemption.current ?: return PopupProperties(focusable = true)
-    if (expanded) {
+internal fun CountOpenMenu(exemption: PagerSwipeExemption?) {
+    if (exemption != null) {
         DisposableEffect(exemption) {
             exemption.openMenus++
             onDispose { exemption.openMenus-- }
         }
     }
-    // Focusable for Back and keys, but no longer touch modal: a touch outside goes to the
-    // window beneath, and the popup only hears of it to close.
-    return PopupProperties(flags = FLAG_WATCH_OUTSIDE_TOUCH or FLAG_NOT_TOUCH_MODAL)
 }
+
+/**
+ * Keeps a touch that begins while a menu of [exemption] is open from clicking anything here,
+ * as a touch outside a menu only closes it on any other menu. Content that takes the touch for
+ * a drag, such as the pages for a swipe, still ends it as its own.
+ *
+ * Put this on the layout holding both the pages and what sits beside them, such as the
+ * navigation bar and the snackbar, which the pager never sees touches on.
+ */
+fun Modifier.consumeTapsClosingMenus(exemption: PagerSwipeExemption): Modifier =
+    pointerInput(exemption) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (exemption.openMenus == 0) return@awaitEachGesture
+            var dragged = false
+            do {
+                // Ahead of the content, which acts on a release in a later pass.
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (!dragged) event.changes.forEach { if (!it.pressed) it.consume() }
+                // After the content: a move past the slop that it took is a drag.
+                dragged = dragged || awaitPointerEvent(PointerEventPass.Final).changes.any {
+                    it.pressed && it.isConsumed &&
+                            (it.position - down.position).getDistance() > viewConfiguration.touchSlop
+                }
+            } while (event.changes.any { it.pressed })
+        }
+    }
 
 /**
  * Keeps sideways drags that begin here, such as a chart's pan, from swiping the surrounding

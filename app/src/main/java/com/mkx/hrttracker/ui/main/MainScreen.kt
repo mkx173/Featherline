@@ -14,7 +14,6 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -51,11 +50,11 @@ import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.calibration.smallShareRoutes
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HazeCenterAlignedTopAppBar
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuPopup
 import com.mkx.hrttracker.ui.components.ScrollToTopSignalEffect
 import com.mkx.hrttracker.ui.components.TopUpdatingIndicator
 import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
-import com.mkx.hrttracker.ui.components.pagerMenuPopupProperties
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.util.calibrationUnitLabel
@@ -358,10 +357,9 @@ internal fun HomeMoreOptionsMenu(
             )
         }
 
-        DropdownMenuPopup(
+        HrtDropdownMenuPopup(
             expanded = menuExpansion.optionsExpanded,
             onDismissRequest = ::dismissMenus,
-            properties = pagerMenuPopupProperties(menuExpansion.optionsExpanded),
         ) {
             DropdownMenuGroup(
                 shapes = MenuDefaults.groupShape(0, 1),
@@ -401,10 +399,9 @@ internal fun HomeMoreOptionsMenu(
             }
         }
 
-        DropdownMenuPopup(
+        HrtDropdownMenuPopup(
             expanded = menuExpansion.displayUnitExpanded,
             onDismissRequest = ::dismissMenus,
-            properties = pagerMenuPopupProperties(menuExpansion.displayUnitExpanded),
         ) {
             DisposableEffect(Unit) {
                 onDispose {

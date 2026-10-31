@@ -393,7 +393,7 @@ internal val LocalModalHostIsCurrentDestination =
 
 // Whether the page hosting a modal is on screen, false for a top-level pager page slid away
 // by a deep link while the modal was open. A modal already shown is dismissed with it, as it
-// was with a route left behind.
+// was with a route left behind, and hidden until its page is back if it doesn't close.
 internal val LocalModalHostShown = compositionLocalOf { true }
 
 // Route content stays composed and interactive while its exit transition
@@ -421,7 +421,8 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
         mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
-    if (allowed && !LocalModalHostShown.current) {
+    val hostShown = LocalModalHostShown.current
+    if (allowed && !hostShown) {
         LaunchedEffect(Unit) { currentOnDismissRequest() }
     }
     if (!allowed) {
@@ -448,7 +449,9 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
             }
         }
     }
-    return allowed
+    // Hidden too, for a modal that won't close yet, such as while it saves: it waits off screen,
+    // without locking the chrome, and shows again over its page.
+    return allowed && hostShown
 }
 
 /**

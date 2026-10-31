@@ -49,7 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The bottom navigation bar now floats above the bottom edge as a rounded bar, with a highlight that slides to the selected tab. Touch the bar and the highlight jumps under your finger, follows it as you drag and picks the tab you let go on. Page content fades out under the bar.
 - The bottom navigation bar, and on tablets and unfolded foldables the side rail, now shows only on Home, Plan, Journal and Settings, and slides away with the page when you open something from them. Back returns from those screens on every screen size.
 - Switching tabs no longer pauses while the page loads, so the bar's animation no longer freezes. Pages stay loaded once opened, and a tab tapped from the bar slides in with a soft spring.
-- With the side navigation rail on tablets and foldables, tapping another tab from a page you opened, such as History, now closes that page instead of keeping it for when you come back to the tab.
 - History opens more smoothly: its calendar fills in over the first few frames instead of holding up the opening animation.
 
 ## [1.4.2] - 2026-10-14

@@ -95,7 +95,9 @@ import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
+import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
+import com.mkx.hrttracker.ui.components.consumeTapsClosingMenus
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
 import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
@@ -587,6 +589,7 @@ fun HrtTrackerNavHost(
     // On it, the current route is that of the page the pager shows or is heading to.
     val topLevelPagerState = rememberPagerState { topLevelNavigationItems.size }
     val topLevelPagerDrags = remember { MutableInteractionSource() }
+    val topLevelPagerSwipeExemption = remember { PagerSwipeExemption() }
     val topLevelPagerDragged by topLevelPagerDrags.collectIsDraggedAsState()
     val currentRoute = if (currentDestination?.route == Screen.Main.route) {
         // Under a dragging finger, the page nearest the middle: the target page follows the
@@ -909,7 +912,8 @@ fun HrtTrackerNavHost(
         modifier = modifier,
         navigationChromeHazeState = navigationChromeHazeState,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        // Over the pages and what sits beside them, the bar, the rail and the snackbar alike.
+        Box(modifier = Modifier.fillMaxSize().consumeTapsClosingMenus(topLevelPagerSwipeExemption)) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Main.route,
@@ -956,6 +960,7 @@ fun HrtTrackerNavHost(
                                 TopLevelPager(
                                     state = topLevelPagerState,
                                     dragInteractions = topLevelPagerDrags,
+                                    swipeExemption = topLevelPagerSwipeExemption,
                                     // Beside the rail, tabs are picked from the rail alone, as Material has rail
                                     // destinations switched.
                                     swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,

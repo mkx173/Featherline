@@ -216,9 +216,9 @@ internal fun PillNavigationBar(
                         }
                         // From the touch itself: the pill's animation may not have caught up.
                         val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
-                        // Dragged from another tab back to the selected one: a switch called
-                        // off, not a tap on the selected tab, which scrolls it to the top.
-                        val cancelled = target == currentSelectedIndex && target != downSlot.toInt()
+                        // Dragged back to the selected tab, wherever the drag began: a switch
+                        // called off, not a tap on the selected tab, which scrolls it to the top.
+                        val cancelled = dragging && target == currentSelectedIndex
                         if (released && !cancelled) {
                             scope.launch {
                                 indicator.animateTo(target.toFloat(), settleSpec)

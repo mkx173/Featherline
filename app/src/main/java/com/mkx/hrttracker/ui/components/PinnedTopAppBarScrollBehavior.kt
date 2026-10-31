@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.flow.collectLatest
 
 /**
@@ -37,11 +36,11 @@ fun pinnedTopAppBarScrollBehavior(
     lazyListState: LazyListState,
     state: TopAppBarState = rememberTopAppBarState(),
 ): TopAppBarScrollBehavior {
-    // Not before the list is laid out: until then it reports no way back, so a list restored deep
-    // into its items (process death) would read as at its start for a frame and start easing the
-    // restored offset off, only to be cut short when it lays out, leaving the bar half dissolved.
+    // From its scroll position, not canScrollBackward: a list restored deep into its items
+    // (process death) reports no way back until it lays out with items, so it would read as at
+    // its start and start easing the restored offset off. The restored position is there before.
     ResetContentOffsetWhenAtStart(state) {
-        lazyListState.layoutInfo.viewportSize != IntSize.Zero && !lazyListState.canScrollBackward
+        lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
     }
     return TopAppBarDefaults.pinnedScrollBehavior(lazyListState = lazyListState, state = state)
 }

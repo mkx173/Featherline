@@ -51,6 +51,7 @@ class ModalWindowGateTest {
     private var lastAllowed: Boolean? = null
     private var dismissCount = 0
     private var probeComposed by mutableStateOf(true)
+    private var hostShown by mutableStateOf(true)
 
     private fun setGateProbe(
         owner: TestOwner,
@@ -60,6 +61,7 @@ class ModalWindowGateTest {
             CompositionLocalProvider(
                 LocalLifecycleOwner provides owner,
                 LocalModalHostIsCurrentDestination provides isHostCurrentDestination,
+                LocalModalHostShown provides hostShown,
             ) {
                 if (probeComposed) {
                     lastAllowed = rememberModalWindowAllowed(
@@ -190,5 +192,24 @@ class ModalWindowGateTest {
         composeRule.runOnIdle { probeComposed = false }
         composeRule.waitForIdle()
         assertEquals(0, dismissCount)
+    }
+
+    @Test
+    fun shownModal_isHiddenWhileItsPageIsAway_andShowsAgainWhenBack() {
+        // A modal that won't close yet, such as while it saves, waits off screen rather than
+        // staying over the page that slid in.
+        setGateProbe(TestOwner(Lifecycle.State.RESUMED))
+        composeRule.waitForIdle()
+        assertEquals(true, lastAllowed)
+
+        composeRule.runOnIdle { hostShown = false }
+        composeRule.waitForIdle()
+        assertEquals(false, lastAllowed)
+        assertEquals(1, dismissCount)
+
+        composeRule.runOnIdle { hostShown = true }
+        composeRule.waitForIdle()
+        assertEquals(true, lastAllowed)
+        assertEquals(1, dismissCount)
     }
 }
