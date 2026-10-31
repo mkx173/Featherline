@@ -921,8 +921,16 @@ fun HrtTrackerNavHost(
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
                 composable(Screen.Main.route) { backStackEntry ->
-                    val bottomBar = if (latestNavigationSuiteType.isBottomBar) {
-                        RoutedBottomBar(height = LocalTopLevelBottomBarHeight.current) {
+                    // Passed beside the rail too, empty, so a switch between the two keeps the
+                    // pages where they are in the composition and with them their state.
+                    val isBottomBar = latestNavigationSuiteType.isBottomBar
+                    val bottomBarHeight = if (isBottomBar) {
+                        LocalTopLevelBottomBarHeight.current
+                    } else {
+                        LocalAppContentBottomInset.current
+                    }
+                    val bottomBar = RoutedBottomBar(height = bottomBarHeight) {
+                        if (isBottomBar) {
                             TopLevelNavigationBar(
                                 classic = latestClassicNavigationBar,
                                 layoutType = latestNavigationSuiteType,
@@ -933,8 +941,6 @@ fun HrtTrackerNavHost(
                                 pagerDragInteractions = topLevelPagerDrags,
                             )
                         }
-                    } else {
-                        null
                     }
                     RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
                         TopLevelPager(
