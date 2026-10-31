@@ -80,8 +80,9 @@ import kotlin.math.roundToInt
  * [PillAspectRatio] times as wide as it is tall, unless the bar would then crowd the screen
  * edges closer than padding_medium; then the items narrow to fit. On touch down the pill
  * slides to the item under the finger, follows the finger once it drags, and on release
- * settles on the nearest item and selects it. While the user swipes [pagerState] (reported to
- * [pagerDragInteractions]), the pill tracks the pages.
+ * settles on the nearest item and selects it. While the user swipes [pagerState], as reported to
+ * [pagerDragInteractions] (the pager's own interactions see no drags with pagerSwipe), the pill
+ * tracks the pages.
  *
  * The items are drawn twice: outlined everywhere but under the pill, and filled only under it.
  * The pill is the mask between the two, so while it slides, every item it passes reads as
@@ -98,7 +99,7 @@ internal fun PillNavigationBar(
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
     pagerState: PagerState? = null,
-    pagerDragInteractions: InteractionSource? = pagerState?.interactionSource,
+    pagerDragInteractions: InteractionSource? = null,
 ) {
     val selectedIndex = items.indexOfFirst { item -> item.screen == selectedScreen }.coerceAtLeast(0)
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)

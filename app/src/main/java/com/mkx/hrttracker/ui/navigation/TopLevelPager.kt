@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
@@ -116,6 +117,8 @@ internal fun TopLevelPager(
                             .graphicsLayer()
                             .then(if (visible) Modifier else Modifier.clearAndSetSemantics { })
                             .onFocusChanged { state -> hasFocus = state.hasFocus }
+                            // Nor can keys or a D-pad move focus into it.
+                            .focusProperties { onEnter = { if (!visible) cancelFocusChange() } }
                             .focusGroup(),
                     ) {
                         if (visible || shown || prewarmed) {

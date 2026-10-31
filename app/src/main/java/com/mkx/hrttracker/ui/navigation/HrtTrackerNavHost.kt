@@ -622,6 +622,7 @@ fun HrtTrackerNavHost(
         Screen.topLevelScreenForRoute(explicitParentRoute)
             ?: Screen.topLevelScreenForRoute(currentRoute)
             ?: Screen.Main
+    val latestSelectedBottomScreen by rememberUpdatedState(selectedBottomScreen)
     val navigationSuiteType = rememberNavigationSuiteType()
     val pagerScope = rememberCoroutineScope()
     // Back on the pager, on [screen]'s page: slid to when already there beside the bottom bar,
@@ -653,10 +654,11 @@ fun HrtTrackerNavHost(
                 duration = SnackbarDuration.Indefinite,
             )
             if (result == SnackbarResult.ActionPerformed) {
-                // Root the destination under the tab the user is on now so the
-                // highlighted tab stays put and back returns there directly.
+                // Root the destination under the tab the user is on now, read at the
+                // tap: pages swipe without navigating, so the one the snackbar
+                // appeared over may be gone.
                 navController.navigate(
-                    postLogStockWarningDestination(warning, selectedBottomScreen.route),
+                    postLogStockWarningDestination(warning, latestSelectedBottomScreen.route),
                 ) {
                     launchSingleTop = true
                 }
@@ -889,7 +891,6 @@ fun HrtTrackerNavHost(
 
     // NavHost rebuilds its graph whenever a value its builder captures changes, so the builder
     // reads the ones that change with every page switch or sheet through State instead.
-    val latestSelectedBottomScreen by rememberUpdatedState(selectedBottomScreen)
     val latestOnTopLevelItemClick by rememberUpdatedState(onTopLevelItemClick)
     val latestShowPostLogStockWarning by rememberUpdatedState(showPostLogStockWarning)
     val latestTopLevelNavigationChromeLocked by rememberUpdatedState(topLevelNavigationChromeLocked)
