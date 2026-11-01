@@ -36,6 +36,19 @@ class NavigationSuiteTypeTest {
     }
 
     @Test
+    fun pillStaysAtTheBottomThroughMediumWidthsAndMovesToTheSideFromExpanded() {
+        val rail = NavigationSuiteType.WideNavigationRailCollapsed
+        // A tablet in portrait: the stock rail, but the pill stays at the bottom.
+        assertEquals(rail, navigationSuiteTypeFor(widthDp = 800, heightDp = 1280, posture = Posture()))
+        assertEquals(
+            NavigationSuiteType.ShortNavigationBarMedium,
+            navigationSuiteTypeFor(widthDp = 800, heightDp = 1280, posture = Posture(), classic = false),
+        )
+        // In landscape, the side for both.
+        assertEquals(rail, navigationSuiteTypeFor(widthDp = 1280, heightDp = 800, posture = Posture(), classic = false))
+    }
+
+    @Test
     fun rotatingBackAndForthTracksTheCurrentDimensionsNotThePrevious() {
         // The off-by-one signature: each result must match the dimensions of *this* call, never the
         // orientation that preceded it.

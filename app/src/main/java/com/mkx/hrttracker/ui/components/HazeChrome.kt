@@ -10,6 +10,8 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
@@ -59,11 +61,17 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -233,6 +241,14 @@ private fun Modifier.hazeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     state: HazeState? = LocalChromeHazeState.current,
 ): Modifier {
+    val defaultColors = TopAppBarDefaults.topAppBarColors()
+    // From the expanded width on, the bar keeps its resting background as the page scrolls: it
+    // spans the window above the side navigation, which never tints, so a tinted bar would
+    // read as cut off at it.
+    if (LocalConfiguration.current.screenWidthDp >= WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) {
+        val containerColor = defaultColors.containerColor
+        return drawBehind { drawRect(containerColor) }
+    }
     if (LocalHazeBlurEnabled.current && state != null) {
         return hazeChrome(
             state = state,
@@ -241,7 +257,6 @@ private fun Modifier.hazeTopAppBar(
         )
     }
 
-    val defaultColors = TopAppBarDefaults.topAppBarColors()
     val containerColor = defaultColors.containerColor
     val scrolledContainerColor = defaultColors.scrolledContainerColor
     return drawBehind {
@@ -755,15 +770,17 @@ fun HazeTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = topAppBarWindowInsetsWithStartupFallback(),
 ) {
-    MaterialTopAppBar(
-        title = title,
-        modifier = modifier.hazeTopAppBar(scrollBehavior),
-        navigationIcon = navigationIcon,
-        actions = actions,
-        windowInsets = windowInsets,
-        colors = hazeTopAppBarColors(),
-        scrollBehavior = scrollBehavior,
-    )
+    WithAppContentColumnInsets(windowInsets) { columnInsets ->
+        MaterialTopAppBar(
+            title = title,
+            modifier = modifier.hazeTopAppBar(scrollBehavior),
+            navigationIcon = navigationIcon,
+            actions = actions,
+            windowInsets = columnInsets,
+            colors = hazeTopAppBarColors(),
+            scrollBehavior = scrollBehavior,
+        )
+    }
 }
 
 /** [HazeTopAppBar] variant of Material3's CenterAlignedTopAppBar. */
@@ -776,15 +793,50 @@ fun HazeCenterAlignedTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = topAppBarWindowInsetsWithStartupFallback(),
 ) {
-    MaterialCenterAlignedTopAppBar(
-        title = title,
-        modifier = modifier.hazeTopAppBar(scrollBehavior),
-        navigationIcon = navigationIcon,
-        actions = actions,
-        windowInsets = windowInsets,
-        colors = hazeTopAppBarColors(),
-        scrollBehavior = scrollBehavior,
-    )
+    WithAppContentColumnInsets(windowInsets) { columnInsets ->
+        MaterialCenterAlignedTopAppBar(
+            title = title,
+            modifier = modifier.hazeTopAppBar(scrollBehavior),
+            navigationIcon = navigationIcon,
+            actions = actions,
+            windowInsets = columnInsets,
+            colors = hazeTopAppBarColors(),
+            scrollBehavior = scrollBehavior,
+        )
+    }
+}
+
+/**
+ * [windowInsets] plus the room between the bar's edges and the body's column (see
+ * [AppContentContainer]), so the bar's background still spans the page while its title and
+ * actions line up with the body. The body is laid out inside the same horizontal insets.
+ */
+@Composable
+private fun WithAppContentColumnInsets(
+    windowInsets: WindowInsets,
+    content: @Composable (WindowInsets) -> Unit,
+) {
+    BoxWithConstraints {
+        val density = LocalDensity.current
+        val layoutDirection = LocalLayoutDirection.current
+        val startInset = LocalAppContentStartInset.current
+        val left = with(density) { windowInsets.getLeft(this, layoutDirection).toDp() }
+        val right = with(density) { windowInsets.getRight(this, layoutDirection).toDp() }
+        val side = if (constraints.hasBoundedWidth) {
+            ((maxWidth - left - right - startInset - AppContentMaxWidth) / 2).coerceAtLeast(0.dp)
+        } else {
+            0.dp
+        }
+        val ltr = layoutDirection == LayoutDirection.Ltr
+        content(
+            windowInsets.add(
+                WindowInsets(
+                    left = side + if (ltr) startInset else 0.dp,
+                    right = side + if (ltr) 0.dp else startInset,
+                )
+            )
+        )
+    }
 }
 
 @Composable

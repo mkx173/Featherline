@@ -27,13 +27,14 @@ import androidx.window.core.layout.computeWindowSizeClass
  * window metrics.
  */
 @Composable
-fun rememberNavigationSuiteType(): NavigationSuiteType {
+fun rememberNavigationSuiteType(classic: Boolean): NavigationSuiteType {
     val configuration = LocalConfiguration.current
     val posture = currentWindowAdaptiveInfoV2().windowPosture
     return navigationSuiteTypeFor(
         widthDp = configuration.screenWidthDp,
         heightDp = configuration.screenHeightDp,
         posture = posture,
+        classic = classic,
     )
 }
 
@@ -44,13 +45,17 @@ fun rememberNavigationSuiteType(): NavigationSuiteType {
  * [WindowSizeClass.BREAKPOINTS_V2] uses the same width-V2 / height-V1 breakpoints that
  * [currentWindowAdaptiveInfoV2] computes internally, so feeding it the configuration dimensions
  * yields the same size class the stock path would — only without the API <= 31 rotation lag.
+ *
+ * Unless [classic], the floating pill takes the rail's place, and stays at the bottom through
+ * medium widths, moving to the side only from the expanded width on.
  */
 internal fun navigationSuiteTypeFor(
     widthDp: Int,
     heightDp: Int,
     posture: Posture,
-): NavigationSuiteType =
-    NavigationSuiteScaffoldDefaults.navigationSuiteType(
+    classic: Boolean = true,
+): NavigationSuiteType {
+    val type = NavigationSuiteScaffoldDefaults.navigationSuiteType(
         WindowAdaptiveInfo(
             windowSizeClass =
                 WindowSizeClass.BREAKPOINTS_V2.computeWindowSizeClass(
@@ -60,3 +65,13 @@ internal fun navigationSuiteTypeFor(
             windowPosture = posture,
         )
     )
+    return if (
+        !classic &&
+        type == NavigationSuiteType.WideNavigationRailCollapsed &&
+        widthDp < WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND
+    ) {
+        NavigationSuiteType.ShortNavigationBarMedium
+    } else {
+        type
+    }
+}

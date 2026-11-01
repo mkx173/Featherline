@@ -9,7 +9,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -27,6 +30,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.WideNavigationRail
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.WideNavigationRailItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScope
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
@@ -47,10 +53,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -94,6 +101,7 @@ import com.mkx.hrttracker.ui.catalog.nudge.StockTrackingNudgeViewModel
 import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
+import com.mkx.hrttracker.ui.components.LocalAppContentStartInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -372,9 +380,9 @@ private fun topLevelNavigationSuiteItems(
     }
 }
 
-// The top-level pages' navigation: the floating pill, or with the classic navigation bar
-// setting on, the stock Material bar spanning the bottom edge; [classic] with a rail
-// [layoutType], the rail.
+// The top-level pages' navigation: the floating pill, along the bottom or with a rail
+// [layoutType] upright at the side, or with the classic navigation bar setting on, the stock
+// Material bar spanning the bottom edge; [classic] with a rail [layoutType], the rail.
 @Composable
 private fun TopLevelNavigationBar(
     classic: Boolean,
@@ -385,7 +393,31 @@ private fun TopLevelNavigationBar(
     pagerState: PagerState? = null,
     pagerDragInteractions: InteractionSource? = null,
 ) {
-    if (classic) {
+    if (classic && !layoutType.isBottomBar) {
+        // The items centred on the window's full height, as the upright pill is: the rail's
+        // own vertical insets, the status bar's taller than the navigation bar's, would sit
+        // them low.
+        WideNavigationRail(
+            windowInsets = WideNavigationRailDefaults.windowInsets.only(WindowInsetsSides.Start),
+            arrangement = Arrangement.Center,
+        ) {
+            topLevelNavigationItems.forEach { navItem ->
+                val isSelected = selectedScreen == navItem.screen
+                WideNavigationRailItem(
+                    selected = isSelected,
+                    onClick = { onItemClick(navItem.screen) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(if (isSelected) navItem.icon else navItem.iconAlt),
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text(text = stringResource(navItem.screen.label)) },
+                    railExpanded = false,
+                )
+            }
+        }
+    } else if (classic) {
         // The opaque container stays under the blur, as on the pill (see PillNavigationBar):
         // Haze's first frame after blur turns on draws nothing here.
         Box(
@@ -400,6 +432,16 @@ private fun TopLevelNavigationBar(
                 content = topLevelNavigationSuiteItems(selectedScreen, onItemClick),
             )
         }
+    } else if (!layoutType.isBottomBar) {
+        PillNavigationBar(
+            items = topLevelNavigationItems,
+            selectedScreen = selectedScreen,
+            onItemClick = onItemClick,
+            hazeState = hazeState,
+            vertical = true,
+            pagerState = pagerState,
+            pagerDragInteractions = pagerDragInteractions,
+        )
     } else {
         // The page fades into its background under the floating pill instead of running
         // into the screen edge behind it.
@@ -511,6 +553,7 @@ private fun RoutedTopChromeHazeProvider(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     bottomBar: RoutedBottomBar? = null,
+    sideBar: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val routeTopChromeHazeState = rememberChromeHazeState()
@@ -532,7 +575,18 @@ private fun RoutedTopChromeHazeProvider(
                 Modifier.consumeWindowInsets(WindowInsets.navigationBars),
                 propagateMinConstraints = true,
             ) {
-                content()
+                // The body and the top bar's title and actions are centred beside the pill. One
+                // call either way, so the pages keep their state as the pill comes and goes.
+                val startInset = if (sideBar == null) {
+                    0.dp
+                } else {
+                    dimensionResource(R.dimen.padding_medium) + VerticalPillNavigationBarWidth
+                }
+                CompositionLocalProvider(LocalAppContentStartInset provides startInset) { content() }
+                // Floats over the page's start edge, the body moved over beside it.
+                sideBar?.let { bar ->
+                    Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterStart) { bar() }
+                }
             }
         }
         if (bottomBar == null) {
@@ -636,14 +690,13 @@ fun HrtTrackerNavHost(
             ?: Screen.topLevelScreenForRoute(currentRoute)
             ?: Screen.Main
     val latestSelectedBottomScreen by rememberUpdatedState(selectedBottomScreen)
-    val navigationSuiteType = rememberNavigationSuiteType()
+    val navigationSuiteType = rememberNavigationSuiteType(classic = classicNavigationBar)
     val pagerScope = rememberCoroutineScope()
-    // Back on the pager, on [screen]'s page: slid to when already there beside the bottom bar,
-    // where the pages are swiped between too, else shown at once: beside the rail, as its
-    // destinations switch, or beneath the page being popped.
+    // Back on the pager, on [screen]'s page: slid to when already there, where the pages are
+    // swiped between too, else shown at once beneath the page being popped.
     fun showTopLevelPage(screen: Screen) {
         val onPager = navController.currentDestination?.route == Screen.Main.route
-        if (onPager && navigationSuiteType.isBottomBar) {
+        if (onPager) {
             pagerScope.launch { topLevelPagerState.springToPage(screen.topLevelPage) }
         } else {
             if (!onPager) navController.popBackStack(Screen.Main.route, inclusive = false)
@@ -948,10 +1001,26 @@ fun HrtTrackerNavHost(
                             )
                         }
                     }
-                    // The rail sits beside the pages, in this destination like the bottom bar, so
-                    // sub pages show neither and are left with Back on every screen size.
+                    // The upright pill floats over the pages' side, the classic rail sits beside
+                    // them; both in this destination like the bottom bar, so sub pages show none
+                    // and are left with Back on every screen size.
+                    val sideBar: (@Composable () -> Unit)? = if (!isBottomBar && !latestClassicNavigationBar) {
+                        {
+                            TopLevelNavigationBar(
+                                classic = false,
+                                layoutType = latestNavigationSuiteType,
+                                selectedScreen = latestSelectedBottomScreen,
+                                onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
+                                hazeState = LocalChromeHazeState.current,
+                                pagerState = topLevelPagerState,
+                                pagerDragInteractions = topLevelPagerDrags,
+                            )
+                        }
+                    } else {
+                        null
+                    }
                     Row(Modifier.fillMaxSize()) {
-                        if (!isBottomBar) {
+                        if (!isBottomBar && latestClassicNavigationBar) {
                             Box(
                                 Modifier.onSizeChanged { size -> topLevelRailWidth = with(density) { size.width.toDp() } },
                             ) {
@@ -965,14 +1034,12 @@ fun HrtTrackerNavHost(
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
+                            RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar, sideBar) {
                                 TopLevelPager(
                                     state = topLevelPagerState,
                                     dragInteractions = topLevelPagerDrags,
                                     swipeExemption = topLevelPagerSwipeExemption,
-                                    // Beside the rail, tabs are picked from the rail alone, as Material has rail
-                                    // destinations switched.
-                                    swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
+                                    swipeEnabled = !latestTopLevelNavigationChromeLocked,
                                 ) { screen ->
                                     when (screen) {
                                         Screen.Main -> MainScreen(
@@ -1551,6 +1618,7 @@ fun HrtTrackerNavHost(
                     .padding(
                         start = if (
                             !navigationSuiteType.isBottomBar &&
+                            classicNavigationBar &&
                             Screen.topLevelScreenForRoute(currentRoute) != null
                         ) {
                             topLevelRailWidth

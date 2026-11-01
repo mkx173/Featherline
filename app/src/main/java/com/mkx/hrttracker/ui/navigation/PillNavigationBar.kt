@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,6 +24,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.PagerState
@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
@@ -99,6 +100,9 @@ import kotlin.math.roundToInt
  * The pill is the mask between the two, so while it slides, every item it passes reads as
  * selected exactly where it covers it.
  *
+ * [vertical] stands it upright for the side of a wide window: the items stacked, icons only,
+ * [VerticalItemSize] square, with the tab names left to accessibility.
+ *
  * With [hazeState] and blur on, the capsule blurs the page scrolling beneath it; otherwise it is
  * an opaque container, so it never turns transparent with no blur behind it.
  */
@@ -109,6 +113,7 @@ internal fun PillNavigationBar(
     onItemClick: (Screen) -> Unit,
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
+    vertical: Boolean = false,
     pagerState: PagerState? = null,
     pagerDragInteractions: InteractionSource? = null,
 ) {
@@ -138,7 +143,8 @@ internal fun PillNavigationBar(
         }
     }
     val scope = rememberCoroutineScope()
-    // The finger's sideways travel since a drag on the pill began; nudges the pill toward it.
+    // The finger's travel along the items since a drag on the pill began; nudges the pill
+    // toward it.
     val nudge = remember { Animatable(0f) }
     val layoutDirection = LocalLayoutDirection.current
     // After Kyant0/AndroidLiquidGlass's bottom tabs: the theme background tinted at 40% over
@@ -162,6 +168,13 @@ internal fun PillNavigationBar(
     // Rebuilt at draw time from the animated position, so the slide only redraws.
     val pillPath = remember { Path() }
     fun DrawScope.pill(): Path {
+        if (vertical) {
+            val itemHeight = size.height / items.size
+            val top = indicator.value * itemHeight
+            pillPath.reset()
+            pillPath.addRoundRect(RoundRect(0f, top, size.width, top + itemHeight, CornerRadius(size.width / 2)))
+            return pillPath
+        }
         val itemWidth = size.width / items.size
         val center = (indicator.value + 0.5f) * itemWidth
         val left = (if (layoutDirection == LayoutDirection.Rtl) size.width - center else center) - itemWidth / 2
@@ -175,34 +188,54 @@ internal fun PillNavigationBar(
 
     // Sits right on the gesture area or the 3-button bar; without either it keeps 8dp off the
     // screen edge (union takes the larger of the two, not their sum).
-    Box(
-        modifier = modifier
+    // Upright, it keeps pagePadding off the window's start edge instead, past a cutout there.
+    val edgeModifier = if (vertical) {
+        Modifier
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))
+            .padding(start = pagePadding)
+    } else {
+        Modifier
             .fillMaxWidth()
             .windowInsetsPadding(
                 WindowInsets.navigationBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
                     .union(WindowInsets(bottom = 8.dp))
             )
-            .padding(horizontal = pagePadding),
+            .padding(horizontal = pagePadding)
+    }
+    // Items as tall as their content (at least 56dp, growing with the font scale) and
+    // PillAspectRatio times as wide, capped at the width left between the side paddings;
+    // upright, the items size themselves.
+    val sizeModifier = if (vertical) {
+        Modifier
+    } else {
+        Modifier
+            .layout { measurable, constraints ->
+                val inset = BarInset.roundToPx() * 2
+                val itemHeight = measurable.minIntrinsicHeight(constraints.maxWidth) - inset
+                val width = (items.size * itemHeight * PillAspectRatio + inset).roundToInt()
+                    .coerceIn(constraints.minWidth, constraints.maxWidth)
+                val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
+            .height(IntrinsicSize.Min)
+    }
+    Box(
+        modifier = modifier.then(edgeModifier),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                // Items as tall as their content (at least 56dp, growing with the font scale)
-                // and PillAspectRatio times as wide, capped at the width left between the
-                // side paddings.
-                .layout { measurable, constraints ->
-                    val inset = BarInset.roundToPx() * 2
-                    val itemHeight = measurable.minIntrinsicHeight(constraints.maxWidth) - inset
-                    val width = (items.size * itemHeight * PillAspectRatio + inset).roundToInt()
-                        .coerceIn(constraints.minWidth, constraints.maxWidth)
-                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-                }
-                .height(IntrinsicSize.Min)
+                .then(sizeModifier)
                 // As in Kyant0/AndroidLiquidGlass's bottom tabs: a drag nudges the whole pill up
-                // to MaxNudge its way, easing out over the pill's width, and it springs back on
+                // to MaxNudge its way, easing out over the pill's length, and it springs back on
                 // release.
-                .graphicsLayer { translationX = nudgeOffset(nudge.value, size.width) }
+                .graphicsLayer {
+                    if (vertical) {
+                        translationY = nudgeOffset(nudge.value, size.height)
+                    } else {
+                        translationX = nudgeOffset(nudge.value, size.width)
+                    }
+                }
                 // Lifts the capsule off the content behind it; outside the clip so it shows.
                 .dropShadow(CircleShape, PillShadow)
                 .clip(CircleShape)
@@ -212,8 +245,13 @@ internal fun PillNavigationBar(
                 .drawBehind { drawPath(pill(), indicatorColor) }
                 // Touch drives the pill directly, taken in the Initial pass so the items'
                 // selectable (kept for accessibility and keys) never sees it.
-                .pointerInput(items.size, layoutDirection) {
+                .pointerInput(items.size, layoutDirection, vertical) {
+                    // The touch's coordinate along the items.
+                    fun Offset.along(): Float = if (vertical) y else x
                     fun positionAt(x: Float): Float {
+                        if (vertical) {
+                            return (x / (size.height / items.size) - 0.5f).coerceIn(0f, items.lastIndex.toFloat())
+                        }
                         val ltrX = if (layoutDirection == LayoutDirection.Rtl) size.width - x else x
                         return (ltrX / (size.width / items.size) - 0.5f).coerceIn(0f, items.lastIndex.toFloat())
                     }
@@ -222,13 +260,13 @@ internal fun PillNavigationBar(
                     }
                     // The nudge's graphicsLayer sits above this, so positions arrive shifted
                     // by it; adding it back keeps the drag from feeding on its own nudge.
-                    val layerWidth = size.width + BarInset.toPx() * 2
-                    fun unNudged(x: Float) = x + nudgeOffset(nudge.value, layerWidth)
+                    val layerLength = (if (vertical) size.height else size.width) + BarInset.toPx() * 2
+                    fun unNudged(x: Float) = x + nudgeOffset(nudge.value, layerLength)
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
                         down.consume()
                         following = false
-                        val downX = unNudged(down.position.x)
+                        val downX = unNudged(down.position.along())
                         // A touch picks the tab under it, so the pill goes to that tab, not
                         // to the finger; only a drag past the slop has it follow the finger.
                         val downSlot = positionAt(downX).roundToInt().toFloat()
@@ -244,7 +282,7 @@ internal fun PillNavigationBar(
                                 if (change == null || change.isConsumed) break
                                 change.consume()
                                 // The lift too: a quick drag can cross into the next tab with it.
-                                lastX = unNudged(change.position.x)
+                                lastX = unNudged(change.position.along())
                                 if (!change.pressed) {
                                     released = true
                                     break
@@ -282,45 +320,67 @@ internal fun PillNavigationBar(
                 },
         ) {
             // The tabs themselves, with their selection and clicks; outlined, outside the pill.
-            Row(
+            PillNavigationBarItems(
+                vertical = vertical,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .then(if (vertical) Modifier else Modifier.fillMaxWidth())
                     .drawWithContent {
                         clipPath(pill(), ClipOp.Difference) { this@drawWithContent.drawContent() }
                     }
                     .selectableGroup(),
-            ) {
+            ) { itemModifier ->
                 items.forEach { item ->
                     PillNavigationBarItem(
                         item = item,
                         filled = false,
+                        showLabel = !vertical,
+                        modifier = itemModifier,
                         selected = item.screen == selectedScreen,
                         onClick = { onItemClick(item.screen) },
                     )
                 }
             }
             // The same items filled, shown only under the pill.
-            Row(
+            PillNavigationBarItems(
+                vertical = vertical,
                 modifier = Modifier
                     .matchParentSize()
                     .clearAndSetSemantics { }
                     .drawWithContent {
                         clipPath(pill()) { this@drawWithContent.drawContent() }
                     },
-            ) {
+            ) { itemModifier ->
                 items.forEach { item ->
-                    PillNavigationBarItem(item = item, filled = true)
+                    PillNavigationBarItem(item = item, filled = true, showLabel = !vertical, modifier = itemModifier)
                 }
             }
         }
     }
 }
 
-// One item of either layer; only the outlined layer's items take [onClick].
+// One layer's items in a row, or stacked when [vertical], each laid out by the modifier
+// [content] is handed.
 @Composable
-private fun RowScope.PillNavigationBarItem(
+private fun PillNavigationBarItems(
+    vertical: Boolean,
+    modifier: Modifier,
+    content: @Composable (itemModifier: Modifier) -> Unit,
+) {
+    if (vertical) {
+        Column(modifier) { content(Modifier.size(VerticalItemSize)) }
+    } else {
+        Row(modifier) { content(Modifier.weight(1f).fillMaxHeight()) }
+    }
+}
+
+// One item of either layer; only the outlined layer's items take [onClick]. Without its
+// label, the item names its tab through its icon.
+@Composable
+private fun PillNavigationBarItem(
     item: NavigationItemContent,
     filled: Boolean,
+    showLabel: Boolean,
+    modifier: Modifier,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
@@ -330,9 +390,7 @@ private fun RowScope.PillNavigationBarItem(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     Column(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
+        modifier = modifier
             .heightIn(min = 56.dp)
             .then(
                 if (onClick == null) {
@@ -351,27 +409,36 @@ private fun RowScope.PillNavigationBarItem(
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val label = stringResource(item.screen.label)
         Icon(
             painter = painterResource(if (filled) item.icon else item.iconAlt),
-            contentDescription = null,
+            contentDescription = if (showLabel) null else label,
             tint = contentColor,
             modifier = Modifier.size(24.dp),
         )
-        Text(
-            text = stringResource(item.screen.label),
-            color = contentColor,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (showLabel) {
+            Text(
+                text = label,
+                color = contentColor,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
 // Width to height of each item and so of the pill, kept unless the side paddings squeeze it.
 private const val PillAspectRatio = 1.67f
 
+// Each item of the upright pill, square.
+private val VerticalItemSize = 56.dp
+
 // Between the capsule's edge and the items, all around.
 private val BarInset = 4.dp
+
+// The upright pill's width, edge to edge.
+internal val VerticalPillNavigationBarWidth = VerticalItemSize + BarInset * 2
 
 // Stiff enough that the pill reads as stuck to the finger, with a frame or two of give.
 private val FollowSpec = spring<Float>(stiffness = Spring.StiffnessMedium)

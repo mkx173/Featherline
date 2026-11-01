@@ -51,6 +51,13 @@ val AppContentMaxWidth: Dp = 640.dp
 val LocalAppContentBottomInset = compositionLocalOf { 0.dp }
 
 /**
+ * Width at the page's start edge covered by navigation floating over it, the upright pill
+ * beside the top-level pages: [AppContentContainer] centres the body beside it, and the top
+ * app bar its title and actions with the body.
+ */
+val LocalAppContentStartInset = compositionLocalOf { 0.dp }
+
+/**
  * Standard [PaddingValues] for a routed screen's scrollable body — applied as
  * `LazyColumn.contentPadding` or via `Modifier.padding(...)` inside a
  * `verticalScroll(...)` chain.
@@ -155,7 +162,9 @@ fun AppContentContainer(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .hazeSourceArea(LocalChromeHazeState.current),
+            // The page under the floating navigation still blurs behind it.
+            .hazeSourceArea(LocalChromeHazeState.current)
+            .padding(start = LocalAppContentStartInset.current),
         contentAlignment = Alignment.TopCenter,
     ) {
         Box(
