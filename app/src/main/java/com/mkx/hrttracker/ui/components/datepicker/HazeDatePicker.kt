@@ -160,6 +160,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.mkx.hrttracker.ui.components.AppBlurRadius
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeInput
@@ -667,7 +668,7 @@ private fun YearPicker(
         // stock opaque background when blur is unsupported/disabled. Mirrors HazeChrome.hazeDialog.
         val blurEnabled = LocalHazeBlurEnabled.current
         val yearOverlayBlurStyle =
-            HazeMaterials.regular(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            HazeMaterials.regular(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh).then(AppBlurRadius)
         val yearGridBackground =
             if (hazeState != null && blurEnabled) {
                 Modifier.hazeBlur(HazeInput.Sources(hazeState), style = yearOverlayBlurStyle)

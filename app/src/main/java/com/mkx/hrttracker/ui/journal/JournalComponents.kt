@@ -154,6 +154,7 @@ import com.mkx.hrttracker.model.journal.MilestoneUnit
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PrideFlag
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.ui.components.AppBlurRadius
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.FlipSlot
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -604,7 +605,7 @@ fun JournalHeroCard(
     val hazeBlurSupported = isHazeBlurSupported()
     // HazeMaterials.* are @Composable, so build the frost style here and capture it in the
     // hazeBlur call below. A thin material keeps the wash visible.
-    val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow).then(AppBlurRadius)
 
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -867,7 +868,7 @@ private fun HeroViewLayout(
     // hazeBlur call below. A thin material keeps the wash visible.
     val frostStyle = HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-    )
+    ).then(AppBlurRadius)
     with(sharedScope) {
         Box(modifier = Modifier.fillMaxWidth()) {
             val heroBackground = anchor.heroBackground
@@ -1109,7 +1110,7 @@ private fun BoxScope.HeroBackgroundWatermark(
     // HazeMaterials.* are @Composable; build the tinted style here and capture it below.
     val watermarkStyle = HazeMaterials.ultraThin(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    )
+    ).then(AppBlurRadius)
     val iconMask = remember(anchor.icon, sizePx, iconPainter) {
         val bitmap = ImageBitmap(sizePx, sizePx)
         val maskSize = Size(sizePx.toFloat(), sizePx.toFloat())

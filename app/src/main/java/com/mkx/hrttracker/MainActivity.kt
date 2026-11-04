@@ -55,6 +55,8 @@ import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
+import dev.chrisbanes.haze.HazePerformanceMode
+import dev.chrisbanes.haze.LocalHazePerformanceMode
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -272,6 +274,9 @@ class MainActivity : AppCompatActivity() {
                 // resolves by walking the context chain, so provide it explicitly.
                 LocalActivity provides this@MainActivity,
                 LocalHazeBlurEnabled provides appHazeBlurEnabled,
+                // Haze 2.1 defaults to a half-resolution input, which makes text scrolling under
+                // the blur shimmer. Capture at full resolution instead.
+                LocalHazePerformanceMode provides HazePerformanceMode.Quality,
                 LocalNavigationLock provides navigationLock,
             ) {
                 HrtTrackerTheme(

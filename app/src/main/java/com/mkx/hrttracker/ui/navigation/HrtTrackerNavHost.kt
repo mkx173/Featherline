@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -384,7 +386,14 @@ private fun TopLevelNavigationBar(
     pagerDragInteractions: InteractionSource? = null,
 ) {
     if (classic) {
-        Box(Modifier.hazeChrome(hazeState).redrawWhilePagesMove(pagerState)) {
+        // The opaque container stays under the blur, as on the pill (see PillNavigationBar):
+        // Haze's first frame after blur turns on draws nothing here.
+        Box(
+            Modifier
+                .background(NavigationBarDefaults.containerColor)
+                .hazeChrome(hazeState)
+                .redrawWhilePagesMove(pagerState),
+        ) {
             NavigationSuite(
                 layoutType = layoutType,
                 colors = hazeNavigationSuiteColors(hazeState),

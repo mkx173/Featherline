@@ -252,7 +252,7 @@ class HazeChromeIntegrationTest {
             navHostText.contains("hazeState = LocalChromeHazeState.current") &&
                     pillBarText.contains("if (LocalHazeBlurEnabled.current && hazeState != null)") &&
                     pillBarText.contains("Modifier.hazeChrome(hazeState)") &&
-                    pillBarText.contains("Modifier.background(MaterialTheme.colorScheme.surfaceContainer)"),
+                    pillBarText.contains(".background(MaterialTheme.colorScheme.surfaceContainer)"),
         )
         assertTrue(
             "Sheets and dialogs hosted above the routed content need a stable route-level " +

@@ -129,11 +129,12 @@ internal fun PillNavigationBar(
     val scope = rememberCoroutineScope()
     val layoutDirection = LocalLayoutDirection.current
     val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
-    val containerModifier = if (LocalHazeBlurEnabled.current && hazeState != null) {
-        Modifier.hazeChrome(hazeState)
-    } else {
-        Modifier.background(MaterialTheme.colorScheme.surfaceContainer)
-    }
+    // The opaque container stays under the blur: Haze draws nothing on an effect's first frame
+    // (its source starts capturing only once the effect asks), so turning blur on left the
+    // capsule empty for a frame. The blur samples the opaque page, so it covers this fully.
+    val containerModifier = Modifier
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .then(if (LocalHazeBlurEnabled.current && hazeState != null) Modifier.hazeChrome(hazeState) else Modifier)
     // Rebuilt at draw time from the animated position, so the slide only redraws.
     val pillPath = remember { Path() }
     fun DrawScope.pill(): Path {

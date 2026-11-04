@@ -2,6 +2,7 @@
 
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.os.Build
 import android.view.WindowManager
@@ -71,6 +72,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
 import dev.chrisbanes.haze.hazeSource
@@ -82,6 +84,10 @@ import androidx.compose.material3.DatePickerDialog as MaterialDatePickerDialog
 import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
 import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
 import androidx.compose.material3.TopAppBar as MaterialTopAppBar
+
+// Applied after every HazeMaterials preset, which blur at 24dp; that read as too strong. One
+// shared instance, so the combined Style stays equal across recompositions.
+val AppBlurRadius: HazeBlurStyle = HazeBlurStyle { blurRadius(20.dp) }
 
 val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
 val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
@@ -187,7 +193,7 @@ fun Modifier.hazeChrome(
 
     val style = HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainer
-    )
+    ).then(AppBlurRadius)
     // The style block reads [alpha] at resolve time, and haze observes snapshot reads
     // there, so scroll-driven alpha redraws without recomposition. Remembered because
     // block styles compare by identity.
@@ -250,7 +256,7 @@ fun Modifier.hazeBottomSheet(
 
     val style = HazeMaterials.regular(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    )
+    ).then(AppBlurRadius)
     return hazeBlur(HazeInput.Sources(state), style = style)
 }
 
@@ -263,7 +269,7 @@ fun Modifier.hazeDialog(
 
     val style = HazeMaterials.regular(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    )
+    ).then(AppBlurRadius)
     return this.clip(shape)
         .hazeBlur(
             HazeInput.Sources(state),
@@ -299,7 +305,7 @@ fun Modifier.hazeSheetSurface(
 ): Modifier {
     if (!active || state == null) return this
 
-    val style = HazeMaterials.thick(containerColor = containerColor)
+    val style = HazeMaterials.thick(containerColor = containerColor).then(AppBlurRadius)
     return this.clip(shape)
         .hazeBlur(
             HazeInput.Sources(state),
