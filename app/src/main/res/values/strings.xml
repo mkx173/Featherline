@@ -1239,6 +1239,6 @@
     <string name="calibration_pk_edu_back">Back</string>
     <string name="calibration_pk_edu_finish">Done</string>
     <string name="unsaved_changes_title">Discard changes</string>
-    <string name="unsaved_changes_confirmation">Discard your unsaved changes? They can’t be recovered.</string>
+    <string name="unsaved_changes_confirmation">Discard your unsaved changes?</string>
     <string name="unsaved_changes_discard">Discard</string>
 </resources>

@@ -1149,6 +1149,6 @@
     <string name="calibration_pk_edu_back">返回</string>
     <string name="calibration_pk_edu_finish">完成</string>
     <string name="unsaved_changes_title">捨棄變更</string>
-    <string name="unsaved_changes_confirmation">要捨棄未儲存嘅變更嗎？捨棄咗之後就冇辦法復原</string>
+    <string name="unsaved_changes_confirmation">要捨棄未儲存嘅變更嗎？</string>
     <string name="unsaved_changes_discard">捨棄</string>
 </resources>

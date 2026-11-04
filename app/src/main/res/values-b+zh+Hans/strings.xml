@@ -1149,6 +1149,6 @@
     <string name="calibration_pk_edu_back">返回</string>
     <string name="calibration_pk_edu_finish">完成</string>
     <string name="unsaved_changes_title">放弃更改</string>
-    <string name="unsaved_changes_confirmation">要放弃未保存的更改吗？放弃后将无法恢复</string>
+    <string name="unsaved_changes_confirmation">要放弃未保存的更改吗？</string>
     <string name="unsaved_changes_discard">放弃</string>
 </resources>
