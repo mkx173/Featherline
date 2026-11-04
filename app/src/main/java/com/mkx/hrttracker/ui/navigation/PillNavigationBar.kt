@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -78,6 +80,7 @@ import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
+import kotlin.math.sign
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -135,6 +138,8 @@ internal fun PillNavigationBar(
         }
     }
     val scope = rememberCoroutineScope()
+    // The finger's sideways travel since a drag on the pill began; nudges the pill toward it.
+    val nudge = remember { Animatable(0f) }
     val layoutDirection = LocalLayoutDirection.current
     // After Kyant0/AndroidLiquidGlass's bottom tabs: the theme background tinted at 40% over
     // the blur and a faint neutral indicator.
@@ -193,6 +198,13 @@ internal fun PillNavigationBar(
                     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                 }
                 .height(IntrinsicSize.Min)
+                // As in Kyant0/AndroidLiquidGlass's bottom tabs: a drag nudges the whole pill up
+                // to MaxNudge its way, easing out over the pill's width, and it springs back on
+                // release.
+                .graphicsLayer {
+                    val fraction = (nudge.value / size.width).coerceIn(-1f, 1f)
+                    translationX = MaxNudge.toPx() * sign(fraction) * EaseOut.transform(abs(fraction))
+                }
                 // Lifts the capsule off the content behind it; outside the clip so it shows.
                 .dropShadow(CircleShape, PillShadow)
                 .clip(CircleShape)
@@ -220,6 +232,7 @@ internal fun PillNavigationBar(
                         scope.launch { indicator.animateTo(downSlot, settleSpec) }
                         var lastX = down.position.x
                         var dragging = false
+                        var dragStartX = 0f
                         var released = false
                         while (true) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes
@@ -232,9 +245,17 @@ internal fun PillNavigationBar(
                                 released = true
                                 break
                             }
-                            if (!dragging) dragging = abs(lastX - down.position.x) > viewConfiguration.touchSlop
-                            if (dragging) follow(lastX)
+                            if (!dragging && abs(lastX - down.position.x) > viewConfiguration.touchSlop) {
+                                dragging = true
+                                dragStartX = lastX
+                            }
+                            if (dragging) {
+                                follow(lastX)
+                                val travel = lastX - dragStartX
+                                scope.launch { nudge.snapTo(travel) }
+                            }
                         }
+                        scope.launch { nudge.animateTo(0f, NudgeReleaseSpec) }
                         // From the touch itself: the pill's animation may not have caught up.
                         val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
                         // Dragged back to the selected tab, wherever the drag began: a switch
@@ -347,6 +368,10 @@ private val BarInset = 4.dp
 
 // Stiff enough that the pill reads as stuck to the finger, with a frame or two of give.
 private val FollowSpec = spring<Float>(stiffness = Spring.StiffnessMedium)
+
+// How far a drag nudges the pill, and how it settles back: the reference's values.
+private val MaxNudge = 4.dp
+private val NudgeReleaseSpec = spring(dampingRatio = 1f, stiffness = 300f, visibilityThreshold = 0.5f)
 
 // The soft shadow under the reference's bars: 24dp blur, 4dp down, black at 10%.
 private val PillShadow = Shadow(radius = 24.dp, color = Color.Black.copy(alpha = 0.1f), offset = DpOffset(0.dp, 4.dp))
