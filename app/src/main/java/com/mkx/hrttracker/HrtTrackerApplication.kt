@@ -54,6 +54,9 @@ class HrtTrackerApplication : Application() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
         ComposeMaterial3Flags.isCheckboxStylingFixEnabled = true
+        // material3 1.5 raises expressive two-line list items to 72dp and three-line to 88dp.
+        // Keep the 1.4 behaviour: a 56dp floor, with rows hugging their text.
+        ComposeMaterial3Flags.isExpressiveListItemHeightBasedOnTextLinesFixEnabled = false
 
         super.onCreate()
         diagnosticsLogger.info(TAG, "application_on_create_start")
