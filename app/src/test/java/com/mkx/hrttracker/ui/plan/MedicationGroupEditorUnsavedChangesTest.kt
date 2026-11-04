@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -48,6 +49,7 @@ class MedicationGroupEditorUnsavedChangesTest {
             scheduleType = MedicationGroupScheduleType.WEEKLY,
             scheduleStart = ScheduleStart.WholeDay,
             sinceDate = LocalDate.of(2026, 4, 25),
+            weeklyDaysOfWeek = setOf(DayOfWeek.SATURDAY),
         )
         assertNotEquals(
             loaded.toEditedDraft(),
@@ -59,6 +61,40 @@ class MedicationGroupEditorUnsavedChangesTest {
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
                 hasUserCustomizedWeeklyDays = true,
             ).toEditedDraft(),
+        )
+    }
+
+    @Test
+    fun editedDraft_comparesThePlanNotHowTheFormGotThere() {
+        val newPlan = MedicationGroupEditorUiState(
+            scheduleStart = ScheduleStart.Now,
+            sinceDate = LocalDate.of(2026, 4, 25),
+            weeklyDaysOfWeek = setOf(DayOfWeek.SATURDAY),
+        )
+        // Weekly with a weekday picked, then daily again: the weekly fields aren't saved.
+        val backToDaily = newPlan.copy(
+            weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
+            hasUserCustomizedWeeklyDays = true,
+            weeklyTime = LocalTime.of(20, 0),
+        )
+        assertEquals(newPlan.toEditedDraft(), backToDaily.toEditedDraft())
+        // Weekly, an extra weekday turned on and back off: the flag stays set.
+        val weekly = newPlan.copy(scheduleType = MedicationGroupScheduleType.WEEKLY)
+        assertEquals(
+            weekly.toEditedDraft(),
+            weekly.copy(hasUserCustomizedWeeklyDays = true).toEditedDraft(),
+        )
+        // A saved weekly plan's start date picked and picked back resets the flag.
+        val saved = MedicationGroupEditorUiState(
+            scheduleType = MedicationGroupScheduleType.WEEKLY,
+            scheduleStart = ScheduleStart.WholeDay,
+            sinceDate = LocalDate.of(2026, 4, 25),
+            weeklyDaysOfWeek = setOf(DayOfWeek.SATURDAY),
+            hasUserCustomizedWeeklyDays = true,
+        )
+        assertEquals(
+            saved.toEditedDraft(),
+            saved.copy(hasUserCustomizedWeeklyDays = false).toEditedDraft(),
         )
     }
 }

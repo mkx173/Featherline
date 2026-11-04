@@ -2449,16 +2449,17 @@ internal data class MedicationGroupEditedDraft(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val scheduleType: MedicationGroupScheduleType,
-    // Null while the clock keeps it: a plan starting now starts today, and weekdays the user
-    // hasn't picked follow the start date, both moving on past the day's end untouched.
+    // Null while the clock keeps it: a plan starting now starts today, and its weekdays left on
+    // the start date's follow it, both moving on past the day's end untouched.
     val sinceDate: LocalDate?,
     val scheduleStart: ScheduleStart,
     val medicationDayBoundary: MedicationDayBoundary,
-    val weeklyIntervalWeeks: String,
+    // The other schedule type's fields are null: the plan saves only its own type's.
+    val weeklyIntervalWeeks: String?,
     val weeklyDaysOfWeek: Set<DayOfWeek>?,
-    val weeklyTime: LocalTime,
-    val dailyIntervalDays: String,
-    val dailyTimes: List<LocalTime>,
+    val weeklyTime: LocalTime?,
+    val dailyIntervalDays: String?,
+    val dailyTimes: List<LocalTime>?,
     val notificationsEnabled: Boolean,
     val medications: List<MedicationGroupEditedSlot>,
     val includePastScheduledSlots: Boolean,
@@ -2472,19 +2473,26 @@ internal data class MedicationGroupEditedSlot(
     val count: Int,
 )
 
+// What the saved plan would be, not how the form got there: the weekday flag stays set after a
+// chip is turned back, and a start date picked and picked back resets it, neither of which the
+// saved plan sees.
 internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEditedDraft {
+    val isWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY
+    val isDaily = scheduleType == MedicationGroupScheduleType.DAILY
     return MedicationGroupEditedDraft(
         groupName = groupName.trim(),
         groupColorKey = groupColorKey,
         scheduleType = scheduleType,
-        sinceDate = sinceDate.takeUnless { scheduleStart == ScheduleStart.Now },
+        sinceDate = sinceDate.takeUnless { startsNow },
         scheduleStart = scheduleStart,
         medicationDayBoundary = medicationDayBoundary,
-        weeklyIntervalWeeks = weeklyIntervalWeeks,
-        weeklyDaysOfWeek = weeklyDaysOfWeek.takeIf { hasUserCustomizedWeeklyDays },
-        weeklyTime = weeklyTime,
-        dailyIntervalDays = dailyIntervalDays,
-        dailyTimes = dailyTimes.map { time -> time.time },
+        weeklyIntervalWeeks = weeklyIntervalWeeks.takeIf { isWeekly },
+        weeklyDaysOfWeek = weeklyDaysOfWeek.takeIf { days ->
+            isWeekly && !(startsNow && days == setOf(sinceDate.dayOfWeek))
+        },
+        weeklyTime = weeklyTime.takeIf { isWeekly },
+        dailyIntervalDays = dailyIntervalDays.takeIf { isDaily },
+        dailyTimes = dailyTimes.map { time -> time.time }.takeIf { isDaily },
         notificationsEnabled = notificationsEnabled,
         medications = medications.map { slot ->
             MedicationGroupEditedSlot(
