@@ -12,8 +12,8 @@ package com.mkx.hrttracker.ui.components.datepicker
 /*
  * Vendored, minimal fork of Material3's private DatePicker rendering chain so the
  * year-selection overlay can paint a real haze blur instead of bleeding through the
- * translucent dialog container color. Copied from `androidx.compose.material3`
- * 1.5.0-alpha18 (Compose BOM 2026.04.01). Only the `private` functions on the
+ * translucent dialog container color. Synced to `androidx.compose.material3`
+ * 1.5.0-beta02 (pinned in libs.versions.toml). Only the `private` functions on the
  * DatePicker -> YearPicker path are copied; every `internal` Material3 symbol is
  * referenced in place via the file-level @Suppress above (Kotlin warns this is
  * "UNSPECIFIED and WILL NOT BE PRESERVED" — re-sync on every Material3 bump).
@@ -26,7 +26,7 @@ package com.mkx.hrttracker.ui.components.datepicker
 // Public Material3 symbols referenced by simple name below
 // (ButtonDefaults, DatePickerColors, DatePickerDefaults, DatePickerFormatter,
 // DatePickerState, DisplayMode, DividerDefaults, HorizontalDivider, Icon,
-// IconButton, LocalContentColor, PlainTooltip, ProvideTextStyle, SelectableDates,
+// IconButton, LocalContentColor, PlainTooltipInternal, ProvideTextStyle, SelectableDates,
 // Surface, Text, TextButton, TooltipAnchorPosition, TooltipBox, TooltipDefaults,
 // rememberTooltipState) and the internal chain (BaseDatePickerStateImpl,
 // DateEntryContainer, DateInputContent, DisplayModeToggleButton, Month, WeekDays,
@@ -87,7 +87,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Month
 import androidx.compose.material3.MonthYearHeight
-import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.PlainTooltipInternal
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RecommendedSizeForAccessibility
 import androidx.compose.material3.SelectableDates
@@ -104,6 +104,8 @@ import androidx.compose.material3.internal.Icons
 import androidx.compose.material3.internal.Strings
 import androidx.compose.material3.internal.createCalendarModel
 import androidx.compose.material3.internal.getString
+import androidx.compose.material3.internal.isShiftTab
+import androidx.compose.material3.internal.isTab
 import androidx.compose.material3.numberOfMonthsInRange
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.toLocalString
@@ -135,12 +137,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -411,11 +410,12 @@ private fun DatePickerContent(
         currentYearFocusRequester,
         dividerFocusRequester) =
         remember { FocusRequester.createRefs() }
+    val totalMonths = remember(yearRange) { numberOfMonthsInRange(yearRange) }
     Column {
         MonthsNavigation(
             modifier = Modifier.padding(horizontal = DatePickerHorizontalPadding),
-            nextAvailable = monthsListState.canScrollForward,
-            previousAvailable = monthsListState.canScrollBackward,
+            nextAvailable = monthIndex < totalMonths - 1,
+            previousAvailable = monthIndex > 0,
             yearPickerVisible = yearPickerVisible,
             yearPickerText =
                 dateFormatter.formatMonthYear(
@@ -528,13 +528,22 @@ private fun DatePickerContent(
                             Modifier.focusRequester(dividerFocusRequester)
                                 .onKeyEvent {
                                     if (
-                                        it.key == Key.DirectionUp ||
-                                            (it.isShiftPressed && it.key == Key.Tab)
+                                        (it.key == Key.DirectionUp) ||
+                                            (it.key == Key.NumPadDirectionUp)
                                     ) {
                                         // If focus is coming from below, move back up.
                                         focusManager.moveFocus(FocusDirection.Previous)
                                         return@onKeyEvent true
-                                    } else if (it.key == Key.DirectionDown || it.key == Key.Tab) {
+                                    } else if (it.isShiftPressed && it.key == Key.Tab) {
+                                        // To keep focus order consistent, if shift + tabbing then
+                                        // focus back on the selected year.
+                                        currentYearFocusRequester.requestFocus()
+                                        return@onKeyEvent true
+                                    } else if (
+                                        (it.key == Key.DirectionDown) ||
+                                            (it.key == Key.NumPadDirectionDown) ||
+                                            (it.key == Key.Tab)
+                                    ) {
                                         // If focus is coming from above, move forward down.
                                         focusManager.moveFocus(FocusDirection.Next)
                                         return@onKeyEvent true
@@ -908,7 +917,7 @@ private fun IconButtonWithTooltip(
     TooltipBox(
         positionProvider =
             TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(contentDescription) } },
+        tooltip = { PlainTooltipInternal(contentDescription) { Text(contentDescription) } },
         state = rememberTooltipState(),
     ) {
         IconButton(onClick = onClick, modifier = modifier, enabled = enabled) {
@@ -924,8 +933,3 @@ private val YearsVerticalPadding = 16.dp
 
 private const val MaxCalendarRows = 6
 private const val YearsInRow: Int = 3
-
-private val KeyEvent.isShiftTab: Boolean
-    get() = isShiftPressed && type == KeyEventType.KeyDown && key == Key.Tab
-private val KeyEvent.isTab: Boolean
-    get() = !isShiftPressed && type == KeyEventType.KeyDown && key == Key.Tab

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -261,7 +262,12 @@ internal fun SchedulePreviewRow(
             EditorSegmentedListItem(
                 index = 0,
                 count = 1,
-                modifier = Modifier.width(IntrinsicSize.Max),
+                // A nonzero min height overrides material3 1.5's 72dp two-line minimum
+                // (ComposeMaterial3Flags.isExpressiveListItemHeightBasedOnTextLinesFixEnabled)
+                // and keeps the old one-line 56dp floor, so the row hugs its two text lines.
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .heightIn(min = 56.dp),
                 supportingContent = {
                     Text(
                         text = upcomingDoseDayLabel(
