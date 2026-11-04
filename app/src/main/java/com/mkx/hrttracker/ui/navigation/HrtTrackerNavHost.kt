@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.InteractionSource
@@ -1592,25 +1594,42 @@ fun HrtTrackerNavHost(
                     }
                 }
             }
+            // Top-level pages draw the bottom bar over their content, so lift the snackbar above
+            // it there; elsewhere clear the scaffold-provided gesture inset.
+            val snackbarBottomTarget = if (
+                navigationSuiteType.isBottomBar &&
+                Screen.topLevelScreenForRoute(currentRoute) != null
+            ) {
+                topLevelBottomBarHeight
+            } else {
+                LocalAppContentBottomInset.current
+            }
+            // Each snackbar starts where the page puts it and from there only rises: opening a
+            // sub page from under it leaves it in place rather than dropping it to the gesture
+            // inset, and the one leaving keeps its place as it fades.
+            val snackbarBottom = remember { Animatable(snackbarBottomTarget, Dp.VectorConverter) }
+            val shownSnackbar = snackbarHostState.currentSnackbarData
+            val latestSnackbarBottomTarget by rememberUpdatedState(snackbarBottomTarget)
+            LaunchedEffect(shownSnackbar) {
+                if (shownSnackbar != null) snackbarBottom.snapTo(latestSnackbarBottomTarget)
+            }
+            LaunchedEffect(snackbarBottomTarget) {
+                if (
+                    snackbarHostState.currentSnackbarData != null &&
+                    snackbarBottomTarget > snackbarBottom.value
+                ) {
+                    snackbarBottom.animateTo(snackbarBottomTarget)
+                }
+            }
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
-                    // Top-level pages draw the bottom bar over their content, so lift the
-                    // snackbar above it there; elsewhere clear the scaffold-provided
-                    // gesture inset.
                     .padding(
                         // Centred on the body beside the pill; the rail sits beside this already.
                         start = LocalAppContentStartInset.current,
-                        bottom = if (
-                            navigationSuiteType.isBottomBar &&
-                            Screen.topLevelScreenForRoute(currentRoute) != null
-                        ) {
-                            topLevelBottomBarHeight
-                        } else {
-                            LocalAppContentBottomInset.current
-                        },
+                        bottom = snackbarBottom.value,
                     ),
                 snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
             )
