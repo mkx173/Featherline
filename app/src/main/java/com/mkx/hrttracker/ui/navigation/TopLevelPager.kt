@@ -80,7 +80,7 @@ internal fun TopLevelPager(
     }
 
     // Only while the pages swipe: menus let touch outside them through to the pages for a swipe,
-    // and there's none to take under a sheet or dialog locking the chrome.
+    // and there's none to take beside side navigation, or under a sheet or dialog locking the chrome.
     CompositionLocalProvider(LocalPagerSwipeExemption provides swipeExemption.takeIf { swipeEnabled }) {
         HorizontalPager(
             state = state,

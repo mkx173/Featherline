@@ -440,9 +440,8 @@ private fun TopLevelNavigationBar(
             selectedScreen = selectedScreen,
             onItemClick = onItemClick,
             hazeState = hazeState,
+            // Beside the pages, which are not swiped between, so it has no swipe to follow.
             vertical = true,
-            pagerState = pagerState,
-            pagerDragInteractions = pagerDragInteractions,
         )
     } else {
         // The page fades into its background under the floating pill instead of running
@@ -697,14 +696,15 @@ fun HrtTrackerNavHost(
     val latestSelectedBottomScreen by rememberUpdatedState(selectedBottomScreen)
     val navigationSuiteType = rememberNavigationSuiteType(classic = classicNavigationBar)
     val pagerScope = rememberCoroutineScope()
-    // Back on the pager, on [screen]'s page: slid to when already there, where the pages are
-    // swiped between too, else shown at once beneath the page being popped.
+    // Back on the pager, on [screen]'s page: slid to when already there with the bottom bar,
+    // where the pages are swiped between too, else shown at once, beneath the page being popped
+    // or, beside side navigation, as its destinations switch.
     fun showTopLevelPage(screen: Screen) {
         val onPager = navController.currentDestination?.route == Screen.Main.route
-        if (onPager) {
+        if (onPager && navigationSuiteType.isBottomBar) {
             pagerScope.launch { topLevelPagerState.springToPage(screen.topLevelPage) }
         } else {
-            navController.popBackStack(Screen.Main.route, inclusive = false)
+            if (!onPager) navController.popBackStack(Screen.Main.route, inclusive = false)
             topLevelPagerState.requestScrollToPage(screen.topLevelPage)
         }
     }
@@ -1017,8 +1017,6 @@ fun HrtTrackerNavHost(
                                 selectedScreen = latestSelectedBottomScreen,
                                 onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
                                 hazeState = LocalChromeHazeState.current,
-                                pagerState = topLevelPagerState,
-                                pagerDragInteractions = topLevelPagerDrags,
                             )
                         }
                     } else {
@@ -1050,7 +1048,8 @@ fun HrtTrackerNavHost(
                                     state = topLevelPagerState,
                                     dragInteractions = topLevelPagerDrags,
                                     swipeExemption = topLevelPagerSwipeExemption,
-                                    swipeEnabled = !latestTopLevelNavigationChromeLocked,
+                                    // Side navigation's destinations are picked from it, not swiped.
+                                    swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
                                 ) { screen ->
                                     when (screen) {
                                         Screen.Main -> MainScreen(
