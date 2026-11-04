@@ -25,12 +25,18 @@ internal data class WidgetColorScheme(
     val onSecondaryContainer: ColorProvider,
     val widgetControl: ColorProvider,
     val onSurfaceVariant: ColorProvider,
+    // The three surface colours below are OPAQUE; their paint alpha travels beside them
+    // (RoundedMaskImage applies it as an Image alpha). Baking alpha into the provider would
+    // force a resolve at compose time and lose the launcher's day/night flip.
     val widgetContainer: ColorProvider,
+    val widgetContainerAlpha: Float,
     val widgetBackground: ColorProvider,
+    val widgetBackgroundAlpha: Float,
     // Faint wash of the shell colour drawn OVER the anchor widget's flag blooms so they read
     // as frosted, tinted by the seed instead of grayed by a neutral. Scales with the opacity
     // slider like the shell itself.
     val widgetScrim: ColorProvider,
+    val widgetScrimAlpha: Float,
     val onSurface: ColorProvider,
     val outline: ColorProvider,
     val outlineVariant: ColorProvider,
@@ -127,18 +133,12 @@ internal fun widgetColorScheme(
         // neutral surfaceVariant pill is the design's one approved visible change).
         widgetControl = provider(lightSurfaces.control, darkSurfaces.control),
         onSurfaceVariant = provider(lightSurfaces.onSurfaceVariant, darkSurfaces.onSurfaceVariant),
-        widgetContainer = provider(
-            lightSurfaces.card.copy(alpha = cardAlpha),
-            darkSurfaces.card.copy(alpha = cardAlpha),
-        ),
-        widgetBackground = provider(
-            lightSurfaces.shell.copy(alpha = alpha),
-            darkSurfaces.shell.copy(alpha = alpha),
-        ),
-        widgetScrim = provider(
-            lightSurfaces.shell.copy(alpha = SCRIM_ALPHA * alpha),
-            darkSurfaces.shell.copy(alpha = SCRIM_ALPHA * alpha),
-        ),
+        widgetContainer = provider(lightSurfaces.card, darkSurfaces.card),
+        widgetContainerAlpha = cardAlpha,
+        widgetBackground = provider(lightSurfaces.shell, darkSurfaces.shell),
+        widgetBackgroundAlpha = alpha,
+        widgetScrim = provider(lightSurfaces.shell, darkSurfaces.shell),
+        widgetScrimAlpha = SCRIM_ALPHA * alpha,
         onSurface = provider(lightSurfaces.onSurface, darkSurfaces.onSurface),
         // No widget composable consumes the plain `outline` role (only outlineVariant);
         // kept as scheme pass-through for scheme completeness, not tuned.

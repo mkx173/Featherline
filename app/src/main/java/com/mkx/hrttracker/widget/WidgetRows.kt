@@ -79,20 +79,25 @@ internal enum class WidgetRoundedShape(
     val radius: Dp get() = radiusDp.dp
 }
 
+// `color` must be OPAQUE and `alpha` carried separately: an ImageView colour filter blends
+// SRC_ATOP, so a translucent tint would wash the mask toward white instead of letting the
+// wallpaper through. Keep the ColorProvider itself unresolved — resolving it here (in the app
+// process, at compose time) bakes one mode into the RemoteViews, so the surfaces would stop
+// flipping with the launcher's night mode while every other colour still did.
 @Composable
 private fun RoundedMaskImage(
     shape: WidgetRoundedShape,
     color: ColorProvider,
+    alpha: Float = 1f,
     modifier: GlanceModifier = GlanceModifier.fillMaxSize(),
 ) {
-    val resolvedColor = color.getColor(LocalContext.current)
     Image(
         provider = ImageProvider(shape.maskRes),
         contentDescription = null,
-        alpha = resolvedColor.alpha,
+        alpha = alpha,
         modifier = modifier,
         contentScale = ContentScale.FillBounds,
-        colorFilter = ColorFilter.tint(fixedColorProvider(resolvedColor.copy(alpha = 1f))),
+        colorFilter = ColorFilter.tint(color),
     )
 }
 
@@ -101,6 +106,7 @@ internal fun RoundedBackgroundBox(
     modifier: GlanceModifier,
     color: ColorProvider,
     shape: WidgetRoundedShape,
+    alpha: Float = 1f,
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable () -> Unit = {},
 ) {
@@ -112,7 +118,7 @@ internal fun RoundedBackgroundBox(
         modifier = modifier,
         contentAlignment = contentAlignment,
     ) {
-        RoundedMaskImage(shape = shape, color = color)
+        RoundedMaskImage(shape = shape, color = color, alpha = alpha)
         content()
     }
 }
@@ -122,11 +128,12 @@ internal fun RoundedBackgroundRow(
     modifier: GlanceModifier,
     color: ColorProvider,
     shape: WidgetRoundedShape,
+    alpha: Float = 1f,
     contentModifier: GlanceModifier = GlanceModifier,
     content: @Composable RowScope.() -> Unit,
 ) {
     Box(modifier = modifier) {
-        RoundedMaskImage(shape = shape, color = color)
+        RoundedMaskImage(shape = shape, color = color, alpha = alpha)
         Row(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -162,6 +169,7 @@ internal fun WidgetShell(
         RoundedMaskImage(
             shape = WidgetRoundedShape.Shell,
             color = colors.widgetBackground,
+            alpha = colors.widgetBackgroundAlpha,
             modifier = GlanceModifier
                 .fillMaxSize()
                 .appWidgetBackground(),
@@ -554,6 +562,7 @@ internal fun DoseRow(
     RoundedBackgroundRow(
         modifier = rowModifier,
         color = colors.widgetContainer,
+        alpha = colors.widgetContainerAlpha,
         shape = WidgetRoundedShape.Card,
         contentModifier = GlanceModifier
             .padding(horizontal = (16f * scale).dp)

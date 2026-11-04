@@ -921,6 +921,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             .fillMaxWidth()
                             .height((64f * scale).dp),
                         color = colors.widgetContainer,
+                        alpha = colors.widgetContainerAlpha,
                         shape = WidgetRoundedShape.Card,
                         contentModifier = GlanceModifier
                             .padding(horizontal = (16f * scale).dp)

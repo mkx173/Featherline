@@ -2,6 +2,7 @@ package com.mkx.hrttracker.widget
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.glance.color.DayNightColorProvider
 import com.materialkolor.hct.Hct
 import com.mkx.hrttracker.ui.theme.DefaultSeedColor
 import org.junit.Assert.assertEquals
@@ -289,6 +290,37 @@ class WidgetThemeDerivationTest {
                 }
             }
         }
+    }
+
+    // The shell/card/scrim are painted as a tinted mask Image, and an ImageView colour filter
+    // blends SRC_ATOP — a translucent tint would wash the mask toward white instead of letting
+    // the wallpaper through. So their paint alpha has to travel BESIDE the provider. The trap:
+    // baking it in (Color.copy(alpha = ...)) forces RoundedMaskImage to resolve the provider in
+    // the app process at compose time, which pins one mode into the RemoteViews — the surfaces
+    // then stop following the launcher's night mode while every other colour (host-resolved via
+    // setColorInt on API 31+) keeps flipping, and the widget renders half light, half dark.
+    @Suppress("RestrictedApi")
+    @Test
+    fun `follow-system surfaces stay day-night providers with their alpha carried beside them`() {
+        val (light, dark) = seededWidgetColorSchemes(DefaultSeedColor)
+        val appearance = WidgetAppearance.Default.copy(backgroundAlpha = 0.7f)
+        val colors = widgetColorScheme(light, dark, appearance, forcedDark = null)
+
+        val surfaces = listOf(
+            Triple("background", colors.widgetBackground, colors.widgetBackgroundAlpha),
+            Triple("container", colors.widgetContainer, colors.widgetContainerAlpha),
+            Triple("scrim", colors.widgetScrim, colors.widgetScrimAlpha),
+        )
+        for ((name, provider, alpha) in surfaces) {
+            val dayNight = provider as? DayNightColorProvider
+                ?: error("$name must stay a day/night provider, was $provider")
+            assertEquals("$name day must be opaque", 1f, dayNight.day.alpha, 1e-6f)
+            assertEquals("$name night must be opaque", 1f, dayNight.night.alpha, 1e-6f)
+            assertTrue("$name day and night must differ", dayNight.day != dayNight.night)
+            assertTrue("$name alpha must be the paint alpha", alpha > 0f && alpha < 1f)
+        }
+        assertEquals(0.7f, colors.widgetBackgroundAlpha, 1e-6f)
+        assertEquals(containerAlpha(0.7f), colors.widgetContainerAlpha, 1e-6f)
     }
 
     @Test

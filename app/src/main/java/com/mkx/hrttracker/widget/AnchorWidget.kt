@@ -476,6 +476,7 @@ internal fun AnchorWidgetContent(
             RoundedBackgroundBox(
                 modifier = GlanceModifier.fillMaxSize(),
                 color = colors.widgetScrim,
+                alpha = colors.widgetScrimAlpha,
                 shape = WidgetRoundedShape.Shell,
             )
         }
