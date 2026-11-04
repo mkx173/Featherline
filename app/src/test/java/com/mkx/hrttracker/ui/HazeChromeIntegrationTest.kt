@@ -83,7 +83,7 @@ class HazeChromeIntegrationTest {
                     hazeChromeText.contains("fun HazeTimePickerDialog(") &&
                     hazeChromeText.contains("fun Modifier.hazeDialog(") &&
                     hazeChromeText.contains(".clip(shape)") &&
-                    hazeChromeText.contains("blurredEdgeTreatment = BlurredEdgeTreatment(shape)") &&
+                    hazeChromeText.contains("blurredEdgeTreatment(BlurredEdgeTreatment(shape))") &&
                     hazeChromeText.contains("fun hazeDialogContainerColor(") &&
                     hazeChromeText.contains("fun hazeDatePickerColors(") &&
                     hazeChromeText.contains("copy(alpha = 0.2f)") &&

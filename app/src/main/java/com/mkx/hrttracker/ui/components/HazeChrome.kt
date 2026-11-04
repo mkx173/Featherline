@@ -69,11 +69,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
-import dev.chrisbanes.haze.HazePositionStrategy
+import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import androidx.compose.material3.AlertDialog as MaterialAlertDialog
@@ -108,17 +107,13 @@ internal fun topAppBarOverlapAlpha(overlappedFraction: Float): Float {
 }
 
 @Composable
-fun rememberChromeHazeState(): HazeState = rememberHazeState(
-    // Chrome haze states are consumed by effects in different windows: the in-window
-    // top/bottom bars plus bottom sheets and dialogs, which live in their own windows
-    // and sample the app window's content. Haze 2.0's Auto strategy resolves per
-    // effect node but stores the result in the shared HazeState.resolvedStrategy, so
-    // a same-window and a cross-window effect on one state overwrite each other in an
-    // endless snapshot loop, freezing the UI (seen on the medication log entry sheet).
-    // Pinning Screen coordinates keeps every consumer in one coordinate system and
-    // matches Haze 1.x behavior on Android.
-    positionStrategy = HazePositionStrategy.Screen,
-)
+// Chrome haze states are consumed by effects in different windows: the in-window
+// top/bottom bars plus bottom sheets and dialogs, which live in their own windows and
+// sample the app window's content. Haze 2.0 alphas stored the resolved position strategy
+// on the shared state, so those effects fought in a snapshot loop and froze the UI (seen
+// on the medication log entry sheet); that pinned Screen here. Haze 2.1 resolves it per
+// effect node and no longer exposes the knob, so the default Auto strategy is used.
+fun rememberChromeHazeState(): HazeState = rememberHazeState()
 
 /**
  * Top app bar window insets with a synchronously measured status-bar fallback.
@@ -193,17 +188,13 @@ fun Modifier.hazeChrome(
     val style = HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainer
     )
-    return hazeEffect(state = state) {
-        // Blur a downscaled copy of the source — Auto picks the factor from the blur
-        // radius, where the lost detail is imperceptible. Cuts the per-frame GPU cost.
-        // inputScale = HazeInputScale.Auto
-        blurEffect {
-            this.style = style
-            if (alpha != null) {
-                this.alpha = alpha().coerceIn(0f, 1f)
-            }
-        }
+    // The style block reads [alpha] at resolve time, and haze observes snapshot reads
+    // there, so scroll-driven alpha redraws without recomposition. Remembered because
+    // block styles compare by identity.
+    val blurStyle = remember(style, alpha) {
+        if (alpha == null) style else style.then { alpha(alpha().coerceIn(0f, 1f)) }
     }
+    return hazeBlur(HazeInput.Sources(state), style = blurStyle)
 }
 
 /**
@@ -260,12 +251,7 @@ fun Modifier.hazeBottomSheet(
     val style = HazeMaterials.regular(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     )
-    return hazeEffect(state = state) {
-        // inputScale = HazeInputScale.Auto
-        blurEffect {
-            this.style = style
-        }
-    }
+    return hazeBlur(HazeInput.Sources(state), style = style)
 }
 
 @Composable
@@ -279,13 +265,10 @@ fun Modifier.hazeDialog(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
     return this.clip(shape)
-        .hazeEffect(state = state) {
-            // inputScale = HazeInputScale.Auto
-            blurEffect {
-                this.style = style
-                blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-            }
-        }
+        .hazeBlur(
+            HazeInput.Sources(state),
+            style = remember(style, shape) { style.then { blurredEdgeTreatment(BlurredEdgeTreatment(shape)) } },
+        )
 }
 
 /**
@@ -318,13 +301,10 @@ fun Modifier.hazeSheetSurface(
 
     val style = HazeMaterials.thick(containerColor = containerColor)
     return this.clip(shape)
-        .hazeEffect(state = state) {
-            // inputScale = HazeInputScale.Auto
-            blurEffect {
-                this.style = style
-                blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-            }
-        }
+        .hazeBlur(
+            HazeInput.Sources(state),
+            style = remember(style, shape) { style.then { blurredEdgeTreatment(BlurredEdgeTreatment(shape)) } },
+        )
 }
 
 @Composable

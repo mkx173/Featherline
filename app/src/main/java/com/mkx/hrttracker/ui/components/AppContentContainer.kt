@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
@@ -117,6 +118,7 @@ fun appContentPaddingValuesBehindTopAppBar(
  * while [isUpdating] and back up when it ends, for content refreshing in the background.
  */
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun BoxScope.TopUpdatingIndicator(
     isUpdating: Boolean,
     innerPadding: PaddingValues,

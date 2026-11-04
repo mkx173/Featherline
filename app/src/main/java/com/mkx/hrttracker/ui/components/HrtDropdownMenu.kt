@@ -89,7 +89,7 @@ fun HrtDropdownMenu(
                             )
                         }
                     },
-                    trailingIcon = item.trailingIcon,
+                    trailingContent = item.trailingIcon,
                 )
             }
         }

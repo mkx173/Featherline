@@ -150,7 +150,7 @@ fun JournalScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun JournalScreenContent(
     uiState: JournalUiState,
@@ -523,7 +523,7 @@ internal fun HeroBackgroundDialogHost(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MilestonesScreenContent(
     uiState: MilestonesUiState,

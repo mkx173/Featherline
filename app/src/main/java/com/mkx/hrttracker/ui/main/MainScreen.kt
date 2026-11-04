@@ -14,6 +14,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -374,7 +375,7 @@ internal fun HomeMoreOptionsMenu(
                         )
                     },
                     shape = MaterialTheme.shapes.medium,
-                    trailingIcon = {
+                    trailingContent = {
                         Icon(
                             imageVector = Icons.Rounded.ChevronRight,
                             contentDescription = null,
@@ -434,12 +435,12 @@ private fun HomeDisplayUnitSubmenu(
         shapes = MenuDefaults.groupShape(0, 1),
     ) {
         units.forEachIndexed { index, unit ->
-            DropdownMenuItem(
+            SelectableDropdownMenuItem(
                 selected = selectedUnit == unit,
                 onClick = { onUnitSelected(unit) },
                 text = { Text(text = calibrationUnitLabel(unit)) },
                 shapes = MenuDefaults.itemShape(index, units.size),
-                trailingIcon = {
+                trailingContent = {
                     if (selectedUnit == unit) {
                         Icon(
                             imageVector = Icons.Rounded.Check,

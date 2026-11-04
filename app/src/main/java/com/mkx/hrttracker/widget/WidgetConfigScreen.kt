@@ -691,7 +691,7 @@ private fun SliderRow(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            Slider(
+            TrackSlider(
                 value = value,
                 onValueChange = onValueChange,
                 valueRange = valueRange,
@@ -760,7 +760,7 @@ private fun HueSliderRow(
                     )
                 }
             }
-            Slider(
+            TrackSlider(
                 value = hue ?: restingHue,
                 onValueChange = onHueChange,
                 // Ends at 359 so the canonical mod-360 stored value round-trips to the

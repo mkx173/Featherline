@@ -125,6 +125,7 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
+import com.mkx.hrttracker.widget.TrackSlider
 import com.mkx.hrttracker.widget.WidgetCenteredSliderTrack
 import com.mkx.hrttracker.widget.WidgetHueSpectrumTrack
 import com.mkx.hrttracker.widget.centeredOffsetReadout
@@ -873,7 +874,7 @@ internal fun WidgetAppearanceDialog(
                             }
                         }
                     }
-                    Slider(
+                    TrackSlider(
                         value = localSeedHue ?: restingHue,
                         onValueChange = { localSeedHue = it },
                         valueRange = 0f..359f,
@@ -918,7 +919,7 @@ internal fun WidgetAppearanceDialog(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    Slider(
+                    TrackSlider(
                         value = localBalance,
                         onValueChange = { localBalance = snapToWholePercent(it) },
                         valueRange = 0f..1f,

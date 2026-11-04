@@ -162,9 +162,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
-import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -670,9 +670,7 @@ private fun YearPicker(
             HazeMaterials.regular(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         val yearGridBackground =
             if (hazeState != null && blurEnabled) {
-                Modifier.hazeEffect(state = hazeState) {
-                    blurEffect { this.style = yearOverlayBlurStyle }
-                }
+                Modifier.hazeBlur(HazeInput.Sources(hazeState), style = yearOverlayBlurStyle)
             } else {
                 Modifier.background(colors.containerColor)
             }

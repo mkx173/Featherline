@@ -252,7 +252,7 @@ internal fun adjustSheetStockProjectionForDisplay(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicineDetailScreenContent(
     uiState: MedicineDetailUiState,

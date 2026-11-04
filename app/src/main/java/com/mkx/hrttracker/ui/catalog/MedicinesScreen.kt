@@ -547,7 +547,7 @@ internal fun MedicinesUiState.findMedicineItemByUuid(
     return null
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicinesScreenContent(
     uiState: MedicinesUiState,

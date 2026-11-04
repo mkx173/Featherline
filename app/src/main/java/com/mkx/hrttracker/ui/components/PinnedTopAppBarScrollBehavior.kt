@@ -42,7 +42,7 @@ fun pinnedTopAppBarScrollBehavior(
     ResetContentOffsetWhenAtStart(state) {
         lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
     }
-    return TopAppBarDefaults.pinnedScrollBehavior(lazyListState = lazyListState, state = state)
+    return TopAppBarDefaults.pinnedScrollBehavior(scrollableState = lazyListState, state = state)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,7 +52,7 @@ fun pinnedTopAppBarScrollBehavior(
     state: TopAppBarState = rememberTopAppBarState(),
 ): TopAppBarScrollBehavior {
     ResetContentOffsetWhenAtStart(state) { !scrollState.canScrollBackward }
-    return TopAppBarDefaults.pinnedScrollBehavior(scrollState = scrollState, state = state)
+    return TopAppBarDefaults.pinnedScrollBehavior(scrollableState = scrollState, state = state)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

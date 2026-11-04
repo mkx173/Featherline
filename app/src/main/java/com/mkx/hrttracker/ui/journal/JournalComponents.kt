@@ -172,9 +172,9 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.blur.blurEffect
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.blur.materials.HazeMaterials
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
@@ -603,7 +603,7 @@ fun JournalHeroCard(
     val heroHazeState = rememberHazeState()
     val hazeBlurSupported = isHazeBlurSupported()
     // HazeMaterials.* are @Composable, so build the frost style here and capture it in the
-    // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
+    // hazeBlur call below. A thin material keeps the wash visible.
     val frostStyle = HazeMaterials.thin(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
 
     EditorSegmentedListItem(
@@ -640,10 +640,7 @@ fun JournalHeroCard(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .hazeEffect(heroHazeState) {
-                            // inputScale = HazeInputScale.Auto
-                            blurEffect { this.style = frostStyle }
-                        },
+                        .hazeBlur(HazeInput.Sources(heroHazeState), style = frostStyle),
                 )
             }
             Row(
@@ -867,7 +864,7 @@ private fun HeroViewLayout(
     val heroHazeState = rememberHazeState()
     val hazeBlurSupported = isHazeBlurSupported()
     // HazeMaterials.* are @Composable, so build the frost style here and capture it in the
-    // (non-composable) blurEffect lambda below. A thin material keeps the wash visible.
+    // hazeBlur call below. A thin material keeps the wash visible.
     val frostStyle = HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     )
@@ -898,10 +895,7 @@ private fun HeroViewLayout(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .hazeEffect(heroHazeState) {
-                            // inputScale = HazeInputScale.Auto
-                            blurEffect { this.style = frostStyle }
-                        },
+                        .hazeBlur(HazeInput.Sources(heroHazeState), style = frostStyle),
                 )
             }
             // The large corner glyph. With a background on API 31+ it's a frosted, icon-shaped
@@ -1134,10 +1128,7 @@ private fun BoxScope.HeroBackgroundWatermark(
                 drawContent()
                 drawImage(image = iconMask, blendMode = BlendMode.DstIn)
             }
-            .hazeEffect(hazeState) {
-                // inputScale = HazeInputScale.Auto
-                blurEffect { this.style = watermarkStyle }
-            },
+            .hazeBlur(HazeInput.Sources(hazeState), style = watermarkStyle),
     )
 }
 

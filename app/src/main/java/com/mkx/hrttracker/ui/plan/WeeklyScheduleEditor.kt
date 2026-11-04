@@ -127,7 +127,7 @@ internal fun WeeklyScheduleEditor(
                     enabled = daySelectionEnabled,
                     layout = ConnectedButtonGroupLayout.ROW,
                     expandOptions = true,
-                    colors = ToggleButtonDefaults.toggleButtonColors(
+                    colors = ToggleButtonDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )

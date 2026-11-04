@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
@@ -33,6 +34,20 @@ internal fun centeredOffsetReadout(
     val offset =
         ((value - mid) / (valueRange.endInclusive - valueRange.start) * 100).roundToInt()
     return if (offset > 0) "+$offset" else offset.toString()
+}
+
+// Value-driven Slider with a custom track. Material3 1.5.0-beta02 dropped the value overload
+// that took `track`, so this mirrors the stock value overload on top of the SliderState one.
+@Composable
+internal fun TrackSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    track: @Composable (SliderState) -> Unit,
+) {
+    val state = remember(valueRange) { SliderState(value, trackRange = valueRange) }
+    state.value = value
+    Slider(state = state, onValueChange = onValueChange, track = track)
 }
 
 // Material 3 Expressive centered track: the active indicator grows from the track midpoint,

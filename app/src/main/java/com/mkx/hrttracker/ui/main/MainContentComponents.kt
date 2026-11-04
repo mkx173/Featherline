@@ -12,7 +12,6 @@ import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -1395,31 +1394,7 @@ internal fun MainE2ChartCard(
                                         },
                                     )
                                 }
-                                .pointerInput(chartScrollState) {
-                                    consumeMultiFingerGestures(
-                                        onMultiFingerStart = {
-                                            // A pinch that starts while a pan's
-                                            // fling is still running is broken in
-                                            // Vico: the zoom detector consumes
-                                            // all events (so the fling never gets
-                                            // stopped by a new drag), and Vico's
-                                            // zoom scroll compensation waits for
-                                            // !isScrollInProgress — the queued
-                                            // stale absolute targets then land
-                                            // when the fling settles, snapping
-                                            // the chart sideways. Vico exposes no
-                                            // stop, but a zero-delta scroll takes
-                                            // the scroll mutex at the fling's
-                                            // priority and cancels it.
-                                            chartCoroutineScope.launch {
-                                                chartScrollState.animateScroll(
-                                                    scroll = Scroll.Relative.pixels(0f),
-                                                    animationSpec = snap(),
-                                                )
-                                            }
-                                        },
-                                    )
-                                }
+                                .pointerInput(Unit) { consumeMultiFingerGestures() }
                         ) {
                             val chart = rememberCartesianChart(
                                     rememberEdgeAlignedLineCartesianLayer(
@@ -2619,11 +2594,11 @@ internal val homeChartMultiFingerGestureActive = mutableStateOf(false)
 // once its own zoom slop passes, so a pinch with enough vertical centroid
 // motion would otherwise cross the page verticalScroll's touch slop first —
 // the page claims the gesture as a vertical drag and flings when the fingers
-// lift, snapping the whole page. Consume all position changes from the second
-// finger down until every finger lifts.
-private suspend fun PointerInputScope.consumeMultiFingerGestures(
-    onMultiFingerStart: () -> Unit = {},
-) {
+// lift, snapping the whole page. Consume all position changes while two or
+// more fingers are down. The one-finger tail after a pinch is left to Vico,
+// which since 3.4.0-next.1 consumes every change of a pinch until all fingers
+// lift.
+private suspend fun PointerInputScope.consumeMultiFingerGestures() {
     awaitPointerEventScope {
         var multiFingerActive = false
         while (true) {
@@ -2634,7 +2609,6 @@ private suspend fun PointerInputScope.consumeMultiFingerGestures(
                     if (!multiFingerActive) {
                         multiFingerActive = true
                         homeChartMultiFingerGestureActive.value = true
-                        onMultiFingerStart()
                     }
                     // Consume on the Main pass, after the descendant Vico
                     // canvas handlers have processed the event, so chart zoom
@@ -2651,20 +2625,6 @@ private suspend fun PointerInputScope.consumeMultiFingerGestures(
                         homeChartMultiFingerGestureActive.value = false
                     }
                     multiFingerActive = false
-                }
-
-                multiFingerActive -> {
-                    // Tail of a pinch: one finger is still down after the
-                    // others lifted. Its next deltas can be huge (the hand is
-                    // leaving the screen), and with the pinch over nothing
-                    // else owns it — Vico's scrollable re-arms on it and the
-                    // page grabs it, producing the post-pinch snaps. Consume
-                    // on the Initial pass — before the descendant canvas —
-                    // so neither can start a drag; the tail stays owned by
-                    // the finished pinch until every finger lifts.
-                    event.changes.forEach { change ->
-                        if (change.positionChanged()) change.consume()
-                    }
                 }
             }
         }
