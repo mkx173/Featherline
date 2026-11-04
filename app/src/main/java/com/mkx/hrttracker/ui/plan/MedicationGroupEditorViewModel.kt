@@ -1276,8 +1276,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val skippedArchivedCount = currentState.medications.count { medication ->
             medication.resolvedMedicine?.isArchived == true
         }
+        val duplicatedState = buildDuplicatedDraftState(currentState)
+        // The copy is what this editor now edits, as after process death, where it is re-derived:
+        // leaving it untouched loses nothing. Set before the state, as after archive and recreate.
+        baselineDraft = duplicatedState.toEditedDraft()
         _uiState.update {
-            buildDuplicatedDraftState(currentState).copy(
+            duplicatedState.copy(
                 scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
                 duplicateArchivedGroupSkippedCount = skippedArchivedCount.takeIf { count ->
                     count > 0
@@ -2445,11 +2449,13 @@ internal data class MedicationGroupEditedDraft(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val scheduleType: MedicationGroupScheduleType,
-    val sinceDate: LocalDate,
+    // Null while the clock keeps it: a plan starting now starts today, and weekdays the user
+    // hasn't picked follow the start date, both moving on past the day's end untouched.
+    val sinceDate: LocalDate?,
     val scheduleStart: ScheduleStart,
     val medicationDayBoundary: MedicationDayBoundary,
     val weeklyIntervalWeeks: String,
-    val weeklyDaysOfWeek: Set<DayOfWeek>,
+    val weeklyDaysOfWeek: Set<DayOfWeek>?,
     val weeklyTime: LocalTime,
     val dailyIntervalDays: String,
     val dailyTimes: List<LocalTime>,
@@ -2471,11 +2477,11 @@ internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEdited
         groupName = groupName.trim(),
         groupColorKey = groupColorKey,
         scheduleType = scheduleType,
-        sinceDate = sinceDate,
+        sinceDate = sinceDate.takeUnless { scheduleStart == ScheduleStart.Now },
         scheduleStart = scheduleStart,
         medicationDayBoundary = medicationDayBoundary,
         weeklyIntervalWeeks = weeklyIntervalWeeks,
-        weeklyDaysOfWeek = weeklyDaysOfWeek,
+        weeklyDaysOfWeek = weeklyDaysOfWeek.takeIf { hasUserCustomizedWeeklyDays },
         weeklyTime = weeklyTime,
         dailyIntervalDays = dailyIntervalDays,
         dailyTimes = dailyTimes.map { time -> time.time },

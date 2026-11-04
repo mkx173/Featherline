@@ -942,10 +942,15 @@ class MedicationGroupEditorLoadStateTest {
         assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
         assertEquals(1, viewModel.uiState.value.scrollToTopRequestVersion)
         assertNull(viewModel.uiState.value.medications.single().persistedMedicationId)
+        advanceUntilIdle()
+        // The untouched copy loses nothing on leaving, as when re-derived after process death.
+        assertFalse(viewModel.hasUnsavedChanges.value)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 5, 1))
 
         assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.sinceDate)
+        advanceUntilIdle()
+        assertTrue(viewModel.hasUnsavedChanges.value)
     }
 
     @Test

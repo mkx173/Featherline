@@ -1650,7 +1650,7 @@ fun HrtTrackerNavHost(
                     ),
                 snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
             )
-            UnsavedChangesDialog(unsavedChanges)
+            UnsavedChangesDialog(hazeState = navigationChromeHazeState, state = unsavedChanges)
             optInTarget?.let { projection ->
                 CompositionLocalProvider(
                     LocalChromeHazeState provides navigationChromeHazeState

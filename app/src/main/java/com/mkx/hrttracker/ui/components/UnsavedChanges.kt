@@ -5,11 +5,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,7 +23,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.mkx.hrttracker.R
+import dev.chrisbanes.haze.HazeState
 
 /**
  * Whether an editor has changes it would lose, and the leave waiting on the user to discard them.
@@ -30,11 +34,17 @@ import com.mkx.hrttracker.R
  * outside the back stack (onboarding's) is kept for its composition instead.
  *
  * A leave waits only while there is something to discard: once no editor has unsaved changes,
- * such as when the one asking saves and finishes, it is dropped.
+ * such as when the one asking saves and finishes, it is dropped. Discarding marks the editors it
+ * leaves, which stay composed, still reporting their edits, while they animate out: they no
+ * longer count or ask.
  */
 @Stable
 class UnsavedChangesState {
     private val dirtyEntries = mutableStateMapOf<Any, Boolean>()
+    private val discardedEntries = mutableStateMapOf<Any, Unit>()
+
+    // The composed dialog hosts, the last one showing the dialog: onboarding's over the app's.
+    internal val dialogHosts = mutableStateListOf<Any>()
 
     /** The leave [UnsavedChangesDialog] asks about, null while none waits. */
     var pendingLeave: (() -> Unit)? by mutableStateOf(null)
@@ -54,13 +64,20 @@ class UnsavedChangesState {
     }
 
     fun discard() {
-        val action = pendingLeave
+        val action = pendingLeave ?: return
         pendingLeave = null
-        action?.invoke()
+        dirtyEntries.filterValues { dirty -> dirty }.keys.forEach { owner ->
+            discardedEntries[owner] = Unit
+            dirtyEntries[owner] = false
+        }
+        action()
     }
+
+    internal fun isDiscarded(owner: Any): Boolean = owner in discardedEntries
 
     /** [owner] is a back-stack entry, dropped with it, or a key [remove]d by its holder. */
     internal fun update(owner: Any, dirty: Boolean) {
+        if (owner in discardedEntries) return
         if (owner is LifecycleOwner && owner !in dirtyEntries) {
             // Dropped with its entry, whether or not the editor is composed by then.
             owner.lifecycle.addObserver(
@@ -80,6 +97,7 @@ class UnsavedChangesState {
 
     internal fun remove(owner: Any) {
         dirtyEntries.remove(owner)
+        discardedEntries.remove(owner)
         dropLeaveWithNothingToDiscard()
     }
 
@@ -94,8 +112,9 @@ val LocalUnsavedChanges = staticCompositionLocalOf { UnsavedChangesState() }
 /**
  * For an editor: marks it as having unsaved changes while [dirty], asks before system back
  * leaves it then, and returns [onBack] asking the same, for its top bar. With unsaved changes,
- * both do nothing while a write is in flight (the editor's save), which leaves the editor itself
- * when it's done.
+ * both ask only while the editor is resumed, the current page, not while a page opened from it
+ * is pushing in, and do nothing while a write is in flight (the editor's save), which leaves the
+ * editor itself when it's done.
  *
  * @param untilDisposed for an editor outside the back stack, such as onboarding's: kept while
  *   composed, rather than while its back-stack entry lives.
@@ -114,29 +133,48 @@ fun unsavedChangesBack(
     if (untilDisposed) {
         DisposableEffect(state, owner) { onDispose { state.remove(owner) } }
     }
+    val counts = dirty && !state.isDiscarded(owner)
+    val resumed = entry.lifecycle.currentStateAsState().value.isAtLeast(Lifecycle.State.RESUMED)
     val latestOnBack by rememberUpdatedState(onBack)
-    val latestDirty by rememberUpdatedState(dirty)
+    val latestCounts by rememberUpdatedState(counts)
+    val latestResumed by rememberUpdatedState(resumed)
     val back = remember(state, navigationLock) {
         {
             when {
-                !latestDirty -> latestOnBack()
-                !navigationLock.isBusy -> state.leave { latestOnBack() }
-                // Saving: the save leaves the editor itself once it's written.
-                else -> Unit
+                !latestCounts -> latestOnBack()
+                // Mid-transition, the back belongs to the page coming in; saving, the save
+                // leaves the editor itself once it's written.
+                !latestResumed || navigationLock.isBusy -> Unit
+                else -> state.leave { latestOnBack() }
             }
         }
     }
-    BackHandler(enabled = dirty) { back() }
+    BackHandler(enabled = counts && resumed) { back() }
     return back
 }
 
-/** Asks whether to discard unsaved changes before [UnsavedChangesState.pendingLeave] runs. */
+/**
+ * Asks whether to discard unsaved changes before [UnsavedChangesState.pendingLeave] runs, blurring
+ * [hazeState]'s source. Hosted by the app and by onboarding over it; only the last composed host
+ * shows it, so onboarding's blurs onboarding rather than the app hidden beneath.
+ */
 @Composable
-fun UnsavedChangesDialog(state: UnsavedChangesState = LocalUnsavedChanges.current) {
+fun UnsavedChangesDialog(
+    hazeState: HazeState?,
+    state: UnsavedChangesState = LocalUnsavedChanges.current,
+) {
+    val host = remember { Any() }
+    DisposableEffect(state, host) {
+        state.dialogHosts += host
+        onDispose { state.dialogHosts -= host }
+    }
+    if (state.dialogHosts.lastOrNull() !== host) return
     val action = state.pendingLeave ?: return
-    // One dialog per leave: a Home deep link closes open modals and asks again, and the new
-    // dialog must outlive the old one's dismissal rather than be closed with it.
-    key(action) { UnsavedChangesDialog(state, action) }
+    CompositionLocalProvider(LocalChromeHazeState provides hazeState) {
+        // One dialog per leave: a Home deep link closes open modals and asks again, and the new
+        // dialog must outlive the old one's dismissal rather than be closed with it.
+        key(action) { UnsavedChangesDialog(state, action) }
+    }
 }
 
 @Composable

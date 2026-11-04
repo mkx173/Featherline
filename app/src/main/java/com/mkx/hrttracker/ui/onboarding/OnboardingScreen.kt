@@ -118,6 +118,8 @@ import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.LocalChromeHazeState
+import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
 import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
@@ -564,6 +566,10 @@ fun OnboardingScreen(
             onDismissRequest = { showWeightDialog = false },
         )
     }
+
+    // Onboarding's own host for its plan editor's discard dialog, blurring onboarding rather
+    // than the app hidden beneath it.
+    UnsavedChangesDialog(hazeState = LocalChromeHazeState.current)
 
     AnimatedVisibility(
         visible = showGroupEditor,

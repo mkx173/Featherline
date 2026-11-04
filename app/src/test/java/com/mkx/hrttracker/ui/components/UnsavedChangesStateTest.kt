@@ -104,4 +104,23 @@ class UnsavedChangesStateTest {
         assertFalse(state.hasUnsavedChanges)
         assertNull(state.pendingLeave)
     }
+
+    @Test
+    fun discardedEditor_stopsCountingWhileItAnimatesOut() {
+        // Still composed for its exit, the editor keeps reporting its edits.
+        val state = UnsavedChangesState()
+        val editor = TestEntry()
+        var left = 0
+        state.update(editor, dirty = true)
+        state.leave { left++ }
+        state.discard()
+        assertEquals(1, left)
+        state.update(editor, dirty = true)
+        assertFalse(state.hasUnsavedChanges)
+        assertTrue(state.isDiscarded(editor))
+        state.leave { left++ }
+        assertEquals(2, left)
+        editor.registry.currentState = Lifecycle.State.DESTROYED
+        assertFalse(state.isDiscarded(editor))
+    }
 }
