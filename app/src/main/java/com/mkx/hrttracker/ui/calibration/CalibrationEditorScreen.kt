@@ -80,6 +80,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValuesBehindTopAppBar
 import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.components.unsavedChangesBack
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -110,6 +111,8 @@ fun CalibrationEditorScreen(
     viewModel: CalibrationEditorViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsStateWithLifecycle()
+    val navigateBackAskingFirst = unsavedChangesBack(dirty = hasUnsavedChanges, onBack = onNavigateBack)
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -261,7 +264,7 @@ fun CalibrationEditorScreen(
         uiState = uiState,
         dateFormatter = dateFormatter,
         timeFormatter = timeFormatter,
-        onNavigateBack = onNavigateBack,
+        onNavigateBack = navigateBackAskingFirst,
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onNotesCommit = viewModel::updateNotes,

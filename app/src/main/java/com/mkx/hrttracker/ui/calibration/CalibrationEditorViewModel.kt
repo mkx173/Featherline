@@ -33,6 +33,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -101,6 +103,27 @@ class CalibrationEditorViewModel @Inject constructor(
     private var draftPersistenceJob: Job? = null
     private val _uiState = MutableStateFlow(buildInitialEditorState())
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
+
+    // The form as it first loaded, against which leaving asks to discard. Persisted with the
+    // draft, so a restored draft still compares with the entry rather than with itself.
+    private var baselineSnapshot: CalibrationEditorDraftSnapshot? =
+        savedStateHandle.get<String>(BASELINE_SNAPSHOT_KEY)?.let { json ->
+            runCatching { draftSnapshotAdapter.fromJson(json) }.getOrNull()
+        }
+
+    /** Whether leaving would lose what the user entered: a value, a note, or the date or time. */
+    val hasUnsavedChanges: StateFlow<Boolean> = _uiState
+        .filterNot { state -> state.isLoading }
+        .map { state ->
+            val entered = state.toDraftSnapshot().enteredContent()
+            val baseline = baselineSnapshot ?: entered.also { snapshot ->
+                baselineSnapshot = snapshot
+                savedStateHandle[BASELINE_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
+            }
+            !state.isSaved && !state.isDeleted && entered != baseline
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
         observePkReview()
@@ -230,6 +253,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private fun finishDraftPersistence() {
         draftPersistenceJob?.cancel()
         savedStateHandle[DRAFT_SNAPSHOT_KEY] = null
+        savedStateHandle[BASELINE_SNAPSHOT_KEY] = null
     }
 
     fun updateCollectedDate(date: LocalDate) {
@@ -688,6 +712,7 @@ class CalibrationEditorViewModel @Inject constructor(
     companion object {
         const val PANEL_ID_ARG = "panelId"
         private const val DRAFT_SNAPSHOT_KEY = "calibrationDraft"
+        private const val BASELINE_SNAPSHOT_KEY = "calibrationDraftBaseline"
         private const val DRAFT_PERSIST_DEBOUNCE_MS = 250L
     }
 }
@@ -887,6 +912,24 @@ internal fun CalibrationEditorUiState.toDraftSnapshot(): CalibrationEditorDraftS
                 isUnitUserSelected = draft.isUnitUserSelected,
             )
         },
+    )
+}
+
+// What the user entered, the blank rows left out, so rows and default units that follow the
+// settings while the form is untouched don't read as edits.
+internal fun CalibrationEditorDraftSnapshot.enteredContent(): CalibrationEditorDraftSnapshot {
+    return copy(
+        notes = notes.trim(),
+        drafts = drafts
+            .filter { draft -> draft.valueText.isNotBlank() }
+            .map { draft ->
+                CalibrationResultDraftSnapshot(
+                    analyteKey = draft.analyteKey,
+                    customAnalyteUuid = draft.customAnalyteUuid,
+                    valueText = draft.valueText.trim(),
+                    unit = draft.unit,
+                )
+            },
     )
 }
 

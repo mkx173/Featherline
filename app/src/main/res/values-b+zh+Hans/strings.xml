@@ -1148,4 +1148,8 @@
     <string name="calibration_pk_edu_next">下一步</string>
     <string name="calibration_pk_edu_back">返回</string>
     <string name="calibration_pk_edu_finish">完成</string>
+    <string name="unsaved_changes_title">放弃更改？</string>
+    <string name="unsaved_changes_message">未保存的更改将会丢失</string>
+    <string name="unsaved_changes_discard">放弃</string>
+    <string name="unsaved_changes_keep_editing">继续编辑</string>
 </resources>

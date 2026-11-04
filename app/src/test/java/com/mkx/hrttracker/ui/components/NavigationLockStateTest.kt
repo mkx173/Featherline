@@ -38,4 +38,27 @@ class NavigationLockStateTest {
         lock.release()
         assertThrows(IllegalStateException::class.java) { lock.release() }
     }
+
+    @Test
+    fun modalWindow_locksWithoutBeingBusy() {
+        // Deep links wait only for a write in flight; an open sheet or dialog is closed instead.
+        val lock = NavigationLockState()
+        lock.acquire(busy = false)
+        assertTrue(lock.isLocked)
+        assertFalse(lock.isBusy)
+        lock.acquire()
+        assertTrue(lock.isBusy)
+        lock.release()
+        assertFalse(lock.isBusy)
+        lock.release(busy = false)
+        assertFalse(lock.isLocked)
+    }
+
+    @Test
+    fun dismissModals_bumpsTheRequest() {
+        val lock = NavigationLockState()
+        val before = lock.modalDismissRequest
+        lock.dismissModals()
+        assertTrue(lock.modalDismissRequest != before)
+    }
 }

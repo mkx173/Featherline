@@ -427,7 +427,11 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
     val hostShown = LocalModalHostShown.current
-    if (allowed && !hostShown) {
+    // Closed by a deep link taking the user elsewhere, one opened after it left alone.
+    val navigationLock = LocalNavigationLock.current
+    val dismissRequestAtOpen = remember { navigationLock.modalDismissRequest }
+    val dismissRequested = navigationLock.modalDismissRequest != dismissRequestAtOpen
+    if ((allowed && !hostShown) || dismissRequested) {
         LaunchedEffect(Unit) { currentOnDismissRequest() }
     }
     if (!allowed) {
@@ -500,7 +504,7 @@ fun HazeModalBottomSheet(
     // Every modal window locks top-level navigation for its whole composition,
     // covering the appear/disappear frames where the window doesn't yet (or no
     // longer) blocks chrome taps itself.
-    NavigationLockEffect(active = true)
+    NavigationLockEffect(active = true, busy = false)
     // Raw status-bar height from the host window, read before Material3's
     // per-offset inset consumption inside the sheet can shrink it.
     val hostView = LocalView.current
@@ -621,7 +625,7 @@ fun HazeAlertDialog(
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
-    NavigationLockEffect(active = true)
+    NavigationLockEffect(active = true, busy = false)
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -651,7 +655,7 @@ fun HazeBasicAlertDialog(
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
-    NavigationLockEffect(active = true)
+    NavigationLockEffect(active = true, busy = false)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = modifier.hazeDialog(shape = shape),
@@ -696,7 +700,7 @@ fun HazeDatePickerDialog(
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
-    NavigationLockEffect(active = true)
+    NavigationLockEffect(active = true, busy = false)
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
@@ -726,7 +730,7 @@ fun HazeTimePickerDialog(
     if (!rememberModalWindowAllowed(onDismissRequest = onDismissRequest)) {
         return
     }
-    NavigationLockEffect(active = true)
+    NavigationLockEffect(active = true, busy = false)
     MaterialTimePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,

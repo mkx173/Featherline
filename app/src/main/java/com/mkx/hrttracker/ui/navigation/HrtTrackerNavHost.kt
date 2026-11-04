@@ -105,8 +105,10 @@ import com.mkx.hrttracker.ui.components.LocalAppContentStartInset
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
+import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
 import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
+import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
 import com.mkx.hrttracker.ui.components.consumeTapsClosingMenus
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
@@ -518,14 +520,17 @@ internal enum class HomeDeepLinkNavigationAction {
     NONE,
 }
 
+// [isBusy]: a save or other write in flight, which the deep link waits for rather than leave.
 internal fun homeDeepLinkNavigationAction(
     homeDeepLinkSignal: Int,
     lastHandledHomeDeepLinkSignal: Int,
     currentRoute: String?,
+    isBusy: Boolean = false,
 ): HomeDeepLinkNavigationAction {
     if (homeDeepLinkSignal <= lastHandledHomeDeepLinkSignal) {
         return HomeDeepLinkNavigationAction.NONE
     }
+    if (isBusy) return HomeDeepLinkNavigationAction.AWAIT_ROUTE
 
     return when (normalizeNavigationRoute(currentRoute)) {
         null -> HomeDeepLinkNavigationAction.AWAIT_ROUTE
@@ -609,6 +614,7 @@ fun HrtTrackerNavHost(
         mutableStateOf<MedicationLogEntrySheetRequest?>(null)
     }
     val navigationLock = LocalNavigationLock.current
+    val unsavedChanges = LocalUnsavedChanges.current
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var journalScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -789,18 +795,21 @@ fun HrtTrackerNavHost(
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
 
-    LaunchedEffect(homeDeepLinkSignal, currentRoute) {
+    LaunchedEffect(homeDeepLinkSignal, currentRoute, navigationLock.isBusy) {
         val hasUnhandledSignal = homeDeepLinkSignal > lastHandledHomeDeepLinkSignal
         when (
             homeDeepLinkNavigationAction(
                 homeDeepLinkSignal = homeDeepLinkSignal,
                 lastHandledHomeDeepLinkSignal = lastHandledHomeDeepLinkSignal,
                 currentRoute = currentRoute,
+                isBusy = navigationLock.isBusy,
             )
         ) {
             HomeDeepLinkNavigationAction.AWAIT_ROUTE -> Unit
             HomeDeepLinkNavigationAction.NONE -> {
                 if (hasUnhandledSignal) {
+                    // Already home: close what's open over it, for the highlight to show.
+                    navigationLock.dismissModals()
                     pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
                 }
                 lastHandledHomeDeepLinkSignal = maxOf(
@@ -811,8 +820,14 @@ fun HrtTrackerNavHost(
 
             HomeDeepLinkNavigationAction.NAVIGATE_HOME -> {
                 lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
-                pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
-                showTopLevelPage(Screen.Main)
+                // Sheets and dialogs close without asking; an editor's unsaved changes ask
+                // first, and keeping them drops the deep link.
+                navigationLock.dismissModals()
+                val signal = homeDeepLinkSignal
+                unsavedChanges.leave {
+                    pendingHomeDeepLinkHighlightSignal = signal
+                    showTopLevelPage(Screen.Main)
+                }
             }
         }
     }
@@ -823,6 +838,8 @@ fun HrtTrackerNavHost(
         // process-death re-tap navigates and a config-change recreation doesn't
         // replay. See MainViewModel.lastHandledMilestonesSignal.
         if (!onConsumeMilestonesDeepLink()) return@LaunchedEffect
+        // Pushed over whatever is open, which loses nothing, but not under a sheet or dialog.
+        navigationLock.dismissModals()
         // Read the destination live from the controller: the composition-captured
         // currentRoute is still null when this effect fires on the cold-start first
         // composition (currentBackStackEntryAsState hasn't delivered its first value),
@@ -926,7 +943,7 @@ fun HrtTrackerNavHost(
             )
         }
         when (tapAction) {
-            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> unsavedChanges.leave {
                 if (navController.popBackStackSafely(Screen.Main.route, inclusive = false)) {
                     topLevelPagerState.requestScrollToPage(tappedScreen.topLevelPage)
                 }
@@ -942,7 +959,7 @@ fun HrtTrackerNavHost(
                 }
             }
 
-            TopLevelNavigationTapAction.NAVIGATE -> showTopLevelPage(tappedScreen)
+            TopLevelNavigationTapAction.NAVIGATE -> unsavedChanges.leave { showTopLevelPage(tappedScreen) }
 
             TopLevelNavigationTapAction.NONE -> Unit
         }
@@ -1633,6 +1650,7 @@ fun HrtTrackerNavHost(
                     ),
                 snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
             )
+            UnsavedChangesDialog(unsavedChanges)
             optInTarget?.let { projection ->
                 CompositionLocalProvider(
                     LocalChromeHazeState provides navigationChromeHazeState

@@ -156,6 +156,19 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun homeDeepLinkNavigationAction_waitsForAWriteInFlight() {
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.Settings.route,
+                isBusy = true,
+            )
+        )
+    }
+
+    @Test
     fun homeDeepLinkNavigationAction_waitsForCurrentRouteBeforeHandlingNewSignal() {
         assertEquals(
             HomeDeepLinkNavigationAction.AWAIT_ROUTE,

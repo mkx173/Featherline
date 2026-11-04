@@ -128,6 +128,7 @@ import com.mkx.hrttracker.ui.components.paddingBehindTopAppBar
 import com.mkx.hrttracker.ui.components.pinnedTopAppBarScrollBehavior
 import com.mkx.hrttracker.ui.components.scrollToTop
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.components.unsavedChangesBack
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
@@ -162,6 +163,8 @@ fun MedicationGroupEditorScreen(
     onOpenMedicinePicker: (String) -> Unit = { _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsStateWithLifecycle()
+    val navigateBackAskingFirst = unsavedChangesBack(dirty = hasUnsavedChanges, onBack = onNavigateBack)
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = LocalActivity.current
@@ -349,7 +352,7 @@ fun MedicationGroupEditorScreen(
 
     MedicationGroupEditorScreenContent(
         uiState = uiState,
-        onNavigateBack = onNavigateBack,
+        onNavigateBack = navigateBackAskingFirst,
         onGroupNameChange = viewModel::updateGroupName,
         onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,

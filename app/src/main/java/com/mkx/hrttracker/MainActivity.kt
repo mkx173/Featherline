@@ -60,7 +60,9 @@ import dev.chrisbanes.haze.LocalHazePerformanceMode
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
+import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
 import com.mkx.hrttracker.ui.components.NavigationLockState
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.components.effectiveHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeSourceArea
 import com.mkx.hrttracker.ui.components.rememberChromeHazeState
@@ -267,6 +269,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             val navigationLock = remember { NavigationLockState() }
+            val unsavedChanges = remember { UnsavedChangesState() }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedContext.resources.configuration,
@@ -278,6 +281,7 @@ class MainActivity : AppCompatActivity() {
                 // the blur shimmer. Capture at full resolution instead.
                 LocalHazePerformanceMode provides HazePerformanceMode.Quality,
                 LocalNavigationLock provides navigationLock,
+                LocalUnsavedChanges provides unsavedChanges,
             ) {
                 HrtTrackerTheme(
                     darkTheme = isDarkTheme,

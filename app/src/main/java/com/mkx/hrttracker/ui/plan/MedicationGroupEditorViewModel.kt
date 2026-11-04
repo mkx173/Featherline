@@ -60,6 +60,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -67,6 +68,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
@@ -178,6 +180,25 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     )
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
+
+    // The plan as it first settled, against which leaving asks to discard. Not persisted: the
+    // edits themselves aren't kept across process death, so a restored editor has none to lose.
+    private var baselineDraft: MedicationGroupEditedDraft? = null
+
+    /** Whether leaving would lose the user's edits to the plan, before it is saved. */
+    val hasUnsavedChanges: StateFlow<Boolean> = _uiState
+        .map { state ->
+            if (!state.hasSettledForEditing) return@map false
+            val draft = state.toEditedDraft()
+            val baseline = baselineDraft ?: draft.also { baselineDraft = it }
+            !state.isSaved &&
+                    !state.isDeleted &&
+                    !state.isFinishingAfterSave &&
+                    !state.isFinishingAfterDeleteOrArchive &&
+                    draft != baseline
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
     private val _completionEvents =
         MutableSharedFlow<MedicationGroupEditorCompletionEvent>(extraBufferCapacity = 1)
     val completionEvents: SharedFlow<MedicationGroupEditorCompletionEvent> =
@@ -2414,6 +2435,60 @@ sealed interface ScheduleStart {
     data class Loaded(val at: LocalDateTime, val isMoment: Boolean) : ScheduleStart
 }
 
+// What the user edits in a plan, without the ids and loaded objects that change under them,
+// such as a slot's medicine refreshed as its stock moves.
+internal data class MedicationGroupEditedDraft(
+    val groupName: String,
+    val groupColorKey: MedicationGroupColorKey,
+    val scheduleType: MedicationGroupScheduleType,
+    val sinceDate: LocalDate,
+    val scheduleStart: ScheduleStart,
+    val medicationDayBoundary: MedicationDayBoundary,
+    val weeklyIntervalWeeks: String,
+    val weeklyDaysOfWeek: Set<DayOfWeek>,
+    val weeklyTime: LocalTime,
+    val dailyIntervalDays: String,
+    val dailyTimes: List<LocalTime>,
+    val notificationsEnabled: Boolean,
+    val medications: List<MedicationGroupEditedSlot>,
+    val includePastScheduledSlots: Boolean,
+    val createPastScheduledSlotRecords: Boolean,
+)
+
+internal data class MedicationGroupEditedSlot(
+    val medicineUuid: UUID?,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+    val count: Int,
+)
+
+internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEditedDraft {
+    return MedicationGroupEditedDraft(
+        groupName = groupName.trim(),
+        groupColorKey = groupColorKey,
+        scheduleType = scheduleType,
+        sinceDate = sinceDate,
+        scheduleStart = scheduleStart,
+        medicationDayBoundary = medicationDayBoundary,
+        weeklyIntervalWeeks = weeklyIntervalWeeks,
+        weeklyDaysOfWeek = weeklyDaysOfWeek,
+        weeklyTime = weeklyTime,
+        dailyIntervalDays = dailyIntervalDays,
+        dailyTimes = dailyTimes.map { time -> time.time },
+        notificationsEnabled = notificationsEnabled,
+        medications = medications.map { slot ->
+            MedicationGroupEditedSlot(
+                medicineUuid = slot.medicineUuid,
+                applicationType = slot.applicationType,
+                doseInstruction = slot.doseInstruction,
+                count = slot.count,
+            )
+        },
+        includePastScheduledSlots = includePastScheduledSlots,
+        createPastScheduledSlotRecords = createPastScheduledSlotRecords,
+    )
+}
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
@@ -2505,6 +2580,11 @@ data class MedicationGroupEditorUiState(
 
     val isEditing: Boolean
         get() = editingGroupId != null
+
+    // Loaded, and the defaults filled in after it (a new plan's color and notifications), so
+    // what's in the form from here on is what the user would lose.
+    val hasSettledForEditing: Boolean
+        get() = !isLoadingGroupForEditing && hasAssignedGroupColor && hasResolvedNotificationDefault
 
     val isLocked: Boolean
         get() = isEditing && !isArchived && plannedEntryCount > 0
