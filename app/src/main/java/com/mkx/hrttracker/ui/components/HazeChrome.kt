@@ -237,10 +237,9 @@ private fun Modifier.hazeTopAppBar(
     state: HazeState? = LocalChromeHazeState.current,
 ): Modifier {
     val defaultColors = TopAppBarDefaults.topAppBarColors()
-    // Beside the upright pill (the only time the start inset is set), the bar keeps its resting
-    // background as the page scrolls: it spans the window above the pill, which never tints, so
-    // a tinted bar would read as cut off at it.
-    if (LocalAppContentStartInset.current > 0.dp) {
+    // Beside side navigation, the bar keeps its resting background as the page scrolls: the
+    // navigation never tints, so a tinted bar would read as cut off at it.
+    if (LocalTopAppBarBesideSideNavigation.current) {
         val containerColor = defaultColors.containerColor
         return drawBehind { drawRect(containerColor) }
     }
@@ -398,6 +397,9 @@ internal val LocalModalHostIsCurrentDestination =
 // by a deep link while the modal was open. A modal already shown is dismissed with it, as it
 // was with a route left behind, and hidden until its page is back if it doesn't close.
 internal val LocalModalHostShown = compositionLocalOf { true }
+
+/** Whether the page sits beside side navigation, the upright pill or the classic rail. */
+val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }
 
 // Route content stays composed and interactive while its exit transition
 // runs, so a tap can open a dialog/sheet after navigation has already begun.

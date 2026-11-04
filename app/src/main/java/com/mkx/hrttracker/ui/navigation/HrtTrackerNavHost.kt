@@ -102,6 +102,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalAppContentStartInset
+import com.mkx.hrttracker.ui.components.LocalTopAppBarBesideSideNavigation
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -559,6 +560,8 @@ private fun RoutedTopChromeHazeProvider(
     backStackEntry: NavBackStackEntry,
     bottomBar: RoutedBottomBar? = null,
     sideBar: (@Composable () -> Unit)? = null,
+    // The upright pill's or the classic rail's, the top bar kept opaque beside them.
+    besideSideNavigation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val routeTopChromeHazeState = rememberChromeHazeState()
@@ -572,6 +575,7 @@ private fun RoutedTopChromeHazeProvider(
     CompositionLocalProvider(
         LocalChromeHazeState provides routeTopChromeHazeState,
         LocalModalHostIsCurrentDestination provides isCurrentDestination,
+        LocalTopAppBarBesideSideNavigation provides besideSideNavigation,
     ) {
         // Consumed per destination rather than on the NavHost, so the bottom bar drawn
         // beside the page still pads itself for the gesture area.
@@ -1035,7 +1039,13 @@ fun HrtTrackerNavHost(
                             }
                         }
                         Box(Modifier.weight(1f)) {
-                            RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar, sideBar) {
+                            RoutedTopChromeHazeProvider(
+                                navController,
+                                backStackEntry,
+                                bottomBar,
+                                sideBar,
+                                besideSideNavigation = !isBottomBar,
+                            ) {
                                 TopLevelPager(
                                     state = topLevelPagerState,
                                     dragInteractions = topLevelPagerDrags,
