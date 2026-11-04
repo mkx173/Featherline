@@ -251,8 +251,8 @@ class HazeChromeIntegrationTest {
                     "bar can never go transparent while hazeChrome no-ops.",
             navHostText.contains("hazeState = LocalChromeHazeState.current") &&
                     pillBarText.contains("if (LocalHazeBlurEnabled.current && hazeState != null)") &&
-                    pillBarText.contains("Modifier.hazeChrome(hazeState)") &&
-                    pillBarText.contains(".background(MaterialTheme.colorScheme.surfaceContainer)"),
+                    pillBarText.contains("Modifier.hazeChrome(hazeState, style = blurStyle)") &&
+                    pillBarText.contains(".background(containerColor)"),
         )
         assertTrue(
             "Sheets and dialogs hosted above the routed content need a stable route-level " +

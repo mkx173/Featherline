@@ -47,12 +47,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,13 +67,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.AppBlurRadius
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.HazeColorEffect
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -128,13 +136,23 @@ internal fun PillNavigationBar(
     }
     val scope = rememberCoroutineScope()
     val layoutDirection = LocalLayoutDirection.current
-    val indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+    // After Kyant0/AndroidLiquidGlass's bottom tabs: the theme background tinted at 40% over
+    // the blur and a faint neutral indicator.
+    val dark = pillIsDark()
+    val containerColor = MaterialTheme.colorScheme.background
+    val indicatorColor = if (dark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
+    val blurStyle = remember(containerColor) {
+        HazeBlurStyle {
+            backgroundColor(containerColor)
+            colorEffects(listOf(HazeColorEffect.tint(containerColor.copy(alpha = 0.4f))))
+        }.then(AppBlurRadius)
+    }
     // The opaque container stays under the blur: Haze draws nothing on an effect's first frame
     // (its source starts capturing only once the effect asks), so turning blur on left the
     // capsule empty for a frame. The blur samples the opaque page, so it covers this fully.
     val containerModifier = Modifier
-        .background(MaterialTheme.colorScheme.surfaceContainer)
-        .then(if (LocalHazeBlurEnabled.current && hazeState != null) Modifier.hazeChrome(hazeState) else Modifier)
+        .background(containerColor)
+        .then(if (LocalHazeBlurEnabled.current && hazeState != null) Modifier.hazeChrome(hazeState, style = blurStyle) else Modifier)
     // Rebuilt at draw time from the animated position, so the slide only redraws.
     val pillPath = remember { Path() }
     fun DrawScope.pill(): Path {
@@ -175,6 +193,8 @@ internal fun PillNavigationBar(
                     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                 }
                 .height(IntrinsicSize.Min)
+                // Lifts the capsule off the content behind it; outside the clip so it shows.
+                .dropShadow(CircleShape, PillShadow)
                 .clip(CircleShape)
                 .then(containerModifier)
                 .padding(BarInset)
@@ -327,3 +347,10 @@ private val BarInset = 4.dp
 
 // Stiff enough that the pill reads as stuck to the finger, with a frame or two of give.
 private val FollowSpec = spring<Float>(stiffness = Spring.StiffnessMedium)
+
+// The soft shadow under the reference's bars: 24dp blur, 4dp down, black at 10%.
+private val PillShadow = Shadow(radius = 24.dp, color = Color.Black.copy(alpha = 0.1f), offset = DpOffset(0.dp, 4.dp))
+
+// The app's own light/dark, which can differ from the system's.
+@Composable
+private fun pillIsDark(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f

@@ -188,10 +188,12 @@ fun Modifier.hazeChrome(
     state: HazeState? = LocalChromeHazeState.current,
     enabled: Boolean = true,
     alpha: (() -> Float)? = null,
+    // Defaults to the thin surfaceContainer material; pass a remembered Style to replace it.
+    style: HazeBlurStyle? = null,
 ): Modifier {
     if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
-    val style = HazeMaterials.thin(
+    val style = style ?: HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainer
     ).then(AppBlurRadius)
     // The style block reads [alpha] at resolve time, and haze observes snapshot reads
