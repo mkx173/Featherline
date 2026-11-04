@@ -95,7 +95,9 @@ internal fun IntervalStepperCard(
         ) {
             Text(
                 text = value.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                // headlineSmall's 32sp line leaves ~7sp of empty space under the digits,
+                // which sat the card's text high; fit the line to the font size instead.
+                style = MaterialTheme.typography.headlineSmall.let { it.copy(lineHeight = it.fontSize) },
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.alignByBaseline()
