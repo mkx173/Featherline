@@ -85,9 +85,13 @@ import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
 import androidx.compose.material3.TimePickerDialog as MaterialTimePickerDialog
 import androidx.compose.material3.TopAppBar as MaterialTopAppBar
 
-// Applied after every HazeMaterials preset, which blur at 24dp; that read as too strong. One
-// shared instance, so the combined Style stays equal across recompositions.
-val AppBlurRadius: HazeBlurStyle = HazeBlurStyle { blurRadius(20.dp) }
+// The app-wide blur radius. Every haze blur (chrome, pill, sheets, dialogs, journal frosts) takes
+// it through [AppBlurRadius]; change it here.
+val AppBlurRadiusDp: Dp = 24.dp
+
+// Applied after every preset or custom style. One shared instance, so the combined Style stays
+// equal across recompositions.
+val AppBlurRadius: HazeBlurStyle = HazeBlurStyle { blurRadius(AppBlurRadiusDp) }
 
 val LocalHazeBlurEnabled = staticCompositionLocalOf { isHazeBlurSupported() }
 val LocalChromeHazeState = staticCompositionLocalOf<HazeState?> { null }
