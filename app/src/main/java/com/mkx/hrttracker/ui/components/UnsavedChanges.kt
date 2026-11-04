@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,8 +48,9 @@ class UnsavedChangesState {
         if (hasUnsavedChanges) pendingLeave = action else action()
     }
 
-    fun keepEditing() {
-        pendingLeave = null
+    /** Drops [action], unless another leave has replaced it since its dialog showed. */
+    fun keepEditing(action: () -> Unit) {
+        if (pendingLeave === action) pendingLeave = null
     }
 
     fun discard() {
@@ -131,9 +133,16 @@ fun unsavedChangesBack(
 /** Asks whether to discard unsaved changes before [UnsavedChangesState.pendingLeave] runs. */
 @Composable
 fun UnsavedChangesDialog(state: UnsavedChangesState = LocalUnsavedChanges.current) {
-    if (state.pendingLeave == null) return
+    val action = state.pendingLeave ?: return
+    // One dialog per leave: a Home deep link closes open modals and asks again, and the new
+    // dialog must outlive the old one's dismissal rather than be closed with it.
+    key(action) { UnsavedChangesDialog(state, action) }
+}
+
+@Composable
+private fun UnsavedChangesDialog(state: UnsavedChangesState, action: () -> Unit) {
     HazeAlertDialog(
-        onDismissRequest = state::keepEditing,
+        onDismissRequest = { state.keepEditing(action) },
         title = { Text(text = stringResource(R.string.unsaved_changes_title)) },
         text = { Text(text = stringResource(R.string.unsaved_changes_message)) },
         confirmButton = {
@@ -145,7 +154,7 @@ fun UnsavedChangesDialog(state: UnsavedChangesState = LocalUnsavedChanges.curren
             }
         },
         dismissButton = {
-            TextButton(onClick = state::keepEditing) {
+            TextButton(onClick = { state.keepEditing(action) }) {
                 Text(text = stringResource(R.string.unsaved_changes_keep_editing))
             }
         },

@@ -46,9 +46,24 @@ class UnsavedChangesStateTest {
         var left = 0
         state.update(TestEntry(), dirty = true)
         state.leave { left++ }
-        state.keepEditing()
+        state.keepEditing(state.pendingLeave!!)
         state.discard()
         assertEquals(0, left)
+    }
+
+    @Test
+    fun keepEditing_leavesALeaveThatReplacedIt() {
+        // Back's dialog is open when a Home deep link asks again: the old dialog's dismissal
+        // must not cancel the deep link's leave.
+        val state = UnsavedChangesState()
+        var wentHome = 0
+        state.update(TestEntry(), dirty = true)
+        state.leave { }
+        val backLeave = state.pendingLeave!!
+        state.leave { wentHome++ }
+        state.keepEditing(backLeave)
+        state.discard()
+        assertEquals(1, wentHome)
     }
 
     @Test
