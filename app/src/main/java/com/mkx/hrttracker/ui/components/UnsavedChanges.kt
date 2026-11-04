@@ -182,7 +182,7 @@ private fun UnsavedChangesDialog(state: UnsavedChangesState, action: () -> Unit)
     HazeAlertDialog(
         onDismissRequest = { state.keepEditing(action) },
         title = { Text(text = stringResource(R.string.unsaved_changes_title)) },
-        text = { Text(text = stringResource(R.string.unsaved_changes_message)) },
+        text = { Text(text = stringResource(R.string.unsaved_changes_confirmation)) },
         confirmButton = {
             TextButton(onClick = state::discard) {
                 Text(
@@ -193,7 +193,7 @@ private fun UnsavedChangesDialog(state: UnsavedChangesState, action: () -> Unit)
         },
         dismissButton = {
             TextButton(onClick = { state.keepEditing(action) }) {
-                Text(text = stringResource(R.string.unsaved_changes_keep_editing))
+                Text(text = stringResource(R.string.cancel))
             }
         },
     )

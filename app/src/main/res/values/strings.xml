@@ -1238,8 +1238,7 @@
     <string name="calibration_pk_edu_next">Next</string>
     <string name="calibration_pk_edu_back">Back</string>
     <string name="calibration_pk_edu_finish">Done</string>
-    <string name="unsaved_changes_title">Discard changes?</string>
-    <string name="unsaved_changes_message">Your unsaved changes will be lost.</string>
+    <string name="unsaved_changes_title">Discard changes</string>
+    <string name="unsaved_changes_confirmation">Discard your unsaved changes? They can’t be recovered.</string>
     <string name="unsaved_changes_discard">Discard</string>
-    <string name="unsaved_changes_keep_editing">Keep editing</string>
 </resources>
