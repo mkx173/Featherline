@@ -142,9 +142,10 @@ internal fun PillNavigationBar(
     val nudge = remember { Animatable(0f) }
     val layoutDirection = LocalLayoutDirection.current
     // After Kyant0/AndroidLiquidGlass's bottom tabs: the theme background tinted at 40% over
-    // the blur and a faint neutral indicator.
+    // the blur and a faint neutral indicator. In dark the background all but vanished into the
+    // page, and the shadow can't show there, so it takes surfaceContainer instead.
     val dark = pillIsDark()
-    val containerColor = MaterialTheme.colorScheme.background
+    val containerColor = if (dark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background
     val indicatorColor = if (dark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
     val blurStyle = remember(containerColor) {
         HazeBlurStyle {
@@ -318,7 +319,7 @@ private fun RowScope.PillNavigationBarItem(
     onClick: (() -> Unit)? = null,
 ) {
     val contentColor = if (filled) {
-        MaterialTheme.colorScheme.onSecondaryContainer
+        MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
