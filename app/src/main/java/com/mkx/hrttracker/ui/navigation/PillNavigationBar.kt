@@ -105,6 +105,10 @@ import kotlin.math.roundToInt
  *
  * With [hazeState] and blur on, the capsule blurs the page scrolling beneath it; otherwise it is
  * an opaque container, so it never turns transparent with no blur behind it.
+ *
+ * While [askBeforeSwitching] (an editor's unsaved changes, asked about before leaving), a touch
+ * picks its tab at once, for the question to show on it, and the pill stays put: it moves only
+ * once the selection does, after the user discards.
  */
 @Composable
 internal fun PillNavigationBar(
@@ -116,10 +120,12 @@ internal fun PillNavigationBar(
     vertical: Boolean = false,
     pagerState: PagerState? = null,
     pagerDragInteractions: InteractionSource? = null,
+    askBeforeSwitching: Boolean = false,
 ) {
     val selectedIndex = items.indexOfFirst { item -> item.screen == selectedScreen }.coerceAtLeast(0)
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)
     val currentOnItemClick by rememberUpdatedState(onItemClick)
+    val currentAskBeforeSwitching by rememberUpdatedState(askBeforeSwitching)
     val settleSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val indicator = remember { Animatable(selectedIndex.toFloat()) }
     LaunchedEffect(selectedIndex) { indicator.animateTo(selectedIndex.toFloat(), settleSpec) }
@@ -270,6 +276,16 @@ internal fun PillNavigationBar(
                         // A touch picks the tab under it, so the pill goes to that tab, not
                         // to the finger; only a drag past the slop has it follow the finger.
                         val downSlot = positionAt(downX).roundToInt().toFloat()
+                        if (currentAskBeforeSwitching) {
+                            // Asked on the touch, the pill held where it is; the rest of the
+                            // gesture, now under the question, does nothing.
+                            currentOnItemClick(items[downSlot.toInt()].screen)
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { change -> change.consume() }
+                            } while (event.changes.any { change -> change.pressed })
+                            return@awaitEachGesture
+                        }
                         scope.launch { indicator.animateTo(downSlot, settleSpec) }
                         var lastX = downX
                         var dragging = false

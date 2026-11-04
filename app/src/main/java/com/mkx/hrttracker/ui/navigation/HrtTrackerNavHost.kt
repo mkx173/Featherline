@@ -395,6 +395,7 @@ private fun TopLevelNavigationBar(
     hazeState: HazeState?,
     pagerState: PagerState? = null,
     pagerDragInteractions: InteractionSource? = null,
+    askBeforeSwitching: Boolean = false,
 ) {
     if (classic && !layoutType.isBottomBar) {
         // The items centred on the window's full height, as the upright pill is: the rail's
@@ -443,6 +444,7 @@ private fun TopLevelNavigationBar(
             hazeState = hazeState,
             // Beside the pages, which are not swiped between, so it has no swipe to follow.
             vertical = true,
+            askBeforeSwitching = askBeforeSwitching,
         )
     } else {
         // The page fades into its background under the floating pill instead of running
@@ -820,11 +822,11 @@ fun HrtTrackerNavHost(
 
             HomeDeepLinkNavigationAction.NAVIGATE_HOME -> {
                 lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
-                // Sheets and dialogs close without asking; an editor's unsaved changes ask
-                // first, and keeping them drops the deep link.
-                navigationLock.dismissModals()
+                // An editor's unsaved changes ask first, over whatever sheet or dialog is open,
+                // which closes only once the user discards; keeping them drops the deep link.
                 val signal = homeDeepLinkSignal
                 unsavedChanges.leave {
+                    navigationLock.dismissModals()
                     pendingHomeDeepLinkHighlightSignal = signal
                     showTopLevelPage(Screen.Main)
                 }
@@ -1005,6 +1007,7 @@ fun HrtTrackerNavHost(
                     selectedScreen = selectedBottomScreen,
                     onItemClick = onTopLevelItemClick,
                     hazeState = navigationChromeHazeState,
+                    askBeforeSwitching = unsavedChanges.hasUnsavedChanges,
                 )
             }
         } else {
