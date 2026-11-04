@@ -62,4 +62,31 @@ class UnsavedChangesStateTest {
         editor.registry.currentState = Lifecycle.State.DESTROYED
         assertFalse(state.hasUnsavedChanges)
     }
+
+    @Test
+    fun pendingLeave_isDroppedWhenItsEditorFinishes() {
+        // Back tapped while saving: the save leaves the editor, and nothing is left to discard.
+        val state = UnsavedChangesState()
+        val editor = TestEntry()
+        var left = 0
+        state.update(editor, dirty = true)
+        state.leave { left++ }
+        state.update(editor, dirty = false)
+        assertNull(state.pendingLeave)
+        editor.registry.currentState = Lifecycle.State.DESTROYED
+        state.discard()
+        assertEquals(0, left)
+    }
+
+    @Test
+    fun editorOutsideTheBackStack_isDroppedWhenRemoved() {
+        // Onboarding's editor lives under the activity, which outlives it.
+        val state = UnsavedChangesState()
+        val editor = Any()
+        state.update(editor, dirty = true)
+        state.leave { }
+        state.remove(editor)
+        assertFalse(state.hasUnsavedChanges)
+        assertNull(state.pendingLeave)
+    }
 }

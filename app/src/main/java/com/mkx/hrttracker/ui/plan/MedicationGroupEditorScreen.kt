@@ -161,10 +161,17 @@ fun MedicationGroupEditorScreen(
     drawBehindNavigationBar: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel(),
     onOpenMedicinePicker: (String) -> Unit = { _ -> },
+    // Onboarding hosts the editor outside the back stack, in its own composition, so its
+    // unsaved changes go with that rather than with a back-stack entry.
+    unsavedChangesUntilDisposed: Boolean = false,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsStateWithLifecycle()
-    val navigateBackAskingFirst = unsavedChangesBack(dirty = hasUnsavedChanges, onBack = onNavigateBack)
+    val navigateBackAskingFirst = unsavedChangesBack(
+        dirty = hasUnsavedChanges,
+        onBack = onNavigateBack,
+        untilDisposed = unsavedChangesUntilDisposed,
+    )
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = LocalActivity.current

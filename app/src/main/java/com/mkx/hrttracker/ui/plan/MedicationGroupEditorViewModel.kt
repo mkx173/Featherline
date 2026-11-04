@@ -1525,14 +1525,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
             val savedGroup = savedGroupUuid?.let { medicationGroupRepository.getGroup(it) }
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+            val replacementState = savedGroup?.toEditorState(
+                remindersEnabled = remindersEnabled,
+                relatedEntryCount = 0,
+                plannedEntryCount = 0,
+            )
+            // The saved replacement is what this editor now edits, so leaving it untouched
+            // loses nothing. Set before the state, so no emission compares it with the original.
+            if (replacementState != null) baselineDraft = replacementState.toEditedDraft()
 
             _uiState.update {
-                if (savedGroup != null) {
-                    savedGroup.toEditorState(
-                        remindersEnabled = remindersEnabled,
-                        relatedEntryCount = 0,
-                        plannedEntryCount = 0,
-                    ).copy(
+                if (replacementState != null) {
+                    replacementState.copy(
                         isRecreatingAfterArchive = false,
                         archiveAndRecreateMedicationGroupResult =
                             ArchiveAndRecreateMedicationGroupResult.SUCCESS,

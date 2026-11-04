@@ -939,6 +939,8 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         assertEquals(originalGroup.name, viewModel.uiState.value.groupName)
         assertFalse(viewModel.uiState.value.isArchived)
+        // The saved replacement is the new baseline: leaving it untouched loses nothing.
+        assertFalse(viewModel.hasUnsavedChanges.value)
         assertEquals(
             ArchiveAndRecreateMedicationGroupResult.SUCCESS,
             viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,

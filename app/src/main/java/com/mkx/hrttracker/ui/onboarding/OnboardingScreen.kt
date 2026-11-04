@@ -597,6 +597,7 @@ fun OnboardingScreen(
                 },
                 drawBehindNavigationBar = true,
                 viewModel = editorViewModel,
+                unsavedChangesUntilDisposed = true,
                 // Onboarding has no medicine catalog yet, so we skip the
                 // (necessarily empty) medicine manager and open the
                 // create-medicine-and-dose sheet directly.
