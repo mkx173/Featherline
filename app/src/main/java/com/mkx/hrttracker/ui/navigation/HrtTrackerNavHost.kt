@@ -355,7 +355,7 @@ internal val topLevelNavigationItems = listOf(
     NavigationItemContent(Screen.Settings, R.drawable.ic_settings, R.drawable.ic_settings_alt),
 )
 
-// The rail's items, and the classic bottom bar's.
+// The classic bottom bar's items; the classic rail lists the same items as WideNavigationRailItems.
 private fun topLevelNavigationSuiteItems(
     selectedScreen: Screen,
     onItemClick: (Screen) -> Unit,
@@ -370,7 +370,8 @@ private fun topLevelNavigationSuiteItems(
                     painter = painterResource(
                         if (isSelected) navItem.icon else navItem.iconAlt
                     ),
-                    contentDescription = stringResource(navItem.screen.label)
+                    // The label below already names it.
+                    contentDescription = null,
                 )
             },
             label = {
@@ -548,6 +549,10 @@ internal class RoutedBottomBar(
     val content: @Composable () -> Unit,
 )
 
+// The room the upright pill takes at the page's start edge, the body and snackbar centred beside it.
+@Composable
+private fun verticalPillStartInset(): Dp = dimensionResource(R.dimen.padding_medium) + VerticalPillNavigationBarWidth
+
 @Composable
 private fun RoutedTopChromeHazeProvider(
     navController: NavHostController,
@@ -577,11 +582,7 @@ private fun RoutedTopChromeHazeProvider(
             ) {
                 // The body and the top bar's title and actions are centred beside the pill. One
                 // call either way, so the pages keep their state as the pill comes and goes.
-                val startInset = if (sideBar == null) {
-                    0.dp
-                } else {
-                    dimensionResource(R.dimen.padding_medium) + VerticalPillNavigationBarWidth
-                }
+                val startInset = if (sideBar == null) 0.dp else verticalPillStartInset()
                 CompositionLocalProvider(LocalAppContentStartInset provides startInset) { content() }
                 // Floats over the page's start edge, the body moved over beside it.
                 sideBar?.let { bar ->
@@ -699,7 +700,7 @@ fun HrtTrackerNavHost(
         if (onPager) {
             pagerScope.launch { topLevelPagerState.springToPage(screen.topLevelPage) }
         } else {
-            if (!onPager) navController.popBackStack(Screen.Main.route, inclusive = false)
+            navController.popBackStack(Screen.Main.route, inclusive = false)
             topLevelPagerState.requestScrollToPage(screen.topLevelPage)
         }
     }
@@ -1616,14 +1617,11 @@ fun HrtTrackerNavHost(
                     // snackbar above it there; elsewhere clear the scaffold-provided
                     // gesture inset.
                     .padding(
-                        start = if (
-                            !navigationSuiteType.isBottomBar &&
-                            classicNavigationBar &&
-                            Screen.topLevelScreenForRoute(currentRoute) != null
-                        ) {
-                            topLevelRailWidth
-                        } else {
-                            0.dp
+                        start = when {
+                            navigationSuiteType.isBottomBar ||
+                                Screen.topLevelScreenForRoute(currentRoute) == null -> 0.dp
+                            classicNavigationBar -> topLevelRailWidth
+                            else -> verticalPillStartInset()
                         },
                         bottom = if (
                             navigationSuiteType.isBottomBar &&
