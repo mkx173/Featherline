@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -102,7 +100,6 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalAppContentStartInset
-import com.mkx.hrttracker.ui.components.LocalTopAppBarBesideSideNavigation
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -558,9 +555,6 @@ private fun RoutedTopChromeHazeProvider(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     bottomBar: RoutedBottomBar? = null,
-    sideBar: (@Composable () -> Unit)? = null,
-    // The upright pill's or the classic rail's, the top bar kept opaque beside them.
-    besideSideNavigation: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val routeTopChromeHazeState = rememberChromeHazeState()
@@ -574,7 +568,6 @@ private fun RoutedTopChromeHazeProvider(
     CompositionLocalProvider(
         LocalChromeHazeState provides routeTopChromeHazeState,
         LocalModalHostIsCurrentDestination provides isCurrentDestination,
-        LocalTopAppBarBesideSideNavigation provides besideSideNavigation,
     ) {
         // Consumed per destination rather than on the NavHost, so the bottom bar drawn
         // beside the page still pads itself for the gesture area.
@@ -583,14 +576,7 @@ private fun RoutedTopChromeHazeProvider(
                 Modifier.consumeWindowInsets(WindowInsets.navigationBars),
                 propagateMinConstraints = true,
             ) {
-                // The body and the top bar's title and actions are centred beside the pill. One
-                // call either way, so the pages keep their state as the pill comes and goes.
-                val startInset = if (sideBar == null) 0.dp else verticalPillStartInset()
-                CompositionLocalProvider(LocalAppContentStartInset provides startInset) { content() }
-                // Floats over the page's start edge, the body moved over beside it.
-                sideBar?.let { bar ->
-                    Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterStart) { bar() }
-                }
+                content()
             }
         }
         if (bottomBar == null) {
@@ -973,11 +959,39 @@ fun HrtTrackerNavHost(
     // For the snackbar, which rides above the bar on the top-level pages; their own content gets
     // it in the frame the bar is measured.
     var topLevelBottomBarHeight by remember { mutableStateOf(0.dp) }
-    // Likewise the rail's width, which the snackbar keeps clear of beside the top-level pages.
-    var topLevelRailWidth by remember { mutableStateOf(0.dp) }
+    // Side navigation beside every page, its destinations picked from it on sub pages too. On a
+    // sub page it shows the tab the page was opened from.
+    val sideNavigation = !navigationSuiteType.isBottomBar
     EdgeToEdgeNavigationSuiteScaffold(
         modifier = modifier,
         navigationChromeHazeState = navigationChromeHazeState,
+        rail = if (sideNavigation && classicNavigationBar) {
+            {
+                TopLevelNavigationBar(
+                    classic = true,
+                    layoutType = navigationSuiteType,
+                    selectedScreen = selectedBottomScreen,
+                    onItemClick = onTopLevelItemClick,
+                    hazeState = null,
+                )
+            }
+        } else {
+            null
+        },
+        pill = if (sideNavigation && !classicNavigationBar) {
+            {
+                TopLevelNavigationBar(
+                    classic = false,
+                    layoutType = navigationSuiteType,
+                    selectedScreen = selectedBottomScreen,
+                    onItemClick = onTopLevelItemClick,
+                    hazeState = navigationChromeHazeState,
+                )
+            }
+        } else {
+            null
+        },
+        pillStartInset = verticalPillStartInset(),
     ) {
         // Over the pages and what sits beside them, the bar, the rail and the snackbar alike.
         Box(modifier = Modifier.fillMaxSize().consumeTapsClosingMenus(topLevelPagerSwipeExemption)) {
@@ -990,8 +1004,8 @@ fun HrtTrackerNavHost(
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
                 composable(Screen.Main.route) { backStackEntry ->
-                    // Passed beside the rail too, empty, so a switch between the two keeps the
-                    // pages where they are in the composition and with them their state.
+                    // Passed beside side navigation too, empty, so a switch between the two keeps
+                    // the pages where they are in the composition and with them their state.
                     val isBottomBar = latestNavigationSuiteType.isBottomBar
                     val bottomBar = RoutedBottomBar(onHeightChange = { height -> topLevelBottomBarHeight = height }) {
                         if (isBottomBar) {
@@ -1006,217 +1020,178 @@ fun HrtTrackerNavHost(
                             )
                         }
                     }
-                    // The upright pill floats over the pages' side, the classic rail sits beside
-                    // them; both in this destination like the bottom bar, so sub pages show none
-                    // and are left with Back on every screen size.
-                    val sideBar: (@Composable () -> Unit)? = if (!isBottomBar && !latestClassicNavigationBar) {
-                        {
-                            TopLevelNavigationBar(
-                                classic = false,
-                                layoutType = latestNavigationSuiteType,
-                                selectedScreen = latestSelectedBottomScreen,
-                                onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
-                                hazeState = LocalChromeHazeState.current,
-                            )
-                        }
-                    } else {
-                        null
-                    }
-                    Row(Modifier.fillMaxSize()) {
-                        if (!isBottomBar && latestClassicNavigationBar) {
-                            Box(
-                                Modifier.onSizeChanged { size -> topLevelRailWidth = with(density) { size.width.toDp() } },
-                            ) {
-                                TopLevelNavigationBar(
-                                    classic = true,
-                                    layoutType = latestNavigationSuiteType,
-                                    selectedScreen = latestSelectedBottomScreen,
-                                    onItemClick = { screen -> latestOnTopLevelItemClick(screen) },
-                                    hazeState = null,
-                                )
-                            }
-                        }
-                        Box(Modifier.weight(1f)) {
-                            RoutedTopChromeHazeProvider(
-                                navController,
-                                backStackEntry,
-                                bottomBar,
-                                sideBar,
-                                besideSideNavigation = !isBottomBar,
-                            ) {
-                                TopLevelPager(
-                                    state = topLevelPagerState,
-                                    dragInteractions = topLevelPagerDrags,
-                                    swipeExemption = topLevelPagerSwipeExemption,
-                                    // Side navigation's destinations are picked from it, not swiped.
-                                    swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
-                                ) { screen ->
-                                    when (screen) {
-                                        Screen.Main -> MainScreen(
-                                            modifier,
-                                            scrollToTopSignal = mainScrollToTopSignal,
-                                            highlightEffectsEnabled = latestHomeDeepLinkHighlightEffectsEnabled,
-                                            onEntryClick = { request ->
-                                                if (canOpenOverlaySheet(backStackEntry)) {
-                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                        entryIds = request.entryUuids.map(UUID::toString),
-                                                        editSnapshot = request.toMedicationLogEntryEditSnapshot(),
-                                                    )
-                                                }
-                                            },
-                                            onMedicineDetailClick = { medicineId ->
-                                                // Root the detail under the current tab (Home) so the
-                                                // highlighted tab stays put and back returns straight
-                                                // here, instead of stacking under a different tab.
-                                                navController.navigate(
-                                                    Screen.MedicineDetail.createRoute(
-                                                        medicineId = medicineId.toString(),
-                                                        topLevelParentRoute = Screen.Main.route,
-                                                    ),
-                                                )
-                                            },
-                                            onAddEntryClick = {
-                                                // Jump straight to the manager; its dose sheet saves
-                                                // the manual log directly in manual-log mode.
-                                                navController.navigate(
-                                                    Screen.Medicines.createRoute(
-                                                        topLevelParentRoute = Screen.Main.route,
-                                                        slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
-                                                    ),
-                                                )
-                                            },
-                                            onOpenTimeline = {
-                                                // Open the timeline (Milestones) page on top of the current
-                                                // home tab rather than switching to the Journal tab, so the
-                                                // bottom bar stays on Home and Back returns here.
-                                                navController.navigate(
-                                                    Screen.JournalMilestones.createRoute(
-                                                        topLevelParentRoute = Screen.Main.route,
-                                                    ),
-                                                )
-                                            },
-                                            onQuickLogDoseClick = { request ->
-                                                if (
-                                                    request.medicationCount > 0 &&
-                                                    canOpenOverlaySheet(backStackEntry)
-                                                ) {
-                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                                            groupId = request.groupUuid,
-                                                            scheduleTimeUuid = request.scheduleTimeUuid,
-                                                            scheduledFor = request.scheduledAt,
-                                                            medicine = request.medicine,
-                                                            applicationType = request.applicationType,
-                                                            doseInstruction = request.doseInstruction,
-                                                            medicationCount = request.medicationCount,
-                                                            sourceGroupName = request.sourceGroupName,
-                                                            sourceGroupColorKey = request.sourceGroupColorKey,
-                                                            sourceGroupIsArchived = request.sourceGroupIsArchived,
-                                                            sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
-                                                            sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
-                                                        )
-                                                    )
-                                                }
-                                            }
+                    RoutedTopChromeHazeProvider(navController, backStackEntry, bottomBar) {
+                        TopLevelPager(
+                            state = topLevelPagerState,
+                            dragInteractions = topLevelPagerDrags,
+                            swipeExemption = topLevelPagerSwipeExemption,
+                            // Side navigation's destinations are picked from it, not swiped.
+                            swipeEnabled = isBottomBar && !latestTopLevelNavigationChromeLocked,
+                        ) { screen ->
+                            when (screen) {
+                                Screen.Main -> MainScreen(
+                                    modifier,
+                                    scrollToTopSignal = mainScrollToTopSignal,
+                                    highlightEffectsEnabled = latestHomeDeepLinkHighlightEffectsEnabled,
+                                    onEntryClick = { request ->
+                                        if (canOpenOverlaySheet(backStackEntry)) {
+                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                entryIds = request.entryUuids.map(UUID::toString),
+                                                editSnapshot = request.toMedicationLogEntryEditSnapshot(),
+                                            )
+                                        }
+                                    },
+                                    onMedicineDetailClick = { medicineId ->
+                                        // Root the detail under the current tab (Home) so the
+                                        // highlighted tab stays put and back returns straight
+                                        // here, instead of stacking under a different tab.
+                                        navController.navigate(
+                                            Screen.MedicineDetail.createRoute(
+                                                medicineId = medicineId.toString(),
+                                                topLevelParentRoute = Screen.Main.route,
+                                            ),
                                         )
-                                        Screen.Plan -> PlanScreen(
-                                            modifier = modifier,
-                                            scrollToTopSignal = planScrollToTopSignal,
-                                            onGroupClick = { groupId ->
-                                                navController.navigate(
-                                                    Screen.EditMedicationGroup.createRoute(
-                                                        topLevelParentRoute = Screen.Plan.route,
-                                                        groupId = groupId.toString()
-                                                    )
-                                                )
-                                            },
-                                            onEntryClick = { entryIds ->
-                                                if (canOpenOverlaySheet(backStackEntry)) {
-                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                        entryIds = entryIds.map(UUID::toString)
-                                                    )
-                                                }
-                                            },
-                                            onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
-                                                if (
-                                                    medicationCount > 0 &&
-                                                    canOpenOverlaySheet(backStackEntry)
-                                                ) {
-                                                    medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
-                                                        quickLogRequest = MedicationLogEntryQuickLogRequest(
-                                                            groupId = groupId,
-                                                            scheduleTimeUuid = scheduleTimeUuid,
-                                                            scheduledFor = scheduledAt,
-                                                            medicine = medication.medicine,
-                                                            applicationType = medication.applicationType,
-                                                            doseInstruction = medication.doseInstruction,
-                                                            medicationCount = medicationCount
-                                                        )
-                                                    )
-                                                }
-                                            },
-                                            onAddGroupClick = {
-                                                navController.navigate(
-                                                    Screen.EditMedicationGroup.createRoute(
-                                                        topLevelParentRoute = Screen.Plan.route
-                                                    )
-                                                )
-                                            },
-                                            onHistoryClick = {
-                                                navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
-                                                    launchSingleTop = true
-                                                }
-                                            },
-                                            onBatchAddClick = {
-                                                navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
-                                                    launchSingleTop = true
-                                                }
-                                            },
-                                            onArchivedGroupsClick = {
-                                                navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
-                                                    launchSingleTop = true
-                                                }
-                                            },
-                                            onMedicinesClick = {
-                                                navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
-                                                    launchSingleTop = true
-                                                }
-                                            }
+                                    },
+                                    onAddEntryClick = {
+                                        // Jump straight to the manager; its dose sheet saves
+                                        // the manual log directly in manual-log mode.
+                                        navController.navigate(
+                                            Screen.Medicines.createRoute(
+                                                topLevelParentRoute = Screen.Main.route,
+                                                slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                                            ),
                                         )
-                                        Screen.Journal -> JournalScreen(
-                                            onOpenMilestones = {
-                                                navController.navigate(
-                                                    Screen.JournalMilestones.createRoute(Screen.Journal.route)
-                                                )
-                                            },
-                                            onAddDate = {
-                                                navController.navigate(
-                                                    Screen.JournalMilestones.createRoute(
-                                                        Screen.Journal.route,
-                                                        openAddDate = true,
-                                                    )
-                                                )
-                                            },
-                                            onOpenAllNotes = {
-                                                navController.navigate(
-                                                    Screen.JournalAllNotes.createRoute(Screen.Journal.route)
-                                                )
-                                            },
-                                            scrollToTopSignal = journalScrollToTopSignal,
-                                            modifier = modifier,
+                                    },
+                                    onOpenTimeline = {
+                                        // Open the timeline (Milestones) page on top of the current
+                                        // home tab rather than switching to the Journal tab, so the
+                                        // bottom bar stays on Home and Back returns here.
+                                        navController.navigate(
+                                            Screen.JournalMilestones.createRoute(
+                                                topLevelParentRoute = Screen.Main.route,
+                                            ),
                                         )
-                                        Screen.Settings -> SettingsScreen(
-                                            modifier = modifier,
-                                            scrollToTopSignal = settingsScrollToTopSignal,
-                                            onCalibrationClick = {
-                                                navController.navigate(
-                                                    Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                                    },
+                                    onQuickLogDoseClick = { request ->
+                                        if (
+                                            request.medicationCount > 0 &&
+                                            canOpenOverlaySheet(backStackEntry)
+                                        ) {
+                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                                    groupId = request.groupUuid,
+                                                    scheduleTimeUuid = request.scheduleTimeUuid,
+                                                    scheduledFor = request.scheduledAt,
+                                                    medicine = request.medicine,
+                                                    applicationType = request.applicationType,
+                                                    doseInstruction = request.doseInstruction,
+                                                    medicationCount = request.medicationCount,
+                                                    sourceGroupName = request.sourceGroupName,
+                                                    sourceGroupColorKey = request.sourceGroupColorKey,
+                                                    sourceGroupIsArchived = request.sourceGroupIsArchived,
+                                                    sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
+                                                    sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
                                                 )
-                                            }
-                                        )
-                                        else -> Unit
+                                            )
+                                        }
                                     }
-                                }
+                                )
+                                Screen.Plan -> PlanScreen(
+                                    modifier = modifier,
+                                    scrollToTopSignal = planScrollToTopSignal,
+                                    onGroupClick = { groupId ->
+                                        navController.navigate(
+                                            Screen.EditMedicationGroup.createRoute(
+                                                topLevelParentRoute = Screen.Plan.route,
+                                                groupId = groupId.toString()
+                                            )
+                                        )
+                                    },
+                                    onEntryClick = { entryIds ->
+                                        if (canOpenOverlaySheet(backStackEntry)) {
+                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                entryIds = entryIds.map(UUID::toString)
+                                            )
+                                        }
+                                    },
+                                    onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medication, medicationCount ->
+                                        if (
+                                            medicationCount > 0 &&
+                                            canOpenOverlaySheet(backStackEntry)
+                                        ) {
+                                            medicationLogEntrySheetRequest = MedicationLogEntrySheetRequest(
+                                                quickLogRequest = MedicationLogEntryQuickLogRequest(
+                                                    groupId = groupId,
+                                                    scheduleTimeUuid = scheduleTimeUuid,
+                                                    scheduledFor = scheduledAt,
+                                                    medicine = medication.medicine,
+                                                    applicationType = medication.applicationType,
+                                                    doseInstruction = medication.doseInstruction,
+                                                    medicationCount = medicationCount
+                                                )
+                                            )
+                                        }
+                                    },
+                                    onAddGroupClick = {
+                                        navController.navigate(
+                                            Screen.EditMedicationGroup.createRoute(
+                                                topLevelParentRoute = Screen.Plan.route
+                                            )
+                                        )
+                                    },
+                                    onHistoryClick = {
+                                        navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onBatchAddClick = {
+                                        navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onArchivedGroupsClick = {
+                                        navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onMedicinesClick = {
+                                        navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                )
+                                Screen.Journal -> JournalScreen(
+                                    onOpenMilestones = {
+                                        navController.navigate(
+                                            Screen.JournalMilestones.createRoute(Screen.Journal.route)
+                                        )
+                                    },
+                                    onAddDate = {
+                                        navController.navigate(
+                                            Screen.JournalMilestones.createRoute(
+                                                Screen.Journal.route,
+                                                openAddDate = true,
+                                            )
+                                        )
+                                    },
+                                    onOpenAllNotes = {
+                                        navController.navigate(
+                                            Screen.JournalAllNotes.createRoute(Screen.Journal.route)
+                                        )
+                                    },
+                                    scrollToTopSignal = journalScrollToTopSignal,
+                                    modifier = modifier,
+                                )
+                                Screen.Settings -> SettingsScreen(
+                                    modifier = modifier,
+                                    scrollToTopSignal = settingsScrollToTopSignal,
+                                    onCalibrationClick = {
+                                        navController.navigate(
+                                            Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                                        )
+                                    }
+                                )
+                                else -> Unit
                             }
                         }
                     }
@@ -1626,12 +1601,8 @@ fun HrtTrackerNavHost(
                     // snackbar above it there; elsewhere clear the scaffold-provided
                     // gesture inset.
                     .padding(
-                        start = when {
-                            navigationSuiteType.isBottomBar ||
-                                Screen.topLevelScreenForRoute(currentRoute) == null -> 0.dp
-                            classicNavigationBar -> topLevelRailWidth
-                            else -> verticalPillStartInset()
-                        },
+                        // Centred on the body beside the pill; the rail sits beside this already.
+                        start = LocalAppContentStartInset.current,
                         bottom = if (
                             navigationSuiteType.isBottomBar &&
                             Screen.topLevelScreenForRoute(currentRoute) != null
