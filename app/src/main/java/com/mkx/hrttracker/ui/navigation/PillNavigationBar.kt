@@ -57,7 +57,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.layout
@@ -69,14 +68,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.ui.components.AppBlurRadius
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.redrawWhilePagesMove
+import com.mkx.hrttracker.ui.theme.isAppInDarkTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
@@ -144,14 +144,14 @@ internal fun PillNavigationBar(
     // After Kyant0/AndroidLiquidGlass's bottom tabs: the theme background tinted at 40% over
     // the blur and a faint neutral indicator. In dark the background all but vanished into the
     // page, and the shadow can't show there, so it takes surfaceContainer instead.
-    val dark = pillIsDark()
+    val dark = isAppInDarkTheme()
     val containerColor = if (dark) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.background
     val indicatorColor = if (dark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
     val blurStyle = remember(containerColor) {
         HazeBlurStyle {
             backgroundColor(containerColor)
             colorEffects(listOf(HazeColorEffect.tint(containerColor.copy(alpha = 0.4f))))
-        }.then(AppBlurRadius)
+        }
     }
     // The opaque container stays under the blur: Haze draws nothing on an effect's first frame
     // (its source starts capturing only once the effect asks), so turning blur on left the
@@ -202,10 +202,7 @@ internal fun PillNavigationBar(
                 // As in Kyant0/AndroidLiquidGlass's bottom tabs: a drag nudges the whole pill up
                 // to MaxNudge its way, easing out over the pill's width, and it springs back on
                 // release.
-                .graphicsLayer {
-                    val fraction = (nudge.value / size.width).coerceIn(-1f, 1f)
-                    translationX = MaxNudge.toPx() * sign(fraction) * EaseOut.transform(abs(fraction))
-                }
+                .graphicsLayer { translationX = nudgeOffset(nudge.value, size.width) }
                 // Lifts the capsule off the content behind it; outside the clip so it shows.
                 .dropShadow(CircleShape, PillShadow)
                 .clip(CircleShape)
@@ -223,40 +220,49 @@ internal fun PillNavigationBar(
                     fun follow(x: Float) {
                         scope.launch { indicator.animateTo(positionAt(x), FollowSpec) }
                     }
+                    // The nudge's graphicsLayer sits above this, so positions arrive shifted
+                    // by it; adding it back keeps the drag from feeding on its own nudge.
+                    val layerWidth = size.width + BarInset.toPx() * 2
+                    fun unNudged(x: Float) = x + nudgeOffset(nudge.value, layerWidth)
                     awaitEachGesture {
                         val down = awaitFirstDown(pass = PointerEventPass.Initial)
                         down.consume()
                         following = false
+                        val downX = unNudged(down.position.x)
                         // A touch picks the tab under it, so the pill goes to that tab, not
                         // to the finger; only a drag past the slop has it follow the finger.
-                        val downSlot = positionAt(down.position.x).roundToInt().toFloat()
+                        val downSlot = positionAt(downX).roundToInt().toFloat()
                         scope.launch { indicator.animateTo(downSlot, settleSpec) }
-                        var lastX = down.position.x
+                        var lastX = downX
                         var dragging = false
                         var dragStartX = 0f
                         var released = false
-                        while (true) {
-                            val change = awaitPointerEvent(PointerEventPass.Initial).changes
-                                .firstOrNull { it.id == down.id }
-                            if (change == null || change.isConsumed) break
-                            change.consume()
-                            // The lift too: a quick drag can cross into the next tab with it.
-                            lastX = change.position.x
-                            if (!change.pressed) {
-                                released = true
-                                break
+                        try {
+                            while (true) {
+                                val change = awaitPointerEvent(PointerEventPass.Initial).changes
+                                    .firstOrNull { it.id == down.id }
+                                if (change == null || change.isConsumed) break
+                                change.consume()
+                                // The lift too: a quick drag can cross into the next tab with it.
+                                lastX = unNudged(change.position.x)
+                                if (!change.pressed) {
+                                    released = true
+                                    break
+                                }
+                                if (!dragging && abs(lastX - downX) > viewConfiguration.touchSlop) {
+                                    dragging = true
+                                    dragStartX = lastX
+                                }
+                                if (dragging) {
+                                    follow(lastX)
+                                    val travel = lastX - dragStartX
+                                    scope.launch { nudge.snapTo(travel) }
+                                }
                             }
-                            if (!dragging && abs(lastX - down.position.x) > viewConfiguration.touchSlop) {
-                                dragging = true
-                                dragStartX = lastX
-                            }
-                            if (dragging) {
-                                follow(lastX)
-                                val travel = lastX - dragStartX
-                                scope.launch { nudge.snapTo(travel) }
-                            }
+                        } finally {
+                            // Also when the gesture is cancelled mid-drag (pointerInput restart).
+                            scope.launch { nudge.animateTo(0f, NudgeReleaseSpec) }
                         }
-                        scope.launch { nudge.animateTo(0f, NudgeReleaseSpec) }
                         // From the touch itself: the pill's animation may not have caught up.
                         val target = if (dragging) positionAt(lastX).roundToInt() else downSlot.toInt()
                         // Dragged back to the selected tab, wherever the drag began: a switch
@@ -377,6 +383,8 @@ private val NudgeReleaseSpec = spring(dampingRatio = 1f, stiffness = 300f, visib
 // The soft shadow under the reference's bars: 24dp blur, 4dp down, black at 10%.
 private val PillShadow = Shadow(radius = 24.dp, color = Color.Black.copy(alpha = 0.1f), offset = DpOffset(0.dp, 4.dp))
 
-// The app's own light/dark, which can differ from the system's.
-@Composable
-private fun pillIsDark(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+// The nudge's translation for a drag [travel] across a pill [width] wide, easing out to MaxNudge.
+private fun Density.nudgeOffset(travel: Float, width: Float): Float {
+    val fraction = (travel / width).coerceIn(-1f, 1f)
+    return MaxNudge.toPx() * sign(fraction) * EaseOut.transform(abs(fraction))
+}

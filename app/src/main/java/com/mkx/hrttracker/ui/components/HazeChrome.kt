@@ -193,13 +193,14 @@ fun Modifier.hazeChrome(
     enabled: Boolean = true,
     alpha: (() -> Float)? = null,
     // Defaults to the thin surfaceContainer material; pass a remembered Style to replace it.
+    // AppBlurRadius is applied on top either way.
     style: HazeBlurStyle? = null,
 ): Modifier {
     if (!LocalHazeBlurEnabled.current || !enabled || state == null) return this
 
-    val style = style ?: HazeMaterials.thin(
+    val style = (style ?: HazeMaterials.thin(
         containerColor = MaterialTheme.colorScheme.surfaceContainer
-    ).then(AppBlurRadius)
+    )).then(AppBlurRadius)
     // The style block reads [alpha] at resolve time, and haze observes snapshot reads
     // there, so scroll-driven alpha redraws without recomposition. Remembered because
     // block styles compare by identity.
