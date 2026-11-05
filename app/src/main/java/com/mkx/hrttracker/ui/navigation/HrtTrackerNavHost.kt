@@ -802,7 +802,9 @@ fun HrtTrackerNavHost(
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
-    // The Home deep link's leave while the discard dialog asks about it.
+    // The Home deep link the discard dialog asks about, saved, for one a recreation drops to be
+    // settled too, and its leave, which goes with the composition.
+    var waitingHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var waitingHomeDeepLinkLeave by remember { mutableStateOf<UnsavedChangesState.Leave?>(null) }
 
     LaunchedEffect(homeDeepLinkSignal, currentRoute, navigationLock.isBusy) {
@@ -833,24 +835,28 @@ fun HrtTrackerNavHost(
                 // An editor's unsaved changes ask first, over whatever sheet or dialog is open,
                 // which closes only once the user discards; keeping them drops the deep link.
                 val signal = homeDeepLinkSignal
-                waitingHomeDeepLinkLeave = unsavedChanges.leaveBackStack {
-                    waitingHomeDeepLinkLeave = null
+                val leave = unsavedChanges.leaveBackStack {
+                    waitingHomeDeepLinkSignal = 0
                     navigationLock.dismissModals()
                     pendingHomeDeepLinkHighlightSignal = signal
                     showTopLevelPage(Screen.Main)
                 }
+                waitingHomeDeepLinkLeave = leave
+                if (leave != null) waitingHomeDeepLinkSignal = signal
             }
         }
     }
 
-    // Kept editing, or replaced by another leave: the deep link is dropped, its highlight with it,
-    // and Home's highlights, held off for it, turn back on.
+    // Kept editing, replaced by another leave, or lost with a recreation: the deep link is
+    // dropped, its highlight with it, and Home's highlights, held off for it, turn back on.
+    val waitingSignal = waitingHomeDeepLinkSignal
     val waitingLeave = waitingHomeDeepLinkLeave
-    if (waitingLeave != null && unsavedChanges.pendingLeave !== waitingLeave) {
-        LaunchedEffect(waitingLeave) {
+    if (waitingSignal != 0 && (waitingLeave == null || unsavedChanges.pendingLeave !== waitingLeave)) {
+        LaunchedEffect(waitingSignal) {
+            waitingHomeDeepLinkSignal = 0
             waitingHomeDeepLinkLeave = null
             onDropHomeDeepLinkHighlight()
-            readyHomeDeepLinkHighlightSignal = maxOf(readyHomeDeepLinkHighlightSignal, homeDeepLinkSignal)
+            readyHomeDeepLinkHighlightSignal = maxOf(readyHomeDeepLinkHighlightSignal, waitingSignal)
         }
     }
 
