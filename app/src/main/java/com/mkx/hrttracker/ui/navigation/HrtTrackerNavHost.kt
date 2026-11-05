@@ -834,7 +834,10 @@ fun HrtTrackerNavHost(
         }
     }
 
-    LaunchedEffect(milestonesDeepLinkSignal) {
+    LaunchedEffect(milestonesDeepLinkSignal, navigationLock.isBusy) {
+        // A save in flight pops its editor once written, which would pop milestones instead:
+        // wait for it, like the Home deep link, before consuming the signal.
+        if (navigationLock.isBusy) return@LaunchedEffect
         // The dedup marker lives in the ViewModel (consumeMilestonesDeepLink), not
         // rememberSaveable here: it must share the signal's exact lifetime so a
         // process-death re-tap navigates and a config-change recreation doesn't
