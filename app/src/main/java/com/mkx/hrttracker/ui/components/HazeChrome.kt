@@ -430,9 +430,14 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     // Closed by a deep link taking the user elsewhere, one opened after it left alone.
     val navigationLock = LocalNavigationLock.current
     val dismissRequestAtOpen = remember { navigationLock.modalDismissRequest }
-    val dismissRequested = navigationLock.modalDismissRequest != dismissRequestAtOpen
-    if ((allowed && !hostShown) || dismissRequested) {
+    val dismissRequest = navigationLock.modalDismissRequest
+    // Apart, and keyed by each request: a modal ignoring one (saving) still closes with its page
+    // or on the next request.
+    if (allowed && !hostShown) {
         LaunchedEffect(Unit) { currentOnDismissRequest() }
+    }
+    if (dismissRequest != dismissRequestAtOpen) {
+        LaunchedEffect(dismissRequest) { currentOnDismissRequest() }
     }
     if (!allowed) {
         // One drop per held window, whichever of the two checks fires first.
