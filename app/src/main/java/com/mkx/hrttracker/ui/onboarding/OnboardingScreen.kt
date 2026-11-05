@@ -596,7 +596,10 @@ fun OnboardingScreen(
             color = MaterialTheme.colorScheme.surface,
         ) {
             MedicationGroupEditorScreen(
-                onNavigateBack = { showGroupEditor = false },
+                onNavigateBack = {
+                    showGroupEditor = false
+                    true
+                },
                 onGroupSaved = {
                     showGroupEditor = false
                     true

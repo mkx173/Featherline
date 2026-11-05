@@ -154,7 +154,8 @@ import java.util.UUID
 @Composable
 fun MedicationGroupEditorScreen(
     modifier: Modifier = Modifier,
-    onNavigateBack: () -> Unit,
+    // Whether it navigated, for a discard to tell whether the editor was left.
+    onNavigateBack: () -> Boolean,
     onGroupSaved: () -> Boolean,
     onGroupSavedToPlan: () -> Boolean = onGroupSaved,
     openedFromArchivedGroupsPage: Boolean = false,

@@ -110,6 +110,7 @@ import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
 import com.mkx.hrttracker.ui.components.PagerSwipeExemption
 import com.mkx.hrttracker.ui.components.StockNudgeVisuals
 import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.components.consumeTapsClosingMenus
 import com.mkx.hrttracker.ui.components.hazeChrome
 import com.mkx.hrttracker.ui.components.hazeNavigationSuiteColors
@@ -802,7 +803,7 @@ fun HrtTrackerNavHost(
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     // The Home deep link's leave while the discard dialog asks about it.
-    var waitingHomeDeepLinkLeave by remember { mutableStateOf<(() -> Boolean)?>(null) }
+    var waitingHomeDeepLinkLeave by remember { mutableStateOf<UnsavedChangesState.Leave?>(null) }
 
     LaunchedEffect(homeDeepLinkSignal, currentRoute, navigationLock.isBusy) {
         val hasUnhandledSignal = homeDeepLinkSignal > lastHandledHomeDeepLinkSignal
@@ -832,14 +833,12 @@ fun HrtTrackerNavHost(
                 // An editor's unsaved changes ask first, over whatever sheet or dialog is open,
                 // which closes only once the user discards; keeping them drops the deep link.
                 val signal = homeDeepLinkSignal
-                val leave = {
+                waitingHomeDeepLinkLeave = unsavedChanges.leaveBackStack {
                     waitingHomeDeepLinkLeave = null
                     navigationLock.dismissModals()
                     pendingHomeDeepLinkHighlightSignal = signal
                     showTopLevelPage(Screen.Main)
                 }
-                waitingHomeDeepLinkLeave = leave
-                unsavedChanges.leave(leave)
             }
         }
     }
@@ -969,7 +968,7 @@ fun HrtTrackerNavHost(
             )
         }
         when (tapAction) {
-            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> unsavedChanges.leave {
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> unsavedChanges.leaveBackStack {
                 navController.popBackStackSafely(Screen.Main.route, inclusive = false).also { left ->
                     if (left) topLevelPagerState.requestScrollToPage(tappedScreen.topLevelPage)
                 }
@@ -985,7 +984,9 @@ fun HrtTrackerNavHost(
                 }
             }
 
-            TopLevelNavigationTapAction.NAVIGATE -> unsavedChanges.leave { showTopLevelPage(tappedScreen) }
+            TopLevelNavigationTapAction.NAVIGATE -> unsavedChanges.leaveBackStack {
+                showTopLevelPage(tappedScreen)
+            }
 
             TopLevelNavigationTapAction.NONE -> Unit
         }
@@ -1031,7 +1032,7 @@ fun HrtTrackerNavHost(
                     selectedScreen = selectedBottomScreen,
                     onItemClick = onTopLevelItemClick,
                     hazeState = navigationChromeHazeState,
-                    askBeforeSwitching = unsavedChanges.hasUnsavedChanges,
+                    askBeforeSwitching = unsavedChanges.backStackHasUnsavedChanges,
                 )
             }
         } else {

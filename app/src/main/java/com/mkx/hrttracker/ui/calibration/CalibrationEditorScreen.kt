@@ -103,7 +103,8 @@ import java.util.UUID
 
 @Composable
 fun CalibrationEditorScreen(
-    onNavigateBack: () -> Unit,
+    // Whether it navigated, for a discard to tell whether the editor was left.
+    onNavigateBack: () -> Boolean,
     // Pops the editor after a confirmed save/delete; returns whether the pop
     // landed (the flag that triggered it is consumed only on true).
     onSaved: () -> Boolean,

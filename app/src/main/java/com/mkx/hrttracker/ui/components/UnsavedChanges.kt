@@ -8,6 +8,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -37,10 +38,11 @@ import kotlinx.coroutines.launch
  * that isn't composed, under a page opened from it (the plan editor's medicine picker), still
  * asks when that page leaves for a tab, also after the activity is recreated.
  *
- * A leave waits only while there is something to discard: once no editor has unsaved changes,
- * such as when the one asking saves and finishes, it is dropped. A discard that leaves marks the
- * editors it left, whose ViewModels live on, still reporting their edits, while they animate out:
- * they no longer count or ask. A leave that didn't navigate marks nothing.
+ * A leave names the editors it would leave, and asks only while one of them has unsaved changes:
+ * once none has, such as when the one asking saves and finishes, it is dropped. A discard that
+ * navigates marks those editors, whose ViewModels live on, still reporting their edits, while they
+ * animate out: they no longer count or ask. Any other editor, or all of them when the leave
+ * didn't navigate, still asks.
  */
 @Stable
 @ActivityRetainedScoped
@@ -48,15 +50,25 @@ class UnsavedChangesState @Inject constructor() {
     private val dirtyEditors = mutableStateMapOf<Any, Boolean>()
     private val discardedEditors = mutableStateMapOf<Any, Unit>()
 
+    // Hosted in the NavHost's back stack, rather than outside it like onboarding's.
+    private val backStackEditors = mutableStateMapOf<Any, Unit>()
+
     // The composed dialog hosts, the last one showing the dialog: onboarding's over the app's.
     internal val dialogHosts = mutableStateListOf<Any>()
 
+    /** A leave from [editors], navigating by [action], which returns whether it did. */
+    class Leave internal constructor(internal val editors: Set<Any>, internal val action: () -> Boolean)
+
     /** The leave [UnsavedChangesDialog] asks about, null while none waits. */
-    var pendingLeave: (() -> Boolean)? by mutableStateOf(null)
+    var pendingLeave: Leave? by mutableStateOf(null)
         private set
 
     val hasUnsavedChanges: Boolean
         get() = dirtyEditors.values.any { it }
+
+    /** Whether a pop to the top-level pager would lose edits: the back stack's, not onboarding's. */
+    val backStackHasUnsavedChanges: Boolean
+        get() = backStackEditors.keys.any(::asks)
 
     /** Reports [editor]'s [dirty] edits until the ViewModel is cleared. */
     fun track(editor: ViewModel, dirty: StateFlow<Boolean>) {
@@ -65,16 +77,24 @@ class UnsavedChangesState @Inject constructor() {
     }
 
     /**
-     * Runs [action] at once, or once the user discards the unsaved changes. [action] returns
-     * whether it left, which a leave that can't navigate yet (mid-transition) doesn't.
+     * Runs [action], leaving [editors], at once, or once the user discards their unsaved changes,
+     * returning the leave that waits for it. [action] returns whether it navigated, which it can't
+     * mid-transition.
      */
-    fun leave(action: () -> Boolean) {
-        if (hasUnsavedChanges) pendingLeave = action else action()
+    fun leave(editors: Set<Any>, action: () -> Boolean): Leave? {
+        if (editors.none(::asks)) {
+            action()
+            return null
+        }
+        return Leave(editors, action).also { pendingLeave = it }
     }
 
-    /** Drops [action], unless another leave has replaced it since its dialog showed. */
-    fun keepEditing(action: () -> Boolean) {
-        if (pendingLeave === action) pendingLeave = null
+    /** A pop to the top-level pager, which leaves every editor in the back stack. */
+    fun leaveBackStack(action: () -> Boolean): Leave? = leave(backStackEditors.keys.toSet(), action)
+
+    /** Drops [leave], unless another has replaced it since its dialog showed. */
+    fun keepEditing(leave: Leave) {
+        if (pendingLeave === leave) pendingLeave = null
     }
 
     /** Drops the waiting leave, whose navigation goes with the composition that asked. */
@@ -83,13 +103,16 @@ class UnsavedChangesState @Inject constructor() {
     }
 
     fun discard() {
-        val action = pendingLeave ?: return
+        val leave = pendingLeave ?: return
         pendingLeave = null
-        if (!action()) return
-        dirtyEditors.filterValues { dirty -> dirty }.keys.forEach(::stopTracking)
+        if (leave.action()) leave.editors.forEach(::stopTracking)
     }
 
     internal fun asks(editor: Any): Boolean = dirtyEditors[editor] == true
+
+    internal fun hostInBackStack(editor: Any) {
+        backStackEditors[editor] = Unit
+    }
 
     /** [editor]'s edits no longer count, though it lives on. */
     internal fun stopTracking(editor: Any) {
@@ -107,11 +130,12 @@ class UnsavedChangesState @Inject constructor() {
     internal fun remove(editor: Any) {
         dirtyEditors.remove(editor)
         discardedEditors.remove(editor)
+        backStackEditors.remove(editor)
         dropLeaveWithNothingToDiscard()
     }
 
     private fun dropLeaveWithNothingToDiscard() {
-        if (!hasUnsavedChanges) pendingLeave = null
+        if (pendingLeave?.editors?.none(::asks) == true) pendingLeave = null
     }
 }
 
@@ -132,12 +156,14 @@ val LocalUnsavedChanges = staticCompositionLocalOf { UnsavedChangesState() }
 @Composable
 fun unsavedChangesBack(
     editor: ViewModel,
-    onBack: () -> Unit,
+    onBack: () -> Boolean,
     untilDisposed: Boolean = false,
 ): () -> Unit {
     val state = LocalUnsavedChanges.current
     val navigationLock = LocalNavigationLock.current
-    if (untilDisposed) {
+    if (!untilDisposed) {
+        SideEffect { state.hostInBackStack(editor) }
+    } else {
         val activity = LocalActivity.current
         DisposableEffect(state, editor) {
             onDispose {
@@ -152,17 +178,14 @@ fun unsavedChangesBack(
     val latestOnBack by rememberUpdatedState(onBack)
     val latestCounts by rememberUpdatedState(counts)
     val latestResumed by rememberUpdatedState(resumed)
-    val back = remember(state, navigationLock) {
+    val back = remember<() -> Unit>(state, navigationLock) {
         {
             when {
                 !latestCounts -> latestOnBack()
                 // Mid-transition, the back belongs to the page coming in; saving, the save
                 // leaves the editor itself once it's written.
                 !latestResumed || navigationLock.isBusy -> Unit
-                else -> state.leave {
-                    latestOnBack()
-                    true
-                }
+                else -> state.leave(setOf(editor)) { latestOnBack() }
             }
         }
     }
@@ -186,18 +209,18 @@ fun UnsavedChangesDialog(
         onDispose { state.dialogHosts -= host }
     }
     if (state.dialogHosts.lastOrNull() !== host) return
-    val action = state.pendingLeave ?: return
+    val leave = state.pendingLeave ?: return
     CompositionLocalProvider(LocalChromeHazeState provides hazeState) {
         // One dialog per leave: a Home deep link closes open modals and asks again, and the new
         // dialog must outlive the old one's dismissal rather than be closed with it.
-        key(action) { UnsavedChangesDialog(state, action) }
+        key(leave) { UnsavedChangesDialog(state, leave) }
     }
 }
 
 @Composable
-private fun UnsavedChangesDialog(state: UnsavedChangesState, action: () -> Boolean) {
+private fun UnsavedChangesDialog(state: UnsavedChangesState, leave: UnsavedChangesState.Leave) {
     HazeAlertDialog(
-        onDismissRequest = { state.keepEditing(action) },
+        onDismissRequest = { state.keepEditing(leave) },
         title = { Text(text = stringResource(R.string.unsaved_changes_title)) },
         text = { Text(text = stringResource(R.string.unsaved_changes_confirmation)) },
         confirmButton = {
@@ -209,7 +232,7 @@ private fun UnsavedChangesDialog(state: UnsavedChangesState, action: () -> Boole
             }
         },
         dismissButton = {
-            TextButton(onClick = { state.keepEditing(action) }) {
+            TextButton(onClick = { state.keepEditing(leave) }) {
                 Text(text = stringResource(R.string.cancel))
             }
         },
