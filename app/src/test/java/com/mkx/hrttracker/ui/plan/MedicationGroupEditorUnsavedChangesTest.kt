@@ -11,6 +11,10 @@ import org.junit.Test
 
 class MedicationGroupEditorUnsavedChangesTest {
 
+    // As the editor compares them: the draft against the baseline's weekday mode.
+    private fun MedicationGroupEditorUiState.draftAgainst(baseline: MedicationGroupEditorUiState) =
+        toEditedDraft(weekdaysFollowStart = baseline.toEditedDraft().weekdaysFollowStart)
+
     @Test
     fun editedDraft_ignoresIdsAndSurroundingWhitespace() {
         val loaded = MedicationGroupEditorUiState(groupName = "Morning")
@@ -77,12 +81,12 @@ class MedicationGroupEditorUnsavedChangesTest {
             hasUserCustomizedWeeklyDays = true,
             weeklyTime = LocalTime.of(20, 0),
         )
-        assertEquals(newPlan.toEditedDraft(), backToDaily.toEditedDraft())
+        assertEquals(newPlan.toEditedDraft(), backToDaily.draftAgainst(newPlan))
         // Weekly, an extra weekday turned on and back off: the flag stays set.
         val weekly = newPlan.copy(scheduleType = MedicationGroupScheduleType.WEEKLY)
         assertEquals(
             weekly.toEditedDraft(),
-            weekly.copy(hasUserCustomizedWeeklyDays = true).toEditedDraft(),
+            weekly.copy(hasUserCustomizedWeeklyDays = true).draftAgainst(weekly),
         )
         // A saved weekly plan's start date picked and picked back resets the flag.
         val saved = MedicationGroupEditorUiState(
@@ -94,7 +98,25 @@ class MedicationGroupEditorUnsavedChangesTest {
         )
         assertEquals(
             saved.toEditedDraft(),
-            saved.copy(hasUserCustomizedWeeklyDays = false).toEditedDraft(),
+            saved.copy(hasUserCustomizedWeeklyDays = false).draftAgainst(saved),
         )
+    }
+
+    @Test
+    fun editedDraft_keepsACopiedPlansWeekdaysAsTheClockMovesOn() {
+        // A Saturday-only plan copied on Saturday keeps Saturday past midnight; Sunday picked
+        // instead is a different plan, though Sunday is then the start date's weekday.
+        val copied = MedicationGroupEditorUiState(
+            scheduleType = MedicationGroupScheduleType.WEEKLY,
+            scheduleStart = ScheduleStart.Now,
+            sinceDate = LocalDate.of(2026, 4, 25),
+            weeklyDaysOfWeek = setOf(DayOfWeek.SATURDAY),
+            hasUserCustomizedWeeklyDays = true,
+        )
+        val midnight = LocalDateTime.of(2026, 4, 26, 0, 1)
+        val untouched = copied.withStartsNowOn(midnight)
+        assertEquals(copied.toEditedDraft(), untouched.draftAgainst(copied))
+        val sunday = copied.copy(weeklyDaysOfWeek = setOf(DayOfWeek.SUNDAY)).withStartsNowOn(midnight)
+        assertNotEquals(copied.toEditedDraft(), sunday.draftAgainst(copied))
     }
 }

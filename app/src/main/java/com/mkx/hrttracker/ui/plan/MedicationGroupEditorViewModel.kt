@@ -191,8 +191,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
     val hasUnsavedChanges: StateFlow<Boolean> = _uiState
         .map { state ->
             if (!state.hasSettledForEditing) return@map false
-            val draft = state.toEditedDraft()
-            val baseline = baselineDraft ?: draft.also { baselineDraft = it }
+            val baseline = baselineDraft ?: state.toEditedDraft().also { baselineDraft = it }
+            val draft = state.toEditedDraft(weekdaysFollowStart = baseline.weekdaysFollowStart)
             !state.isSaved &&
                     !state.isDeleted &&
                     !state.isFinishingAfterSave &&
@@ -2471,6 +2471,7 @@ internal data class MedicationGroupEditedDraft(
     val medications: List<MedicationGroupEditedSlot>,
     val includePastScheduledSlots: Boolean,
     val createPastScheduledSlotRecords: Boolean,
+    val weekdaysFollowStart: Boolean,
 )
 
 internal data class MedicationGroupEditedSlot(
@@ -2482,8 +2483,12 @@ internal data class MedicationGroupEditedSlot(
 
 // What the saved plan would be, not how the form got there: the weekday flag stays set after a
 // chip is turned back, and a start date picked and picked back resets it, neither of which the
-// saved plan sees.
-internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEditedDraft {
+// saved plan sees. [weekdaysFollowStart] is the baseline's: a new plan's untouched weekdays move
+// with the start date as the clock moves it, so a draft starting now on its start date's weekday
+// matches them; a copied plan's weekdays stay put, so the draft's are compared as they are.
+internal fun MedicationGroupEditorUiState.toEditedDraft(
+    weekdaysFollowStart: Boolean = startsNow && !hasUserCustomizedWeeklyDays,
+): MedicationGroupEditedDraft {
     val isWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY
     val isDaily = scheduleType == MedicationGroupScheduleType.DAILY
     return MedicationGroupEditedDraft(
@@ -2495,7 +2500,7 @@ internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEdited
         medicationDayBoundary = medicationDayBoundary,
         weeklyIntervalWeeks = weeklyIntervalWeeks.takeIf { isWeekly },
         weeklyDaysOfWeek = weeklyDaysOfWeek.takeIf { days ->
-            isWeekly && !(startsNow && days == setOf(sinceDate.dayOfWeek))
+            isWeekly && !(weekdaysFollowStart && startsNow && days == setOf(sinceDate.dayOfWeek))
         },
         weeklyTime = weeklyTime.takeIf { isWeekly },
         dailyIntervalDays = dailyIntervalDays.takeIf { isDaily },
@@ -2511,6 +2516,7 @@ internal fun MedicationGroupEditorUiState.toEditedDraft(): MedicationGroupEdited
         },
         includePastScheduledSlots = includePastScheduledSlots,
         createPastScheduledSlotRecords = createPastScheduledSlotRecords,
+        weekdaysFollowStart = weekdaysFollowStart,
     )
 }
 
