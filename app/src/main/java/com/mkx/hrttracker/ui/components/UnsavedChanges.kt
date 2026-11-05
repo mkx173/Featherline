@@ -121,9 +121,10 @@ val LocalUnsavedChanges = staticCompositionLocalOf { UnsavedChangesState() }
 /**
  * For an editor whose ViewModel [UnsavedChangesState.track]s it: asks before system back leaves
  * it while it has unsaved changes, and returns [onBack] asking the same, for its top bar. Both
- * ask only while the editor is resumed, the current page, not while a page opened from it is
- * pushing in, and do nothing while a write is in flight (the editor's save), which leaves the
- * editor itself when it's done.
+ * ask only while the editor is resumed, the current page. Mid-transition, as the medicine picker
+ * pops back to it, system back does nothing rather than reach the NavHost, which would pop the
+ * editor without asking; nor does either while a write is in flight (the editor's save), which
+ * leaves the editor itself when it's done.
  *
  * @param untilDisposed for an editor outside the back stack, such as onboarding's, whose
  *   ViewModel outlives it: its edits stop counting once it leaves the composition.
@@ -165,7 +166,7 @@ fun unsavedChangesBack(
             }
         }
     }
-    BackHandler(enabled = counts && resumed) { back() }
+    BackHandler(enabled = counts) { back() }
     return back
 }
 
