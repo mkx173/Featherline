@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.WindowInsets
@@ -1647,35 +1648,7 @@ fun HrtTrackerNavHost(
             } else {
                 LocalAppContentBottomInset.current
             }
-            // Each snackbar starts where the page puts it and from there only rises: opening a
-            // sub page from under it leaves it in place rather than dropping it to the gesture
-            // inset, and the one leaving keeps its place as it fades.
-            val snackbarBottom = remember { Animatable(snackbarBottomTarget, Dp.VectorConverter) }
-            val shownSnackbar = snackbarHostState.currentSnackbarData
-            val latestSnackbarBottomTarget by rememberUpdatedState(snackbarBottomTarget)
-            LaunchedEffect(shownSnackbar) {
-                if (shownSnackbar != null) snackbarBottom.snapTo(latestSnackbarBottomTarget)
-            }
-            LaunchedEffect(snackbarBottomTarget) {
-                if (
-                    snackbarHostState.currentSnackbarData != null &&
-                    snackbarBottomTarget > snackbarBottom.value
-                ) {
-                    snackbarBottom.animateTo(snackbarBottomTarget)
-                }
-            }
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .imePadding()
-                    .padding(
-                        // Centred on the body beside the pill; the rail sits beside this already.
-                        start = LocalAppContentStartInset.current,
-                        bottom = snackbarBottom.value,
-                    ),
-                snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
-            )
+            NavHostSnackbarHost(snackbarHostState, bottomTarget = snackbarBottomTarget)
             UnsavedChangesDialog(hazeState = navigationChromeHazeState, state = unsavedChanges)
             optInTarget?.let { projection ->
                 CompositionLocalProvider(
@@ -1737,6 +1710,41 @@ fun HrtTrackerNavHost(
 // moment a pop begins, so a rapid second tap on the same back button sees a
 // non-RESUMED state and is dropped. Without this guard the second tap pops
 // past the destination, leaving the previous screen blank.
+// Its own recomposition scope: the snackbar's rise, read every frame, and each one shown recompose
+// only it, not the NavHost and sheets beside it.
+@Composable
+private fun BoxScope.NavHostSnackbarHost(snackbarHostState: SnackbarHostState, bottomTarget: Dp) {
+    // Each snackbar starts where the page puts it and from there only rises: opening a
+    // sub page from under it leaves it in place rather than dropping it to the gesture
+    // inset, and the one leaving keeps its place as it fades.
+    val snackbarBottom = remember { Animatable(bottomTarget, Dp.VectorConverter) }
+    val shownSnackbar = snackbarHostState.currentSnackbarData
+    val latestSnackbarBottomTarget by rememberUpdatedState(bottomTarget)
+    LaunchedEffect(shownSnackbar) {
+        if (shownSnackbar != null) snackbarBottom.snapTo(latestSnackbarBottomTarget)
+    }
+    LaunchedEffect(bottomTarget) {
+        if (
+            snackbarHostState.currentSnackbarData != null &&
+            bottomTarget > snackbarBottom.value
+        ) {
+            snackbarBottom.animateTo(bottomTarget)
+        }
+    }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .imePadding()
+            .padding(
+                // Centred on the body beside the pill; the rail sits beside this already.
+                start = LocalAppContentStartInset.current,
+                bottom = snackbarBottom.value,
+            ),
+        snackbar = { snackbarData -> HrtSnackbar(snackbarData) },
+    )
+}
+
 private fun NavHostController.popBackStackSafely(): Boolean {
     val entry = currentBackStackEntry ?: return false
     if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
