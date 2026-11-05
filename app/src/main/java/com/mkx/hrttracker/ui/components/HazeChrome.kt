@@ -64,9 +64,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.offset
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -781,7 +779,7 @@ fun HazeTopAppBar(
         modifier = modifier.hazeTopAppBar(scrollBehavior).appContentColumnPadding(windowInsets),
         navigationIcon = navigationIcon,
         actions = actions,
-        windowInsets = windowInsets,
+        windowInsets = windowInsets.only(WindowInsetsSides.Top),
         colors = hazeTopAppBarColors(),
         scrollBehavior = scrollBehavior,
     )
@@ -802,36 +800,21 @@ fun HazeCenterAlignedTopAppBar(
         modifier = modifier.hazeTopAppBar(scrollBehavior).appContentColumnPadding(windowInsets),
         navigationIcon = navigationIcon,
         actions = actions,
-        windowInsets = windowInsets,
+        windowInsets = windowInsets.only(WindowInsetsSides.Top),
         colors = hazeTopAppBarColors(),
         scrollBehavior = scrollBehavior,
     )
 }
 
 /**
- * Pads the bar in from the page's edges to the body's column (see [AppContentContainer]), so
- * its title and actions line up with the body. Goes after [hazeTopAppBar], so the bar's
- * background still spans the page. [windowInsets], which the bar pads by itself, come off the
- * room as they do off the body's.
+ * Pads the bar in to the body's column ([appContentColumn]), so its title and actions line up
+ * with the body. Goes after [hazeTopAppBar], so the bar's background still spans the page. The
+ * horizontal [windowInsets] come off here, less any a parent consumed, as they do off the body's
+ * Scaffold padding; the bar keeps only the top.
  */
 @Composable
-private fun Modifier.appContentColumnPadding(windowInsets: WindowInsets): Modifier {
-    val startInset = LocalAppContentStartInset.current
-    return layout { measurable, constraints ->
-        val start = startInset.roundToPx()
-        val side = if (constraints.hasBoundedWidth) {
-            val insets = windowInsets.getLeft(this, layoutDirection) + windowInsets.getRight(this, layoutDirection)
-            ((constraints.maxWidth - insets - start - AppContentMaxWidth.roundToPx()) / 2).coerceAtLeast(0)
-        } else {
-            0
-        }
-        val horizontal = start + 2 * side
-        val placeable = measurable.measure(constraints.offset(horizontal = -horizontal))
-        layout(constraints.constrainWidth(placeable.width + horizontal), placeable.height) {
-            placeable.placeRelative(start + side, 0)
-        }
-    }
-}
+private fun Modifier.appContentColumnPadding(windowInsets: WindowInsets): Modifier =
+    windowInsetsPadding(windowInsets.only(WindowInsetsSides.Horizontal)).appContentColumn()
 
 @Composable
 private fun hazeTopAppBarColors(): TopAppBarColors {

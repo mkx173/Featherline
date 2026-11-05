@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -164,17 +166,23 @@ fun AppContentContainer(
             .fillMaxSize()
             // The page under the floating navigation still blurs behind it.
             .hazeSourceArea(LocalChromeHazeState.current)
-            .padding(start = LocalAppContentStartInset.current),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = AppContentMaxWidth)
-                .fillMaxSize(),
-            content = content,
-        )
-    }
+            .appContentColumn(),
+        content = content,
+    )
 }
+
+/**
+ * The body's column: beside the side pill ([LocalAppContentStartInset]), centred in the rest of
+ * the room, at most [AppContentMaxWidth] wide. The top bar takes it too, to line up with the body.
+ */
+@Composable
+fun Modifier.appContentColumn(): Modifier = this
+    .padding(start = LocalAppContentStartInset.current)
+    // Filled first, for room to centre in: the Scaffold measures its top bar loosely.
+    .fillMaxWidth()
+    .wrapContentWidth(Alignment.CenterHorizontally)
+    .widthIn(max = AppContentMaxWidth)
+    .fillMaxWidth()
 
 @Preview(name = "AppContentContainer - phone", widthDp = 420, heightDp = 600, showBackground = true)
 @Preview(
