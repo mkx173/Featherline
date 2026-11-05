@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.main
 import com.mkx.hrttracker.ui.calibration.PkCalibrationUiState
 import com.mkx.hrttracker.ui.calibration.pkCalibrationScreenState
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.CalibrationEstimate
@@ -75,6 +76,7 @@ class MainViewModel @Inject constructor(
     @ProcessLifecycleState processLifecycleState: StateFlow<@JvmSuppressWildcards Lifecycle.State>,
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private val currentSnapshot = appTimeSource.currentSnapshot
 
@@ -277,7 +279,11 @@ class MainViewModel @Inject constructor(
     private val _highlightRequest = MutableStateFlow<DoseRowHighlightRequest?>(null)
     val highlightRequest: StateFlow<DoseRowHighlightRequest?> = _highlightRequest.asStateFlow()
 
-    private val _homeDeepLinkSignal = MutableStateFlow(0)
+    // Saved, unlike the milestones signal: the NavHost keeps its Home markers (the last link it
+    // handled, the highlight it waits on) in saved instance state, so the signal lives as long.
+    // A ViewModel-lifetime signal restarted at 0 after process death, behind the restored
+    // markers, and the next Home deep links were taken as handled and dropped.
+    private val _homeDeepLinkSignal = savedStateHandle.getMutableStateFlow(HOME_DEEP_LINK_SIGNAL_KEY, 0)
     val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
 
     private val _milestonesDeepLinkSignal = MutableStateFlow(0)
@@ -586,3 +592,5 @@ class MainViewModel @Inject constructor(
 /** Null while the estimate loads; a failed fit or render shows the numeric-failure sheet. */
 internal fun pkCalibrationSheetUiState(estimate: CalibrationEstimate?): PkCalibrationUiState? =
     estimate?.let { pkCalibrationScreenState(it).ui }
+
+private const val HOME_DEEP_LINK_SIGNAL_KEY = "home_deep_link_signal"

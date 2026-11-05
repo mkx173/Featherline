@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.E2Pending
 import com.mkx.hrttracker.data.repository.E2State
@@ -1966,7 +1967,24 @@ class MainViewModelTest {
         assertEquals(true, viewModel.pkCalibrationSheetState.value?.numericFailure)
     }
 
-    private fun viewModel(now: LocalDateTime) = MainViewModel(
+    @Test
+    fun homeDeepLinkSignal_carriesOnAfterProcessDeath() {
+        // The NavHost restores the last link it handled with the saved state: a link after
+        // process death must still count past it, not start again at 0 behind it.
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val key = DoseRowHighlightKey.Manual(entryUuid = UUID.randomUUID())
+        val saved = SavedStateHandle()
+        viewModel(now, saved).requestDoseRowHighlight(listOf(key))
+        val restored = viewModel(now, SavedStateHandle(saved.keys().associateWith { saved.get<Any>(it) }))
+        assertEquals(1, restored.homeDeepLinkSignal.value)
+        restored.requestDoseRowHighlight(listOf(key))
+        assertEquals(2, restored.homeDeepLinkSignal.value)
+    }
+
+    private fun viewModel(
+        now: LocalDateTime,
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    ) = MainViewModel(
         homeRepository = homeRepository,
         settingsRepository = settingsRepository,
         timeZoneChangeNoticeController = timeZoneChangeNoticeController,
@@ -1974,6 +1992,7 @@ class MainViewModelTest {
         processLifecycleState = processLifecycleState,
         appTimeSource = FakeAppTimeSource(now),
         defaultDispatcher = dispatcher,
+        savedStateHandle = savedStateHandle,
     )
 
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
