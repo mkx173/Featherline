@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.data.repository.CurrentOrFuturePlannedSlotsBlockArchiveException
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -92,7 +93,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     @param:ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
-    private val appTimeSource: AppTimeSource
+    private val appTimeSource: AppTimeSource,
+    unsavedChanges: UnsavedChangesState = UnsavedChangesState(),
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
 
@@ -199,6 +201,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        unsavedChanges.track(this, hasUnsavedChanges)
+    }
+
     private val _completionEvents =
         MutableSharedFlow<MedicationGroupEditorCompletionEvent>(extraBufferCapacity = 1)
     val completionEvents: SharedFlow<MedicationGroupEditorCompletionEvent> =

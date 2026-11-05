@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
@@ -76,6 +77,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private val pkStorageRepository: PkCalibrationStorageRepository,
     private val e2EstimateRepository: E2EstimateRepository,
     private val appTimeSource: AppTimeSource,
+    unsavedChanges: UnsavedChangesState = UnsavedChangesState(),
 ) : ViewModel() {
     private val savedStateHandle: SavedStateHandle = savedStateHandle
     private val draftSnapshotAdapter =
@@ -126,6 +128,7 @@ class CalibrationEditorViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
+        unsavedChanges.track(this, hasUnsavedChanges)
         observePkReview()
         observeCalibrationDefaultUnits()
         persistDraftSnapshotAcrossProcessDeath()

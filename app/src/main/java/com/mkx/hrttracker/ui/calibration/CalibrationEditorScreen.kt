@@ -111,8 +111,7 @@ fun CalibrationEditorScreen(
     viewModel: CalibrationEditorViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsStateWithLifecycle()
-    val navigateBackAskingFirst = unsavedChangesBack(dirty = hasUnsavedChanges, onBack = onNavigateBack)
+    val navigateBackAskingFirst = unsavedChangesBack(editor = viewModel, onBack = onNavigateBack)
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current

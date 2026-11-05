@@ -695,14 +695,16 @@ fun HrtTrackerNavHost(
     // Back on the pager, on [screen]'s page: slid to when already there with the bottom bar,
     // where the pages are swiped between too, else shown at once, beneath the page being popped
     // or, beside side navigation, as its destinations switch.
-    fun showTopLevelPage(screen: Screen) {
+    // Returns whether it got there, for a discard to mark the editors it left.
+    fun showTopLevelPage(screen: Screen): Boolean {
         val onPager = navController.currentDestination?.route == Screen.Main.route
         if (onPager && navigationSuiteType.isBottomBar) {
             pagerScope.launch { topLevelPagerState.springToPage(screen.topLevelPage) }
-        } else {
-            if (!onPager) navController.popBackStack(Screen.Main.route, inclusive = false)
-            topLevelPagerState.requestScrollToPage(screen.topLevelPage)
+            return true
         }
+        val left = onPager || navController.popBackStack(Screen.Main.route, inclusive = false)
+        topLevelPagerState.requestScrollToPage(screen.topLevelPage)
+        return left
     }
     // actionLabel is resolved at snackbar time off the localized snackbarContext;
     // stringResource() isn't callable in this callback, so the
@@ -949,8 +951,8 @@ fun HrtTrackerNavHost(
         }
         when (tapAction) {
             TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> unsavedChanges.leave {
-                if (navController.popBackStackSafely(Screen.Main.route, inclusive = false)) {
-                    topLevelPagerState.requestScrollToPage(tappedScreen.topLevelPage)
+                navController.popBackStackSafely(Screen.Main.route, inclusive = false).also { left ->
+                    if (left) topLevelPagerState.requestScrollToPage(tappedScreen.topLevelPage)
                 }
             }
 

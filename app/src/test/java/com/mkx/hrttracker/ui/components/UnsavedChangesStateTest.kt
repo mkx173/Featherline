@@ -1,8 +1,5 @@
 package com.mkx.hrttracker.ui.components
 
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -11,19 +8,12 @@ import org.junit.Test
 
 class UnsavedChangesStateTest {
 
-    private class TestEntry : LifecycleOwner {
-        val registry = LifecycleRegistry.createUnsafe(this).apply {
-            currentState = Lifecycle.State.RESUMED
-        }
-        override val lifecycle: Lifecycle get() = registry
-    }
-
     @Test
     fun leave_runsAtOnceWithoutUnsavedChanges() {
         val state = UnsavedChangesState()
         var left = 0
-        state.update(TestEntry(), dirty = false)
-        state.leave { left++ }
+        state.update(Any(), dirty = false)
+        state.leave { left++; true }
         assertEquals(1, left)
         assertNull(state.pendingLeave)
     }
@@ -32,8 +22,8 @@ class UnsavedChangesStateTest {
     fun leave_waitsForDiscard() {
         val state = UnsavedChangesState()
         var left = 0
-        state.update(TestEntry(), dirty = true)
-        state.leave { left++ }
+        state.update(Any(), dirty = true)
+        state.leave { left++; true }
         assertEquals(0, left)
         state.discard()
         assertEquals(1, left)
@@ -44,8 +34,8 @@ class UnsavedChangesStateTest {
     fun keepEditing_dropsTheLeave() {
         val state = UnsavedChangesState()
         var left = 0
-        state.update(TestEntry(), dirty = true)
-        state.leave { left++ }
+        state.update(Any(), dirty = true)
+        state.leave { left++; true }
         state.keepEditing(state.pendingLeave!!)
         state.discard()
         assertEquals(0, left)
@@ -57,70 +47,71 @@ class UnsavedChangesStateTest {
         // must not cancel the deep link's leave.
         val state = UnsavedChangesState()
         var wentHome = 0
-        state.update(TestEntry(), dirty = true)
-        state.leave { }
+        state.update(Any(), dirty = true)
+        state.leave { true }
         val backLeave = state.pendingLeave!!
-        state.leave { wentHome++ }
+        state.leave { wentHome++; true }
         state.keepEditing(backLeave)
         state.discard()
         assertEquals(1, wentHome)
     }
 
     @Test
-    fun entryUnderAnotherPage_stillCountsUntilDestroyed() {
-        // The plan editor stays dirty under the medicine picker it opened, composed or not.
-        val state = UnsavedChangesState()
-        val editor = TestEntry()
-        state.update(editor, dirty = true)
-        editor.registry.currentState = Lifecycle.State.CREATED
-        assertTrue(state.hasUnsavedChanges)
-        editor.registry.currentState = Lifecycle.State.DESTROYED
-        assertFalse(state.hasUnsavedChanges)
-    }
-
-    @Test
     fun pendingLeave_isDroppedWhenItsEditorFinishes() {
         // Back tapped while saving: the save leaves the editor, and nothing is left to discard.
         val state = UnsavedChangesState()
-        val editor = TestEntry()
+        val editor = Any()
         var left = 0
         state.update(editor, dirty = true)
-        state.leave { left++ }
+        state.leave { left++; true }
         state.update(editor, dirty = false)
         assertNull(state.pendingLeave)
-        editor.registry.currentState = Lifecycle.State.DESTROYED
+        state.remove(editor)
         state.discard()
         assertEquals(0, left)
     }
 
     @Test
-    fun editorOutsideTheBackStack_isDroppedWhenRemoved() {
-        // Onboarding's editor lives under the activity, which outlives it.
+    fun discardedEditor_stopsCountingWhileItAnimatesOut() {
+        // Its ViewModel lives through the exit, still reporting its edits.
         val state = UnsavedChangesState()
         val editor = Any()
-        state.update(editor, dirty = true)
-        state.leave { }
-        state.remove(editor)
-        assertFalse(state.hasUnsavedChanges)
-        assertNull(state.pendingLeave)
-    }
-
-    @Test
-    fun discardedEditor_stopsCountingWhileItAnimatesOut() {
-        // Still composed for its exit, the editor keeps reporting its edits.
-        val state = UnsavedChangesState()
-        val editor = TestEntry()
         var left = 0
         state.update(editor, dirty = true)
-        state.leave { left++ }
+        state.leave { left++; true }
         state.discard()
         assertEquals(1, left)
         state.update(editor, dirty = true)
         assertFalse(state.hasUnsavedChanges)
-        assertTrue(state.isDiscarded(editor))
-        state.leave { left++ }
+        state.leave { left++; true }
         assertEquals(2, left)
-        editor.registry.currentState = Lifecycle.State.DESTROYED
-        assertFalse(state.isDiscarded(editor))
+        state.remove(editor)
+        state.update(editor, dirty = true)
+        assertTrue(state.hasUnsavedChanges)
+    }
+
+    @Test
+    fun discardThatDidNotLeave_keepsAsking() {
+        // The pop refused mid-transition: the editor is still there, edits and all.
+        val state = UnsavedChangesState()
+        val editor = Any()
+        state.update(editor, dirty = true)
+        state.leave { false }
+        state.discard()
+        assertTrue(state.asks(editor))
+        assertTrue(state.hasUnsavedChanges)
+    }
+
+    @Test
+    fun editorOutsideTheBackStack_stopsCountingOnceGone() {
+        // Onboarding's editor ViewModel outlives it, under the activity.
+        val state = UnsavedChangesState()
+        val editor = Any()
+        state.update(editor, dirty = true)
+        state.leave { true }
+        state.stopTracking(editor)
+        state.update(editor, dirty = true)
+        assertFalse(state.hasUnsavedChanges)
+        assertNull(state.pendingLeave)
     }
 }

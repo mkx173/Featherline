@@ -162,6 +162,10 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler
 
+    // Retained with the editors' ViewModels that report to it, across a recreation.
+    @Inject
+    lateinit var unsavedChanges: UnsavedChangesState
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val startupTimingEnabled =
             (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
@@ -269,7 +273,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             val navigationLock = remember { NavigationLockState() }
-            val unsavedChanges = remember { UnsavedChangesState() }
+            // The leave waiting on the discard dialog navigates this composition's controller.
+            DisposableEffect(unsavedChanges) { onDispose(unsavedChanges::cancelLeave) }
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedContext.resources.configuration,

@@ -166,9 +166,8 @@ fun MedicationGroupEditorScreen(
     unsavedChangesUntilDisposed: Boolean = false,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsStateWithLifecycle()
     val navigateBackAskingFirst = unsavedChangesBack(
-        dirty = hasUnsavedChanges,
+        editor = viewModel,
         onBack = onNavigateBack,
         untilDisposed = unsavedChangesUntilDisposed,
     )
