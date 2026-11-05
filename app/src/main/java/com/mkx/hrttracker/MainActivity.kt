@@ -445,6 +445,8 @@ class MainActivity : AppCompatActivity() {
                                         onMilestonesDeepLinkSettled = {
                                             awaitingMilestonesEntry = false
                                         },
+                                        onDropHomeDeepLinkHighlight =
+                                            mainViewModel::dropHighlightRequest,
                                         highlightEffectsEnabled = highlightEffectsEnabled,
                                         classicNavigationBar =
                                             settingsState.classicNavigationBarEnabled,

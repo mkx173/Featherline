@@ -17,6 +17,7 @@ fun HrtTrackerApp(
     milestonesDeepLinkSignal: Int = 0,
     onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
+    onDropHomeDeepLinkHighlight: () -> Unit = {},
     highlightEffectsEnabled: Boolean,
     classicNavigationBar: Boolean,
 ) {
@@ -28,6 +29,7 @@ fun HrtTrackerApp(
         milestonesDeepLinkSignal = milestonesDeepLinkSignal,
         onConsumeMilestonesDeepLink = onConsumeMilestonesDeepLink,
         onMilestonesDeepLinkSettled = onMilestonesDeepLinkSettled,
+        onDropHomeDeepLinkHighlight = onDropHomeDeepLinkHighlight,
         highlightEffectsEnabled = highlightEffectsEnabled,
         classicNavigationBar = classicNavigationBar,
     )
