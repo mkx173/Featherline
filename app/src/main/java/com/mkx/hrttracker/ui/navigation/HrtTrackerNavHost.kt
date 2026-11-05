@@ -1712,11 +1712,6 @@ fun HrtTrackerNavHost(
     }
 }
 
-// Tap-debounced popBackStack: only fires while the current entry is RESUMED.
-// Compose Navigation drops the outgoing entry's lifecycle to STARTED the
-// moment a pop begins, so a rapid second tap on the same back button sees a
-// non-RESUMED state and is dropped. Without this guard the second tap pops
-// past the destination, leaving the previous screen blank.
 // Its own recomposition scope: the snackbar's rise, read every frame, and each one shown recompose
 // only it, not the NavHost and sheets beside it.
 @Composable
@@ -1752,6 +1747,11 @@ private fun BoxScope.NavHostSnackbarHost(snackbarHostState: SnackbarHostState, b
     )
 }
 
+// Tap-debounced popBackStack: only fires while the current entry is RESUMED.
+// Compose Navigation drops the outgoing entry's lifecycle to STARTED the
+// moment a pop begins, so a rapid second tap on the same back button sees a
+// non-RESUMED state and is dropped. Without this guard the second tap pops
+// past the destination, leaving the previous screen blank.
 private fun NavHostController.popBackStackSafely(): Boolean {
     val entry = currentBackStackEntry ?: return false
     if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
