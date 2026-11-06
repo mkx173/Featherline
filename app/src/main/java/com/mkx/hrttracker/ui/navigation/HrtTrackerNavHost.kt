@@ -834,12 +834,19 @@ fun HrtTrackerNavHost(
                 lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
                 // An editor's unsaved changes ask first, over whatever sheet or dialog is open,
                 // which closes only once the user discards; keeping them drops the deep link.
+                // Home comes once those have closed, not under them, and only then are the
+                // editors left marked, the leave reporting no navigation of its own.
                 val signal = homeDeepLinkSignal
-                val leave = unsavedChanges.leaveBackStack {
+                var leave: UnsavedChangesState.Leave? = null
+                leave = unsavedChanges.leaveBackStack {
                     waitingHomeDeepLinkSignal = 0
-                    navigationLock.dismissModals()
                     pendingHomeDeepLinkHighlightSignal = signal
-                    showTopLevelPage(Screen.Main)
+                    val editors = leave?.editors.orEmpty()
+                    pagerScope.launch {
+                        navigationLock.dismissModalsAndAwait()
+                        if (showTopLevelPage(Screen.Main)) editors.forEach(unsavedChanges::stopTracking)
+                    }
+                    false
                 }
                 waitingHomeDeepLinkLeave = leave
                 if (leave != null) waitingHomeDeepLinkSignal = signal
@@ -869,42 +876,47 @@ fun HrtTrackerNavHost(
         // process-death re-tap navigates and a config-change recreation doesn't
         // replay. See MainViewModel.lastHandledMilestonesSignal.
         if (!onConsumeMilestonesDeepLink()) return@LaunchedEffect
-        // Pushed over whatever is open, which loses nothing, but not under a sheet or dialog.
-        navigationLock.dismissModals()
-        // Read the destination live from the controller: the composition-captured
-        // currentRoute is still null when this effect fires on the cold-start first
-        // composition (currentBackStackEntryAsState hasn't delivered its first value),
-        // which would silently skip the journal synthesis below.
-        val liveRoute = navController.currentDestination?.route
-        // Avoid stacking duplicates if the user re-taps while already on the screen.
-        // The route is the registered *pattern* — it carries the query-arg template
-        // ("journal_milestones?top_level_parent={…}&open_add_date={…}"), so a
-        // `!= baseRoute` check never matches and the guard would be dead. Compare with
-        // startsWith against the bare baseRoute instead.
-        if (liveRoute?.startsWith(Screen.JournalMilestones.baseRoute) != true) {
-            // From the top-level pager (the cold-start case), turn it to the journal page
-            // first, so back walks down the hierarchy — milestones → journal → home —
-            // instead of jumping straight to home. At cold start all of this composes
-            // beneath the splash screen, which MainActivity holds until the settle
-            // callback below, so neither home nor the push transition is ever visible.
-            if (liveRoute == Screen.Main.route) {
-                topLevelPagerState.requestScrollToPage(Screen.Journal.topLevelPage)
+        // Consumed, it's seen through outside this effect, which a save starting while a sheet
+        // closes would restart, and the signal, already handled, would then never navigate.
+        pagerScope.launch {
+            // Pushed over whatever is open, which loses nothing, but not under a sheet or dialog:
+            // once those have closed.
+            navigationLock.dismissModalsAndAwait()
+            // Read the destination live from the controller: the composition-captured
+            // currentRoute is still null when this effect fires on the cold-start first
+            // composition (currentBackStackEntryAsState hasn't delivered its first value),
+            // which would silently skip the journal synthesis below.
+            val liveRoute = navController.currentDestination?.route
+            // Avoid stacking duplicates if the user re-taps while already on the screen.
+            // The route is the registered *pattern* — it carries the query-arg template
+            // ("journal_milestones?top_level_parent={…}&open_add_date={…}"), so a
+            // `!= baseRoute` check never matches and the guard would be dead. Compare with
+            // startsWith against the bare baseRoute instead.
+            if (liveRoute?.startsWith(Screen.JournalMilestones.baseRoute) != true) {
+                // From the top-level pager (the cold-start case), turn it to the journal page
+                // first, so back walks down the hierarchy — milestones → journal → home —
+                // instead of jumping straight to home. At cold start all of this composes
+                // beneath the splash screen, which MainActivity holds until the settle
+                // callback below, so neither home nor the push transition is ever visible.
+                if (liveRoute == Screen.Main.route) {
+                    topLevelPagerState.requestScrollToPage(Screen.Journal.topLevelPage)
+                }
+                navController.navigate(Screen.JournalMilestones.createRoute())
             }
-            navController.navigate(Screen.JournalMilestones.createRoute())
-        }
-        // Settled = the transition finished and milestones is the only visible entry;
-        // dismissing the splash on that frame shows real content, not a mid-flight
-        // animation. The timeout is insurance against a stuck splash if the
-        // transition never settles (e.g. navigation interrupted).
-        withTimeoutOrNull(MILESTONES_DEEP_LINK_SETTLE_TIMEOUT_MILLIS) {
-            navController.visibleEntries.first { entries ->
-                entries.size == 1 &&
-                        entries.last().destination.route
-                            ?.startsWith(Screen.JournalMilestones.baseRoute) == true
+            // Settled = the transition finished and milestones is the only visible entry;
+            // dismissing the splash on that frame shows real content, not a mid-flight
+            // animation. The timeout is insurance against a stuck splash if the
+            // transition never settles (e.g. navigation interrupted).
+            withTimeoutOrNull(MILESTONES_DEEP_LINK_SETTLE_TIMEOUT_MILLIS) {
+                navController.visibleEntries.first { entries ->
+                    entries.size == 1 &&
+                            entries.last().destination.route
+                                ?.startsWith(Screen.JournalMilestones.baseRoute) == true
+                }
+                withFrameNanos { }
             }
-            withFrameNanos { }
+            onMilestonesDeepLinkSettled()
         }
-        onMilestonesDeepLinkSettled()
     }
 
     LaunchedEffect(

@@ -4,7 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Counts reasons the top-level navigation chrome must ignore taps: an open
@@ -53,7 +56,20 @@ class NavigationLockState {
     fun dismissModals() {
         modalDismissSignal.intValue += 1
     }
+
+    /**
+     * [dismissModals], then waits for every modal window to leave, for a deep link to navigate
+     * once none is left over the page it leaves: a sheet closes a frame or more after the request.
+     */
+    suspend fun dismissModalsAndAwait() {
+        dismissModals()
+        // ponytail: one that won't close (none should while nothing is busy) holds the deep link
+        // only this long, then is left to close with its page.
+        withTimeoutOrNull(MODAL_DISMISS_TIMEOUT_MILLIS) { snapshotFlow { isLocked }.first { !it } }
+    }
 }
+
+private const val MODAL_DISMISS_TIMEOUT_MILLIS = 1_000L
 
 // The default instance keeps previews, tests, and compositions outside the
 // app shell (e.g. onboarding) working without an explicit provider.

@@ -1,10 +1,17 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.runtime.snapshots.Snapshot
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class NavigationLockStateTest {
 
     @Test
@@ -60,5 +67,30 @@ class NavigationLockStateTest {
         val before = lock.modalDismissRequest
         lock.dismissModals()
         assertTrue(lock.modalDismissRequest != before)
+    }
+
+    @Test
+    fun dismissModalsAndAwait_returnsOnceTheModalsClose() = runTest {
+        // A deep link navigates only once the sheet over the page it leaves is gone.
+        val lock = NavigationLockState()
+        lock.acquire(busy = false)
+        val before = lock.modalDismissRequest
+        val wait = launch { lock.dismissModalsAndAwait() }
+        runCurrent()
+        assertTrue(lock.modalDismissRequest != before)
+        assertFalse(wait.isCompleted)
+        lock.release(busy = false)
+        Snapshot.sendApplyNotifications()
+        runCurrent()
+        assertTrue(wait.isCompleted)
+    }
+
+    @Test
+    fun dismissModalsAndAwait_givesUpOnAModalThatStays() = runTest {
+        val lock = NavigationLockState()
+        lock.acquire(busy = false)
+        val wait = launch { lock.dismissModalsAndAwait() }
+        advanceTimeBy(1_001)
+        assertTrue(wait.isCompleted)
     }
 }
