@@ -320,11 +320,11 @@ class AnchorSurfaceRefreshSourceTest {
         )
         assertTrue(
             "The launch-intent parse must gate on the ViewModel-lifetime marker plus the " +
-                "history flag, not savedInstanceState: a widget tap that recreates a " +
-                "killed task lands in onCreate with non-null savedInstanceState (a dead " +
-                "instance can't receive onNewIntent) and must still navigate, while a " +
-                "recents relaunch redelivers the original intent's stale extras and must " +
-                "not.",
+                "history flag, not savedInstanceState: a restored instance re-parses " +
+                "getIntent() after process death even with non-null " +
+                "savedInstanceState, while a recents relaunch must not replay the " +
+                "original intent's stale extras. Which of onCreate or onNewIntent a tap " +
+                "on a killed task reaches has not been verified on a device.",
             source.contains("Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY") &&
                 source.contains("if (parseLaunchIntent)") &&
                 source.contains("mainViewModel.launchIntentParsed = true"),

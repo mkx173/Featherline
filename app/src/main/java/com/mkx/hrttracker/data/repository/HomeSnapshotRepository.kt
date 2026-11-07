@@ -157,9 +157,9 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
-    // All medication group, medication log, and profile writes that affect Home data
-    // must go through this gate, so the cached parts stop being current before the DB
-    // changes.
+    // All medication group, medication log, profile, and tracked-date writes that
+    // affect Home data must go through this gate, so the cached parts stop being
+    // current before the DB changes.
     //
     // The work inside the lock runs in NonCancellable: once the generation is bumped,
     // the mutation must finish and its run must be asked for, or a caller whose scope
@@ -204,9 +204,9 @@ class HomeSnapshotRepository @Inject constructor(
     }
 
     /**
-     * A change Home data reads that no gated write makes: the journal's first
-     * pinned date. It bumps the generation and asks for a run; the E2 keys
-     * don't move, so nothing holds.
+     * An empty gated mutation: it bumps the generation and asks for a run; the
+     * E2 keys don't move, so nothing holds. Nothing in production calls it now
+     * that tracked-date writes go through the gate themselves.
      */
     suspend fun invalidate() {
         runHomeDataMutation {}

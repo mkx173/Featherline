@@ -336,7 +336,7 @@ graph TD
   homesnapshot[HomeSnapshotRepository<br/>.currentCache] --> manager
   settings[SettingsRepository<br/>.settingsState] --> manager
   timeformat[Settings.System.TIME_12_24<br/>ContentObserver] --> manager
-  midnight[WidgetMidnightRefreshScheduler<br/>explicit midnight alarm] --> datereceiver
+  midnight[WidgetMidnightRefreshScheduler<br/>section-start date alarm] --> datereceiver
   worker[WidgetDailyRefreshWorker<br/>15-min periodic + on start] --> repo
   worker -.stale, no current state.-> homesnapshot
   datereceiver[WidgetDateReceiver<br/>BOOT + DATE/TIME/TZ] --> homesnapshot
@@ -411,7 +411,7 @@ graph TD
 - **Date / time / timezone events.**
   [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
   is a manifest-declared `BroadcastReceiver` for the widget-owned
-  midnight alarm, `BOOT_COMPLETED`, plus best-effort
+  section-start date alarm, `BOOT_COMPLETED`, plus best-effort
   `ACTION_DATE_CHANGED`, `ACTION_TIME_CHANGED`, and
   `ACTION_TIMEZONE_CHANGED`. Android 8+ does not exempt
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast

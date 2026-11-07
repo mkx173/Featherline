@@ -128,7 +128,9 @@ timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis`
 serves read-only Health Connect weight sync (see `WeightSyncCoordinator`):
 the time of the adopted HC reading, null for a typed weight or none. It
 backs the weight sheet's "Measured ..." line and lets a sync skip the
-write when the reading hasn't changed. Clearing the weight keeps
+write when the reading hasn't changed. While the stored measured time is
+after now plus the 5-minute tolerance (the device clock was set back), a
+sync leaves the weight and its measured time unchanged. Clearing the weight keeps
 `weightOriginalUnit`, so a later adopted reading shows in the user's
 unit.
 
