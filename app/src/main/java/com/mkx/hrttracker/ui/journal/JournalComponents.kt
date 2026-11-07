@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
@@ -336,7 +337,8 @@ fun SimpleHomeCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AnchorIconChip(anchor = anchor)
+            // Concentric with the card: extraLarge (28) minus the 16dp inset.
+            AnchorIconChip(anchor = anchor, shape = MaterialTheme.shapes.medium)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = anchor.name,
@@ -1462,11 +1464,12 @@ private fun AnchorIconChip(
     // Matches MedicationCard's leading icon (36dp container, ~20dp glyph) so journal
     // rows read as the same component. SimpleHomeCard overrides this with a larger size.
     size: Dp = 36.dp,
+    shape: Shape = MaterialTheme.shapes.small,
 ) {
     val colorScheme = rememberMedicationGroupColorScheme(colorKey = anchor.palette)
     Surface(
         modifier = modifier.size(size),
-        shape = MaterialTheme.shapes.small,
+        shape = shape,
         color = colorScheme.primaryContainer,
         contentColor = colorScheme.onPrimaryContainer,
     ) {

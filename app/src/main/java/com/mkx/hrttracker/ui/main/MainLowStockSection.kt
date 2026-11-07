@@ -186,7 +186,8 @@ private fun MainLowStockSubCard(
         onClick = { onMedicineClick(projection.medicine.uuid) },
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        cornerShape = MaterialTheme.shapes.large,
+        cornerShape = MaterialTheme.shapes.medium,
+        pressedShape = MaterialTheme.shapes.medium,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

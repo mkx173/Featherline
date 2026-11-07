@@ -360,7 +360,8 @@ internal fun WidgetConfigScreen(
                                 onClick = { previewDark = !previewDark },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(12.dp)
+                                    // 10 = window corner (28) − button radius (18): concentric.
+                                    .padding(10.dp)
                                     .size(36.dp),
                             ) {
                                 Icon(

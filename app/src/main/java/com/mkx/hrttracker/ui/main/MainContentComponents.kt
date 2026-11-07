@@ -831,7 +831,7 @@ internal fun MainE2ChartCard(
                     ) {
                         SkeletonShimmerBlock(
                             modifier = Modifier.fillMaxSize(),
-                            shape = MaterialTheme.shapes.large,
+                            shape = MaterialTheme.shapes.medium,
                         )
                     }
                     // Mirror MainE2ChartMinimap's vertical structure with
@@ -865,7 +865,7 @@ internal fun MainE2ChartCard(
                         }
                         SkeletonShimmerBlock(
                             modifier = Modifier.matchParentSize(),
-                            shape = MaterialTheme.shapes.large,
+                            shape = MaterialTheme.shapes.medium,
                         )
                     }
                 }
@@ -1364,7 +1364,7 @@ internal fun MainE2ChartCard(
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
+                        shape = MaterialTheme.shapes.medium,
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         Box(
@@ -2037,7 +2037,7 @@ private fun MainE2ChartMinimap(
     Surface(
         modifier = modifier
             .fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = MaterialTheme.shapes.medium,
         color = colorScheme.surfaceContainer,
         contentColor = colorScheme.onSurfaceVariant,
     ) {
@@ -3234,7 +3234,7 @@ private fun MainAntiandrogenMedicationSubCard(
         onClick = null,
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        cornerShape = MaterialTheme.shapes.large,
+        cornerShape = MaterialTheme.shapes.medium,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

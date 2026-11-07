@@ -778,7 +778,7 @@ private fun SegmentedProgress(
                 if (isActive) {
                     Box(
                         modifier = Modifier
-                            .padding(end = 3.dp)
+                            .padding(end = 2.dp)
                             .size(4.dp)
                             .clip(RoundedCornerShape(50))
                             .background(notchInner),

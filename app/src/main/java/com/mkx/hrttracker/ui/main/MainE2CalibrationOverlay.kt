@@ -291,7 +291,7 @@ internal fun CartesianDrawingContext.mainE2ChartCanvasXForLine(
 internal fun MainPkCalibrationChartUnavailableCard(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
