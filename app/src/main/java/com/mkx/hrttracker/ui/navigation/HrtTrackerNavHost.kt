@@ -103,6 +103,7 @@ import com.mkx.hrttracker.ui.catalog.stock.AdjustStockSheet
 import com.mkx.hrttracker.ui.components.HrtSnackbar
 import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.components.LocalAppContentStartInset
+import com.mkx.hrttracker.ui.components.LocalAppLocked
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalModalHostIsCurrentDestination
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -525,16 +526,18 @@ internal enum class HomeDeepLinkNavigationAction {
 }
 
 // [isBusy]: a save or other write in flight, which the deep link waits for rather than leave.
+// [isAppLocked]: the app lock screen up, which it waits for too, rather than ask over it.
 internal fun homeDeepLinkNavigationAction(
     homeDeepLinkSignal: Int,
     lastHandledHomeDeepLinkSignal: Int,
     currentRoute: String?,
     isBusy: Boolean = false,
+    isAppLocked: Boolean = false,
 ): HomeDeepLinkNavigationAction {
     if (homeDeepLinkSignal <= lastHandledHomeDeepLinkSignal) {
         return HomeDeepLinkNavigationAction.NONE
     }
-    if (isBusy) return HomeDeepLinkNavigationAction.AWAIT_ROUTE
+    if (isBusy || isAppLocked) return HomeDeepLinkNavigationAction.AWAIT_ROUTE
 
     return when (normalizeNavigationRoute(currentRoute)) {
         null -> HomeDeepLinkNavigationAction.AWAIT_ROUTE
@@ -542,6 +545,12 @@ internal fun homeDeepLinkNavigationAction(
         else -> HomeDeepLinkNavigationAction.NAVIGATE_HOME
     }
 }
+
+// Whether the milestones deep link waits before it leaves: for a save in flight, which pops its
+// editor once written and would pop milestones instead, and for the app lock, rather than close
+// the windows hidden under it, drafts and all.
+internal fun milestonesDeepLinkWaits(isBusy: Boolean, isAppLocked: Boolean): Boolean =
+    isBusy || isAppLocked
 
 internal fun homeDeepLinkHighlightEffectsEnabled(
     shellHighlightEffectsEnabled: Boolean,
@@ -810,7 +819,9 @@ fun HrtTrackerNavHost(
     // handled marker is, for a recreation while the modals over the page close to see it through.
     var leavingHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
 
-    LaunchedEffect(homeDeepLinkSignal, currentRoute, navigationLock.isBusy) {
+    val appLocked = LocalAppLocked.current
+    val latestAppLocked by rememberUpdatedState(appLocked)
+    LaunchedEffect(homeDeepLinkSignal, currentRoute, navigationLock.isBusy, appLocked) {
         val hasUnhandledSignal = homeDeepLinkSignal > lastHandledHomeDeepLinkSignal
         when (
             homeDeepLinkNavigationAction(
@@ -818,6 +829,7 @@ fun HrtTrackerNavHost(
                 lastHandledHomeDeepLinkSignal = lastHandledHomeDeepLinkSignal,
                 currentRoute = currentRoute,
                 isBusy = navigationLock.isBusy,
+                isAppLocked = appLocked,
             )
         ) {
             HomeDeepLinkNavigationAction.AWAIT_ROUTE -> Unit
@@ -867,7 +879,7 @@ fun HrtTrackerNavHost(
 
     LaunchedEffect(leavingHomeDeepLinkSignal) {
         if (leavingHomeDeepLinkSignal == 0) return@LaunchedEffect
-        navigationLock.dismissModalsAndAwait()
+        navigationLock.dismissModalsAndAwait { latestAppLocked }
         showTopLevelPage(Screen.Main)
         leavingHomeDeepLinkSignal = 0
     }
@@ -876,10 +888,11 @@ fun HrtTrackerNavHost(
     // marker outlives a recreation, for one while the modals over the page close to see it through.
     var leavingForMilestones by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(milestonesDeepLinkSignal, navigationLock.isBusy) {
-        // A save in flight pops its editor once written, which would pop milestones instead:
-        // wait for it, like the Home deep link, before consuming the signal.
-        if (navigationLock.isBusy) return@LaunchedEffect
+    LaunchedEffect(milestonesDeepLinkSignal, navigationLock.isBusy, appLocked) {
+        // Waits, like the Home deep link, before consuming the signal.
+        if (milestonesDeepLinkWaits(isBusy = navigationLock.isBusy, isAppLocked = appLocked)) {
+            return@LaunchedEffect
+        }
         // The dedup marker lives in the ViewModel (consumeMilestonesDeepLink), not
         // rememberSaveable here: it must share the signal's exact lifetime so a
         // process-death re-tap navigates and a config-change recreation doesn't
@@ -893,7 +906,7 @@ fun HrtTrackerNavHost(
         if (!leavingForMilestones) return@LaunchedEffect
         // Pushed over whatever is open, which loses nothing, but not under a sheet or dialog:
         // once those have closed.
-        navigationLock.dismissModalsAndAwait()
+        navigationLock.dismissModalsAndAwait { latestAppLocked }
         // Read the destination live from the controller: the composition-captured
         // currentRoute is still null when this effect fires on the cold-start first
         // composition (currentBackStackEntryAsState hasn't delivered its first value),

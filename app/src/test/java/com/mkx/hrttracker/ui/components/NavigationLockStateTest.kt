@@ -1,11 +1,15 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -82,6 +86,29 @@ class NavigationLockStateTest {
         lock.release(busy = false)
         Snapshot.sendApplyNotifications()
         runCurrent()
+        assertTrue(wait.isCompleted)
+    }
+
+    @Test
+    fun dismissModalsAndAwait_closesNothingUntilTheAppIsUnlocked() = runTest {
+        // A deep link's leave restored after process death can come back under the app lock: the
+        // windows hidden there must not close, drafts and all, until the unlock.
+        val lock = NavigationLockState()
+        var appLocked by mutableStateOf(true)
+        val before = lock.modalDismissRequest
+        val wait = launch { lock.dismissModalsAndAwait { appLocked } }
+        runCurrent()
+        assertEquals(
+            "A deep link's leave closed the modals hidden under the app lock",
+            before,
+            lock.modalDismissRequest,
+        )
+        assertFalse(wait.isCompleted)
+
+        appLocked = false
+        Snapshot.sendApplyNotifications()
+        runCurrent()
+        assertTrue(lock.modalDismissRequest != before)
         assertTrue(wait.isCompleted)
     }
 

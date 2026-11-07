@@ -121,7 +121,6 @@ import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
-import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
@@ -155,11 +154,6 @@ fun SettingsScreen(
     // pre-resolved string from the composition that first launched them.
     val latestContext by rememberUpdatedState(context)
     val activity = LocalActivity.current
-    val appLockViewModel: AppLockViewModel = hiltViewModel(
-        viewModelStoreOwner = activity as ComponentActivity,
-    )
-    val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
-    val isAppLocked = appLockUiState.shouldShowLockScreen
     val configuration = LocalConfiguration.current
     val coroutineScope = rememberCoroutineScope()
     val pickerResultScope = remember(activity, coroutineScope) {
@@ -609,7 +603,7 @@ fun SettingsScreen(
         modifier = modifier
     )
 
-    uiState.pendingExternalImportPreview?.takeUnless { isAppLocked }?.let { preview ->
+    uiState.pendingExternalImportPreview?.let { preview ->
         ExternalImportReviewSheet(
             preview = preview,
             isImporting = uiState.isExternalImportInProgress,
@@ -625,7 +619,7 @@ fun SettingsScreen(
         )
     }
 
-    if (showBackupPasswordDialog && !isAppLocked) {
+    if (showBackupPasswordDialog) {
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_password_title),
             message = stringResource(R.string.settings_backup_password_message),
@@ -673,7 +667,7 @@ fun SettingsScreen(
         )
     }
 
-    pendingRestoreRequest?.takeUnless { isAppLocked }?.let { restoreRequest ->
+    pendingRestoreRequest?.let { restoreRequest ->
         val restorePasswordMessage = if (restoreRequest.displayName != null) {
             stringResource(
                 R.string.settings_backup_restore_password_message_with_name,

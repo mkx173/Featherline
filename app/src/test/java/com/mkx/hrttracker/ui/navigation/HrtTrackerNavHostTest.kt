@@ -169,6 +169,41 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun homeDeepLinkNavigationAction_waitsWhileTheAppIsLocked() {
+        // Neither asks over the lock screen whether to discard an editor's changes, nor closes
+        // the windows over Home: the link waits for the unlock.
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.SettingsCalibration.route,
+                isAppLocked = true,
+            )
+        )
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.Main.route,
+                isAppLocked = true,
+            )
+        )
+    }
+
+    @Test
+    fun milestonesDeepLinkWaits_whileTheAppIsLocked() {
+        // Leaving closes the windows over the page, here the ones hidden under the lock screen,
+        // and with them their drafts: the link waits for the unlock.
+        assertTrue(
+            "The milestones deep link left while the app was locked",
+            milestonesDeepLinkWaits(isBusy = false, isAppLocked = true),
+        )
+        assertFalse(milestonesDeepLinkWaits(isBusy = false, isAppLocked = false))
+    }
+
+    @Test
     fun homeDeepLinkNavigationAction_waitsForCurrentRouteBeforeHandlingNewSignal() {
         assertEquals(
             HomeDeepLinkNavigationAction.AWAIT_ROUTE,

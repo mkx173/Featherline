@@ -41,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +56,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.LocalHazePerformanceMode
+import com.mkx.hrttracker.ui.components.LocalAppLocked
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -81,6 +81,7 @@ import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -421,20 +422,14 @@ class MainActivity : AppCompatActivity() {
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.surface)
                             ) {
-                                Box(
+                                HiddenUnderAppLock(
+                                    locked = contentLayers.showInWindowLockScreen,
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .graphicsLayer {
                                             translationX = homeOffsetX.toFloat()
                                             alpha = homeAlpha
-                                        }
-                                        .then(
-                                            if (contentLayers.showInWindowLockScreen) {
-                                                Modifier.clearAndSetSemantics { }
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
+                                        },
                                 ) {
                                     val highlightEffectsEnabled =
                                         !contentLayers.showInWindowLockScreen &&
@@ -472,7 +467,8 @@ class MainActivity : AppCompatActivity() {
                                     label = "onboarding-overlay",
                                 ) {
                                     CompositionLocalProvider(
-                                        LocalChromeHazeState provides onboardingChromeHazeState
+                                        LocalChromeHazeState provides onboardingChromeHazeState,
+                                        LocalAppLocked provides contentLayers.showInWindowLockScreen,
                                     ) {
                                         Box(
                                             modifier = Modifier

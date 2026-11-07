@@ -5,6 +5,7 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.os.Build
+import android.view.View
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
@@ -35,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +55,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -66,6 +69,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
@@ -396,6 +400,20 @@ internal val LocalModalHostIsCurrentDestination =
 // was with a route left behind, and hidden until its page is back if it doesn't close.
 internal val LocalModalHostShown = compositionLocalOf { true }
 
+// Whether the app lock screen is up over the page hosting a modal or menu, which is hidden, not
+// closed, until the unlock.
+internal val LocalAppLocked = compositionLocalOf { false }
+
+// Hides the modal window whose content it is applied to while the app lock is up, as Dialog.hide()
+// does: still composed, the modal keeps what it holds, such as a half-typed draft, and shows again
+// on unlock. Composed, to reach the window the content lands in rather than the caller's.
+private fun Modifier.hiddenUnderAppLock(): Modifier = composed {
+    val locked = LocalAppLocked.current
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    SideEffect { window?.decorView?.visibility = if (locked) View.GONE else View.VISIBLE }
+    Modifier
+}
+
 /** Whether the page sits beside side navigation, the upright pill or the classic rail. */
 val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }
 
@@ -517,7 +535,7 @@ fun HazeModalBottomSheet(
     }
     MaterialModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
+        modifier = modifier.hiddenUnderAppLock(),
         sheetState = sheetState,
         containerColor = hazeBottomSheetContainerColor(),
         // Explicit: contentColorFor(transparent haze container) falls back to
@@ -632,7 +650,7 @@ fun HazeAlertDialog(
     MaterialAlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         dismissButton = dismissButton,
         icon = icon,
         title = title,
@@ -661,7 +679,7 @@ fun HazeBasicAlertDialog(
     NavigationLockEffect(active = true, busy = false)
     MaterialBasicAlertDialog(
         onDismissRequest = onDismissRequest,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         properties = properties,
         content = content,
     )
@@ -707,7 +725,7 @@ fun HazeDatePickerDialog(
     MaterialDatePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         dismissButton = dismissButton,
         shape = shape,
         tonalElevation = tonalElevation,
@@ -738,7 +756,7 @@ fun HazeTimePickerDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,
         title = title,
-        modifier = modifier.hazeDialog(shape = shape),
+        modifier = modifier.hazeDialog(shape = shape).hiddenUnderAppLock(),
         properties = properties,
         modeToggleButton = modeToggleButton,
         dismissButton = dismissButton,

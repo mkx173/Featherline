@@ -112,6 +112,8 @@ fun HrtDropdownMenuPopup(
     val shown = LocalModalHostShown.current
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
     if (expanded && !shown) LaunchedEffect(Unit) { currentOnDismissRequest() }
+    // Above the app lock: gone at once, rather than animating out over it, and open again after.
+    if (LocalAppLocked.current) return
     DropdownMenuPopup(
         // Closed at once, even while the caller hasn't caught up.
         expanded = expanded && shown,
