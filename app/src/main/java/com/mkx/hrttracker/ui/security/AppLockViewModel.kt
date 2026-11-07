@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
+import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.util.ElapsedRealtimeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,27 +23,35 @@ class AppLockViewModel @Inject constructor(
     private val appLockSecurityManager: AppLockSecurityManager,
     private val elapsedRealtimeProvider: ElapsedRealtimeProvider,
 ) : ViewModel() {
+    private val securitySettings = settingsRepository.securitySettingsState.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = SecuritySettingsState.Loading,
+    )
     private val isReady = MutableStateFlow(false)
-    private val isUnlocked = MutableStateFlow(true)
+    private val isUnlocked = MutableStateFlow(false)
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val errorMessageRes = MutableStateFlow<Int?>(null)
     private var backgroundedAtElapsedRealtime: Long? = null
     private var nextPromptId = 0L
 
     val uiState: StateFlow<AppLockUiState> = combine(
-        settingsRepository.settingsState,
+        securitySettings,
         isReady,
         isUnlocked,
         pendingPrompt,
         errorMessageRes
-    ) { settingsState, ready, unlocked, prompt, errorRes ->
+    ) { security, ready, unlocked, prompt, errorRes ->
+        val loaded = security as? SecuritySettingsState.Loaded
         AppLockUiState(
             isReady = ready,
-            screenLockProtectionEnabled = settingsState.screenLockProtectionEnabled,
-            appLockGracePeriodOption = settingsState.appLockGracePeriodOption,
-            isUnlocked = if (settingsState.screenLockProtectionEnabled) unlocked else true,
+            screenLockProtectionEnabled = security.lockEnabled,
+            appLockGracePeriodOption = loaded?.appLockGracePeriodOption
+                ?: AppLockGracePeriodOption.IMMEDIATELY,
+            isUnlocked = if (security.lockEnabled) unlocked else true,
             pendingPrompt = prompt,
-            errorMessageRes = errorRes
+            errorMessageRes = errorRes,
+            hideScreenContentEnabled = loaded?.hideScreenContentEnabled ?: true,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -51,19 +61,26 @@ class AppLockViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val currentSettings = settingsRepository.getCurrentSettings()
-            isUnlocked.value = !currentSettings.screenLockProtectionEnabled
-            isReady.value = true
-            if (currentSettings.screenLockProtectionEnabled) {
-                requestUnlock()
-            }
+            securitySettings.collect { security ->
+                when {
+                    security is SecuritySettingsState.Loading -> Unit
 
-            settingsRepository.settingsState.collect { settingsState ->
-                if (!settingsState.screenLockProtectionEnabled) {
-                    backgroundedAtElapsedRealtime = null
-                    isUnlocked.value = true
-                    pendingPrompt.value = null
-                    errorMessageRes.value = null
+                    // The first read decides, a failed one as locked.
+                    !isReady.value -> {
+                        isUnlocked.value = !security.lockEnabled
+                        isReady.value = true
+                        if (security.lockEnabled) {
+                            requestUnlock()
+                        }
+                    }
+
+                    // Only a successful read can turn the lock off.
+                    !security.lockEnabled -> {
+                        backgroundedAtElapsedRealtime = null
+                        isUnlocked.value = true
+                        pendingPrompt.value = null
+                        errorMessageRes.value = null
+                    }
                 }
             }
         }
@@ -96,7 +113,8 @@ class AppLockViewModel @Inject constructor(
 
     fun onBackgrounded() {
         val state = uiState.value
-        if (!state.screenLockProtectionEnabled) {
+        // Before the lock decision there is no unlocked session for a grace period to resume.
+        if (!state.isReady || !state.screenLockProtectionEnabled) {
             return
         }
 
@@ -160,7 +178,13 @@ data class AppLockUiState(
     val isUnlocked: Boolean = false,
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val errorMessageRes: Int? = null,
+    // Drives FLAG_SECURE. On until the stored setting has been read.
+    val hideScreenContentEnabled: Boolean = true,
 ) {
     val shouldShowLockScreen: Boolean
         get() = isReady && screenLockProtectionEnabled && !isUnlocked
 }
+
+// Until a read succeeds, or after one fails, the stored setting is unknown: fail closed.
+private val SecuritySettingsState.lockEnabled: Boolean
+    get() = (this as? SecuritySettingsState.Loaded)?.screenLockProtectionEnabled ?: true

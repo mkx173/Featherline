@@ -26,12 +26,14 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.appLanguageLocale
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,12 +45,15 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val SECURITY_SETTINGS_RETRY_DELAY_MILLIS = 1_000L
 
 private val Context.dataStore by preferencesDataStore(
     name = "settings",
@@ -186,6 +191,27 @@ class SettingsRepository internal constructor(
             started = SharingStarted.Eagerly,
             initialValue = SettingsState(appLanguageOption = appLanguageOption.value)
         )
+
+    // The lock and hide-content settings bypass [storedPreferences] and [settingsState]: the
+    // first turns a read error into defaults (lock off, content visible) and completes, the
+    // second starts from those defaults. Here a failed read is reported as Error, so the app
+    // lock can fail closed, and is retried. Cold: each collector runs its own reads.
+    val securitySettingsState: Flow<SecuritySettingsState> = activeDataStore().data
+        .map<Preferences, SecuritySettingsState> { preferences ->
+            val stored = preferencesToStoredSettingsState(preferences)
+            SecuritySettingsState.Loaded(
+                screenLockProtectionEnabled = stored.screenLockProtectionEnabled,
+                appLockGracePeriodOption = stored.appLockGracePeriodOption,
+                hideScreenContentEnabled = stored.hideScreenContentEnabled,
+            )
+        }
+        .retryWhen { cause, _ ->
+            if (cause !is IOException) return@retryWhen false
+            emit(SecuritySettingsState.Error)
+            // ponytail: fixed delay, add backoff if a persistently failing disk shows up in logs
+            delay(SECURITY_SETTINGS_RETRY_DELAY_MILLIS)
+            true
+        }
 
     suspend fun getCurrentSettings(): SettingsState {
         return preferencesToStoredSettingsState(activeDataStore().data.first())

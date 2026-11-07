@@ -116,6 +116,20 @@ data class SettingsState(
     val groupNameCounter: Int = 0,
 )
 
+/** The app-lock and screen-privacy settings as last read from disk, for consumers that fail closed. */
+sealed interface SecuritySettingsState {
+    data object Loading : SecuritySettingsState
+
+    /** The last read failed; a retry is pending. */
+    data object Error : SecuritySettingsState
+
+    data class Loaded(
+        val screenLockProtectionEnabled: Boolean,
+        val appLockGracePeriodOption: AppLockGracePeriodOption,
+        val hideScreenContentEnabled: Boolean,
+    ) : SecuritySettingsState
+}
+
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
     return calibrationDefaultUnits[analyteKey]
         ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }

@@ -234,8 +234,11 @@ class MainActivity : AppCompatActivity() {
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
             val appHazeBlurEnabled = effectiveHazeBlurEnabled(settingsState.hazeBlurEnabled)
 
-            DisposableEffect(settingsState.hideScreenContentEnabled) {
-                applyHideScreenContent(enabled = settingsState.hideScreenContentEnabled)
+            // From the app lock, not settingsState: it stays on until the setting has been read.
+            val hideScreenContentEnabled =
+                appLockViewModel.uiState.collectAsStateWithLifecycle().value.hideScreenContentEnabled
+            DisposableEffect(hideScreenContentEnabled) {
+                applyHideScreenContent(enabled = hideScreenContentEnabled)
                 onDispose { }
             }
 
