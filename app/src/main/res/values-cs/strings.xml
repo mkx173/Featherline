@@ -1294,4 +1294,7 @@
     <string name="group_past_schedule_hide">Skrýt</string>
     <string name="reminder_notification_no_longer_scheduled">Tato dávka už není v plánu.</string>
     <string name="settings_classic_navigation_bar">Klasický navigační panel</string>
+    <string name="unsaved_changes_title">Zahodit změny</string>
+    <string name="unsaved_changes_confirmation">Chcete zahodit neuložené změny?</string>
+    <string name="unsaved_changes_discard">Zahodit</string>
 </resources>
