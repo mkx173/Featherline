@@ -124,6 +124,7 @@ private fun PastScheduleOptionRow(
     val onSelect = { onOptionSelected(option) }
     EditorSegmentedListItem(
         cornerShape = MaterialTheme.shapes.medium,
+        pressedShape = MaterialTheme.shapes.medium,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         onClick = if (state.interactive) onSelect else null,
         leadingContent = {
