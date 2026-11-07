@@ -583,6 +583,64 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun updatePreparation_shrinkingATrackedVialBelowItsOpenAmount_refusesAndKeepsStock() = runTest {
+        // 8 mL left in a 10 mL vial: a 5 mL vial can't hold it, and the next dose would
+        // split the stock into one vial more than exists. The user recounts first.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 8.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        assertThrows(MedicineContainerOverfullException::class.java) {
+            kotlinx.coroutines.test.runTest {
+                repository.updatePreparation(
+                    uuid = uuid,
+                    preparation = MedicinePreparation.InjectionMultiUseVial(
+                        concentrationMgPerMl = 40.0,
+                        vialVolumeMl = 5.0,
+                    ),
+                    now = Instant.parse("2026-11-08T00:00:00Z"),
+                )
+            }
+        }
+        coVerify(exactly = 0) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+        coVerify(exactly = 0) {
+            dao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun updatePreparation_resizingATrackedVialThatStillHoldsItsOpenAmount_saves() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 5.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 5.0,
+            ),
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 1) {
+            dao.updatePreparationFields(
+                uuid.toString(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+    }
+
+    @Test
     fun disableTracking_invokesStockClearInsideTransaction() = runTest {
         val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         val now = Instant.parse("2026-05-22T00:00:00Z")
@@ -1218,6 +1276,28 @@ class MedicineRepositoryTest {
             createdAtEpochMillis = 100,
             updatedAtEpochMillis = 200,
             archivedAtEpochMillis = archivedAtEpochMillis,
+        )
+    }
+
+    // A tracked 10 mL multi-use vial: [openMl] in the open vial and two sealed ones.
+    private fun trackedVialEntity(uuid: UUID, openMl: Double): MedicineEntity {
+        return medicineEntity(uuid = uuid.toString()).copy(
+            medicationKey = MedicationKey.ESTRADIOL_VALERATE.name,
+            preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL.name,
+            strengthMgPerTablet = null,
+            concentrationMgPerMl = 40.0,
+            vialVolumeMl = 10.0,
+            identityKey = MedicineIdentityKey.catalog(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicinePreparation.InjectionMultiUseVial(
+                    concentrationMgPerMl = 40.0,
+                    vialVolumeMl = 10.0,
+                ),
+            ),
+            trackingEnabled = true,
+            stockUnitsRemaining = 2.0,
+            stockUnitsLastTotal = 3.0,
+            openContainerAmount = openMl,
         )
     }
 

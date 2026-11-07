@@ -310,14 +310,14 @@ class MedicationLogRepository @Inject internal constructor(
     ) {
         if (uuid != null) {
             // Editing an existing log: medication identity is immutable; only
-            // the date/time/count may change.
+            // the date/time may change. The sheet has no count editor, and its
+            // count is 1 for a vial or gel container, so the stored count stays.
             homeSnapshotRepository.runHomeDataMutation {
                 databaseHolder.get().medicationLogDao().updateEditableLogFields(
                     uuid = uuid.toString(),
                     appliedAtEpochMillis = appliedAt.toEpochMilli(),
                     appliedAtTimeZoneId = appliedAtTimeZoneId,
                     scheduledForIso = scheduledFor?.toString(),
-                    count = count.coerceAtLeast(1),
                 )
             }
             return
@@ -424,12 +424,12 @@ class MedicationLogRepository @Inject internal constructor(
 
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                // Each record keeps its own count, as in a single edit.
                 database.medicationLogDao().updateEditableLogFieldsForUuids(
                     uuids = targetUuids.map(UUID::toString),
                     appliedAtEpochMillis = appliedAt.toEpochMilli(),
                     appliedAtTimeZoneId = appliedAtTimeZoneId,
                     scheduledForIso = scheduledFor?.toString(),
-                    count = count.coerceAtLeast(1),
                 )
             }
         }

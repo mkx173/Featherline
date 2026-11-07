@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicineContainerOverfullException
 import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
@@ -413,6 +414,9 @@ class MedicineDetailViewModel @Inject constructor(
                     is MedicineIdentityCollisionException ->
                         MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION
 
+                    is MedicineContainerOverfullException ->
+                        MedicineDetailSaveResult.FAILURE_CONTAINER_OVERFULL
+
                     else -> MedicineDetailSaveResult.FAILURE_OTHER
                 }
                 // The name may already have been saved even if the preparation failed.
@@ -446,6 +450,9 @@ class MedicineDetailViewModel @Inject constructor(
                 is MedicineLockedException -> MedicineDetailSaveResult.FAILURE_LOCKED
                 is MedicineIdentityCollisionException ->
                     MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION
+
+                is MedicineContainerOverfullException ->
+                    MedicineDetailSaveResult.FAILURE_CONTAINER_OVERFULL
 
                 else -> MedicineDetailSaveResult.FAILURE_OTHER
             }
@@ -644,6 +651,7 @@ enum class MedicineDetailSaveResult {
     SUCCESS,
     FAILURE_LOCKED,
     FAILURE_IDENTITY_COLLISION,
+    FAILURE_CONTAINER_OVERFULL,
     FAILURE_OTHER,
 }
 

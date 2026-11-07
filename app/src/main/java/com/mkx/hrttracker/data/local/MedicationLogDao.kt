@@ -213,8 +213,7 @@ interface MedicationLogDao {
         UPDATE medication_log_entries
         SET appliedAtEpochMillis = :appliedAtEpochMillis,
             appliedAtTimeZoneId = :appliedAtTimeZoneId,
-            scheduledForIso = :scheduledForIso,
-            count = :count
+            scheduledForIso = :scheduledForIso
         WHERE uuid = :uuid
         """
     )
@@ -223,7 +222,6 @@ interface MedicationLogDao {
         appliedAtEpochMillis: Long,
         appliedAtTimeZoneId: String,
         scheduledForIso: String?,
-        count: Int,
     )
 
     @Query(
@@ -231,8 +229,7 @@ interface MedicationLogDao {
         UPDATE medication_log_entries SET
             appliedAtEpochMillis = :appliedAtEpochMillis,
             appliedAtTimeZoneId = :appliedAtTimeZoneId,
-            scheduledForIso = :scheduledForIso,
-            count = :count
+            scheduledForIso = :scheduledForIso
         WHERE uuid IN (:uuids)
         """
     )
@@ -241,7 +238,6 @@ interface MedicationLogDao {
         appliedAtEpochMillis: Long,
         appliedAtTimeZoneId: String,
         scheduledForIso: String?,
-        count: Int,
     )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

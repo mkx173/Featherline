@@ -137,6 +137,7 @@ fun MedicineDetailScreen(
     val saveLockedMessage = stringResource(R.string.medicine_locked_by_logs)
     val saveCollisionMessage = stringResource(R.string.medicine_already_exists)
     val saveFailureMessage = stringResource(R.string.medicine_save_failure)
+    val saveOverfullMessage = stringResource(R.string.medicine_open_container_exceeds_size)
     val archiveBlockedMessage = stringResource(R.string.medicine_archive_blocked_by_groups)
     val archiveFailureMessage = stringResource(R.string.medicine_archive_failure)
     val stockMutationFailureMessage = stringResource(R.string.medicine_stock_update_failure)
@@ -153,6 +154,7 @@ fun MedicineDetailScreen(
             MedicineDetailSaveResult.SUCCESS -> null
             MedicineDetailSaveResult.FAILURE_LOCKED -> saveLockedMessage
             MedicineDetailSaveResult.FAILURE_IDENTITY_COLLISION -> saveCollisionMessage
+            MedicineDetailSaveResult.FAILURE_CONTAINER_OVERFULL -> saveOverfullMessage
             MedicineDetailSaveResult.FAILURE_OTHER -> saveFailureMessage
         }
         if (message != null) {

@@ -249,7 +249,6 @@ class MedicationLogRepositoryStockTest {
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 appliedAtTimeZoneId = "Asia/Tokyo",
                 scheduledForIso = null,
-                count = 2,
             )
         }
         coVerify(exactly = 0) { logDao.insertEntries(any()) }

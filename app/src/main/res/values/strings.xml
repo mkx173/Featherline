@@ -510,6 +510,7 @@
     <string name="medicine_patch_off_name">Remove patch</string>
     <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently applied estradiol patch.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
+    <string name="medicine_open_container_exceeds_size">The current vial or container holds more than the new size. Edit its remaining amount first.</string>
     <string name="medicine_already_exists">Medicine already exists.</string>
     <string name="medication_editor_patch_off_hint">Not required for patch removal</string>
     <string name="validation_name_required">Enter a medication name.</string>

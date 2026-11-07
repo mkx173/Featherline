@@ -456,6 +456,20 @@ class MedicineRepository @Inject internal constructor(
                 // the untouched preparation alongside the new name, and on an
                 // unlocked medicine that round-trip used to wipe stock.
                 val storageFields = preparation.toStorageFields()
+                // A smaller vial or container than what's left in the open one would
+                // leave it overfull, and the next dose would split the stock into one
+                // container more than exists. Refuse; the user recounts first.
+                val openAmount = existing.openContainerAmount
+                val newCapacity = existing.copy(
+                    preparationType = storageFields.preparationType,
+                    vialVolumeMl = storageFields.vialVolumeMl,
+                    containerWeightGrams = storageFields.containerWeightGrams,
+                ).containerSizeOrNull()
+                if (existing.trackingEnabled && openAmount != null && newCapacity != null &&
+                    openAmount > newCapacity + FLOAT_EPSILON
+                ) {
+                    throw MedicineContainerOverfullException(uuid)
+                }
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
                 // no-op for the display unit. Normalize the existing value
@@ -591,3 +605,6 @@ class MedicineIdentityCollisionException(identityKey: String) :
 
 class MedicineReferencedByActiveGroupException(uuid: UUID) :
     IllegalStateException("Medicine $uuid is referenced by an active group.")
+
+class MedicineContainerOverfullException(uuid: UUID) :
+    IllegalStateException("Medicine $uuid has more in its open container than the new size holds.")
