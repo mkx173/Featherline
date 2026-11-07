@@ -360,6 +360,7 @@ fun MedicationGroupEditorScreen(
     MedicationGroupEditorScreenContent(
         uiState = uiState,
         onNavigateBack = navigateBackAskingFirst,
+        onRetryLoadingGroup = viewModel::retryLoadingGroup,
         onGroupNameChange = viewModel::updateGroupName,
         onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,
@@ -488,6 +489,7 @@ private fun MedicationGroupEditorScreenContent(
     modifier: Modifier = Modifier,
     uiState: MedicationGroupEditorUiState,
     onNavigateBack: () -> Unit,
+    onRetryLoadingGroup: () -> Unit = {},
     onGroupNameChange: (String) -> Unit,
     onGroupColorChange: (MedicationGroupColorKey) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
@@ -1403,7 +1405,25 @@ private fun MedicationGroupEditorScreenContent(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    LoadingIndicator()
+                    if (uiState.isGroupLoadFailed) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = contentPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.load_medication_group_failure),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            HrtFilledTonalButton(
+                                text = stringResource(R.string.load_medication_group_retry),
+                                onClick = onRetryLoadingGroup,
+                            )
+                        }
+                    } else {
+                        LoadingIndicator()
+                    }
                 }
                 return@AppContentContainer
             }

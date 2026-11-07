@@ -405,6 +405,8 @@
     <plurals name="delete_medication_group_confirmation_with_related_records">
         <item quantity="other">要刪除這個用藥群組嗎？你可以保留它關聯的 %1$d 條歷史記錄並將其轉為手動記錄，或一併刪除</item>
     </plurals>
+    <string name="load_medication_group_failure">無法載入群組</string>
+    <string name="load_medication_group_retry">重試</string>
     <string name="save_medication_group_failure">無法儲存群組</string>
     <string name="save_medication_group_locked_by_records">這項更改與群組中已有的記錄不符，因此無法儲存</string>
     <string name="delete_medication_group_failure">無法刪除群組</string>

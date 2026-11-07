@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -47,6 +48,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -523,6 +526,57 @@ class MedicationGroupEditorLoadStateTest {
         assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
         assertEquals(group.name, viewModel.uiState.value.groupName)
         assertEquals(1, viewModel.uiState.value.medications.size)
+    }
+
+    @Test
+    fun editingGroupLoadedAfterProcessDeath_keepsWeekStartAndMedicines() = runTest {
+        val groupUuid = UUID.fromString("5d0f8a5e-3b7e-4c43-9b0e-6a1f3f2b7c11")
+        val group = testMedicationGroup(groupUuid)
+        settingsStateFlow.value = SettingsState(
+            remindersEnabled = true,
+            firstDayOfWeekOption = FirstDayOfWeekOption.SUNDAY,
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+
+        val viewModel = editingViewModel(groupUuid)
+        advanceUntilIdle()
+
+        assertEquals(group.name, viewModel.uiState.value.groupName)
+        assertEquals(
+            "the load must keep the selected week start",
+            DayOfWeek.SUNDAY,
+            viewModel.uiState.value.firstDayOfWeek,
+        )
+        assertEquals(
+            "the load must keep the medicines to pick from",
+            listOf(editorEstradiolMedicine),
+            viewModel.uiState.value.activeMedicines,
+        )
+    }
+
+    @Test
+    fun editingGroupLoadFailure_isShownAndRetryLoadsTheGroup() = runTest {
+        val groupUuid = UUID.fromString("8e2b4c1a-6f3d-4e8b-a5c7-2d9f0b1e3a44")
+        val group = testMedicationGroup(groupUuid)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } throws IOException("disk") andThen group
+
+        val viewModel = editingViewModel(groupUuid)
+        advanceUntilIdle()
+
+        assertTrue(
+            "a failed load must say so instead of loading forever",
+            viewModel.uiState.value.isGroupLoadFailed,
+        )
+        assertTrue(viewModel.uiState.value.isLoadingGroupForEditing)
+
+        viewModel.retryLoadingGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isGroupLoadFailed)
+        assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
+        assertEquals(group.name, viewModel.uiState.value.groupName)
     }
 
     @Test
@@ -1890,6 +1944,22 @@ class MedicationGroupEditorLoadStateTest {
                     medicationDayBoundary = MedicationDayBoundary.Midnight,
                 )
             )
+        )
+    }
+
+    private fun editingViewModel(groupUuid: UUID): MedicationGroupEditorViewModel {
+        return MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
         )
     }
 

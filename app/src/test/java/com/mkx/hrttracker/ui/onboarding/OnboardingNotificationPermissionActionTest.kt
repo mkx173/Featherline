@@ -65,9 +65,39 @@ class OnboardingNotificationPermissionActionTest {
     fun notificationPermissionCard_keysOffStartState_andStaysStable() {
         // Missing access at start: card is shown and stays shown through an
         // in-onboarding grant (it flips to a granted state rather than vanishing).
-        assertTrue(shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart = false))
+        assertTrue(
+            shouldShowNotificationPermissionOnboardingCard(
+                notificationsGrantedAtStart = false,
+                notificationsGranted = false,
+            )
+        )
+        assertTrue(
+            shouldShowNotificationPermissionOnboardingCard(
+                notificationsGrantedAtStart = false,
+                notificationsGranted = true,
+            )
+        )
         // Already had access at start: no permission card (the master toggle is used).
-        assertFalse(shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart = true))
+        assertFalse(
+            shouldShowNotificationPermissionOnboardingCard(
+                notificationsGrantedAtStart = true,
+                notificationsGranted = true,
+            )
+        )
+    }
+
+    @Test
+    fun notificationPermissionCard_shownWhenAccessIsLostAfterOnboardingBegan() {
+        // Granted as onboarding began (restored from saved state), revoked since. Continue
+        // needs access, and the card and Skip both key off this, so without it step 2 is a
+        // dead end.
+        assertTrue(
+            "step 2 must offer the permission card and Skip on a current denial",
+            shouldShowNotificationPermissionOnboardingCard(
+                notificationsGrantedAtStart = true,
+                notificationsGranted = false,
+            )
+        )
     }
 
     @Test

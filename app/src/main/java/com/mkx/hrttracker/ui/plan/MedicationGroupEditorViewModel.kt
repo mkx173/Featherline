@@ -62,6 +62,7 @@ import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1353,6 +1354,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update { current ->
                 buildDuplicatedDraftState(sourceState).copy(
                     activeMedicines = current.activeMedicines,
+                    firstDayOfWeek = current.firstDayOfWeek,
                 )
             }
         }
@@ -1549,6 +1551,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 if (replacementState != null) {
                     replacementState.copy(
+                        activeMedicines = it.activeMedicines,
+                        firstDayOfWeek = it.firstDayOfWeek,
                         isRecreatingAfterArchive = false,
                         archiveAndRecreateMedicationGroupResult =
                             ArchiveAndRecreateMedicationGroupResult.SUCCESS,
@@ -1690,15 +1694,30 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun retryLoadingGroup() {
+        val uuid = editingGroupUuid ?: return
+        if (!_uiState.value.isGroupLoadFailed) return
+        _uiState.update { it.copy(isGroupLoadFailed = false) }
+        loadGroupForEditing(uuid)
+    }
+
     private fun loadGroupForEditing(uuid: UUID) {
         viewModelScope.launch {
-            val group = medicationGroupRepository.getGroup(uuid)
-            if (group == null) {
-                _uiState.update { it.copy(isLoadingGroupForEditing = false) }
+            val (group, remindersEnabled) = try {
+                val group = medicationGroupRepository.getGroup(uuid)
+                if (group == null) {
+                    _uiState.update { it.copy(isLoadingGroupForEditing = false) }
+                    return@launch
+                }
+                group to settingsRepository.getCurrentSettings().remindersEnabled
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                // Still loading, so nothing can be saved over the plan.
+                _uiState.update { it.copy(isGroupLoadFailed = true) }
                 return@launch
             }
             savedPlan = group
-            val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
             _uiState.update { currentState ->
                 val snapshot = appTimeSource.currentSnapshot.value
@@ -1709,6 +1728,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     currentOrFuturePlannedSlotCount =
                         currentState.currentOrFuturePlannedSlotCount,
                 ).copy(
+                    // Not stored with the plan: their observers don't emit again.
+                    activeMedicines = currentState.activeMedicines,
+                    firstDayOfWeek = currentState.firstDayOfWeek,
                     areEntriesLoaded = currentState.areEntriesLoaded,
                     latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                     archiveDateWindow = resolveArchiveDateWindow(
@@ -2564,6 +2586,8 @@ data class MedicationGroupEditorUiState(
     val isRecreatingAfterArchive: Boolean = false,
     val isDeletingRelatedEntries: Boolean = false,
     val isLoadingGroupForEditing: Boolean = false,
+    // The plan couldn't be read: still loading, and the screen offers to try again.
+    val isGroupLoadFailed: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val isFinishingAfterSave: Boolean = false,

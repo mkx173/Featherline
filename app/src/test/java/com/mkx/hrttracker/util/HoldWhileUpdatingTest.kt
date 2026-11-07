@@ -138,4 +138,41 @@ class HoldWhileUpdatingTest {
         )
         job.cancel()
     }
+
+    @Test
+    fun hiddenLandingInterruptedByAnUpdate_stillHoldsTheMinimumOnceShown() = runTest {
+        val source = MutableSharedFlow<Pair<String, Boolean>>()
+        val visible = MutableStateFlow(false)
+        val shown = mutableListOf<Triple<String, Boolean, Long>>()
+        val job = launch {
+            source.holdWhileUpdating(visible, minHoldMillis = 400L, settled = "old" to false) { (_, updating) -> updating }
+                .collect { held -> shown += Triple(held.value.first, held.isUpdating, testScheduler.currentTime) }
+        }
+        runCurrent()
+
+        source.emit("fallback" to true) // hold starts while hidden
+        runCurrent()
+        advanceTimeBy(100L)
+        source.emit("new" to false) // lands while hidden: its hold is cancelled, released at once
+        source.emit("fallback" to true) // a newer update before that cancellation settles
+        runCurrent()
+        advanceTimeBy(200L)
+        visible.value = true // shown at 300 ms: the minimum starts here
+        runCurrent()
+        advanceTimeBy(100L)
+        source.emit("next" to false) // lands at 400 ms, released at 700 ms
+        advanceUntilIdle()
+
+        assertEquals(
+            "the hold shown at 300 ms must last its 400 ms minimum",
+            listOf(
+                Triple("old", true, 0L),
+                Triple("new", false, 100L),
+                Triple("new", true, 100L),
+                Triple("next", false, 700L),
+            ),
+            shown,
+        )
+        job.cancel()
+    }
 }

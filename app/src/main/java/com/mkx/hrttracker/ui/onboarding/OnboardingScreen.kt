@@ -174,12 +174,14 @@ internal fun resolveOnboardingNotificationPermissionAction(
 
 internal fun shouldShowNotificationPermissionOnboardingCard(
     notificationsGrantedAtStart: Boolean,
+    notificationsGranted: Boolean,
 ): Boolean {
     // Show the permission card whenever access was missing as onboarding began.
     // Visibility keys off the captured start state so the card — and the step's
     // subtitle — stay stable: granting during onboarding flips the card to a
-    // granted state instead of making it disappear.
-    return !notificationsGrantedAtStart
+    // granted state instead of making it disappear. Access lost since then shows
+    // it too: Continue needs access, so the card and Skip are the way forward.
+    return !notificationsGrantedAtStart || !notificationsGranted
 }
 
 internal fun shouldShowReminderMasterOnboardingCard(
@@ -255,7 +257,10 @@ fun OnboardingScreen(
     val notificationsGrantedAtStart = rememberSaveable { notificationsGranted }
     val exactAlarmGrantedAtStart = rememberSaveable { exactAlarmGranted }
     val showNotificationPermissionCard =
-        shouldShowNotificationPermissionOnboardingCard(notificationsGrantedAtStart)
+        shouldShowNotificationPermissionOnboardingCard(
+            notificationsGrantedAtStart = notificationsGrantedAtStart,
+            notificationsGranted = notificationsGranted,
+        )
     val showReminderMasterCard = shouldShowReminderMasterOnboardingCard(
         notificationsGranted = notificationsGranted,
         notificationsGrantedAtStart = notificationsGrantedAtStart,

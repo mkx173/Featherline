@@ -425,6 +425,8 @@
         <item quantity="one">Delete this medication group? You can keep its %1$d related history record and convert it to a manual record, or delete it too.</item>
         <item quantity="other">Delete this medication group? You can keep its %1$d related history records and convert them to manual records, or delete them too.</item>
     </plurals>
+    <string name="load_medication_group_failure">Unable to load group.</string>
+    <string name="load_medication_group_retry">Try again</string>
     <string name="save_medication_group_failure">Unable to save group.</string>
     <string name="save_medication_group_locked_by_records">This change doesn’t fit the records already in this group, so it can’t be saved.</string>
     <string name="delete_medication_group_failure">Unable to delete group.</string>

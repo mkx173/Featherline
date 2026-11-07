@@ -6,8 +6,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -18,7 +22,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -131,6 +137,126 @@ class TimeZoneChangeNoticeControllerTest {
         )
     }
 
+    @Test
+    fun dismissedChangeShowsAgainWhenARestoreBringsTheSameZonesBack() = runTest {
+        val settingsState = MutableStateFlow(SettingsState(lastSeenTimeZoneId = "UTC"))
+        val settingsRepository = settingsRepository(settingsState)
+        coEvery { settingsRepository.acknowledgeTimeZone(any()) } answers {
+            settingsState.value = settingsState.value.copy(lastSeenTimeZoneId = firstArg())
+        }
+        val controller = TimeZoneChangeNoticeController(
+            settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(
+                initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0),
+                initialZone = ZoneId.of("Asia/Tokyo"),
+            ),
+            scope = controllerScope(),
+        )
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            controller.notice.collect {}
+        }
+        controller.dismiss()
+        advanceUntilIdle()
+        assertNull(controller.notice.value)
+
+        // A backup taken in UTC is restored while the device is still in Tokyo.
+        settingsState.value = SettingsState(lastSeenTimeZoneId = "UTC")
+        advanceUntilIdle()
+
+        assertEquals(
+            "a restore into the dismissed zones must show the banner again",
+            TimeZoneChangeNotice(previousZoneId = "UTC", currentZoneId = "Asia/Tokyo"),
+            controller.notice.value,
+        )
+        collector.cancel()
+    }
+
+    @Test
+    fun dismissHidesOnlyTheDismissedChangeWhileItsAcknowledgementIsInFlight() = runTest {
+        val settingsState = MutableStateFlow(SettingsState(lastSeenTimeZoneId = "UTC"))
+        val settingsRepository = settingsRepository(settingsState)
+        coEvery { settingsRepository.acknowledgeTimeZone(any()) } coAnswers { awaitCancellation() }
+        val appTimeSource = FakeAppTimeSource(
+            initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0),
+            initialZone = ZoneId.of("Asia/Tokyo"),
+        )
+        val controller = TimeZoneChangeNoticeController(
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            scope = controllerScope(),
+        )
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            controller.notice.collect {}
+        }
+        controller.dismiss()
+        advanceUntilIdle()
+        assertNull(controller.notice.value)
+
+        appTimeSource.setCurrentZone(ZoneId.of("Europe/London"))
+        advanceUntilIdle()
+
+        assertEquals(
+            "a dismissed UTC -> Tokyo change must not hide UTC -> London",
+            TimeZoneChangeNotice(previousZoneId = "UTC", currentZoneId = "Europe/London"),
+            controller.notice.value,
+        )
+        collector.cancel()
+    }
+
+    @Test
+    fun failedDismissShowsTheBannerAgainWithoutCrashing() = runTest {
+        val uncaught = mutableListOf<Throwable>()
+        val scope = appLikeScope(uncaught)
+        val settingsState = MutableStateFlow(SettingsState(lastSeenTimeZoneId = "UTC"))
+        val settingsRepository = settingsRepository(settingsState)
+        coEvery { settingsRepository.acknowledgeTimeZone(any()) } throws IOException("disk full")
+        val controller = TimeZoneChangeNoticeController(
+            settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(
+                initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0),
+                initialZone = ZoneId.of("Asia/Tokyo"),
+            ),
+            scope = scope,
+        )
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            controller.notice.collect {}
+        }
+
+        controller.dismiss()
+        advanceUntilIdle()
+
+        assertTrue("a settings write failure must not reach the app scope: $uncaught", uncaught.isEmpty())
+        assertEquals(
+            "nothing was stored, so the banner must come back",
+            TimeZoneChangeNotice(previousZoneId = "UTC", currentZoneId = "Asia/Tokyo"),
+            controller.notice.value,
+        )
+        collector.cancel()
+        scope.cancel()
+    }
+
+    @Test
+    fun failedForegroundReadDoesNotCrash() = runTest {
+        val uncaught = mutableListOf<Throwable>()
+        val scope = appLikeScope(uncaught)
+        val settingsRepository = settingsRepository(MutableStateFlow(SettingsState()))
+        coEvery { settingsRepository.getCurrentSettings() } throws IOException("disk unreadable")
+        val controller = TimeZoneChangeNoticeController(
+            settingsRepository = settingsRepository,
+            appTimeSource = FakeAppTimeSource(
+                initialMinute = LocalDateTime.of(2026, 4, 25, 12, 0),
+                initialZone = ZoneId.systemDefault(),
+            ),
+            scope = scope,
+        )
+
+        controller.onAppForegrounded()
+        advanceUntilIdle()
+
+        assertTrue("a settings read failure must not reach the app scope: $uncaught", uncaught.isEmpty())
+        scope.cancel()
+    }
+
     private fun settingsRepository(
         settingsState: StateFlow<SettingsState>,
     ): SettingsRepository {
@@ -144,6 +270,16 @@ class TimeZoneChangeNoticeControllerTest {
     private fun TestScope.controllerScope(): CoroutineScope {
         return CoroutineScope(
             backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+        )
+    }
+
+    // AppScope has a SupervisorJob and no handler: whatever reaches the handler here would
+    // terminate the process.
+    private fun TestScope.appLikeScope(uncaught: MutableList<Throwable>): CoroutineScope {
+        return CoroutineScope(
+            SupervisorJob() +
+                UnconfinedTestDispatcher(testScheduler) +
+                CoroutineExceptionHandler { _, error -> uncaught += error }
         )
     }
 
