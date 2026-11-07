@@ -31,6 +31,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -684,6 +685,59 @@ class BloodTestRepositoryTest {
 
         assertNull(panelSlot.captured.timeSinceLastEstradiolDoseMillis)
         assertNull(panelSlot.captured.timeSinceLastTestosteroneDoseMillis)
+    }
+
+    @Test
+    fun savePanel_editOfAPanelDeletedMeanwhile_failsAndWritesNothing() = runTest {
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        // dao.getPanel finds nothing: Delete all ran after the editor opened the panel.
+
+        val result = runCatching {
+            repository.savePanel(
+                uuid = UUID.fromString("6f1c2b3a-4d5e-4f60-8a71-92b3c4d5e6f7"),
+                collectedAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                collectedAtTimeZoneId = "Asia/Tokyo",
+                notes = null,
+                results = listOf(
+                    BloodTestResultInput.Builtin(
+                        analyteKey = BloodAnalyteKey.E2,
+                        unit = com.mkx.hrttracker.model.bloodtest.BloodUnitKey.PG_ML,
+                        value = 100.0
+                    )
+                ),
+                now = Instant.ofEpochMilli(1_700_000_100_000L),
+            )
+        }
+
+        assertTrue("an edit of a deleted panel must fail, not bring it back", result.isFailure)
+        coVerify(exactly = 0) { dao.upsertPanelWithResults(any(), any()) }
+    }
+
+    @Test
+    fun savePanel_newPanelUnderAUuidChosenAhead_savesItUnderThatUuid() = runTest {
+        val panelUuid = UUID.fromString("7a2d3c4b-5e6f-4a01-9b82-a3c4d5e6f708")
+        val panelSlot = slot<BloodTestPanelEntity>()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { dao.upsertPanelWithResults(capture(panelSlot), any()) } returns Unit
+
+        val savedUuid = repository.savePanel(
+            uuid = panelUuid,
+            collectedAt = Instant.ofEpochMilli(1_700_000_000_000L),
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = null,
+            results = listOf(
+                BloodTestResultInput.Builtin(
+                    analyteKey = BloodAnalyteKey.E2,
+                    unit = com.mkx.hrttracker.model.bloodtest.BloodUnitKey.PG_ML,
+                    value = 100.0
+                )
+            ),
+            now = Instant.ofEpochMilli(1_700_000_100_000L),
+            isNew = true,
+        )
+
+        assertEquals(panelUuid, savedUuid)
+        assertEquals(panelUuid.toString(), panelSlot.captured.uuid)
     }
 
     private fun customAnalyte(

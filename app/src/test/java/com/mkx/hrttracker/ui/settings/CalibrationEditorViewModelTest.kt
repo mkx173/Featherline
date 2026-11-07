@@ -567,12 +567,13 @@ class CalibrationEditorViewModelTest {
             val savedPanelUuid = UUID.fromString("3a7d2c9e-1b44-4f0e-9a2c-7d6e5f4c3b2a")
             coEvery {
                 repository.savePanel(
-                    uuid = null,
+                    uuid = any(),
                     collectedAt = any(),
                     collectedAtTimeZoneId = any(),
                     notes = any(),
                     results = any(),
                     now = any(),
+                    isNew = true,
                 )
             } returns savedPanelUuid
 
@@ -619,17 +620,76 @@ class CalibrationEditorViewModelTest {
         }
 
     @Test
+    fun newPanelCommittedAfterTheStateWasSaved_savedAgainAfterProcessDeath_staysOnePanel() =
+        runTest {
+            // Stands in for the repository: a new panel is stored under the uuid it is given,
+            // or under a new one.
+            val storedPanels = mutableSetOf<UUID>()
+            coEvery {
+                repository.savePanel(any(), any(), any(), any(), any(), any(), any())
+            } answers {
+                (firstArg<UUID?>() ?: UUID.randomUUID()).also(storedPanels::add)
+            }
+
+            val savedStateHandle = SavedStateHandle()
+            val firstSession = CalibrationEditorViewModel(
+                repository,
+                medicationLogRepository,
+                settingsRepository,
+                savedStateHandle,
+                pkStorageRepository = pkStorageRepository,
+                e2EstimateRepository = e2EstimateRepository,
+                appTimeSource = appTimeSource,
+            )
+            advanceUntilIdle()
+            firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+            firstSession.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+            advanceUntilIdle()
+            // Save, then leave the app before the save commits: the state is saved at onStop,
+            // the save commits, and the process dies before the state is saved again.
+            val stateSavedAtStop = SavedStateHandle(
+                savedStateHandle.keys().associateWith { key -> savedStateHandle.get<Any?>(key) }
+            )
+            firstSession.save()
+            advanceUntilIdle()
+            assertTrue(firstSession.uiState.value.isSaved)
+
+            val restoredSession = CalibrationEditorViewModel(
+                repository,
+                medicationLogRepository,
+                settingsRepository,
+                stateSavedAtStop,
+                pkStorageRepository = pkStorageRepository,
+                e2EstimateRepository = e2EstimateRepository,
+                appTimeSource = appTimeSource,
+            )
+            advanceUntilIdle()
+            // The committed entry comes back as the unsaved draft, and the user saves it again.
+            assertEquals(
+                "152.4",
+                restoredSession.uiState.value.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
+                    .valueText,
+            )
+            restoredSession.save()
+            advanceUntilIdle()
+
+            assertTrue(restoredSession.uiState.value.isSaved)
+            assertEquals("saving the entry again must not add a second lab", 1, storedPanels.size)
+        }
+
+    @Test
     fun save_persistsE2AndAdditionalBuiltins() = runTest {
         val resultInputSlot = slot<List<BloodTestResultInput>>()
         val panelUuid = UUID.fromString("35ab5226-f26d-4c22-918d-785e6687e4e2")
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = capture(resultInputSlot),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         } returns panelUuid
 
@@ -675,12 +735,13 @@ class CalibrationEditorViewModelTest {
 
         coVerify {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = expectedInstant,
                 collectedAtTimeZoneId = expectedZoneId.id,
                 notes = "Taken fasting",
                 results = any(),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         }
     }
@@ -689,12 +750,13 @@ class CalibrationEditorViewModelTest {
     fun save_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         } throws RuntimeException("save failed")
 
@@ -727,12 +789,13 @@ class CalibrationEditorViewModelTest {
         assertNull(viewModel.uiState.value.saveEntryResult)
         coVerify(exactly = 1) {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         }
     }
@@ -746,12 +809,13 @@ class CalibrationEditorViewModelTest {
         var writeCompleted = false
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         } coAnswers {
             writeGate.await()
@@ -830,12 +894,13 @@ class CalibrationEditorViewModelTest {
         val resultInputSlot = slot<List<BloodTestResultInput>>()
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = capture(resultInputSlot),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         } returns UUID.randomUUID()
 
@@ -870,12 +935,13 @@ class CalibrationEditorViewModelTest {
         val customAnalyteUuid = UUID.fromString("7e4edcb1-baa1-47ba-b1a9-0548f7f194ba")
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = capture(resultInputSlot),
-                now = any()
+                now = any(),
+                isNew = true,
             )
         } returns panelUuid
 
@@ -951,12 +1017,13 @@ class CalibrationEditorViewModelTest {
         // must not read as unsaved again once the pop consumed the saved flag.
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
                 now = any(),
+                isNew = true,
             )
         } returns UUID.fromString("0f3e7c2a-5d14-4b8e-9a61-2c7d8e9f0a1b")
         val unsavedChanges = UnsavedChangesState()
@@ -1026,12 +1093,13 @@ class CalibrationEditorViewModelTest {
         // Save tapped again during the exit transition would write the entry a second time.
         coEvery {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
                 now = any(),
+                isNew = true,
             )
         } returns UUID.fromString("7c1d4e2f-8a3b-4c5d-9e6f-0a1b2c3d4e5f")
         val viewModel = CalibrationEditorViewModel(
@@ -1054,12 +1122,13 @@ class CalibrationEditorViewModelTest {
 
         coVerify(exactly = 1) {
             repository.savePanel(
-                uuid = null,
+                uuid = any(),
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
                 notes = any(),
                 results = any(),
                 now = any(),
+                isNew = true,
             )
         }
     }
@@ -1269,6 +1338,7 @@ class CalibrationEditorViewModelTest {
                 notes = any(),
                 results = any(),
                 now = any(),
+                isNew = any(),
             )
         }
 

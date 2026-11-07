@@ -85,6 +85,12 @@ class CalibrationEditorViewModel @Inject constructor(
     private val editingPanelUuid = savedStateHandle.get<String>(PANEL_ID_ARG)?.let { panelId ->
         runCatching { UUID.fromString(panelId) }.getOrNull()
     }
+    // A new entry's uuid, saved with the form before its first save: a save replayed from a
+    // state saved before that save committed then saves the same entry again, not a second one.
+    private val newPanelUuid: UUID? = if (editingPanelUuid != null) null else {
+        savedStateHandle.get<String>(NEW_PANEL_UUID_KEY)?.let(UUID::fromString)
+            ?: UUID.randomUUID().also { savedStateHandle[NEW_PANEL_UUID_KEY] = it.toString() }
+    }
     private val defaultZoneId = ZoneId.systemDefault()
     private var latestSettingsState = settingsRepository.settingsState.value
     private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
@@ -257,6 +263,8 @@ class CalibrationEditorViewModel @Inject constructor(
         draftPersistenceJob?.cancel()
         savedStateHandle[DRAFT_SNAPSHOT_KEY] = null
         savedStateHandle[BASELINE_SNAPSHOT_KEY] = null
+        // A form restored from here on is a different entry.
+        savedStateHandle[NEW_PANEL_UUID_KEY] = null
     }
 
     fun updateCollectedDate(date: LocalDate) {
@@ -421,12 +429,13 @@ class CalibrationEditorViewModel @Inject constructor(
                 // write in half.
                 withContext(NonCancellable) {
                     bloodTestRepository.savePanel(
-                        uuid = editingPanelUuid,
+                        uuid = editingPanelUuid ?: newPanelUuid,
                         collectedAt = collectedAt,
                         collectedAtTimeZoneId = latestState.collectedZoneId.id,
                         notes = latestState.notes,
                         results = resultInputs,
                         now = Instant.now(),
+                        isNew = editingPanelUuid == null,
                     )
                 }
             }.onSuccess { savedPanelUuid ->
@@ -718,6 +727,7 @@ class CalibrationEditorViewModel @Inject constructor(
         const val PANEL_ID_ARG = "panelId"
         private const val DRAFT_SNAPSHOT_KEY = "calibrationDraft"
         private const val BASELINE_SNAPSHOT_KEY = "calibrationDraftBaseline"
+        private const val NEW_PANEL_UUID_KEY = "calibrationNewPanelUuid"
         private const val DRAFT_PERSIST_DEBOUNCE_MS = 250L
     }
 }
