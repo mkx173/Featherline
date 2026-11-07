@@ -476,8 +476,6 @@ class SettingsRepository internal constructor(
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
         hideReferenceRanges: Boolean,
-        appLockGracePeriodOption: AppLockGracePeriodOption,
-        hideScreenContentEnabled: Boolean,
         onboardingCompleted: Boolean,
         appLanguageOption: AppLanguageOption,
         calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
@@ -508,8 +506,7 @@ class SettingsRepository internal constructor(
             preferences[healthConnectWeightSyncEnabledKey] = healthConnectWeightSyncEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
-            preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
-            preferences[hideScreenContentKey] = hideScreenContentEnabled
+            // The lock, its grace period and hide screen content stay local: a backup can't loosen them.
             preferences[onboardingCompletedKey] = onboardingCompleted
             preferences[pkCalibrationIntroSeenKey] = pkCalibrationIntroSeen
 

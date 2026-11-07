@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.security
 
+import android.app.Activity
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -66,5 +69,18 @@ internal fun HiddenUnderAppLock(
             .focusGroup(),
     ) {
         CompositionLocalProvider(LocalAppLocked provides locked, content = content)
+    }
+}
+
+/** Hide screen content: no screenshots, recordings or Recents thumbnail of this activity's windows. */
+internal fun Activity.applyHideScreenContent(enabled: Boolean) {
+    if (enabled) {
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    } else {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        setRecentsScreenshotEnabled(!enabled)
     }
 }

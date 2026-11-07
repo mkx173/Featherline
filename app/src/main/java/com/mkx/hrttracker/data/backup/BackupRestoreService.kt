@@ -322,8 +322,6 @@ class BackupRestoreService @Inject constructor(
                         validatedSnapshot.settings.healthConnectWeightSyncEnabled,
                     showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
                     hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
-                    appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
-                    hideScreenContentEnabled = validatedSnapshot.settings.hideScreenContentEnabled,
                     onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
                     pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
                     appLanguageOption = validatedSnapshot.settings.appLanguageOption,

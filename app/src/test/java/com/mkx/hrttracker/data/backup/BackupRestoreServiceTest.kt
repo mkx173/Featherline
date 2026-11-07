@@ -3,6 +3,8 @@ package com.mkx.hrttracker.data.backup
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
@@ -29,7 +31,9 @@ import com.mkx.hrttracker.data.repository.PkCalibrationStorageRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityReconciler
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.home.HomeCardType
@@ -43,10 +47,15 @@ import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -57,24 +66,38 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.time.Instant
+import java.util.Locale
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BackupRestoreServiceTest {
     private val context: Context = mockk(relaxed = true)
     private val contentResolver: ContentResolver = mockk(relaxed = true)
@@ -96,6 +119,12 @@ class BackupRestoreServiceTest {
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupRestoreService
+
+    @get:Rule
+    val tmpFolder = TemporaryFolder()
+    private val settingsDispatcher = UnconfinedTestDispatcher()
+    private val settingsScope = TestScope(settingsDispatcher)
+    private val defaultLocale: Locale = Locale.getDefault()
 
     @Before
     fun setUp() {
@@ -122,7 +151,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         } just Runs
@@ -132,18 +161,151 @@ class BackupRestoreServiceTest {
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
 
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
-        service = BackupRestoreService(
-            context = context,
-            databaseHolder = databaseHolder,
-            settingsRepository = settingsRepository,
-            homeSnapshotRepository = homeSnapshotRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            widgetAppearanceRepository = widgetAppearanceRepository,
-            backupCrypto = backupCrypto,
-            healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
+        service = restoreServiceFor(settingsRepository)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        unmockkAll()
+        Locale.setDefault(defaultLocale)
+    }
+
+    private fun restoreServiceFor(settingsRepository: SettingsRepository) = BackupRestoreService(
+        context = context,
+        databaseHolder = databaseHolder,
+        settingsRepository = settingsRepository,
+        homeSnapshotRepository = homeSnapshotRepository,
+        medicationReminderScheduler = medicationReminderScheduler,
+        medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        widgetAppearanceRepository = widgetAppearanceRepository,
+        backupCrypto = backupCrypto,
+        healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
+    )
+
+    // A device's real settings store, to read back what a restore wrote.
+    private fun deviceSettingsRepository(name: String): SettingsRepository {
+        // restoreSettings applies the language on Main.
+        Dispatchers.setMain(settingsDispatcher)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        return SettingsRepository(
+            PreferenceDataStoreFactory.create(
+                scope = settingsScope,
+                produceFile = { tmpFolder.newFile("$name.preferences_pb") },
+            ),
         )
     }
+
+    @Test
+    fun restoreBackupBytes_keepsTheDevicesLockGracePeriodAndHideContent() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setScreenLockProtectionEnabled(true)
+            device.setHideScreenContentEnabled(true)
+            device.setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            // Backups carry both companions of the lock; this one from a device that loosened them.
+            val backup = emptySnapshot().let { base ->
+                base.copy(
+                    settings = base.settings.copy(
+                        appLockGracePeriodOption = AppLockGracePeriodOption.THIRTY_MINUTES.name,
+                        hideScreenContentEnabled = false,
+                    ),
+                )
+            }
+
+            restoreServiceFor(device).restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(backup),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+
+            val settings = device.getCurrentSettings()
+            assertEquals("A restore turned the app lock off", true, settings.screenLockProtectionEnabled)
+            assertEquals(
+                "A restore turned hide screen content off",
+                true,
+                settings.hideScreenContentEnabled,
+            )
+            assertEquals(
+                "A restore lengthened the app lock's grace period",
+                AppLockGracePeriodOption.IMMEDIATELY,
+                settings.appLockGracePeriodOption,
+            )
+        }
+
+    @Test
+    fun restoreBackupBytes_roundTripRestoresEverySettingButTheDevicesPrivacyOnes() =
+        runTest(settingsDispatcher) {
+            mockkStatic(AppCompatDelegate::class)
+            every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+            val e2 = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
+            val otherE2Unit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                e2.allowedUnits.first { unit -> unit != e2.canonicalUnit },
+            )
+            // Every setting off its default.
+            val source = deviceSettingsRepository("source").apply {
+                setDarkModeOption(DarkModeOption.DARK)
+                setAdaptiveColorEnabled(false)
+                setPureBlackEnabled(true)
+                setHazeBlurEnabled(false)
+                setClassicNavigationBarEnabled(true)
+                setCalibrationDefaultUnit(otherE2Unit)
+                setHomeE2DisplayUnit(otherE2Unit)
+                setHomeE2ChartWindowOption(
+                    HomeE2ChartWindowOption.entries.first { it != HomeE2ChartWindowOption.SEVEN_DAYS },
+                )
+                setRemindersEnabled(false)
+                setHealthConnectWeightSyncEnabled(true)
+                setShowArchivedGroupRecords(false)
+                setHideReferenceRanges(true)
+                setFirstDayOfWeekOption(FirstDayOfWeekOption.SUNDAY)
+                setHideMedicationDetails(true)
+                consumeNextGroupNameIndex()
+                setOnboardingCompleted(true)
+                setPkCalibrationIntroSeen(true)
+                acknowledgeTimeZone("Asia/Tokyo")
+                setStockNudgeEnabled(true)
+                setStockNudgeEnabled(false)
+                setHomeCardLayout(
+                    order = HomeCardLayout().order.reversed(),
+                    hidden = setOf(HomeCardType.LOW_STOCK),
+                )
+                setAppLanguageOption(AppLanguageOption.SIMPLIFIED_CHINESE)
+                setHideScreenContentEnabled(false)
+                setAppLockGracePeriodOption(AppLockGracePeriodOption.THIRTY_MINUTES)
+            }
+            val device = deviceSettingsRepository("device").apply {
+                setScreenLockProtectionEnabled(true)
+                setHideScreenContentEnabled(true)
+                setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            }
+
+            val encryptedBytes = backupExportServiceFor(
+                medicines = emptyList(),
+                medicationLogs = emptyList(),
+                exportSettingsRepository = source,
+            ).buildEncryptedBackupBytes(password = "password")
+            restoreServiceFor(device).restoreBackupBytes(encryptedBytes, password = "password")
+
+            assertEquals(
+                "The restore should bring every setting but the lock's three, which stay the device's",
+                source.getCurrentSettings().copy(
+                    screenLockProtectionEnabled = true,
+                    hideScreenContentEnabled = true,
+                    appLockGracePeriodOption = AppLockGracePeriodOption.IMMEDIATELY,
+                ),
+                device.getCurrentSettings(),
+            )
+            assertEquals(true, device.onboardingCompleted.first())
+            assertEquals(true, device.pkCalibrationIntroSeen.first())
+            assertEquals(false, device.stockNudgeEnabledFlow.first())
+            assertEquals(true, device.stockNudgeUserEnabledFlow.first())
+            assertEquals(source.homeCardLayoutFlow.first(), device.homeCardLayoutFlow.first())
+        }
 
     @Test
     fun loadEncryptedBackupBytes_rejectsAnotherKindOfFileFromItsFirstBytes() = runTest {
@@ -281,7 +443,7 @@ class BackupRestoreServiceTest {
                     any(), any(), any(), any(), any(),
                     any(), any(), any(), any(), any(),
                     any(), any(), any(), any(), any(),
-                    any(), any(), any(), any(), any(),
+                    any(), any(), any(),
                     any(),
                 )
             } throws IOException("datastore write failed")
@@ -488,7 +650,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         }
@@ -1312,7 +1474,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 any(),
             )
         }
@@ -1331,8 +1493,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1373,8 +1533,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1415,8 +1573,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1459,8 +1615,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1500,8 +1654,6 @@ class BackupRestoreServiceTest {
                 remindersEnabled = any(),
                 showArchivedGroupRecords = any(),
                 hideReferenceRanges = any(),
-                appLockGracePeriodOption = any(),
-                hideScreenContentEnabled = any(),
                 onboardingCompleted = any(),
                 appLanguageOption = any(),
                 calibrationDefaultUnits = any(),
@@ -1589,7 +1741,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1622,7 +1774,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1651,7 +1803,7 @@ class BackupRestoreServiceTest {
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(),
+                any(), any(), any(),
                 capture(layoutSlot),
             )
         }
@@ -1699,8 +1851,15 @@ class BackupRestoreServiceTest {
     private fun backupExportServiceFor(
         medicines: List<Medicine>,
         medicationLogs: List<MedicationLogEntry>,
+        exportSettingsRepository: SettingsRepository = mockk<SettingsRepository>().also { settings ->
+            every { settings.onboardingCompleted } returns flowOf(true)
+            every { settings.pkCalibrationIntroSeen } returns flowOf(true)
+            every { settings.stockNudgeEnabledFlow } returns flowOf(true)
+            every { settings.stockNudgeUserEnabledFlow } returns flowOf(false)
+            every { settings.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
+            coEvery { settings.getCurrentSettings() } returns SettingsState()
+        },
     ): BackupExportService {
-        val exportSettingsRepository: SettingsRepository = mockk()
         val exportUserProfileRepository: UserProfileRepository = mockk()
         val exportMedicineRepository: MedicineRepository = mockk()
         val exportMedicationGroupRepository: MedicationGroupRepository = mockk()
@@ -1710,12 +1869,6 @@ class BackupRestoreServiceTest {
         val exportWidgetAppearanceRepository: WidgetAppearanceRepository = mockk()
         val exportJournalRepository: JournalRepository = mockk()
 
-        every { exportSettingsRepository.onboardingCompleted } returns flowOf(true)
-        every { exportSettingsRepository.pkCalibrationIntroSeen } returns flowOf(true)
-        every { exportSettingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
-        every { exportSettingsRepository.stockNudgeUserEnabledFlow } returns flowOf(false)
-        every { exportSettingsRepository.homeCardLayoutFlow } returns flowOf(HomeCardLayout())
-        coEvery { exportSettingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery {
             exportWidgetAppearanceRepository.migrateFromLegacySettingsIfNeeded()
         } returns false

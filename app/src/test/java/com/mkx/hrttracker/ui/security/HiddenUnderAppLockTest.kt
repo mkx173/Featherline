@@ -22,12 +22,14 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 
 /**
  * The home shell stays composed under the in-window lock screen (MainActivity). The lock screen
@@ -108,5 +110,20 @@ class HiddenUnderAppLockTest {
         composeRule.waitForIdle()
 
         assertEquals("Typing under the lock screen edited a field behind it", "a", text)
+    }
+
+    // A restored backup can bring onboarding back on an install with the lock on.
+    @Test
+    fun mainActivity_hidesTheOnboardingOverlayUnderTheLock() {
+        val overlay = File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readText()
+            .substringAfter("label = \"onboarding-overlay\"")
+            .substringBefore("OnboardingScreen(")
+
+        assertTrue(
+            "Onboarding under the lock screen must sit in HiddenUnderAppLock, not only " +
+                "provide LocalAppLocked, so keys and accessibility can't reach it",
+            overlay.contains("HiddenUnderAppLock(") &&
+                overlay.contains("locked = contentLayers.showInWindowLockScreen"),
+        )
     }
 }

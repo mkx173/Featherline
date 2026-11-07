@@ -244,6 +244,7 @@ class BackupExportService @Inject constructor(
                     showArchivedGroupRecords = settings.showArchivedGroupRecords,
                     hideReferenceRanges = settings.hideReferenceRanges,
                     // Do not include screenLockProtectionEnabled; app-lock protection stays local.
+                    // Restore keeps these two local as well; older versions need them to read the file.
                     appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
                     hideScreenContentEnabled = settings.hideScreenContentEnabled,
                     onboardingCompleted = onboardingCompleted,

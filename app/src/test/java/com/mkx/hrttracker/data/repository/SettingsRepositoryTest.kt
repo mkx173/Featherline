@@ -16,7 +16,6 @@ import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.util.appLanguageLocale
@@ -474,8 +473,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -571,8 +568,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -595,8 +590,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),
@@ -616,8 +609,6 @@ class SettingsRepositoryTest {
             remindersEnabled = true,
             showArchivedGroupRecords = true,
             hideReferenceRanges = false,
-            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
-            hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
             calibrationDefaultUnits = emptySet(),

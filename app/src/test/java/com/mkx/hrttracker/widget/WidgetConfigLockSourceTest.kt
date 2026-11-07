@@ -46,6 +46,27 @@ class WidgetConfigLockSourceTest {
         )
     }
 
+    @Test
+    fun widgetConfigActivity_hidesScreenContentFromTheFirstFrame() {
+        val content = source(
+            "app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt"
+        ).substringAfter("setContent {")
+
+        val secureIndex = content.indexOf(
+            "applyHideScreenContent(enabled = appLockUiState.hideScreenContentEnabled)"
+        )
+        assertTrue(
+            "WidgetConfigActivity shows anchors and doses, so hide screen content must set " +
+                "FLAG_SECURE on it as on MainActivity, from the lock's fail-closed value.",
+            secureIndex >= 0,
+        )
+        assertTrue(
+            "FLAG_SECURE must apply before the settings load gate, so the loading window and " +
+                "the sheets over it are covered too.",
+            secureIndex < content.indexOf("loadedState?.let"),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }

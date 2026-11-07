@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,6 +26,7 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -116,6 +118,12 @@ class WidgetConfigActivity : AppCompatActivity() {
             // the biometric prompt can run concurrently with the settings/anchors load
             // instead of serializing behind it.
             val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+            // As in MainActivity, and outside the gate so the loading window is covered too; the
+            // sheets inherit it from this window.
+            DisposableEffect(appLockUiState.hideScreenContentEnabled) {
+                applyHideScreenContent(enabled = appLockUiState.hideScreenContentEnabled)
+                onDispose { }
+            }
             AppAuthenticationPromptEffect(
                 request = appLockUiState.pendingPrompt,
                 onAuthenticated = appLockViewModel::onAuthenticationSucceeded,

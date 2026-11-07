@@ -146,7 +146,9 @@ flattened into the parent's JSON.
   wins and backups predating it restore through the legacy fields.
   `screenLockProtectionEnabled`
   is intentionally excluded — app-lock stays local to the device that set
-  it. The nudge's running dismiss count is also excluded: restore clears it
+  it. Restore ignores the grace period and hide-screen-content too, so a
+  backup can't loosen the device's privacy; exports still write both
+  because older app versions require them. The nudge's running dismiss count is also excluded: restore clears it
   so the auto-disable threshold starts fresh on the new device.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries

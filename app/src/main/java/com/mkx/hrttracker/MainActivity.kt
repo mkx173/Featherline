@@ -7,7 +7,6 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -56,7 +55,6 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.LocalHazePerformanceMode
-import com.mkx.hrttracker.ui.components.LocalAppLocked
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -83,6 +81,7 @@ import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.security.appLockContentLayers
+import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
@@ -468,9 +467,9 @@ class MainActivity : AppCompatActivity() {
                                 ) {
                                     CompositionLocalProvider(
                                         LocalChromeHazeState provides onboardingChromeHazeState,
-                                        LocalAppLocked provides contentLayers.showInWindowLockScreen,
                                     ) {
-                                        Box(
+                                        HiddenUnderAppLock(
+                                            locked = contentLayers.showInWindowLockScreen,
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .hazeSourceArea(onboardingChromeHazeState),
@@ -599,18 +598,6 @@ class MainActivity : AppCompatActivity() {
                     Configuration.UI_MODE_NIGHT_YES
         return settingsRepository.settingsState.value.darkModeOption
             .resolveDarkTheme(systemInDarkTheme)
-    }
-
-    private fun applyHideScreenContent(enabled: Boolean) {
-        if (enabled) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            setRecentsScreenshotEnabled(!enabled)
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
