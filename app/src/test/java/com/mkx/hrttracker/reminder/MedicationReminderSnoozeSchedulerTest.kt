@@ -25,6 +25,9 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -569,6 +572,93 @@ class MedicationReminderSnoozeSchedulerTest {
         // Delivered, so a later pass doesn't arm it again.
         scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 30))
         assertEquals(emptyMap<String, Long>(), armedAlarms)
+    }
+
+    @Test
+    fun rescheduleAll_drops_a_skipped_doses_snooze_once_its_next_dose_over_90_days_on_has_come() = runTest {
+        // Every 91 days: the April 1 dose was snoozed, never logged, and July 1's has come.
+        val group = dailyGroup(UUID.fromString("9e2b5c0d-bfd0-4be2-9d8e-9fa0b1c2d3e4")).let { group ->
+            group.copy(schedule = group.schedule.copy(interval = 91))
+        }
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        storeRecords(
+            group.snoozeRecord(
+                scheduledAt = LocalDateTime.of(2026, 4, 1, 9, 0),
+                snoozeAt = LocalDateTime.of(2026, 4, 1, 9, 15),
+                fired = true,
+            )
+        )
+
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 7, 1, 10, 0))
+
+        assertEquals(emptyList<MedicationReminderSnoozeRecord>(), storedRecords())
+    }
+
+    @Test
+    fun a_remind_later_during_a_snooze_pass_keeps_its_record_and_alarm() = runTest {
+        // The pass reads its plans while Remind later on another reminder writes a record.
+        val now = LocalDateTime.of(2026, 4, 20, 9, 30)
+        val expiredGroup = dailyGroup(UUID.fromString("af3c6d1e-c0e1-4cf3-8e9f-a0b1c2d3e4f5"))
+        storeRecords(
+            expiredGroup.snoozeRecord(
+                scheduledAt = LocalDateTime.of(2026, 4, 19, 9, 0),
+                snoozeAt = LocalDateTime.of(2026, 4, 19, 9, 15),
+                fired = true,
+            )
+        )
+        val readingPlans = CompletableDeferred<Unit>()
+        val plansRead = CompletableDeferred<Unit>()
+        coEvery { groupRepository.getGroup(expiredGroup.uuid) } coAnswers {
+            readingPlans.complete(Unit)
+            plansRead.await()
+            expiredGroup
+        }
+        val snoozedSlot = dailyGroup(UUID.fromString("b04d7e2f-d1f2-4d04-9fa0-b1c2d3e4f5a6"))
+            .reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+
+        val pass = launch { scheduler.rescheduleAll(now = now) }
+        readingPlans.await()
+        val remindLater = launch { scheduler.snoozeSlots(listOf(snoozedSlot), now = testInstant(now)) }
+        runCurrent()
+        plansRead.complete(Unit)
+        pass.join()
+        remindLater.join()
+
+        assertEquals(listOf(snoozedSlot), storedRecords().map(MedicationReminderSnoozeRecord::slot))
+        assertEquals(
+            listOf(testInstant(now.plusMinutes(REMINDER_SNOOZE_MINUTES)).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+    }
+
+    @Test
+    fun rescheduleAll_leaves_every_alarm_armed_when_the_store_write_fails() = runTest {
+        val now = LocalDateTime.of(2026, 4, 20, 9, 30)
+        val dueGroup = dailyGroup(UUID.fromString("c15e8f3a-e2a3-4e15-8ab1-c2d3e4f5a6b7"))
+        val due = dueGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 45),
+        )
+        // Yesterday's, outlived by today's dose: the pass drops it, so it writes.
+        val expiredGroup = dailyGroup(UUID.fromString("d26f9a4b-f3b4-4f26-9bc2-d3e4f5a6b7c8"))
+        val expired = expiredGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 19, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 19, 9, 15),
+            fired = true,
+        )
+        listOf(dueGroup, expiredGroup).forEach { group ->
+            coEvery { groupRepository.getGroup(group.uuid) } returns group
+        }
+        storeRecords(due)
+        scheduler.rescheduleAll(now = now)
+        val armedBefore = armedAlarms.toMap()
+        storeRecords(due, expired)
+        coEvery { snoozeStore.replaceSnoozeRecords(any()) } throws java.io.IOException("disk full")
+
+        runCatching { scheduler.rescheduleAll(now = now) }
+
+        assertEquals(listOf(testInstant(LocalDateTime.of(2026, 4, 20, 9, 45)).toEpochMilli()), armedBefore.values.toList())
+        assertEquals(armedBefore, armedAlarms)
     }
 
     private fun intentDataOf(pendingIntent: PendingIntent): String =

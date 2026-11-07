@@ -634,6 +634,32 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setRemindersEnabled_marksAReconcileFirstAndFinishesItOnceTheOwnerIsGone() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val rescheduleGate = CompletableDeferred<Unit>()
+        var rescheduled = false
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
+            rescheduleGate.await()
+            rescheduled = true
+        }
+
+        viewModel.setRemindersEnabled(true)
+        runCurrent()
+        // Settings' owner goes, as when its activity finishes, while the alarms are set.
+        viewModel.viewModelScope.cancel()
+        rescheduleGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reschedule outlives Settings", rescheduled)
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            settingsRepository.setRemindersEnabled(true)
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
     fun setRemindersEnabled_schedulerFailureDoesNotEmitSettingFailureEvent() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()

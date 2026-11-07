@@ -8,17 +8,23 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.net.toUri
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.CoroutineContext
 
 @Singleton
 class MedicationReminderScheduler private constructor(
@@ -29,6 +35,7 @@ class MedicationReminderScheduler private constructor(
     private val reminderScheduleStore: ReminderScheduleStore,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val reminderNotificationManager: ReminderNotificationManager,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     private val sdkIntProvider: () -> Int,
 ) {
@@ -41,6 +48,7 @@ class MedicationReminderScheduler private constructor(
         reminderScheduleStore: ReminderScheduleStore,
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
         reminderNotificationManager: ReminderNotificationManager,
+        homeSnapshotRepository: HomeSnapshotRepository,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     ) : this(
         context = context,
@@ -50,6 +58,7 @@ class MedicationReminderScheduler private constructor(
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         reminderNotificationManager = reminderNotificationManager,
+        homeSnapshotRepository = homeSnapshotRepository,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { Build.VERSION.SDK_INT },
     )
@@ -62,6 +71,7 @@ class MedicationReminderScheduler private constructor(
         reminderScheduleStore: ReminderScheduleStore,
         medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
         reminderNotificationManager: ReminderNotificationManager,
+        homeSnapshotRepository: HomeSnapshotRepository,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
         sdkInt: Int,
     ) : this(
@@ -72,6 +82,7 @@ class MedicationReminderScheduler private constructor(
         reminderScheduleStore = reminderScheduleStore,
         medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         reminderNotificationManager = reminderNotificationManager,
+        homeSnapshotRepository = homeSnapshotRepository,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { sdkInt },
     )
@@ -79,18 +90,22 @@ class MedicationReminderScheduler private constructor(
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
-    // ponytail: one flag, so a rescheduleAll that read the data before another
-    // writer's mark clears that mark too; A4's serialization would close it.
+    // ponytail: one flag. A pass between a writer's mark and its commit reads the old data
+    // and still clears it; the writer's own pass after the commit reconciles, so only a
+    // process death between that commit and that pass is left to a later full pass.
     /**
      * For a data change reminders must follow, before it commits: marks a
      * reconcile owed until a [rescheduleAll] completes, so startup still runs
      * one ([isReconcilePending]) if the process dies or the writer's own fails.
+     * Under the passes' lock, so a pass that read the data before it doesn't clear it.
      */
-    suspend fun markReconcilePending() = reminderScheduleStore.setReconcilePending(true)
+    suspend fun markReconcilePending() = withReminderScheduleLock {
+        reminderScheduleStore.setReconcilePending(true)
+    }
 
     suspend fun isReconcilePending(): Boolean = reminderScheduleStore.isReconcilePending()
 
-    suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
+    suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "reminder_reschedule_all_start now=$now")
         val groups = medicationGroupRepository.getGroups()
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
@@ -112,7 +127,7 @@ class MedicationReminderScheduler private constructor(
             )
             reconcileDoseReminderNotifications(remindersEnabled = false)
             reminderScheduleStore.setReconcilePending(false)
-            return
+            return@withReminderScheduleLock
         }
 
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(now)
@@ -146,16 +161,30 @@ class MedicationReminderScheduler private constructor(
         reminderScheduleStore.setReconcilePending(false)
     }
 
+    /**
+     * Reschedules from [snapshot], which its caller read before this took the lock. False, with
+     * nothing changed, once Home data changed since: that writer's own reschedule, or a full
+     * pass, has the newer plans.
+     */
     suspend fun rescheduleFromHomeSnapshot(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime = LocalDateTime.now(),
-    ) {
+    ): Boolean = withReminderScheduleLock {
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_from_snapshot_start now=$now " +
                     "generation=${snapshot.generation} groups=${snapshot.activeGroups.size} " +
                     "snapshotEntries=${snapshot.scheduleEntries.size}"
         )
+        val currentGeneration = homeSnapshotRepository.generation.value
+        if (snapshot.generation != currentGeneration) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_from_snapshot_stale generation=${snapshot.generation} " +
+                        "current=$currentGeneration"
+            )
+            return@withReminderScheduleLock false
+        }
         val groups = snapshot.activeGroups
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
         val stored = reminderScheduleStore.getScheduledReminders()
@@ -174,7 +203,7 @@ class MedicationReminderScheduler private constructor(
                 TAG,
                 "reminder_reschedule_from_snapshot_complete groups=${groups.size} entries=0 plans=0 stored=0"
             )
-            return
+            return@withReminderScheduleLock true
         }
 
         val entries = snapshot.scheduleEntries.filter { entry ->
@@ -209,12 +238,13 @@ class MedicationReminderScheduler private constructor(
                     } " +
                     "cancel=${uuidsToCancel.size}"
         )
+        true
     }
 
     suspend fun rescheduleGroup(
         groupUuid: UUID,
         after: LocalDateTime = LocalDateTime.now()
-    ) {
+    ) = withReminderScheduleLock {
         // Every way out, an archived, deleted or muted plan included, leaves a
         // reminder on screen that may name doses no longer pending.
         scheduleGroupReminder(groupUuid, after)
@@ -328,7 +358,7 @@ class MedicationReminderScheduler private constructor(
         )
     }
 
-    suspend fun cancelReminder(groupUuid: UUID) {
+    suspend fun cancelReminder(groupUuid: UUID) = withReminderScheduleLock {
         cancelReminderSchedule(groupUuid)
         // A deleted plan reaches only this, not a reschedule.
         reconcileDoseReminderNotifications(
@@ -434,6 +464,29 @@ class MedicationReminderScheduler private constructor(
         const val TAG = "MedicationReminderScheduler"
     }
 }
+
+// ponytail: one process-wide lock for both schedulers; per-plan locks if passes ever queue.
+private val reminderScheduleMutex = Mutex()
+
+private object ReminderScheduleLockHeld :
+    CoroutineContext.Element,
+    CoroutineContext.Key<ReminderScheduleLockHeld> {
+    override val key: CoroutineContext.Key<*>
+        get() = this
+}
+
+/**
+ * Runs [block] under the lock every alarm and schedule-store change of both schedulers takes,
+ * so no two passes interleave their reads and writes. A call made under it, as rescheduleGroup
+ * clearing its plan's stale snoozes, runs in the same hold. Nothing under it may wait on the
+ * Home mutation gate: a restore marks a reconcile while it holds the gate.
+ */
+internal suspend fun <T> withReminderScheduleLock(block: suspend () -> T): T =
+    if (currentCoroutineContext()[ReminderScheduleLockHeld] != null) {
+        block()
+    } else {
+        reminderScheduleMutex.withLock { withContext(ReminderScheduleLockHeld) { block() } }
+    }
 
 internal fun reminderIntentData(groupUuid: UUID): Uri {
     return "$REMINDER_INTENT_URI_PREFIX/$groupUuid".toUri()

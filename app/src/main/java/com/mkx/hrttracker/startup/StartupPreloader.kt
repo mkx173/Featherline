@@ -96,7 +96,6 @@ class StartupPreloader @Inject constructor(
         diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_enqueued now=$now")
         appScope.launch(Dispatchers.IO) {
             diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start now=$now")
-            rescheduleAllSnoozes(now = now)
             // A data change, such as a restore, committed without its reconcile:
             // the snapshot can predate it, and only rescheduleAll reconciles the
             // reminders on screen. Room opens early for it, but only then.
@@ -106,6 +105,7 @@ class StartupPreloader @Inject constructor(
                     "snapshot_reminder_reschedule_skipped reason=reconcile_pending now=$now"
                 )
                 rescheduleAllReminders(now = now)
+                rescheduleAllSnoozes(now = now)
                 return@launch
             }
             runCatching {
@@ -119,10 +119,12 @@ class StartupPreloader @Inject constructor(
                     "snapshot_reminder_reschedule_using_snapshot " +
                             "now=$now ${snapshot.reminderDiagnosticSummary()}"
                 )
-                medicationReminderScheduler.rescheduleFromHomeSnapshot(
-                    snapshot = snapshot,
-                    now = now,
-                )
+                // Turned down once Home data changed since it was read: Room has the newer plans.
+                if (!medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot = snapshot, now = now)) {
+                    diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_skipped reason=stale now=$now")
+                    rescheduleAllReminders(now = now)
+                    return@runCatching
+                }
                 diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete now=$now")
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(
@@ -131,6 +133,9 @@ class StartupPreloader @Inject constructor(
                     throwable
                 )
             }
+            // After the reminders: with a record this reads Room, and the snapshot pass
+            // shouldn't wait behind the SQLCipher open.
+            rescheduleAllSnoozes(now = now)
         }
     }
 

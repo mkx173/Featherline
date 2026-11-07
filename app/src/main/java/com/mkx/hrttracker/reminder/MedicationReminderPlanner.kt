@@ -5,7 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.missingSlotCounts
-import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -20,7 +20,6 @@ internal fun buildNextMedicationReminderPlans(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = 90L,
     /** Each group's armed reminder time, from the schedule store. */
     armed: Map<UUID, LocalDateTime> = emptyMap(),
 ): List<MedicationReminderPlan> {
@@ -44,12 +43,9 @@ internal fun buildNextMedicationReminderPlans(
                         scheduleTimeUuid = null,
                     )
                 }
+            // However far off: some dose ahead isn't logged, so this ends.
             group
-                .nextOccurrencesInPlanWindowFrom(
-                    start = now,
-                    limit = Int.MAX_VALUE,
-                    lookaheadDays = lookaheadDays,
-                )
+                .occurrencesInPlanWindowFrom(start = now)
                 .firstOrNull { occurrence ->
                     // Re-arm FUTURE alarms only. An occurrence at exactly `now`
                     // has already fired its alarm, and the startup `now` is

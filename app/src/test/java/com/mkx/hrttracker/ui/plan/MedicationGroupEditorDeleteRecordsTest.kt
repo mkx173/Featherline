@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.plan
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -35,7 +36,9 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -700,6 +703,116 @@ class MedicationGroupEditorDeleteRecordsTest {
                 notificationsEnabled = any(),
                 now = any(),
             )
+        }
+    }
+
+    @Test
+    fun archiveAndRecreateGroup_marksAReconcileFirstAndFinishesItOnceTheOwnerIsGone() = runTest {
+        val groupUuid = UUID.fromString("5b0e7c2a-3f41-4d8e-9a62-7c1d0e4f8b35")
+        val savedGroupUuid = UUID.fromString("6c1f8d3b-4a52-4e9f-8b73-8d2e1f5a9c46")
+        val group = testMedicationGroup(groupUuid)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns
+                group.copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.archiveAndRecreateGroup(
+                uuid = groupUuid,
+                archivedThroughDate = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+        val rescheduleGate = CompletableDeferred<Unit>()
+        var rescheduled = false
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
+            rescheduleGate.await()
+            rescheduled = true
+        }
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.archiveAndRecreateGroup()
+        runCurrent()
+        // The editor's owner goes while the replacement's reminders are rescheduled.
+        viewModel.viewModelScope.cancel()
+        rescheduleGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reschedule outlives the editor", rescheduled)
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            medicationGroupRepository.archiveAndRecreateGroup(
+                uuid = groupUuid,
+                archivedThroughDate = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                now = any(),
+            )
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
+    fun setMasterRemindersEnabled_marksAReconcileFirstAndFinishesItOnceTheOwnerIsGone() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { settingsRepository.setRemindersEnabled(true) } returns Unit
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns Unit
+        val rescheduleGate = CompletableDeferred<Unit>()
+        var rescheduled = false
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
+            rescheduleGate.await()
+            rescheduled = true
+        }
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.setMasterRemindersEnabled(true)
+        runCurrent()
+        // The new plan's editor goes while the reminders it turned on are scheduled.
+        viewModel.viewModelScope.cancel()
+        rescheduleGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reschedule outlives the editor", rescheduled)
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            settingsRepository.setRemindersEnabled(true)
+            medicationReminderScheduler.rescheduleAll(any())
         }
     }
 

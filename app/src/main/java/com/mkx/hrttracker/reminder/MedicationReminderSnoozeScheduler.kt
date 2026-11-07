@@ -13,7 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.missingSlotCounts
-import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
@@ -72,10 +72,10 @@ class MedicationReminderSnoozeScheduler private constructor(
     suspend fun snoozeSlots(
         slots: List<MedicationReminderSlot>,
         now: Instant = Instant.now(),
-    ): List<MedicationReminderSnoozeRecord> {
+    ): List<MedicationReminderSnoozeRecord> = withReminderScheduleLock {
         if (slots.isEmpty()) {
             diagnosticsLogger.info(TAG, "snooze_slots_skipped reason=empty_slots now=$now")
-            return emptyList()
+            return@withReminderScheduleLock emptyList()
         }
 
         diagnosticsLogger.info(TAG, "snooze_slots_start slots=${slots.size} now=$now")
@@ -100,20 +100,20 @@ class MedicationReminderSnoozeScheduler private constructor(
             "snooze_slots_complete slots=${slots.size} scheduled=${nextRecords.size} " +
                     "existing=${existingRecords.size} stored=${updatedRecords.size} snoozeAt=$snoozeAt"
         )
-        return nextRecords
+        nextRecords
     }
 
-    suspend fun clearSnoozesForSlots(slots: List<MedicationReminderSlot>) {
+    suspend fun clearSnoozesForSlots(slots: List<MedicationReminderSlot>) = withReminderScheduleLock {
         if (slots.isEmpty()) {
             diagnosticsLogger.info(TAG, "snooze_clear_slots_skipped reason=empty_slots")
-            return
+            return@withReminderScheduleLock
         }
 
         diagnosticsLogger.info(TAG, "snooze_clear_slots_start slots=${slots.size}")
         clearSnoozesMatching { record -> record.slot in slots }
     }
 
-    suspend fun clearStaleSnoozesForGroup(group: MedicationGroup) {
+    suspend fun clearStaleSnoozesForGroup(group: MedicationGroup) = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "snooze_clear_stale_group_start groupUuid=${group.uuid}")
         val slotTimesByUuid = group.schedule.timeSlots
             .associate { slot -> slot.uuid to slot.time }
@@ -132,7 +132,7 @@ class MedicationReminderSnoozeScheduler private constructor(
      * still matches the group's current schedule. Use after archive or delete to
      * avoid waking the device for a slot whose owning group no longer exists.
      */
-    suspend fun clearSnoozesForGroup(groupUuid: UUID) {
+    suspend fun clearSnoozesForGroup(groupUuid: UUID) = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "snooze_clear_group_start groupUuid=$groupUuid")
         clearSnoozesMatching { record -> record.slot.groupUuid == groupUuid }
     }
@@ -150,7 +150,7 @@ class MedicationReminderSnoozeScheduler private constructor(
         )
     }
 
-    suspend fun clearAllSnoozes() {
+    suspend fun clearAllSnoozes() = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "snooze_clear_all_start")
         val existingRecords = snoozeStore.getSnoozeRecords()
         replaceSnoozeRecords(existingRecords, emptyList())
@@ -164,7 +164,7 @@ class MedicationReminderSnoozeScheduler private constructor(
      * force-stopped through it, is armed at that time and fires at once. Nothing can fire
      * before this pass runs.
      */
-    suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
+    suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "snooze_reschedule_all_start now=$now")
         val records = snoozeStore.getSnoozeRecords()
         // Room is read only when a record needs it.
@@ -182,20 +182,19 @@ class MedicationReminderSnoozeScheduler private constructor(
                 record.isWithinDoseLifetime(groupsByUuid[record.slot.groupUuid], entries, now)
             }
         }
-        records.armedBundles().values.forEach(::cancelSnoozeBundle)
+        // Every live bundle, not just the changed ones: after a reboot or a force-stop none is armed.
+        replaceSnoozeRecords(records, liveRecords, rearm = true)
         if (liveRecords.size != records.size) {
-            snoozeStore.replaceSnoozeRecords(liveRecords)
             diagnosticsLogger.info(
                 TAG,
                 "snooze_reschedule_all_pruned expired=${records.size - liveRecords.size} " +
                         "remaining=${liveRecords.size}"
             )
         }
-        val bundles = liveRecords.armedBundles().values
-        bundles.forEach(::scheduleSnoozeBundle)
         diagnosticsLogger.info(
             TAG,
-            "snooze_reschedule_all_complete records=${liveRecords.size} bundles=${bundles.size}"
+            "snooze_reschedule_all_complete records=${liveRecords.size} " +
+                    "bundles=${liveRecords.armedBundles().size}"
         )
     }
 
@@ -210,7 +209,7 @@ class MedicationReminderSnoozeScheduler private constructor(
     suspend fun claimSnoozeDelivery(
         slots: List<MedicationReminderSlot>,
         snoozeAt: Instant?,
-    ): List<MedicationReminderSlot> {
+    ): List<MedicationReminderSlot> = withReminderScheduleLock {
         val existingRecords = snoozeStore.getSnoozeRecords()
         val claimedRecords = existingRecords.filter { record ->
             record.slot in slots && !record.fired && (snoozeAt == null || record.snoozeAt == snoozeAt)
@@ -226,7 +225,7 @@ class MedicationReminderSnoozeScheduler private constructor(
             TAG,
             "snooze_delivery_claimed slots=${slots.size} claimed=${claimedSlots.size} snoozeAt=$snoozeAt"
         )
-        return claimedSlots
+        claimedSlots
     }
 
     suspend fun getSnoozeRecords(): List<MedicationReminderSnoozeRecord> {
@@ -235,24 +234,25 @@ class MedicationReminderSnoozeScheduler private constructor(
 
     /**
      * Stores [updatedRecords] in place of [existingRecords]. A bundle's alarm is keyed by its
-     * time and slots, so each bundle that changes is cancelled before the write and armed as
-     * it is now after it. The others keep their alarms.
+     * time and slots, so after the write each bundle that changed is cancelled and armed as it
+     * is now; the others keep their alarms, or with [rearm] are armed again. Written first, so a
+     * failed write leaves every alarm as it was.
      */
     private suspend fun replaceSnoozeRecords(
         existingRecords: List<MedicationReminderSnoozeRecord>,
         updatedRecords: List<MedicationReminderSnoozeRecord>,
+        rearm: Boolean = false,
     ) {
-        if (updatedRecords == existingRecords) {
-            return
+        if (updatedRecords != existingRecords) {
+            snoozeStore.replaceSnoozeRecords(updatedRecords)
         }
         val armedBefore = existingRecords.armedBundles()
         val armedAfter = updatedRecords.armedBundles()
         armedBefore.forEach { (snoozeAt, bundle) ->
             if (armedAfter[snoozeAt]?.toSet() != bundle.toSet()) cancelSnoozeBundle(bundle)
         }
-        snoozeStore.replaceSnoozeRecords(updatedRecords)
         armedAfter.forEach { (snoozeAt, bundle) ->
-            if (armedBefore[snoozeAt]?.toSet() != bundle.toSet()) scheduleSnoozeBundle(bundle)
+            if (rearm || armedBefore[snoozeAt]?.toSet() != bundle.toSet()) scheduleSnoozeBundle(bundle)
         }
     }
 
@@ -367,9 +367,9 @@ private fun MedicationReminderSnoozeRecord.isWithinDoseLifetime(
     ) {
         return false
     }
-    // ponytail: with none in the planner's 90-day lookahead, it lasts while the dose is due.
+    // However far off; the plan has this slot, so it comes again. None only past an archive.
     val nextDoseAtSlot = group
-        .nextOccurrencesInPlanWindowFrom(start = slot.scheduledAt, limit = Int.MAX_VALUE)
+        .occurrencesInPlanWindowFrom(start = slot.scheduledAt)
         .firstOrNull { occurrence ->
             occurrence.scheduledFor.isAfter(slot.scheduledAt) &&
                     (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)

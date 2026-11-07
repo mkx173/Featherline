@@ -40,6 +40,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -301,6 +302,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
+            // Startup reconciles if the process dies before the reschedule; it outlives Settings.
+            runReminderSideEffectBestEffort {
+                medicationReminderScheduler.markReconcilePending()
+            }
             try {
                 settingsRepository.setRemindersEnabled(enabled)
             } catch (error: CancellationException) {
@@ -309,13 +314,15 @@ class SettingsViewModel @Inject constructor(
                 settingsEvents.tryEmit(SettingsMutationEvent.Failure(error))
                 return@launch
             }
-            if (!enabled) {
-                runReminderSideEffectBestEffort {
-                    medicationReminderSnoozeScheduler.clearAllSnoozes()
+            withContext(NonCancellable) {
+                if (!enabled) {
+                    runReminderSideEffectBestEffort {
+                        medicationReminderSnoozeScheduler.clearAllSnoozes()
+                    }
                 }
-            }
-            runReminderSideEffectBestEffort {
-                medicationReminderScheduler.rescheduleAll()
+                runReminderSideEffectBestEffort {
+                    medicationReminderScheduler.rescheduleAll()
+                }
             }
         }
     }

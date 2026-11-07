@@ -237,18 +237,20 @@ class MedicationReminderPlannerTest {
 
     @Test
     fun buildNextMedicationReminderPlans_returns_empty_when_no_future_unfulfilled_occurrence_exists() {
+        // Weekly on no day: no dose, however far it looks.
         val group = medicationGroup(
             uuid = UUID.fromString("8d49d0f2-7daf-458f-9995-9a2b5db32ce0"),
             name = "Weekly estradiol",
             time = LocalTime.of(9, 0),
             notificationsEnabled = true
-        )
+        ).let { group ->
+            group.copy(schedule = group.schedule.copy(type = MedicationGroupScheduleType.WEEKLY))
+        }
 
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = emptyList(),
             now = LocalDateTime.of(2026, 4, 20, 10, 0),
-            lookaheadDays = 0,
         )
 
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
@@ -336,6 +338,63 @@ class MedicationReminderPlannerTest {
             ),
             plans.associate { plan -> plan.groupUuid to plan.scheduledAt },
         )
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_arms_the_next_dose_however_far_apart_the_doses_are() {
+        // A 13-week depot as every 91 days, and one every 14 weeks: each just dosed.
+        val depot = medicationGroup(
+            uuid = UUID.fromString("3a7e1c52-9b04-4d6f-8e21-5c0d9f4b7a13"),
+            name = "Depot",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true,
+        ).let { group -> group.copy(schedule = group.schedule.copy(interval = 91)) }
+        val fortnightly = medicationGroup(
+            uuid = UUID.fromString("4b8f2d63-0c15-4e7a-9f32-6d1e0a5c8b24"),
+            name = "Every 14 weeks",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true,
+        ).let { group ->
+            group.copy(
+                schedule = group.schedule.copy(
+                    type = MedicationGroupScheduleType.WEEKLY,
+                    interval = 14,
+                    weeklyDaysOfWeek = setOf(java.time.DayOfWeek.WEDNESDAY),
+                ),
+            )
+        }
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(depot, fortnightly),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 1, 10, 0),
+        )
+
+        assertEquals(
+            mapOf(
+                depot.uuid to LocalDateTime.of(2026, 7, 1, 9, 0),
+                fortnightly.uuid to LocalDateTime.of(2026, 7, 8, 9, 0),
+            ),
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt },
+        )
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_arms_the_first_dose_of_a_plan_starting_after_90_days() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("5c9a3e74-1d26-4f8b-8a43-7e2f1b6d9c35"),
+            name = "Starts next year",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true,
+        ).let { group -> group.copy(schedule = group.schedule.copy(since = LocalDate.of(2027, 1, 15))) }
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 20, 8, 0),
+        )
+
+        assertEquals(listOf(LocalDateTime.of(2027, 1, 15, 9, 0)), plans.map { it.scheduledAt })
     }
 
     private fun medicationGroup(

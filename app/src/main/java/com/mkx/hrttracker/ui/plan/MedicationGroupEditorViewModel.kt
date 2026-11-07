@@ -602,8 +602,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun setMasterRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
+            // Startup reconciles if the process dies before the reschedule; it outlives this editor.
+            runCatching { medicationReminderScheduler.markReconcilePending() }
             settingsRepository.setRemindersEnabled(enabled)
-            medicationReminderScheduler.rescheduleAll()
+            withContext(NonCancellable) { medicationReminderScheduler.rescheduleAll() }
         }
     }
 
@@ -1493,6 +1495,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 resolvedGroupName = resolvedGroupName,
             )
 
+            // Startup reconciles if the process dies before the reschedule; it outlives this editor.
+            runCatching { medicationReminderScheduler.markReconcilePending() }
             // One transaction: a failure leaves the plan active, as this editor still shows it.
             val replacement = runCatching {
                 medicationGroupRepository.archiveAndRecreateGroup(
@@ -1528,12 +1532,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 return@launch
             }
 
-            runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-            runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
-            runCatching { medicationReminderScheduler.rescheduleAll() }
-
             val savedGroupUuid = replacement.getOrThrow()
-            runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+            withContext(NonCancellable) {
+                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+                runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+            }
             val savedGroup = medicationGroupRepository.getGroup(savedGroupUuid)
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
             val replacementState = savedGroup?.toEditorState(

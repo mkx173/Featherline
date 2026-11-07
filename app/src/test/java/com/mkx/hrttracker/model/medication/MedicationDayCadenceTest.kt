@@ -206,6 +206,44 @@ class MedicationDayCadenceTest {
         )
     }
 
+    @Test
+    fun theHorizonlessOccurrencesAgreeWithTheWindowedOnes() {
+        // Cadences, both day endings, a start mid-week and a slot that starts later.
+        val groups = listOf(1, 2, 3).flatMap { interval ->
+            listOf(fourAm, midnight).flatMap { boundary ->
+                listOf(
+                    group(MedicationGroupScheduleType.DAILY, interval, listOf(LocalTime.of(2, 0), LocalTime.of(21, 0)), dayBoundary = boundary),
+                    group(
+                        MedicationGroupScheduleType.WEEKLY,
+                        interval,
+                        listOf(LocalTime.of(1, 0), LocalTime.of(9, 0)),
+                        weeklyDays = setOf(DayOfWeek.MONDAY, DayOfWeek.SATURDAY),
+                        dayBoundary = boundary,
+                    ),
+                )
+            }
+        }.map { group ->
+            group.copy(
+                schedule = group.schedule.copy(
+                    timeSlots = group.schedule.timeSlots.mapIndexed { index, slot ->
+                        if (index == 0) slot.copy(effectiveFrom = LocalDateTime.of(2026, 11, 3, 12, 0)) else slot
+                    },
+                ),
+            )
+        }
+        listOf(LocalDateTime.of(2026, 10, 10, 0, 0), LocalDateTime.of(2026, 10, 25, 1, 30)).forEach { start ->
+            groups.forEach { group ->
+                val windowEnd = start.toLocalDate().plusDays(60)
+                assertEquals(
+                    group.nextOccurrencesInPlanWindowFrom(start, limit = Int.MAX_VALUE, lookaheadDays = 60),
+                    group.occurrencesInPlanWindowFrom(start)
+                        .takeWhile { occurrence -> !occurrence.scheduledFor.toLocalDate().isAfter(windowEnd) }
+                        .toList(),
+                )
+            }
+        }
+    }
+
     private fun slots(
         group: MedicationGroup,
         date: LocalDate,
