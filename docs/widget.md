@@ -388,12 +388,15 @@ graph TD
   whether there is none, whether its `anchorDateEpochDay` is before
   today's calendar date or its `fourAmAnchorDateEpochDay` before the
   medication day at 04:00 (a night-owl plan's rows leave Today at
-  04:00, whatever the plans are), or whether any row's `UPCOMING`/`DUE_SOON` status should
+  04:00, whatever the plans are), whether a section start
+  (`nextWidgetDateRefreshAt`) passed after its `builtAt` (noon and
+  18:00 move no date, so a late, missed or unarmed date alarm is caught
+  here), or whether any row's `UPCOMING`/`DUE_SOON` status should
   have transitioned by `now`. If so, it rebuilds the widget snapshot
-  from the current cache state and `now` through `writeWidgetSnapshot`
-  (the rows from its Home data, the estimate from its E2 inputs), with
-  no Room read and no solve. Without a current state that has both
-  parts it waits for `homeSnapshotRepository.rebuildNow()` instead, so
+  from the current cache state through `writeWidgetSnapshot`, which
+  reads the clock under its lock (the rows from its Home data, the
+  estimate from its E2 inputs), with no Room read and no solve.
+  Without a current state that has both parts it waits for `homeSnapshotRepository.rebuildNow()` instead, so
   the job, and the process with it, outlive the run: the run's publish
   routes back into the cache observer above, and a run that failed
   earlier is retried. It does the same when a newer publish superseded
@@ -414,9 +417,10 @@ graph TD
   `ACTION_DATE_CHANGED` manifest receivers from background broadcast
   limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the earlier of the next local midnight, 04:00 (when a night-owl
-  plan's rows leave Today), and noon, when `Last night`
-  stops being visible. A reboot clears that exact alarm, so the
+  for the next start of a `MedicationDayTimeRange` section: local
+  midnight, 04:00 (when a night-owl plan's rows leave Today), noon, when
+  `Last night` stops being visible, and 18:00, when `Coming up` opens
+  for midnight plans. A reboot clears that exact alarm, so the
   receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
   and, under `goAsync()`, waits for `rebuildNow()` within its budget,
   again leaning on the cache observer to fan out; out of budget, the

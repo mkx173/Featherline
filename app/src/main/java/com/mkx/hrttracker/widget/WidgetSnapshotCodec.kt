@@ -17,6 +17,7 @@ internal object WidgetSnapshotCodec {
             stream.writeString(record.zoneId)
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeLong(record.fourAmAnchorDateEpochDay)
+            stream.writeLocalDateTime(record.builtAt)
             stream.writeInt(record.doneCount)
             stream.writeInt(record.totalCount)
             stream.writeInt(record.manualCount)
@@ -42,6 +43,7 @@ internal object WidgetSnapshotCodec {
                 zoneId = stream.readString(),
                 anchorDateEpochDay = stream.readLong(),
                 fourAmAnchorDateEpochDay = stream.readLong(),
+                builtAt = stream.readLocalDateTime(),
                 doneCount = stream.readInt(),
                 totalCount = stream.readInt(),
                 manualCount = stream.readInt(),
@@ -187,5 +189,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 18
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 19
 private const val BYTE_MASK = 0xff

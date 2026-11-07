@@ -9,6 +9,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 import java.time.LocalDateTime
 
 class WidgetSnapshotCodecTest {
@@ -19,6 +20,7 @@ class WidgetSnapshotCodecTest {
         anchorDateEpochDay = LocalDateTime.of(2026, 5, 18, 0, 0, 0).toLocalDate().toEpochDay(),
         // Built before 04:00, so the medication day at 04:00 is the day before.
         fourAmAnchorDateEpochDay = LocalDateTime.of(2026, 5, 17, 0, 0, 0).toLocalDate().toEpochDay(),
+        builtAt = LocalDateTime.of(2026, 5, 18, 1, 0, 0),
         doneCount = 1,
         totalCount = 3,
         manualCount = 1,
@@ -110,11 +112,15 @@ class WidgetSnapshotCodecTest {
         val record = baseRecord.copy(
             anchorDateEpochDay = builtAt.toLocalDate().toEpochDay(),
             fourAmAnchorDateEpochDay = medicationDay(builtAt, MedicationDayBoundary.FourAm).toEpochDay(),
+            builtAt = builtAt,
         )
         assertFalse(record.isAnchoredBefore(builtAt.withHour(3).withMinute(59)))
         assertTrue(record.isAnchoredBefore(builtAt.withHour(4)))
-        // Built after 04:00, it holds until midnight.
-        val rebuilt = record.copy(fourAmAnchorDateEpochDay = builtAt.toLocalDate().toEpochDay())
+        // Built after 18:00, the day's last section start, it holds until midnight.
+        val rebuilt = record.copy(
+            fourAmAnchorDateEpochDay = builtAt.toLocalDate().toEpochDay(),
+            builtAt = builtAt.withHour(18),
+        )
         assertFalse(rebuilt.isAnchoredBefore(builtAt.withHour(23).withMinute(59)))
         assertTrue(rebuilt.isAnchoredBefore(builtAt.plusDays(1).withHour(0)))
     }
@@ -197,6 +203,18 @@ class WidgetSnapshotCodecTest {
         val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
         assertEquals(record.anchorDateEpochDay, decoded.anchorDateEpochDay)
         assertEquals(record.fourAmAnchorDateEpochDay, decoded.fourAmAnchorDateEpochDay)
+        assertEquals(record.builtAt, decoded.builtAt)
+    }
+
+    @Test
+    fun `a record of the codec version before builtAt reads as no record`() {
+        // Like any other version: dropped, so the worker rewrites the widget it finds empty.
+        val bytes = WidgetSnapshotCodec.encode(baseRecord)
+        ByteBuffer.wrap(bytes).putInt(0, 18)
+        val state = kotlinx.coroutines.runBlocking {
+            WidgetSnapshotSerializer(PassthroughWidgetCrypto).readFrom(ByteArrayInputStream(bytes))
+        }
+        assertEquals(WidgetSnapshotState.Empty, state)
     }
 
     @Test
@@ -208,6 +226,7 @@ class WidgetSnapshotCodecTest {
             baseRecord.copy(
                 anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                 fourAmAnchorDateEpochDay = medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay(),
+                builtAt = now,
             ).isAnchoredBefore(now)
         )
     }

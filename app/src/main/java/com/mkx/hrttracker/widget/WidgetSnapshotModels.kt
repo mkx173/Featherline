@@ -84,6 +84,12 @@ data class WidgetSnapshotRecord(
      * leave Today at 04:00, so a build that day's 04:00 run missed is stale too.
      */
     val fourAmAnchorDateEpochDay: Long,
+    /**
+     * When the rows were built. Noon and 18:00 change the sections without
+     * moving either date, so the rows are stale too once the next section
+     * start after it passes.
+     */
+    val builtAt: LocalDateTime,
     val doneCount: Int,
     val totalCount: Int,
     val manualCount: Int,

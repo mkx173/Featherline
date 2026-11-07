@@ -149,6 +149,7 @@ internal fun buildWidgetSnapshotRecord(
         zoneId = zoneId.id,
         anchorDateEpochDay = sections.today.toEpochDay(),
         fourAmAnchorDateEpochDay = medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay(),
+        builtAt = now,
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,

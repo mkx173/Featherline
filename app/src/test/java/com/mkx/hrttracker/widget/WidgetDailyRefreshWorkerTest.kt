@@ -96,8 +96,8 @@ class WidgetDailyRefreshWorkerTest {
     @Test
     fun staleRows_withACurrentStateWithBothParts_areRebuiltFromIt_withoutARun() = runTest {
         // The record's builder needs the app's resources; what matters here is
-        // that the writer gets the state and the time.
-        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any(), any()) } returns true
+        // that the writer gets the state.
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
         val stale = listOf(
             // No record yet.
             null,
@@ -113,11 +113,27 @@ class WidgetDailyRefreshWorkerTest {
 
         for (snapshot in stale) refresh(snapshot)
 
-        coVerify(exactly = 5) { widgetSnapshotRepository.writeWidgetSnapshot(state, now) }
+        coVerify(exactly = 5) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
         verify(exactly = 0) { homeSnapshotRepository.requestRebuild() }
         coVerify(exactly = 5) { e2EstimateRepository.warmHome() }
         assertEquals(0, rerenders)
+    }
+
+    @Test
+    fun aRecordBuiltBeforeASectionStart_isRebuiltOnceItPasses_withNoRowToTurnStale() = runTest {
+        // A midnight-ending plan whose only dose is tomorrow at 00:30: built at 17:30, the
+        // record has no rows, and from 18:00 Home lists the dose under Coming up. The 18:00
+        // alarm was late, missed, or never armed because setting it threw.
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+        val builtBeforeSix = widget(builtAt = today.atTime(17, 30))
+
+        refresh(builtBeforeSix, at = today.atTime(17, 59))
+        assertEquals(1, rerenders)
+        refresh(builtBeforeSix, at = today.atTime(18, 15))
+
+        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+        assertEquals(1, rerenders)
     }
 
     @Test
@@ -163,7 +179,7 @@ class WidgetDailyRefreshWorkerTest {
             derivations++
             callOriginal()
         }
-        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any(), any()) } returns true
+        coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
         val estimates = estimateRepository()
 
         // Fresh rows: the widget is re-rendered, and the stored estimate
@@ -191,7 +207,7 @@ class WidgetDailyRefreshWorkerTest {
         assertEquals(1, derivations)
         assertEquals(1, writes)
         assertEquals(keyAt(tomorrow), stored?.key)
-        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state, tomorrow) }
+        coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
         assertEquals(2, rerenders)
         // No Room read and no solve: only a run does either.
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
@@ -241,12 +257,14 @@ class WidgetDailyRefreshWorkerTest {
     private fun widget(
         anchorDate: LocalDate = today,
         fourAmAnchorDate: LocalDate = anchorDate,
+        builtAt: LocalDateTime = anchorDate.atTime(now.toLocalTime()),
         rows: List<WidgetDoseRow> = emptyList(),
     ) = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = zoneId.id,
         anchorDateEpochDay = anchorDate.toEpochDay(),
         fourAmAnchorDateEpochDay = fourAmAnchorDate.toEpochDay(),
+        builtAt = builtAt,
         doneCount = 0,
         totalCount = rows.size,
         manualCount = 0,

@@ -418,6 +418,39 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
+    fun aRecordBuiltBeforeSix_isStaleFromSix_whenComingUpGainsTonightsOnlyDose() {
+        // A midnight-ending plan whose only dose is tomorrow at 00:30.
+        val beforeSix = LocalDateTime.of(2026, 10, 1, 17, 30)
+        val group = widgetTestGroup(
+            groupName = "Night",
+            medicationKey = MedicationKey.ESTRADIOL,
+            since = beforeSix.toLocalDate().plusDays(1),
+            time = LocalTime.of(0, 30),
+        )
+        fun buildAt(now: LocalDateTime) = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeSnapshotRecord(now = now, activeGroups = listOf(group)),
+            widgetEstimate = null,
+            settings = SettingsState(),
+            now = now,
+            zoneId = zoneId,
+        )
+
+        val built = buildAt(beforeSix)
+        assertTrue(built.doseRows.isEmpty())
+        // No row to turn stale: only the section start tells the worker to rebuild it.
+        assertFalse(built.isAnchoredBefore(beforeSix.withMinute(59)))
+        assertTrue(built.isAnchoredBefore(beforeSix.withHour(18).withMinute(0)))
+
+        val rebuilt = buildAt(beforeSix.withHour(18).withMinute(0))
+        assertEquals(
+            listOf(beforeSix.toLocalDate().plusDays(1).atTime(0, 30)),
+            rebuilt.doseRows.filter { row -> row.contextChip == WidgetDoseChip.COMING_UP }
+                .map { row -> row.scheduledAt },
+        )
+    }
+
+    @Test
     fun comingUpIncludesManualMidnightRowAtMidnightBoundary() {
         val now = LocalDateTime.of(2026, 10, 1, 20, 0)
         val manualMedicine = testCustomMedicine(medicationName = "Midnight manual")

@@ -41,6 +41,9 @@ class WidgetDailyRefreshWorker(
  *
  * The rows are stale once the calendar day or the medication day at 04:00
  * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are.
+ * They are also stale once a section start passes after they were built:
+ * noon and 18:00 move no date and may leave no row to turn stale, so this
+ * run rebuilds what a late, missed or unarmed date alarm left.
  */
 internal suspend fun handleWidgetDailyRefresh(
     now: LocalDateTime,
@@ -66,7 +69,7 @@ internal suspend fun handleWidgetDailyRefresh(
     try {
         if (snapshot == null || anchorDateStale || doseStatusStale) {
             val written = homeSnapshotRepository.currentState()
-                ?.let { state -> widgetSnapshotRepository.writeWidgetSnapshot(state, now) } == true
+                ?.let { state -> widgetSnapshotRepository.writeWidgetSnapshot(state) } == true
             // HomeWidgetManager's cache observer rewrites the widget from the run's publish.
             // Waited for, so the job, and the process with it, outlive the run. A state a
             // newer publish superseded isn't written either: the observer writes that one,
@@ -85,4 +88,5 @@ internal suspend fun handleWidgetDailyRefresh(
 
 internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime): Boolean =
     anchorDateEpochDay < now.toLocalDate().toEpochDay() ||
-        fourAmAnchorDateEpochDay < medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay()
+        fourAmAnchorDateEpochDay < medicationDay(now, MedicationDayBoundary.FourAm).toEpochDay() ||
+        !now.isBefore(nextWidgetDateRefreshAt(builtAt))

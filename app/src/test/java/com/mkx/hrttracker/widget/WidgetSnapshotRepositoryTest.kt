@@ -32,12 +32,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WidgetSnapshotRepositoryTest {
     private val today = LocalDate.of(2026, 5, 20)
     private val now = today.atTime(10, 0)
+    private val clock = MutableClock(now.atZone(ZoneId.systemDefault()).toInstant())
     private val cache = MutableStateFlow<HomeCacheState?>(null)
     private val generation = MutableStateFlow(0L)
     private val homeSnapshotRepository = mockk<HomeSnapshotRepository>(relaxed = true) {
@@ -72,14 +77,15 @@ class WidgetSnapshotRepositoryTest {
         e2EstimateRepository = estimates,
         settingsRepository = settingsRepository,
         widgetSnapshotStore = widgetSnapshotStore,
+        clock = clock,
         diagnosticsLogger = mockk(relaxed = true),
     )
 
     @Before
     fun setUp() {
         // The record's builder and the push need the app's resources; the
-        // builder stub carries the state's tag into the record, and a derived
-        // estimate as [derivedProjection].
+        // builder stub carries the state's tag into the record, a derived
+        // estimate as [derivedProjection], and the time it builds at.
         mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
         coEvery { pushHrtWidgets(any(), any()) } returns Unit
         mockkStatic("com.mkx.hrttracker.util.AppDateTimeFormattersKt")
@@ -89,6 +95,7 @@ class WidgetSnapshotRepositoryTest {
             record(
                 tag = secondArg<HomeSnapshotRecord>().zoneId,
                 pkProjection = thirdArg<PkProjectionResult?>()?.let { derivedProjection },
+                builtAt = arg(4),
             )
         }
     }
@@ -145,7 +152,7 @@ class WidgetSnapshotRepositoryTest {
         // run publishes, and HomeWidgetManager's observer writes the result.
         generation.value = 1L
         cache.value = after
-        val observer = launch { repository.writeWidgetSnapshot(after, now) }
+        val observer = launch { repository.writeWidgetSnapshot(after) }
         runCurrent()
         slowDerivation.complete(Unit)
         worker.join()
@@ -173,7 +180,7 @@ class WidgetSnapshotRepositoryTest {
         runCurrent()
         generation.value = 1L
         cache.value = after
-        repository.writeWidgetSnapshot(after, now)
+        repository.writeWidgetSnapshot(after)
         read.complete(Unit)
         worker.join()
 
@@ -199,11 +206,38 @@ class WidgetSnapshotRepositoryTest {
         val worker = launch { refreshFromTheWorker() }
         runCurrent()
         cache.value = midnight
-        repository.writeWidgetSnapshot(midnight, now)
+        repository.writeWidgetSnapshot(midnight)
         read.complete(Unit)
         worker.join()
 
         assertEquals(listOf("midnight-run"), written)
+    }
+
+    @Test
+    fun aWriteSampledBeforeASectionStart_landingAfterTheSameStatesRewrite_isBuiltAfterItToo() = runTest {
+        // No run publishes across 18:00 here, so both writes pass the identity check.
+        val current = state(generation = 0L, tag = "current")
+        cache.value = current
+
+        // The worker starts at 17:59:30 and waits on its read: the disk load,
+        // at a process start.
+        val read = CompletableDeferred<Unit>()
+        coEvery { homeSnapshotRepository.currentState() } coAnswers {
+            read.await()
+            current
+        }
+        val worker = launch { refreshFromTheWorker(at = today.atTime(17, 59, 30)) }
+        runCurrent()
+        // Meanwhile a write of the same state after 18:00 lands: a settings
+        // change, or the next worker run.
+        clock.instant = today.atTime(18, 0, 30).atZone(ZoneId.systemDefault()).toInstant()
+        repository.writeWidgetSnapshot(current)
+        read.complete(Unit)
+        worker.join()
+
+        // Not on the old side of 18:00, without its Coming up rows.
+        assertEquals(listOf("current", "current"), written)
+        assertEquals(today.atTime(18, 0, 30), stored?.builtAt)
     }
 
     @Test
@@ -215,7 +249,7 @@ class WidgetSnapshotRepositoryTest {
         val dueSoon = state(generation = 0L, tag = "due-soon")
         cache.value = dueSoon
 
-        assertTrue(repository.writeWidgetSnapshot(dueSoon, now))
+        assertTrue(repository.writeWidgetSnapshot(dueSoon))
 
         assertEquals(listOf("due-soon"), written)
         assertEquals(lastProjection, stored?.pkProjection)
@@ -229,15 +263,15 @@ class WidgetSnapshotRepositoryTest {
         generation.value = 1L
         cache.value = afterTheLog
 
-        assertTrue(repository.writeWidgetSnapshot(afterTheLog, now))
+        assertTrue(repository.writeWidgetSnapshot(afterTheLog))
 
         assertEquals(listOf("after-the-log"), written)
         assertEquals(derivedProjection, stored?.pkProjection)
     }
 
     /** The 15-minute worker with stale rows: no record at all. */
-    private suspend fun refreshFromTheWorker() = handleWidgetDailyRefresh(
-        now = now,
+    private suspend fun refreshFromTheWorker(at: LocalDateTime = now) = handleWidgetDailyRefresh(
+        now = at,
         snapshot = null,
         homeSnapshotRepository = homeSnapshotRepository,
         widgetSnapshotRepository = repository,
@@ -261,11 +295,16 @@ class WidgetSnapshotRepositoryTest {
     )
 
     // The tag stands in for the rows.
-    private fun record(tag: String, pkProjection: WidgetPkProjectionRecord?) = WidgetSnapshotRecord(
+    private fun record(
+        tag: String,
+        pkProjection: WidgetPkProjectionRecord?,
+        builtAt: LocalDateTime = now,
+    ) = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = tag,
         anchorDateEpochDay = today.toEpochDay(),
         fourAmAnchorDateEpochDay = today.toEpochDay(),
+        builtAt = builtAt,
         doneCount = 0,
         totalCount = 0,
         manualCount = 0,
@@ -301,4 +340,10 @@ class WidgetSnapshotRepositoryTest {
             plannedSources = emptyList(),
         ),
     )
+
+    private class MutableClock(@Volatile var instant: Instant) : Clock() {
+        override fun getZone(): ZoneId = ZoneId.systemDefault()
+        override fun withZone(zone: ZoneId): Clock = this
+        override fun instant(): Instant = instant
+    }
 }
