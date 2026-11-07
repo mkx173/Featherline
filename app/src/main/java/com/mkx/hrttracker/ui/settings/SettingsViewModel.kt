@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupExportService
-import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
@@ -54,6 +53,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import javax.inject.Inject
@@ -107,6 +107,12 @@ class SettingsViewModel @Inject constructor(
     // which triggers an activity recreate; without replay the success/failure
     // toast would be lost in the gap.
     private val restoreEvents = MutableSharedFlow<BackupRestoreEvent>(
+        replay = 1,
+        extraBufferCapacity = 4,
+    )
+    // Replayed like restoreEvents: the export outlives a recreation, and the new
+    // composition still has to launch the folder picker or show the result.
+    private val exportEvents = MutableSharedFlow<BackupExportEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
@@ -171,6 +177,9 @@ class SettingsViewModel @Inject constructor(
 
     init {
         preloadCalibrationData()
+        viewModelScope.launch {
+            runCatching { backupExportService.discardAbandonedPreparedBackups() }
+        }
     }
 
     val healthConnectState: StateFlow<HealthConnectCapabilityState> =
@@ -416,38 +425,84 @@ class SettingsViewModel @Inject constructor(
 
     private enum class ScreenLockPromptIntent { ENABLE, DISABLE }
 
-    suspend fun prepareBackupExport(
-        password: String,
-    ): PreparedBackupExport {
-        return backupExportService.prepareBackupExport(
-            password = password,
-        )
+    /**
+     * Prepares a backup in viewModelScope, so a recreation neither cancels it nor loses
+     * its file; [BackupExportEvent.ChooseDirectory] then asks the screen for a folder.
+     */
+    fun requestBackupExport(password: String) {
+        // Checked and set synchronously, as requestBackupRestore does: the dialog's own
+        // busy check reads the flag its last frame drew, so a repeat tap or IME Done
+        // before the next frame still reaches here.
+        if (isBackupExportInProgress.value || pendingPreparedBackupExport.value != null) return
+        isBackupExportInProgress.value = true
+        viewModelScope.launch {
+            val event = try {
+                val prepared = backupExportService.prepareBackupExport(password = password)
+                setPendingPreparedBackupExport(
+                    displayName = prepared.displayName,
+                    tempFilePath = prepared.tempFilePath,
+                )
+                BackupExportEvent.ChooseDirectory
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                BackupExportEvent.Failure
+            } finally {
+                isBackupExportInProgress.value = false
+            }
+            // Emitted once idle: the screen may answer at once, as a folder picker that
+            // fails to open hands the export straight back.
+            exportEvents.tryEmit(event)
+        }
     }
 
-    suspend fun exportPreparedBackup(
-        directoryUri: Uri,
-        preparedBackupExport: PreparedBackupExport,
-    ): BackupExportedFile {
-        return backupExportService.exportPreparedBackup(
-            directoryUri = directoryUri,
-            preparedBackupExport = preparedBackupExport,
+    /** The folder picker's result for the prepared backup; null if the picker was cancelled. */
+    fun onBackupDirectoryChosen(directoryUri: Uri?) {
+        if (isBackupExportInProgress.value) return
+        val pending = pendingPreparedBackupExport.value
+        if (pending == null) {
+            // Nothing prepared to write: the process died while the picker was open.
+            if (directoryUri != null) exportEvents.tryEmit(BackupExportEvent.Failure)
+            return
+        }
+        val prepared = PreparedBackupExport(
+            displayName = pending.displayName,
+            tempFilePath = pending.tempFilePath,
         )
+        isBackupExportInProgress.value = true
+        viewModelScope.launch {
+            try {
+                if (directoryUri == null) {
+                    backupExportService.discardPreparedBackup(prepared)
+                } else {
+                    val exported = backupExportService.exportPreparedBackup(
+                        directoryUri = directoryUri,
+                        preparedBackupExport = prepared,
+                    )
+                    exportEvents.tryEmit(BackupExportEvent.Success(exported.displayName))
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                exportEvents.tryEmit(BackupExportEvent.Failure)
+            } finally {
+                isBackupExportInProgress.value = false
+                clearPendingPreparedBackupExport()
+            }
+        }
     }
 
-    suspend fun discardPreparedBackup(
-        preparedBackupExport: PreparedBackupExport,
-    ) {
-        backupExportService.discardPreparedBackup(preparedBackupExport)
+    val backupExportEvents: SharedFlow<BackupExportEvent> = exportEvents.asSharedFlow()
+
+    override fun onCleared() {
+        // A prepared backup the folder picker never answered: no later screen can finish it.
+        // ponytail: one unlink on the main thread; viewModelScope is already cancelled here.
+        pendingPreparedBackupExport.value?.let { pending -> File(pending.tempFilePath).delete() }
     }
 
-    fun restorePreparedBackupExport(
-        displayName: String,
-        tempFilePath: String,
-    ): PreparedBackupExport {
-        return backupExportService.restorePreparedBackupExport(
-            displayName = displayName,
-            tempFilePath = tempFilePath,
-        )
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun consumeBackupExportEvent() {
+        exportEvents.resetReplayCache()
     }
 
     suspend fun restoreBackup(
@@ -658,12 +713,6 @@ class SettingsViewModel @Inject constructor(
         pendingPreparedBackupExport.value = null
     }
 
-    fun setBackupExportInProgress(
-        inProgress: Boolean,
-    ) {
-        isBackupExportInProgress.value = inProgress
-    }
-
     fun setBackupRestoreInProgress(
         inProgress: Boolean,
     ) {
@@ -743,6 +792,13 @@ sealed class BackupRestoreEvent {
     /** The data was replaced, but some of its settings or reminders weren't. */
     data object FollowUpFailed : BackupRestoreEvent()
     data class Failure(val error: Throwable) : BackupRestoreEvent()
+}
+
+sealed interface BackupExportEvent {
+    /** The backup is prepared: pick the folder it goes in. */
+    data object ChooseDirectory : BackupExportEvent
+    data class Success(val displayName: String) : BackupExportEvent
+    data object Failure : BackupExportEvent
 }
 
 sealed class WeightMutationEvent {

@@ -3,9 +3,15 @@ package com.mkx.hrttracker.ui.settings
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
+import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportFatalException
 import com.mkx.hrttracker.data.importer.ExternalImportParseResult
@@ -44,6 +50,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -65,6 +73,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -107,6 +116,7 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { backupExportService.discardAbandonedPreparedBackups() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
                 "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
         every { widgetAppearanceRepository.effectiveFor(null) } returns
@@ -450,6 +460,152 @@ class SettingsViewModelTest {
             viewModel.backupRestoreEvents.replayCache,
         )
     }
+
+    @Test
+    fun requestBackupExport_handsThePreparedBackupToTheFolderPicker() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupExportEvent.ChooseDirectory),
+            viewModel.backupExportEvents.replayCache,
+        )
+        assertEquals(
+            preparedExport.tempFilePath,
+            viewModel.uiState.value.pendingPreparedBackupExport?.tempFilePath,
+        )
+        assertFalse(viewModel.uiState.value.isBackupExportInProgress)
+    }
+
+    @Test
+    fun requestBackupExport_cancelledReportsNoFailure() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prepareStarted = CompletableDeferred<Unit>()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } coAnswers {
+            prepareStarted.complete(Unit)
+            awaitCancellation()
+        }
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        assertTrue("the export runs in the ViewModel", prepareStarted.isCompleted)
+        // The ViewModel is cleared mid-export: its activity finished.
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertEquals(
+            "events of a cancelled export",
+            emptyList<BackupExportEvent>(),
+            viewModel.backupExportEvents.replayCache,
+        )
+    }
+
+    @Test
+    fun requestBackupExport_aRepeatSubmitStartsNoSecondExport() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val finishPreparing = CompletableDeferred<Unit>()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } coAnswers {
+            finishPreparing.await()
+            preparedExport
+        }
+
+        // A second tap or IME Done before the dialog's next frame: it still looks idle.
+        viewModel.requestBackupExport("password")
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        finishPreparing.complete(Unit)
+        advanceUntilIdle()
+        // Prepared and waiting for the folder picker: still no second export.
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { backupExportService.prepareBackupExport("password", any()) }
+    }
+
+    @Test
+    fun onBackupDirectoryChosen_writesThePreparedBackupAndReportsItsName() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val directoryUri: Uri = mockk()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+        coEvery {
+            backupExportService.exportPreparedBackup(directoryUri, preparedExport)
+        } returns BackupExportedFile(displayName = preparedExport.displayName, uri = mockk())
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+        viewModel.consumeBackupExportEvent()
+
+        viewModel.onBackupDirectoryChosen(directoryUri)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupExportEvent.Success(preparedExport.displayName)),
+            viewModel.backupExportEvents.replayCache,
+        )
+        assertNull(viewModel.uiState.value.pendingPreparedBackupExport)
+        assertFalse(viewModel.uiState.value.isBackupExportInProgress)
+    }
+
+    @Test
+    fun requestBackupExport_aFolderPickerThatFailsToOpenDiscardsTheExport() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns preparedExport
+        coEvery { backupExportService.discardPreparedBackup(preparedExport) } returns true
+        // The screen answers at once: the folder picker failed to open, so it hands the
+        // prepared backup back.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.backupExportEvents.collect { event ->
+                if (event == BackupExportEvent.ChooseDirectory) {
+                    viewModel.onBackupDirectoryChosen(null)
+                }
+            }
+        }
+
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        assertNull(
+            "the prepared export the picker never got",
+            viewModel.uiState.value.pendingPreparedBackupExport,
+        )
+        coVerify(exactly = 1) { backupExportService.discardPreparedBackup(preparedExport) }
+    }
+
+    @Test
+    fun onCleared_discardsAPreparedExportThePickerNeverAnswered() = runTest {
+        val tempFile = File.createTempFile("prepared-backup-", ".tmp").apply { deleteOnExit() }
+        coEvery { backupExportService.prepareBackupExport("password", any()) } returns
+                preparedExport.copy(tempFilePath = tempFile.absolutePath)
+        val store = ViewModelStore()
+        val viewModel = ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                    createViewModel() as T
+            },
+        )[SettingsViewModel::class.java]
+        advanceUntilIdle()
+        viewModel.requestBackupExport("password")
+        advanceUntilIdle()
+
+        // The activity finishes while the folder picker is open.
+        store.clear()
+
+        assertFalse("the prepared backup no screen can finish", tempFile.exists())
+    }
+
+    private val preparedExport = PreparedBackupExport(
+        displayName = "featherline-backup-2026-11-08_12-00-00.hrtbackup",
+        tempFilePath = "/cache/prepared-backup-1.tmp",
+    )
 
     @Test
     fun setRemindersEnabled_clearsSnoozesWhenDisablingMasterSwitch() = runTest {

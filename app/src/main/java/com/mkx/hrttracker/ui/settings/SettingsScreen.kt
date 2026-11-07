@@ -175,30 +175,15 @@ fun SettingsScreen(
     val isBackupExportInProgress = uiState.isBackupExportInProgress
     val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
-    val pendingPreparedBackupExportState = uiState.pendingPreparedBackupExport
-    val pendingPreparedBackupExport =
-        pendingPreparedBackupExportState?.let { preparedBackupExport ->
-            viewModel.restorePreparedBackupExport(
-                displayName = preparedBackupExport.displayName,
-                tempFilePath = preparedBackupExport.tempFilePath,
-            )
-        }
-    val isBackupFlowPending = pendingPreparedBackupExport != null
+    val isBackupFlowPending = uiState.pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
-    val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
-    val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
-        stringResource(
-            R.string.settings_backup_export_success,
-            preparedBackupExport.displayName,
-        )
-    }
     val backupRestoreIncompatibleFileMessage =
         stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val externalImportFailedMessage = stringResource(R.string.external_import_failed)
-    val isBackupActionBlocked =
-        isBackupExportInProgress || isBackupRestoreInProgress || isBackupFlowPending
+    val isBackupActionBlocked = isBackupExportInProgress || isBackupRestoreInProgress ||
+            isBackupFlowPending || uiState.isExternalImportInProgress
     val externalImportReviewSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -306,52 +291,34 @@ fun SettingsScreen(
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
-        val preparedBackupExport = pendingPreparedBackupExport
-        if (directoryUri == null) {
-            if (preparedBackupExport != null) {
-                pickerResultScope.launch {
-                    viewModel.discardPreparedBackup(preparedBackupExport)
-                    viewModel.clearPendingPreparedBackupExport()
+        viewModel.onBackupDirectoryChosen(directoryUri)
+    }
+    // The export runs in the ViewModel, so it survives a recreation; its replayed
+    // events reach whichever composition is current.
+    LaunchedEffect(viewModel) {
+        viewModel.backupExportEvents.collect { event ->
+            val message = when (event) {
+                BackupExportEvent.ChooseDirectory -> {
+                    showBackupPasswordDialog = false
+                    try {
+                        backupDirectoryLauncher.launch(null)
+                        null
+                    } catch (_: Exception) {
+                        viewModel.onBackupDirectoryChosen(null)
+                        latestContext.getString(R.string.settings_backup_export_failed)
+                    }
                 }
-            }
-            return@rememberLauncherForActivityResult
-        }
-        if (
-            preparedBackupExport == null ||
-            isBackupExportInProgress ||
-            isBackupRestoreInProgress
-        ) {
-            viewModel.clearPendingPreparedBackupExport()
-            Toast.makeText(
-                context,
-                backupExportFailedMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-            return@rememberLauncherForActivityResult
-        }
 
-        pickerResultScope.launch {
-            viewModel.setBackupExportInProgress(true)
-            try {
-                viewModel.exportPreparedBackup(
-                    directoryUri = directoryUri,
-                    preparedBackupExport = preparedBackupExport,
+                is BackupExportEvent.Success -> latestContext.getString(
+                    R.string.settings_backup_export_success,
+                    event.displayName,
                 )
-                Toast.makeText(
-                    context,
-                    backupExportSuccessMessage ?: backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } catch (_: Exception) {
-                Toast.makeText(
-                    context,
-                    backupExportFailedMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                viewModel.setBackupExportInProgress(false)
-                viewModel.clearPendingPreparedBackupExport()
+
+                BackupExportEvent.Failure ->
+                    latestContext.getString(R.string.settings_backup_export_failed)
             }
+            message?.let { Toast.makeText(latestContext, it, Toast.LENGTH_SHORT).show() }
+            viewModel.consumeBackupExportEvent()
         }
     }
     val restoreBackupFileLauncher = rememberLauncherForActivityResult(
@@ -631,40 +598,7 @@ fun SettingsScreen(
             isInProgress = isBackupExportInProgress,
             minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
             onDismiss = { showBackupPasswordDialog = false },
-            onConfirm = { password ->
-                coroutineScope.launch {
-                    viewModel.setBackupExportInProgress(true)
-                    val preparedBackupExport = try {
-                        viewModel.prepareBackupExport(password)
-                    } catch (_: Exception) {
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return@launch
-                    } finally {
-                        viewModel.setBackupExportInProgress(false)
-                    }
-
-                    viewModel.setPendingPreparedBackupExport(
-                        displayName = preparedBackupExport.displayName,
-                        tempFilePath = preparedBackupExport.tempFilePath,
-                    )
-                    showBackupPasswordDialog = false
-                    try {
-                        backupDirectoryLauncher.launch(null)
-                    } catch (_: Exception) {
-                        viewModel.discardPreparedBackup(preparedBackupExport)
-                        viewModel.clearPendingPreparedBackupExport()
-                        Toast.makeText(
-                            context,
-                            backupExportFailedMessage,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            },
+            onConfirm = viewModel::requestBackupExport,
         )
     }
 

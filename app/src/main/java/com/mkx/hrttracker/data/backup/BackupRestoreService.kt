@@ -190,11 +190,15 @@ class BackupRestoreService @Inject constructor(
                     "expectedBackupPackage=$BACKUP_APP_PACKAGE_NAME installedPackage=${context.packageName}",
         )
         val passwordChars = password.toCharArray()
+        // Nothing is written until the mutation below, so running out of heap before it
+        // only fails this restore; decryption and decoding hold the most memory.
         val json = try {
             backupCrypto.decryptSnapshotJson(
                 encryptedBytes = encryptedBytes,
                 password = passwordChars,
             )
+        } catch (error: OutOfMemoryError) {
+            throw tooLargeForTheHeap("restore_backup_decrypt", error)
         } finally {
             passwordChars.fill(' ')
         }
@@ -228,6 +232,8 @@ class BackupRestoreService @Inject constructor(
                 error,
             )
             throw error
+        } catch (error: OutOfMemoryError) {
+            throw tooLargeForTheHeap("restore_backup_decode", error)
         }
 
         // Reminders on screen stay for rescheduleAll below to reconcile with the
@@ -425,16 +431,43 @@ class BackupRestoreService @Inject constructor(
         // Bound the read: a mis-selected or hostile file (e.g. a multi-gigabyte
         // video) would otherwise be pulled fully into memory by readBytes()
         // before any structural size limit applies, OOMing the restore.
-        return context.contentResolver.openInputStream(fileUri)
-            ?.use { inputStream -> readBoundedBytes(inputStream, MAX_ENCRYPTED_BACKUP_BYTES) }
-            ?: throw IOException("Unable to open the selected backup file.")
+        return try {
+            context.contentResolver.openInputStream(fileUri)
+                ?.use { inputStream ->
+                    readBoundedBytes(
+                        inputStream = inputStream,
+                        maxBytes = MAX_ENCRYPTED_BACKUP_BYTES,
+                        requiredPrefix = BackupCrypto.MAGIC_BYTES,
+                    )
+                }
+                ?: throw IOException("Unable to open the selected backup file.")
+        } catch (error: OutOfMemoryError) {
+            // The cap bounds the file, not the heap: the buffer grows by doubling and is
+            // copied once more at the end. ponytail: validation isn't caught; it copies
+            // less than this read held.
+            throw tooLargeForTheHeap("load_backup", error)
+        }
+    }
+
+    // The buffers that ran out are garbage once the error unwinds, so the app carries on.
+    private fun tooLargeForTheHeap(
+        step: String,
+        error: OutOfMemoryError,
+    ): IncompatibleBackupFileException {
+        diagnosticsLogger.warning(TAG, "${step}_out_of_memory", error)
+        return IncompatibleBackupFileException(
+            message = "Selected backup file is too large to restore on this device.",
+            cause = error,
+        )
     }
 }
 
 /**
  * Reads [inputStream] fully but rejects input larger than [maxBytes] without
  * first buffering the whole stream, so an oversized selection cannot exhaust
- * memory before the size limit applies.
+ * memory before the size limit applies. Input that doesn't start with
+ * [requiredPrefix] is rejected after reading only that many bytes, so a file of
+ * another kind isn't buffered at all.
  *
  * Throws [IncompatibleBackupFileException] (not a plain [IOException]) on
  * over-cap input so the picker — which runs this before the password prompt —
@@ -445,10 +478,22 @@ class BackupRestoreService @Inject constructor(
 internal fun readBoundedBytes(
     inputStream: InputStream,
     maxBytes: Long,
+    requiredPrefix: ByteArray = ByteArray(0),
 ): ByteArray {
+    val prefix = ByteArray(requiredPrefix.size)
+    var prefixLength = 0
+    while (prefixLength < prefix.size) {
+        val bytesRead = inputStream.read(prefix, prefixLength, prefix.size - prefixLength)
+        if (bytesRead == -1) break
+        prefixLength += bytesRead
+    }
+    if (!prefix.contentEquals(requiredPrefix)) {
+        throw IncompatibleBackupFileException("Selected file is not a backup.")
+    }
     val buffer = ByteArrayOutputStream()
+    buffer.write(prefix)
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
-    var total = 0L
+    var total = prefix.size.toLong()
     while (true) {
         val bytesRead = inputStream.read(chunk)
         if (bytesRead == -1) break

@@ -70,6 +70,8 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.SequenceInputStream
 import java.time.Instant
 import java.util.UUID
 
@@ -141,6 +143,76 @@ class BackupRestoreServiceTest {
             backupCrypto = backupCrypto,
             healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
         )
+    }
+
+    @Test
+    fun loadEncryptedBackupBytes_rejectsAnotherKindOfFileFromItsFirstBytes() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        // A video picked by mistake: nothing in it is a backup header.
+        val video = CountingInputStream(ByteArray(4 * 1024 * 1024) { 0x42 })
+        every { contentResolver.openInputStream(fileUri) } returns video
+
+        val result = runCatching { service.loadEncryptedBackupBytes(fileUri) }
+
+        assertTrue(
+            "read ${video.bytesRead} bytes of a file that isn't a backup before rejecting it",
+            video.bytesRead <= BackupCrypto.MAGIC_BYTES.size,
+        )
+        assertTrue(
+            "rejected as incompatible, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IncompatibleBackupFileException,
+        )
+    }
+
+    @Test
+    fun loadEncryptedBackupBytes_reportsAFileTooLargeForTheHeapInsteadOfCrashing() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        // A backup header, then more than the heap holds.
+        val heapExhausted = object : InputStream() {
+            override fun read(): Int = throw OutOfMemoryError("Java heap space")
+            override fun read(b: ByteArray, off: Int, len: Int): Int =
+                throw OutOfMemoryError("Java heap space")
+        }
+        every { contentResolver.openInputStream(fileUri) } returns
+                SequenceInputStream(ByteArrayInputStream(BackupCrypto.MAGIC_BYTES), heapExhausted)
+
+        val result = runCatching { service.loadEncryptedBackupBytes(fileUri) }
+
+        assertTrue(
+            "the picker shows an incompatible file, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IncompatibleBackupFileException,
+        )
+    }
+
+    @Test
+    fun restoreBackupBytes_reportsABackupTooLargeForTheHeapAndWritesNothing() = runTest {
+        // Decryption holds the most memory: the ciphertext copy, the plaintext, the JSON.
+        val outOfHeap = BackupRestoreService(
+            context = context,
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            widgetAppearanceRepository = widgetAppearanceRepository,
+            backupCrypto = BackupCrypto { _, _, _ -> throw OutOfMemoryError("Java heap space") },
+            healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
+        )
+
+        val result = runCatching {
+            outOfHeap.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+        }
+
+        assertTrue(
+            "the restore shows an incompatible file, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IncompatibleBackupFileException,
+        )
+        coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    private class CountingInputStream(bytes: ByteArray) : ByteArrayInputStream(bytes) {
+        val bytesRead: Int get() = pos
     }
 
     @Test
@@ -1660,8 +1732,14 @@ class BackupRestoreServiceTest {
         coEvery { exportJournalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { exportJournalRepository.getNoteEntities() } returns emptyList()
 
+        val exportDatabaseHolder: DatabaseHolder = mockk()
+        coEvery { exportDatabaseHolder.withTransaction<Any?>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Any?>().invoke(database)
+        }
+
         return BackupExportService(
             context = context,
+            databaseHolder = exportDatabaseHolder,
             settingsRepository = exportSettingsRepository,
             userProfileRepository = exportUserProfileRepository,
             medicineRepository = exportMedicineRepository,

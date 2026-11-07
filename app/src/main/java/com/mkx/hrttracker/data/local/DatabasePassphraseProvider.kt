@@ -14,6 +14,14 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * The database passphrase can't be read: the stored wrapped passphrase, or the keystore
+ * key that unwraps it, is gone. Thrown instead of generating a new one, which couldn't
+ * open a database created with the old one and would replace what is left of it. This
+ * does not recover a lost key.
+ */
+class DatabaseKeyUnavailableException(message: String) : IllegalStateException(message)
+
 @Singleton
 class DatabasePassphraseProvider @Inject constructor(
     @param:ApplicationContext private val context: Context
@@ -45,6 +53,12 @@ class DatabasePassphraseProvider @Inject constructor(
             }
         }
 
+        // Only a database not created yet can take a new passphrase.
+        if (context.getDatabasePath(DATABASE_NAME).exists()) {
+            throw DatabaseKeyUnavailableException(
+                "The database exists, but its stored passphrase is missing."
+            )
+        }
         val passphrase = ByteArray(PASSPHRASE_SIZE_BYTES).also(SecureRandom()::nextBytes)
         try {
             persistEncryptedBlob(encrypt(passphrase))
@@ -70,7 +84,10 @@ class DatabasePassphraseProvider @Inject constructor(
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(
                 Cipher.DECRYPT_MODE,
-                getOrCreateMasterKey(),
+                // Read only: a key created here couldn't unwrap what the lost one wrapped.
+                findMasterKey() ?: throw DatabaseKeyUnavailableException(
+                    "The keystore key that unwraps the database passphrase is missing."
+                ),
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
             )
         }
@@ -97,9 +114,13 @@ class DatabasePassphraseProvider @Inject constructor(
         cachedPassphrase = passphrase.copyOf()
     }
 
-    private fun getOrCreateMasterKey(): SecretKey {
+    private fun findMasterKey(): SecretKey? {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-        val existingKey = keyStore.getKey(MASTER_KEY_ALIAS, null) as? SecretKey
+        return keyStore.getKey(MASTER_KEY_ALIAS, null) as? SecretKey
+    }
+
+    private fun getOrCreateMasterKey(): SecretKey {
+        val existingKey = findMasterKey()
         if (existingKey != null) {
             return existingKey
         }

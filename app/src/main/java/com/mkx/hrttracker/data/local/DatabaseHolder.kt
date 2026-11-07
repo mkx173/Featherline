@@ -22,6 +22,8 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal const val DATABASE_NAME = "hrt_tracker.db"
+
 @Singleton
 class DatabaseHolder @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -156,7 +158,6 @@ class DatabaseHolder @Inject constructor(
 
     private companion object {
         private const val TAG = "DatabaseHolder"
-        private const val DATABASE_NAME = "hrt_tracker.db"
         private val SQL_CIPHER_LOAD_LOCK = Any()
 
         @Volatile

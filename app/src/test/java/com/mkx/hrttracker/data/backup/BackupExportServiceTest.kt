@@ -1,6 +1,10 @@
 package com.mkx.hrttracker.data.backup
 
 import android.content.Context
+import android.net.Uri
+import android.provider.DocumentsContract
+import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.NoteEntity
 import com.mkx.hrttracker.data.local.TrackedDateEntity
 import com.mkx.hrttracker.data.repository.BloodTestRepository
@@ -53,7 +57,11 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -64,6 +72,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.Files
 import java.time.DayOfWeek
 import java.time.Instant
@@ -75,6 +84,7 @@ import java.util.UUID
 
 class BackupExportServiceTest {
     private val context: Context = mockk(relaxed = true)
+    private val databaseHolder: DatabaseHolder = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
     private val medicineRepository: MedicineRepository = mockk()
@@ -106,9 +116,14 @@ class BackupExportServiceTest {
         coEvery { journalRepository.getTrackedDateEntities() } returns emptyList()
         coEvery { journalRepository.getNoteEntities() } returns emptyList()
         coEvery { pkCalibrationStorageRepository.getAllMetadata() } returns emptyList()
+        val database: HrtTrackerDatabase = mockk()
+        coEvery { databaseHolder.withTransaction<Any?>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Any?>().invoke(database)
+        }
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
+            databaseHolder = databaseHolder,
             settingsRepository = settingsRepository,
             userProfileRepository = userProfileRepository,
             medicineRepository = medicineRepository,
@@ -1031,6 +1046,89 @@ class BackupExportServiceTest {
         service.discardPreparedBackup(preparedBackupExport)
 
         assertFalse(tempFile.exists())
+    }
+
+    @Test
+    fun prepareBackupExport_cancelledOnceItsFileIsWrittenLeavesNoTempFile() = runTest {
+        stubEmptyData()
+        lateinit var export: Job
+        // Cancelled as it creates the file, say by the screen going away: the file is still
+        // written, but no caller gets it to delete.
+        every { context.cacheDir } answers {
+            export.cancel()
+            cacheDir
+        }
+
+        export = launch { service.prepareBackupExport(password = "secret123") }
+        export.join()
+
+        assertEquals(
+            "temp files left by a cancelled export",
+            emptyList<String>(),
+            cacheDir.list()!!.toList(),
+        )
+    }
+
+    @Test
+    fun exportPreparedBackup_cancelledWhileCopyingStillDeletesTheTempFile() = runTest {
+        stubEmptyData()
+        val prepared = service.prepareBackupExport(password = "secret123")
+        val directoryUri: Uri = mockk()
+        val documentUri: Uri = mockk()
+        mockkStatic(DocumentsContract::class)
+        try {
+            every { DocumentsContract.getTreeDocumentId(directoryUri) } returns "tree"
+            every { DocumentsContract.buildDocumentUriUsingTree(directoryUri, "tree") } returns
+                    mockk()
+            every { DocumentsContract.createDocument(any(), any(), any(), any()) } returns
+                    documentUri
+            lateinit var export: Job
+            every { context.contentResolver.openOutputStream(documentUri) } returns
+                    object : OutputStream() {
+                        override fun write(b: Int) = export.cancel()
+                        override fun write(b: ByteArray, off: Int, len: Int) = export.cancel()
+                    }
+
+            export = launch { service.exportPreparedBackup(directoryUri, prepared) }
+            export.join()
+        } finally {
+            unmockkStatic(DocumentsContract::class)
+        }
+
+        assertFalse(
+            "the temp file of an export cancelled while copying",
+            File(prepared.tempFilePath).exists(),
+        )
+    }
+
+    @Test
+    fun discardAbandonedPreparedBackups_removesOnlyFilesNoExportStillOwns() = runTest {
+        stubEmptyData()
+        // Left by an earlier process that died while the folder picker was open.
+        val abandoned = File(cacheDir, "prepared-backup-1234.tmp").apply { writeText("old") }
+        val unrelated = File(cacheDir, "something-else.tmp").apply { writeText("keep") }
+        val awaitingPicker = service.prepareBackupExport(password = "secret123")
+
+        service.discardAbandonedPreparedBackups()
+
+        assertFalse("an abandoned prepared backup", abandoned.exists())
+        assertTrue(
+            "the export still waiting for the folder picker",
+            File(awaitingPicker.tempFilePath).exists(),
+        )
+        assertTrue("a file that isn't a prepared backup", unrelated.exists())
+    }
+
+    private fun stubEmptyData() {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
     }
 
     @Test
