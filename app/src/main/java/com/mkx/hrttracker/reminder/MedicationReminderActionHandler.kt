@@ -156,7 +156,7 @@ class MedicationReminderActionHandler @Inject constructor(
     suspend fun remindLater(
         slots: List<MedicationReminderSlot>,
         notificationTag: String?,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: Instant = Instant.now(),
     ) {
         val normalizedSlots = slots.distinct()
         diagnosticsLogger.info(
@@ -200,7 +200,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 TAG,
                 "reminder_action_remind_later_no_snoozes unfulfilledSlots=${unfulfilledSlots.size}"
             )
-            medicationReminderSnoozeScheduler.clearSnoozesForSlots(unfulfilledSlots)
+            // Each is at the limit: its record, a snooze still pending and the count stay.
         } else {
             reminderNotificationManager.showDoseReminderSnoozedToast(REMINDER_SNOOZE_MINUTES)
         }
@@ -215,6 +215,8 @@ class MedicationReminderActionHandler @Inject constructor(
     suspend fun showSnoozedReminder(
         slots: List<MedicationReminderSlot>,
         notificationTag: String?,
+        /** The time the alarm was armed for; null from an alarm an older build armed. */
+        snoozeAt: Instant? = null,
         now: LocalDateTime = LocalDateTime.now(),
     ) {
         val normalizedSlots = slots.distinct()
@@ -234,7 +236,18 @@ class MedicationReminderActionHandler @Inject constructor(
             return
         }
 
-        val groupsByUuid = loadRepresentedGroups(normalizedSlots)
+        // Only the snooze each record is armed for now, and once: an alarm for one replaced by
+        // Remind later again, cleared, or delivered already is stale.
+        val deliveredSlots = medicationReminderSnoozeScheduler.claimSnoozeDelivery(
+            slots = normalizedSlots,
+            snoozeAt = snoozeAt,
+        )
+        if (deliveredSlots.isEmpty()) {
+            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=stale snoozeAt=$snoozeAt")
+            return
+        }
+
+        val groupsByUuid = loadRepresentedGroups(deliveredSlots)
         if (groupsByUuid.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_groups")
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
@@ -242,9 +255,9 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(
-            normalizedSlots.minOf(MedicationReminderSlot::scheduledAt)
+            deliveredSlots.minOf(MedicationReminderSlot::scheduledAt)
         )
-        val bundleItems = normalizedSlots
+        val bundleItems = deliveredSlots
             .mapNotNull { slot ->
                 val group = groupsByUuid[slot.groupUuid]
                     ?.takeIf { group -> group.hasReminderOccurrence(slot) }

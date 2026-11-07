@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.reminder
 
+import com.mkx.hrttracker.model.medication.testInstant
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
@@ -9,7 +10,7 @@ class MedicationReminderSnoozePlannerTest {
     @Test
     fun buildNextSnoozeRecords_increments_counts_until_the_four_snooze_limit() {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
-        val snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15)
+        val snoozeAt = testInstant(LocalDateTime.of(2026, 4, 20, 9, 15))
         val allowedSlot = reminderSlot(
             groupUuid = UUID.fromString("ff72924e-4952-4831-8e6f-65ae9eb92110"),
             scheduledAt = scheduledAt,
@@ -24,12 +25,12 @@ class MedicationReminderSnoozePlannerTest {
             existingRecords = listOf(
                 MedicationReminderSnoozeRecord(
                     slot = allowedSlot,
-                    snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+                    snoozeAt = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)),
                     snoozeCount = 3,
                 ),
                 MedicationReminderSnoozeRecord(
                     slot = exhaustedSlot,
-                    snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+                    snoozeAt = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)),
                     snoozeCount = 4,
                 ),
             ),

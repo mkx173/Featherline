@@ -60,6 +60,7 @@ class MedicationReminderActionHandlerTest {
     fun setUp() {
         coEvery { reminderScheduler.rescheduleGroup(any(), any()) } just Runs
         coEvery { snoozeScheduler.clearSnoozesForSlots(any()) } just Runs
+        coEvery { snoozeScheduler.claimSnoozeDelivery(any(), any()) } answers { firstArg() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
@@ -651,12 +652,12 @@ class MedicationReminderActionHandlerTest {
         coEvery {
             snoozeScheduler.snoozeSlots(
                 slots = listOf(activeSlot),
-                now = scheduledAt.plusMinutes(1)
+                now = testInstant(scheduledAt.plusMinutes(1))
             )
         } returns listOf(
             MedicationReminderSnoozeRecord(
                 slot = activeSlot,
-                snoozeAt = scheduledAt.plusMinutes(16),
+                snoozeAt = testInstant(scheduledAt.plusMinutes(16)),
                 snoozeCount = 1,
             )
         )
@@ -664,13 +665,13 @@ class MedicationReminderActionHandlerTest {
         actionHandler.remindLater(
             slots = listOf(archivedSlot, activeSlot),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(1),
+            now = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         coVerify {
             snoozeScheduler.snoozeSlots(
                 slots = listOf(activeSlot),
-                now = scheduledAt.plusMinutes(1)
+                now = testInstant(scheduledAt.plusMinutes(1))
             )
         }
         coVerify(exactly = 0) {
@@ -860,7 +861,7 @@ class MedicationReminderActionHandlerTest {
         actionHandler.remindLater(
             slots = listOf(slot),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(1),
+            now = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
@@ -885,12 +886,12 @@ class MedicationReminderActionHandlerTest {
         coEvery {
             snoozeScheduler.snoozeSlots(
                 slots = listOf(slot),
-                now = scheduledAt.plusMinutes(1),
+                now = testInstant(scheduledAt.plusMinutes(1)),
             )
         } returns listOf(
             MedicationReminderSnoozeRecord(
                 slot = slot,
-                snoozeAt = scheduledAt.plusMinutes(16),
+                snoozeAt = testInstant(scheduledAt.plusMinutes(16)),
                 snoozeCount = 1,
             )
         )
@@ -898,7 +899,7 @@ class MedicationReminderActionHandlerTest {
         actionHandler.remindLater(
             slots = listOf(slot),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(1),
+            now = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         verify {
@@ -931,7 +932,7 @@ class MedicationReminderActionHandlerTest {
         actionHandler.remindLater(
             slots = listOf(slot),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(1),
+            now = testInstant(scheduledAt.plusMinutes(1)),
         )
 
         verify { notificationManager.showDoseReminderNothingToAddToast() }
@@ -967,7 +968,7 @@ class MedicationReminderActionHandlerTest {
         actionHandler.remindLater(
             slots = listOf(slot),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusHours(12).plusMinutes(40),
+            now = testInstant(scheduledAt.plusHours(12).plusMinutes(40)),
         )
 
         coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
@@ -1074,7 +1075,7 @@ class MedicationReminderActionHandlerTest {
             coEvery { snoozeScheduler.getSnoozeRecords() } returns listOf(
                 MedicationReminderSnoozeRecord(
                     slot = slot,
-                    snoozeAt = scheduledAt.plusMinutes(15),
+                    snoozeAt = testInstant(scheduledAt.plusMinutes(15)),
                     snoozeCount = MAX_REMINDER_SNOOZE_COUNT,
                 )
             )
@@ -1141,7 +1142,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
 
-        actionHandler.remindLater(slots = listOf(slot), notificationTag = "tag", now = scheduledAt.plusMinutes(1))
+        actionHandler.remindLater(slots = listOf(slot), notificationTag = "tag", now = testInstant(scheduledAt.plusMinutes(1)))
         actionHandler.showSnoozedReminder(slots = listOf(slot), notificationTag = "tag", now = scheduledAt.plusMinutes(15))
         actionHandler.logNow(slots = listOf(slot), logTargets = null, notificationTag = "tag", now = scheduledAt.plusMinutes(20))
 
@@ -1149,6 +1150,63 @@ class MedicationReminderActionHandlerTest {
         verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
         coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
         verify { notificationManager.showDoseReminderNoLongerScheduledToast() }
+    }
+
+    @Test
+    fun showSnoozedReminder_ignores_a_delivery_its_snooze_no_longer_expects() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("3a7c5e91-2b4d-4f68-9e0a-6c8b1d3f5a72"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+        // Remind later was tapped again at 09:03: this is the 09:17 alarm it replaced.
+        val replacedSnoozeAt = testInstant(scheduledAt.plusMinutes(17))
+        coEvery {
+            snoozeScheduler.claimSnoozeDelivery(listOf(slot), replacedSnoozeAt)
+        } returns emptyList()
+
+        actionHandler.showSnoozedReminder(
+            slots = listOf(slot),
+            notificationTag = null,
+            snoozeAt = replacedSnoozeAt,
+            now = scheduledAt.plusMinutes(17),
+        )
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun remindLater_at_the_snooze_limit_keeps_the_pending_snooze_and_its_count() = runTest {
+        // A second Remind later on the third snooze's reminder, after the first took the fourth.
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("4b8d6fa2-3c5e-4a79-8f1b-7d9c2e4a6b83"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.snoozeSlots(any(), any()) } returns emptyList()
+
+        actionHandler.remindLater(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = testInstant(scheduledAt.plusMinutes(46)),
+        )
+
+        coVerify(exactly = 0) { snoozeScheduler.clearSnoozesForSlots(any()) }
     }
 
     private fun medicationGroup(

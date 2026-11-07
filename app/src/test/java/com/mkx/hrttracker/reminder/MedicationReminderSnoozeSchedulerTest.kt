@@ -5,10 +5,15 @@ import android.app.PendingIntent
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -30,12 +35,25 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.util.TimeZone
 import java.util.UUID
 
 class MedicationReminderSnoozeSchedulerTest {
     private val context: Context = mockk()
     private val alarmManager: AlarmManager = mockk(relaxed = true)
     private val snoozeStore: MedicationReminderSnoozeStore = mockk()
+    private val groupRepository: MedicationGroupRepository = mockk()
+    private val logRepository: MedicationLogRepository = mockk()
+    private val originalTimeZone: TimeZone = TimeZone.getDefault()
+
+    /** Each armed alarm's trigger time, by the intent data its PendingIntent is keyed by. */
+    private val armedAlarms = mutableMapOf<String, Long>()
+    private val pendingIntents = mutableMapOf<String, PendingIntent>()
+
+    /** The store's records as it persists them. */
+    private var storedValues: Set<String> = emptySet()
 
     private lateinit var scheduler: MedicationReminderSnoozeScheduler
 
@@ -43,18 +61,41 @@ class MedicationReminderSnoozeSchedulerTest {
     fun setUp() {
         mockkStatic(PendingIntent::class)
         mockkStatic(Uri::class)
+        var lastIntentData = ""
+        every { Uri.parse(any()) } answers {
+            lastIntentData = firstArg()
+            mockk(relaxed = true)
+        }
         every {
             PendingIntent.getBroadcast(any(), any(), any(), any<Int>())
-        } returns mockk(relaxed = true)
-        every { Uri.parse(any()) } returns mockk(relaxed = true)
+        } answers { pendingIntents.getOrPut(lastIntentData) { mockk(relaxed = true) } }
         every { context.getSystemService(AlarmManager::class.java) } returns alarmManager
         every { context.packageName } returns "com.mkx.hrttracker.test"
         every { alarmManager.canScheduleExactAlarms() } returns true
-        coEvery { snoozeStore.replaceSnoozeRecords(any()) } just Runs
+        every {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        } answers { armedAlarms[intentDataOf(thirdArg())] = secondArg() }
+        every {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        } answers { armedAlarms[intentDataOf(thirdArg())] = secondArg() }
+        every { alarmManager.cancel(any<PendingIntent>()) } answers {
+            armedAlarms.remove(intentDataOf(firstArg()))
+        }
+        coEvery { snoozeStore.getSnoozeRecords() } answers {
+            storedValues.mapNotNull(::snoozeRecordFromStorageValue)
+        }
+        coEvery { snoozeStore.replaceSnoozeRecords(any()) } answers {
+            storedValues = firstArg<List<MedicationReminderSnoozeRecord>>()
+                .mapTo(mutableSetOf()) { record -> record.toStorageValue() }
+        }
+        coEvery { groupRepository.getGroup(any()) } returns null
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
         scheduler = MedicationReminderSnoozeScheduler(
             context = context,
             snoozeStore = snoozeStore,
+            medicationGroupRepository = groupRepository,
+            medicationLogRepository = logRepository,
             sdkInt = Build.VERSION_CODES.S,
         )
     }
@@ -62,6 +103,7 @@ class MedicationReminderSnoozeSchedulerTest {
     @After
     fun tearDown() {
         unmockkAll()
+        TimeZone.setDefault(originalTimeZone)
     }
 
     @Test
@@ -75,7 +117,7 @@ class MedicationReminderSnoozeSchedulerTest {
 
         scheduler.snoozeSlots(
             slots = listOf(slot),
-            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)),
         )
 
         verify(exactly = 1) {
@@ -98,7 +140,7 @@ class MedicationReminderSnoozeSchedulerTest {
 
         scheduler.snoozeSlots(
             slots = listOf(slot),
-            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)),
         )
 
         verify(exactly = 0) {
@@ -124,7 +166,7 @@ class MedicationReminderSnoozeSchedulerTest {
 
             scheduler.snoozeSlots(
                 slots = listOf(slot),
-                now = LocalDateTime.of(2026, 4, 20, 9, 0),
+                now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 0)),
             )
 
             verify(exactly = 1) {
@@ -138,16 +180,20 @@ class MedicationReminderSnoozeSchedulerTest {
     @Test
     fun rescheduleAll_dropsExpiredRecordsAndDoesNotScheduleAlarmForThem() = runTest {
         val now = LocalDateTime.of(2026, 4, 20, 9, 30)
-        val expiredRecord = snoozeRecord(
-            groupUuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000001"),
-            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
-            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+        // Fired yesterday, and today's 09:00 dose has come since: the record outlived its dose.
+        val expiredGroup = dailyGroup(UUID.fromString("a1b2c3d4-0000-0000-0000-000000000001"))
+        val expiredRecord = expiredGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 19, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 19, 9, 15),
+            fired = true,
         )
-        val futureRecord = snoozeRecord(
-            groupUuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000002"),
+        val futureGroup = dailyGroup(UUID.fromString("a1b2c3d4-0000-0000-0000-000000000002"))
+        val futureRecord = futureGroup.snoozeRecord(
             scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
             snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 45),
         )
+        coEvery { groupRepository.getGroup(expiredGroup.uuid) } returns expiredGroup
+        coEvery { groupRepository.getGroup(futureGroup.uuid) } returns futureGroup
         val storedRecords = slot<List<MedicationReminderSnoozeRecord>>()
         coEvery { snoozeStore.getSnoozeRecords() } returns listOf(expiredRecord, futureRecord)
         coEvery { snoozeStore.replaceSnoozeRecords(capture(storedRecords)) } just Runs
@@ -358,6 +404,231 @@ class MedicationReminderSnoozeSchedulerTest {
         assertEquals(listOf(currentRecord), storedRecords.captured)
     }
 
+    @Test
+    fun rescheduleAll_rearms_an_unfired_snooze_whose_time_passed_while_its_dose_is_due() = runTest {
+        // Remind later at 08:02 armed 08:17, and the phone was off from 08:10 to 10:00.
+        val now = LocalDateTime.of(2026, 4, 20, 10, 0)
+        val dueGroup = dailyGroup(UUID.fromString("0b3e6f1a-2c4d-4e5f-8a9b-0c1d2e3f4a5b"), LocalTime.of(8, 0))
+        val due = dueGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 8, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 8, 17),
+        )
+        // Logged in the app since: nothing left to remind.
+        val loggedGroup = dailyGroup(UUID.fromString("1c4f7a2b-3d5e-4f6a-9b0c-1d2e3f4a5b6c"), LocalTime.of(8, 0))
+        val logged = loggedGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 8, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 8, 17),
+        )
+        // Yesterday's, off for a day: today's 08:00 dose has come since.
+        val dayOldGroup = dailyGroup(UUID.fromString("2d5a8b3c-4e6f-4a7b-8c1d-2e3f4a5b6c7d"), LocalTime.of(8, 0))
+        val dayOld = dayOldGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 19, 8, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 19, 8, 17),
+        )
+        storeRecords(due, logged, dayOld)
+        listOf(dueGroup, loggedGroup, dayOldGroup).forEach { group ->
+            coEvery { groupRepository.getGroup(group.uuid) } returns group
+        }
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns listOf(
+            loggedGroup.scheduledEntry(LocalDateTime.of(2026, 4, 20, 8, 0))
+        )
+
+        scheduler.rescheduleAll(now = now)
+
+        assertEquals(listOf(due.slot), storedRecords().map(MedicationReminderSnoozeRecord::slot))
+        // Armed at its own time, past, so it fires at once.
+        assertEquals(
+            listOf(testInstant(LocalDateTime.of(2026, 4, 20, 8, 17)).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+    }
+
+    @Test
+    fun rescheduleAll_keeps_a_fired_snooze_and_its_count_while_its_dose_is_due() = runTest {
+        // The fourth snooze fired at 09:15, the other plan's second too. A pass at 09:30
+        // must not give the first four more.
+        val cappedGroup = dailyGroup(UUID.fromString("3e6b9c4d-5f7a-4b8c-9d2e-3f4a5b6c7d8e"))
+        val capped = cappedGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+            snoozeCount = MAX_REMINDER_SNOOZE_COUNT,
+            fired = true,
+        )
+        val otherGroup = dailyGroup(UUID.fromString("4f7c0d5e-6a8b-4c9d-8e3f-4a5b6c7d8e9f"))
+        val other = otherGroup.snoozeRecord(
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+            snoozeCount = 2,
+            fired = true,
+        )
+        storeRecords(capped, other)
+        coEvery { groupRepository.getGroup(cappedGroup.uuid) } returns cappedGroup
+        coEvery { groupRepository.getGroup(otherGroup.uuid) } returns otherGroup
+
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 30))
+
+        assertEquals(emptyMap<String, Long>(), armedAlarms)
+        val snoozed = scheduler.snoozeSlots(
+            slots = listOf(capped.slot, other.slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 31)),
+        )
+        assertEquals(
+            listOf(other.slot to 3),
+            snoozed.map { record -> record.slot to record.snoozeCount },
+        )
+        assertEquals(
+            emptyList<MedicationReminderSnoozeRecord>(),
+            scheduler.snoozeSlots(
+                slots = listOf(capped.slot),
+                now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 32)),
+            ),
+        )
+    }
+
+    @Test
+    fun a_snooze_fires_at_the_same_instant_after_a_zone_change() = runTest {
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        TimeZone.setDefault(TimeZone.getTimeZone(tokyo))
+        val group = dailyGroup(UUID.fromString("5a8d1e6f-7b9c-4dae-9f4a-5b6c7d8e9fa0"))
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+
+        scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = ZonedDateTime.of(2026, 4, 20, 9, 2, 0, 0, tokyo).toInstant(),
+        )
+        val armedInTokyo = armedAlarms.values.single()
+        // Landed in Los Angeles: the zone change reschedules every snooze.
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"))
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 19, 17, 10))
+
+        assertEquals(
+            ZonedDateTime.of(2026, 4, 20, 9, 17, 0, 0, tokyo).toInstant().toEpochMilli(),
+            armedInTokyo,
+        )
+        assertEquals(listOf(armedInTokyo), armedAlarms.values.toList())
+    }
+
+    @Test
+    fun a_snooze_set_before_the_clocks_fall_back_fires_fifteen_real_minutes_later() = runTest {
+        val newYork = ZoneId.of("America/New_York")
+        TimeZone.setDefault(TimeZone.getTimeZone(newYork))
+        val slot = dailyGroup(UUID.fromString("6b9e2f7a-8cad-4ebf-8a5b-6c7d8e9fa0b1"), LocalTime.of(1, 0))
+            .reminderSlot(LocalDateTime.of(2026, 11, 1, 1, 0))
+        // 01:50 EDT. The clocks fall back at 02:00, so 15 minutes on is 01:05 EST.
+        val tappedAt = ZonedDateTime.of(2026, 11, 1, 1, 50, 0, 0, newYork)
+
+        scheduler.snoozeSlots(slots = listOf(slot), now = tappedAt.toInstant())
+
+        assertEquals(
+            listOf(tappedAt.toInstant().plusSeconds(REMINDER_SNOOZE_MINUTES * 60).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+    }
+
+    @Test
+    fun a_repeat_remind_later_leaves_one_armed_alarm_and_counts_each_tap_once() = runTest {
+        val slot = dailyGroup(UUID.fromString("7c0f3a8b-9dbe-4fc0-9b6c-7d8e9fa0b1c2"))
+            .reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+
+        scheduler.snoozeSlots(slots = listOf(slot), now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)))
+        // The same reminder's Remind later, delivered again.
+        scheduler.snoozeSlots(slots = listOf(slot), now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 3)))
+
+        assertEquals(
+            listOf(testInstant(LocalDateTime.of(2026, 4, 20, 9, 18)).toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+        assertEquals(listOf(2), storedRecords().map(MedicationReminderSnoozeRecord::snoozeCount))
+    }
+
+    @Test
+    fun claimSnoozeDelivery_takes_only_the_alarm_the_record_is_armed_for_and_only_once() = runTest {
+        val group = dailyGroup(UUID.fromString("8d1a4b9c-aecf-4ad1-8c7d-8e9fa0b1c2d3"))
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val first = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single()
+        val second = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 3)),
+        ).single()
+
+        // The first alarm, had it stayed armed, is stale; the second comes once.
+        assertEquals(
+            emptyList<MedicationReminderSlot>(),
+            scheduler.claimSnoozeDelivery(listOf(slot), first.snoozeAt),
+        )
+        assertEquals(listOf(slot), scheduler.claimSnoozeDelivery(listOf(slot), second.snoozeAt))
+        assertEquals(
+            emptyList<MedicationReminderSlot>(),
+            scheduler.claimSnoozeDelivery(listOf(slot), second.snoozeAt),
+        )
+        // Delivered, so a later pass doesn't arm it again.
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 30))
+        assertEquals(emptyMap<String, Long>(), armedAlarms)
+    }
+
+    private fun intentDataOf(pendingIntent: PendingIntent): String =
+        pendingIntents.entries.first { (_, value) -> value === pendingIntent }.key
+
+    private fun storeRecords(vararg records: MedicationReminderSnoozeRecord) {
+        storedValues = records.mapTo(mutableSetOf()) { record -> record.toStorageValue() }
+    }
+
+    private fun storedRecords(): List<MedicationReminderSnoozeRecord> =
+        storedValues.mapNotNull(::snoozeRecordFromStorageValue)
+
+    private fun dailyGroup(uuid: UUID, time: LocalTime = LocalTime.of(9, 0)): MedicationGroup {
+        return MedicationGroup(
+            uuid = uuid,
+            name = "Group",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(time),
+            ),
+            medications = listOf(testMedicationGroupMedication()),
+            notificationsEnabled = true,
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+    }
+
+    private fun MedicationGroup.reminderSlot(scheduledAt: LocalDateTime) = MedicationReminderSlot(
+        groupUuid = uuid,
+        scheduledAt = scheduledAt,
+        scheduleTimeUuid = schedule.timeSlots.single().uuid,
+    )
+
+    private fun MedicationGroup.snoozeRecord(
+        scheduledAt: LocalDateTime,
+        snoozeAt: LocalDateTime,
+        snoozeCount: Int = 1,
+        fired: Boolean = false,
+    ) = MedicationReminderSnoozeRecord(
+        slot = reminderSlot(scheduledAt),
+        snoozeAt = testInstant(snoozeAt),
+        snoozeCount = snoozeCount,
+        fired = fired,
+    )
+
+    private fun MedicationGroup.scheduledEntry(scheduledFor: LocalDateTime) =
+        medications.single().let { medication ->
+            testMedicationLogEntry(
+                medicine = medication.medicine,
+                applicationType = medication.applicationType,
+                doseInstruction = medication.doseInstruction,
+                sourceGroupUuid = uuid,
+                appliedAt = testInstant(scheduledFor.plusMinutes(30)),
+                scheduledFor = scheduledFor,
+            )
+        }
+
     private fun snoozeRecord(
         groupUuid: UUID,
         scheduledAt: LocalDateTime,
@@ -370,7 +641,7 @@ class MedicationReminderSnoozeSchedulerTest {
                 scheduledAt = scheduledAt,
                 scheduleTimeUuid = scheduleTimeUuid,
             ),
-            snoozeAt = snoozeAt,
+            snoozeAt = testInstant(snoozeAt),
             snoozeCount = 1,
         )
     }

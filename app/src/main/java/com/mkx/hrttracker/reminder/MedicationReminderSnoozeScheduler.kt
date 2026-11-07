@@ -7,13 +7,20 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.core.net.toUri
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.missingSlotCounts
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +29,8 @@ import javax.inject.Singleton
 class MedicationReminderSnoozeScheduler private constructor(
     private val context: Context,
     private val snoozeStore: MedicationReminderSnoozeStore,
+    private val medicationGroupRepository: MedicationGroupRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     private val sdkIntProvider: () -> Int,
 ) {
@@ -29,10 +38,14 @@ class MedicationReminderSnoozeScheduler private constructor(
     constructor(
         @ApplicationContext context: Context,
         snoozeStore: MedicationReminderSnoozeStore,
+        medicationGroupRepository: MedicationGroupRepository,
+        medicationLogRepository: MedicationLogRepository,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     ) : this(
         context = context,
         snoozeStore = snoozeStore,
+        medicationGroupRepository = medicationGroupRepository,
+        medicationLogRepository = medicationLogRepository,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { Build.VERSION.SDK_INT },
     )
@@ -40,11 +53,15 @@ class MedicationReminderSnoozeScheduler private constructor(
     internal constructor(
         context: Context,
         snoozeStore: MedicationReminderSnoozeStore,
+        medicationGroupRepository: MedicationGroupRepository,
+        medicationLogRepository: MedicationLogRepository,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
         sdkInt: Int,
     ) : this(
         context = context,
         snoozeStore = snoozeStore,
+        medicationGroupRepository = medicationGroupRepository,
+        medicationLogRepository = medicationLogRepository,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { sdkInt },
     )
@@ -54,7 +71,7 @@ class MedicationReminderSnoozeScheduler private constructor(
 
     suspend fun snoozeSlots(
         slots: List<MedicationReminderSlot>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: Instant = Instant.now(),
     ): List<MedicationReminderSnoozeRecord> {
         if (slots.isEmpty()) {
             diagnosticsLogger.info(TAG, "snooze_slots_skipped reason=empty_slots now=$now")
@@ -63,18 +80,21 @@ class MedicationReminderSnoozeScheduler private constructor(
 
         diagnosticsLogger.info(TAG, "snooze_slots_start slots=${slots.size} now=$now")
         val existingRecords = snoozeStore.getSnoozeRecords()
-        val snoozeAt = now.plusMinutes(REMINDER_SNOOZE_MINUTES)
+        // In millis, as stored, so the alarm and the record name the same time.
+        val snoozeAt = now.plus(REMINDER_SNOOZE_MINUTES, ChronoUnit.MINUTES)
+            .truncatedTo(ChronoUnit.MILLIS)
         val nextRecords = buildNextSnoozeRecords(
             slots = slots,
             existingRecords = existingRecords,
             snoozeAt = snoozeAt,
         )
+        // A slot at the limit keeps its record, and with it the count.
+        val snoozedSlots = nextRecords.mapTo(mutableSetOf(), MedicationReminderSnoozeRecord::slot)
         val updatedRecords = existingRecords
-            .filterNot { record -> record.slot in slots }
+            .filterNot { record -> record.slot in snoozedSlots }
             .plus(nextRecords)
 
-        snoozeStore.replaceSnoozeRecords(updatedRecords)
-        scheduleSnoozeRecords(nextRecords)
+        replaceSnoozeRecords(existingRecords, updatedRecords)
         diagnosticsLogger.info(
             TAG,
             "snooze_slots_complete slots=${slots.size} scheduled=${nextRecords.size} " +
@@ -121,84 +141,119 @@ class MedicationReminderSnoozeScheduler private constructor(
         shouldClear: (MedicationReminderSnoozeRecord) -> Boolean,
     ) {
         val existingRecords = snoozeStore.getSnoozeRecords()
-        val affectedSnoozeTimes = existingRecords
-            .filter(shouldClear)
-            .map(MedicationReminderSnoozeRecord::snoozeAt)
-            .toSet()
-        if (affectedSnoozeTimes.isEmpty()) {
-            diagnosticsLogger.info(
-                TAG,
-                "snooze_clear_matching_complete cleared=0 existing=${existingRecords.size}"
-            )
-            return
-        }
-
-        val affectedRecords = existingRecords.filter { record ->
-            record.snoozeAt in affectedSnoozeTimes
-        }
-        affectedRecords
-            .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
-            .values
-            .forEach(::cancelSnoozeBundle)
-
         val remainingRecords = existingRecords.filterNot(shouldClear)
-        snoozeStore.replaceSnoozeRecords(remainingRecords)
-        remainingRecords
-            .filter { record -> record.snoozeAt in affectedSnoozeTimes }
-            .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
-            .values
-            .forEach(::scheduleSnoozeBundle)
+        replaceSnoozeRecords(existingRecords, remainingRecords)
         diagnosticsLogger.info(
             TAG,
             "snooze_clear_matching_complete cleared=${existingRecords.size - remainingRecords.size} " +
-                    "affectedBundles=${affectedSnoozeTimes.size} stored=${remainingRecords.size}"
+                    "stored=${remainingRecords.size}"
         )
     }
 
     suspend fun clearAllSnoozes() {
         diagnosticsLogger.info(TAG, "snooze_clear_all_start")
         val existingRecords = snoozeStore.getSnoozeRecords()
-        existingRecords
-            .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
-            .values
-            .forEach(::cancelSnoozeBundle)
-        snoozeStore.replaceSnoozeRecords(emptyList())
-        diagnosticsLogger.info(
-            TAG,
-            "snooze_clear_all_complete cleared=${existingRecords.size} " +
-                    "bundles=${existingRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
-        )
+        replaceSnoozeRecords(existingRecords, emptyList())
+        diagnosticsLogger.info(TAG, "snooze_clear_all_complete cleared=${existingRecords.size}")
     }
 
+    /**
+     * Arms every snooze not delivered yet, and drops each record that outlived its dose
+     * ([isWithinDoseLifetime]). A record stays as long as its dose, fired or not, so its count
+     * keeps the limit. One whose time passed undelivered, as when the phone was off or the app
+     * force-stopped through it, is armed at that time and fires at once. Nothing can fire
+     * before this pass runs.
+     */
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
         diagnosticsLogger.info(TAG, "snooze_reschedule_all_start now=$now")
         val records = snoozeStore.getSnoozeRecords()
-        val futureRecords = records.filter { record -> record.snoozeAt.isAfter(now) }
-        if (futureRecords.size != records.size) {
-            snoozeStore.replaceSnoozeRecords(futureRecords)
+        // Room is read only when a record needs it.
+        val liveRecords = if (records.isEmpty()) {
+            records
+        } else {
+            val groupsByUuid = records.map { record -> record.slot.groupUuid }
+                .distinct()
+                .mapNotNull { groupUuid -> medicationGroupRepository.getGroup(groupUuid) }
+                .associateBy(MedicationGroup::uuid)
+            val entries = medicationLogRepository.getScheduledGroupEntriesSince(
+                records.minOf { record -> record.slot.scheduledAt }
+            )
+            records.filter { record ->
+                record.isWithinDoseLifetime(groupsByUuid[record.slot.groupUuid], entries, now)
+            }
+        }
+        records.armedBundles().values.forEach(::cancelSnoozeBundle)
+        if (liveRecords.size != records.size) {
+            snoozeStore.replaceSnoozeRecords(liveRecords)
             diagnosticsLogger.info(
                 TAG,
-                "snooze_reschedule_all_pruned expired=${records.size - futureRecords.size} " +
-                        "remaining=${futureRecords.size}"
+                "snooze_reschedule_all_pruned expired=${records.size - liveRecords.size} " +
+                        "remaining=${liveRecords.size}"
             )
         }
-        scheduleSnoozeRecords(futureRecords)
+        val bundles = liveRecords.armedBundles().values
+        bundles.forEach(::scheduleSnoozeBundle)
         diagnosticsLogger.info(
             TAG,
-            "snooze_reschedule_all_complete records=${futureRecords.size} " +
-                    "bundles=${futureRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
+            "snooze_reschedule_all_complete records=${liveRecords.size} bundles=${bundles.size}"
         )
+    }
+
+    /**
+     * The [slots] a snooze alarm armed for [snoozeAt] still stands for, now marked fired so a
+     * later [rescheduleAll] doesn't arm them again. A slot whose record was armed for another
+     * time since (Remind later again), cleared, or delivered already is a stale delivery, and
+     * left out. [snoozeAt] is null from an alarm an older build armed, which any record not
+     * delivered yet takes.
+     */
+    // ponytail: marked before the reminder posts, so a process death between the two loses it.
+    suspend fun claimSnoozeDelivery(
+        slots: List<MedicationReminderSlot>,
+        snoozeAt: Instant?,
+    ): List<MedicationReminderSlot> {
+        val existingRecords = snoozeStore.getSnoozeRecords()
+        val claimedRecords = existingRecords.filter { record ->
+            record.slot in slots && !record.fired && (snoozeAt == null || record.snoozeAt == snoozeAt)
+        }
+        replaceSnoozeRecords(
+            existingRecords,
+            existingRecords.map { record ->
+                if (record in claimedRecords) record.copy(fired = true) else record
+            },
+        )
+        val claimedSlots = slots.filter { slot -> claimedRecords.any { record -> record.slot == slot } }
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_delivery_claimed slots=${slots.size} claimed=${claimedSlots.size} snoozeAt=$snoozeAt"
+        )
+        return claimedSlots
     }
 
     suspend fun getSnoozeRecords(): List<MedicationReminderSnoozeRecord> {
         return snoozeStore.getSnoozeRecords()
     }
 
-    private fun scheduleSnoozeRecords(records: List<MedicationReminderSnoozeRecord>) {
-        records
-            .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
-            .values
-            .forEach(::scheduleSnoozeBundle)
+    /**
+     * Stores [updatedRecords] in place of [existingRecords]. A bundle's alarm is keyed by its
+     * time and slots, so each bundle that changes is cancelled before the write and armed as
+     * it is now after it. The others keep their alarms.
+     */
+    private suspend fun replaceSnoozeRecords(
+        existingRecords: List<MedicationReminderSnoozeRecord>,
+        updatedRecords: List<MedicationReminderSnoozeRecord>,
+    ) {
+        if (updatedRecords == existingRecords) {
+            return
+        }
+        val armedBefore = existingRecords.armedBundles()
+        val armedAfter = updatedRecords.armedBundles()
+        armedBefore.forEach { (snoozeAt, bundle) ->
+            if (armedAfter[snoozeAt]?.toSet() != bundle.toSet()) cancelSnoozeBundle(bundle)
+        }
+        snoozeStore.replaceSnoozeRecords(updatedRecords)
+        armedAfter.forEach { (snoozeAt, bundle) ->
+            if (armedBefore[snoozeAt]?.toSet() != bundle.toSet()) scheduleSnoozeBundle(bundle)
+        }
     }
 
     private fun scheduleSnoozeBundle(records: List<MedicationReminderSnoozeRecord>) {
@@ -206,10 +261,7 @@ class MedicationReminderSnoozeScheduler private constructor(
             return
         }
 
-        val triggerAtMillis = records.first().snoozeAt
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
+        val triggerAtMillis = records.first().snoozeAt.toEpochMilli()
         val pendingIntent = buildSnoozePendingIntent(records)
         val exactAlarm = canScheduleExactAlarms(alarmManager, sdkIntProvider())
 
@@ -271,6 +323,8 @@ class MedicationReminderSnoozeScheduler private constructor(
                 EXTRA_REMINDER_SLOTS,
                 ArrayList(slots.map(MedicationReminderSlot::toStorageValue)),
             )
+            // The fire is checked against the records: one armed for another time is stale.
+            putExtra(EXTRA_SNOOZE_AT, records.first().snoozeAt.toEpochMilli())
         }
 
         return PendingIntent.getBroadcast(
@@ -283,13 +337,44 @@ class MedicationReminderSnoozeScheduler private constructor(
 }
 
 private fun snoozeIntentData(records: List<MedicationReminderSnoozeRecord>): Uri {
-    val snoozeAt = records.firstOrNull()?.snoozeAt ?: LocalDateTime.MIN
+    val snoozeAt = records.firstOrNull()?.snoozeAt?.toEpochMilli() ?: 0L
     val slotsKey = records
         .map { record -> record.slot.toStorageValue() }
         .sorted()
         .joinToString(separator = ";")
     val bundleUuid = UUID.nameUUIDFromBytes(slotsKey.toByteArray(StandardCharsets.UTF_8))
     return "$REMINDER_SNOOZE_URI_PREFIX/$snoozeAt/$bundleUuid".toUri()
+}
+
+/** The bundles with an alarm: the records not delivered yet, by the time they share. */
+private fun List<MedicationReminderSnoozeRecord>.armedBundles():
+        Map<Instant, List<MedicationReminderSnoozeRecord>> =
+    filterNot(MedicationReminderSnoozeRecord::fired).groupBy(MedicationReminderSnoozeRecord::snoozeAt)
+
+/**
+ * Whether this record's dose still owns its snooze, and its count, at [now]: the plan, active
+ * with reminders on, still has the dose and misses some of it, and its next dose at the same
+ * slot hasn't come.
+ */
+private fun MedicationReminderSnoozeRecord.isWithinDoseLifetime(
+    group: MedicationGroup?,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+): Boolean {
+    if (group == null || !group.isActive() || !group.notificationsEnabled ||
+        !group.hasReminderOccurrence(slot) ||
+        missingSlotCounts(group, slot.toMedicationGroupSlotKey(), entries).isEmpty()
+    ) {
+        return false
+    }
+    // ponytail: with none in the planner's 90-day lookahead, it lasts while the dose is due.
+    val nextDoseAtSlot = group
+        .nextOccurrencesInPlanWindowFrom(start = slot.scheduledAt, limit = Int.MAX_VALUE)
+        .firstOrNull { occurrence ->
+            occurrence.scheduledFor.isAfter(slot.scheduledAt) &&
+                    (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)
+        }
+    return nextDoseAtSlot == null || nextDoseAtSlot.scheduledFor.isAfter(now)
 }
 
 private fun MedicationReminderSlot.matchesCurrentScheduleTime(

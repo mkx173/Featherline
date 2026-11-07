@@ -10,6 +10,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.Instant
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
@@ -73,6 +74,8 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
             slots = slots,
             logTargets = logTargets,
             notificationTag = notificationTag,
+            snoozeAt = intent.takeIf { it.hasExtra(EXTRA_SNOOZE_AT) }
+                ?.let { Instant.ofEpochMilli(it.getLongExtra(EXTRA_SNOOZE_AT, 0L)) },
             deadline = deadline,
             appScope = appScope,
             actionHandler = actionHandler,
@@ -89,6 +92,8 @@ internal fun handleReminderAction(
     slots: List<MedicationReminderSlot>,
     logTargets: List<MedicationReminderLogTarget>?,
     notificationTag: String?,
+    /** A snooze alarm's time; null for other actions, and from an alarm an older build armed. */
+    snoozeAt: Instant? = null,
     /** The end of the broadcast's budget, counted from its receipt. */
     deadline: TimeMark,
     appScope: CoroutineScope,
@@ -126,6 +131,7 @@ internal fun handleReminderAction(
                 ACTION_MEDICATION_REMINDER_SNOOZE_ALARM -> actionHandler.showSnoozedReminder(
                     slots = slots,
                     notificationTag = notificationTag,
+                    snoozeAt = snoozeAt,
                 )
 
                 else -> diagnosticsLogger.info(
@@ -160,3 +166,4 @@ const val ACTION_MEDICATION_REMINDER_SNOOZE_ALARM =
 const val EXTRA_REMINDER_SLOTS = "reminderSlots"
 const val EXTRA_REMINDER_LOG_TARGETS = "reminderLogTargets"
 const val EXTRA_NOTIFICATION_TAG = "notificationTag"
+const val EXTRA_SNOOZE_AT = "snoozeAt"
