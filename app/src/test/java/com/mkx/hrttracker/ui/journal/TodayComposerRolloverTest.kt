@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.journal
 
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -16,6 +17,7 @@ import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -43,7 +45,8 @@ private const val TodayComposerTextFieldTag = "today-composer-text-field"
  * The Today composer across a local-date rollover (midnight or a time-zone change), wired to the
  * real [JournalViewModel]. An edit session begun on one day belongs to that day: its draft, open
  * editor and in-flight save survive the rollover (H3), and its save or delete writes the day the
- * composer shows, never the day the clock has moved on to (H4).
+ * composer shows, never the day the clock has moved on to (H4). A held session is dated, not
+ * labelled Today; an open editor with nothing unsaved is not held, and the composer moves on.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -122,6 +125,102 @@ class TodayComposerRolloverTest {
 
     private fun rollClockTo(minute: LocalDateTime, zone: ZoneId = tokyo) {
         composeRule.runOnIdle { clock.setCurrentSnapshot(minute, zone) }
+    }
+
+    // The composer header's date, in the app's own format (e.g. "Jun 17 Wed").
+    private fun dateLabel(date: LocalDate): String =
+        medicationGroupScheduleDateFormatter(context.resources.configuration.locales[0], date)(date)
+
+    // The composer has moved on to [day], which has no note yet: the header dates it as Today and
+    // the "write about" prompt is back in place of an open editor.
+    private fun assertComposerShowsEmptyToday(day: LocalDate) {
+        composeRule.onNodeWithText(dateLabel(day)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun unchangedNewNoteEditor_isReleasedAtMidnight_andShowsTheNewDay() {
+        setContent()
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        assertComposerShowsEmptyToday(june17)
+    }
+
+    @Test
+    fun unchangedNewNoteEditor_restoredAfterProcessDeathOnTheNextDay_isReleased() {
+        var viewModel = JournalViewModel(repository, clock)
+        val restorationTester = StateRestorationTester(composeRule)
+        restorationTester.setContent {
+            HrtTrackerTheme(dynamicColor = false) {
+                JournalScreen(
+                    onOpenMilestones = {},
+                    onAddDate = {},
+                    onOpenAllNotes = {},
+                    viewModel = viewModel,
+                )
+            }
+        }
+        composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
+            .performClick()
+
+        // The process dies in the background and comes back the next morning: a fresh ViewModel
+        // on the new day, with the open editor and its day restored from saved state.
+        viewModel = JournalViewModel(
+            repository,
+            FakeAppTimeSource(LocalDateTime.of(2026, 6, 17, 8, 0), tokyo),
+        )
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        assertComposerShowsEmptyToday(june17)
+    }
+
+    @Test
+    fun unchangedExistingNoteEditor_isReleasedAtMidnight_andTheNoteMovesToTheTimeline() {
+        notes.value = listOf(Note(id = "june-16", date = june16, text = "Morning"))
+        setContent()
+        composeRule.onNodeWithText("Morning").performClick()
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        assertComposerShowsEmptyToday(june17)
+        // June 16's note is a closed timeline row now, not an editor still open on it.
+        composeRule.onNodeWithText("Morning").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(emptyList<String>(), writes) }
+    }
+
+    @Test
+    fun heldDraft_showsItsDateInsteadOfToday_andStillSavesToThatDay() {
+        setContent()
+        startNewNote("Late entry")
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertDoesNotExist()
+        composeRule.onNodeWithText(dateLabel(june16)).assertIsDisplayed()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
+        composeRule.runOnIdle { assertEquals(listOf("save $june16: Late entry"), writes) }
+    }
+
+    // An unchanged draft is released at a rollover, but an open delete confirmation still holds
+    // its day: confirming it deletes the note it was asked about.
+    @Test
+    fun deleteConfirmationOpenAtMidnight_holdsItsDay_andDeletesThatNote() {
+        notes.value = listOf(Note(id = "june-16", date = june16, text = "Morning"))
+        setContent()
+        composeRule.onNodeWithText("Morning").performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.journal_delete_note))
+            .performClick()
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm)).performClick()
+        composeRule.runOnIdle { assertEquals(listOf("delete $june16"), writes) }
     }
 
     @Test

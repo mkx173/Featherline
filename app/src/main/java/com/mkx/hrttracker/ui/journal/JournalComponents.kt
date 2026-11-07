@@ -2322,7 +2322,8 @@ fun rememberNoteEditorController(): NoteEditorController =
     rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
 
 // [today] is the day this composer shows, and the day its save and delete write. [onIdle] is passed
-// by a caller whose today has moved on (a date rollover); see NoteEditorCard.
+// by a caller whose today has moved on (a date rollover); see NoteEditorCard. [isToday] is false
+// while an edit is held on a day that is no longer today, so the header names that date instead.
 @Composable
 fun TodayComposer(
     today: LocalDate,
@@ -2333,6 +2334,7 @@ fun TodayComposer(
     editorController: NoteEditorController = rememberNoteEditorController(),
     saveFailureToken: Int = 0,
     onIdle: (() -> Unit)? = null,
+    isToday: Boolean = true,
 ) {
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -2346,7 +2348,7 @@ fun TodayComposer(
             onDelete = { onDelete(today) },
             fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
             reserveWritingHeight = true,
-            header = { TodayComposerHeader(today = today) },
+            header = { TodayComposerHeader(today = today, isToday = isToday) },
             prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
             saveFailureToken = saveFailureToken,
             onIdle = onIdle,
@@ -2385,6 +2387,7 @@ private fun NoteEditorCard(
     onIdleLongPress: (() -> Unit)? = null,
     // When non-null, invoked whenever this card holds no open edit and no in-flight save, so the
     // caller can retarget it without dropping either (the Today composer after a date rollover).
+    // Setting it also closes an open edit that has no unsaved changes; see the effect below.
     onIdle: (() -> Unit)? = null,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
@@ -2665,11 +2668,18 @@ private fun NoteEditorCard(
     }
 
     // Keyed on whether [onIdle] is set, so it fires both when a session ends with one set and when
-    // one is set while the card is already idle.
+    // one is set (a rollover, or a restore onto a later day) while the card is already idle. A
+    // session open at that moment with nothing to keep (the draft is still the saved text, and no
+    // delete is awaiting confirmation) is closed, which makes the card idle and fires [onIdle].
     val isIdle = !isEditing && !savePending
     val currentOnIdle by rememberUpdatedState(onIdle)
     LaunchedEffect(isIdle, onIdle != null) {
-        if (isIdle) currentOnIdle?.invoke()
+        val idle = currentOnIdle ?: return@LaunchedEffect
+        if (isIdle) {
+            idle()
+        } else if (!savePending && !isDeleteConfirmationVisible && draft.text == text) {
+            finishEditing()
+        }
     }
 
     // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
@@ -2697,6 +2707,7 @@ private fun NoteEditorCard(
 @Composable
 private fun TodayComposerHeader(
     today: LocalDate,
+    isToday: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val appLocale = rememberAppLocale()
@@ -2715,7 +2726,10 @@ private fun TodayComposerHeader(
         )
         Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
 
-        val journalTodayLabel = stringResource(R.string.journal_today)
+        // Date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue"). An edit
+        // held past its day leads with that date alone, so it never reads as today's note.
+        val todayLabel = dateFormatter(today)
+        val journalTodayLabel = if (isToday) stringResource(R.string.journal_today) else todayLabel
         Text(
             text = journalTodayLabel,
             style = MaterialTheme.typography.labelLarge,
@@ -2725,15 +2739,15 @@ private fun TodayComposerHeader(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).alignByBaseline(),
         )
-        // Trailing date with a short weekday, matching the note rows' titles (e.g. "Jun 23 Tue").
-        val todayLabel = dateFormatter(today)
-        Text(
-            text = todayLabel,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alignByBaseline()
-        )
+        if (isToday) {
+            Text(
+                text = todayLabel,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline()
+            )
+        }
     }
 }
 

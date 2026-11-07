@@ -169,8 +169,10 @@ fun JournalScreenContent(
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     // The day the Today composer shows and writes to. It follows today while the composer is idle;
-    // an edit or save still open when the date rolls over (midnight or a time-zone change) keeps the
-    // day it began on until it ends, so its draft is neither dropped nor filed under the new day.
+    // an edit with unsaved changes, a save or a delete confirmation still open when the date rolls
+    // over (midnight or a time-zone change) keeps the day it began on until it ends, so its draft
+    // is neither dropped nor filed under the new day. An open edit with nothing to keep is closed
+    // and the composer moves on.
     var composerDate by rememberSaveable { mutableStateOf(uiState.today) }
     val composerNote = if (composerDate == uiState.today) {
         uiState.todayNote
@@ -308,6 +310,7 @@ fun JournalScreenContent(
                             } else {
                                 null
                             },
+                            isToday = composerDate == uiState.today,
                         )
                     }
                 }
