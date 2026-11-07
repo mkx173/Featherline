@@ -13,10 +13,8 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
-import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.model.medication.lowStockSeverityRank
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
@@ -251,22 +249,13 @@ class MedicationReminderActionHandler @Inject constructor(
                 val group = groupsByUuid[slot.groupUuid]
                     ?.takeIf { group -> group.hasReminderOccurrence(slot) }
                     ?: return@mapNotNull null
-                val planSlot = slot.toMedicationGroupSlotKey()
-                if (isSlotFulfilled(
-                        group = group,
-                        slot = planSlot,
-                        entries = entries,
-                    )
-                ) {
-                    return@mapNotNull null
-                }
-                val displayedMedications = group.medications.filterNot { medication ->
-                    isSlotFulfilledForMedication(
-                        group = group,
-                        slot = planSlot,
-                        medication = medication,
-                        entries = entries,
-                    )
+                val missingCounts = missingSlotCounts(
+                    group = group,
+                    slot = slot.toMedicationGroupSlotKey(),
+                    entries = entries,
+                )
+                val displayedMedications = group.medications.filter { medication ->
+                    MedicationSignature.fromGroupMedication(medication) in missingCounts
                 }
                 if (displayedMedications.isEmpty()) {
                     return@mapNotNull null
@@ -327,11 +316,11 @@ class MedicationReminderActionHandler @Inject constructor(
             val group = groupsByUuid[slot.groupUuid]
                 ?.takeIf { group -> group.hasReminderOccurrence(slot) }
                 ?: return@filter false
-            !isSlotFulfilled(
+            missingSlotCounts(
                 group = group,
                 slot = slot.toMedicationGroupSlotKey(),
                 entries = entries,
-            )
+            ).isNotEmpty()
         }
         diagnosticsLogger.info(
             TAG,
@@ -395,33 +384,19 @@ internal fun buildMissingScheduledLogEntries(
         return emptyList()
     }
 
-    val planSlot = slot.toMedicationGroupSlotKey()
-    // Count every record attached to the slot, in or out of its fulfillment window.
-    // A late (out-of-window) record doesn't count toward adherence, but it proves the
-    // dose was logged — writing another one on a repeated tap would double the record
-    // and deduct stock twice. Window-gated adherence stays in isSlotFulfilled.
-    val slotLogs = entries.filter { entry ->
-        isEntryForPlanSlot(
-            group = group,
-            slot = planSlot,
-            entry = entry,
-        )
-    }
-    val requiredCounts = candidateMedications
-        .groupBy(MedicationSignature::fromGroupMedication)
-        .mapValues { (_, medications) -> medications.sumOf { medication -> medication.count } }
-    val loggedCounts = slotLogs
-        .groupBy(MedicationSignature::fromLogEntry)
-        .mapValues { (_, logs) -> logs.sumOf(MedicationLogEntry::count) }
+    // A late (out-of-window) record proves the dose was logged too: writing another one
+    // on a repeated tap would double the record and deduct stock twice.
+    val missingCounts = missingSlotCounts(
+        group = group,
+        slot = slot.toMedicationGroupSlotKey(),
+        entries = entries,
+        medications = candidateMedications,
+    )
 
     return candidateMedications
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapNotNull { (signature, medications) ->
-            val missingCount = requiredCounts.getValue(signature) -
-                    loggedCounts.getOrDefault(signature, 0)
-            if (missingCount <= 0) {
-                return@mapNotNull null
-            }
+            val missingCount = missingCounts[signature] ?: return@mapNotNull null
             val templateMedication = medications.first()
             MedicationLogEntryInput(
                 medicineUuid = templateMedication.medicineUuid,

@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -192,6 +193,67 @@ class MedicationReminderBundlePlannerTest {
         val medications = bundle?.items?.single()?.medications.orEmpty()
         assertEquals(1, medications.size)
         assertEquals(spiroUuid, medications.single().medicineUuid)
+    }
+
+    @Test
+    fun buildMedicationReminderBundle_excludes_slot_logged_late_outside_its_window() {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("5f0c2d8e-7a41-4b93-8e65-1d3a9c7b2f04"),
+            name = "Morning",
+            time = LocalTime.of(9, 0),
+        )
+
+        // Logged at 21:30, 12.5 h late: not on time, but taken.
+        val bundle = buildMedicationReminderBundle(
+            scheduledAt = scheduledAt,
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    appliedAt = scheduledAt.plusHours(12).plusMinutes(30),
+                    scheduledFor = scheduledAt,
+                )
+            ),
+        )
+
+        assertNull(bundle)
+    }
+
+    @Test
+    fun buildMedicationReminderBundle_keeps_what_a_late_record_left_of_a_slot() {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val spiroUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val estradiolOnly = medicationGroup(
+            uuid = UUID.fromString("8c1e4a7b-2d93-4f56-b0e8-3a6d9f2c5e17"),
+            name = "Morning",
+            time = LocalTime.of(9, 0),
+        )
+        val group = estradiolOnly.copy(
+            medications = estradiolOnly.medications + testMedicationGroupMedication(
+                medicine = testMedicine(uuid = spiroUuid, key = MedicationKey.SPIRONOLACTONE),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            ),
+        )
+
+        // Only the estradiol, logged late: the spiro is still due.
+        val bundle = buildMedicationReminderBundle(
+            scheduledAt = scheduledAt,
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    appliedAt = scheduledAt.plusHours(12).plusMinutes(30),
+                    scheduledFor = scheduledAt,
+                )
+            ),
+        )
+
+        assertEquals(
+            listOf(spiroUuid),
+            bundle?.items?.single()?.medications?.map { medication -> medication.medicineUuid },
+        )
     }
 
     private fun medicationGroup(

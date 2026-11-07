@@ -29,6 +29,7 @@ import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -1514,6 +1515,64 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
         }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
+    }
+
+    @Test
+    fun saveNewGroup_withCreatePastRecordsEnabled_reconcilesRemindersAfterAddingRecords() = runTest {
+        val savedGroupUuid = UUID.fromString("e41b7c93-2a5d-4f08-96c1-7d3e8a0b5f26")
+        val savedGroup = testMedicationGroup(savedGroupUuid).copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 23),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = false) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        addPickedMedication(viewModel)
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
+        viewModel.updateCreatePastScheduledSlotRecords(true)
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        // Today's 9:00 record clears its reminder only if the reconcile reads it.
+        coVerifyOrder {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+            medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any())
+        }
     }
 
     @Test

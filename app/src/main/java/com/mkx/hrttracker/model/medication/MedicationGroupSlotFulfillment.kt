@@ -145,6 +145,32 @@ internal fun isSlotFulfilled(
     }
 }
 
+/**
+ * What [slot] still misses per medication signature: the plan's count less every record
+ * attached to the slot, in or out of its fulfillment window. A late or early record doesn't
+ * count toward adherence ([isSlotFulfilled]), but the dose was taken, so logging, reminders
+ * and stock demand don't ask for it again. Leaves out a signature with nothing missing;
+ * [medications] narrows the plan's.
+ */
+internal fun missingSlotCounts(
+    group: MedicationGroup,
+    slot: MedicationGroupSlotKey,
+    entries: List<MedicationLogEntry>,
+    medications: List<MedicationGroupMedication> = group.medications,
+): Map<MedicationSignature, Int> {
+    val loggedCounts = entries
+        .filter { entry -> isEntryForPlanSlot(group = group, slot = slot, entry = entry) }
+        .groupBy(MedicationSignature::fromLogEntry)
+        .mapValues { (_, logs) -> logs.sumOf(MedicationLogEntry::count) }
+    return medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .mapValues { (signature, signatureMedications) ->
+            signatureMedications.sumOf(MedicationGroupMedication::count) -
+                    loggedCounts.getOrDefault(signature, 0)
+        }
+        .filterValues { missingCount -> missingCount > 0 }
+}
+
 internal fun hasMatchingSlotRecord(
     group: MedicationGroup,
     date: LocalDate,

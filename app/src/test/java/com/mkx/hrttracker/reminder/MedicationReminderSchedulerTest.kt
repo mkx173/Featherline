@@ -202,6 +202,50 @@ class MedicationReminderSchedulerTest {
     }
 
     @Test
+    fun rescheduleAll_clears_a_dose_logged_late_and_arms_none_logged_early() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("6a3d9e2b-4c17-4f80-b5a2-8e1f7c0d3b96"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        val now = LocalDateTime.of(2026, 4, 20, 21, 30)
+        fun recordAt(scheduledFor: LocalDateTime, appliedAt: LocalDateTime) = testMedicationLogEntry(
+            medicine = estradiol,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = testInstant(appliedAt),
+            scheduledFor = scheduledFor,
+            scheduleTimeUuid = shown.slots.single().scheduleTimeUuid,
+        )
+        // Both 12.5 h outside their 9:00 dose, so neither is on time, but both are taken:
+        // today's on screen, logged late, and tomorrow's, logged early.
+        givenPlans(
+            listOf(group),
+            shown = shown,
+            entries = listOf(
+                recordAt(scheduledFor = shown.scheduledAt, appliedAt = now),
+                recordAt(
+                    scheduledFor = LocalDateTime.of(2026, 4, 21, 9, 0),
+                    appliedAt = LocalDateTime.of(2026, 4, 20, 20, 30),
+                ),
+            ),
+        )
+
+        scheduler.rescheduleAll(now)
+
+        verify { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+        coVerify {
+            reminderScheduleStore.replaceScheduledReminders(
+                mapOf(group.uuid to LocalDateTime.of(2026, 4, 22, 9, 0))
+            )
+        }
+    }
+
+    @Test
     fun rescheduleGroup_reposts_reminder_silently_without_an_archived_plans_dose() = runTest {
         val kept = medicationGroup(
             uuid = UUID.fromString("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"),

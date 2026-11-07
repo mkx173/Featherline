@@ -1202,7 +1202,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (isSaved && savedGroupUuid != null) {
                 _completionEvents.tryEmit(MedicationGroupEditorCompletionEvent.SAVE_COMPLETED)
                 withContext(NonCancellable) {
-                    runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
                     val recordGenerationResult = if (shouldCreatePastRecords) {
                         savePastScheduledSlotRecords(
                             groupUuid = savedGroupUuid,
@@ -1211,6 +1210,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         null
                     }
+                    // After the records, so a reminder for a dose they log is cleared.
+                    runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
                     if (recordGenerationResult != null) {
                         _uiState.update {
                             it.copy(

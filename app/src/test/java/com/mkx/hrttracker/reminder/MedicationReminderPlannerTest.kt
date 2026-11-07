@@ -150,6 +150,34 @@ class MedicationReminderPlannerTest {
     }
 
     @Test
+    fun buildNextMedicationReminderPlans_skips_occurrence_logged_early_outside_its_window() {
+        // Tomorrow's 9:00 dose logged at 20:30, 12.5 h early: not on time, but taken.
+        val group = medicationGroup(
+            uuid = UUID.fromString("0b7e3c1a-5d24-4f86-9a13-6e2f8c4d7b95"),
+            name = "Daily estradiol",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true
+        )
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    appliedAt = LocalDateTime.of(2026, 4, 20, 20, 30),
+                    scheduledFor = LocalDateTime.of(2026, 4, 21, 9, 0)
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 20, 20, 30),
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 22, 9, 0)),
+            plans.map { it.scheduledAt }
+        )
+    }
+
+    @Test
     fun buildNextMedicationReminderPlans_skips_occurrence_at_exactly_now_to_avoid_past_alarm() {
         // The startup reschedule passes a minute-truncated `now`. When the app
         // is reopened within the same minute a dose fired, the occurrence at

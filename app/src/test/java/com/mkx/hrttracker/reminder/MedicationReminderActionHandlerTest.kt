@@ -942,6 +942,122 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
+    fun remindLater_does_not_snooze_a_dose_logged_late_outside_its_window() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("7d2f9a14-3e68-4c0b-a5d1-9b4e6f8c2a73"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        // Logged in the app at 21:30, 12.5 h late: not on time, but taken.
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns listOf(
+            scheduledEntry(
+                group = group,
+                appliedAt = scheduledAt.plusHours(12).plusMinutes(30),
+                scheduledFor = scheduledAt,
+                count = 1,
+            )
+        )
+        coEvery { snoozeScheduler.snoozeSlots(any(), any()) } returns emptyList()
+
+        actionHandler.remindLater(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusHours(12).plusMinutes(40),
+        )
+
+        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
+        verify { notificationManager.showDoseReminderNothingToAddToast() }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+    }
+
+    @Test
+    fun showSnoozedReminder_does_not_repost_a_dose_logged_late_outside_its_window() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("2c8b5e71-9f04-4a3d-b6e2-1d7a3c9f5e08"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        // Snoozed at 21:20, then logged in the app at 21:30, 12.5 h late.
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns listOf(
+            scheduledEntry(
+                group = group,
+                appliedAt = scheduledAt.plusHours(12).plusMinutes(30),
+                scheduledFor = scheduledAt,
+                count = 1,
+            )
+        )
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showSnoozedReminder(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusHours(12).plusMinutes(35),
+        )
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun showSnoozedReminder_reposts_only_what_a_late_record_left_of_a_slot() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val estradiolOnly = medicationGroup(
+            uuid = UUID.fromString("9e4a1c63-7b25-4d8f-a0c9-5f2e8b6d1a34"),
+            name = "Morning",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val spiro = testMedicine(key = MedicationKey.SPIRONOLACTONE)
+        val group = estradiolOnly.copy(
+            medications = estradiolOnly.medications + testMedicationGroupMedication(
+                medicine = spiro,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            ),
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        // Only the estradiol, logged late: the spiro is still due.
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns listOf(
+            scheduledEntry(
+                group = group,
+                appliedAt = scheduledAt.plusHours(12).plusMinutes(30),
+                scheduledFor = scheduledAt,
+                count = 1,
+            )
+        )
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showSnoozedReminder(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusHours(12).plusMinutes(35),
+        )
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle ->
+                    bundle.items.single().medications.map { it.medicineUuid } == listOf(spiro.uuid)
+                },
+                canSnooze = true,
+                hideMedicationDetails = false,
+            )
+        }
+    }
+
+    @Test
     fun showSnoozedReminder_postsNotificationWithoutSnoozeActionWhenAllSlotsAreAtMaxSnoozeCount() =
         runTest {
             val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)

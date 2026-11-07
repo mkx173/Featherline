@@ -6,11 +6,15 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.isArchived
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.showPostLogToast
+import com.mkx.hrttracker.reminder.toMedicationGroupSlotKey
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
@@ -135,6 +139,9 @@ class QuickLogActionCallback : ActionCallback {
             } else {
                 emptyList()
             }
+            // A reminder or snooze may still name the dose, also when another writer
+            // logged it first, and the Home rebuild below doesn't reconcile them.
+            reconcileReminders(entryPoint, group, slot, diagnosticsLogger)
             if (savedEntries.isNotEmpty()) {
                 showPostLogToast(
                     entriesToSave = savedEntries,
@@ -171,6 +178,35 @@ class QuickLogActionCallback : ActionCallback {
             )
             refreshWidgetsBestEffort(appContext)
             showQuickLogFailureToast(appContext)
+        }
+    }
+
+    /**
+     * As the notification's Log now does after its write: a dose with nothing left to log
+     * drops its snooze, and the reminder naming it is cleared, or reposted with what is
+     * left. A failure here leaves the committed log as it is.
+     */
+    private suspend fun reconcileReminders(
+        entryPoint: WidgetEntryPoint,
+        group: MedicationGroup,
+        slot: MedicationReminderSlot,
+        diagnosticsLogger: AppDiagnosticsLogger,
+    ) {
+        try {
+            val entries = entryPoint.medicationLogRepository()
+                .getScheduledGroupEntriesSince(slot.scheduledAt)
+            if (missingSlotCounts(group, slot.toMedicationGroupSlotKey(), entries).isEmpty()) {
+                entryPoint.medicationReminderSnoozeScheduler().clearSnoozesForSlots(listOf(slot))
+            }
+            entryPoint.medicationReminderScheduler().rescheduleGroup(slot.groupUuid)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diagnosticsLogger.warning(
+                TAG,
+                "widget_quick_log_reminders_failed slot=${slot.scheduledAt} group=${slot.groupUuid}",
+                error,
+            )
         }
     }
 

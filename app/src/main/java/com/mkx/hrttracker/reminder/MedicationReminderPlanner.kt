@@ -4,7 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import java.time.LocalDateTime
 import java.util.UUID
@@ -56,16 +56,17 @@ internal fun buildNextMedicationReminderPlans(
                     // truncated to the minute, so re-arming it would set an
                     // exact alarm in the past (up to 59s ago) that AlarmManager
                     // delivers immediately -> a just-tapped reminder re-fires on
-                    // app reopen within the same minute.
+                    // app reopen within the same minute. A dose logged early, even
+                    // outside its window, is taken and isn't reminded.
                     occurrence.scheduledFor.isAfter(now) &&
-                            !isSlotFulfilled(
+                            missingSlotCounts(
                                 group = group,
                                 slot = MedicationGroupSlotKey(
                                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
                                     scheduledFor = occurrence.scheduledFor,
                                 ),
                                 entries = entries,
-                            )
+                            ).isNotEmpty()
                 }
                 ?.let { occurrence ->
                     MedicationReminderPlan(

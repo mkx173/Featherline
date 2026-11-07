@@ -9,7 +9,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.RunwayProjection
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.toStorageValue
 import java.time.Instant
@@ -110,23 +110,16 @@ object ScheduledRunwayCalculator {
                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
                     scheduledFor = occurrence.scheduledFor,
                 )
-                val candidateLogs = logIndex.candidatesFor(group.uuid, planSlot)
-                val loggedCounts = candidateLogs
-                    .asSequence()
-                    .filter { entry ->
-                        isEntryFulfillingPlanSlot(
-                            group = group,
-                            slot = planSlot,
-                            entry = entry,
-                            zoneId = zoneId,
-                        )
-                    }
-                    .groupBy(MedicationSignature::fromLogEntry)
-                    .mapValues { (_, entries) -> entries.sumOf { entry -> entry.count } }
+                // A late record's stock is already deducted, so it covers its slot's
+                // demand even though it doesn't count as on time.
+                val missingCounts = missingSlotCounts(
+                    group = group,
+                    slot = planSlot,
+                    entries = logIndex.candidatesFor(group.uuid, planSlot),
+                )
 
                 required.forEach { (signature, requirement) ->
-                    val remaining = requirement.requiredCount -
-                            loggedCounts.getOrDefault(signature, 0)
+                    val remaining = missingCounts[signature] ?: 0
                     if (remaining > 0) {
                         doses += MedicineDoseOccurrence(
                             scheduledFor = occurrence.scheduledFor,

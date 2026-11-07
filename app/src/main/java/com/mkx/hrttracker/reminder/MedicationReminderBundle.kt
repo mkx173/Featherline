@@ -6,8 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
-import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.toStorageValue
 import java.nio.charset.StandardCharsets
@@ -108,8 +107,8 @@ internal fun buildMedicationReminderBundle(
                 .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
                 .map { occurrence -> group to occurrence }
         }
-        .filterNot { (group, occurrence) ->
-            isSlotFulfilled(
+        .mapNotNull { (group, occurrence) ->
+            val missingCounts = missingSlotCounts(
                 group = group,
                 slot = MedicationGroupSlotKey(
                     scheduleTimeUuid = occurrence.scheduleTimeUuid,
@@ -117,25 +116,11 @@ internal fun buildMedicationReminderBundle(
                 ),
                 entries = entries,
             )
-        }
-        .mapNotNull { (group, occurrence) ->
-            val slotKey = MedicationGroupSlotKey(
-                scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                scheduledFor = occurrence.scheduledFor,
-            )
-            val displayedMedications = group.medications.filterNot { medication ->
-                isSlotFulfilledForMedication(
-                    group = group,
-                    slot = slotKey,
-                    medication = medication,
-                    entries = entries,
-                )
+            // A dose logged late, outside its window, is taken: only what the slot
+            // still misses is reminded, and nothing once it misses nothing.
+            val displayedMedications = group.medications.filter { medication ->
+                MedicationSignature.fromGroupMedication(medication) in missingCounts
             }
-            // The slot-level filter above already established that at least
-            // one signature is unfulfilled, so this list is normally non-empty.
-            // Guard anyway: with duplicate-signature meds in one group the two
-            // predicates can disagree, and silently rendering an empty body
-            // would be worse than dropping the row.
             if (displayedMedications.isEmpty()) {
                 return@mapNotNull null
             }
