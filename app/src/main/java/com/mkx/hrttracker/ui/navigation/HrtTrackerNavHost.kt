@@ -41,7 +41,9 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +69,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withResumed
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -552,6 +555,21 @@ internal fun homeDeepLinkNavigationAction(
 internal fun milestonesDeepLinkWaits(isBusy: Boolean, isAppLocked: Boolean): Boolean =
     isBusy || isAppLocked
 
+// Whether a Home deep link whose discard prompt is gone still goes home: with nothing left to
+// discard, as once the editor asking finished, rather than kept editing, replaced by another
+// leave, or lost with a recreation ([waitingLeave] null), which drop it.
+internal fun waitingHomeDeepLinkStillGoesHome(
+    unsavedChanges: UnsavedChangesState,
+    waitingLeave: UnsavedChangesState.Leave?,
+): Boolean = waitingLeave != null &&
+        unsavedChanges.pendingLeave == null &&
+        waitingLeave.editors.none(unsavedChanges::asks)
+
+// The calibration editor under the current page, as under milestones a widget opened over it.
+// ponytail: only the entry right below; milestones, the one page pushed over the editor, is a leaf.
+internal fun NavController.coveredCalibrationEditorEntry(): NavBackStackEntry? =
+    previousBackStackEntry?.takeIf { it.destination.route == Screen.SettingsCalibrationEntry.route }
+
 internal fun homeDeepLinkHighlightEffectsEnabled(
     shellHighlightEffectsEnabled: Boolean,
     homeDeepLinkSignal: Int,
@@ -619,8 +637,9 @@ fun HrtTrackerNavHost(
     milestonesDeepLinkSignal: Int = 0,
     onConsumeMilestonesDeepLink: () -> Boolean = { false },
     onMilestonesDeepLinkSettled: () -> Unit = {},
-    // A Home deep link dropped for an editor's unsaved changes takes its highlight with it.
-    onDropHomeDeepLinkHighlight: () -> Unit = {},
+    // A Home deep link dropped for an editor's unsaved changes takes its highlight with it, the
+    // link named by its signal, so that a newer one keeps its own.
+    onDropHomeDeepLinkHighlight: (Int) -> Unit = {},
     highlightEffectsEnabled: Boolean = true,
     classicNavigationBar: Boolean = false,
     modifier: Modifier = Modifier,
@@ -808,6 +827,18 @@ fun HrtTrackerNavHost(
         }
     }
 
+    // After process death, a calibration editor under milestones is neither composed nor has a
+    // ViewModel to report the draft it restores, and a pop to the pager would lose that draft
+    // without asking. Created here, its ViewModel compares the draft with where it started, and
+    // asks as it did before the process died. Read live, as the entry may be gone a frame before
+    // currentBackStackEntry follows.
+    navController.coveredCalibrationEditorEntry()?.let { entry ->
+        key(entry.id) {
+            val editor: CalibrationEditorViewModel = hiltViewModel(entry)
+            SideEffect { unsavedChanges.hostInBackStack(editor) }
+        }
+    }
+
     var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
     var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
     var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
@@ -865,14 +896,19 @@ fun HrtTrackerNavHost(
     }
 
     // Kept editing, replaced by another leave, or lost with a recreation: the deep link is
-    // dropped, its highlight with it, and Home's highlights, held off for it, turn back on.
+    // dropped, its highlight with it, and Home's highlights, held off for it, turn back on. With
+    // nothing left to discard instead, it goes home as it would have had nothing asked.
     val waitingSignal = waitingHomeDeepLinkSignal
     val waitingLeave = waitingHomeDeepLinkLeave
     if (waitingSignal != 0 && (waitingLeave == null || unsavedChanges.pendingLeave !== waitingLeave)) {
         LaunchedEffect(waitingSignal) {
             waitingHomeDeepLinkSignal = 0
             waitingHomeDeepLinkLeave = null
-            onDropHomeDeepLinkHighlight()
+            if (waitingHomeDeepLinkStillGoesHome(unsavedChanges, waitingLeave)) {
+                waitingLeave?.action?.invoke()
+                return@LaunchedEffect
+            }
+            onDropHomeDeepLinkHighlight(waitingSignal)
             readyHomeDeepLinkHighlightSignal = maxOf(readyHomeDeepLinkHighlightSignal, waitingSignal)
         }
     }

@@ -335,9 +335,12 @@ class MainViewModel @Inject constructor(
         _homeDeepLinkSignal.update { it + 1 }
     }
 
-    /** For a Home deep link the user didn't follow, kept editing instead. */
-    fun dropHighlightRequest() {
-        _highlightRequest.value = null
+    /**
+     * For the Home deep link [signal] the user didn't follow, kept editing instead: its request
+     * only, which a newer link's has replaced if the signal has moved on since.
+     */
+    fun dropHighlightRequest(signal: Int) {
+        if (_homeDeepLinkSignal.value == signal) _highlightRequest.value = null
     }
 
     fun consumeHighlightRequest(request: DoseRowHighlightRequest) {

@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.log.MedicationLogEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.MedicationLogEntryQuickLogRequest
 import org.junit.Assert.assertEquals
@@ -201,6 +202,36 @@ class HrtTrackerNavHostTest {
             milestonesDeepLinkWaits(isBusy = false, isAppLocked = true),
         )
         assertFalse(milestonesDeepLinkWaits(isBusy = false, isAppLocked = false))
+    }
+
+    @Test
+    fun waitingHomeDeepLink_stillGoesHome_onceNothingIsLeftToDiscard() {
+        // The editor asking finished, its ViewModel cleared, while the prompt was up: the user
+        // didn't keep editing, and the link they tapped still goes home.
+        val unsavedChanges = UnsavedChangesState()
+        val editor = Any().also { unsavedChanges.hostInBackStack(it); unsavedChanges.update(it, dirty = true) }
+        val leave = unsavedChanges.leaveBackStack { true }
+        unsavedChanges.remove(editor)
+        assertTrue(
+            "The Home deep link was dropped with nothing left to discard",
+            waitingHomeDeepLinkStillGoesHome(unsavedChanges, leave),
+        )
+    }
+
+    @Test
+    fun waitingHomeDeepLink_isDropped_whenKeptEditingReplacedOrLost() {
+        val unsavedChanges = UnsavedChangesState()
+        Any().also { unsavedChanges.hostInBackStack(it); unsavedChanges.update(it, dirty = true) }
+        val keptEditing = unsavedChanges.leaveBackStack { true }!!
+        unsavedChanges.keepEditing(keptEditing)
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, keptEditing))
+
+        val replaced = unsavedChanges.leaveBackStack { true }
+        unsavedChanges.leaveBackStack { true }
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, replaced))
+
+        // Its leave lost with a recreation.
+        assertFalse(waitingHomeDeepLinkStillGoesHome(unsavedChanges, null))
     }
 
     @Test

@@ -122,7 +122,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 baselineSnapshot = snapshot
                 savedStateHandle[BASELINE_SNAPSHOT_KEY] = draftSnapshotAdapter.toJson(snapshot)
             }
-            !state.isSaved && !state.isDeleted && entered != baseline
+            !state.isFinished && entered != baseline
         }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -445,6 +445,7 @@ class CalibrationEditorViewModel @Inject constructor(
                         panelUuid = savedPanelUuid.toString(),
                         isSaving = false,
                         isSaved = true,
+                        isFinished = true,
                         savedCrossZoneZoneText = crossZoneText,
                     )
                 }
@@ -491,6 +492,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 state.copy(
                     isDeleting = false,
                     isDeleted = isDeleted,
+                    isFinished = state.isFinished || isDeleted,
                     deleteEntryResult = deleteResult,
                 )
             }
@@ -728,6 +730,9 @@ data class CalibrationEditorUiState(
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    // Saved or deleted, for good: the exit pop consumes isSaved and isDeleted, while the ViewModel
+    // lives on through the exit transition, its form still apart from where it started.
+    val isFinished: Boolean = false,
     val saveEntryResult: CalibrationSaveEntryResult? = null,
     val deleteEntryResult: CalibrationDeleteEntryResult? = null,
     val collectedDate: LocalDate = LocalDate.now(),
@@ -796,8 +801,7 @@ internal fun isCalibrationEditorBusy(state: CalibrationEditorUiState): Boolean {
             state.isUpdatingPkReview ||
             state.isSaving ||
             state.isDeleting ||
-            state.isSaved ||
-            state.isDeleted
+            state.isFinished
 }
 
 internal fun invalidCalibrationDraftKeys(state: CalibrationEditorUiState): Set<String> {

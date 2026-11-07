@@ -36,6 +36,7 @@ import com.mkx.hrttracker.ui.calibration.PkCalibrationLabRowFlag
 import com.mkx.hrttracker.ui.calibration.calibrationAddAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.calibrationAnalyteOptions
 import com.mkx.hrttracker.ui.calibration.canSaveCalibrationEditorState
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -941,6 +942,151 @@ class CalibrationEditorViewModelTest {
 
         assertTrue(viewModel.uiState.value.isDeleted)
         assertFalse(viewModel.uiState.value.isDeleting)
+        coVerify(exactly = 1) { repository.deletePanel(panelUuid) }
+    }
+
+    @Test
+    fun savedEditor_asksNothingWhileItAnimatesOut() = runTest {
+        // Popped once written, its ViewModel lives through the exit transition: the saved values
+        // must not read as unsaved again once the pop consumed the saved flag.
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+            )
+        } returns UUID.fromString("0f3e7c2a-5d14-4b8e-9a61-2c7d8e9f0a1b")
+        val unsavedChanges = UnsavedChangesState()
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
+            unsavedChanges = unsavedChanges,
+        )
+        unsavedChanges.hostInBackStack(viewModel)
+        advanceUntilIdle()
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        viewModel.save()
+        advanceUntilIdle()
+        viewModel.consumeSavedState()
+        advanceUntilIdle()
+
+        var left = false
+        assertNull(
+            "A tab tap during the saved editor's exit asked to discard",
+            unsavedChanges.leaveBackStack { left = true; true },
+        )
+        assertTrue(left)
+    }
+
+    @Test
+    fun deletedEditor_asksNothingWhileItAnimatesOut() = runTest {
+        val panelUuid = UUID.fromString("6d2b9e41-7a3c-4f58-b1e2-93c4d5e6f708")
+        coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(uuid = panelUuid)
+        coEvery { repository.deletePanel(panelUuid) } returns Unit
+        val unsavedChanges = UnsavedChangesState()
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            ),
+            pkStorageRepository = pkStorageRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
+            unsavedChanges = unsavedChanges,
+        )
+        unsavedChanges.hostInBackStack(viewModel)
+        advanceUntilIdle()
+        viewModel.updateNotes("Edited, then deleted")
+        viewModel.delete()
+        advanceUntilIdle()
+        viewModel.consumeDeletedState()
+        advanceUntilIdle()
+
+        var left = false
+        assertNull(
+            "A tab tap during the deleted editor's exit asked to discard",
+            unsavedChanges.leaveBackStack { left = true; true },
+        )
+        assertTrue(left)
+    }
+
+    @Test
+    fun savedEditor_refusesASecondSaveWhileItAnimatesOut() = runTest {
+        // Save tapped again during the exit transition would write the entry a second time.
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+            )
+        } returns UUID.fromString("7c1d4e2f-8a3b-4c5d-9e6f-0a1b2c3d4e5f")
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(),
+            pkStorageRepository = pkStorageRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        viewModel.save()
+        advanceUntilIdle()
+        viewModel.consumeSavedState()
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+            )
+        }
+    }
+
+    @Test
+    fun deletedEditor_refusesASecondDeleteWhileItAnimatesOut() = runTest {
+        val panelUuid = UUID.fromString("8e2f5a3b-9c4d-4e6f-a1b2-c3d4e5f6a7b8")
+        coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(uuid = panelUuid)
+        coEvery { repository.deletePanel(panelUuid) } returns Unit
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            ),
+            pkStorageRepository = pkStorageRepository,
+            e2EstimateRepository = e2EstimateRepository,
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        viewModel.delete()
+        advanceUntilIdle()
+        viewModel.consumeDeletedState()
+        viewModel.delete()
+        advanceUntilIdle()
+
         coVerify(exactly = 1) { repository.deletePanel(panelUuid) }
     }
 

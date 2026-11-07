@@ -36,7 +36,10 @@ import kotlinx.coroutines.launch
  * Whether an editor has changes it would lose, and the leave waiting on the user to discard them.
  * Each editor's ViewModel reports its own edits for as long as it lives ([track]), so an editor
  * that isn't composed, under a page opened from it (the plan editor's medicine picker), still
- * asks when that page leaves for a tab, also after the activity is recreated.
+ * asks when that page leaves for a tab, also after a configuration change recreates the activity,
+ * while its ViewModel lives on. After process death, it asks only with edits it restored and a
+ * ViewModel created again to report them: the calibration editor's draft, also under milestones,
+ * where the NavHost creates it. The plan editor's edits aren't kept, so they aren't asked about.
  *
  * A leave names the editors it would leave, and asks only while one of them has unsaved changes:
  * once none has, such as when the one asking saves and finishes, it is dropped. A discard that
