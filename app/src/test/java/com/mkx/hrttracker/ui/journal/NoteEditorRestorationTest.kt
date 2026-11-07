@@ -47,7 +47,7 @@ class NoteEditorRestorationTest {
                 TodayComposer(
                     today = today,
                     note = Note(id = "june-16", date = today, text = "Saved text"),
-                    onSave = {},
+                    onSave = { _, _ -> },
                 )
             }
         }
@@ -84,7 +84,7 @@ class NoteEditorRestorationTest {
                     today = today,
                     note = Note(id = "june-16", date = today, text = "Saved text"),
                     // The write is in flight: it has not fed the committed text back this frame.
-                    onSave = {},
+                    onSave = { _, _ -> },
                 )
             }
         }

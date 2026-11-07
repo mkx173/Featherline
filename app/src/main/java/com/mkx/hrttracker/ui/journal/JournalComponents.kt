@@ -2321,15 +2321,18 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
 fun rememberNoteEditorController(): NoteEditorController =
     rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
 
+// [today] is the day this composer shows, and the day its save and delete write. [onIdle] is passed
+// by a caller whose today has moved on (a date rollover); see NoteEditorCard.
 @Composable
 fun TodayComposer(
     today: LocalDate,
     note: Note?,
-    onSave: (String) -> Unit,
-    onDelete: () -> Unit = { },
+    onSave: (LocalDate, String) -> Unit,
+    onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
     saveFailureToken: Int = 0,
+    onIdle: (() -> Unit)? = null,
 ) {
     EditorSegmentedListItem(
         modifier = modifier.fillMaxWidth(),
@@ -2339,13 +2342,14 @@ fun TodayComposer(
             text = note?.text.orEmpty(),
             identity = note?.id ?: "today-$today",
             controller = editorController,
-            onSave = onSave,
-            onDelete = onDelete,
+            onSave = { onSave(today, it) },
+            onDelete = { onDelete(today) },
             fieldModifier = Modifier.testTag(TodayComposerTextFieldTestTag),
             reserveWritingHeight = true,
             header = { TodayComposerHeader(today = today) },
             prompt = { onClick -> TodayComposerPrompt(onClick = onClick) },
             saveFailureToken = saveFailureToken,
+            onIdle = onIdle,
         )
     }
 }
@@ -2379,6 +2383,9 @@ private fun NoteEditorCard(
     // long-press invokes this to enter selection. Null (Today/timeline, or a row already in
     // selection mode) leaves the idle text transparent so the enclosing row handles taps.
     onIdleLongPress: (() -> Unit)? = null,
+    // When non-null, invoked whenever this card holds no open edit and no in-flight save, so the
+    // caller can retarget it without dropping either (the Today composer after a date rollover).
+    onIdle: (() -> Unit)? = null,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
     // and the open state is dropped on navigation away. The draft stays local and is re-seeded
@@ -2655,6 +2662,14 @@ private fun NoteEditorCard(
             savePending = false
             controller.begin(identity)
         }
+    }
+
+    // Keyed on whether [onIdle] is set, so it fires both when a session ends with one set and when
+    // one is set while the card is already idle.
+    val isIdle = !isEditing && !savePending
+    val currentOnIdle by rememberUpdatedState(onIdle)
+    LaunchedEffect(isIdle, onIdle != null) {
+        if (isIdle) currentOnIdle?.invoke()
     }
 
     // Keep the full editor in view as it grows and as the keyboard rises: re-fire on every box
@@ -3317,7 +3332,7 @@ private fun TodayComposerPreview() {
         TodayComposer(
             today = previewToday,
             note = Note(id = "today", date = previewToday, text = "Quiet day. Grateful for the small wins."),
-            onSave = {},
+            onSave = { _, _ -> },
             onDelete = {},
         )
     }

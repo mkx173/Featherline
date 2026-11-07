@@ -118,19 +118,11 @@ class JournalViewModel @Inject constructor(
         )
     }
 
-    fun saveTodayNote(text: String) = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(today(), text) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.SAVE) }
-    }
-
+    // The Today composer saves and deletes through these too, with the day it shows: resolving
+    // today here at write time would file an edit begun before a date rollover under the new day.
     fun saveNote(date: LocalDate, text: String) = viewModelScope.launch {
         runCatching { withContext(NonCancellable) { journalRepository.saveNoteForDate(date, text) } }
             .onFailure { failNoteWrite(it, JournalNoteMutation.SAVE) }
-    }
-
-    fun deleteTodayNote() = viewModelScope.launch {
-        runCatching { withContext(NonCancellable) { journalRepository.deleteNoteForDate(today()) } }
-            .onFailure { failNoteWrite(it, JournalNoteMutation.DELETE) }
     }
 
     fun deleteNote(date: LocalDate) = viewModelScope.launch {

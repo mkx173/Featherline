@@ -139,9 +139,9 @@ fun JournalScreen(
         onOpenMilestones = onOpenMilestones,
         onAddDate = onAddDate,
         onOpenAllNotes = onOpenAllNotes,
-        onSaveTodayNote = viewModel::saveTodayNote,
+        onSaveTodayNote = viewModel::saveNote,
         onSaveNote = viewModel::saveNote,
-        onDeleteTodayNote = viewModel::deleteTodayNote,
+        onDeleteTodayNote = viewModel::deleteNote,
         onDeleteNote = viewModel::deleteNote,
         onAddDebugNotes = viewModel::addDebugSampleNotes,
         scrollToTopSignal = scrollToTopSignal,
@@ -157,9 +157,9 @@ fun JournalScreenContent(
     onOpenMilestones: () -> Unit,
     onAddDate: () -> Unit = onOpenMilestones,
     onOpenAllNotes: () -> Unit,
-    onSaveTodayNote: (String) -> Unit,
+    onSaveTodayNote: (LocalDate, String) -> Unit,
     onSaveNote: (LocalDate, String) -> Unit,
-    onDeleteTodayNote: () -> Unit = { },
+    onDeleteTodayNote: (LocalDate) -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
     onAddDebugNotes: () -> Unit = { },
     modifier: Modifier = Modifier,
@@ -168,7 +168,16 @@ fun JournalScreenContent(
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
-    val timelineNotes = uiState.recentNotes.filter { it.date != uiState.today }
+    // The day the Today composer shows and writes to. It follows today while the composer is idle;
+    // an edit or save still open when the date rolls over (midnight or a time-zone change) keeps the
+    // day it began on until it ends, so its draft is neither dropped nor filed under the new day.
+    var composerDate by rememberSaveable { mutableStateOf(uiState.today) }
+    val composerNote = if (composerDate == uiState.today) {
+        uiState.todayNote
+    } else {
+        uiState.recentNotes.firstOrNull { it.date == composerDate }
+    }
+    val timelineNotes = uiState.recentNotes.filter { it.date != composerDate }
     // One controller shared by the Today composer and the timeline rows: a single editor stays
     // open at a time, and it resets to closed when this screen leaves composition.
     val editorController = rememberNoteEditorController()
@@ -288,12 +297,17 @@ fun JournalScreenContent(
                 ) {
                     item(key = "journal-today-composer") {
                         TodayComposer(
-                            today = uiState.today,
-                            note = uiState.todayNote,
+                            today = composerDate,
+                            note = composerNote,
                             onSave = onSaveTodayNote,
                             onDelete = onDeleteTodayNote,
                             editorController = editorController,
                             saveFailureToken = noteSaveFailureToken,
+                            onIdle = if (composerDate != uiState.today) {
+                                { composerDate = uiState.today }
+                            } else {
+                                null
+                            },
                         )
                     }
                 }
@@ -338,7 +352,7 @@ fun JournalScreenContent(
                     }
                     hrtSection(key = "journal-notes-end") {
                         item(key = "journal-notes-end-item") {
-                            if (uiState.todayNote == null && timelineNotes.isEmpty()) {
+                            if (composerNote == null && timelineNotes.isEmpty()) {
                                 SupportMessageListItem(
                                     text = stringResource(R.string.journal_no_notes),
                                     painter = painterResource(R.drawable.ic_info),
