@@ -460,7 +460,12 @@ class ReminderNotificationManager @Inject constructor(
     ): Intent {
         return Intent(context, MainActivity::class.java).apply {
             data = reminderNotificationContentData(notificationTag)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            // Reuse the running MainActivity (onNewIntent) like the widget rows, so the Home
+            // deep link can ask an editor with unsaved changes before leaving it; CLEAR_TASK
+            // would destroy that editor first.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
             val targets = reminderNotificationScheduledHighlightTargetStorageValues(bundle)
             if (targets.isNotEmpty()) {
                 putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)

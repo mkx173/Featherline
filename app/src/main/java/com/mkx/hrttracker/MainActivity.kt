@@ -186,10 +186,10 @@ class MainActivity : AppCompatActivity() {
         //   savedInstanceState is null.
         // - The ViewModel-lifetime marker skips the config-driven recreation (the
         //   surviving ViewModel already handled the retained extras; re-parsing would yank
-        //   the user back to the deep link) but resets on process death, so a
-        //   widget/shortcut tap that recreates a killed task — which lands HERE with a
-        //   non-null savedInstanceState, because a dead instance can't receive
-        //   onNewIntent — still navigates.
+        //   the user back to the deep link). It resets on process death, so a restored
+        //   instance parses getIntent() again. Whether a tap that restores a killed task
+        //   lands here or in onNewIntent, and whether a launcher relaunch here replays the
+        //   task's original extras, is platform delivery not yet checked on a device.
         // A genuine re-tap while the instance is alive is delivered through onNewIntent,
         // which still parses unconditionally.
         val parseLaunchIntent = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&

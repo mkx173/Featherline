@@ -260,6 +260,49 @@ class ReminderNotificationManagerTest {
     }
 
     @Test
+    fun showDoseReminderNotification_contentIntentReusesTheRunningTask() {
+        // A tap must reach a running MainActivity through onNewIntent, where the Home
+        // deep link asks a dirty plan or calibration editor before leaving. CLEAR_TASK
+        // finishes the activity, and the editors' ViewModels with it, before that guard
+        // can run. SINGLE_TOP | CLEAR_TOP is the reuse the widget rows already use.
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+
+        val flags = mutableListOf<Int>()
+        verify { anyConstructed<Intent>().setFlags(capture(flags)) }
+        val contentFlags = flags.single()
+        assertEquals(
+            "The content intent must not clear the task",
+            0,
+            contentFlags and Intent.FLAG_ACTIVITY_CLEAR_TASK,
+        )
+        val reuse = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        assertEquals(
+            "The content intent must deliver to the running MainActivity",
+            reuse,
+            contentFlags and reuse,
+        )
+        assertEquals(
+            "A notification starts outside any activity, so it needs NEW_TASK",
+            Intent.FLAG_ACTIVITY_NEW_TASK,
+            contentFlags and Intent.FLAG_ACTIVITY_NEW_TASK,
+        )
+    }
+
+    @Test
     fun showDoseReminderNotification_addsScheduledHighlightTargetsToContentIntent() {
         val slot = MedicationReminderSlot(
             groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
