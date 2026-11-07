@@ -46,6 +46,13 @@ class WeightSyncCoordinator @Inject constructor(
         _isSyncing.value = true
         try {
             val notAfter = now + FUTURE_TOLERANCE
+            // The clock was set back past the stored reading: the read can't see it,
+            // so an older reading or none says nothing about it. Keep it until the
+            // clock catches up; a deletion with a normal clock still falls back.
+            if (userProfileRepository.getCurrentProfile().weightMeasuredAt?.isAfter(notAfter) == true) {
+                diagnosticsLogger.info(TAG, "weight_sync_skipped reason=$reason stored_reading_after_now")
+                return@withLock
+            }
             val latest = healthConnectManager.readLatestWeight(notAfter)
             // Not from a scale whose clock is ahead, and not one that rounds to 0
             // in either unit: backup restore rejects a 0 weight.
