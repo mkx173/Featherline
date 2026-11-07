@@ -220,33 +220,6 @@ class JournalRepository @Inject constructor(
     fun getCachedNotes(): List<Note>? = notesCache.value
 
     init {
-        // Keep the cold-start Home snapshot in step with the journal hero (the first pinned
-        // date), reactively. Running on appScope decouples this from the journal write, so a
-        // snapshot/DataStore failure can never fail (or crash) the committed mutation. The
-        // warm cache's null = not-yet-loaded; the first loaded value is the process-start
-        // baseline, so only later hero changes ask for a run. A change an earlier process
-        // saw bumped the generation then, so its run, if it never landed, happens at the
-        // next startup. Best-effort: appScope has no exception handler, so a DataStore
-        // failure must not tear down this long-lived collector.
-        appScope.launch {
-            var baselined = false
-            var previousHero: TrackedDate? = null
-            pinnedTrackedDatesCache.collect { pinned ->
-                if (pinned == null) return@collect
-                val hero = pinned.firstOrNull()
-                if (!baselined) {
-                    baselined = true
-                    previousHero = hero
-                    return@collect
-                }
-                if (hero == previousHero) return@collect
-                previousHero = hero
-                runCatching {
-                    homeSnapshotRepository.invalidate()
-                }.onFailure { if (it is CancellationException) throw it }
-            }
-        }
-
         // Persist every loaded tracked-dates emission so the next cold start can seed the
         // Milestones timeline before the database opens. Overwrite-on-change also clears
         // the snapshot when the journal empties. write() is best-effort by contract
@@ -347,6 +320,11 @@ class JournalRepository @Inject constructor(
     suspend fun getNoteEntities(): List<NoteEntity> =
         databaseHolder.get().journalDao().getNotes()
 
+    // Every tracked-date write goes through the Home gate, like every other write Home data
+    // reads: Home's hero is Room's first pinned date. The gate bumps the durable generation
+    // before the write commits, so a Home snapshot persisted before it can't load at the next
+    // start even if the process dies before the write's run lands. Callers never hold the
+    // gate (no re-entry), and the gate waits only for other writes, never for a run.
     suspend fun addTrackedDate(
         name: String,
         icon: String,
@@ -355,30 +333,32 @@ class JournalRepository @Inject constructor(
         pinned: Boolean,
     ) {
         val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            val now = clock.millis()
-            // The caller decides whether to pin (the add sheet's toggle, defaulted so the
-            // first date pins and later ones don't). Pin-on-create appends to the bottom of
-            // the pinned list; an unpinned date is timeline-only.
-            val pinnedOrder = if (pinned) {
-                PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder())
-            } else {
-                null
-            }
-            dao.upsertTrackedDate(
-                TrackedDateEntity(
-                    uuid = UUID.randomUUID().toString(),
-                    name = name,
-                    iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
-                    dateIso = date.toString(),
-                    paletteKey = paletteKey,
-                    heroBackgroundKey = null,
-                    pinnedOrder = pinnedOrder,
-                    createdAtEpochMillis = now,
-                    updatedAtEpochMillis = now,
+        homeSnapshotRepository.runHomeDataMutation {
+            database.withTransaction {
+                val dao = database.journalDao()
+                val now = clock.millis()
+                // The caller decides whether to pin (the add sheet's toggle, defaulted so the
+                // first date pins and later ones don't). Pin-on-create appends to the bottom of
+                // the pinned list; an unpinned date is timeline-only.
+                val pinnedOrder = if (pinned) {
+                    PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder())
+                } else {
+                    null
+                }
+                dao.upsertTrackedDate(
+                    TrackedDateEntity(
+                        uuid = UUID.randomUUID().toString(),
+                        name = name,
+                        iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
+                        dateIso = date.toString(),
+                        paletteKey = paletteKey,
+                        heroBackgroundKey = null,
+                        pinnedOrder = pinnedOrder,
+                        createdAtEpochMillis = now,
+                        updatedAtEpochMillis = now,
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -390,55 +370,60 @@ class JournalRepository @Inject constructor(
         paletteKey: String?,
     ) {
         val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            val existing = dao.getTrackedDates().firstOrNull { it.uuid == id } ?: return@withTransaction
-            dao.upsertTrackedDate(
-                existing.copy(
-                    name = name,
-                    iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
-                    dateIso = date.toString(),
-                    paletteKey = paletteKey,
-                    updatedAtEpochMillis = clock.millis(),
+        homeSnapshotRepository.runHomeDataMutation {
+            database.withTransaction {
+                val dao = database.journalDao()
+                val existing = dao.getTrackedDates().firstOrNull { it.uuid == id } ?: return@withTransaction
+                dao.upsertTrackedDate(
+                    existing.copy(
+                        name = name,
+                        iconKey = AnchorIcon.fromStorageValue(icon).storageKey,
+                        dateIso = date.toString(),
+                        paletteKey = paletteKey,
+                        updatedAtEpochMillis = clock.millis(),
+                    )
                 )
-            )
+            }
         }
     }
 
     suspend fun deleteTrackedDate(id: String) {
-        databaseHolder.get().journalDao().deleteTrackedDate(id)
+        val dao = databaseHolder.get().journalDao()
+        homeSnapshotRepository.runHomeDataMutation { dao.deleteTrackedDate(id) }
     }
 
     suspend fun setPinned(id: String, pinned: Boolean) {
         val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            val all = dao.getTrackedDates()
-            val target = all.firstOrNull { it.uuid == id } ?: return@withTransaction
-            if (pinned) {
-                if (target.pinnedOrder != null) return@withTransaction
-                dao.updatePinnedOrder(
-                    id,
-                    PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
-                    clock.millis(),
-                )
-            } else {
-                if (target.pinnedOrder == null) return@withTransaction
-                val now = clock.millis()
-                dao.updatePinnedOrder(id, null, now)
-                val remaining = all
-                    .filter { it.pinnedOrder != null && it.uuid != id }
-                    .sortedWith(
-                        compareBy<TrackedDateEntity> { it.pinnedOrder ?: Int.MAX_VALUE }
-                            .thenBy { it.dateIso }
-                            .thenBy { it.createdAtEpochMillis }
-                            .thenBy { it.uuid }
+        homeSnapshotRepository.runHomeDataMutation {
+            database.withTransaction {
+                val dao = database.journalDao()
+                val all = dao.getTrackedDates()
+                val target = all.firstOrNull { it.uuid == id } ?: return@withTransaction
+                if (pinned) {
+                    if (target.pinnedOrder != null) return@withTransaction
+                    dao.updatePinnedOrder(
+                        id,
+                        PinOrder.appendOrderAfterMax(dao.getMaxPinnedOrder()),
+                        clock.millis(),
                     )
-                val normalized = PinOrder.normalize(remaining.map { it.uuid })
-                remaining.forEach { row ->
-                    val order = normalized.getValue(row.uuid)
-                    if (row.pinnedOrder != order) {
-                        dao.updatePinnedOrder(row.uuid, order, now)
+                } else {
+                    if (target.pinnedOrder == null) return@withTransaction
+                    val now = clock.millis()
+                    dao.updatePinnedOrder(id, null, now)
+                    val remaining = all
+                        .filter { it.pinnedOrder != null && it.uuid != id }
+                        .sortedWith(
+                            compareBy<TrackedDateEntity> { it.pinnedOrder ?: Int.MAX_VALUE }
+                                .thenBy { it.dateIso }
+                                .thenBy { it.createdAtEpochMillis }
+                                .thenBy { it.uuid }
+                        )
+                    val normalized = PinOrder.normalize(remaining.map { it.uuid })
+                    remaining.forEach { row ->
+                        val order = normalized.getValue(row.uuid)
+                        if (row.pinnedOrder != order) {
+                            dao.updatePinnedOrder(row.uuid, order, now)
+                        }
                     }
                 }
             }
@@ -446,36 +431,41 @@ class JournalRepository @Inject constructor(
     }
 
     suspend fun setHeroBackground(id: String, background: HeroBackground) {
-        databaseHolder.get().journalDao().updateHeroBackground(id, background.storageKey, clock.millis())
+        val dao = databaseHolder.get().journalDao()
+        homeSnapshotRepository.runHomeDataMutation {
+            dao.updateHeroBackground(id, background.storageKey, clock.millis())
+        }
     }
 
     suspend fun reorderPinned(idsInOrder: List<String>) {
         val database = databaseHolder.get()
-        database.withTransaction {
-            val dao = database.journalDao()
-            val pinnedRows = dao.getTrackedDates()
-                .filter { it.pinnedOrder != null }
-                .sortedWith(
-                    compareBy<TrackedDateEntity> { it.pinnedOrder ?: Int.MAX_VALUE }
-                        .thenBy { it.dateIso }
-                        .thenBy { it.createdAtEpochMillis }
-                        .thenBy { it.uuid }
-                )
-            val currentPinnedIds = pinnedRows.map { it.uuid }
-            if (idsInOrder.size != currentPinnedIds.size) return@withTransaction
-            if (idsInOrder.toSet().size != idsInOrder.size) return@withTransaction
-            if (idsInOrder.toSet() != currentPinnedIds.toSet()) return@withTransaction
+        homeSnapshotRepository.runHomeDataMutation {
+            database.withTransaction {
+                val dao = database.journalDao()
+                val pinnedRows = dao.getTrackedDates()
+                    .filter { it.pinnedOrder != null }
+                    .sortedWith(
+                        compareBy<TrackedDateEntity> { it.pinnedOrder ?: Int.MAX_VALUE }
+                            .thenBy { it.dateIso }
+                            .thenBy { it.createdAtEpochMillis }
+                            .thenBy { it.uuid }
+                    )
+                val currentPinnedIds = pinnedRows.map { it.uuid }
+                if (idsInOrder.size != currentPinnedIds.size) return@withTransaction
+                if (idsInOrder.toSet().size != idsInOrder.size) return@withTransaction
+                if (idsInOrder.toSet() != currentPinnedIds.toSet()) return@withTransaction
 
-            val normalized = PinOrder.normalize(idsInOrder)
-            val changedOrders = pinnedRows.mapNotNull { row ->
-                val order = normalized.getValue(row.uuid)
-                if (row.pinnedOrder == order) null else row.uuid to order
-            }
-            if (changedOrders.isEmpty()) return@withTransaction
+                val normalized = PinOrder.normalize(idsInOrder)
+                val changedOrders = pinnedRows.mapNotNull { row ->
+                    val order = normalized.getValue(row.uuid)
+                    if (row.pinnedOrder == order) null else row.uuid to order
+                }
+                if (changedOrders.isEmpty()) return@withTransaction
 
-            val now = clock.millis()
-            changedOrders.forEach { (uuid, order) ->
-                dao.updatePinnedOrder(uuid, order, now)
+                val now = clock.millis()
+                changedOrders.forEach { (uuid, order) ->
+                    dao.updatePinnedOrder(uuid, order, now)
+                }
             }
         }
     }
