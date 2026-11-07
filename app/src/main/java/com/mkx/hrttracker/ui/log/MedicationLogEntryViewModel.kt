@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
+import com.mkx.hrttracker.data.repository.ScheduledDoseAlreadyLoggedException
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -76,6 +77,11 @@ class MedicationLogEntryViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MedicationLogEntryUiState())
     val uiState: StateFlow<MedicationLogEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
+
+    // The sheet initializes again on every composition entry, also when it comes back
+    // after an activity recreation this activity-scoped VM survives. While its session is
+    // busy, the same sheet keeps it, and a save or delete reports only to its own session.
+    private var session: SheetSession? = null
     private var pendingSave: PendingSaveRequest? = null
     private var pendingDelete: PendingDeleteRequest? = null
     private var stockProjections: List<MedicineStockProjection> =
@@ -107,10 +113,13 @@ class MedicationLogEntryViewModel @Inject constructor(
         entryIds: List<String>,
         editSnapshot: MedicationLogEntryEditSnapshot? = null,
     ) {
+        val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
+        if (!beginSession(normalizedEntryIds)) {
+            return
+        }
         loadEntryJob?.cancel()
         pendingSave = null
         pendingDelete = null
-        val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
         val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
         val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
         val initialEditingState = matchingEditSnapshot?.toEditingUiState()
@@ -144,6 +153,18 @@ class MedicationLogEntryViewModel @Inject constructor(
         sourceGroupPreviousScheduledFor: LocalDateTime? = null,
         sourceGroupNextScheduledFor: LocalDateTime? = null,
     ) {
+        val sessionKey = listOf(
+            groupId,
+            scheduleTimeUuid,
+            scheduledFor,
+            medicine?.uuid,
+            applicationType,
+            doseInstruction,
+            medicationCount,
+        )
+        if (!beginSession(sessionKey)) {
+            return
+        }
         loadEntryJob?.cancel()
         pendingSave = null
         pendingDelete = null
@@ -371,6 +392,7 @@ class MedicationLogEntryViewModel @Inject constructor(
     }
 
     private fun performSave(request: PendingSaveRequest) {
+        val owner = session
         viewModelScope.launch {
             val medicineUuid = if (request.isEditing) {
                 request.lockedMedicineUuid
@@ -422,11 +444,19 @@ class MedicationLogEntryViewModel @Inject constructor(
                 }
             }.fold(
                 onSuccess = { null },
-                onFailure = { SaveEntryResult.FAILURE },
+                onFailure = { failure ->
+                    // Another writer logged the slot while the sheet was open.
+                    if (failure is ScheduledDoseAlreadyLoggedException) {
+                        SaveEntryResult.ALREADY_LOGGED
+                    } else {
+                        SaveEntryResult.FAILURE
+                    }
+                },
             )
-            val isSaved = saveResult == null
+            val isWritten = saveResult == null
+            val isSaved = saveResult != SaveEntryResult.FAILURE
             val isNewInsert = request.editingEntryUuids.isEmpty()
-            val postLogStockWarning = if (isSaved && isNewInsert && medicineUuid != null) {
+            val postLogStockWarning = if (isWritten && isNewInsert && medicineUuid != null) {
                 runCatching {
                     resolvePostLogStockWarning(
                         projections = medicineStockRepository.projectAllOnce(now = Instant.now()),
@@ -440,7 +470,7 @@ class MedicationLogEntryViewModel @Inject constructor(
             } else {
                 null
             }
-            val crossZoneText = if (isSaved) {
+            val crossZoneText = if (isWritten) {
                 val pickerOffset = request.appliedZoneId.rules.getOffset(request.appliedAt)
                 val deviceOffset = ZoneId.systemDefault().rules.getOffset(request.appliedAt)
                 if (pickerOffset == deviceOffset) {
@@ -452,18 +482,20 @@ class MedicationLogEntryViewModel @Inject constructor(
                 null
             }
 
-            _uiState.update {
-                val updated = it.copy(
-                    isLoading = false,
-                    isSaving = false,
-                    isSaved = isSaved,
-                    errorMessageRes = null,
-                    saveEntryResult = saveResult,
-                    isScheduleFulfillmentWarningVisible = false,
-                    savedCrossZoneZoneText = crossZoneText,
-                    postLogStockWarning = postLogStockWarning,
-                )
-                if (isSaved) updated else updated.withSelectedStockProjection()
+            if (session === owner) {
+                _uiState.update {
+                    val updated = it.copy(
+                        isLoading = false,
+                        isSaving = false,
+                        isSaved = isSaved,
+                        errorMessageRes = null,
+                        saveEntryResult = saveResult,
+                        isScheduleFulfillmentWarningVisible = false,
+                        savedCrossZoneZoneText = crossZoneText,
+                        postLogStockWarning = postLogStockWarning,
+                    )
+                    if (isSaved) updated else updated.withSelectedStockProjection()
+                }
             }
 
             if (isSaved) {
@@ -503,6 +535,7 @@ class MedicationLogEntryViewModel @Inject constructor(
     }
 
     private fun performDelete(request: PendingDeleteRequest) {
+        val owner = session
         viewModelScope.launch {
             val result = runCatching {
                 medicationLogRepository.deleteEntries(request.editingEntryUuids)
@@ -512,14 +545,16 @@ class MedicationLogEntryViewModel @Inject constructor(
             )
             val isDeleted = result == null
 
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isDeleting = false,
-                    isSaved = isDeleted,
-                    errorMessageRes = null,
-                    deleteEntryResult = result,
-                )
+            if (session === owner) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isDeleting = false,
+                        isSaved = isDeleted,
+                        errorMessageRes = null,
+                        deleteEntryResult = result,
+                    )
+                }
             }
 
             if (isDeleted) {
@@ -548,6 +583,15 @@ class MedicationLogEntryViewModel @Inject constructor(
 
     fun consumePostLogStockWarning() {
         _uiState.update { it.copy(postLogStockWarning = null) }
+    }
+
+    /** Starts a session for the sheet [key], unless that sheet's session is still busy. */
+    private fun beginSession(key: List<Any?>): Boolean {
+        if (session?.key == key && isMedicationLogEntryBusy(_uiState.value)) {
+            return false
+        }
+        session = SheetSession(key)
+        return true
     }
 
     private fun resolvedApplicationType(state: MedicationLogEntryUiState): MedicationApplicationType {
@@ -802,8 +846,14 @@ private data class PendingDeleteRequest(
     val editingEntryUuids: List<UUID>,
 )
 
+// Compared by identity: reopening the same sheet later is a new session.
+private class SheetSession(val key: List<Any?>)
+
 enum class SaveEntryResult {
     FAILURE,
+
+    /** Nothing written: the slot already had this dose, so the sheet closes. */
+    ALREADY_LOGGED,
 }
 
 enum class DeleteEntryResult {

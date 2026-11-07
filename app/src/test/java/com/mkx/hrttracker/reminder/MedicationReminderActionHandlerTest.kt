@@ -105,7 +105,7 @@ class MedicationReminderActionHandlerTest {
                 count = 1,
             )
         )
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         actionHandler.logNow(
             slots = listOf(firstSlot, secondSlot),
@@ -186,7 +186,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         // Mirror "user deleted the Estradiol log" — DB has no entries for the slot.
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         actionHandler.logNow(
             slots = listOf(slot),
@@ -234,7 +234,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(firstGroup.uuid) } returns firstGroup
         coEvery { groupRepository.getGroup(secondGroup.uuid) } returns secondGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         // logTargets present but only references firstSlot. secondSlot has no
         // surviving entry — simulates every target for it failing to parse.
@@ -270,7 +270,7 @@ class MedicationReminderActionHandlerTest {
         val slot = group.toReminderSlot(scheduledAt)
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         // First projection is the pre-log "before" baseline (empty = was healthy),
         // second is the post-log result that the warning is derived from.
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
@@ -308,7 +308,7 @@ class MedicationReminderActionHandlerTest {
             )
             coEvery { groupRepository.getGroup(group.uuid) } returns group
             coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-            coEvery { logRepository.saveNewEntries(any()) } just Runs
+            coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
             // First projection is the pre-log "before" baseline (empty = was healthy),
             // second is the post-log result that the warning is derived from.
             coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
@@ -352,7 +352,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(firstGroup.uuid) } returns firstGroup
         coEvery { groupRepository.getGroup(secondGroup.uuid) } returns secondGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
             listOf(
@@ -394,7 +394,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(outGroup.uuid) } returns outGroup
         coEvery { groupRepository.getGroup(healthyGroup.uuid) } returns healthyGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
             listOf(
@@ -439,7 +439,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(outGroup.uuid) } returns outGroup
         coEvery { groupRepository.getGroup(lowGroup.uuid) } returns lowGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
             listOf(
@@ -475,7 +475,7 @@ class MedicationReminderActionHandlerTest {
         val slot = group.toReminderSlot(scheduledAt)
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } throws RuntimeException("projection failed")
 
         actionHandler.logNow(
@@ -489,6 +489,34 @@ class MedicationReminderActionHandlerTest {
         coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
         coVerify { reminderScheduler.rescheduleGroup(group.uuid, any()) }
+    }
+
+    @Test
+    fun logNow_whenAnotherWriterLoggedTheDoseFirst_showsAlreadyLogged() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("3f0c5e52-8d1a-4b7e-9c64-2a9d81f0b3c7"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        // The widget logged the slot between this read and the write.
+        coEvery { logRepository.saveNewEntries(any()) } returns emptyList()
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(10),
+        )
+
+        verify { notificationManager.showDoseReminderNothingToAddToast() }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
     }
 
     @Test
@@ -510,7 +538,7 @@ class MedicationReminderActionHandlerTest {
         val savedEntries = slot<Collection<MedicationLogEntryInput>>()
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         actionHandler.logNow(
             slots = listOf(slot),
@@ -540,7 +568,7 @@ class MedicationReminderActionHandlerTest {
         val savedEntries = slot<Collection<MedicationLogEntryInput>>()
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         actionHandler.logNow(
             slots = listOf(slot),
@@ -579,7 +607,7 @@ class MedicationReminderActionHandlerTest {
         coEvery { groupRepository.getGroup(archivedGroup.uuid) } returns archivedGroup
         coEvery { groupRepository.getGroup(activeGroup.uuid) } returns activeGroup
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } just Runs
+        coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
 
         actionHandler.logNow(
             slots = listOf(archivedSlot, activeSlot),
@@ -994,7 +1022,7 @@ class MedicationReminderActionHandlerTest {
         )
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } returns Unit
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
 
         actionHandler.remindLater(slots = listOf(slot), notificationTag = "tag", now = scheduledAt.plusMinutes(1))

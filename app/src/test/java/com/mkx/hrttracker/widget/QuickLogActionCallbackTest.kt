@@ -7,6 +7,7 @@ import androidx.glance.action.actionParametersOf
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -107,7 +108,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
@@ -164,7 +165,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
@@ -219,7 +220,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
             hideMedicationDetails = true
         )
@@ -343,7 +344,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-        coEvery { logRepository.saveNewEntries(any()) } just Runs
+        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             emptyList(),
@@ -396,7 +397,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
             coEvery { groupRepository.getGroup(group.uuid) } returns group
             coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
-            coEvery { logRepository.saveNewEntries(any()) } just Runs
+            coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
             coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
             coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
                 emptyList(),
@@ -410,6 +411,53 @@ class QuickLogActionCallbackTest {
             coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
             coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
         }
+
+    @Test
+    fun onAction_whenAnotherWriterLoggedTheDoseFirst_refreshesAsAlreadyLogged() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk()
+        val groupRepository: MedicationGroupRepository = mockk()
+        val logRepository: MedicationLogRepository = mockk()
+        val medicineStockRepository: MedicineStockRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("c2a4e8b1-5d3f-4a6c-8e9b-0f1d2c3b4a59"),
+            scheduledTime = scheduledAt.toLocalTime(),
+            medicationKey = MedicationKey.ESTRADIOL,
+        )
+        val parameters = actionParametersOf(
+            GroupUuidKey to group.uuid.toString(),
+            ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
+            ScheduledAtKey to scheduledAt.toString(),
+        )
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.medicationLogRepository() } returns logRepository
+        every { entryPoint.medicineStockRepository() } returns medicineStockRepository
+        every { entryPoint.settingsRepository() } returns mockk()
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns mockk(relaxed = true)
+        every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        // The notification logged the slot between this read and the write.
+        coEvery { logRepository.saveNewEntries(any()) } returns emptyList()
+        coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
+        coEvery { updateAllHrtWidgets(appContext) } just Runs
+
+        QuickLogActionCallback().onAction(context, mockk(), parameters)
+
+        coVerify { updateAllHrtWidgets(appContext) }
+        verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
+    }
 
     private fun medicationGroup(
         uuid: UUID,

@@ -103,6 +103,7 @@ fun MedicationLogEntryScreen(
 
     val context = LocalContext.current
     val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
+    val alreadyLoggedMessage = stringResource(R.string.reminder_notification_nothing_to_add)
     val deleteEntryFailureMessage = stringResource(R.string.delete_entry_failure)
     LaunchedEffect(uiState.saveEntryResult) {
         when (uiState.saveEntryResult) {
@@ -110,6 +111,15 @@ fun MedicationLogEntryScreen(
                 Toast.makeText(
                     context,
                     saveEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                viewModel.consumeSaveEntryResult()
+            }
+
+            SaveEntryResult.ALREADY_LOGGED -> {
+                Toast.makeText(
+                    context,
+                    alreadyLoggedMessage,
                     Toast.LENGTH_SHORT,
                 ).show()
                 viewModel.consumeSaveEntryResult()

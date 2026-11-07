@@ -115,19 +115,29 @@ class QuickLogActionCallback : ActionCallback {
                 zoneId = zoneId,
             )
 
-            if (missingEntries.isNotEmpty()) {
-                // saveNewEntries goes through runHomeDataMutation, which asks for a run.
-                // HomeWidgetManager's cache observer picks up its publish and re-derives
-                // the widget snapshot — no explicit widget refresh needed.
-                // Snapshot stock before the deduction so the toast only fires for
-                // medicines this quick-log pushed into a worse tier.
-                val beforeStockStates = captureStockStatesForLog(
+            // Snapshot stock before the deduction so the toast only fires for
+            // medicines this quick-log pushed into a worse tier.
+            val beforeStockStates = if (missingEntries.isNotEmpty()) {
+                captureStockStatesForLog(
                     medicineStockRepository = medicineStockRepository,
                     now = Instant.from(appliedAt.atZone(zoneId)),
                 )
+            } else {
+                emptyMap()
+            }
+            // saveNewEntries goes through runHomeDataMutation, which asks for a run.
+            // HomeWidgetManager's cache observer picks up its publish and re-derives
+            // the widget snapshot — no explicit widget refresh needed. It decides again
+            // under the write lock: the notification or the app may have logged the
+            // dose since the read above.
+            val savedEntries = if (missingEntries.isNotEmpty()) {
                 logRepository.saveNewEntries(missingEntries)
+            } else {
+                emptyList()
+            }
+            if (savedEntries.isNotEmpty()) {
                 showPostLogToast(
-                    entriesToSave = missingEntries,
+                    entriesToSave = savedEntries,
                     now = appliedAt,
                     medicineStockRepository = medicineStockRepository,
                     reminderNotificationManager = reminderNotificationManager,

@@ -92,20 +92,30 @@ class MedicationReminderActionHandler @Inject constructor(
             )
         }
 
-        if (entriesToSave.isNotEmpty()) {
-            // Snapshot stock state before the deduction so the toast only fires
-            // for medicines this log actually pushed into a worse tier.
-            val beforeStockStates = captureStockStatesForLog(
+        // Snapshot stock state before the deduction so the toast only fires
+        // for medicines this log actually pushed into a worse tier.
+        val beforeStockStates = if (entriesToSave.isNotEmpty()) {
+            captureStockStatesForLog(
                 medicineStockRepository = medicineStockRepository,
                 now = Instant.from(now.atZone(ZoneId.systemDefault())),
             )
+        } else {
+            emptyMap()
+        }
+        // The repository decides again under the write lock: the widget or the app may
+        // have logged these doses since the read above.
+        val savedEntries = if (entriesToSave.isNotEmpty()) {
             medicationLogRepository.saveNewEntries(entriesToSave)
+        } else {
+            emptyList()
+        }
+        if (savedEntries.isNotEmpty()) {
             diagnosticsLogger.info(
                 TAG,
-                "reminder_action_log_now_saved entriesSaved=${entriesToSave.size} slots=${normalizedSlots.size}"
+                "reminder_action_log_now_saved entriesSaved=${savedEntries.size} slots=${normalizedSlots.size}"
             )
             showPostLogToast(
-                entriesToSave = entriesToSave,
+                entriesToSave = savedEntries,
                 now = now,
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = reminderNotificationManager,
@@ -141,7 +151,7 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_log_now_complete slots=${normalizedSlots.size} " +
-                    "entriesSaved=${entriesToSave.size} groupsRescheduled=${groupUuidsToReschedule.size}"
+                    "entriesSaved=${savedEntries.size} groupsRescheduled=${groupUuidsToReschedule.size}"
         )
     }
 

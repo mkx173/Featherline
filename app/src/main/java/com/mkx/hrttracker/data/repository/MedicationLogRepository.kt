@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.DoseInstruction
@@ -9,10 +10,14 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isCompatibleWith
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
+import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
+import com.mkx.hrttracker.reminder.hasReminderOccurrence
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -320,6 +325,28 @@ class MedicationLogRepository @Inject internal constructor(
 
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                // A sheet opened on a plan slot carries the count it read then; log only
+                // what the slot still misses now. The sheet shows the live plan, including
+                // a slot that only its records keep, so the occurrence isn't checked.
+                val writeCount = if (sourceGroupUuid != null && scheduledFor != null) {
+                    database.clampToMissingSlotCounts(
+                        listOf(
+                            MedicationLogEntryInput(
+                                medicineUuid = medicineUuid,
+                                applicationType = applicationType,
+                                doseInstruction = doseInstruction,
+                                sourceGroupUuid = sourceGroupUuid,
+                                scheduleTimeUuid = scheduleTimeUuid,
+                                appliedAt = appliedAt,
+                                scheduledFor = scheduledFor,
+                                count = count,
+                            )
+                        ),
+                        requirePlannedOccurrence = false,
+                    ).singleOrNull()?.count ?: throw ScheduledDoseAlreadyLoggedException()
+                } else {
+                    count
+                }
                 val medicine = medicineUuid?.let { mu ->
                     checkNotNull(database.medicineDao().getByUuid(mu.toString())) {
                         "Medicine $mu was not found."
@@ -335,7 +362,7 @@ class MedicationLogRepository @Inject internal constructor(
                     val requested = resolveRequestedDoseForStock(
                         preparation = trackedMedicine.preparation,
                         doseInstruction = doseInstruction,
-                        count = count.coerceAtLeast(1),
+                        count = writeCount.coerceAtLeast(1),
                         doseAmountDelta = doseAmountDelta,
                     )
                     requested?.let { requestedDose ->
@@ -357,7 +384,7 @@ class MedicationLogRepository @Inject internal constructor(
                         scheduleTimeUuid = scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = scheduledFor,
-                        count = count.coerceAtLeast(1),
+                        count = writeCount.coerceAtLeast(1),
                         appliedAtTimeZoneId = appliedAtTimeZoneId,
                         doseAmountDelta = doseAmountDelta,
                     )
@@ -408,8 +435,16 @@ class MedicationLogRepository @Inject internal constructor(
         }
     }
 
-    suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
-        insertNewEntries(entries, deductStock = true)
+    /**
+     * Logs [entries] and deducts their stock. An entry for a plan slot is trimmed to what
+     * the slot still misses, decided under the write lock: the caller read the slot before
+     * it, so another writer may have logged it since, or a restore replaced the plan.
+     * Returns what was written; empty when nothing was left to log.
+     */
+    suspend fun saveNewEntries(
+        entries: Collection<MedicationLogEntryInput>,
+    ): List<MedicationLogEntryInput> {
+        return insertNewEntries(entries, deductStock = true, onlyMissing = true)
     }
 
     // Bulk insert used by retrospective backfill flows. Most backfill callers
@@ -420,22 +455,30 @@ class MedicationLogRepository @Inject internal constructor(
         entries: Collection<MedicationLogEntryInput>,
         deductStock: Boolean = false,
     ) {
-        insertNewEntries(entries, deductStock = deductStock)
+        insertNewEntries(entries, deductStock = deductStock, onlyMissing = false)
     }
 
     private suspend fun insertNewEntries(
         entries: Collection<MedicationLogEntryInput>,
         deductStock: Boolean,
-    ) {
+        onlyMissing: Boolean,
+    ): List<MedicationLogEntryInput> {
         if (entries.isEmpty()) {
-            return
+            return emptyList()
         }
 
-        homeSnapshotRepository.runHomeDataMutation {
+        return homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                val written = if (onlyMissing) {
+                    // A widget or notification acts on a snapshot that can predate a plan
+                    // edit or a restore, so the dated slot must still be planned too.
+                    database.clampToMissingSlotCounts(entries, requirePlannedOccurrence = true)
+                } else {
+                    entries.toList()
+                }
                 val medicineDao = database.medicineDao()
                 val medicineByUuid = mutableMapOf<UUID, Medicine>()
-                val entities = entries.map { entry ->
+                val entities = written.map { entry ->
                     val medicine = entry.medicineUuid?.let { mu ->
                         medicineByUuid.getOrPut(mu) {
                             checkNotNull(medicineDao.getByUuid(mu.toString())) {
@@ -480,8 +523,65 @@ class MedicationLogRepository @Inject internal constructor(
                     )
                 }
                 database.medicationLogDao().insertEntries(entities)
+                written
             }
         }
+    }
+
+    /**
+     * Trims [entries] for a plan slot to what the live plan still misses there, per
+     * medication signature, counting every record attached to the slot as
+     * [buildMissingScheduledLogEntries] does. Run inside the insert's transaction. Drops an
+     * entry whose plan or dose no longer exists, or, with [requirePlannedOccurrence], whose
+     * dated slot the plan no longer schedules. Keeps an entry with no slot as it is.
+     */
+    private suspend fun HrtTrackerDatabase.clampToMissingSlotCounts(
+        entries: Collection<MedicationLogEntryInput>,
+        requirePlannedOccurrence: Boolean,
+    ): List<MedicationLogEntryInput> {
+        val missingBySlot = mutableMapOf<MedicationReminderSlot, MutableMap<MedicationSignature, Int>>()
+        return entries.mapNotNull { entry ->
+            val slot = MedicationReminderSlot(
+                groupUuid = entry.sourceGroupUuid ?: return@mapNotNull entry,
+                scheduledAt = entry.scheduledFor ?: return@mapNotNull entry,
+                scheduleTimeUuid = entry.scheduleTimeUuid,
+            )
+            val missing = missingBySlot.getOrPut(slot) {
+                missingCountsAt(slot, requirePlannedOccurrence)
+            }
+            val signature = entry.signature()
+            val count = minOf(entry.count.coerceAtLeast(1), missing[signature] ?: 0)
+            if (count <= 0) {
+                return@mapNotNull null
+            }
+            missing[signature] = missing.getValue(signature) - count
+            entry.copy(count = count)
+        }
+    }
+
+    private suspend fun HrtTrackerDatabase.missingCountsAt(
+        slot: MedicationReminderSlot,
+        requirePlannedOccurrence: Boolean,
+    ): MutableMap<MedicationSignature, Int> {
+        val groupEntity = medicationGroupDao().getGroup(slot.groupUuid.toString())
+            ?: return mutableMapOf()
+        val group = groupEntity.toMedicationGroupModel(resolveMedicinesForGroups(listOf(groupEntity)))
+        if (requirePlannedOccurrence && !group.hasReminderOccurrence(slot)) {
+            return mutableMapOf()
+        }
+        // A record matches its slot by schedule time and calendar date, so read that date.
+        val date = slot.scheduledAt.toLocalDate()
+        val entities = medicationLogDao().getScheduledEntriesInWindow(
+            scheduledStartIso = date.atStartOfDay().toString(),
+            scheduledEndIso = date.plusDays(1).atStartOfDay().toString(),
+        )
+        val medicinesByUuid = resolveMedicinesForEntries(entities)
+        return buildMissingScheduledLogEntries(
+            group = group,
+            slot = slot,
+            entries = entities.map { it.toMedicationLogEntryModel(medicinesByUuid) },
+            appliedAt = slot.scheduledAt,
+        ).associateTo(mutableMapOf()) { missing -> missing.signature() to missing.count }
     }
 
     private fun buildEntryEntity(
@@ -627,5 +727,13 @@ data class MedicationLogEntryInput(
         }
     }
 }
+
+private fun MedicationLogEntryInput.signature(): MedicationSignature =
+    MedicationSignature.fromValues(medicineUuid, applicationType, doseInstruction)
+
+/** A new record for a plan slot found nothing of its dose still missing there. */
+class ScheduledDoseAlreadyLoggedException : IllegalStateException(
+    "The slot already has every record of this dose.",
+)
 
 private const val TAG = "MedicationLogRepository"
