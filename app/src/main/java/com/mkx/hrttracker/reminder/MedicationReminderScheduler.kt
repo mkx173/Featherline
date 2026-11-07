@@ -79,6 +79,17 @@ class MedicationReminderScheduler private constructor(
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
+    // ponytail: one flag, so a rescheduleAll that read the data before another
+    // writer's mark clears that mark too; A4's serialization would close it.
+    /**
+     * For a data change reminders must follow, before it commits: marks a
+     * reconcile owed until a [rescheduleAll] completes, so startup still runs
+     * one ([isReconcilePending]) if the process dies or the writer's own fails.
+     */
+    suspend fun markReconcilePending() = reminderScheduleStore.setReconcilePending(true)
+
+    suspend fun isReconcilePending(): Boolean = reminderScheduleStore.isReconcilePending()
+
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
         diagnosticsLogger.info(TAG, "reminder_reschedule_all_start now=$now")
         val groups = medicationGroupRepository.getGroups()
@@ -100,6 +111,7 @@ class MedicationReminderScheduler private constructor(
                 "reminder_reschedule_all_complete groups=${groups.size} entries=0 plans=0 stored=0"
             )
             reconcileDoseReminderNotifications(remindersEnabled = false)
+            reminderScheduleStore.setReconcilePending(false)
             return
         }
 
@@ -131,6 +143,7 @@ class MedicationReminderScheduler private constructor(
                     "cancel=${uuidsToCancel.size}"
         )
         reconcileDoseReminderNotifications(remindersEnabled = true)
+        reminderScheduleStore.setReconcilePending(false)
     }
 
     suspend fun rescheduleFromHomeSnapshot(

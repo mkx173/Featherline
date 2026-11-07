@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportFatalException
@@ -403,6 +404,7 @@ class SettingsViewModelTest {
         } coAnswers {
             restoreStarted.complete(Unit)
             allowRestoreToFinish.await()
+            BackupRestoreOutcome.RESTORED
         }
 
         viewModel.setPendingRestoreRequest(
@@ -424,6 +426,29 @@ class SettingsViewModelTest {
 
         assertNull(viewModel.uiState.value.pendingRestoreRequest)
         assertFalse(viewModel.uiState.value.isBackupRestoreInProgress)
+    }
+
+    @Test
+    fun requestBackupRestore_reportsRestoredDataWhenOnlyAFollowUpFailed() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery {
+            backupRestoreService.restoreBackupBytes(any(), "password")
+        } returns BackupRestoreOutcome.FOLLOW_UP_FAILED
+        viewModel.setPendingRestoreRequest(
+            fileUri = mockk(),
+            displayName = "backup.json",
+            encryptedBytes = byteArrayOf(1),
+        )
+        advanceUntilIdle()
+
+        viewModel.requestBackupRestore("password")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(BackupRestoreEvent.FollowUpFailed),
+            viewModel.backupRestoreEvents.replayCache,
+        )
     }
 
     @Test

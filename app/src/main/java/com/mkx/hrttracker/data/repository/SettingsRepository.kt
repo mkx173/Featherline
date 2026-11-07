@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
@@ -555,7 +556,8 @@ class SettingsRepository internal constructor(
             preferences[homeCardHiddenKey] = homeCardLayout.hidden.map { it.name }.toSet()
         }
 
-        setAppLanguageOption(appLanguageOption)
+        // setApplicationLocales must be called on the main thread; restore runs on IO.
+        withContext(Dispatchers.Main) { setAppLanguageOption(appLanguageOption) }
     }
 
     fun setAppLanguageOption(option: AppLanguageOption) {

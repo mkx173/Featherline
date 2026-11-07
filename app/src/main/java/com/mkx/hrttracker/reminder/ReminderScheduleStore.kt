@@ -2,6 +2,7 @@ package com.mkx.hrttracker.reminder
 
 import android.content.Context
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -67,6 +68,22 @@ class ReminderScheduleStore @Inject constructor(
         }
     }
 
+    suspend fun isReconcilePending(): Boolean {
+        return context.reminderScheduleDataStore.data
+            .map { preferences -> preferences[reconcilePendingKey] == true }
+            .first()
+    }
+
+    suspend fun setReconcilePending(pending: Boolean) {
+        context.reminderScheduleDataStore.edit { preferences ->
+            if (pending) {
+                preferences[reconcilePendingKey] = true
+            } else {
+                preferences.remove(reconcilePendingKey)
+            }
+        }
+    }
+
     private fun storageValue(uuid: UUID, scheduledAt: LocalDateTime): String {
         return "$uuid$SEPARATOR$scheduledAt"
     }
@@ -74,6 +91,7 @@ class ReminderScheduleStore @Inject constructor(
     private companion object {
         // Each value is "<uuid>" (older builds) or "<uuid>\u001F<scheduledAt>".
         val scheduledGroupUuidsKey = stringSetPreferencesKey("scheduled_group_uuids")
+        val reconcilePendingKey = booleanPreferencesKey("reconcile_pending")
         const val SEPARATOR = "\u001F"
     }
 }

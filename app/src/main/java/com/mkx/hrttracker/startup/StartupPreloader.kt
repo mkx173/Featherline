@@ -97,6 +97,17 @@ class StartupPreloader @Inject constructor(
         appScope.launch(Dispatchers.IO) {
             diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start now=$now")
             rescheduleAllSnoozes(now = now)
+            // A data change, such as a restore, committed without its reconcile:
+            // the snapshot can predate it, and only rescheduleAll reconciles the
+            // reminders on screen. Room opens early for it, but only then.
+            if (runCatching { medicationReminderScheduler.isReconcilePending() }.getOrDefault(false)) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "snapshot_reminder_reschedule_skipped reason=reconcile_pending now=$now"
+                )
+                rescheduleAllReminders(now = now)
+                return@launch
+            }
             runCatching {
                 val snapshot = homeSnapshotRepository.currentState()?.homeData
                     ?: return@runCatching diagnosticsLogger.info(

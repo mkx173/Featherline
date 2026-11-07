@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -22,7 +23,10 @@ import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
@@ -32,7 +36,11 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -41,6 +49,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.util.Locale
+import java.util.concurrent.Executors
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsRepositoryTest {
@@ -55,6 +64,7 @@ class SettingsRepositoryTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
         every { appLanguageLocale() } returns Locale.ENGLISH
@@ -65,6 +75,11 @@ class SettingsRepositoryTest {
         )
 
         settingsRepository = SettingsRepository(dataStore)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -475,6 +490,26 @@ class SettingsRepositoryTest {
             emptyMap<String, MedicineStockState>(),
             settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first()
         )
+    }
+
+    @Test
+    fun `restoreSettings applies the app language on the main thread`() = runTest(testDispatcher) {
+        // setApplicationLocales must run on the main thread; restore calls in from IO.
+        val main = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "test-main") }
+        Dispatchers.setMain(main.asCoroutineDispatcher())
+        mockkStatic(AppCompatDelegate::class)
+        var localeThread: String? = null
+        every { AppCompatDelegate.setApplicationLocales(any()) } answers {
+            localeThread = Thread.currentThread().name
+        }
+        try {
+            withContext(Dispatchers.IO) { restoreSettingsWithHazeBlurEnabled(enabled = true) }
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+            main.shutdown()
+        }
+
+        assertEquals("test-main", localeThread)
     }
 
     @Test

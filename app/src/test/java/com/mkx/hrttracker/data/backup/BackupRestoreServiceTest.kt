@@ -47,7 +47,6 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -91,8 +90,6 @@ class BackupRestoreServiceTest {
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
-    private val reminderNotificationManager: ReminderNotificationManager =
-        mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
     private lateinit var backupCrypto: BackupCrypto
@@ -127,6 +124,7 @@ class BackupRestoreServiceTest {
                 any(),
             )
         } just Runs
+        coEvery { medicationReminderScheduler.markReconcilePending() } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
@@ -139,7 +137,6 @@ class BackupRestoreServiceTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            reminderNotificationManager = reminderNotificationManager,
             widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = backupCrypto,
             healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
@@ -163,6 +160,91 @@ class BackupRestoreServiceTest {
         // A restored sync flag syncs now, or turns off without access.
         verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true) }
     }
+
+    @Test
+    fun restoreBackupBytes_leavesShownRemindersToTheReconcileAfterTheCommit() = runTest {
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.RESTORED, outcome)
+        // Restore no longer dismisses reminders itself, which lost the due ones:
+        // rescheduleAll, after the commit, keeps a shown reminder still due in
+        // the restored data and drops or refreshes the rest.
+        coVerifyOrder {
+            databaseHolder.runTransaction(any())
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_keepsShownRemindersWhenTheTransactionFails() = runTest {
+        coEvery { databaseHolder.runTransaction(any()) } throws IllegalStateException("disk full")
+
+        val result = runCatching {
+            service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+        }
+
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
+        // Nothing changed, so the reminders on screen are still right, and
+        // nothing that could dismiss them ran.
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_marksRemindersForReconcileBeforeTheCommit() = runTest {
+        service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        // Startup reconciles a pending mark if the process dies past the commit.
+        coVerifyOrder {
+            medicationReminderScheduler.markReconcilePending()
+            databaseHolder.runTransaction(any())
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_reportsRestoredDataAndRunsTheFollowUpsWhenSettingsFailAfterTheCommit() =
+        runTest {
+            coEvery {
+                settingsRepository.restoreSettings(
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any(),
+                    any(), any(), any(), any(), any(),
+                    any(),
+                )
+            } throws IOException("datastore write failed")
+
+            val result = runCatching {
+                service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+            }
+
+            assertEquals(
+                "The data was committed, so a settings failure must not report a failed restore",
+                BackupRestoreOutcome.FOLLOW_UP_FAILED,
+                result.getOrNull(),
+            )
+            coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
+            coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+            coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+            verify(exactly = 1) {
+                healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+            }
+        }
+
+    @Test
+    fun restoreBackupBytes_reportsAFailedFollowUpWhenTheRescheduleFails() = runTest {
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws IOException("alarm store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+    }
+
+    private fun emptySnapshotBytes(): ByteArray = backupCrypto.encryptSnapshotJson(
+        json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+        password = "password".toCharArray(),
+    )
 
     @Test
     fun restoreBackup_keepsTheUnitOfAProfileWithoutAWeight() = runTest {

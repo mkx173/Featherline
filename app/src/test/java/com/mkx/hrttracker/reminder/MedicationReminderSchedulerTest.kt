@@ -26,6 +26,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -75,6 +76,7 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } just Runs
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } just Runs
+        coEvery { reminderScheduleStore.setReconcilePending(any()) } just Runs
         coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
         coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
         every { notificationManager.activeDoseReminders() } returns emptyMap()
@@ -352,6 +354,57 @@ class MedicationReminderSchedulerTest {
             }
         }
         verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+    }
+
+    // After a restore: a reminder whose dose is still due in the new data stays,
+    // one whose plan is gone goes, and a due dose that wasn't on screen isn't posted.
+    @Test
+    fun rescheduleAll_keeps_a_still_due_reminder_and_posts_none_for_an_overdue_dose_not_shown() = runTest {
+        val kept = medicationGroup(UUID.fromString("e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81"), notificationsEnabled = true)
+        val removed = medicationGroup(UUID.fromString("f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f7a8b92"), notificationsEnabled = true)
+        val notShown = medicationGroup(UUID.fromString("a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9ca3"), notificationsEnabled = true)
+        val keptShown = shownReminder(listOf(kept))
+        val removedShown = shownReminder(listOf(removed))
+        givenPlans(listOf(kept, notShown), shown = keptShown)
+        every { notificationManager.activeDoseReminders() } returns mapOf(
+            keptShown.notificationTag to ShownDoseReminder(keptShown.slots, keptShown.contentHash),
+            removedShown.notificationTag to ShownDoseReminder(removedShown.slots, removedShown.contentHash),
+        )
+
+        scheduler.rescheduleAll(reminderNow)
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(keptShown.notificationTag) }
+        verify(exactly = 1) { notificationManager.cancelDoseReminderNotification(removedShown.notificationTag) }
+        verify(exactly = 0) { notificationManager.cancelAllDoseReminderNotifications() }
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun rescheduleAll_clears_a_pending_reconcile_once_done() = runTest {
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        scheduler.markReconcilePending()
+        scheduler.rescheduleAll(reminderNow)
+
+        coVerifyOrder {
+            reminderScheduleStore.setReconcilePending(true)
+            reminderScheduleStore.replaceScheduledReminders(any())
+            reminderScheduleStore.setReconcilePending(false)
+        }
+    }
+
+    @Test
+    fun rescheduleAll_leaves_the_reconcile_pending_when_it_fails() = runTest {
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } throws IllegalStateException("database closed")
+
+        runCatching { scheduler.rescheduleAll(reminderNow) }
+
+        coVerify(exactly = 0) { reminderScheduleStore.setReconcilePending(false) }
     }
 
     private val reminderNow = LocalDateTime.of(2026, 4, 20, 9, 30)

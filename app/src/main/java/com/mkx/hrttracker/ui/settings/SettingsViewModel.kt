@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
+import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
@@ -495,11 +496,16 @@ class SettingsViewModel @Inject constructor(
         // open or the activity recreate caused by restored settings.
         viewModelScope.launch {
             try {
-                backupRestoreService.restoreBackupBytes(
+                val outcome = backupRestoreService.restoreBackupBytes(
                     encryptedBytes = ownedBytes,
                     password = password,
                 )
-                restoreEvents.tryEmit(BackupRestoreEvent.Success)
+                restoreEvents.tryEmit(
+                    when (outcome) {
+                        BackupRestoreOutcome.RESTORED -> BackupRestoreEvent.Success
+                        BackupRestoreOutcome.FOLLOW_UP_FAILED -> BackupRestoreEvent.FollowUpFailed
+                    }
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -733,6 +739,9 @@ data class PendingPreparedBackupExport(
 
 sealed class BackupRestoreEvent {
     data object Success : BackupRestoreEvent()
+
+    /** The data was replaced, but some of its settings or reminders weren't. */
+    data object FollowUpFailed : BackupRestoreEvent()
     data class Failure(val error: Throwable) : BackupRestoreEvent()
 }
 

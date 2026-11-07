@@ -716,6 +716,7 @@
     <string name="settings_backup_password_min_length">至少使用 %1$d 个字符</string>
     <string name="settings_backup_password_mismatch">密码不一致</string>
     <string name="settings_backup_restore_success">备份已恢复</string>
+    <string name="settings_backup_restore_follow_up_failed">备份已恢复，但部分设置或提醒无法更新</string>
     <string name="settings_backup_restore_failed">密码错误或备份文件已损坏</string>
     <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>

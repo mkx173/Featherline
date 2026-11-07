@@ -52,7 +52,6 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
@@ -82,6 +81,14 @@ class IncompatibleBackupFileException(
     cause: Throwable? = null,
 ) : IOException(message, cause)
 
+/** How a restore that replaced the data went; one that didn't throws instead. */
+enum class BackupRestoreOutcome {
+    RESTORED,
+
+    /** The data is restored, but a setting, the widget appearance or a reminder step failed. */
+    FOLLOW_UP_FAILED,
+}
+
 @Singleton
 class BackupRestoreService @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -90,7 +97,6 @@ class BackupRestoreService @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
-    private val reminderNotificationManager: ReminderNotificationManager,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
@@ -177,7 +183,7 @@ class BackupRestoreService @Inject constructor(
     suspend fun restoreBackupBytes(
         encryptedBytes: ByteArray,
         password: String,
-    ) = withContext(Dispatchers.IO) {
+    ): BackupRestoreOutcome = withContext(Dispatchers.IO) {
         diagnosticsLogger.info(
             TAG,
             "restore_backup_start bytes=${encryptedBytes.size} " +
@@ -224,12 +230,14 @@ class BackupRestoreService @Inject constructor(
             throw error
         }
 
-        // Any visible dose-reminder notification references slot UUIDs from the
-        // pre-restore database. Tap-actions afterward dispatch with stale state, so
-        // dismiss them up-front before the database mutation begins.
-        reminderNotificationManager.cancelAllDoseReminderNotifications()
-
+        // Reminders on screen stay for rescheduleAll below to reconcile with the
+        // restored data: one still due stays, the rest go or are refreshed.
+        // Past the commit the data is restored, so a failure from there on is a
+        // failed follow-up, not a failed restore.
+        var followUpFailed = false
         homeSnapshotRepository.runHomeDataMutation {
+            // Startup reconciles if the process dies before rescheduleAll does.
+            medicationReminderScheduler.markReconcilePending()
             databaseHolder.runTransaction { database ->
                 // Delete order: logs and group items (children) before medicines
                 // (parents) so the medicines table can be wiped without
@@ -296,33 +304,40 @@ class BackupRestoreService @Inject constructor(
 
             // Inside the mutation so its rebuild reads the restored chart
             // window option; nothing else rebuilds on an option write.
-            settingsRepository.restoreSettings(
-                darkModeOption = validatedSnapshot.settings.darkModeOption,
-                adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
-                pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
-                hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
-                classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
-                remindersEnabled = validatedSnapshot.settings.remindersEnabled,
-                healthConnectWeightSyncEnabled =
-                    validatedSnapshot.settings.healthConnectWeightSyncEnabled,
-                showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
-                hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
-                appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
-                hideScreenContentEnabled = validatedSnapshot.settings.hideScreenContentEnabled,
-                onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
-                pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
-                appLanguageOption = validatedSnapshot.settings.appLanguageOption,
-                calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
-                homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
-                homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
-                lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
-                hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
-                groupNameCounter = validatedSnapshot.settings.groupNameCounter,
-                firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
-                stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
-                stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
-                homeCardLayout = validatedSnapshot.settings.homeCardLayout,
-            )
+            try {
+                settingsRepository.restoreSettings(
+                    darkModeOption = validatedSnapshot.settings.darkModeOption,
+                    adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
+                    pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
+                    hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
+                    classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
+                    remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                    healthConnectWeightSyncEnabled =
+                        validatedSnapshot.settings.healthConnectWeightSyncEnabled,
+                    showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
+                    hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
+                    appLockGracePeriodOption = validatedSnapshot.settings.appLockGracePeriodOption,
+                    hideScreenContentEnabled = validatedSnapshot.settings.hideScreenContentEnabled,
+                    onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
+                    pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
+                    appLanguageOption = validatedSnapshot.settings.appLanguageOption,
+                    calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
+                    homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
+                    homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
+                    lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
+                    hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
+                    groupNameCounter = validatedSnapshot.settings.groupNameCounter,
+                    firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+                    stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
+                    stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
+                    homeCardLayout = validatedSnapshot.settings.homeCardLayout,
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(TAG, "restore_settings_apply_failed", error)
+            }
         }
 
         // Restore REPLACES the default appearance wholesale, including hue, saturation
@@ -345,6 +360,7 @@ class BackupRestoreService @Inject constructor(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            followUpFailed = true
             diagnosticsLogger.warning(
                 TAG,
                 "restore_widget_appearance_apply_failed",
@@ -355,13 +371,14 @@ class BackupRestoreService @Inject constructor(
         // Reminder rescheduling is a best-effort side effect — the data is
         // already committed. Surfacing a failure here as a generic
         // exception caused "restore failed" toasts even when the user's
-        // data had been restored successfully. The alarm scheduler will
-        // reconcile on the next app launch.
+        // data had been restored successfully. The reconcile marked above
+        // stays pending, so startup runs it on the next app launch.
         try {
             medicationReminderScheduler.rescheduleAll()
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            followUpFailed = true
             diagnosticsLogger.warning(
                 TAG,
                 "restore_reminder_reschedule_failed",
@@ -373,6 +390,7 @@ class BackupRestoreService @Inject constructor(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            followUpFailed = true
             diagnosticsLogger.warning(
                 TAG,
                 "restore_snooze_clear_failed",
@@ -383,6 +401,7 @@ class BackupRestoreService @Inject constructor(
         // otherwise wait for the next onStart. Fire-and-forget; it never throws.
         // The restored weight must give way to HC's, however recent the last sync.
         healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+        if (followUpFailed) BackupRestoreOutcome.FOLLOW_UP_FAILED else BackupRestoreOutcome.RESTORED
     }
 
     private companion object {

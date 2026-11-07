@@ -210,6 +210,7 @@ fun SettingsScreen(
         viewModel.backupRestoreEvents.collect { event ->
             val messageRes = when (event) {
                 BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
+                BackupRestoreEvent.FollowUpFailed -> R.string.settings_backup_restore_follow_up_failed
                 is BackupRestoreEvent.Failure -> when (event.error) {
                     is IncompatibleBackupFileException,
                     is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
