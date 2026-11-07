@@ -588,6 +588,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_disabled)
     val saveMedicationGroupFailureMessage =
         stringResource(R.string.save_medication_group_failure)
+    val saveMedicationGroupLockedByRecordsMessage =
+        stringResource(R.string.save_medication_group_locked_by_records)
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
     val archiveMedicationGroupBlockedByPlannedSlotsMessage =
@@ -738,6 +740,15 @@ private fun MedicationGroupEditorScreenContent(
                     context,
                     saveMedicationGroupFailureMessage,
                     Toast.LENGTH_SHORT,
+                ).show()
+                onSaveMedicationGroupResultConsumed()
+            }
+
+            SaveMedicationGroupResult.LOCKED_BY_RECORDS -> {
+                Toast.makeText(
+                    context,
+                    saveMedicationGroupLockedByRecordsMessage,
+                    Toast.LENGTH_LONG,
                 ).show()
                 onSaveMedicationGroupResultConsumed()
             }

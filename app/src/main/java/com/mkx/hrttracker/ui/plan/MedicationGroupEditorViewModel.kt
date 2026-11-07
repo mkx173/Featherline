@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.data.repository.CurrentOrFuturePlannedSlotsBlockArchiveException
+import com.mkx.hrttracker.data.repository.LockedMedicationGroupMedicationsException
+import com.mkx.hrttracker.data.repository.LockedMedicationGroupScheduleException
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
@@ -14,6 +16,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.keepsRecordsOf
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -22,6 +25,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -75,7 +79,6 @@ import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -134,6 +137,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val restoredPendingReplacementGroupId =
         savedStateHandle.get<String>(PENDING_REPLACEMENT_GROUP_ID_KEY)
     private var latestGroups: List<MedicationGroup> = emptyList()
+
+    // The edited plan as saved: a record that arrives mid-edit locks the draft's schedule to it.
+    private var savedPlan: MedicationGroup? = cachedEditingGroup
     private val _uiState = MutableStateFlow(
         run {
             // A new plan's day ends at midnight until the user turns night owl on.
@@ -279,6 +285,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 _uiState.update { currentState ->
                     val allGroups = groupsOrNull.orEmpty()
                     latestGroups = allGroups
+                    allGroups.firstOrNull { group -> group.uuid.toString() == currentState.editingGroupId }
+                        ?.let { group -> savedPlan = group }
                     val visibleGroups = allGroups.filterNot { group ->
                         group.uuid.toString() == currentState.editingGroupId
                     }
@@ -381,9 +389,27 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         } else {
                             nextState
                         }
+                        // A record locks the plan's slots and the days it falls on as saveGroup
+                        // enforces, so a schedule edit made before it is undone where it would
+                        // take a record off its slot, and kept where it wouldn't.
+                        val lockedPlan = savedPlan
+                            ?.takeIf { plan -> plan.uuid.toString() == lockedNextState.editingGroupId }
+                        val recordLockedState = if (
+                            lockedPlan != null &&
+                            lockedNextState.isLocked &&
+                            !shouldFreezeMedicationGroupEditorRecordPresentation(lockedNextState)
+                        ) {
+                            lockedNextState.keepingRecordsOf(
+                                saved = lockedPlan,
+                                records = counts.plannedRecords,
+                                now = timeSnapshot.minute,
+                            )
+                        } else {
+                            lockedNextState
+                        }
                         resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
                             previousState = it,
-                            nextState = lockedNextState.withStartsNowOn(timeSnapshot.minute),
+                            nextState = recordLockedState.withStartsNowOn(timeSnapshot.minute),
                         )
                     }
                 }
@@ -1074,15 +1100,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             return
         }
 
-        val parsedWeeklyInterval = parseScheduleInterval(currentState.weeklyIntervalWeeks)
-        val parsedDailyInterval = parseScheduleInterval(currentState.dailyIntervalDays)
-        val resolvedDailyTimes = currentState.dailyTimes.ifEmpty {
-            listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
-        }
-        val scheduleTimeInputs = scheduleTimeInputsForSave(
-            uiState = currentState,
-            resolvedDailyTimes = resolvedDailyTimes,
-        )
         val recordGenerationCutoff = minOf(
             recordGenerationNow,
             currentState.createPastScheduledSlotRecordsEnabledAt ?: recordGenerationNow,
@@ -1112,40 +1129,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val savedGroupUuidResult = runCatching {
                 resolvedGroupName = resolveMedicationGroupNameForSave(currentState)
-                if (currentState.isLocked && lockedScheduleTimesChanged(currentState)) {
-                    medicationGroupRepository.updateScheduleTimes(
-                        groupUuid = UUID.fromString(checkNotNull(currentState.editingGroupId)),
-                        newTimes = scheduleTimesForSave(currentState),
-                        now = saveNow,
-                    )
-                }
+                // A locked plan's time change moves its records in this same save.
                 medicationGroupRepository.saveGroup(
                     uuid = currentState.editingGroupId?.let(UUID::fromString),
                     name = resolvedGroupName,
                     colorKey = currentState.groupColorKey,
-                    schedule = when (currentState.scheduleType) {
-                        MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
-                            type = MedicationGroupScheduleType.WEEKLY,
-                            interval = parsedWeeklyInterval,
-                            since = currentState.sinceDate,
-                            weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
-                            times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
-                            timeSlots = scheduleTimeInputs,
-                            startAt = currentState.scheduleStartAt(recordGenerationNow),
-                            dayBoundary = currentState.medicationDayBoundary,
-                        )
-
-                        MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
-                            type = MedicationGroupScheduleType.DAILY,
-                            interval = parsedDailyInterval,
-                            since = currentState.sinceDate,
-                            weeklyDaysOfWeek = emptySet(),
-                            times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
-                            timeSlots = scheduleTimeInputs,
-                            startAt = currentState.scheduleStartAt(recordGenerationNow),
-                            dayBoundary = currentState.medicationDayBoundary,
-                        )
-                    },
+                    schedule = currentState.toScheduleInput(recordGenerationNow),
                     medications = currentState.medications.map { medication ->
                         medication.toInput()
                     },
@@ -1157,7 +1146,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
             val saveResult = savedGroupUuidResult.fold(
                 onSuccess = { null },
-                onFailure = { SaveMedicationGroupResult.FAILURE },
+                onFailure = { cause ->
+                    when (cause) {
+                        is LockedMedicationGroupScheduleException,
+                        is LockedMedicationGroupMedicationsException ->
+                            SaveMedicationGroupResult.LOCKED_BY_RECORDS
+
+                        else -> SaveMedicationGroupResult.FAILURE
+                    }
+                },
             )
             val isSaved = saveResult == null
             val savedGroupUuid = savedGroupUuidResult.getOrNull()
@@ -1494,13 +1491,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 resolvedGroupName = resolvedGroupName,
             )
 
-            val archiveOutcome = runCatching {
-                medicationGroupRepository.archiveGroup(
+            // One transaction: a failure leaves the plan active, as this editor still shows it.
+            val replacement = runCatching {
+                medicationGroupRepository.archiveAndRecreateGroup(
                     uuid = uuid,
                     archivedThroughDate = archivedThroughDate,
+                    name = resolvedGroupName,
+                    colorKey = draftState.groupColorKey,
+                    schedule = draftState.toScheduleInput(currentMinute.value),
+                    medications = draftState.medications.map { medication -> medication.toInput() },
+                    notificationsEnabled = draftState.notificationsEnabled,
                     now = recreateNowInstant,
                 )
-            }.fold(
+            }
+            val archiveOutcome = replacement.fold(
                 onSuccess = { null },
                 onFailure = { cause ->
                     when (cause) {
@@ -1526,16 +1530,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
             runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
             runCatching { medicationReminderScheduler.rescheduleAll() }
 
-            val savedGroupUuid = saveRecreatedDraftGroup(
-                draftState = draftState,
-                resolvedGroupName = resolvedGroupName,
-                replacesGroupUuid = uuid,
-                now = recreateNowInstant,
-            )
-            if (savedGroupUuid != null) {
-                runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
-            }
-            val savedGroup = savedGroupUuid?.let { medicationGroupRepository.getGroup(it) }
+            val savedGroupUuid = replacement.getOrThrow()
+            runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+            val savedGroup = medicationGroupRepository.getGroup(savedGroupUuid)
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
             val replacementState = savedGroup?.toEditorState(
                 remindersEnabled = remindersEnabled,
@@ -1544,7 +1541,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             // The saved replacement is what this editor now edits, so leaving it untouched
             // loses nothing. Set before the state, so no emission compares it with the original.
-            if (replacementState != null) baselineDraft = replacementState.toEditedDraft()
+            if (replacementState != null) {
+                baselineDraft = replacementState.toEditedDraft()
+                savedPlan = savedGroup
+            }
 
             _uiState.update {
                 if (replacementState != null) {
@@ -1569,61 +1569,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
         return latestGroups.firstOrNull { group -> group.uuid == groupUuid }
             ?: medicationGroupRepository.getCachedGroup(groupUuid)
             ?: runCatching { medicationGroupRepository.getGroup(groupUuid) }.getOrNull()
-    }
-
-    private suspend fun saveRecreatedDraftGroup(
-        draftState: MedicationGroupEditorUiState,
-        resolvedGroupName: String,
-        replacesGroupUuid: UUID,
-        now: Instant,
-    ): UUID? {
-        val parsedWeeklyInterval = parseScheduleInterval(draftState.weeklyIntervalWeeks)
-        val parsedDailyInterval = parseScheduleInterval(draftState.dailyIntervalDays)
-        val resolvedDailyTimes = draftState.dailyTimes.ifEmpty {
-            listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
-        }
-        val scheduleTimeInputs = scheduleTimeInputsForSave(
-            uiState = draftState,
-            resolvedDailyTimes = resolvedDailyTimes,
-        )
-        val scheduleInput = when (draftState.scheduleType) {
-            MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
-                type = MedicationGroupScheduleType.WEEKLY,
-                interval = parsedWeeklyInterval,
-                since = draftState.sinceDate,
-                weeklyDaysOfWeek = draftState.weeklyDaysOfWeek,
-                times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
-                timeSlots = scheduleTimeInputs,
-                startAt = draftState.scheduleStartAt(currentMinute.value),
-                dayBoundary = draftState.medicationDayBoundary,
-            )
-
-            MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
-                type = MedicationGroupScheduleType.DAILY,
-                interval = parsedDailyInterval,
-                since = draftState.sinceDate,
-                weeklyDaysOfWeek = emptySet(),
-                times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
-                timeSlots = scheduleTimeInputs,
-                startAt = draftState.scheduleStartAt(currentMinute.value),
-                dayBoundary = draftState.medicationDayBoundary,
-            )
-        }
-        return runCatching {
-            medicationGroupRepository.saveGroup(
-                uuid = null,
-                name = resolvedGroupName,
-                colorKey = draftState.groupColorKey,
-                schedule = scheduleInput,
-                medications = draftState.medications.map { medication ->
-                    medication.toInput()
-                },
-                notificationsEnabled = draftState.notificationsEnabled,
-                includePastScheduledSlots = draftState.includePastScheduledSlots,
-                replacesGroupUuid = replacesGroupUuid,
-                now = now,
-            )
-        }.getOrNull()
     }
 
     fun showDeleteRelatedEntriesConfirmation() {
@@ -1752,6 +1697,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingGroupForEditing = false) }
                 return@launch
             }
+            savedPlan = group
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
             _uiState.update { currentState ->
@@ -2256,6 +2202,66 @@ internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): L
     }
 }
 
+/** The schedule this draft saves, its start resolved at [now]. */
+internal fun MedicationGroupEditorUiState.toScheduleInput(now: LocalDateTime): MedicationGroupScheduleInput {
+    val isWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY
+    val timeSlots = scheduleTimeInputsForSave(this)
+    return MedicationGroupScheduleInput(
+        type = scheduleType,
+        interval = parseScheduleInterval(if (isWeekly) weeklyIntervalWeeks else dailyIntervalDays),
+        since = sinceDate,
+        weeklyDaysOfWeek = if (isWeekly) weeklyDaysOfWeek else emptySet(),
+        times = timeSlots.map(MedicationGroupScheduleTimeInput::time),
+        timeSlots = timeSlots,
+        startAt = scheduleStartAt(now),
+        dayBoundary = medicationDayBoundary,
+    )
+}
+
+/**
+ * The draft as a plan with [records] may save it over [saved]. Its medications go back to
+ * [saved]'s, which its records are matched against. Its slots go back to [saved]'s when it
+ * changed the schedule type or added, removed or replaced a slot. Then its cadence, weekdays
+ * and start go back too if any record would no longer be an occurrence of its slot. The rest
+ * (name, color, reminders, slot times) is kept.
+ */
+internal fun MedicationGroupEditorUiState.keepingRecordsOf(
+    saved: MedicationGroup,
+    records: List<MedicationGroupSlotKey>,
+    now: LocalDateTime,
+): MedicationGroupEditorUiState {
+    val savedState = saved.toEditorState(remindersEnabled, relatedEntryCount, plannedEntryCount)
+    val withMedications = if (medications == savedState.medications) {
+        this
+    } else {
+        copy(medications = savedState.medications)
+    }
+    val keepsSlots = scheduleTimeInputsForSave(this).map { slot -> slot.uuid }.toSet() ==
+            saved.schedule.timeSlots.map { slot -> slot.uuid }.toSet()
+    val withSlots = if (keepsSlots) {
+        withMedications
+    } else {
+        withMedications.copy(
+            scheduleType = savedState.scheduleType,
+            weeklyTimeLocalId = savedState.weeklyTimeLocalId,
+            weeklyTime = savedState.weeklyTime,
+            dailyTimes = savedState.dailyTimes,
+        )
+    }
+    return if (withSlots.toScheduleInput(now).keepsRecordsOf(saved.schedule, records)) {
+        withSlots
+    } else {
+        withSlots.copy(
+            weeklyIntervalWeeks = savedState.weeklyIntervalWeeks,
+            weeklyDaysOfWeek = savedState.weeklyDaysOfWeek,
+            hasUserCustomizedWeeklyDays = savedState.hasUserCustomizedWeeklyDays,
+            dailyIntervalDays = savedState.dailyIntervalDays,
+            sinceDate = savedState.sinceDate,
+            scheduleStart = savedState.scheduleStart,
+        )
+    }
+}
+
 internal fun hasSaveableMedicationGroupContent(
     uiState: MedicationGroupEditorUiState
 ): Boolean {
@@ -2714,6 +2720,9 @@ enum class CreatePastScheduledSlotRecordsResult {
 
 enum class SaveMedicationGroupResult {
     FAILURE,
+
+    /** Refused because the change would take the plan's records off their slots or medications. */
+    LOCKED_BY_RECORDS,
 }
 
 enum class DeleteRelatedEntriesResult {
@@ -2820,6 +2829,7 @@ internal data class MedicationGroupEntryCounts(
     val currentOrFuturePlannedSlotCount: Int,
     val latestRecordedDoseDate: LocalDate?,
     val areEntriesLoaded: Boolean,
+    val plannedRecords: List<MedicationGroupSlotKey> = emptyList(),
 )
 
 internal fun entryCountsForGroup(
@@ -2855,6 +2865,11 @@ internal fun entryCountsForGroup(
             entry.planCalendarDate(boundary, zoneId)
         },
         areEntriesLoaded = areEntriesLoaded,
+        plannedRecords = relatedEntries.mapNotNull { entry ->
+            entry.scheduledFor?.let { scheduledFor ->
+                MedicationGroupSlotKey(entry.scheduleTimeUuid, scheduledFor)
+            }
+        },
     )
 }
 

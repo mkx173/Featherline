@@ -79,7 +79,8 @@ class MedicationLogSlotWriteTest {
         preparation = MedicinePreparation.Pill(strengthMgPerTablet = 50.0),
         stock = MedicineStock(trackingEnabled = true, unitsRemaining = 10.0, unitsLastTotal = 10.0),
     )
-    private val planUuid = UUID.fromString("5a1e0000-0000-0000-0000-0000000000aa")
+    // Set by the first seed, which creates the plan; later seeds edit it.
+    private var planUuid: UUID? = null
     private val wholeTablet = DoseInstruction.TabletFraction(1, 1)
     private val scheduledAt = LocalDateTime.of(2026, 11, 8, 8, 0)
 
@@ -182,7 +183,7 @@ class MedicationLogSlotWriteTest {
     fun aRestoreThatDropsThePlanBeforeTheWriteLeavesNothingToLog() = runTest {
         val plan = seedPlan()
         val missing = missingAsReadBeforeTheGate(plan)
-        replacingWrite = { groupRepository.deleteGroup(planUuid) }
+        replacingWrite = { groupRepository.deleteGroup(plan.uuid) }
 
         runCatching { logRepository.saveNewEntries(missing) }
 
@@ -235,7 +236,7 @@ class MedicationLogSlotWriteTest {
             database.medicineDao().insert(estradiol.toEntity())
             database.medicineDao().insert(spironolactone.toEntity())
         }
-        groupRepository.saveGroup(
+        val uuid = groupRepository.saveGroup(
             uuid = planUuid,
             name = "Morning",
             colorKey = MedicationGroupColorKey.ROSE,
@@ -263,7 +264,8 @@ class MedicationLogSlotWriteTest {
             ),
             now = testInstant(LocalDateTime.of(2026, 11, 1, 7, 0)),
         )
-        return checkNotNull(groupRepository.getGroup(planUuid))
+        planUuid = uuid
+        return checkNotNull(groupRepository.getGroup(uuid))
     }
 
     private fun holdWritersAtTheGate(count: Int) {

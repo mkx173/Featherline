@@ -310,14 +310,7 @@ class MedicationGroupEditorMedicationDayTest {
                     flowOf(listOf(planRecord(LocalDateTime.of(2026, 10, 28, 1, 0))))
             coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns
                     group.copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
-            coEvery {
-                medicationGroupRepository.archiveGroup(
-                    uuid = groupUuid,
-                    archivedThroughDate = any(),
-                    now = any(),
-                )
-            } returns Unit
-            val savedSchedule = stubSaveGroup(uuid = null, returns = savedGroupUuid)
+            val savedSchedule = stubArchiveAndRecreateGroup(returns = savedGroupUuid)
             val viewModel = editingViewModel(now = now)
             advanceUntilIdle()
             assertEquals(
@@ -521,14 +514,7 @@ class MedicationGroupEditorMedicationDayTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns
                 group.copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
-        coEvery {
-            medicationGroupRepository.archiveGroup(
-                uuid = groupUuid,
-                archivedThroughDate = any(),
-                now = any(),
-            )
-        } returns Unit
-        val savedSchedule = stubSaveGroup(uuid = null, returns = savedGroupUuid)
+        val savedSchedule = stubArchiveAndRecreateGroup(returns = savedGroupUuid)
         val viewModel = editingViewModel(now = LocalDateTime.of(2026, 10, 29, 2, 0))
         advanceUntilIdle()
 
@@ -689,6 +675,23 @@ class MedicationGroupEditorMedicationDayTest {
                 notificationsEnabled = any(),
                 includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns returns
+        return savedSchedule
+    }
+
+    private fun stubArchiveAndRecreateGroup(returns: UUID): CapturingSlot<MedicationGroupScheduleInput> {
+        val savedSchedule = slot<MedicationGroupScheduleInput>()
+        coEvery {
+            medicationGroupRepository.archiveAndRecreateGroup(
+                uuid = groupUuid,
+                archivedThroughDate = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = capture(savedSchedule),
+                medications = any(),
+                notificationsEnabled = any(),
                 now = any(),
             )
         } returns returns
