@@ -84,8 +84,10 @@ import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.ToastManager
 import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
 import java.time.LocalDateTime
 import java.util.Locale
 import java.util.UUID
@@ -359,7 +361,15 @@ class MainActivity : AppCompatActivity() {
                         ) {
                             withFrameNanos { }
                             diagnosticsLogger.info(TAG, "main_activity_first_home_frame_ready")
-                            startupPreloaderProvider.get().startAfterFirstHomeFrame()
+                            val startupPreloader = startupPreloaderProvider.get()
+                            startupPreloader.startAfterFirstHomeFrame()
+                            // The key is lost: nothing opens until the app's data is cleared,
+                            // so say that and close, on every exit, a warm relaunch's too.
+                            // It's an app-context text toast, so it stays up once the task
+                            // is gone.
+                            startupPreloader.databaseKeyLost.first { it }
+                            ToastManager.showMessageRes(R.string.database_key_unavailable)
+                            finishAndRemoveTask()
                         }
                     }
 

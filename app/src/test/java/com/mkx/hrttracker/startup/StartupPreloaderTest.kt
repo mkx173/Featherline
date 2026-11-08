@@ -2,7 +2,6 @@ package com.mkx.hrttracker.startup
 
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
@@ -34,13 +33,17 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.io.IOException
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
@@ -409,42 +412,102 @@ class StartupPreloaderTest {
         }
 
     // Intent: a database key that can't be recovered (DatabaseKeyUnavailableException)
-    // tells the user to clear the app's data, once per process, from the in-app startup open.
+    // closes the app from the in-app startup open: no database opens again until the data is
+    // cleared. The preloader only signals it; MainActivity toasts on each exit.
     @Test
-    fun startAfterFirstHomeFrame_toastsOnceWhenTheDatabaseKeyIsLost() {
+    fun startAfterFirstHomeFrame_signalsTheExitWithoutToastingWhenTheDatabaseKeyIsLost() {
         every { databaseHolder.openAndSignal() } throws
                 DatabaseKeyUnavailableException("The database exists, but its stored passphrase is missing.")
 
-        startAfterFirstHomeFrameTwice()
+        val preloader = startAfterFirstHomeFrameTwice()
 
-        verify(exactly = 1) { ToastManager.showMessageRes(R.string.database_key_unavailable) }
+        assertTrue(
+            "A lost key must signal MainActivity to toast and close the app",
+            preloader.databaseKeyLost.value,
+        )
+        verify(exactly = 0) { ToastManager.showMessageRes(any()) }
         verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
     }
 
-    // Guard: an open that succeeds tells nothing.
+    // Guard: an open that succeeds tells nothing and keeps the app open.
     @Test
-    fun startAfterFirstHomeFrame_showsNoToastWhenTheDatabaseOpens() {
+    fun startAfterFirstHomeFrame_showsNoToastAndStaysOpenWhenTheDatabaseOpens() {
         every { databaseHolder.openAndSignal() } returns mockk()
 
-        startAfterFirstHomeFrameTwice()
+        val preloader = startAfterFirstHomeFrameTwice()
 
         verify(exactly = 0) { ToastManager.showMessageRes(any()) }
         verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
+        assertFalse(preloader.databaseKeyLost.value)
     }
 
     // Guard: any other open failure still has its key, and clearing the data would lose it.
     @Test
-    fun startAfterFirstHomeFrame_showsNoToastWhenTheOpenFailsWithItsKey() {
+    fun startAfterFirstHomeFrame_showsNoToastAndStaysOpenWhenTheOpenFailsWithItsKey() {
         every { databaseHolder.openAndSignal() } throws IOException("disk I/O error")
 
-        startAfterFirstHomeFrameTwice()
+        val preloader = startAfterFirstHomeFrameTwice()
 
         verify(exactly = 0) { ToastManager.showMessageRes(any()) }
         verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
+        assertFalse(preloader.databaseKeyLost.value)
     }
 
-    // The second call stands for a recreated activity's first home frame.
-    private fun startAfterFirstHomeFrameTwice() {
+    // MainActivity is a Hilt entry point with no Hilt test setup, so this reads its source:
+    // the first-home-frame effect that starts the open toasts and finishes the task once the
+    // key is lost. The signal is sticky, so an activity recreated before the exit closes too.
+    @Test
+    fun mainActivity_toastsThenFinishesItsTaskOnceTheDatabaseKeyIsLost() {
+        val effect = mainActivityFirstHomeFrameEffect()
+        val start = effect.indexOf(".startAfterFirstHomeFrame()")
+        val await = effect.indexOf(".databaseKeyLost.first { it }")
+        val exit = effect.indexOf("finishAndRemoveTask()")
+
+        assertTrue(
+            "MainActivity must await StartupPreloader.databaseKeyLost after starting the " +
+                "open, then finishAndRemoveTask()",
+            start >= 0 && await > start && exit > await,
+        )
+        assertTrue(
+            "The lost-key toast must come right before finishAndRemoveTask()",
+            effect.substring(0, exit).trimEnd().endsWith(DATABASE_KEY_TOAST),
+        )
+    }
+
+    // A warm relaunch: the process lives on, so the open latch skips the new activity's run
+    // (the helper's second call) and the preloader toasts nothing. The flag stays set for a
+    // second observation, and each observation toasts, with no guard of its own.
+    @Test
+    fun warmRelaunch_toastsAgainBeforeItCloses() = runBlocking {
+        every { databaseHolder.openAndSignal() } throws
+                DatabaseKeyUnavailableException("The database exists, but its stored passphrase is missing.")
+        val preloader = startAfterFirstHomeFrameTwice()
+
+        repeat(2) {
+            assertTrue(
+                "The lost key must stay set for each activity's observation",
+                withTimeoutOrNull(1_000) { preloader.databaseKeyLost.first { it } } == true,
+            )
+        }
+        val afterAwait = mainActivityFirstHomeFrameEffect()
+            .substringAfter(".databaseKeyLost.first { it }", missingDelimiterValue = "")
+        assertTrue(
+            "Each observation of the lost key must toast, with nothing before it to skip " +
+                "it, so a warm relaunch explains its exit too",
+            afterAwait.trimStart().startsWith(DATABASE_KEY_TOAST),
+        )
+    }
+
+    // Whole-line comments dropped, so a commented-out call doesn't count.
+    private fun mainActivityFirstHomeFrameEffect(): String =
+        File("src/main/java/com/mkx/hrttracker/MainActivity.kt").readLines()
+            .filterNot { it.trimStart().startsWith("//") }
+            .joinToString("\n")
+            .substringAfter("main_activity_first_home_frame_ready")
+            .substringBefore("AppAuthenticationPromptEffect(")
+
+    // The second call stands for a recreated or warm-relaunched activity's first home frame.
+    private fun startAfterFirstHomeFrameTwice(): StartupPreloader {
         mockkObject(ToastManager)
         every { ToastManager.showMessageRes(any()) } just Runs
         every { ToastManager.showMessage(any<String>()) } just Runs
@@ -456,10 +519,15 @@ class StartupPreloaderTest {
         verify(timeout = 1_000) {
             diagnosticsLogger.info("StartupPreloader", "startup_after_first_home_frame_complete")
         }
+        return preloader
     }
 
     @After
     fun tearDown() {
         unmockkObject(ToastManager)
+    }
+
+    private companion object {
+        const val DATABASE_KEY_TOAST = "ToastManager.showMessageRes(R.string.database_key_unavailable)"
     }
 }

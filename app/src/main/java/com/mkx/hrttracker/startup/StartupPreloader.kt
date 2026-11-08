@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.startup
 
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
@@ -16,9 +15,11 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.ToastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
@@ -43,6 +44,11 @@ class StartupPreloader @Inject constructor(
     private val snapshotReminderStarted = AtomicBoolean(false)
     private val dbReminderStarted = AtomicBoolean(false)
 
+    // True once the startup open finds the database key lost. MainActivity toasts and closes
+    // the app on it; sticky, so a recreated or warm-relaunched activity does too.
+    private val _databaseKeyLost = MutableStateFlow(false)
+    val databaseKeyLost: StateFlow<Boolean> = _databaseKeyLost.asStateFlow()
+
     fun startAfterFirstHomeFrame() {
         if (!started.compareAndSet(false, true)) {
             diagnosticsLogger.info(
@@ -66,9 +72,9 @@ class StartupPreloader @Inject constructor(
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
                 // The key is gone for good: only clearing the app's data opens a database
-                // again. Once per process, as this run is.
+                // again.
                 if (throwable is DatabaseKeyUnavailableException) {
-                    ToastManager.showMessageRes(R.string.database_key_unavailable)
+                    _databaseKeyLost.value = true
                 }
             }
 
