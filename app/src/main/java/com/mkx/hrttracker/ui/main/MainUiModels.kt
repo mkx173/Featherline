@@ -24,7 +24,7 @@ import com.mkx.hrttracker.model.medication.buildMedicationDaySections
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.isArchived
-import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.comingUpTimeRange
 import com.mkx.hrttracker.model.medication.isComingUpVisible
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
@@ -1231,14 +1231,15 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                 scheduleTimeUuid = occurrence.scheduleTimeUuid,
                 scheduledFor = scheduledAt,
             )
-            val isFulfilled = isSlotFulfilledForMedication(
+            // A dose taken early or late, outside its window, is taken: Home doesn't
+            // ask for it again, as reminders don't.
+            val isTaken = missingSlotCounts(
                 group = this,
                 slot = slot,
-                medication = medication,
                 entries = entries,
-                zoneId = zoneId,
-            )
-            if (isFulfilled) {
+                medications = listOf(medication),
+            ).isEmpty()
+            if (isTaken) {
                 return@firstNotNullOfOrNull null
             }
 

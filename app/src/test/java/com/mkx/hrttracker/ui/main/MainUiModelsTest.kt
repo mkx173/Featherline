@@ -1221,6 +1221,74 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainAntiandrogenCards_skips_a_slot_taken_early_outside_its_window() {
+        // 08:00 and 20:00 give each slot a 6h window; the 20:00 dose taken at 13:00
+        // is early, outside it, but it was taken, so Home doesn't ask for it again.
+        val antiandrogenGroup = antiandrogenGroup(
+            uuid = UUID.fromString("5b7f3c1e-8a42-4d6e-9f1a-2c3d4e5f6a71"),
+            times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = listOf(
+                scheduledAntiandrogenEntry(
+                    group = antiandrogenGroup,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 13, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 20, 0)
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 15, 0),
+            zoneId = testZoneId,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 19, 8, 0), cards.single().nextDoseAt)
+        assertEquals(false, cards.single().isNextDosePastDue)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_keeps_a_slot_due_when_only_its_other_medicine_is_logged() {
+        val spiro = testMedicationGroupMedication(
+            uuid = UUID.randomUUID(),
+            medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
+            applicationType = MedicationApplicationType.ORAL,
+        )
+        val estradiol = testMedicationGroupMedication(
+            uuid = UUID.randomUUID(),
+            medicine = defaultEstradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+        )
+        val group = medicationGroup(
+            uuid = UUID.fromString("6c8e4d2f-9b53-4e7f-a02b-3d4e5f6a7b82"),
+            name = "Evening",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+            ),
+            medications = listOf(spiro, estradiol),
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 13, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 20, 0)
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 15, 0),
+            zoneId = testZoneId,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 18, 20, 0), cards.single().nextDoseAt)
+        assertEquals(false, cards.single().isNextDosePastDue)
+    }
+
+    @Test
     fun mainCompactElapsedTotalMinutes_counts_elapsed_minute_boundaries() {
         val appliedAt = LocalDateTime.of(2026, 4, 18, 19, 18, 50)
 
