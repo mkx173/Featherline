@@ -738,6 +738,109 @@ class MedicationReminderSnoozeSchedulerTest {
         assertEquals(emptyMap<String, Long>(), armedAlarms)
     }
 
+    @Test
+    fun a_snooze_armed_again_while_its_delivery_reads_the_plan_posts_once() = runTest {
+        val group = dailyGroup(UUID.fromString("16ad3e8f-37f8-4d6a-9f06-b7c8d9eafb0c"))
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val snoozeAt = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single().snoozeAt
+        val reading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        gateFirstPlanRead(group, reading, release)
+        var posted = 0
+        every { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) } answers { posted++ }
+
+        // The first delivery reads its plan; meanwhile a pass arms the record again, and it fires.
+        val first = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17)) }
+        reading.await()
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18))
+        assertEquals("the pass arms it again", listOf(snoozeAt.toEpochMilli()), armedAlarms.values.toList())
+        val second = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
+        runCurrent()
+        release.complete(Unit)
+        first.join()
+        second.join()
+
+        assertEquals("one snooze posts once, however its deliveries overlap", 1, posted)
+        assertEquals(listOf(true), storedRecords().map(MedicationReminderSnoozeRecord::fired))
+    }
+
+    @Test
+    fun a_snooze_delivery_that_fails_while_another_waits_leaves_it_to_post_once() = runTest {
+        val group = dailyGroup(UUID.fromString("27be4f90-48a9-4e7b-8a17-c8d9eafb0c1d"))
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val snoozeAt = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single().snoozeAt
+        val reading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        gateFirstPlanRead(group, reading, release)
+        var posted = 0
+        every { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) } answers { posted++ }
+
+        val first = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17)) }
+        reading.await()
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18))
+        val second = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
+        runCurrent()
+        release.completeExceptionally(java.io.IOException("database busy"))
+        first.join()
+        second.join()
+
+        assertEquals("the delivery left after the failed one posts it", 1, posted)
+        assertEquals(listOf(true), storedRecords().map(MedicationReminderSnoozeRecord::fired))
+    }
+
+    @Test
+    fun a_stale_snooze_delivery_overlapping_the_current_one_posts_nothing() = runTest {
+        val group = dailyGroup(UUID.fromString("38cf50a1-59ba-4f8c-9b28-d9eafb0c1d2e"))
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val replaced = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single()
+        val current = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 3)),
+        ).single()
+        val reading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        gateFirstPlanRead(group, reading, release)
+        var posted = 0
+        every { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) } answers { posted++ }
+
+        val delivery = launch { fireSnoozeAlarm(slot, current.snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
+        reading.await()
+        val stale = launch { fireSnoozeAlarm(slot, replaced.snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
+        runCurrent()
+        release.complete(Unit)
+        delivery.join()
+        stale.join()
+
+        assertEquals("only the alarm the record is armed for posts", 1, posted)
+        assertEquals(listOf(true), storedRecords().map(MedicationReminderSnoozeRecord::fired))
+    }
+
+    /** The first read of [group]'s plan reports [reading] and waits for [release]; later reads answer at once. */
+    private fun gateFirstPlanRead(
+        group: MedicationGroup,
+        reading: CompletableDeferred<Unit>,
+        release: CompletableDeferred<Unit>,
+    ) {
+        var gated = true
+        coEvery { groupRepository.getGroup(group.uuid) } coAnswers {
+            if (gated) {
+                gated = false
+                reading.complete(Unit)
+                release.await()
+            }
+            group
+        }
+    }
+
     /** The alarm for [snoozeAt] goes off: AlarmManager forgets it, and the receiver runs it. */
     private suspend fun fireSnoozeAlarm(
         slot: MedicationReminderSlot,

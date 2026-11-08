@@ -223,8 +223,8 @@ class MedicationReminderSnoozeScheduler private constructor(
     /**
      * Marks the snoozes of [slots] armed for [snoozeAt] fired, once their reminder is posted or
      * found not due: no pass arms them again, and a repeat of the alarm is stale. One a pass
-     * armed meanwhile is cancelled. The action receiver takes one broadcast at a time, so a
-     * repeat waits for this.
+     * armed meanwhile is cancelled. Deliveries run one at a time from check to mark
+     * ([MedicationReminderActionHandler.showSnoozedReminder]), so a repeat checks only after this.
      */
     // ponytail: marked after the post, so a death between the two posts it again at the next pass,
     // in place by its tag. Marked before, a failure in between lost it.

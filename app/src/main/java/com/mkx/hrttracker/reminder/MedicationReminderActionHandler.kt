@@ -18,6 +18,8 @@ import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -212,13 +214,18 @@ class MedicationReminderActionHandler @Inject constructor(
         )
     }
 
+    /**
+     * Posts the reminder a snooze alarm stands for, one delivery at a time from its check to its
+     * mark: an alarm a pass armed again while another delivery of it ran waits, then finds it
+     * delivered. One that fails or is cancelled leaves its record unmarked for the next.
+     */
     suspend fun showSnoozedReminder(
         slots: List<MedicationReminderSlot>,
         notificationTag: String?,
         /** The time the alarm was armed for; null from an alarm an older build armed. */
         snoozeAt: Instant? = null,
         now: LocalDateTime = LocalDateTime.now(),
-    ) {
+    ) = snoozeDeliveryMutex.withLock {
         val normalizedSlots = slots.distinct()
         diagnosticsLogger.info(
             TAG,
@@ -233,7 +240,7 @@ class MedicationReminderActionHandler @Inject constructor(
             )
             medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
-            return
+            return@withLock
         }
 
         // Only the snooze each record is armed for now, and once: an alarm for one replaced by
@@ -245,7 +252,7 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         if (deliveredSlots.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=stale snoozeAt=$snoozeAt")
-            return
+            return@withLock
         }
 
         val groupsByUuid = loadRepresentedGroups(deliveredSlots)
@@ -253,7 +260,7 @@ class MedicationReminderActionHandler @Inject constructor(
             diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_groups")
             medicationReminderSnoozeScheduler.markSnoozeDelivered(deliveredSlots, snoozeAt)
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
-            return
+            return@withLock
         }
 
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(
@@ -292,7 +299,7 @@ class MedicationReminderActionHandler @Inject constructor(
             )
             medicationReminderSnoozeScheduler.markSnoozeDelivered(deliveredSlots, snoozeAt)
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
-            return
+            return@withLock
         }
         val unfulfilledSlots = bundleItems.map(MedicationReminderBundleItem::slot)
 
@@ -559,6 +566,15 @@ internal fun resolvePostLogStockWarning(
         PostLogStockWarning.Many(warned.size)
     }
 }
+
+/**
+ * Held by each snooze delivery from its check through its post and mark: the receiver runs each
+ * broadcast in its own job, so two can overlap. The schedule lock is taken only under it, never
+ * the other way, and nothing under it waits on the Home mutation gate. A delivery waits only for
+ * those ahead of it, each a few store and Room reads, its schedule-lock holds and one post.
+ */
+// ponytail: one lock for every snooze delivery; per bundle if deliveries ever queue.
+private val snoozeDeliveryMutex = Mutex()
 
 private fun Int?.orZero(): Int = this ?: 0
 
