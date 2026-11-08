@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -192,10 +191,6 @@ class BackupRestoreValidationTest {
             snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
         assertEquals(DarkModeOption.DARK, validatedSnapshot.settings.darkModeOption)
-        assertEquals(
-            AppLockGracePeriodOption.FIVE_MINUTES,
-            validatedSnapshot.settings.appLockGracePeriodOption
-        )
         assertEquals(
             AppLanguageOption.SIMPLIFIED_CHINESE,
             validatedSnapshot.settings.appLanguageOption

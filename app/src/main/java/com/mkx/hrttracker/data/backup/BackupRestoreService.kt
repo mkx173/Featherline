@@ -47,7 +47,6 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.E2CalibrationDisposition
 import com.mkx.hrttracker.model.settings.AppLanguageOption
-import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -1072,10 +1071,8 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetDarkModeOption,
         "widget dark mode option",
     )
-    val appLockGracePeriodOption = requireEnumName<AppLockGracePeriodOption>(
-        appLockGracePeriodOption,
-        "app lock grace period option",
-    )
+    // The grace period and hide screen content stay local, so they aren't validated: a grace
+    // option from a newer version doesn't reject the backup.
     // Language names from other app versions (the retired FOLLOW_SYSTEM value, or
     // options added in later releases) fall back to the system-default language
     // instead of rejecting the whole backup: a stale language choice is harmless,
@@ -1122,8 +1119,6 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
-        appLockGracePeriodOption = appLockGracePeriodOption,
-        hideScreenContentEnabled = hideScreenContentEnabled,
         onboardingCompleted = onboardingCompleted,
         pkCalibrationIntroSeen = pkCalibrationIntroSeen,
         appLanguageOption = appLanguageOption,
@@ -1781,8 +1776,6 @@ internal data class ValidatedBackupSettings(
     val healthConnectWeightSyncEnabled: Boolean,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
-    val appLockGracePeriodOption: AppLockGracePeriodOption,
-    val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val pkCalibrationIntroSeen: Boolean,
     val appLanguageOption: AppLanguageOption,

@@ -238,6 +238,75 @@ class BackupRestoreServiceTest {
         }
 
     @Test
+    fun restoreBackupBytes_restoresABackupWithAGraceOptionFromANewerVersion() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setScreenLockProtectionEnabled(true)
+            device.setHideScreenContentEnabled(true)
+            device.setAppLockGracePeriodOption(AppLockGracePeriodOption.IMMEDIATELY)
+            val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000260")
+            val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000261")
+            // Restore ignores the grace period, so a name this version doesn't know is harmless.
+            val backup = stockSnapshot(medicineUuid, logUuid).let { base ->
+                base.copy(
+                    settings = base.settings.copy(
+                        darkModeOption = DarkModeOption.DARK.name,
+                        appLockGracePeriodOption = "TWO_HOURS",
+                        hideScreenContentEnabled = false,
+                    ),
+                )
+            }
+            val medicinesSlot = slot<List<MedicineEntity>>()
+
+            val result = runCatching {
+                restoreServiceFor(device).restoreBackupBytes(
+                    encryptedBytes = backupCrypto.encryptSnapshotJson(
+                        json = BackupSnapshotJsonCodec.encode(backup),
+                        password = "password".toCharArray(),
+                    ),
+                    password = "password",
+                )
+            }
+
+            assertEquals(
+                "Rejected over a grace option restore ignores: ${result.exceptionOrNull()}",
+                BackupRestoreOutcome.RESTORED,
+                result.getOrNull(),
+            )
+            coVerify(exactly = 1) { medicineDao.insertAll(capture(medicinesSlot)) }
+            assertEquals(medicineUuid.toString(), medicinesSlot.captured.single().uuid)
+            val settings = device.getCurrentSettings()
+            assertEquals(DarkModeOption.DARK, settings.darkModeOption)
+            assertEquals(true, settings.screenLockProtectionEnabled)
+            assertEquals(true, settings.hideScreenContentEnabled)
+            assertEquals(AppLockGracePeriodOption.IMMEDIATELY, settings.appLockGracePeriodOption)
+        }
+
+    @Test
+    fun restoreBackupBytes_stillRejectsAnUnknownChartWindowBeforeTouchingTheDatabase() = runTest {
+        // Restore applies the chart window, so an unknown name is still incompatible.
+        val backup = emptySnapshot().let { base ->
+            base.copy(settings = base.settings.copy(homeE2ChartWindow = "TWO_HOURS"))
+        }
+
+        val result = runCatching {
+            service.restoreBackupBytes(
+                encryptedBytes = backupCrypto.encryptSnapshotJson(
+                    json = BackupSnapshotJsonCodec.encode(backup),
+                    password = "password".toCharArray(),
+                ),
+                password = "password",
+            )
+        }
+
+        assertTrue(
+            "rejected as invalid, not ${result.exceptionOrNull()}",
+            result.exceptionOrNull() is IllegalArgumentException,
+        )
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    @Test
     fun restoreBackupBytes_roundTripRestoresEverySettingButTheDevicesPrivacyOnes() =
         runTest(settingsDispatcher) {
             mockkStatic(AppCompatDelegate::class)
