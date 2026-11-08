@@ -573,14 +573,19 @@ internal fun buildPlanBatchAddEntryPlan(
     // Pre-start occurrences are saved as manual rows, so a rerun finds them by medicine and
     // wall-clock minute in their own zone. Any matching row skips the medicine whatever its
     // count, as a plan row skips its slot. It also skips a hand-entered dose at that minute.
-    val manualDoses = existingEntries
-        .asSequence()
-        .filter { entry -> entry.sourceGroupUuid == null }
-        .map { entry ->
-            MedicationSignature.fromLogEntry(entry) to
-                    appliedAtAsLocalDateTime(entry, zoneId).truncatedTo(ChronoUnit.MINUTES)
-        }
-        .toSet()
+    // Only a range starting before the plan has pre-start occurrences.
+    val manualDoses = if (startDate.isBefore(group.schedule.since)) {
+        existingEntries
+            .asSequence()
+            .filter { entry -> entry.sourceGroupUuid == null }
+            .map { entry ->
+                MedicationSignature.fromLogEntry(entry) to
+                        appliedAtAsLocalDateTime(entry, zoneId).truncatedTo(ChronoUnit.MINUTES)
+            }
+            .toSet()
+    } else {
+        emptySet()
+    }
 
     val entries = mutableListOf<MedicationLogEntryInput>()
     var skippedEntryCount = 0
@@ -607,9 +612,11 @@ internal fun buildPlanBatchAddEntryPlan(
             return@forEach
         }
 
+        // A time in a spring-forward gap is saved at the shifted time, so match the row as saved.
+        val appliedAt = occurrence.atZone(zoneId)
         group.medications.forEach { medication ->
             if (isBeforePlanStart &&
-                (MedicationSignature.fromGroupMedication(medication) to occurrence) in manualDoses
+                (MedicationSignature.fromGroupMedication(medication) to appliedAt.toLocalDateTime()) in manualDoses
             ) {
                 skippedEntryCount++
                 return@forEach
@@ -620,7 +627,7 @@ internal fun buildPlanBatchAddEntryPlan(
                 doseInstruction = medication.doseInstruction,
                 sourceGroupUuid = if (isBeforePlanStart) null else group.uuid,
                 scheduleTimeUuid = if (isBeforePlanStart) null else scheduleTime.uuid,
-                appliedAt = occurrence.atZone(zoneId).toInstant(),
+                appliedAt = appliedAt.toInstant(),
                 scheduledFor = if (isBeforePlanStart) null else occurrence,
                 count = medication.count,
                 appliedAtTimeZoneId = zoneId.id,
