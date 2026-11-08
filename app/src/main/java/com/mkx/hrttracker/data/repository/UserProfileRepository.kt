@@ -160,9 +160,7 @@ class UserProfileRepository @Inject constructor(
     ): Boolean {
         // Checked before the mutation as well as inside it: a mutation always
         // bumps Home's generation and rebuilds, and most syncs change nothing.
-        if (isStoredReading(databaseHolder.get().userProfileDao().getProfile(), weightKg, measuredAt)) {
-            return false
-        }
+        if (isStoredReading(weightKg, measuredAt)) return false
         if (!isSyncOn()) return false
         return homeSnapshotRepository.runHomeDataMutation {
             isSyncOn() && adoptHcWeightLocked(weightKg, measuredAt, now)
@@ -190,6 +188,10 @@ class UserProfileRepository @Inject constructor(
         )
         return true
     }
+
+    /** The reading is the stored weight: same time in millis, same rounded value. */
+    suspend fun isStoredReading(weightKg: Double, measuredAt: Instant): Boolean =
+        isStoredReading(databaseHolder.get().userProfileDao().getProfile(), weightKg, measuredAt)
 
     // Millis on both sides: the column stores millis, and a reading with
     // sub-millisecond precision must not look changed on every sync.

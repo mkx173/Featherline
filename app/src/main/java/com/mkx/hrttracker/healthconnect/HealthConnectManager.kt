@@ -40,7 +40,7 @@ interface HealthConnectManager {
      */
     fun supportsReadHistory(): Boolean
 
-    /** The latest weight record measured at or before [notAfter], or null. */
+    /** The latest weight record measured before [notAfter] (HC's end is exclusive), or null. */
     suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight?
 }
 

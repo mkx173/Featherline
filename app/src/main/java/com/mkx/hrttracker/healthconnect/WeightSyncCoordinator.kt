@@ -46,10 +46,17 @@ class WeightSyncCoordinator @Inject constructor(
         _isSyncing.value = true
         try {
             val notAfter = now + FUTURE_TOLERANCE
-            // The clock was set back past the stored reading: the read can't see it,
-            // so an older reading or none says nothing about it. Keep it until the
-            // clock catches up; a deletion with a normal clock still falls back.
-            if (userProfileRepository.getCurrentProfile().weightMeasuredAt?.isAfter(notAfter) == true) {
+            val storedAfterNow = userProfileRepository.getCurrentProfile().weightMeasuredAt
+                ?.takeIf { !it.isBefore(notAfter) } // the read below excludes notAfter itself
+            // A stored reading after now that HC still has: the clock was set back
+            // past it, so the read below can't see it. Keep it until the clock
+            // catches up. One HC lacks, e.g. a bad date from a backup, gives way.
+            // The read's end is exclusive, hence the extra millisecond; what it
+            // returns is only compared, never adopted.
+            if (storedAfterNow != null &&
+                healthConnectManager.readLatestWeight(storedAfterNow.plusMillis(1))
+                    ?.let { userProfileRepository.isStoredReading(it.weightKg, it.time) } == true
+            ) {
                 diagnosticsLogger.info(TAG, "weight_sync_skipped reason=$reason stored_reading_after_now")
                 return@withLock
             }
@@ -70,7 +77,8 @@ class WeightSyncCoordinator @Inject constructor(
                 valid != null -> userProfileRepository.adoptHcWeight(valid.weightKg, valid.time, now) {
                     settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
                 }
-                latest == null -> userProfileRepository.clearHcMeasuredAt()
+                // No reading to replace it: a stored one after now stays, date and all.
+                latest == null && storedAfterNow == null -> userProfileRepository.clearHcMeasuredAt()
                 // ponytail: only the latest is read, not a search for a valid one;
                 // the last saved weight and its date stay until a valid reading.
                 else -> false

@@ -42,6 +42,9 @@ class WeightSyncCoordinatorTest {
     private val t1 = Instant.parse("2026-10-10T07:00:00Z")
     private val now = Instant.parse("2026-10-16T09:00:00Z")
 
+    // A backup from a phone with a wrong clock, or a hand-edited one: HC never had it.
+    private val farFuture = Instant.parse("2099-01-01T00:00:00Z")
+
     @Before
     fun setUp() {
         val databaseHolder: DatabaseHolder = mockk()
@@ -237,6 +240,8 @@ class WeightSyncCoordinatorTest {
 
         assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
         assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        // Held, not kept for want of a reading: HC still has it.
+        assertNull(coordinator.readingProblem.value)
     }
 
     @Test
@@ -252,6 +257,94 @@ class WeightSyncCoordinatorTest {
 
         assertEquals(60.0, dao.row!!.weightOriginalValue!!, 0.0)
         assertEquals(t0.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
+    fun clockSetBackPastTheStoredReading_stillInHc_holdsItOverALaterOne() = runTest {
+        hc.filtersByNotAfter = true
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 60.0, time = t0),
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+        )
+        coordinator.sync(now = now)
+
+        // The clock goes back past t1, then a scale with the right clock adds one.
+        hc.records += HealthConnectWeight(weightKg = 63.0, time = now + Duration.ofHours(1))
+        coordinator.sync(now = t1 - Duration.ofDays(1))
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
+    fun clockSetBackToPutTheStoredReadingAtTheReadsEnd_holdsIt() = runTest {
+        hc.filtersByNotAfter = true
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 60.0, time = t0),
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+        )
+        coordinator.sync(now = now)
+
+        // notAfter is exactly t1, which the read's exclusive end leaves out.
+        coordinator.sync(now = t1 - Duration.ofMinutes(5))
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
+    fun restoredFutureWeightNotInHc_givesWayToTheNewestPastReading() = runTest {
+        hc.filtersByNotAfter = true
+        restoreWeightMeasuredAt(farFuture)
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 60.0, time = t0),
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+        )
+
+        coordinator.sync(now = now)
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        assertNull(coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun futureHcReading_isIgnored_andTheNewestPastOneAdopted() = runTest {
+        hc.filtersByNotAfter = true
+        restoreWeightMeasuredAt(farFuture)
+        hc.records += listOf(
+            HealthConnectWeight(weightKg = 61.8, time = t1),
+            // A scale whose clock is a day ahead.
+            HealthConnectWeight(weightKg = 80.0, time = now + Duration.ofDays(1)),
+        )
+
+        coordinator.sync(now = now)
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+    }
+
+    @Test
+    fun restoredFutureWeightWithNoHcReading_isKept() = runTest {
+        hc.filtersByNotAfter = true
+        restoreWeightMeasuredAt(farFuture)
+        val restored = dao.row
+
+        coordinator.sync(now = now)
+
+        // Not erased, but not held either: the sync ran and found no reading.
+        assertEquals(restored, dao.row)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+    }
+
+    private fun restoreWeightMeasuredAt(measuredAt: Instant) {
+        dao.row = UserProfileEntity(
+            weightKg = 90.0,
+            weightOriginalValue = 90.0,
+            weightOriginalUnit = WeightUnit.KILOGRAMS.name,
+            updatedAtEpochMillis = now.toEpochMilli(),
+            weightMeasuredAtEpochMillis = measuredAt.toEpochMilli(),
+        )
     }
 
     @Test
@@ -317,6 +410,6 @@ internal class FakeHealthConnectManager : HealthConnectManager {
         reads++
         lastNotAfter = notAfter
         readGate?.await()
-        return records.filter { !filtersByNotAfter || it.time <= notAfter }.maxByOrNull { it.time }
+        return records.filter { !filtersByNotAfter || it.time < notAfter }.maxByOrNull { it.time }
     }
 }
