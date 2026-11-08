@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.startup
 
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -14,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.ToastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,6 +65,11 @@ class StartupPreloader @Inject constructor(
                 diagnosticsLogger.info(TAG, "database_warmup_complete")
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
+                // The key is gone for good: only clearing the app's data opens a database
+                // again. Once per process, as this run is.
+                if (throwable is DatabaseKeyUnavailableException) {
+                    ToastManager.showMessageRes(R.string.database_key_unavailable)
+                }
             }
 
             diagnosticsLogger.info(TAG, "repository_warmup_start")

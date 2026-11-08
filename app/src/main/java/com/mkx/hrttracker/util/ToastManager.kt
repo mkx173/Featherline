@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import androidx.annotation.StringRes
 
 object ToastManager {
     // Hold the application context
@@ -30,5 +31,10 @@ object ToastManager {
             // Optionally handle uninitialized context, e.g., log a warning
             throw IllegalStateException("ToastManager is not initialized. Call ToastManager.init(context) first.")
         }
+    }
+
+    // Show a string resource, in the app's chosen language.
+    fun showMessageRes(@StringRes messageRes: Int) {
+        showMessage(appContext.withAppLanguage().getString(messageRes))
     }
 }

@@ -515,6 +515,7 @@
     <string name="medicine_save_failure">Unable to save this medicine.</string>
     <string name="medicine_open_container_exceeds_size">The current vial or container holds more than the new size. Edit its remaining amount first.</string>
     <string name="medicine_already_exists">Medicine already exists.</string>
+    <string name="database_key_unavailable">Database is corrupted. Please clear the app’s data.</string>
     <string name="medication_editor_patch_off_hint">Not required for patch removal</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_medication_selection_required">Select a medication.</string>

@@ -2,7 +2,9 @@ package com.mkx.hrttracker.startup
 
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.repository.HomeCacheState
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
@@ -17,11 +19,16 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderScheduleStore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.ToastManager
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -30,9 +37,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -398,4 +407,59 @@ class StartupPreloaderTest {
             ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
             verify(exactly = 0) { databaseHolder.get() }
         }
+
+    // Intent: a database key that can't be recovered (DatabaseKeyUnavailableException)
+    // tells the user to clear the app's data, once per process, from the in-app startup open.
+    @Test
+    fun startAfterFirstHomeFrame_toastsOnceWhenTheDatabaseKeyIsLost() {
+        every { databaseHolder.openAndSignal() } throws
+                DatabaseKeyUnavailableException("The database exists, but its stored passphrase is missing.")
+
+        startAfterFirstHomeFrameTwice()
+
+        verify(exactly = 1) { ToastManager.showMessageRes(R.string.database_key_unavailable) }
+        verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
+    }
+
+    // Guard: an open that succeeds tells nothing.
+    @Test
+    fun startAfterFirstHomeFrame_showsNoToastWhenTheDatabaseOpens() {
+        every { databaseHolder.openAndSignal() } returns mockk()
+
+        startAfterFirstHomeFrameTwice()
+
+        verify(exactly = 0) { ToastManager.showMessageRes(any()) }
+        verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
+    }
+
+    // Guard: any other open failure still has its key, and clearing the data would lose it.
+    @Test
+    fun startAfterFirstHomeFrame_showsNoToastWhenTheOpenFailsWithItsKey() {
+        every { databaseHolder.openAndSignal() } throws IOException("disk I/O error")
+
+        startAfterFirstHomeFrameTwice()
+
+        verify(exactly = 0) { ToastManager.showMessageRes(any()) }
+        verify(exactly = 0) { ToastManager.showMessage(any<String>()) }
+    }
+
+    // The second call stands for a recreated activity's first home frame.
+    private fun startAfterFirstHomeFrameTwice() {
+        mockkObject(ToastManager)
+        every { ToastManager.showMessageRes(any()) } just Runs
+        every { ToastManager.showMessage(any<String>()) } just Runs
+        val preloader = preloader(Dispatchers.IO)
+
+        preloader.startAfterFirstHomeFrame()
+        preloader.startAfterFirstHomeFrame()
+
+        verify(timeout = 1_000) {
+            diagnosticsLogger.info("StartupPreloader", "startup_after_first_home_frame_complete")
+        }
+    }
+
+    @After
+    fun tearDown() {
+        unmockkObject(ToastManager)
+    }
 }
