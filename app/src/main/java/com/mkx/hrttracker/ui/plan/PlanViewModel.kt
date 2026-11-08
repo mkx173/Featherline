@@ -12,7 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
+import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -252,15 +252,16 @@ internal fun buildNextOccurrencesByGroup(
                 lookaheadDays = lookaheadDays,
             )
             .asSequence()
-            .filterNot { occurrence ->
-                isSlotFulfilled(
+            .filter { occurrence ->
+                // A record logged early or late still takes the dose off the list.
+                missingSlotCounts(
                     group = group,
                     slot = MedicationGroupSlotKey(
                         scheduleTimeUuid = occurrence.scheduleTimeUuid,
                         scheduledFor = occurrence.scheduledFor,
                     ),
                     entries = entries,
-                )
+                ).isNotEmpty()
             }
             .take(limit)
             .map { occurrence -> occurrence.scheduledFor }

@@ -88,6 +88,89 @@ class PlanUpcomingOccurrencesTest {
     }
 
     @Test
+    fun buildNextOccurrencesByGroup_skips_future_slot_logged_early_outside_its_window() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+            )
+        )
+
+        // Taken at 10:00 for 20:00: 10 h early, past the 6 h on-time window.
+        val upcoming = buildNextOccurrencesByGroup(
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 20, 0),
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 10, 0),
+                )
+            ),
+            start = LocalDateTime.of(2026, 4, 18, 12, 0),
+            limit = 3,
+        ).getValue(group.uuid)
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 19, 8, 0),
+                LocalDateTime.of(2026, 4, 19, 20, 0),
+                LocalDateTime.of(2026, 4, 20, 8, 0)
+            ),
+            upcoming
+        )
+    }
+
+    @Test
+    fun buildNextOccurrencesByGroup_keeps_partly_logged_multi_medicine_slot() {
+        val estradiolOnly = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+            )
+        )
+        val group = estradiolOnly.copy(
+            medications = estradiolOnly.medications + testMedicationGroupMedication(
+                uuid = UUID.fromString("9b0f6a3e-0d7c-4c55-9a51-3f4b2f6d1c20"),
+                medicine = testMedicine(
+                    uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                    key = MedicationKey.SPIRONOLACTONE,
+                ),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            )
+        )
+
+        // Only the estradiol is logged (early); the spironolactone is still owed.
+        val upcoming = buildNextOccurrencesByGroup(
+            groups = listOf(group),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = group.uuid,
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 20, 0),
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 10, 0),
+                )
+            ),
+            start = LocalDateTime.of(2026, 4, 18, 12, 0),
+            limit = 3,
+        ).getValue(group.uuid)
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 18, 20, 0),
+                LocalDateTime.of(2026, 4, 19, 8, 0),
+                LocalDateTime.of(2026, 4, 19, 20, 0)
+            ),
+            upcoming
+        )
+    }
+
+    @Test
     fun buildNextOccurrencesByGroup_keeps_slot_exactly_at_start_time() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(
@@ -139,7 +222,8 @@ class PlanUpcomingOccurrencesTest {
 
     private fun scheduledEntry(
         groupUuid: UUID,
-        scheduledFor: LocalDateTime
+        scheduledFor: LocalDateTime,
+        appliedAt: LocalDateTime = scheduledFor,
     ): MedicationLogEntry {
         return testMedicationLogEntry(
             uuid = UUID.fromString("24a11fa0-01eb-4990-8c5d-832e5f8ecb50"),
@@ -151,7 +235,7 @@ class PlanUpcomingOccurrencesTest {
             doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
-            appliedAt = testInstant(scheduledFor),
+            appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
         )
     }
