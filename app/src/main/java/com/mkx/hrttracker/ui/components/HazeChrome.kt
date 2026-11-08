@@ -6,7 +6,11 @@ import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.os.Build
 import android.view.View
+import android.view.Window
 import android.view.WindowManager
+import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
+import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -413,14 +417,42 @@ internal val LocalAppLocked = compositionLocalOf { false }
 private fun Modifier.hiddenUnderAppLock(): Modifier = composed {
     val locked = LocalAppLocked.current
     val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    val lockHidden = remember(window) { window?.let(::LockHiddenWindow) }
     SideEffect {
         val decorView = window?.decorView ?: return@SideEffect
         decorView.visibility = if (locked) View.GONE else View.VISIBLE
+        lockHidden?.update(locked)
         decorView.findViewTreeNavigationEventDispatcherOwner()?.navigationEventDispatcher?.isEnabled =
             !locked
     }
     Modifier
 }
+
+// The window itself is hidden too, not only its view: the window manager may keep a GONE window's
+// surface and show it again, with its last frame and touch region, over the lock screen, as once
+// a system panel over the locked app closes. Meanwhile it's transparent, takes no touch or focus
+// and dims nothing; the unlock puts back its own alpha and those flags.
+private class LockHiddenWindow(private val window: Window) {
+    private var hidden = false
+    private var shownAlpha = 1f
+    private var shownFlags = 0
+
+    fun update(locked: Boolean) {
+        if (locked == hidden) return
+        hidden = locked
+        val attributes = window.attributes
+        if (locked) {
+            shownAlpha = attributes.alpha
+            shownFlags = attributes.flags
+        }
+        attributes.alpha = if (locked) 0f else shownAlpha
+        window.attributes = attributes
+        val flags = if (locked) FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE else shownFlags
+        window.setFlags(flags, LockHiddenFlags)
+    }
+}
+
+private const val LockHiddenFlags = FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE or FLAG_DIM_BEHIND
 
 /** Whether the page sits beside side navigation, the upright pill or the classic rail. */
 val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }

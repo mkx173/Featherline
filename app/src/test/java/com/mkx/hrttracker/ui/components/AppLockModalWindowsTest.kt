@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.ui.components
 
+import android.view.WindowManager.LayoutParams
+import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
+import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.Box
@@ -10,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -35,6 +40,7 @@ import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.settings.WeightSheet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
@@ -269,6 +275,67 @@ class AppLockModalWindowsTest {
         assertEquals(0, dismissals)
     }
 
+    // The window manager may keep a hidden window's surface and show it again, with its last frame
+    // and touch region, over the lock screen, as once a system panel over the locked app closes:
+    // hidden at the window too, and as it was after the unlock.
+    @Test
+    fun sheetWindow_isClearAndUntouchableUnderTheLock_andAsItWasOnUnlock() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalAppLocked provides locked) {
+                HazeModalBottomSheet(
+                    onDismissRequest = { dismissals++ },
+                    sheetState = rememberModalBottomSheetState(),
+                ) { Text("Body weight") }
+            }
+        }
+        assertWindowHiddenOnlyWhileLocked()
+    }
+
+    @Test
+    fun dialogWindow_isClearUntouchableAndDimsNothingUnderTheLock_andAsItWasOnUnlock() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalAppLocked provides locked) {
+                HazeAlertDialog(
+                    onDismissRequest = { dismissals++ },
+                    confirmButton = {},
+                    title = { Text("Back up data") },
+                )
+            }
+        }
+        val shown = assertWindowHiddenOnlyWhileLocked()
+        assertNotEquals("The dialog doesn't dim behind it", 0, shown.flags and FLAG_DIM_BEHIND)
+    }
+
+    // Returns the window's attributes from before the lock.
+    private fun assertWindowHiddenOnlyWhileLocked(): LayoutParams {
+        val window = composeRule.runOnIdle { ShadowDialog.getLatestDialog().window!! }
+        val shown = composeRule.runOnIdle { LayoutParams().apply { copyFrom(window.attributes) } }
+
+        locked = true
+        composeRule.runOnIdle {
+            val attributes = window.attributes
+            assertEquals("The hidden window isn't transparent", 0f, attributes.alpha)
+            assertEquals(
+                "The hidden window still takes touches or focus",
+                FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE,
+                attributes.flags and (FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE),
+            )
+            assertEquals("The hidden window dims the lock screen", 0, attributes.flags and FLAG_DIM_BEHIND)
+        }
+        assertEquals(0, dismissals)
+
+        locked = false
+        composeRule.runOnIdle {
+            val attributes = window.attributes
+            assertEquals(shown.alpha, attributes.alpha)
+            assertEquals(Integer.toHexString(shown.flags), Integer.toHexString(attributes.flags))
+            assertEquals(shown.dimAmount, attributes.dimAmount)
+            assertEquals(shown.softInputMode, attributes.softInputMode)
+        }
+        assertEquals(0, dismissals)
+        return shown
+    }
+
     @Test
     fun dropdownMenu_hidesUnderTheLock_andIsOpenAgainOnUnlock() {
         composeRule.setContent {
@@ -285,7 +352,8 @@ class AppLockModalWindowsTest {
         composeRule.onNodeWithText("Delete entry").assertIsDisplayed()
 
         locked = true
-        composeRule.onNodeWithText("Delete entry").assertIsNotDisplayed()
+        // Gone with its window, not just hidden.
+        composeRule.onNodeWithText("Delete entry").assertDoesNotExist()
         assertEquals(0, dismissals)
 
         locked = false
