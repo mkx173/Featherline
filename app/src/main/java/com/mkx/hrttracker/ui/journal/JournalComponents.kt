@@ -186,6 +186,10 @@ import java.time.LocalDate
 import androidx.compose.ui.graphics.Canvas as GraphicsCanvas
 
 private const val TodayComposerTextFieldTestTag = "today-composer-text-field"
+
+// The Today composer's editor identity while its day has no note. It is not tied to a date, so a
+// new-note draft keeps its editor and draft when the composer moves it to another day.
+internal const val TodayComposerNewNoteIdentity = "today-new-note"
 private const val NoteTimelineTextFieldTestTagPrefix = "note-timeline-text-field-"
 private const val NoteTimelineRowTestTagPrefix = "note-timeline-row-"
 private const val NoteTimelineDotTestTagPrefix = "note-timeline-dot-"
@@ -2290,8 +2294,8 @@ private fun TodayMarkerRow(
 // Coordinates which note editor is open across the Today composer and the timeline rows below
 // it. Holding the open note's identity in one place keeps a single editor open at a time —
 // opening another closes the previous. The open identity is persisted via [Saver] (it is always
-// a note id or "today-<date>" String), so an editor left open survives process death and
-// navigating away and back: the row reopens with its saved draft (draftText is itself
+// a note id or [TodayComposerNewNoteIdentity], a String), so an editor left open survives process
+// death and navigating away and back: the row reopens with its saved draft (draftText is itself
 // rememberSaveable). On restore the field reopens but is not focused, so the keyboard stays down
 // until the user taps it (see the focus gate in NoteEditorCard).
 @Stable
@@ -2342,7 +2346,7 @@ fun TodayComposer(
         NoteEditorCard(
             modifier = Modifier.padding(bottom = 6.dp),
             text = note?.text.orEmpty(),
-            identity = note?.id ?: "today-$today",
+            identity = note?.id ?: TodayComposerNewNoteIdentity,
             controller = editorController,
             onSave = { onSave(today, it) },
             onDelete = { onDelete(today) },
@@ -2387,7 +2391,9 @@ private fun NoteEditorCard(
     onIdleLongPress: (() -> Unit)? = null,
     // When non-null, invoked whenever this card holds no open edit and no in-flight save, so the
     // caller can retarget it without dropping either (the Today composer after a date rollover).
-    // Setting it also closes an open edit that has no unsaved changes; see the effect below.
+    // Setting it also closes an open edit that has no unsaved changes; see the effect below. An edit
+    // that closes with no save in flight invokes it at once, so the card never shows a frame of
+    // the day it is leaving.
     onIdle: (() -> Unit)? = null,
 ) {
     // The open/closed state is owned by the shared controller so only one card edits at a time
@@ -2452,6 +2458,7 @@ private fun NoteEditorCard(
         // calibration field has the same issue, to be fixed for both later.
         keyboardController?.hide()
         controller.finish(identity)
+        if (!savePending) onIdle?.invoke()
     }
 
     // Open the editor with the cursor at [cursorOffset] — a tap into the idle text maps the tap

@@ -168,10 +168,11 @@ fun JournalScreenContent(
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
-    // The day the Today composer shows and writes to. It follows today while the composer is idle;
-    // an edit with unsaved changes, a save or a delete confirmation still open when the date rolls
-    // over (midnight or a time-zone change) keeps the day it began on until it ends, so its draft
-    // is neither dropped nor filed under the new day. An open edit with nothing to keep is closed
+    // The day the Today composer's session began on. It follows today while the composer is idle;
+    // an edit of an existing note with unsaved changes, a save or a delete confirmation still open
+    // when the date rolls over (midnight or a time-zone change) keeps the day it began on until it
+    // ends, so its draft is neither dropped nor filed under the new day. A new note's draft is
+    // shown on today instead (see the composer below). An open edit with nothing to keep is closed
     // and the composer moves on.
     var composerDate by rememberSaveable { mutableStateOf(uiState.today) }
     val composerNote = if (composerDate == uiState.today) {
@@ -298,10 +299,20 @@ fun JournalScreenContent(
                     },
                 ) {
                     item(key = "journal-today-composer") {
+                        // A new note is filed under the day it is saved on, so while its draft is
+                        // open (its day has no note yet) it follows today, unless today already has
+                        // a note it would overwrite. A sent save has left the editor, so it stays on
+                        // the day it was sent for.
+                        val followsToday = composerNote == null && uiState.todayNote == null &&
+                            editorController.isEditing(TodayComposerNewNoteIdentity)
+                        val shownDate = if (followsToday) uiState.today else composerDate
                         TodayComposer(
-                            today = composerDate,
+                            today = shownDate,
                             note = composerNote,
-                            onSave = onSaveTodayNote,
+                            onSave = { date, text ->
+                                composerDate = date
+                                onSaveTodayNote(date, text)
+                            },
                             onDelete = onDeleteTodayNote,
                             editorController = editorController,
                             saveFailureToken = noteSaveFailureToken,
@@ -310,7 +321,7 @@ fun JournalScreenContent(
                             } else {
                                 null
                             },
-                            isToday = composerDate == uiState.today,
+                            isToday = shownDate == uiState.today,
                         )
                     }
                 }
