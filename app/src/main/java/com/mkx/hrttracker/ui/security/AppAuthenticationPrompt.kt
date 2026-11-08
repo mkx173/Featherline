@@ -1,12 +1,18 @@
 package com.mkx.hrttracker.ui.security
 
+import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -38,9 +44,44 @@ fun AppAuthenticationPromptEffect(
     val activity = context.findFragmentActivity() ?: return
     val currentOnAuthenticated by rememberUpdatedState(onAuthenticated)
     val currentOnError by rememberUpdatedState(onError)
+    val latestRequest by rememberUpdatedState(request)
+    // A recreated activity gets the confirm screen's result back when the launcher registers,
+    // before LaunchedEffect runs: don't open a second screen for a request it already answered.
+    val answeredRequestId = remember { mutableStateOf<Long?>(null) }
+    val confirmCredential = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        answeredRequestId.value = latestRequest?.id
+        if (result.resultCode == Activity.RESULT_OK) {
+            currentOnAuthenticated()
+        } else {
+            // No reason is given (Back, or Home closing it), so not USER_CANCELED: the app lock
+            // asks again when it closed while the app was stopped.
+            currentOnError(BiometricPrompt.ERROR_CANCELED)
+        }
+    }
 
     LaunchedEffect(request?.id) {
         val currentRequest = request ?: return@LaunchedEffect
+        if (AppLockSecurityManager.USES_CONFIRM_CREDENTIAL_SCREEN) {
+            if (answeredRequestId.value == currentRequest.id) {
+                return@LaunchedEffect
+            }
+            @Suppress("DEPRECATION") // In favour of BiometricPrompt, which drops the PIN on API 29.
+            val intent = activity.getSystemService(KeyguardManager::class.java)
+                ?.createConfirmDeviceCredentialIntent(
+                    context.getString(currentRequest.titleRes),
+                    (currentRequest.subtitleRes ?: currentRequest.descriptionRes)
+                        ?.let { context.getString(it) },
+                )
+            if (intent == null) {
+                currentOnError(BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL)
+            } else {
+                confirmCredential.launch(intent)
+            }
+            return@LaunchedEffect
+        }
+
         // Resolve prompt strings through the localized context, not the raw
         // activity, so the prompt honors the in-app language selection.
         val promptInfo = BiometricPrompt.PromptInfo.Builder()

@@ -53,6 +53,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -121,6 +122,7 @@ import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
@@ -141,6 +143,9 @@ fun SettingsScreen(
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
+    appLockViewModel: AppLockViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalActivity.current as ComponentActivity
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
@@ -438,10 +443,28 @@ fun SettingsScreen(
         }
     }
 
+    // Below API 30 the toggle's PIN screen stops MainActivity: tell the app lock it isn't a leave.
+    val togglePromptId = uiState.pendingPrompt?.id
+    DisposableEffect(togglePromptId) {
+        if (togglePromptId != null) {
+            appLockViewModel.onOtherPromptStarted()
+        }
+        onDispose {
+            if (togglePromptId != null) {
+                appLockViewModel.onOtherPromptEnded(succeeded = false)
+            }
+        }
+    }
     AppAuthenticationPromptEffect(
         request = uiState.pendingPrompt,
-        onAuthenticated = viewModel::onScreenLockProtectionAuthenticated,
-        onError = viewModel::onScreenLockProtectionPromptError
+        onAuthenticated = {
+            appLockViewModel.onOtherPromptEnded(succeeded = true)
+            viewModel.onScreenLockProtectionAuthenticated()
+        },
+        onError = { errorCode ->
+            appLockViewModel.onOtherPromptEnded(succeeded = false)
+            viewModel.onScreenLockProtectionPromptError(errorCode)
+        },
     )
 
     val onRemindersEnabledChange = { enabled: Boolean ->

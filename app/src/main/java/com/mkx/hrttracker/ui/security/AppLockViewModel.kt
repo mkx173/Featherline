@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.security
 
+import androidx.biometric.BiometricPrompt
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
@@ -33,6 +34,12 @@ class AppLockViewModel @Inject constructor(
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val errorMessageRes = MutableStateFlow<Int?>(null)
     private var backgroundedAtElapsedRealtime: Long? = null
+    // A stop came while a prompt was in flight, and the prompt was kept for its result.
+    private var promptKeptAcrossStop = false
+    // The Settings lock toggle's prompt is up, and a stop came while it was (below API 30 its
+    // PIN screen stops this activity). Its outcome settles the relock: onOtherPromptEnded.
+    private var otherPromptInFlight = false
+    private var stoppedForOtherPrompt = false
     private var nextPromptId = 0L
 
     val uiState: StateFlow<AppLockUiState> = combine(
@@ -88,7 +95,7 @@ class AppLockViewModel @Inject constructor(
 
     fun onForegrounded() {
         val state = uiState.value
-        if (!state.isReady || !state.screenLockProtectionEnabled) {
+        if (!state.isReady || !state.screenLockProtectionEnabled || stoppedForOtherPrompt) {
             return
         }
 
@@ -106,6 +113,9 @@ class AppLockViewModel @Inject constructor(
             // mode change triggers AppCompatDelegate recreation). The app is still
             // unlocked, so don't re-prompt.
             return
+        } else if (pendingPrompt.value != null) {
+            // Its result or cancel is still to come.
+            return
         }
 
         requestUnlock()
@@ -120,12 +130,21 @@ class AppLockViewModel @Inject constructor(
 
         if (!state.isUnlocked) {
             backgroundedAtElapsedRealtime = null
-            pendingPrompt.value = null
             errorMessageRes.value = null
+            // Before API 30 the PIN screen is an activity that stops this one, and its result
+            // lands after the start. If the user left instead, the system cancels the prompt
+            // and onAuthenticationError asks again.
+            promptKeptAcrossStop = pendingPrompt.value != null &&
+                    appLockSecurityManager.credentialScreenStopsActivity()
+            if (!promptKeptAcrossStop) {
+                pendingPrompt.value = null
+            }
             return
         }
 
         isUnlocked.value = false
+        stoppedForOtherPrompt = otherPromptInFlight &&
+                appLockSecurityManager.credentialScreenStopsActivity()
 
         if (state.appLockGracePeriodOption.shouldRelock(0L)) {
             backgroundedAtElapsedRealtime = null
@@ -155,6 +174,7 @@ class AppLockViewModel @Inject constructor(
 
     fun onAuthenticationSucceeded() {
         pendingPrompt.value = null
+        promptKeptAcrossStop = false
         backgroundedAtElapsedRealtime = null
         isUnlocked.value = true
         errorMessageRes.value = null
@@ -162,11 +182,36 @@ class AppLockViewModel @Inject constructor(
 
     fun onAuthenticationError(errorCode: Int) {
         pendingPrompt.value = null
+        val keptAcrossStop = promptKeptAcrossStop
+        promptKeptAcrossStop = false
         if (isUnlocked.value) {
             return
         }
 
+        if (keptAcrossStop && errorCode == BiometricPrompt.ERROR_CANCELED) {
+            // The system closed the prompt when the user left the app: ask again.
+            requestUnlock()
+            return
+        }
         errorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
+    }
+
+    fun onOtherPromptStarted() {
+        otherPromptInFlight = true
+    }
+
+    fun onOtherPromptEnded(succeeded: Boolean) {
+        otherPromptInFlight = false
+        if (!stoppedForOtherPrompt) {
+            return
+        }
+        stoppedForOtherPrompt = false
+        if (succeeded) {
+            onAuthenticationSucceeded()
+        } else {
+            // Back can't be told from leaving and coming back to cancel it: settle the stop now.
+            onForegrounded()
+        }
     }
 }
 

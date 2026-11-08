@@ -1,8 +1,10 @@
 package com.mkx.hrttracker.ui.security
 
+import androidx.biometric.BiometricPrompt
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.SecuritySettingsState
@@ -30,6 +32,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -64,6 +67,10 @@ class AppLockViewModelTest {
             )
         }
         every { appLockSecurityManager.availabilityErrorMessageRes() } returns null
+        every { appLockSecurityManager.credentialScreenStopsActivity() } returns true
+        every { appLockSecurityManager.promptErrorMessageRes(any()) } answers {
+            AppLockSecurityManager(mockk()).promptErrorMessageRes(firstArg())
+        }
         every { elapsedRealtimeProvider.now() } returns 1_000L
     }
 
@@ -168,6 +175,182 @@ class AppLockViewModelTest {
 
         assertFalse(viewModel.uiState.value.isUnlocked)
         assertNotNull(viewModel.uiState.value.pendingPrompt)
+    }
+
+    @Test
+    fun stopForTheSystemCredentialScreen_keepsThePromptAndAcceptsItsSuccess() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val prompt = viewModel.uiState.value.pendingPrompt
+
+        // Before API 30 the PIN screen is a separate activity: MainActivity stops, then starts
+        // again when the PIN is entered, before the result arrives.
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        assertEquals("Stop dropped the prompt in flight", prompt, viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        assertEquals("Start asked again over the prompt in flight", prompt, viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+    }
+
+    @Test
+    fun realLeaveWhoseAuthIsCancelled_promptsAgainOnReturn() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val leftPrompt = viewModel.uiState.value.pendingPrompt!!
+
+        // Home with the prompt up: the system cancels it, and the cancel lands once
+        // MainActivity has started again.
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_CANCELED)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("Unlocked without auth: $state", state.shouldShowLockScreen)
+        assertNotNull("No prompt on return: $state", state.pendingPrompt)
+        assertTrue("Prompt on return is the cancelled one: $state", state.pendingPrompt!!.id > leftPrompt.id)
+        assertNull(state.errorMessageRes)
+    }
+
+    @Test
+    fun userCancelAcrossAStop_keepsTheAppLockedWithoutAskingAgain() = runTest {
+        // API 26: the confirm-credential screen is the prompt itself and stops MainActivity, so
+        // its Cancel button lands after a stop and start.
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_USER_CANCELED)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.shouldShowLockScreen)
+        assertNull("Asked again after the user cancelled: $state", state.pendingPrompt)
+        assertNull(state.errorMessageRes)
+    }
+
+    @Test
+    fun cancelWithoutLeaving_keepsTheAppLockedWithoutAskingAgain() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_USER_CANCELED)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.shouldShowLockScreen)
+        assertNull(state.pendingPrompt)
+        assertNull(state.errorMessageRes)
+    }
+
+    @Test
+    fun lockoutAfterAStop_showsItsMessageWithoutAskingAgain() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_LOCKOUT)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.shouldShowLockScreen)
+        assertNull(state.pendingPrompt)
+        assertEquals(R.string.screen_lock_auth_locked_out, state.errorMessageRes)
+    }
+
+    @Test
+    fun systemCancelWithoutAStop_keepsTheAppLockedWithoutAskingAgain() = runTest {
+        // API 29: Cancel on the system fingerprint dialog comes back as ERROR_CANCELED, and
+        // MainActivity is only paused under it.
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_CANCELED)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.shouldShowLockScreen)
+        assertNull("Asked again after a cancel without leaving: $state", state.pendingPrompt)
+        assertNull(state.errorMessageRes)
+    }
+
+    @Test
+    fun settingsToggleCredentialScreenStop_doesNotAskAgainAndItsSuccessUnlocks() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+
+        // Turning the lock off: before API 30 the toggle's PIN screen stops MainActivity.
+        viewModel.onOtherPromptStarted()
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        assertNull(
+            "Asked to unlock over the toggle's own PIN screen: ${viewModel.uiState.value}",
+            viewModel.uiState.value.pendingPrompt,
+        )
+
+        viewModel.onOtherPromptEnded(succeeded = true)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("Toggle's PIN did not count as an unlock: $state", state.isUnlocked)
+        assertNull(state.pendingPrompt)
+    }
+
+    @Test
+    fun settingsToggleCancelledAcrossAStop_endsLockedWithAPrompt() = runTest {
+        // Back on the toggle's PIN screen can't be told from Home and coming back to cancel it.
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+
+        viewModel.onOtherPromptStarted()
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        viewModel.onOtherPromptEnded(succeeded = false)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("Unlocked without auth: $state", state.shouldShowLockScreen)
+        assertNotNull("Locked without a prompt: $state", state.pendingPrompt)
+    }
+
+    @Test
+    fun whereTheCredentialScreenDoesNotStopTheApp_aStopStillDropsThePromptAndReturnAsksAgain() = runTest {
+        // API 30+: the credential screen is part of the system prompt, so a stop is a real leave.
+        every { appLockSecurityManager.credentialScreenStopsActivity() } returns false
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val leftPrompt = viewModel.uiState.value.pendingPrompt!!
+
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.pendingPrompt!!.id > leftPrompt.id)
     }
 
     // The tests below run a real SettingsRepository over [ScriptedSettingsDataStore], so they
