@@ -160,7 +160,7 @@ implements the three user-facing actions:
   notification, and asks the scheduler to reschedule each affected
   group. The write set is locked to the unfulfilled medications
   represented in the reminder bundle at post time: the bundle filters
-  via `isSlotFulfilledForMedication` so already-logged medications
+  via `missingSlotCounts` so already-logged medications
   never enter the action payload, and the action `PendingIntent`
   carries those `(slot, MedicationSignature)` pairs. The handler
   intersects live unfulfilled slots with those signatures, so identity
