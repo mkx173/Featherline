@@ -35,6 +35,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkCalibrationEngine
 import com.mkx.hrttracker.model.pk.PkCalibrationEvaluation
 import com.mkx.hrttracker.model.pk.PkCalibrationGlobalState
+import com.mkx.hrttracker.model.pk.PkCalibrationLabIgnoreReason
 import com.mkx.hrttracker.model.pk.PkCalibrationResult
 import com.mkx.hrttracker.model.pk.PkCalibrationRoute
 import com.mkx.hrttracker.model.pk.PkRouteCalibrationDisplayState
@@ -1148,6 +1149,96 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
+    fun aLabDatedAfterTheRun_isLeftOut_untilTheClockReachesIt_thenSolvedIn_whileHomeIsObserved() = runTest {
+        val labId = UUID(0L, 9L)
+        val labAt = now.plusHours(2)
+        room = calibrationRoom(now).apply { panels += labPanel(labId, labAt, 140.0) }
+        val timeSource = FakeAppTimeSource(now)
+        lateinit var estimates: E2EstimateRepository
+        val repository = repository(timeSource = timeSource, estimates = { estimates })
+        estimates = estimates(repository, clock = timeSource.asClock())
+        val minutes = MutableStateFlow(now)
+        fun tick(at: LocalDateTime) {
+            timeSource.setCurrentMinute(at)
+            minutes.value = at
+        }
+        var solves = 0
+        mockkObject(PkCalibrationEngine)
+        try {
+            every { PkCalibrationEngine.evaluate(any()) } answers {
+                solves++
+                callOriginal()
+            }
+            repository.rebuildNow()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                estimates.observeHome(minutes).collect {}
+            }
+            settle()
+            assertEquals(PkCalibrationLabIgnoreReason.FUTURE, writtenInputs.single().solved().ignoredLabs[labId])
+            // Saved, and published beside the fit.
+            assertTrue(writtenInputs.single().labs.any { lab -> lab.resultId == labId })
+
+            // A minute short of it: nothing to solve.
+            tick(labAt.minusMinutes(1))
+            settle()
+            assertEquals(1, writtenInputs.size)
+
+            // Its minute: a run solves it in, without the user doing anything.
+            tick(labAt)
+            awaitCondition { writtenInputs.size == 2 }
+        } finally {
+            unmockkObject(PkCalibrationEngine)
+        }
+
+        assertEquals(2, solves)
+        assertEquals(0L, repository.generation.value)
+        assertNotEquals(writtenInputs[0].fit?.fitId, writtenInputs[1].fit?.fitId)
+        assertNull(writtenInputs[1].solved().ignoredLabs[labId])
+    }
+
+    @Test
+    fun aLabWhoseTimePassedWhileAway_isSolvedIn_onTheReturn_andOnAColdStart() = runTest {
+        val labId = UUID(0L, 9L)
+        val labAt = now.plusHours(2)
+        val later = now.plusHours(3)
+        room = calibrationRoom(now).apply { panels += labPanel(labId, labAt, 140.0) }
+        val timeSource = FakeAppTimeSource(now)
+        lateinit var estimates: E2EstimateRepository
+        val repository = repository(timeSource = timeSource, estimates = { estimates })
+        estimates = estimates(repository, clock = timeSource.asClock())
+        repository.rebuildNow()
+        val beforeTheLab = writtenInputs.single()
+        assertEquals(PkCalibrationLabIgnoreReason.FUTURE, beforeTheLab.solved().ignoredLabs[labId])
+
+        // Home observed, then the app goes to the background, which stops
+        // the observation, and comes back after the lab's time.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            estimates.observeHome(MutableStateFlow(now)).collect {}
+        }.also { settle() }.cancel()
+        timeSource.setCurrentMinute(later)
+        settle()
+        assertEquals(1, writtenInputs.size)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            estimates.observeHome(MutableStateFlow(later)).collect {}
+        }
+        awaitCondition { writtenInputs.size == 2 }
+        assertNull(writtenInputs[1].solved().ignoredLabs[labId])
+
+        // A cold start after it, from the files the run before the lab wrote:
+        // they are valid, so only the observation asks for the run.
+        storedInputs = beforeTheLab
+        val coldTime = FakeAppTimeSource(later)
+        lateinit var coldEstimates: E2EstimateRepository
+        val cold = repository(timeSource = coldTime, estimates = { coldEstimates })
+        coldEstimates = estimates(cold, clock = coldTime.asClock())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            coldEstimates.observeHome(MutableStateFlow(later)).collect {}
+        }
+        awaitCondition { writtenInputs.size == 3 }
+        assertNull(writtenInputs[2].solved().ignoredLabs[labId])
+    }
+
+    @Test
     fun requestedFitEpoch_startsAtTheLoadedFits() = runTest {
         // Try again in an earlier process left epoch 3. An ordinary run must
         // keep it, or a stock edit would move every estimate key.
@@ -1347,10 +1438,11 @@ class HomeSnapshotRepositoryTest {
     private fun TestScope.estimates(
         repository: HomeSnapshotRepository,
         store: HomeE2EstimateStore = mockk(relaxed = true) { coEvery { read() } returns null },
+        clock: Clock = Clock.fixed(now.atZone(zoneId).toInstant(), zoneId),
     ) = E2EstimateRepository(
         homeSnapshotRepository = repository,
         store = store,
-        clock = Clock.fixed(now.atZone(zoneId).toInstant(), zoneId),
+        clock = clock,
         appScope = backgroundScope,
         defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
     )
@@ -1438,6 +1530,18 @@ class HomeSnapshotRepositoryTest {
         plannedSources = emptyList(),
         fit = fit,
     )
+
+    private fun E2InputsRecord.solved() = (checkNotNull(fit).outcome as FitOutcome.Solved).result
+
+    /** The clock [this] reads, for the estimates beside a repository on it. */
+    private fun FakeAppTimeSource.asClock(): Clock {
+        val source = this
+        return object : Clock() {
+            override fun instant(): Instant = source.now()
+            override fun getZone(): ZoneId = zoneId
+            override fun withZone(zone: ZoneId?): Clock = this
+        }
+    }
 
     /** Room's rows, read with each query's bounds. */
     private class RoomData(

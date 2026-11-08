@@ -126,7 +126,7 @@ class E2DerivationTest {
             epoch = 0,
             outcome = FitOutcome.Solved(evaluation.result, input.originEpochMillis),
         )
-        val noLabsInput = buildPkCalibrationInput(emptyList(), logged, weightKg, metadata = emptyList())
+        val noLabsInput = buildPkCalibrationInput(emptyList(), logged, weightKg, metadata = emptyList(), nowEpochMillis = Long.MAX_VALUE)
         val noLabs = PkCalibrationEngine.evaluate(noLabsInput)
         assertEquals(PkCalibrationGlobalState.NO_USABLE_LABS, noLabs.result.globalState)
         val notReady = E2FitRecord(
@@ -436,7 +436,7 @@ class E2DerivationTest {
 
         // No lab and no dose: nothing anchors the origin, and the clock doesn't
         // either, so the stored fit (and fitKey) is the same on every build.
-        val empty = buildPkCalibrationInput(emptyList(), emptyList(), weightKg = null, metadata = emptyList())
+        val empty = buildPkCalibrationInput(emptyList(), emptyList(), weightKg = null, metadata = emptyList(), nowEpochMillis = Long.MAX_VALUE)
         assertEquals(0L, empty.originEpochMillis)
     }
 
@@ -615,7 +615,7 @@ class E2DerivationTest {
                 valuePgml = value,
             )
         }
-        val input = buildPkCalibrationInput(labs = labs, entries = history, weightKg = weightKg, metadata = emptyList())
+        val input = buildPkCalibrationInput(labs = labs, entries = history, weightKg = weightKg, metadata = emptyList(), nowEpochMillis = Long.MAX_VALUE)
         val evaluation = PkCalibrationEngine.evaluate(input)
         assertEquals(listOf(PkCalibrationRoute.ORAL), evaluation.result.supportedPromotedRoutes)
         val nowMillis = noon.atZone(zoneId).toInstant().toEpochMilli()
@@ -694,7 +694,7 @@ class E2DerivationTest {
         E2Derivation.deriveHomeEstimate(inputs, at, zoneId, onBandFailure = { throw it })
 
     private fun calibrationInput(entries: List<MedicationLogEntry> = logged): PkCalibrationInput =
-        buildPkCalibrationInput(labs = labs, entries = entries, weightKg = weightKg, metadata = emptyList())
+        buildPkCalibrationInput(labs = labs, entries = entries, weightKg = weightKg, metadata = emptyList(), nowEpochMillis = Long.MAX_VALUE)
 
     private fun fit(input: PkCalibrationInput = calibrationInput()) = E2FitRecord(
         fitId = E2Derivation.fitId(input),

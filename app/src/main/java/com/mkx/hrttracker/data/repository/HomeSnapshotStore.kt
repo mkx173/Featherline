@@ -452,6 +452,8 @@ internal object HomeSnapshotCodec {
         writePkDoseEvents(input.doseEvents, input.originEpochMillis)
         writeList(input.acceptedLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
         writeList(input.excludedLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
+        // The labs it leaves out for now: each one's row reads it.
+        writeList(input.futureLabIds.map(UUID::toString).sorted()) { id -> writeString(id) }
         writeDouble(input.weightKg)
         writeDouble(input.config.drugMinInformativePgml)
         writeDouble(input.config.rLog)

@@ -522,6 +522,8 @@ internal fun PkCalibrationReviewSummary(
                 R.drawable.ic_info to stringResource(R.string.calibration_pk_lab_ignored_signal_note)
             PkCalibrationLabIgnoreReason.NUMERIC_FAILURE ->
                 R.drawable.ic_info to stringResource(R.string.calibration_pk_lab_ignored_numeric_note)
+            PkCalibrationLabIgnoreReason.FUTURE ->
+                R.drawable.ic_info to stringResource(R.string.calibration_pk_lab_ignored_future_note)
         }
     }
     PkCalibrationNoteRow(
@@ -592,6 +594,12 @@ fun PkCalibrationLabRowFooter(
             PkCalibrationLabIgnoreReason.NUMERIC_FAILURE -> PkCalibrationNoteRow(
                 iconRes = R.drawable.ic_info,
                 text = stringResource(R.string.calibration_pk_lab_ignored_numeric_note),
+                modifier = note.padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+
+            PkCalibrationLabIgnoreReason.FUTURE -> PkCalibrationNoteRow(
+                iconRes = R.drawable.ic_info,
+                text = stringResource(R.string.calibration_pk_lab_ignored_future_note),
                 modifier = note.padding(horizontal = 12.dp, vertical = 10.dp),
             )
         }

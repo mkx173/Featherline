@@ -1199,6 +1199,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">Not used: the estimate couldn’t be calculated for this time.</string>
     <string name="calibration_pk_lab_ignored_signal_note">Not used: almost no estradiol from your doses is expected at this time.</string>
+    <string name="calibration_pk_lab_ignored_future_note">Not used yet: this result is dated in the future.</string>
     <string name="calibration_pk_lab_invalid_body">The value must be above zero. If the report says it’s below the detection limit, you can dismiss this.</string>
     <string name="calibration_pk_lab_dismiss">Dismiss</string>
     <string name="calibration_pk_lab_keep">Keep</string>

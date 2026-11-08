@@ -18,6 +18,8 @@ data class PkCalibrationInput(
     val weightKg: Double,
     val metadata: List<E2CalibrationMetadata> = emptyList(),
     val config: PkCalibrationConfig = PkCalibrationConfig.Default,
+    /** Labs collected after the clock read the input was built at, left out of [labs]. */
+    val futureLabIds: Set<UUID> = emptySet(),
 ) {
     val acceptedLabIds: Set<UUID>
         get() = metadata.resultIdsWith(E2CalibrationDisposition.REVIEWED)

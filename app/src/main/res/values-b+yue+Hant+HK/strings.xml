@@ -1111,6 +1111,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：計唔到呢個時間點嘅估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間點預計幾乎冇嚟自用藥嘅雌二醇</string>
+    <string name="calibration_pk_lab_ignored_future_note">暫時未用：抽血時間喺未來</string>
     <string name="calibration_pk_lab_invalid_body">數值要大過零，如果報告顯示低過檢測下限，可以忽略呢個提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>

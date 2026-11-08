@@ -230,7 +230,7 @@ class CalibrationViewModelTest {
             )
         }
         fun inputs(generation: Long, metadata: List<E2CalibrationMetadata>): HomeCacheState {
-            val input = buildPkCalibrationInput(labs = labs, entries = logged, weightKg = 62.0, metadata = metadata)
+            val input = buildPkCalibrationInput(labs = labs, entries = logged, weightKg = 62.0, metadata = metadata, nowEpochMillis = Long.MAX_VALUE)
             return HomeCacheState(
                 generation = generation,
                 homeData = null,

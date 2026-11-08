@@ -357,7 +357,9 @@ class HomeSnapshotRepository @Inject constructor(
         // Under the lock, so no mutation is half done.
         val (generation, fitEpoch) = mutationMutex.withLock { generationState.value to requestedFitEpoch }
         val zoneId = ZoneId.systemDefault()
-        val now = LocalDateTime.ofInstant(appTimeSource.now(), zoneId)
+        val nowInstant = appTimeSource.now()
+        val nowEpochMillis = nowInstant.toEpochMilli()
+        val now = LocalDateTime.ofInstant(nowInstant, zoneId)
         diagnosticsLogger.info(TAG, "home_snapshot_run_start generation=$generation now=$now")
         // The persisted option, never settingsState's placeholder.
         val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
@@ -401,7 +403,9 @@ class HomeSnapshotRepository @Inject constructor(
             // Calibration inputs: every E2 lab, the estradiol doses that can
             // still shape a lab (see calibrationDoseWindowStartEpochMillis),
             // and the user's review metadata. None of the reads follows the
-            // clock, so neither does the fit's identity.
+            // clock. The fit's identity follows it only past a lab dated after
+            // the run, which buildPkCalibrationInput leaves out until then;
+            // Home's observation asks for the run that solves it in.
             val calibrationLabs = database.bloodTestDao().getPanels().flatMap { panel ->
                 panel.results
                     .filter { result ->
@@ -518,6 +522,7 @@ class HomeSnapshotRepository @Inject constructor(
             entries = inputs.calibrationEntries,
             weightKg = inputs.profile.weightKg,
             metadata = inputs.calibrationMetadata,
+            nowEpochMillis = nowEpochMillis,
         )
         val fitId = E2Derivation.fitId(calibrationInput)
         diagnosticsLogger.info(
@@ -527,7 +532,8 @@ class HomeSnapshotRepository @Inject constructor(
         )
         // The solve reads only what fitId digests, so the published fit stands
         // in for it: a stock edit, an antiandrogen dose, midnight or a 7/30
-        // switch never re-solves. Not a failed one, which the next run tries
+        // switch never re-solves, unless the clock passed a lab left out as
+        // dated after the last run. Not a failed one, which the next run tries
         // again, nor one older than a pending Try again; nor the solve of a
         // discarded run, which was never published. The labs and review
         // metadata published beside it then flag what it was solved from:

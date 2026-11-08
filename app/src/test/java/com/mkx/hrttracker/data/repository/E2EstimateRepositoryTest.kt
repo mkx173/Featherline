@@ -851,7 +851,7 @@ class E2EstimateRepositoryTest {
             E2CalibrationMetadata(labs[0].resultId, E2CalibrationDisposition.REVIEWED, Instant.EPOCH),
             E2CalibrationMetadata(labs[1].resultId, E2CalibrationDisposition.EXCLUDED, Instant.EPOCH),
         )
-        val input = buildPkCalibrationInput(labs = labs, entries = logged, weightKg = 62.0, metadata = metadata)
+        val input = buildPkCalibrationInput(labs = labs, entries = logged, weightKg = 62.0, metadata = metadata, nowEpochMillis = Long.MAX_VALUE)
         val fit = E2FitRecord(
             fitId = E2Derivation.fitId(input),
             epoch = 0,
@@ -974,7 +974,7 @@ class E2EstimateRepositoryTest {
     }
 
     private fun solvedFit(epoch: Int, metadata: List<E2CalibrationMetadata> = emptyList()): E2FitRecord {
-        val input = buildPkCalibrationInput(labs = fitLabs, entries = logged, weightKg = 62.0, metadata = metadata)
+        val input = buildPkCalibrationInput(labs = fitLabs, entries = logged, weightKg = 62.0, metadata = metadata, nowEpochMillis = Long.MAX_VALUE)
         return E2FitRecord(
             fitId = E2Derivation.fitId(input),
             epoch = epoch,
