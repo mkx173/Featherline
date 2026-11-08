@@ -237,8 +237,9 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         // Only the snooze each record is armed for now, and once: an alarm for one replaced by
-        // Remind later again, cleared, or delivered already is stale.
-        val deliveredSlots = medicationReminderSnoozeScheduler.claimSnoozeDelivery(
+        // Remind later again, cleared, or delivered already is stale. It is delivered once the
+        // reminder is posted or found not due; a failure before that leaves it to the next pass.
+        val deliveredSlots = medicationReminderSnoozeScheduler.checkSnoozeDelivery(
             slots = normalizedSlots,
             snoozeAt = snoozeAt,
         )
@@ -250,6 +251,7 @@ class MedicationReminderActionHandler @Inject constructor(
         val groupsByUuid = loadRepresentedGroups(deliveredSlots)
         if (groupsByUuid.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_groups")
+            medicationReminderSnoozeScheduler.markSnoozeDelivered(deliveredSlots, snoozeAt)
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
@@ -288,6 +290,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 TAG,
                 "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots"
             )
+            medicationReminderSnoozeScheduler.markSnoozeDelivered(deliveredSlots, snoozeAt)
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
@@ -307,6 +310,7 @@ class MedicationReminderActionHandler @Inject constructor(
             canSnooze = canSnooze,
             hideMedicationDetails = settings.hideMedicationDetails,
         )
+        medicationReminderSnoozeScheduler.markSnoozeDelivered(deliveredSlots, snoozeAt)
         diagnosticsLogger.info(
             TAG,
             "reminder_action_show_snoozed_complete slots=${normalizedSlots.size} " +

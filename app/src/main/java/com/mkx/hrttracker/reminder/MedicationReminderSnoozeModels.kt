@@ -10,7 +10,7 @@ data class MedicationReminderSnoozeRecord(
      */
     val snoozeAt: Instant,
     val snoozeCount: Int,
-    /** Its alarm reached the app. Not fired and past its time, it never did. */
+    /** Its reminder was delivered: posted, or found not due. Not fired and past its time, it never was. */
     val fired: Boolean = false,
 )
 

@@ -161,8 +161,8 @@ class MedicationReminderSnoozeScheduler private constructor(
      * Arms every snooze not delivered yet, and drops each record that outlived its dose
      * ([isWithinDoseLifetime]). A record stays as long as its dose, fired or not, so its count
      * keeps the limit. One whose time passed undelivered, as when the phone was off or the app
-     * force-stopped through it, is armed at that time and fires at once. Nothing can fire
-     * before this pass runs.
+     * force-stopped through it, or its delivery failed before the post, is armed at that time
+     * and fires at once. Nothing can fire before this pass runs.
      */
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) = withReminderScheduleLock {
         diagnosticsLogger.info(TAG, "snooze_reschedule_all_start now=$now")
@@ -199,33 +199,47 @@ class MedicationReminderSnoozeScheduler private constructor(
     }
 
     /**
-     * The [slots] a snooze alarm armed for [snoozeAt] still stands for, now marked fired so a
-     * later [rescheduleAll] doesn't arm them again. A slot whose record was armed for another
-     * time since (Remind later again), cleared, or delivered already is a stale delivery, and
-     * left out. [snoozeAt] is null from an alarm an older build armed, which any record not
-     * delivered yet takes.
+     * The [slots] a snooze alarm armed for [snoozeAt] still stands for. A slot whose record was
+     * armed for another time since (Remind later again), cleared, or delivered already is a stale
+     * delivery, and left out. [snoozeAt] is null from an alarm an older build armed, which any
+     * record not delivered yet takes. Nothing is marked: until [markSnoozeDelivered], the next
+     * [rescheduleAll] arms them again, so a delivery cut short comes again.
      */
-    // ponytail: marked before the reminder posts, so a process death between the two loses it.
-    suspend fun claimSnoozeDelivery(
+    suspend fun checkSnoozeDelivery(
         slots: List<MedicationReminderSlot>,
         snoozeAt: Instant?,
     ): List<MedicationReminderSlot> = withReminderScheduleLock {
-        val existingRecords = snoozeStore.getSnoozeRecords()
-        val claimedRecords = existingRecords.filter { record ->
-            record.slot in slots && !record.fired && (snoozeAt == null || record.snoozeAt == snoozeAt)
+        val records = snoozeStore.getSnoozeRecords()
+        val expectedSlots = slots.filter { slot ->
+            records.any { record -> record.slot == slot && record.awaitsDelivery(snoozeAt) }
         }
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_delivery_checked slots=${slots.size} expected=${expectedSlots.size} snoozeAt=$snoozeAt"
+        )
+        expectedSlots
+    }
+
+    /**
+     * Marks the snoozes of [slots] armed for [snoozeAt] fired, once their reminder is posted or
+     * found not due: no pass arms them again, and a repeat of the alarm is stale. One a pass
+     * armed meanwhile is cancelled. The action receiver takes one broadcast at a time, so a
+     * repeat waits for this.
+     */
+    // ponytail: marked after the post, so a death between the two posts it again at the next pass,
+    // in place by its tag. Marked before, a failure in between lost it.
+    suspend fun markSnoozeDelivered(
+        slots: List<MedicationReminderSlot>,
+        snoozeAt: Instant?,
+    ) = withReminderScheduleLock {
+        val existingRecords = snoozeStore.getSnoozeRecords()
         replaceSnoozeRecords(
             existingRecords,
             existingRecords.map { record ->
-                if (record in claimedRecords) record.copy(fired = true) else record
+                if (record.slot in slots && record.awaitsDelivery(snoozeAt)) record.copy(fired = true) else record
             },
         )
-        val claimedSlots = slots.filter { slot -> claimedRecords.any { record -> record.slot == slot } }
-        diagnosticsLogger.info(
-            TAG,
-            "snooze_delivery_claimed slots=${slots.size} claimed=${claimedSlots.size} snoozeAt=$snoozeAt"
-        )
-        claimedSlots
+        diagnosticsLogger.info(TAG, "snooze_delivery_marked slots=${slots.size} snoozeAt=$snoozeAt")
     }
 
     suspend fun getSnoozeRecords(): List<MedicationReminderSnoozeRecord> {
@@ -350,6 +364,10 @@ private fun snoozeIntentData(records: List<MedicationReminderSnoozeRecord>): Uri
 private fun List<MedicationReminderSnoozeRecord>.armedBundles():
         Map<Instant, List<MedicationReminderSnoozeRecord>> =
     filterNot(MedicationReminderSnoozeRecord::fired).groupBy(MedicationReminderSnoozeRecord::snoozeAt)
+
+/** Not delivered yet, and armed for [snoozeAt]; null, from an older build's alarm, takes any. */
+private fun MedicationReminderSnoozeRecord.awaitsDelivery(snoozeAt: Instant?): Boolean =
+    !fired && (snoozeAt == null || this.snoozeAt == snoozeAt)
 
 /**
  * Whether this record's dose still owns its snooze, and its count, at [now]: the plan, active

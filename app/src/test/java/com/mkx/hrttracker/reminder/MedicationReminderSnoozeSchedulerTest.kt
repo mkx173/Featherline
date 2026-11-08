@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
@@ -14,6 +15,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -60,6 +62,9 @@ class MedicationReminderSnoozeSchedulerTest {
 
     private lateinit var scheduler: MedicationReminderSnoozeScheduler
 
+    private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+    private lateinit var actionHandler: MedicationReminderActionHandler
+
     @Before
     fun setUp() {
         mockkStatic(PendingIntent::class)
@@ -100,6 +105,17 @@ class MedicationReminderSnoozeSchedulerTest {
             medicationGroupRepository = groupRepository,
             medicationLogRepository = logRepository,
             sdkInt = Build.VERSION_CODES.S,
+        )
+        val settingsRepository: SettingsRepository = mockk()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        actionHandler = MedicationReminderActionHandler(
+            medicationGroupRepository = groupRepository,
+            medicationLogRepository = logRepository,
+            medicineStockRepository = mockk(),
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = mockk(),
+            medicationReminderSnoozeScheduler = scheduler,
+            reminderNotificationManager = notificationManager,
         )
     }
 
@@ -546,35 +562,6 @@ class MedicationReminderSnoozeSchedulerTest {
     }
 
     @Test
-    fun claimSnoozeDelivery_takes_only_the_alarm_the_record_is_armed_for_and_only_once() = runTest {
-        val group = dailyGroup(UUID.fromString("8d1a4b9c-aecf-4ad1-8c7d-8e9fa0b1c2d3"))
-        coEvery { groupRepository.getGroup(group.uuid) } returns group
-        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
-        val first = scheduler.snoozeSlots(
-            slots = listOf(slot),
-            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
-        ).single()
-        val second = scheduler.snoozeSlots(
-            slots = listOf(slot),
-            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 3)),
-        ).single()
-
-        // The first alarm, had it stayed armed, is stale; the second comes once.
-        assertEquals(
-            emptyList<MedicationReminderSlot>(),
-            scheduler.claimSnoozeDelivery(listOf(slot), first.snoozeAt),
-        )
-        assertEquals(listOf(slot), scheduler.claimSnoozeDelivery(listOf(slot), second.snoozeAt))
-        assertEquals(
-            emptyList<MedicationReminderSlot>(),
-            scheduler.claimSnoozeDelivery(listOf(slot), second.snoozeAt),
-        )
-        // Delivered, so a later pass doesn't arm it again.
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 30))
-        assertEquals(emptyMap<String, Long>(), armedAlarms)
-    }
-
-    @Test
     fun rescheduleAll_drops_a_skipped_doses_snooze_once_its_next_dose_over_90_days_on_has_come() = runTest {
         // Every 91 days: the April 1 dose was snoozed, never logged, and July 1's has come.
         val group = dailyGroup(UUID.fromString("9e2b5c0d-bfd0-4be2-9d8e-9fa0b1c2d3e4")).let { group ->
@@ -659,6 +646,114 @@ class MedicationReminderSnoozeSchedulerTest {
 
         assertEquals(listOf(testInstant(LocalDateTime.of(2026, 4, 20, 9, 45)).toEpochMilli()), armedBefore.values.toList())
         assertEquals(armedBefore, armedAlarms)
+    }
+
+    @Test
+    fun a_snooze_delivery_whose_plan_read_fails_stays_undelivered_until_a_pass_arms_it_again() = runTest {
+        val group = dailyGroup(UUID.fromString("e37a0b5c-04c5-4a37-8cd3-e4f5a6b7c8d9"))
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val snoozeAt = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single().snoozeAt
+        coEvery { groupRepository.getGroup(group.uuid) } throws java.io.IOException("database busy") andThen group
+
+        fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17))
+
+        assertEquals(
+            "a delivery whose plan read failed stays undelivered",
+            listOf(false),
+            storedRecords().map(MedicationReminderSnoozeRecord::fired),
+        )
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 20))
+        assertEquals(
+            "the next pass arms it again at its own time",
+            listOf(snoozeAt.toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+        fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 20))
+        verify(exactly = 1) { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun a_snooze_delivery_whose_post_fails_stays_undelivered_until_a_pass_arms_it_again() = runTest {
+        val group = dailyGroup(UUID.fromString("f48b1c6d-15d6-4b48-9de4-f5a6b7c8d9ea"))
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val snoozeAt = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single().snoozeAt
+        var posted = 0
+        var failPost = true
+        every { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) } answers {
+            if (failPost) {
+                failPost = false
+                throw IllegalStateException("post failed")
+            }
+            posted++
+        }
+
+        fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17))
+
+        assertEquals(
+            "a delivery whose post failed stays undelivered",
+            listOf(false),
+            storedRecords().map(MedicationReminderSnoozeRecord::fired),
+        )
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 20))
+        assertEquals(
+            "the next pass arms it again at its own time",
+            listOf(snoozeAt.toEpochMilli()),
+            armedAlarms.values.toList(),
+        )
+        fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 20))
+        assertEquals("the retried delivery posts", 1, posted)
+        assertEquals(listOf(true), storedRecords().map(MedicationReminderSnoozeRecord::fired))
+    }
+
+    @Test
+    fun a_snooze_reminder_posts_once_and_only_for_the_alarm_its_record_is_armed_for() = runTest {
+        val group = dailyGroup(UUID.fromString("059c2d7e-26e7-4c59-8ef5-a6b7c8d9eafb"))
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+        val first = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 2)),
+        ).single()
+        val second = scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 3)),
+        ).single()
+
+        // The first alarm, had it stayed armed, is stale; the second posts, and a repeat of it doesn't.
+        fireSnoozeAlarm(slot, first.snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17))
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) }
+        fireSnoozeAlarm(slot, second.snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18))
+        fireSnoozeAlarm(slot, second.snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18))
+        verify(exactly = 1) { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) }
+        // Delivered, so a later pass doesn't arm it again.
+        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 30))
+        assertEquals(emptyMap<String, Long>(), armedAlarms)
+    }
+
+    /** The alarm for [snoozeAt] goes off: AlarmManager forgets it, and the receiver runs it. */
+    private suspend fun fireSnoozeAlarm(
+        slot: MedicationReminderSlot,
+        snoozeAt: Instant,
+        now: LocalDateTime,
+    ) {
+        armedAlarms.values.remove(snoozeAt.toEpochMilli())
+        // The receiver logs a failure and finishes the broadcast.
+        runCatching {
+            actionHandler.showSnoozedReminder(
+                slots = listOf(slot),
+                notificationTag = null,
+                snoozeAt = snoozeAt,
+                now = now,
+            )
+        }
     }
 
     private fun intentDataOf(pendingIntent: PendingIntent): String =

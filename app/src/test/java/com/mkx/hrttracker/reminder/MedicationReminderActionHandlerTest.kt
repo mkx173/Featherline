@@ -60,7 +60,8 @@ class MedicationReminderActionHandlerTest {
     fun setUp() {
         coEvery { reminderScheduler.rescheduleGroup(any(), any()) } just Runs
         coEvery { snoozeScheduler.clearSnoozesForSlots(any()) } just Runs
-        coEvery { snoozeScheduler.claimSnoozeDelivery(any(), any()) } answers { firstArg() }
+        coEvery { snoozeScheduler.checkSnoozeDelivery(any(), any()) } answers { firstArg() }
+        coEvery { snoozeScheduler.markSnoozeDelivered(any(), any()) } just Runs
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
@@ -1169,7 +1170,7 @@ class MedicationReminderActionHandlerTest {
         // Remind later was tapped again at 09:03: this is the 09:17 alarm it replaced.
         val replacedSnoozeAt = testInstant(scheduledAt.plusMinutes(17))
         coEvery {
-            snoozeScheduler.claimSnoozeDelivery(listOf(slot), replacedSnoozeAt)
+            snoozeScheduler.checkSnoozeDelivery(listOf(slot), replacedSnoozeAt)
         } returns emptyList()
 
         actionHandler.showSnoozedReminder(
