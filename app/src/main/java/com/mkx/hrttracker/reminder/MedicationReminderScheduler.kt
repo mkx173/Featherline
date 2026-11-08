@@ -273,6 +273,33 @@ class MedicationReminderScheduler private constructor(
         true
     }
 
+    /**
+     * Whether [groupUuid]'s alarm armed for [scheduledAt] still stands: no other time was armed
+     * since, and no delivery of it was marked ([markReminderDelivered]). A group with no time
+     * stored, as from an older build, takes any. The receiver checks, posts and marks in one
+     * hold of the lock, so of an alarm that comes twice, as one a pass armed again while it was
+     * in flight, only the first posts.
+     */
+    suspend fun awaitsReminderDelivery(groupUuid: UUID, scheduledAt: LocalDateTime): Boolean =
+        withReminderScheduleLock {
+            reminderScheduleStore.getScheduledReminders()[groupUuid]
+                .let { armedAt -> armedAt == null || armedAt == scheduledAt }
+        }
+
+    /**
+     * Drops [groupUuid]'s stored time once its alarm for [scheduledAt] is delivered, before the
+     * receiver reschedules: a stored time that has passed then always names a dose not delivered
+     * yet, which [rescheduleGroup] and [rescheduleAll] arm again. A time armed since stays.
+     */
+    // ponytail: marked after the post, so a death in between posts it again at the next pass, in
+    // place by its tag. Marked before, a failed read or post lost it.
+    suspend fun markReminderDelivered(groupUuid: UUID, scheduledAt: LocalDateTime) =
+        withReminderScheduleLock {
+            if (reminderScheduleStore.getScheduledReminders()[groupUuid] == scheduledAt) {
+                reminderScheduleStore.removeScheduledGroupUuid(groupUuid)
+            }
+        }
+
     suspend fun rescheduleGroup(
         groupUuid: UUID,
         after: LocalDateTime = LocalDateTime.now()
@@ -290,6 +317,7 @@ class MedicationReminderScheduler private constructor(
             TAG,
             "reminder_reschedule_group_start groupUuid=$groupUuid after=$after"
         )
+        val armedAt = reminderScheduleStore.getScheduledReminders()[groupUuid]
         cancelReminderSchedule(groupUuid)
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
@@ -316,11 +344,23 @@ class MedicationReminderScheduler private constructor(
             return
         }
 
-        val entries = medicationLogRepository.getScheduledGroupEntriesSince(after)
+        val entries = medicationLogRepository.getScheduledGroupEntriesSince(minOf(after, armedAt ?: after))
+        // Armed for a dose that passed and hasn't come, as an inexact alarm can be an hour late
+        // when another dose is logged: while the dose its receiver would name still misses some,
+        // it's armed again and fires at once, as rescheduleAll does. The receiver drops a
+        // delivered one first ([markReminderDelivered]).
+        val undelivered = armedAt?.takeIf { at ->
+            !at.isAfter(after) && buildMedicationReminderBundle(
+                scheduledAt = group.reminderSlotAt(armedAt = at, now = after),
+                groups = listOf(group),
+                entries = entries,
+            ) != null
+        }
         val plan = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = entries,
             now = after,
+            armed = undelivered?.let { at -> mapOf(groupUuid to at) }.orEmpty(),
         ).firstOrNull() ?: return diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_skipped reason=no_plan groupUuid=$groupUuid entries=${entries.size}"
@@ -509,7 +549,8 @@ private object ReminderScheduleLockHeld :
 
 /**
  * Runs [block] under the lock every alarm and schedule-store change of both schedulers takes,
- * so no two passes interleave their reads and writes. A call made under it, as rescheduleGroup
+ * so no two passes interleave their reads and writes; a dose reminder's delivery holds it from
+ * its check to its reschedule. A call made under it, as rescheduleGroup
  * clearing its plan's stale snoozes, runs in the same hold. Nothing under it may wait on the
  * Home mutation gate: a restore marks a reconcile while it holds the gate.
  */

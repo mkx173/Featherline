@@ -75,6 +75,7 @@ class MedicationReminderReceiverTest {
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicationGroupRepository.getGroups() } returns listOf(group)
         coEvery { medicationLogRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        coEvery { medicationReminderScheduler.awaitsReminderDelivery(any(), any()) } returns true
     }
 
     @Test

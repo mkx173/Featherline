@@ -27,12 +27,11 @@ internal fun buildNextMedicationReminderPlans(
         .filter(MedicationGroup::isActive)
         .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
         .mapNotNull { group ->
-            // Armed and past its time: the alarm never reached the receiver
-            // (it would have replaced this entry with the next time), as when
-            // the device was off at the time. Re-arm it, which fires at once,
-            // and the receiver names the group's latest due dose.
-            // ponytail: an alarm in flight when this runs is delivered twice;
-            // the second replaces the same notification.
+            // Armed and past its time: the alarm hasn't been delivered (the
+            // receiver drops this entry first), as when the device was off at
+            // the time or an inexact alarm runs late. Re-arm it, which fires at
+            // once, and the receiver names the group's latest due dose. An alarm
+            // in flight when this runs comes twice, and only the first posts.
             armed[group.uuid]
                 ?.takeUnless { scheduledAt -> scheduledAt.isAfter(now) }
                 ?.let { scheduledAt ->

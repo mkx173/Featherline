@@ -2,10 +2,12 @@ package com.mkx.hrttracker.reminder
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
@@ -39,6 +41,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -54,6 +57,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 class MedicationReminderSchedulerTest {
     private val context: Context = mockk()
@@ -648,6 +653,116 @@ class MedicationReminderSchedulerTest {
 
         coVerify { snoozeStore.getSnoozeRecords() }
     }
+
+    @Test
+    fun rescheduleGroup_after_another_doses_log_arms_again_a_passed_dose_whose_alarm_has_not_come() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = afterNoon)
+
+        // At its own time, so it fires at once.
+        assertEquals(listOf(testInstant(noon).toEpochMilli()), armedAlarms.values.toList())
+        assertEquals(mapOf<UUID, LocalDateTime?>(twiceDaily.uuid to noon), storedReminders)
+    }
+
+    @Test
+    fun rescheduleGroup_after_the_passed_doses_own_log_arms_the_next_dose() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(noon)))
+
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = afterNoon)
+
+        val tomorrowMorning = morning.plusDays(1)
+        assertEquals(listOf(testInstant(tomorrowMorning).toEpochMilli()), armedAlarms.values.toList())
+        assertEquals(mapOf<UUID, LocalDateTime?>(twiceDaily.uuid to tomorrowMorning), storedReminders)
+    }
+
+    @Test
+    fun a_passed_dose_armed_again_while_its_alarm_was_in_flight_is_posted_once() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+        // The 12:00 alarm has left AlarmManager, and its receiver hasn't run yet.
+        armedAlarms.clear()
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = afterNoon)
+
+        // That alarm, then the one armed again.
+        repeat(2) { deliverReminder(scheduledAt = noon, now = afterNoon) }
+        // Delivered, it isn't armed again by the next log.
+        scheduler.rescheduleGroup(twiceDaily.uuid, after = afterNoon.plusMinutes(1))
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.slots.map(MedicationReminderSlot::scheduledAt) == listOf(noon) },
+                canSnooze = any(),
+                hideMedicationDetails = any(),
+                silent = false,
+            )
+        }
+        assertEquals(listOf(testInstant(morning.plusDays(1)).toEpochMilli()), armedAlarms.values.toList())
+    }
+
+    // Doses at 08:00 and 12:00. At 12:10 the 12:00 alarm, inexact, still hasn't come.
+    private val twiceDaily = medicationGroup(
+        UUID.fromString("2b4d6f80-1a3c-4e5f-8a7b-9c0d1e2f3a4b"),
+        notificationsEnabled = true,
+    ).run {
+        copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = schedule.since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+            )
+        )
+    }
+    private val morning = LocalDateTime.of(2026, 4, 20, 8, 0)
+    private val noon = LocalDateTime.of(2026, 4, 20, 12, 0)
+    private val afterNoon = LocalDateTime.of(2026, 4, 20, 12, 10)
+
+    /** A record of [twiceDaily]'s dose at [scheduledFor], logged at [afterNoon]. */
+    private fun loggedAt(scheduledFor: LocalDateTime) = testMedicationLogEntry(
+        medicine = estradiol,
+        applicationType = MedicationApplicationType.ORAL,
+        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+        sourceGroupUuid = twiceDaily.uuid,
+        appliedAt = testInstant(afterNoon),
+        scheduledFor = scheduledFor,
+    )
+
+    /** [twiceDaily]'s 12:00 alarm armed and stored, with [entries] logged. */
+    private fun givenNoonArmed(entries: List<MedicationLogEntry>) {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroup(twiceDaily.uuid) } returns twiceDaily
+        coEvery { groupRepository.getGroups() } returns listOf(twiceDaily)
+        // As Room reads them: dated from the given time on.
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } answers {
+            entries.filterNot { entry -> entry.scheduledFor!!.isBefore(firstArg()) }
+        }
+        armedAlarms[reminderIntentKey(twiceDaily.uuid)] = testInstant(noon).toEpochMilli()
+        storedReminders[twiceDaily.uuid] = noon
+    }
+
+    /** [twiceDaily]'s alarm for [scheduledAt], received at [now] by the receiver. */
+    private fun TestScope.deliverReminder(scheduledAt: LocalDateTime, now: LocalDateTime) {
+        handleDoseReminder(
+            groupUuid = twiceDaily.uuid,
+            scheduledAt = scheduledAt,
+            now = now,
+            deadline = TimeSource.Monotonic.markNow() + 8.seconds,
+            appScope = backgroundScope,
+            settingsRepository = settingsRepository,
+            medicationGroupRepository = groupRepository,
+            medicationLogRepository = logRepository,
+            medicationReminderScheduler = scheduler,
+            reminderNotificationManager = notificationManager,
+            e2EstimateRepository = mockk<E2EstimateRepository>(relaxed = true),
+            diagnosticsLogger = diagnosticsLogger,
+            pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true),
+        )
+        runCurrent()
+    }
+
+    private fun reminderIntentKey(groupUuid: UUID) = "hrttracker://medication-reminder/$groupUuid"
 
     /** Each armed alarm's trigger time, by its intent data, as AlarmManager keeps them. */
     private val armedAlarms = mutableMapOf<String, Long>()
