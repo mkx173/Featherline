@@ -35,6 +35,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -43,9 +44,11 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -444,7 +447,7 @@ class MedicationReminderSchedulerTest {
         coEvery { groupRepository.getGroups() } returns emptyList()
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
 
-        scheduler.markReconcilePending()
+        scheduler.markReconcilePending().committed()
         scheduler.rescheduleAll(reminderNow)
 
         coVerifyOrder {
@@ -545,6 +548,75 @@ class MedicationReminderSchedulerTest {
     }
 
     @Test
+    fun a_full_pass_before_a_writers_commit_leaves_its_mark_owed_when_its_own_pass_fails() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        // A restore marks; an unrelated pass then reads the data the restore is about to replace.
+        val mark = scheduler.markReconcilePending()
+        scheduler.rescheduleAll(reminderNow)
+        // The restore commits, and its own pass fails.
+        mark.committed()
+        coEvery { groupRepository.getGroups() } throws IllegalStateException("database closed")
+        runCatching { scheduler.rescheduleAll(reminderNow) }
+
+        assertTrue("the restore's reconcile is still owed", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_full_pass_that_starts_after_a_writers_commit_clears_its_mark() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+
+        val mark = scheduler.markReconcilePending()
+        scheduler.rescheduleAll(reminderNow)
+        mark.committed()
+        // The writer's own pass, or any other that reads the committed data.
+        scheduler.rescheduleAll(reminderNow)
+
+        assertFalse("a pass after the commit settles the mark", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_mark_whose_caller_is_cancelled_after_the_flag_is_written_stays_open() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        // DataStore's write doesn't check for cancellation; the caller's resumption does.
+        coEvery { reminderScheduleStore.setReconcilePending(true) } answers {
+            reconcilePending = true
+            throw CancellationException("the editor went")
+        }
+
+        // The writer never gets the mark, but its commit can still land under NonCancellable.
+        runCatching { scheduler.markReconcilePending() }
+        scheduler.rescheduleAll(reminderNow)
+
+        assertTrue("the cancelled writer's reconcile is still owed", scheduler.isReconcilePending())
+    }
+
+    @Test
+    fun a_mark_whose_flag_write_fails_does_not_keep_a_later_pass_from_clearing() = runTest {
+        trackAlarmsAndStore()
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroups() } returns emptyList()
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        // Left by an earlier process.
+        reconcilePending = true
+        coEvery { reminderScheduleStore.setReconcilePending(true) } throws IOException("disk full")
+
+        runCatching { scheduler.markReconcilePending() }
+        scheduler.rescheduleAll(reminderNow)
+
+        assertFalse("a failed mark is not left open", scheduler.isReconcilePending())
+    }
+
+    @Test
     fun rescheduleGroup_clears_its_plans_stale_snoozes_in_its_own_hold() = runTest {
         // The snooze scheduler takes the same lock: the nested call must not wait on it.
         val snoozeStore: MedicationReminderSnoozeStore = mockk {
@@ -614,6 +686,7 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.setReconcilePending(any()) } answers {
             reconcilePending = firstArg()
         }
+        coEvery { reminderScheduleStore.isReconcilePending() } answers { reconcilePending }
     }
 
     private fun MedicationGroup.atTime(time: LocalTime) = copy(

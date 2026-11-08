@@ -603,11 +603,29 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun setMasterRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             // Startup reconciles if the process dies before the reschedule; it outlives this editor.
-            runCatching { medicationReminderScheduler.markReconcilePending() }
-            settingsRepository.setRemindersEnabled(enabled)
+            val reconcileMark = markReconcilePendingBestEffort()
+            try {
+                settingsRepository.setRemindersEnabled(enabled)
+            } finally {
+                reconcileMark?.committed()
+            }
             withContext(NonCancellable) { medicationReminderScheduler.rescheduleAll() }
         }
     }
+
+    /**
+     * Null when the mark can't be stored, and the write goes ahead without it. A cancelled
+     * caller stops here instead: its mark may be down, and a write it then commits would
+     * have no mark to release.
+     */
+    private suspend fun markReconcilePendingBestEffort(): MedicationReminderScheduler.ReconcileMark? =
+        try {
+            medicationReminderScheduler.markReconcilePending()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        }
 
     fun addDailyTime(time: LocalTime) {
         _uiState.update {
@@ -1496,7 +1514,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
 
             // Startup reconciles if the process dies before the reschedule; it outlives this editor.
-            runCatching { medicationReminderScheduler.markReconcilePending() }
+            val reconcileMark = markReconcilePendingBestEffort()
             // One transaction: a failure leaves the plan active, as this editor still shows it.
             val replacement = runCatching {
                 medicationGroupRepository.archiveAndRecreateGroup(
@@ -1510,6 +1528,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     now = recreateNowInstant,
                 )
             }
+            // Committed or not, before any pass below, so they may settle it.
+            reconcileMark?.committed()
             val archiveOutcome = replacement.fold(
                 onSuccess = { null },
                 onFailure = { cause ->

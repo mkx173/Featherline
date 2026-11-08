@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.reminder.ReminderScheduleStore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -29,8 +30,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.util.concurrent.atomic.AtomicBoolean
 
 class StartupPreloaderTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -205,6 +209,63 @@ class StartupPreloaderTest {
 
         coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any()) }
+    }
+
+    @Test
+    fun startReminderRescheduleFromSnapshot_reconcilesFromRoomForAMarkThatAPassBeforeItsCommitLeft() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        // The reminder schedule store, as DataStore keeps it from one process to the next.
+        val reconcilePending = AtomicBoolean(false)
+        val reminderScheduleStore: ReminderScheduleStore = mockk {
+            coEvery { getScheduledReminders() } returns emptyMap()
+            coEvery { replaceScheduledReminders(any()) } returns Unit
+            coEvery { isReconcilePending() } answers { reconcilePending.get() }
+            coEvery { setReconcilePending(any()) } answers { reconcilePending.set(firstArg()) }
+        }
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+        fun schedulerOfAProcess() = MedicationReminderScheduler(
+            context = mockk(),
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            reminderScheduleStore = reminderScheduleStore,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            reminderNotificationManager = mockk { every { activeDoseReminders() } returns emptyMap() },
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        // The earlier process: a restore marks, an unrelated pass reads the data it replaces,
+        // the restore commits, and its own pass fails.
+        val earlier = schedulerOfAProcess()
+        val restoreMark = earlier.markReconcilePending()
+        earlier.rescheduleAll(now)
+        restoreMark.committed()
+        coEvery { medicationGroupRepository.getGroups() } throws IllegalStateException("database closed")
+        runCatching { earlier.rescheduleAll(now) }
+        assertTrue("the restore's reconcile is owed at the next start", reconcilePending.get())
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+
+        StartupPreloader(
+            appScope = CoroutineScope(Dispatchers.IO),
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            userProfileRepository = userProfileRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = schedulerOfAProcess(),
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
+        ).startReminderRescheduleFromSnapshot(now = now)
+
+        // Last in the startup job, on either path.
+        coVerify(timeout = 1_000) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(exactly = 0) { homeSnapshotRepository.currentState() }
+        assertFalse("the startup reconcile settles the mark", reconcilePending.get())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -637,6 +637,8 @@ class SettingsViewModelTest {
     fun setRemindersEnabled_marksAReconcileFirstAndFinishesItOnceTheOwnerIsGone() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
+        val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
         val rescheduleGate = CompletableDeferred<Unit>()
         var rescheduled = false
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
@@ -655,6 +657,8 @@ class SettingsViewModelTest {
         coVerifyOrder {
             medicationReminderScheduler.markReconcilePending()
             settingsRepository.setRemindersEnabled(true)
+            // Before the pass, so the pass may settle it.
+            reconcileMark.committed()
             medicationReminderScheduler.rescheduleAll(any())
         }
     }

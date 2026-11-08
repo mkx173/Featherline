@@ -36,6 +36,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -728,7 +729,8 @@ class MedicationGroupEditorDeleteRecordsTest {
                 now = any(),
             )
         } returns savedGroupUuid
-        coEvery { medicationReminderScheduler.markReconcilePending() } returns Unit
+        val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
         coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
         val rescheduleGate = CompletableDeferred<Unit>()
@@ -772,6 +774,8 @@ class MedicationGroupEditorDeleteRecordsTest {
                 notificationsEnabled = any(),
                 now = any(),
             )
+            // Before the pass, so the pass may settle it.
+            reconcileMark.committed()
             medicationReminderScheduler.rescheduleAll(any())
         }
     }
@@ -781,7 +785,8 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { settingsRepository.setRemindersEnabled(true) } returns Unit
-        coEvery { medicationReminderScheduler.markReconcilePending() } returns Unit
+        val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
         val rescheduleGate = CompletableDeferred<Unit>()
         var rescheduled = false
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } coAnswers {
@@ -812,8 +817,78 @@ class MedicationGroupEditorDeleteRecordsTest {
         coVerifyOrder {
             medicationReminderScheduler.markReconcilePending()
             settingsRepository.setRemindersEnabled(true)
+            // Before the pass, so the pass may settle it.
+            reconcileMark.committed()
             medicationReminderScheduler.rescheduleAll(any())
         }
+    }
+
+    // A mark cancelled under the editor gives it no mark to release, so it must not commit.
+    @Test
+    fun archiveAndRecreateGroup_writesNothingWhenItsMarkIsCancelled() = runTest {
+        val groupUuid = UUID.fromString("7d2a9e4c-5b63-4f0a-9c84-9e3f2a6b0d57")
+        val group = testMedicationGroup(groupUuid)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws
+                CancellationException("the editor went")
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.archiveAndRecreateGroup()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) {
+            medicationGroupRepository.archiveAndRecreateGroup(
+                uuid = any(),
+                archivedThroughDate = any(),
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                now = any(),
+            )
+        }
+    }
+
+    @Test
+    fun setMasterRemindersEnabled_writesNothingWhenItsMarkIsCancelled() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { settingsRepository.setRemindersEnabled(any()) } returns Unit
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws
+                CancellationException("the editor went")
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.setMasterRemindersEnabled(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { settingsRepository.setRemindersEnabled(any()) }
     }
 
     @Test

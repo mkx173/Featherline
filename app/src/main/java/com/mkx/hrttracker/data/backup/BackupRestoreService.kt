@@ -243,104 +243,109 @@ class BackupRestoreService @Inject constructor(
         var followUpFailed = false
         homeSnapshotRepository.runHomeDataMutation {
             // Startup reconciles if the process dies before rescheduleAll does.
-            medicationReminderScheduler.markReconcilePending()
-            databaseHolder.runTransaction { database ->
-                // Delete order: logs and group items (children) before medicines
-                // (parents) so the medicines table can be wiped without
-                // tripping the RESTRICT foreign-key constraint.
-                database.medicationLogDao().deleteAllEntries()
-                database.medicationGroupDao().deleteAllGroups()
-                database.medicineDao().deleteAll()
-                // Review metadata is durable user data restored below.
-                database.pkCalibrationDao().deleteAllMetadata()
-                database.bloodTestDao().deleteAllResults()
-                database.bloodTestDao().deleteAllPanels()
-                database.bloodTestDao().deleteAllCustomAnalytes()
-                database.userProfileDao().deleteProfile()
-                database.journalDao().deleteAllNotes()
-                database.journalDao().deleteAllTrackedDates()
-
-                if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
-                    database.bloodTestDao()
-                        .insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
-                }
-                if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
-                    database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
-                }
-                if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
-                    database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
-                }
-                if (validatedSnapshot.e2CalibrationMetadata.isNotEmpty()) {
-                    database.pkCalibrationDao()
-                        .insertMetadata(validatedSnapshot.e2CalibrationMetadata)
-                }
-                // Medicines must be written before any group item or log that
-                // references them; RESTRICT foreign keys would otherwise
-                // reject the insert. The validator already proved that every
-                // referenced medicineUuid is present in this list.
-                if (validatedSnapshot.medicines.isNotEmpty()) {
-                    database.medicineDao().insertAll(validatedSnapshot.medicines)
-                }
-                if (validatedSnapshot.medicationGroups.isNotEmpty()) {
-                    database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
-                }
-                if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertItems(validatedSnapshot.medicationGroupItems)
-                }
-                if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
-                }
-                if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
-                    database.medicationGroupDao()
-                        .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
-                }
-                if (validatedSnapshot.medicationLogs.isNotEmpty()) {
-                    database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
-                }
-                if (validatedSnapshot.trackedDates.isNotEmpty()) {
-                    database.journalDao().insertTrackedDates(validatedSnapshot.trackedDates)
-                }
-                if (validatedSnapshot.notes.isNotEmpty()) {
-                    database.journalDao().insertNotes(validatedSnapshot.notes)
-                }
-                database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
-            }
-
-            // Inside the mutation so its rebuild reads the restored chart
-            // window option; nothing else rebuilds on an option write.
+            val reconcileMark = medicationReminderScheduler.markReconcilePending()
             try {
-                settingsRepository.restoreSettings(
-                    darkModeOption = validatedSnapshot.settings.darkModeOption,
-                    adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
-                    pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
-                    hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
-                    classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
-                    remindersEnabled = validatedSnapshot.settings.remindersEnabled,
-                    healthConnectWeightSyncEnabled =
-                        validatedSnapshot.settings.healthConnectWeightSyncEnabled,
-                    showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
-                    hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
-                    onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
-                    pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
-                    appLanguageOption = validatedSnapshot.settings.appLanguageOption,
-                    calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
-                    homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
-                    homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
-                    lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
-                    hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
-                    groupNameCounter = validatedSnapshot.settings.groupNameCounter,
-                    firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
-                    stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
-                    stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
-                    homeCardLayout = validatedSnapshot.settings.homeCardLayout,
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                followUpFailed = true
-                diagnosticsLogger.warning(TAG, "restore_settings_apply_failed", error)
+                databaseHolder.runTransaction { database ->
+                    // Delete order: logs and group items (children) before medicines
+                    // (parents) so the medicines table can be wiped without
+                    // tripping the RESTRICT foreign-key constraint.
+                    database.medicationLogDao().deleteAllEntries()
+                    database.medicationGroupDao().deleteAllGroups()
+                    database.medicineDao().deleteAll()
+                    // Review metadata is durable user data restored below.
+                    database.pkCalibrationDao().deleteAllMetadata()
+                    database.bloodTestDao().deleteAllResults()
+                    database.bloodTestDao().deleteAllPanels()
+                    database.bloodTestDao().deleteAllCustomAnalytes()
+                    database.userProfileDao().deleteProfile()
+                    database.journalDao().deleteAllNotes()
+                    database.journalDao().deleteAllTrackedDates()
+
+                    if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
+                        database.bloodTestDao()
+                            .insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
+                    }
+                    if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
+                        database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
+                    }
+                    if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
+                        database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
+                    }
+                    if (validatedSnapshot.e2CalibrationMetadata.isNotEmpty()) {
+                        database.pkCalibrationDao()
+                            .insertMetadata(validatedSnapshot.e2CalibrationMetadata)
+                    }
+                    // Medicines must be written before any group item or log that
+                    // references them; RESTRICT foreign keys would otherwise
+                    // reject the insert. The validator already proved that every
+                    // referenced medicineUuid is present in this list.
+                    if (validatedSnapshot.medicines.isNotEmpty()) {
+                        database.medicineDao().insertAll(validatedSnapshot.medicines)
+                    }
+                    if (validatedSnapshot.medicationGroups.isNotEmpty()) {
+                        database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
+                    }
+                    if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertItems(validatedSnapshot.medicationGroupItems)
+                    }
+                    if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
+                    }
+                    if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
+                        database.medicationGroupDao()
+                            .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
+                    }
+                    if (validatedSnapshot.medicationLogs.isNotEmpty()) {
+                        database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
+                    }
+                    if (validatedSnapshot.trackedDates.isNotEmpty()) {
+                        database.journalDao().insertTrackedDates(validatedSnapshot.trackedDates)
+                    }
+                    if (validatedSnapshot.notes.isNotEmpty()) {
+                        database.journalDao().insertNotes(validatedSnapshot.notes)
+                    }
+                    database.userProfileDao().upsertProfile(validatedSnapshot.userProfile)
+                }
+
+                // Inside the mutation so its rebuild reads the restored chart
+                // window option; nothing else rebuilds on an option write.
+                try {
+                    settingsRepository.restoreSettings(
+                        darkModeOption = validatedSnapshot.settings.darkModeOption,
+                        adaptiveColorEnabled = validatedSnapshot.settings.adaptiveColorEnabled,
+                        pureBlackEnabled = validatedSnapshot.settings.pureBlackEnabled,
+                        hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
+                        classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
+                        remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                        healthConnectWeightSyncEnabled =
+                            validatedSnapshot.settings.healthConnectWeightSyncEnabled,
+                        showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
+                        hideReferenceRanges = validatedSnapshot.settings.hideReferenceRanges,
+                        onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
+                        pkCalibrationIntroSeen = validatedSnapshot.settings.pkCalibrationIntroSeen,
+                        appLanguageOption = validatedSnapshot.settings.appLanguageOption,
+                        calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
+                        homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
+                        homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
+                        lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
+                        hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
+                        groupNameCounter = validatedSnapshot.settings.groupNameCounter,
+                        firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
+                        stockNudgeEnabled = validatedSnapshot.settings.stockNudgeEnabled,
+                        stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
+                        homeCardLayout = validatedSnapshot.settings.homeCardLayout,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    followUpFailed = true
+                    diagnosticsLogger.warning(TAG, "restore_settings_apply_failed", error)
+                }
+            } finally {
+                // Committed or rolled back, before rescheduleAll below, so it may settle the mark.
+                reconcileMark.committed()
             }
         }
 

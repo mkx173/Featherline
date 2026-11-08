@@ -15,6 +15,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,6 +23,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.CoroutineContext
@@ -90,22 +92,52 @@ class MedicationReminderScheduler private constructor(
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
-    // ponytail: one flag. A pass between a writer's mark and its commit reads the old data
-    // and still clears it; the writer's own pass after the commit reconciles, so only a
-    // process death between that commit and that pass is left to a later full pass.
+    // ponytail: one stored flag, and the marks still open live only in memory. While any
+    // writer is between its mark and its commit, no pass clears the flag, so the committed
+    // writers' marks wait with it for the open writer's own pass. Store a token per writer if
+    // a pass ever has to clear around one that stays open.
+    private val openReconcileMarks: MutableSet<ReconcileMark> = ConcurrentHashMap.newKeySet()
+
     /**
-     * For a data change reminders must follow, before it commits: marks a
-     * reconcile owed until a [rescheduleAll] completes, so startup still runs
-     * one ([isReconcilePending]) if the process dies or the writer's own fails.
-     * Under the passes' lock, so a pass that read the data before it doesn't clear it.
+     * For a data change reminders must follow, before it commits: marks a reconcile owed
+     * until a [rescheduleAll] that starts after [ReconcileMark.committed] completes, so startup
+     * still runs one ([isReconcilePending]) if the process dies or the writer's own fails.
+     * Under the passes' lock, so a pass that read the data before it doesn't clear it. A new
+     * process has no writer in flight, so its first completed pass clears what an earlier
+     * one left.
      */
-    suspend fun markReconcilePending() = withReminderScheduleLock {
-        reminderScheduleStore.setReconcilePending(true)
+    suspend fun markReconcilePending(): ReconcileMark = withReminderScheduleLock {
+        // Open before the write: a caller cancelled once the flag is down never gets the mark
+        // but may still commit, so its mark stays open for the rest of the process.
+        val mark = ReconcileMark().also(openReconcileMarks::add)
+        try {
+            reminderScheduleStore.setReconcilePending(true)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            // Nothing written, and the caller has no mark to release.
+            openReconcileMarks.remove(mark)
+            throw error
+        }
+        mark
+    }
+
+    inner class ReconcileMark internal constructor() {
+        /**
+         * Once the write has committed or failed, before the writer's own pass: a pass that
+         * starts after this reads its result, so it may clear the mark. No lock, so a writer
+         * inside the Home mutation gate can call it; a pass already running leaves the mark.
+         */
+        fun committed() {
+            openReconcileMarks.remove(this)
+        }
     }
 
     suspend fun isReconcilePending(): Boolean = reminderScheduleStore.isReconcilePending()
 
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) = withReminderScheduleLock {
+        // Before any read: a writer still between its mark and its commit is owed a later pass.
+        val settlesReconcile = openReconcileMarks.isEmpty()
         diagnosticsLogger.info(TAG, "reminder_reschedule_all_start now=$now")
         val groups = medicationGroupRepository.getGroups()
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
@@ -126,7 +158,7 @@ class MedicationReminderScheduler private constructor(
                 "reminder_reschedule_all_complete groups=${groups.size} entries=0 plans=0 stored=0"
             )
             reconcileDoseReminderNotifications(remindersEnabled = false)
-            reminderScheduleStore.setReconcilePending(false)
+            if (settlesReconcile) reminderScheduleStore.setReconcilePending(false)
             return@withReminderScheduleLock
         }
 
@@ -158,7 +190,7 @@ class MedicationReminderScheduler private constructor(
                     "cancel=${uuidsToCancel.size}"
         )
         reconcileDoseReminderNotifications(remindersEnabled = true)
-        reminderScheduleStore.setReconcilePending(false)
+        if (settlesReconcile) reminderScheduleStore.setReconcilePending(false)
     }
 
     /**

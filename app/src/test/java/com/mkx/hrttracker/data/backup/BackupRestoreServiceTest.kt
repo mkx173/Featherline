@@ -113,6 +113,7 @@ class BackupRestoreServiceTest {
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
+    private val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
@@ -155,7 +156,7 @@ class BackupRestoreServiceTest {
                 any(),
             )
         } just Runs
-        coEvery { medicationReminderScheduler.markReconcilePending() } just Runs
+        coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
@@ -421,6 +422,8 @@ class BackupRestoreServiceTest {
         // Nothing changed, so the reminders on screen are still right, and
         // nothing that could dismiss them ran.
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+        // Rolled back: the next pass, or the next start's, settles the mark.
+        verify(exactly = 1) { reconcileMark.committed() }
     }
 
     @Test
@@ -431,6 +434,15 @@ class BackupRestoreServiceTest {
         coVerifyOrder {
             medicationReminderScheduler.markReconcilePending()
             databaseHolder.runTransaction(any())
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(),
+                any(),
+            )
+            // Past the settings, which hold the master switch the pass reads.
+            reconcileMark.committed()
             medicationReminderScheduler.rescheduleAll(any())
         }
     }

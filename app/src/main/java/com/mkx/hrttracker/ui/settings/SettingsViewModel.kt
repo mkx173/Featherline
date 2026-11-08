@@ -303,8 +303,9 @@ class SettingsViewModel @Inject constructor(
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             // Startup reconciles if the process dies before the reschedule; it outlives Settings.
+            var reconcileMark: MedicationReminderScheduler.ReconcileMark? = null
             runReminderSideEffectBestEffort {
-                medicationReminderScheduler.markReconcilePending()
+                reconcileMark = medicationReminderScheduler.markReconcilePending()
             }
             try {
                 settingsRepository.setRemindersEnabled(enabled)
@@ -313,6 +314,8 @@ class SettingsViewModel @Inject constructor(
             } catch (error: Exception) {
                 settingsEvents.tryEmit(SettingsMutationEvent.Failure(error))
                 return@launch
+            } finally {
+                reconcileMark?.committed()
             }
             withContext(NonCancellable) {
                 if (!enabled) {
