@@ -131,13 +131,24 @@ fun scheduledDoseRowHighlightTargetFromStorageValue(value: String): ScheduledDos
     }.getOrNull()
 }
 
+// Whether onCreate follows the deep link in its launch intent, checked on a device (API 35):
+// - A cold start has no saved state and parses.
+// - A restore, after process death or a config change, has saved state, and getIntent() is the
+//   task's original intent: a launcher or Recents relaunch would replay its old deep link.
+// - A fresh tap comes through onNewIntent, whether the app is alive or the task is being
+//   restored, where it lands right after the restored onCreate.
+// - A Recents relaunch of a task whose activity is gone has no saved state, but the history flag.
+internal fun parsesLaunchIntent(savedInstanceState: Bundle?, intent: Intent): Boolean =
+    savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val appLockViewModel: AppLockViewModel by viewModels()
     private val mainViewModel: MainViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
 
-    // True while a cold-start milestones deep link is waiting for its screen to settle;
+    // True while a milestones deep link that opened the app (a cold start, or a tap
+    // restoring a killed task) is waiting for its screen to settle;
     // read by the splash keep-on-screen condition (polled per frame — a plain field
     // suffices) and cleared by the NavHost's settle callback.
     @Volatile
@@ -179,36 +190,20 @@ class MainActivity : AppCompatActivity() {
         // Hilt-injected settingsRepository, which is only available once Hilt
         // has injected during super.onCreate().
         applyEdgeToEdgeSystemBars()
-        // Parse the launch intent once per delivered intent, not once per savedInstanceState
-        // == null:
-        // - FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY: a recents relaunch redelivers the task's
-        //   ORIGINAL intent, whose stale widget extras must never deep-link again —
-        //   including the cold recents relaunch of an expired task, where
-        //   savedInstanceState is null.
-        // - The ViewModel-lifetime marker skips the config-driven recreation (the
-        //   surviving ViewModel already handled the retained extras; re-parsing would yank
-        //   the user back to the deep link). It resets on process death, so a restored
-        //   instance parses getIntent() again. Whether a tap that restores a killed task
-        //   lands here or in onNewIntent, and whether a launcher relaunch here replays the
-        //   task's original extras, is platform delivery not yet checked on a device.
-        // A genuine re-tap while the instance is alive is delivered through onNewIntent,
-        // which still parses unconditionally.
-        val parseLaunchIntent = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 &&
-                !mainViewModel.launchIntentParsed
+        // A cold start alone: see parsesLaunchIntent. A fresh tap comes through onNewIntent.
+        val parseLaunchIntent = parsesLaunchIntent(savedInstanceState, intent)
         // Cold start straight into Milestones (widget/shortcut): hold the splash until the
         // NavHost has built the back stack and the milestones screen has settled, so
         // neither the pre-navigation frame nor the push transition is ever visible. The
-        // SAME condition as the parse — every launch that will deep-link holds the splash
-        // (including the process-death task recreation, whose restored frame would
-        // otherwise flash before the navigation), and no launch that won't parse can hold
-        // it forever. The settle callback is deep-link-driven with a timeout backstop, so
-        // a held splash is always released.
+        // SAME condition as the parse — every launch that will deep-link holds the splash,
+        // and no launch that won't parse can hold it forever. The settle callback is
+        // deep-link-driven with a timeout backstop, so a held splash is always released.
+        // A tap restoring a killed task holds it from onNewIntent.
         awaitingMilestonesEntry = parseLaunchIntent &&
                 intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)
         if (parseLaunchIntent) {
             parseWidgetHighlightIntent(intent)
         }
-        mainViewModel.launchIntentParsed = true
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
@@ -612,6 +607,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // A tap restoring a killed task lands here right after the restored onCreate, before
+        // the first frame: hold the splash for Milestones as a cold start does. With the app
+        // running, the splash is gone and its condition no longer read, and the settle
+        // callback clears the flag.
+        if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false)) {
+            awaitingMilestonesEntry = true
+        }
         parseWidgetHighlightIntent(intent)
     }
 

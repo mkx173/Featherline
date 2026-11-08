@@ -314,32 +314,50 @@ class AnchorSurfaceRefreshSourceTest {
     }
 
     @Test
-    fun mainActivity_parsesDeepLinksAfterProcessDeathButNeverHistoryReplays() {
+    fun mainActivity_parsesTheLaunchIntentOnlyOnAColdStart() {
         val source = source(
             "app/src/main/java/com/mkx/hrttracker/MainActivity.kt"
         )
         assertTrue(
-            "The launch-intent parse must gate on the ViewModel-lifetime marker plus the " +
-                "history flag, not savedInstanceState: a restored instance re-parses " +
-                "getIntent() after process death even with non-null " +
-                "savedInstanceState, while a recents relaunch must not replay the " +
-                "original intent's stale extras. Which of onCreate or onNewIntent a tap " +
-                "on a killed task reaches has not been verified on a device.",
-            source.contains("Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY") &&
+            "onCreate must parse its launch intent through parsesLaunchIntent alone: a " +
+                "restored instance's getIntent() is the task's original intent, replayed " +
+                "by a launcher or Recents relaunch after process death, and a fresh tap " +
+                "comes through onNewIntent.",
+            source.contains("val parseLaunchIntent = parsesLaunchIntent(savedInstanceState, intent)\n") &&
                 source.contains("if (parseLaunchIntent)") &&
-                source.contains("mainViewModel.launchIntentParsed = true"),
+                !source.contains("launchIntentParsed"),
         )
         assertTrue(
             "The milestones splash hold must share the parse's exact gate: a hold " +
                 "without a parse waits on a navigation that never comes (stuck splash), " +
                 "and a parse without a hold releases the splash on the pre-navigation " +
-                "frame (restored-task deep links flash the old frame).",
+                "frame.",
             source.contains("awaitingMilestonesEntry = parseLaunchIntent &&"),
         )
     }
 
+    @Test
+    fun mainActivity_holdsTheSplashForAMilestonesTapThatRestoresTheTask() {
+        val source = source(
+            "app/src/main/java/com/mkx/hrttracker/MainActivity.kt"
+        )
+        val onNewIntent = source
+            .substringAfter("override fun onNewIntent(intent: Intent)")
+            .substringBefore("parseWidgetHighlightIntent(intent)")
+        assertTrue(
+            "A Milestones tap that restores a killed task arrives through onNewIntent, " +
+                "before the first frame: it must hold the splash until Milestones has " +
+                "settled, as a cold start does, or the restored page shows first.",
+            onNewIntent.contains("if (intent.getBooleanExtra(EXTRA_OPEN_MILESTONES, false))") &&
+                onNewIntent.contains("awaitingMilestonesEntry = true"),
+        )
+    }
+
+    // Whole-line comments dropped, so commented-out code doesn't count.
     private fun source(relativePath: String): String {
-        return File(projectRoot(), relativePath).readText()
+        return File(projectRoot(), relativePath).readLines()
+            .filterNot { it.trimStart().startsWith("//") }
+            .joinToString("\n")
     }
 
     private fun projectRoot(): File {
