@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.os.Build
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowManager
 import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
@@ -43,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.view.WindowInsetsCompat
@@ -57,6 +59,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -425,6 +428,7 @@ private fun Modifier.hiddenUnderAppLock(): Modifier = composed {
         decorView.findViewTreeNavigationEventDispatcherOwner()?.navigationEventDispatcher?.isEnabled =
             !locked
     }
+    InsetsDispatchedAgainWhenShown()
     Modifier
 }
 
@@ -449,6 +453,44 @@ private class LockHiddenWindow(private val window: Window) {
         window.attributes = attributes
         val flags = if (locked) FLAG_NOT_TOUCHABLE or FLAG_NOT_FOCUSABLE else shownFlags
         window.setFlags(flags, LockHiddenFlags)
+    }
+}
+
+// Dispatches the insets of the window it's composed in again whenever that window shows again, as
+// when the app comes back or a modal comes back from under the app lock. Before API 30 the IME inset
+// is worked out from the window's visible insets, which ViewRootImpl updates only after dispatching
+// the insets of a window shown again: that dispatch still has the keyboard closed while the window
+// was hidden, and the compat insets animation it starts outlasts the IME one of the next dispatch,
+// so Compose keeps the keyboard in the layout until a dispatch after both. Once right away, and once
+// that animation is over.
+@Composable
+internal fun InsetsDispatchedAgainWhenShown() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return
+    val view = LocalView.current
+    var shown by remember { mutableIntStateOf(0) }
+    DisposableEffect(view) {
+        // Pre-draw comes on every traversal, the one showing the window included.
+        var visible = view.windowVisibility == View.VISIBLE
+        val listener = ViewTreeObserver.OnPreDrawListener {
+            val nowVisible = view.windowVisibility == View.VISIBLE
+            if (nowVisible && !visible) shown++
+            visible = nowVisible
+            true
+        }
+        // From the observer it was added to: a dismissed dialog's view is detached first, and its
+        // viewTreeObserver is a fresh floating one by now.
+        val observer = view.viewTreeObserver
+        observer.addOnPreDrawListener(listener)
+        onDispose { if (observer.isAlive) observer.removeOnPreDrawListener(listener) }
+    }
+    LaunchedEffect(shown) {
+        if (shown == 0) return@LaunchedEffect
+        view.requestApplyInsets()
+        // ponytail: 250 ms is androidx.core's longest compat insets animation (Impl21); follow it
+        // if that changes. In frame time, so a slow frame can't land the dispatch before it ends.
+        val shownAt = withFrameMillis { it }
+        while (withFrameMillis { it } < shownAt + 250) { }
+        view.requestApplyInsets()
     }
 }
 

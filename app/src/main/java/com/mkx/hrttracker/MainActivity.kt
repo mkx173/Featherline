@@ -54,6 +54,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.LocalHazePerformanceMode
+import com.mkx.hrttracker.ui.components.InsetsDispatchedAgainWhenShown
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import com.mkx.hrttracker.ui.components.LocalNavigationLock
@@ -226,6 +227,8 @@ class MainActivity : AppCompatActivity() {
             LaunchedEffect(Unit) {
                 diagnosticsLogger.info(TAG, "main_activity_set_content_entered")
             }
+            // Each sheet and dialog window does too (hiddenUnderAppLock).
+            InsetsDispatchedAgainWhenShown()
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())

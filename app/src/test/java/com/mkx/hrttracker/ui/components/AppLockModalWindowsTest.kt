@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import android.view.View
 import android.view.WindowManager.LayoutParams
 import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
 import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -42,6 +43,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -304,6 +306,64 @@ class AppLockModalWindowsTest {
         }
         val shown = assertWindowHiddenOnlyWhileLocked()
         assertNotEquals("The dialog doesn't dim behind it", 0, shown.flags and FLAG_DIM_BEHIND)
+    }
+
+    // Before API 30 the IME inset is worked out from the window's visible insets, which ViewRootImpl
+    // updates only after dispatching the insets of a window shown again: the keyboard the sheet was
+    // typed into, closed while it was hidden, can stay in its layout until they are dispatched
+    // again. Whenever the window shows again, they are.
+    @Test
+    @Config(sdk = [29])
+    fun sheetWindow_shownAgain_getsItsInsetsDispatchedAgain() {
+        // As the app goes away and comes back, no lock.
+        assertSheetInsetsDispatchedWhenShownAgain(
+            hide = { it.visibility = View.INVISIBLE },
+            show = { it.visibility = View.VISIBLE },
+        )
+    }
+
+    @Test
+    @Config(sdk = [29])
+    fun sheetWindow_getsItsInsetsDispatchedAgainOnUnlock() {
+        assertSheetInsetsDispatchedWhenShownAgain(hide = { locked = true }, show = { locked = false })
+    }
+
+    private fun assertSheetInsetsDispatchedWhenShownAgain(hide: (View) -> Unit, show: (View) -> Unit) {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalAppLocked provides locked) {
+                HazeModalBottomSheet(
+                    onDismissRequest = { dismissals++ },
+                    sheetState = rememberModalBottomSheetState(),
+                ) { Text("Body weight") }
+            }
+        }
+        val decorView = composeRule.runOnIdle { ShadowDialog.getLatestDialog().window!!.decorView }
+        var dispatches = 0
+        composeRule.runOnIdle {
+            decorView.setOnApplyWindowInsetsListener { view, insets ->
+                dispatches++
+                view.onApplyWindowInsets(insets)
+            }
+            hide(decorView)
+        }
+        composeRule.runOnIdle { dispatches = 0 }
+
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnIdle { show(decorView) }
+        // Frame by frame past the compat insets animation, each frame's traversal run in between as
+        // on a device: once right away, once after it.
+        repeat(25) {
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.waitForIdle()
+        }
+        composeRule.runOnIdle {
+            assertTrue(
+                "The sheet window shown again didn't get its insets dispatched again, right away " +
+                    "and after the compat insets animation: $dispatches dispatch(es)",
+                dispatches >= 2,
+            )
+        }
+        assertEquals(0, dismissals)
     }
 
     // Returns the window's attributes from before the lock.
