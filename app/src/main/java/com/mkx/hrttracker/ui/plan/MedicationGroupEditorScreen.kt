@@ -139,6 +139,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -850,11 +851,7 @@ private fun MedicationGroupEditorScreenContent(
             onDateSelected = onSinceDateChange,
             onDismiss = { pendingSinceDate = null },
             initialSelectedDate = initialSinceDate,
-            minimumDate = if (uiState.recreatedFromGroupId != null) {
-                maxOf(currentDate, uiState.originalSinceDate ?: currentDate)
-            } else {
-                null
-            },
+            minimumDate = uiState.minimumRecreatedStartDate(currentDate),
         )
     }
 
@@ -868,8 +865,7 @@ private fun MedicationGroupEditorScreenContent(
             initialTime = initialStartTime,
             is24Hour = is24Hour,
             // Only offer a reset once a start is picked; "Now" is already the default.
-            // A recreated plan can't move its start earlier than its own.
-            onReset = if (!uiState.startsNow && uiState.recreatedFromGroupId == null) {
+            onReset = if (!uiState.startsNow) {
                 onResetStartToNow
             } else {
                 null
@@ -1589,7 +1585,7 @@ private fun MedicationGroupEditorScreenContent(
                         }
                     }
                     val showRecreatedStartDatePastLimitMessage =
-                        shouldShowRecreatedStartDatePastLimitMessage(uiState)
+                        shouldShowRecreatedStartDatePastLimitMessage(uiState, resolvedOccurrenceReferenceTime)
                     Column {
                         HrtSection(title = stringResource(R.string.group_start_title)) {
                             if (showRecreatedStartDatePastLimitMessage) {
@@ -2161,10 +2157,13 @@ internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
 
 internal fun shouldShowRecreatedStartDatePastLimitMessage(
     uiState: MedicationGroupEditorUiState,
+    now: LocalDateTime,
 ): Boolean {
+    // A plan archived through an earlier day than yesterday leaves past days to start on.
+    val today = medicationDay(now, uiState.medicationDayBoundary)
     return !uiState.isArchived &&
-            uiState.recreatedFromGroupId != null &&
-            uiState.relatedEntryCount == 0
+            uiState.relatedEntryCount == 0 &&
+            uiState.minimumRecreatedStartDate(today)?.isBefore(today) == false
 }
 
 internal enum class PastScheduleOption {
@@ -2242,11 +2241,12 @@ internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
             !shouldShowRecreatedPastScheduleMessage(uiState)
 }
 
+// A saved recreated plan offers its past schedule as any plan does; only a draft replacing
+// an archived plan has it locked.
 internal fun shouldShowRecreatedPastScheduleMessage(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
-    return !uiState.isArchived &&
-            (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
+    return !uiState.isArchived && uiState.pendingReplacementGroupId != null
 }
 
 /** Whether a dose falls between the plan start and [referenceTime]. */

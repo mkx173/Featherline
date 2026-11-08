@@ -37,6 +37,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -269,12 +270,13 @@ class MedicationGroupEditorLoadStateTest {
         // intact, not silently fall back to the locked archived original.
         val archivedOriginalId = UUID.fromString("aaaaaaaa-0000-0000-0000-0000000000a1")
         val recreatedGroupId = UUID.fromString("bbbbbbbb-0000-0000-0000-0000000000b2")
+        // Archived through Apr 23, so its cutoff is Apr 24 00:00.
         val archivedOriginal = testMedicationGroup(archivedOriginalId).copy(
             archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
+            archivedAtLocal = LocalDateTime.of(2026, 4, 24, 0, 0),
         )
-        // Give the recreated group a start date AFTER the test clock (2026-04-25) so the
-        // persisted originalSinceDate — not the today floor — is the binding minimum. This
-        // is what lets the assertions below actually fail if restore drops originalSinceDate.
+        // A start after the test clock (2026-04-25), so a floor of today or of its own
+        // start would refuse the dates the cutoff allows.
         val recreatedStartDate = LocalDate.of(2026, 5, 1)
         val recreatedGroup = testMedicationGroup(
             groupUuid = recreatedGroupId,
@@ -309,23 +311,17 @@ class MedicationGroupEditorLoadStateTest {
         assertEquals(archivedOriginalId.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertFalse(viewModel.uiState.value.isArchived)
 
-        // No-past-schedules survives: a recreated group can't backfill past scheduled slots.
-        assertFalse(viewModel.uiState.value.canEditBackfillOption)
-        viewModel.updateIncludePastScheduledSlots(true)
-        assertFalse(viewModel.uiState.value.includePastScheduledSlots)
-
-        // Start-date floor survives: the recreated group's persisted start (2026-05-01)
-        // is restored as the minimum. A date between today (2026-04-25) and that start is
-        // rejected — this can only hold if originalSinceDate survived process death; a
-        // today-only floor would accept 2026-04-28 and move the start.
+        // Start-date floor survives: the lineage restores the archived original's cutoff,
+        // so a date before it is rejected and the cutoff's own day is accepted.
         assertEquals(recreatedStartDate, viewModel.uiState.value.sinceDate)
-        viewModel.updateSinceDate(LocalDate.of(2026, 4, 28))
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         assertEquals(recreatedStartDate, viewModel.uiState.value.sinceDate)
-
-        // Positive control: a date at/after the persisted start IS accepted, proving the
-        // rejection above is the start-date floor and not the field being locked outright.
-        viewModel.updateSinceDate(LocalDate.of(2026, 5, 10))
-        assertEquals(LocalDate.of(2026, 5, 10), viewModel.uiState.value.sinceDate)
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 24))
+        assertEquals(LocalDate.of(2026, 4, 24), viewModel.uiState.value.sinceDate)
+        assertEquals(
+            LocalDateTime.of(2026, 4, 24, 0, 0),
+            viewModel.uiState.value.scheduleStartAt(LocalDateTime.of(2026, 4, 25, 10, 0)),
+        )
     }
 
     @Test
@@ -767,7 +763,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun editingRecreatedGroup_withoutOwnRecords_allowsTodayAndFutureStartDates() = runTest {
+    fun editingRecreatedGroup_withoutOwnRecordsOrAKnownPredecessor_allowsTodayAndFutureStartDates() = runTest {
         val parentGroupUuid = UUID.fromString("11e03ed2-5569-44ea-98e0-f810dedcddde")
         val groupUuid = UUID.fromString("ad94244c-34cf-4ce2-85f2-769d63787208")
         val group = testMedicationGroup(
@@ -796,13 +792,14 @@ class MedicationGroupEditorLoadStateTest {
         assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
         assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
         assertEquals(parentGroupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
-        assertFalse(viewModel.uiState.value.canEditBackfillOption)
-        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+        // Its past schedule is the user's, as any recordless plan's is.
+        assertTrue(viewModel.uiState.value.canEditBackfillOption)
 
         viewModel.updateIncludePastScheduledSlots(true)
 
-        assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
+        assertEquals(true, viewModel.uiState.value.includePastScheduledSlots)
 
+        // Its archived plan unknown, it starts today at the earliest.
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
 
         assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
@@ -859,6 +856,82 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
 
         assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingRecreatedGroup_movesItsStartBackToItsPredecessorsCutoffAndShowsTheDosesSince() = runTest {
+        // Archived through Apr 22 and recreated now, Apr 25 at 10:00.
+        val (_, viewModel) = editingRecreatedGroupAfter(cutoff = LocalDateTime.of(2026, 4, 23, 0, 0))
+        val now = LocalDateTime.of(2026, 4, 25, 10, 0)
+        assertEquals(now, viewModel.uiState.value.scheduleStartAt(now))
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 22))
+
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
+
+        val state = viewModel.uiState.value
+        assertEquals(LocalDate.of(2026, 4, 23), state.sinceDate)
+        assertEquals(LocalDateTime.of(2026, 4, 23, 0, 0), state.toScheduleInput(now).startAt)
+        // Its doses since, this morning's too, show as missed, as a new plan's past ones do.
+        assertTrue(state.canEditBackfillOption)
+        assertTrue(state.includePastScheduledSlots)
+        assertTrue(shouldShowPastScheduleSection(state, now))
+        assertEquals(PastScheduleOption.SHOW, resolvePastScheduleOption(state))
+    }
+
+    @Test
+    fun editingRecreatedGroup_cantStartBeforeAnAsOfNowCutoffButCanStartLater() = runTest {
+        // Archived as of 08:30 today and recreated then.
+        val cutoff = LocalDateTime.of(2026, 4, 25, 8, 30)
+        val (_, viewModel) = editingRecreatedGroupAfter(cutoff = cutoff, createdAt = cutoff)
+        val now = LocalDateTime.of(2026, 4, 25, 10, 0)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 24))
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
+
+        // Today, the cutoff's own day, starts at the cutoff rather than at midnight.
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 25))
+        assertEquals(cutoff, viewModel.uiState.value.scheduleStartAt(now))
+
+        viewModel.updateStartTime(LocalTime.of(8, 0))
+        assertEquals(cutoff, viewModel.uiState.value.scheduleStartAt(now))
+
+        viewModel.updateStartTime(LocalTime.of(16, 0))
+        assertEquals(LocalDateTime.of(2026, 4, 25, 16, 0), viewModel.uiState.value.scheduleStartAt(now))
+
+        viewModel.resetStartToNow()
+        assertTrue(viewModel.uiState.value.startsNow)
+    }
+
+    /** Opens a recordless daily 09:00 plan recreated at [createdAt] from one archived at [cutoff]. */
+    private fun TestScope.editingRecreatedGroupAfter(
+        cutoff: LocalDateTime,
+        createdAt: LocalDateTime = LocalDateTime.of(2026, 4, 25, 10, 0),
+    ): Pair<MedicationGroup, MedicationGroupEditorViewModel> {
+        val predecessorUuid = UUID.fromString("c1c1c1c1-0000-4000-8000-000000000001")
+        val groupUuid = UUID.fromString("c1c1c1c1-0000-4000-8000-000000000002")
+        val predecessor = testMedicationGroup(predecessorUuid).copy(
+            archivedAt = cutoff.atZone(java.time.ZoneId.systemDefault()).toInstant(),
+            archivedAtLocal = cutoff,
+        )
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            recreatedFromGroupUuid = predecessorUuid,
+        ).let { group ->
+            group.copy(
+                schedule = group.schedule.copy(
+                    since = createdAt.toLocalDate(),
+                    timeSlots = group.schedule.timeSlots.map { slot -> slot.copy(effectiveFrom = createdAt) },
+                ),
+            )
+        }
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(predecessor, group))
+        val viewModel = editingViewModel(groupUuid)
+        advanceUntilIdle()
+        return group to viewModel
     }
 
     @Test
@@ -1844,7 +1917,22 @@ class MedicationGroupEditorLoadStateTest {
     fun pastScheduleSection_forRecreatedAndArchivedGroupsFollowsSpecialRules() {
         val now = LocalDateTime.of(2026, 4, 25, 10, 0)
 
+        // A saved recreated plan offers its past schedule as any plan does: once its start
+        // takes in a dose before now, and not for a start still ahead.
         assertTrue(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    sinceDate = LocalDate.of(2026, 4, 24),
+                    scheduleStart = ScheduleStart.WholeDay,
+                    areEntriesLoaded = true,
+                    medicationDayBoundary = MedicationDayBoundary.Midnight,
+                ),
+                referenceTime = now,
+            )
+        )
+        assertFalse(
             shouldShowPastScheduleSection(
                 uiState = MedicationGroupEditorUiState(
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
@@ -1856,13 +1944,14 @@ class MedicationGroupEditorLoadStateTest {
                 referenceTime = now,
             )
         )
-        // Once the recreated plan has records it's locked, and the note goes too.
+        // Once the recreated plan has records it's locked, and the section goes too.
         assertFalse(
             shouldShowPastScheduleSection(
                 uiState = MedicationGroupEditorUiState(
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
                     recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
-                    sinceDate = LocalDate.of(2026, 4, 30),
+                    sinceDate = LocalDate.of(2026, 4, 24),
+                    scheduleStart = ScheduleStart.WholeDay,
                     areEntriesLoaded = true,
                     plannedEntryCount = 1,
                     medicationDayBoundary = MedicationDayBoundary.Midnight,
@@ -1881,7 +1970,7 @@ class MedicationGroupEditorLoadStateTest {
                 referenceTime = now,
             )
         )
-        assertTrue(
+        assertFalse(
             shouldShowRecreatedPastScheduleMessage(
                 MedicationGroupEditorUiState(
                     editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
@@ -1905,44 +1994,37 @@ class MedicationGroupEditorLoadStateTest {
 
     @Test
     fun recreatedStartDatePastLimitMessage_requiresActiveRecreatedGroupWithoutLinkedEntries() {
+        val now = LocalDateTime.of(2026, 4, 25, 10, 0)
+        fun recreated(
+            relatedEntryCount: Int = 0,
+            isArchived: Boolean = false,
+            recreatedFromGroupId: String? = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+            recreatedStartFloor: LocalDateTime? = null,
+        ) = MedicationGroupEditorUiState(
+            editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+            recreatedFromGroupId = recreatedFromGroupId,
+            recreatedStartFloor = recreatedStartFloor,
+            relatedEntryCount = relatedEntryCount,
+            isArchived = isArchived,
+            medicationDayBoundary = MedicationDayBoundary.Midnight,
+        )
+
+        assertTrue(shouldShowRecreatedStartDatePastLimitMessage(recreated(), now))
+        assertFalse(shouldShowRecreatedStartDatePastLimitMessage(recreated(relatedEntryCount = 1), now))
+        assertFalse(shouldShowRecreatedStartDatePastLimitMessage(recreated(recreatedFromGroupId = null), now))
+        assertFalse(shouldShowRecreatedStartDatePastLimitMessage(recreated(isArchived = true), now))
+        // Archived through yesterday, it can start no earlier than today.
         assertTrue(
             shouldShowRecreatedStartDatePastLimitMessage(
-                MedicationGroupEditorUiState(
-                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
-                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
-                    relatedEntryCount = 0,
-                    medicationDayBoundary = MedicationDayBoundary.Midnight,
-                )
+                recreated(recreatedStartFloor = LocalDateTime.of(2026, 4, 25, 0, 0)),
+                now,
             )
         )
+        // Archived through an earlier day, it can start on the days between.
         assertFalse(
             shouldShowRecreatedStartDatePastLimitMessage(
-                MedicationGroupEditorUiState(
-                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
-                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
-                    relatedEntryCount = 1,
-                    medicationDayBoundary = MedicationDayBoundary.Midnight,
-                )
-            )
-        )
-        assertFalse(
-            shouldShowRecreatedStartDatePastLimitMessage(
-                MedicationGroupEditorUiState(
-                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
-                    relatedEntryCount = 0,
-                    medicationDayBoundary = MedicationDayBoundary.Midnight,
-                )
-            )
-        )
-        assertFalse(
-            shouldShowRecreatedStartDatePastLimitMessage(
-                MedicationGroupEditorUiState(
-                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
-                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
-                    relatedEntryCount = 0,
-                    isArchived = true,
-                    medicationDayBoundary = MedicationDayBoundary.Midnight,
-                )
+                recreated(recreatedStartFloor = LocalDateTime.of(2026, 4, 23, 0, 0)),
+                now,
             )
         )
     }

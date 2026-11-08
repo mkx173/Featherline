@@ -326,7 +326,8 @@ class MedicationGroupRepository @Inject constructor(
 
     /**
      * Archives [uuid] as [archiveGroup] does and saves the plan replacing it in the same
-     * transaction, so neither commits without the other.
+     * transaction, so neither commits without the other. The new plan starts at [schedule]'s
+     * start, as a new plan showing its past does, but never before the archived plan's cutoff.
      */
     suspend fun archiveAndRecreateGroup(
         uuid: UUID,
@@ -344,7 +345,7 @@ class MedicationGroupRepository @Inject constructor(
         schedule = schedule,
         medications = medications,
         notificationsEnabled = notificationsEnabled,
-        includePastScheduledSlots = false,
+        includePastScheduledSlots = true,
         replacesGroupUuid = uuid,
         now = now,
         beforeSave = { database -> archiveGroupIn(database, uuid, archivedThroughDate, now) },
@@ -401,7 +402,6 @@ class MedicationGroupRepository @Inject constructor(
                 }
                 val existingGroupRow = existingGroup?.group
                 val createdAtEpochMillis = existingGroupRow?.createdAtEpochMillis ?: nowEpochMillis
-                val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
                 val hasExistingRecords = existingGroupRow != null &&
                         database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
                 if (hasExistingRecords) {
@@ -422,12 +422,12 @@ class MedicationGroupRepository @Inject constructor(
                         }
                     }
                 }
-                val isExistingRecordlessRecreatedGroup =
-                    isExistingRecreatedGroup && !hasExistingRecords
-                val resolvedIncludePastScheduledSlots = when {
-                    existingGroupRow == null -> replacesGroupUuid == null && includePastScheduledSlots
-                    isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
-                    else -> includePastScheduledSlots
+                // A recreated plan shows its past as any plan does: the cutoff floor below keeps
+                // it off its predecessor's slots.
+                val resolvedIncludePastScheduledSlots = if (hasExistingRecords) {
+                    checkNotNull(existingGroupRow).includePastScheduledSlots
+                } else {
+                    includePastScheduledSlots
                 }
                 // A record logged after the editor loaded locks the ending, and the
                 // draft's start date may have moved with its toggle: refuse the save
@@ -501,15 +501,9 @@ class MedicationGroupRepository @Inject constructor(
                     schedule.dayBoundary.endsAtFourAm
                 }
                 val didBackfillModeChange = existingGroupRow != null &&
-                        !isExistingRecreatedGroup &&
                         !hasExistingRecords &&
                         existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
-                val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
-                        isExistingRecordlessRecreatedGroup &&
-                        existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
                 val scheduleStartLocal = schedule.startAt ?: schedule.since.atStartOfDay()
-                val recordlessRecreatedEffectiveFromLocal =
-                    maxOf(nowLocal, scheduleStartLocal).toString()
                 // A successor replaces an archived plan that nothing else replaces yet.
                 replacesGroupUuid?.let { dao.getGroup(it.toString())?.group }?.let { predecessor ->
                     val replacedBy = predecessor.replacedByGroupUuid ?: groupUuid.toString()
@@ -526,6 +520,17 @@ class MedicationGroupRepository @Inject constructor(
                     // The local cutoff its ownership window uses, whatever the zone now.
                     ?.archivedAtLocalIso
                     ?.let(LocalDateTime::parse)
+                // Nor on a date before the cutoff's own day, refused as an archive date after
+                // yesterday is: the editor never offers one.
+                predecessorCutoffLocal?.let { cutoff ->
+                    val minStartDate = medicationDay(
+                        cutoff,
+                        MedicationDayBoundary.fromSwitch(resolvedDayEndsAtFourAm),
+                    )
+                    if (schedule.since.isBefore(minStartDate)) {
+                        throw RecreatedStartBeforeCutoffException(groupUuid, schedule.since, minStartDate)
+                    }
+                }
                 val existingScheduleTimesByUuid = existingGroup
                     ?.scheduleTimes
                     ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
@@ -598,19 +603,6 @@ class MedicationGroupRepository @Inject constructor(
                             }
                         }
                         val effectiveFromLocal = when {
-                            isExistingRecreatedGroup -> when {
-                                didRecordlessRecreatedStartDateChange ->
-                                    recordlessRecreatedEffectiveFromLocal
-
-                                existingScheduleTime != null && existingTime == time ->
-                                    existingScheduleTime.keptEffectiveFrom(nowLocal, schedule.startAt)
-
-                                isExistingRecordlessRecreatedGroup ->
-                                    maxOf(nowLocal, scheduleStartLocal).toString()
-
-                                else -> nowLocal.toString()
-                            }
-
                             resolvedIncludePastScheduledSlots ->
                                 scheduleStartLocal.toString()
 
@@ -719,6 +711,15 @@ class ArchiveDateBeforeRecordedDoseException(
     minArchiveDate: LocalDate,
 ) : IllegalArgumentException(
     "Medication group $uuid archive date $archivedThroughDate is before minimum archive date $minArchiveDate."
+)
+
+/** A recreated plan's start date before its predecessor's cutoff's day, so the two would overlap. */
+class RecreatedStartBeforeCutoffException(
+    uuid: UUID,
+    since: LocalDate,
+    minStartDate: LocalDate,
+) : IllegalArgumentException(
+    "Medication group $uuid start date $since is before minimum start date $minStartDate."
 )
 
 /** An archive date of today or later: a plan is archived through a past day, or as of now. */

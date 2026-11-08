@@ -301,6 +301,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     currentState.copy(
                         groupColorKey = resolvedGroupColorKey,
                         hasAssignedGroupColor = true,
+                        recreatedStartFloor = archivedCutoffOf(currentState.recreatedFromGroupId)
+                            ?: currentState.recreatedStartFloor,
                     )
                 }
             }
@@ -506,14 +508,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
             val today = medicationDay(currentMinute.value, it.medicationDayBoundary)
-            editorStateWithUpdatedSinceDate(
+            val withDate = editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
-                // A recreated plan can only move its start to its own start date
-                // and later, never earlier — earlier would re-overlap the
-                // archived plan it was split from.
-                minimumRecreatedStartDate = maxOf(today, it.originalSinceDate ?: today),
+                // A recreated plan starts no earlier than the archived plan it
+                // was split from ends, so the two never overlap.
+                minimumRecreatedStartDate = it.minimumRecreatedStartDate(today),
             )
+            // The cutoff's own day starts at the cutoff.
+            val floor = withDate.recreatedStartFloor
+            if (floor != null && withDate.startsBeforeItsPredecessorsCutoff(currentMinute.value)) {
+                withDate.copy(scheduleStart = ScheduleStart.At(floor.toLocalTime()))
+            } else {
+                withDate
+            }
         }
     }
 
@@ -529,17 +537,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateStartTime(time: LocalTime) {
         _uiState.update {
-            if (!it.canEditScheduleStart) {
+            val withTime = it.copy(scheduleStart = ScheduleStart.At(time))
+            if (!it.canEditScheduleStart || withTime.startsBeforeItsPredecessorsCutoff(currentMinute.value)) {
                 it
             } else {
-                it.copy(scheduleStart = ScheduleStart.At(time))
+                withTime
             }
         }
     }
 
+    // Now is never before a recreated plan's cutoff, so any plan can start now.
     fun resetStartToNow() {
         _uiState.update {
-            if (!it.canEditScheduleStart || it.recreatedFromGroupId != null) {
+            if (!it.canEditScheduleStart) {
                 it
             } else {
                 editorStateStartingNow(
@@ -1470,7 +1480,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val recreateNow = currentMinute.value
         val recreateNowInstant = appTimeSource.now()
         // The archived plan ends now or at the end of a past day, so the
-        // recreated plan starts today and takes today's remaining slots.
+        // recreated plan starts now and takes today's remaining slots.
         val recreateScheduleStartDate =
             medicationDay(recreateNow, currentState.originalMedicationDayBoundary)
 
@@ -1573,6 +1583,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 if (replacementState != null) {
                     replacementState.copy(
+                        // Null while the groups flow is yet to show it archived; it sets it then.
+                        recreatedStartFloor = archivedCutoffOf(groupId),
                         activeMedicines = it.activeMedicines,
                         firstDayOfWeek = it.firstDayOfWeek,
                         isRecreatingAfterArchive = false,
@@ -1590,6 +1602,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
         }
     }
+
+    /** The cutoff of the archived plan [groupId], from the groups seen so far. */
+    private fun archivedCutoffOf(groupId: String?): LocalDateTime? =
+        latestGroups.firstOrNull { group -> group.uuid.toString() == groupId }?.archivedAtLocal
 
     private suspend fun loadPersistedGroupSnapshot(groupUuid: UUID): MedicationGroup? {
         return latestGroups.firstOrNull { group -> group.uuid == groupUuid }
@@ -1753,6 +1769,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     // Not stored with the plan: their observers don't emit again.
                     activeMedicines = currentState.activeMedicines,
                     firstDayOfWeek = currentState.firstDayOfWeek,
+                    recreatedStartFloor = archivedCutoffOf(group.recreatedFromGroupUuid?.toString()),
                     areEntriesLoaded = currentState.areEntriesLoaded,
                     latestRecordedDoseDate = currentState.latestRecordedDoseDate,
                     archiveDateWindow = resolveArchiveDateWindow(
@@ -1994,14 +2011,15 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         resolvedGroupName = resolvedGroupName,
         defaultGroupName = resolvedGroupName,
         colorKey = groupColorKey,
-        includePastScheduledSlots = false,
+        // Moved earlier later on, its start shows the doses it takes in, as a new plan's does.
+        includePastScheduledSlots = true,
         isScheduleStartDateLocked = true,
         pendingReplacementGroupId = archivedGroupId,
         duplicateSourceGroupId = null,
         notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
-        scheduleStart = ScheduleStart.WholeDay,
+        scheduleStart = ScheduleStart.Now,
     )
 }
 
@@ -2245,6 +2263,21 @@ internal fun MedicationGroupEditorUiState.scheduleStartAt(now: LocalDateTime): L
         is ScheduleStart.At -> medicationDayBoundary.dateTimeOn(sinceDate, start.time)
     }
 }
+
+/**
+ * The earliest start date of a recreated plan: its predecessor's cutoff's day, or, until that
+ * is loaded, today or its own start date if later. Null for a plan not recreated.
+ */
+internal fun MedicationGroupEditorUiState.minimumRecreatedStartDate(today: LocalDate): LocalDate? = when {
+    recreatedFromGroupId == null -> null
+    recreatedStartFloor != null -> medicationDay(recreatedStartFloor, medicationDayBoundary)
+    else -> maxOf(today, originalSinceDate ?: today)
+}
+
+/** Whether this recreated plan would start before its predecessor's cutoff, overlapping it. */
+internal fun MedicationGroupEditorUiState.startsBeforeItsPredecessorsCutoff(now: LocalDateTime): Boolean =
+    recreatedFromGroupId != null &&
+            recreatedStartFloor?.let { floor -> scheduleStartAt(now).isBefore(floor) } == true
 
 /** The schedule this draft saves, its start resolved at [now]. */
 internal fun MedicationGroupEditorUiState.toScheduleInput(now: LocalDateTime): MedicationGroupScheduleInput {
@@ -2644,6 +2677,8 @@ data class MedicationGroupEditorUiState(
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val pendingReplacementGroupId: String? = null,
     val recreatedFromGroupId: String? = null,
+    // The archived plan's cutoff: a recreated plan starts at or after it. Null until loaded.
+    val recreatedStartFloor: LocalDateTime? = null,
     // Set on an unsaved duplicate-of-archived draft: the archived source's id, persisted
     // so process death can re-derive the duplicate instead of reloading the source.
     val duplicateSourceGroupId: String? = null,
@@ -2693,8 +2728,7 @@ data class MedicationGroupEditorUiState(
                 (
                         !isEditing ||
                                 (
-                                        recreatedFromGroupId == null &&
-                                                relatedEntryCount == 0 &&
+                                        relatedEntryCount == 0 &&
                                                 plannedEntryCount == 0
                                         )
                         )

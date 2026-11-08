@@ -1046,12 +1046,13 @@ class MedicationGroupEditorDeleteRecordsTest {
         val originalGroup = testMedicationGroup(groupUuid)
         val savedGroup = originalGroup.copy(
             uuid = savedGroupUuid,
-            includePastScheduledSlots = false,
+            includePastScheduledSlots = true,
             recreatedFromGroupUuid = groupUuid,
             createdAt = Instant.parse("2026-04-25T10:00:00Z"),
             updatedAt = Instant.parse("2026-04-25T10:00:00Z"),
         )
         val savedMedications = slot<List<MedicationGroupMedicationInput>>()
+        val savedSchedule = slot<MedicationGroupScheduleInput>()
         val savedNotificationsEnabled = slot<Boolean>()
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(originalGroup))
@@ -1099,8 +1100,9 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(viewModel.uiState.value.pendingReplacementGroupId)
         assertEquals(groupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
-        assertFalse(viewModel.uiState.value.canEditBackfillOption)
-        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+        // Its past schedule is the user's, as a new plan's is, once its start moves back.
+        assertTrue(viewModel.uiState.value.canEditBackfillOption)
+        assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         assertEquals(originalGroup.name, viewModel.uiState.value.groupName)
         assertFalse(viewModel.uiState.value.isArchived)
         // The saved replacement is the new baseline: leaving it untouched loses nothing.
@@ -1119,13 +1121,15 @@ class MedicationGroupEditorDeleteRecordsTest {
                 archivedThroughDate = any(),
                 name = any(),
                 colorKey = any(),
-                schedule = any(),
+                schedule = capture(savedSchedule),
                 medications = capture(savedMedications),
                 notificationsEnabled = capture(savedNotificationsEnabled),
                 now = any(),
             )
         }
         assertNull(savedMedications.captured.single().uuid)
+        // Archived as of now, it is recreated from now.
+        assertEquals(LocalDateTime.of(2026, 4, 25, 10, 0), savedSchedule.captured.startAt)
         assertEquals(originalGroup.notificationsEnabled, savedNotificationsEnabled.captured)
         coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
@@ -1133,7 +1137,7 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
-    fun archiveAndRecreateGroup_passesSelectedBackdateToOldGroupAndStartsNewGroupToday() =
+    fun archiveAndRecreateGroup_passesSelectedBackdateToOldGroupAndStartsNewGroupNow() =
         runTest {
             val groupUuid = UUID.fromString("6f77d5f8-75cb-4899-a183-505e671c57e4")
             val savedGroupUuid = UUID.fromString("0f6d1d4a-0c7b-4410-8071-a2e19fe4e15d")
@@ -1204,6 +1208,8 @@ class MedicationGroupEditorDeleteRecordsTest {
                 )
             }
             assertEquals(LocalDate.of(2026, 4, 25), savedSchedule.captured.since)
+            // Not from today's start, which would take this morning's doses unasked.
+            assertEquals(LocalDateTime.of(2026, 4, 25, 10, 0), savedSchedule.captured.startAt)
         }
 
     @Test
