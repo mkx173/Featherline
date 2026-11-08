@@ -445,6 +445,110 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
+    fun buildPlanBatchAddEntryPlan_rerunBeforePlanStart_skipsTheManualRowsTheFirstRunWrote() {
+        val group = preStartBatchAddGroup()
+        val medicinesByUuid = listOf(estradiolMedicine(), spironolactoneMedicine()).associateBy { it.uuid }
+        val firstRun = buildPlanBatchAddEntryPlan(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 8),
+            endDate = LocalDate.of(2026, 4, 9),
+            zoneId = ZoneId.of("UTC"),
+        )
+        assertEquals(4, firstRun.entries.size)
+        // What the first run saved, as the second run reads it back.
+        val saved = firstRun.entries.map { input ->
+            testMedicationLogEntry(
+                medicine = medicinesByUuid.getValue(input.medicineUuid!!),
+                applicationType = input.applicationType,
+                doseInstruction = input.doseInstruction,
+                sourceGroupUuid = input.sourceGroupUuid,
+                appliedAt = input.appliedAt,
+                appliedAtTimeZoneId = input.appliedAtTimeZoneId,
+                scheduledFor = input.scheduledFor,
+                count = input.count,
+            )
+        }
+
+        val secondRun = buildPlanBatchAddEntryPlan(
+            group = group,
+            existingEntries = saved,
+            startDate = LocalDate.of(2026, 4, 8),
+            endDate = LocalDate.of(2026, 4, 9),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(0, secondRun.entries.size)
+        assertEquals(4, secondRun.skippedEntryCount)
+    }
+
+    @Test
+    fun buildPlanBatchAddEntryPlan_beforePlanStart_matchesAManualRowByItsOwnZonesWallClockMinute() {
+        // 09:00:30 in Tokyo is 00:00:30 UTC, but its wall-clock minute is the 09:00 dose.
+        val manualRow = testMedicationLogEntry(
+            medicine = estradiolMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-09T00:00:30Z"),
+            appliedAtTimeZoneId = "Asia/Tokyo",
+        )
+
+        val plan = buildPlanBatchAddEntryPlan(
+            group = preStartBatchAddGroup(),
+            existingEntries = listOf(manualRow),
+            startDate = LocalDate.of(2026, 4, 9),
+            endDate = LocalDate.of(2026, 4, 9),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1, plan.skippedEntryCount)
+        assertEquals(listOf(spironolactoneMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
+    }
+
+    @Test
+    fun buildPlanBatchAddEntryPlan_beforePlanStart_aManualRowOfAnotherMedicineDoesNotBlock() {
+        val manualRow = testMedicationLogEntry(
+            medicine = spironolactoneMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-09T09:00:00Z"),
+            appliedAtTimeZoneId = "UTC",
+        )
+
+        val plan = buildPlanBatchAddEntryPlan(
+            group = preStartBatchAddGroup(
+                medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+            ),
+            existingEntries = listOf(manualRow),
+            startDate = LocalDate.of(2026, 4, 9),
+            endDate = LocalDate.of(2026, 4, 9),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(0, plan.skippedEntryCount)
+        assertEquals(listOf(estradiolMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
+    }
+
+    @Test
+    fun buildPlanBatchAddEntryPlan_fromPlanStart_aManualRowAtTheSlotDoesNotSkipThePlanRow() {
+        val manualRow = testMedicationLogEntry(
+            medicine = estradiolMedicine(),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-10T09:00:00Z"),
+            appliedAtTimeZoneId = "UTC",
+        )
+        val group = preStartBatchAddGroup()
+
+        val plan = buildPlanBatchAddEntryPlan(
+            group = group,
+            existingEntries = listOf(manualRow),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(0, plan.skippedEntryCount)
+        assertEquals(listOf(group.uuid, group.uuid), plan.entries.map { entry -> entry.sourceGroupUuid })
+    }
+
+    @Test
     fun buildPlanBatchAddEntries_iteratesMedicationDaysAtFourAm() {
         val group = medicationGroup(
             uuid = UUID.fromString("8f0d5c3c-8f31-4a0a-9d4b-0d1b8f1c2a11"),
@@ -1390,6 +1494,24 @@ class PlanBatchAddViewModelTest {
             updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
         )
     }
+
+    /** A daily 09:00 plan starting on Apr 10, so batch add over Apr 8-9 writes manual rows. */
+    private fun preStartBatchAddGroup(
+        medications: List<MedicationGroupMedication> = listOf(
+            testMedicationGroupMedication(medicine = estradiolMedicine(), count = 2),
+            testMedicationGroupMedication(medicine = spironolactoneMedicine()),
+        ),
+    ) = medicationGroup(
+        uuid = UUID.fromString("b4b4b4b4-0000-4000-8000-000000000000"),
+        schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 10),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(9, 0)),
+        ),
+        medications = medications,
+    )
 
     private fun estradiolMedicine() = testMedicine(
         uuid = UUID.fromString("e2e2e2e2-0000-0000-0000-000000000000"),

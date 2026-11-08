@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -29,6 +30,7 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
@@ -48,6 +50,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 
@@ -567,6 +570,17 @@ internal fun buildPlanBatchAddEntryPlan(
         .filter { entry -> entry.sourceGroupUuid == group.uuid }
         .mapNotNull(MedicationLogEntry::scheduledFor)
         .toSet()
+    // Pre-start occurrences are saved as manual rows, so a rerun finds them by medicine and
+    // wall-clock minute in their own zone. Any matching row skips the medicine whatever its
+    // count, as a plan row skips its slot. It also skips a hand-entered dose at that minute.
+    val manualDoses = existingEntries
+        .asSequence()
+        .filter { entry -> entry.sourceGroupUuid == null }
+        .map { entry ->
+            MedicationSignature.fromLogEntry(entry) to
+                    appliedAtAsLocalDateTime(entry, zoneId).truncatedTo(ChronoUnit.MINUTES)
+        }
+        .toSet()
 
     val entries = mutableListOf<MedicationLogEntryInput>()
     var skippedEntryCount = 0
@@ -594,6 +608,12 @@ internal fun buildPlanBatchAddEntryPlan(
         }
 
         group.medications.forEach { medication ->
+            if (isBeforePlanStart &&
+                (MedicationSignature.fromGroupMedication(medication) to occurrence) in manualDoses
+            ) {
+                skippedEntryCount++
+                return@forEach
+            }
             entries += MedicationLogEntryInput(
                 medicineUuid = medication.medicineUuid,
                 applicationType = medication.applicationType,
