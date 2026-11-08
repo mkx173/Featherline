@@ -95,7 +95,8 @@ class MedicationGroupEditorArchiveActionTest {
         // Backdated/backfilled plan: schedule started Jun 1, today is Jun 3, and
         // the only dose is on the start day. Earlier days must stay selectable —
         // the floor is the plan's start, not the wall-clock creation date. This
-        // is the "cannot select days other than today" regression.
+        // is the "cannot select days other than today" regression. The window
+        // ends yesterday.
         val window = resolveArchiveDateWindow(
             scheduleSince = LocalDate.of(2026, 6, 1),
             latestRecordedDoseDate = LocalDate.of(2026, 6, 1),
@@ -105,7 +106,7 @@ class MedicationGroupEditorArchiveActionTest {
 
         assertTrue(window.isLoaded)
         assertEquals(LocalDate.of(2026, 6, 1), window.minDate)
-        assertEquals(LocalDate.of(2026, 6, 3), window.maxDate)
+        assertEquals(LocalDate.of(2026, 6, 2), window.maxDate)
         assertTrue(window.isSelectable)
     }
 
@@ -120,7 +121,7 @@ class MedicationGroupEditorArchiveActionTest {
 
         assertTrue(window.isLoaded)
         assertEquals(LocalDate.of(2026, 4, 3), window.minDate)
-        assertEquals(LocalDate.of(2026, 4, 5), window.maxDate)
+        assertEquals(LocalDate.of(2026, 4, 4), window.maxDate)
         assertTrue(window.isSelectable)
     }
 
@@ -135,7 +136,7 @@ class MedicationGroupEditorArchiveActionTest {
 
         assertFalse(window.isLoaded)
         assertNull(window.minDate)
-        assertEquals(LocalDate.of(2026, 4, 5), window.maxDate)
+        assertEquals(LocalDate.of(2026, 4, 4), window.maxDate)
         assertFalse(window.isSelectable)
     }
 
@@ -156,18 +157,67 @@ class MedicationGroupEditorArchiveActionTest {
     }
 
     @Test
-    fun resolveArchiveDateWindow_blocksWhenLatestRecordedDoseIsAfterToday() {
+    fun resolveArchiveDateWindow_offersOnlyNowWhenLatestRecordedDoseIsToday() {
+        // A record today puts the floor on today, after the window's end: no
+        // date can be picked, and "Now" is the only end.
         val window = resolveArchiveDateWindow(
             scheduleSince = LocalDate.of(2026, 4, 1),
-            latestRecordedDoseDate = LocalDate.of(2026, 4, 8),
+            latestRecordedDoseDate = LocalDate.of(2026, 4, 5),
             areEntriesLoaded = true,
             today = LocalDate.of(2026, 4, 5),
         )
 
         assertTrue(window.isLoaded)
-        assertEquals(LocalDate.of(2026, 4, 8), window.minDate)
-        assertEquals(LocalDate.of(2026, 4, 5), window.maxDate)
+        assertEquals(LocalDate.of(2026, 4, 5), window.minDate)
+        assertEquals(LocalDate.of(2026, 4, 4), window.maxDate)
         assertFalse(window.isSelectable)
+        assertFalse(isArchiveDateSelectionInvalid(archivedThroughDate = null, window = window))
+    }
+
+    @Test
+    fun resolveArchiveDateWindow_endsYesterdaySoTodayCantBePicked() {
+        // Archived through today, the plan would stop reminding now but own
+        // tonight's slots, so they'd fall through. "Now" covers today.
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 1),
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertEquals(LocalDate.of(2026, 4, 4), window.maxDate)
+        assertTrue(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 4, 5),
+                window = window,
+            )
+        )
+        assertFalse(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 4, 4),
+                window = window,
+            )
+        )
+    }
+
+    @Test
+    fun resolveArchiveDateWindow_offersOnlyNowForAPlanStartedToday() {
+        val window = resolveArchiveDateWindow(
+            scheduleSince = LocalDate.of(2026, 4, 5),
+            latestRecordedDoseDate = null,
+            areEntriesLoaded = true,
+            today = LocalDate.of(2026, 4, 5),
+        )
+
+        assertTrue(window.isLoaded)
+        assertFalse(window.isSelectable)
+        assertFalse(isArchiveDateSelectionInvalid(archivedThroughDate = null, window = window))
+        assertTrue(
+            isArchiveDateSelectionInvalid(
+                archivedThroughDate = LocalDate.of(2026, 4, 5),
+                window = window,
+            )
+        )
     }
 
     @Test

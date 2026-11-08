@@ -170,7 +170,8 @@ class MedicationGroupRepositoryTest {
     fun archiveGroup_setsEndOfDayCutoffWithoutTouchingNotificationsInSingleTransaction() = runTest {
         val groupUuid = UUID.fromString("38789ce3-9978-402c-8fd5-e660d436b8c4")
         val now = Instant.parse("2026-04-30T08:00:45Z")
-        val archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate()
+        // Yesterday, the latest day a plan can be archived through.
+        val archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate().minusDays(1)
         val expectedCutoffLocalIso = archivedThroughDate.plusDays(1).atStartOfDay().toString()
         val expectedCutoffEpochMillis = archivedThroughDate.plusDays(1).atStartOfDay()
             .atZone(ZoneId.systemDefault())
@@ -239,7 +240,7 @@ class MedicationGroupRepositoryTest {
         try {
             repository.archiveGroup(
                 uuid = groupUuid,
-                archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate(),
+                archivedThroughDate = now.atZone(ZoneId.systemDefault()).toLocalDate().minusDays(1),
                 now = now,
             )
             fail("Expected current or future planned slots to block archiving")
@@ -298,7 +299,8 @@ class MedicationGroupRepositoryTest {
     @Test
     fun archiveGroup_fourAmCutoffOwnsTheNextDawnAndAllowsItsLog() = runTest {
         val groupUuid = UUID.fromString("c0ffee00-0000-4000-8000-000000000004")
-        val now = Instant.parse("2026-10-31T08:00:45Z")
+        // The day after the selected date: a plan is archived through yesterday at the latest.
+        val now = Instant.parse("2026-11-01T08:00:45Z")
         val selectedDate = LocalDate.of(2026, 10, 31)
         val systemZone = ZoneId.systemDefault()
         val expectedCutoffLocal = LocalDateTime.of(2026, 11, 1, 4, 0)
@@ -454,13 +456,13 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveGroup_rejectsExplicitDateAfterToday() = runTest {
+    fun archiveGroup_rejectsExplicitDateOfToday() = runTest {
         // The repository is the authoritative invariant enforcer (the UI clamp is
-        // not trusted): an explicitly picked date later than today must be
-        // rejected. Persisting a future end-of-day cutoff while marking
-        // archivedAt now would hide the group from active lists/reminders
-        // immediately even though its plan still owns days up to the future
-        // cutoff. The "Now" default (null) is exempt — it is never future.
+        // not trusted): an explicitly picked date of today or later must be
+        // rejected. Archiving through today stores tomorrow's day start as the
+        // cutoff while archivedAt hides the group from active lists/reminders
+        // now, so today's later slots would get no reminder from any plan. The
+        // "Now" default (null) is exempt — it is never future.
         val groupUuid = UUID.fromString("a17e0000-0000-4000-8000-00000000fade")
         val now = Instant.parse("2026-06-03T08:00:45Z")
         coEvery {
@@ -478,10 +480,10 @@ class MedicationGroupRepositoryTest {
         try {
             repository.archiveGroup(
                 uuid = groupUuid,
-                archivedThroughDate = LocalDate.of(2026, 6, 10),
+                archivedThroughDate = LocalDate.of(2026, 6, 3),
                 now = now,
             )
-            fail("Expected archive date after today to be rejected")
+            fail("Expected an archive through today to be rejected")
         } catch (expected: ArchiveDateAfterTodayException) {
             assertTrue(expected.message.orEmpty().contains("after maximum archive date"))
         }
@@ -489,6 +491,83 @@ class MedicationGroupRepositoryTest {
         coVerify(exactly = 0) {
             medicationGroupDao.updateGroupArchiveState(any(), any(), any(), any())
         }
+    }
+
+    @Test
+    fun archiveAndRecreateGroup_throughYesterdayHandsTodaysRemainingSlotsToTheSuccessor() = runTest {
+        // Archived through Oct 28 at 14:00 on Oct 29: the old plan ends at the start of today,
+        // and its successor starts today and takes tonight's 22:00.
+        val predecessorUuid = UUID.fromString("4c5d6e7f-0000-4000-8000-000000000003")
+        val zone = ZoneId.systemDefault()
+        val nowLocal = LocalDateTime.of(2026, 10, 29, 14, 0)
+        val time = LocalTime.of(22, 0)
+        var predecessor = testGroupEntity(
+            groupUuid = predecessorUuid,
+            times = listOf(time),
+            scheduleSinceEpochDay = LocalDate.of(2026, 10, 1).toEpochDay(),
+        )
+        coEvery { medicationGroupDao.getGroup(predecessorUuid.toString()) } answers { predecessor }
+        coEvery {
+            medicationGroupDao.updateGroupArchiveState(predecessorUuid.toString(), any(), any(), any())
+        } answers {
+            predecessor = predecessor.copy(
+                group = predecessor.group.copy(
+                    archivedAtEpochMillis = secondArg(),
+                    archivedAtLocalIso = thirdArg(),
+                ),
+            )
+        }
+        coEvery { medicationLogDao.getEntriesForGroup(predecessorUuid.toString()) } returns emptyList()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        val savedGroup = slot<MedicationGroupEntity>()
+        val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+        val today = nowLocal.toLocalDate()
+
+        repository.archiveAndRecreateGroup(
+            uuid = predecessorUuid,
+            archivedThroughDate = today.minusDays(1),
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(time),
+                timeSlots = listOf(MedicationGroupScheduleTimeInput(uuid = null, time = time)),
+                startAt = today.atStartOfDay(),
+                dayBoundary = MedicationDayBoundary.Midnight,
+            ),
+            medications = emptyList(),
+            notificationsEnabled = true,
+            now = nowLocal.atZone(zone).toInstant(),
+        )
+
+        coVerify {
+            medicationGroupDao.upsertGroupWithItems(
+                group = capture(savedGroup),
+                items = any(),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = any(),
+            )
+        }
+        val cutoff = LocalDateTime.parse(predecessor.group.archivedAtLocalIso)
+        assertEquals(today.atStartOfDay(), cutoff)
+        assertEquals(today.toEpochDay(), savedGroup.captured.scheduleSinceEpochDay)
+        val effectiveFrom = LocalDateTime.parse(savedTimes.captured.single().effectiveFromLocalIso)
+        assertEquals(nowLocal, effectiveFrom)
+        assertSeamOwnedOnce(
+            cutoff = cutoff,
+            predecessorBoundary = MedicationDayBoundary.Midnight,
+            recreatedBoundary = MedicationDayBoundary.Midnight,
+            recreatedSince = today,
+            effectiveFrom = effectiveFrom,
+            time = time,
+        )
     }
 
     @Test

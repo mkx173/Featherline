@@ -171,8 +171,9 @@ class MedicationGroupRepository @Inject constructor(
     suspend fun archiveGroup(
         uuid: UUID,
         // null archives as of `now` (the confirm-time instant, minute-granular),
-        // matching the original archive behavior; a non-null date archives
-        // through the end of that medication day (the plan owns the whole day).
+        // matching the original archive behavior; a non-null date, yesterday at
+        // the latest, archives through the end of that medication day (the
+        // plan owns the whole day).
         archivedThroughDate: LocalDate? = null,
         now: Instant = Instant.now(),
     ) {
@@ -226,10 +227,12 @@ class MedicationGroupRepository @Inject constructor(
         if (archivedThroughDate != null) {
             // Ceiling: never store a future cutoff. archivedAt is set at the
             // mutation instant, so a future cutoff would hide the group from
-            // active lists/reminders now while its plan still owns days up to
-            // that future day. The UI clamps to today, but the repository is
-            // the authoritative invariant enforcer for non-UI callers.
-            val maxArchiveDate = medicationDay(nowLocal, boundary)
+            // active lists/reminders now while its plan still owns the slots
+            // up to that cutoff. Through yesterday at the latest, the cutoff is
+            // at most the start of today's medication day; "Now" covers today.
+            // The UI clamps to yesterday, but the repository is the
+            // authoritative invariant enforcer for non-UI callers.
+            val maxArchiveDate = medicationDay(nowLocal, boundary).minusDays(1)
             if (archivedThroughDate.isAfter(maxArchiveDate)) {
                 throw ArchiveDateAfterTodayException(
                     uuid = uuid,
@@ -718,6 +721,7 @@ class ArchiveDateBeforeRecordedDoseException(
     "Medication group $uuid archive date $archivedThroughDate is before minimum archive date $minArchiveDate."
 )
 
+/** An archive date of today or later: a plan is archived through a past day, or as of now. */
 class ArchiveDateAfterTodayException(
     uuid: UUID,
     archivedThroughDate: LocalDate,

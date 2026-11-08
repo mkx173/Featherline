@@ -313,8 +313,9 @@ class MedicationGroupEditorMedicationDayTest {
             val savedSchedule = stubArchiveAndRecreateGroup(returns = savedGroupUuid)
             val viewModel = editingViewModel(now = now)
             advanceUntilIdle()
+            // The window ends the day before the plan's own today.
             assertEquals(
-                LocalDate.of(2026, 10, 28),
+                LocalDate.of(2026, 10, 27),
                 viewModel.uiState.value.archiveDateWindow.maxDate,
             )
 
@@ -360,12 +361,12 @@ class MedicationGroupEditorMedicationDayTest {
         val viewModel = editingViewModel(now = LocalDateTime.of(2026, 10, 29, 2, 0))
         advanceUntilIdle()
 
-        // The midnight plan's 01:00 record is on Oct 29, so today must be too, or
-        // archiving through today would land before its record.
+        // The midnight plan's 01:00 record and today are both Oct 29, so the window,
+        // ending yesterday, is empty: the plan can only end now.
         val window = viewModel.uiState.value.archiveDateWindow
         assertEquals(LocalDate.of(2026, 10, 29), window.minDate)
-        assertEquals(LocalDate.of(2026, 10, 29), window.maxDate)
-        assertTrue(window.isSelectable)
+        assertEquals(LocalDate.of(2026, 10, 28), window.maxDate)
+        assertFalse(window.isSelectable)
     }
 
     @Test
@@ -522,7 +523,7 @@ class MedicationGroupEditorMedicationDayTest {
         advanceUntilIdle()
 
         assertEquals(MedicationDayBoundary.FourAm, viewModel.uiState.value.medicationDayBoundary)
-        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.archiveDateWindow.maxDate)
+        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.archiveDateWindow.maxDate)
         viewModel.archiveAndRecreateGroup()
         advanceUntilIdle()
         assertEquals(LocalDate.of(2026, 10, 29), savedSchedule.captured.since)

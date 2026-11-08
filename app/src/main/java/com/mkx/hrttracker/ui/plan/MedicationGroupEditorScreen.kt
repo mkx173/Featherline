@@ -1093,9 +1093,9 @@ private fun MedicationGroupEditorScreenContent(
                                 supportingText = when {
                                     !uiState.archiveDateWindow.isLoaded -> null
                                     // No explicit pick archives as of now; an explicit date
-                                    // (incl. today) archives through the end of that day. A
-                                    // not-yet-started plan has no selectable backdate and
-                                    // stays on "Now".
+                                    // (yesterday at the latest) archives through the end of
+                                    // that day. A plan started or recorded today or later
+                                    // has no selectable backdate and stays on "Now".
                                     selectedArchiveDateValue == null ->
                                         stringResource(R.string.archive_medication_group_end_date_now)
 

@@ -1469,13 +1469,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
         val recreateNow = currentMinute.value
         val recreateNowInstant = appTimeSource.now()
-        // Start the recreated plan after the archived plan's cutoff so the two
-        // never own the same day. An end-of-day archive of today pushes the new
-        // start to tomorrow; "now" (null) or an earlier-date archive keeps it at
-        // today.
-        val recreateToday = medicationDay(recreateNow, currentState.originalMedicationDayBoundary)
+        // The archived plan ends now or at the end of a past day, so the
+        // recreated plan starts today and takes today's remaining slots.
         val recreateScheduleStartDate =
-            maxOf(recreateToday, archivedThroughDate?.plusDays(1) ?: recreateToday)
+            medicationDay(recreateNow, currentState.originalMedicationDayBoundary)
 
         viewModelScope.launch {
             _uiState.update {
@@ -2935,10 +2932,10 @@ private fun LocalDate?.isOutsideArchiveWindow(
 
 // Shared by the ViewModel archive guards and the dialog confirm button so both
 // agree on what counts as a valid archive-date selection. The "Now" default
-// (null) only needs the window loaded — a not-yet-started plan whose window is
-// loaded but has no selectable backdate (min > today) can still be archived as
-// of now. An explicitly picked date additionally needs a selectable window and
-// must fall inside [min, max].
+// (null) only needs the window loaded — a plan whose window is loaded but has
+// no selectable backdate (min > yesterday: it starts today or later, or has a
+// record today) can still be archived as of now. An explicitly picked date
+// additionally needs a selectable window and must fall inside [min, max].
 internal fun isArchiveDateSelectionInvalid(
     archivedThroughDate: LocalDate?,
     window: ArchiveDateWindowUiState,
@@ -2957,9 +2954,13 @@ internal fun resolveArchiveDateWindow(
     areEntriesLoaded: Boolean,
     today: LocalDate,
 ): ArchiveDateWindowUiState {
+    // Through yesterday at the latest: archived through today, the plan would stop
+    // reminding now but still own tonight's slots, so they'd fall through. "Now"
+    // covers today.
+    val maxDate = today.minusDays(1)
     if (!areEntriesLoaded || scheduleSince == null) {
         return ArchiveDateWindowUiState(
-            maxDate = today,
+            maxDate = maxDate,
             isLoaded = false,
             isSelectable = false,
         )
@@ -2967,9 +2968,9 @@ internal fun resolveArchiveDateWindow(
     val minDate = maxOf(scheduleSince, latestRecordedDoseDate ?: scheduleSince)
     return ArchiveDateWindowUiState(
         minDate = minDate,
-        maxDate = today,
+        maxDate = maxDate,
         isLoaded = true,
-        isSelectable = !minDate.isAfter(today),
+        isSelectable = !minDate.isAfter(maxDate),
     )
 }
 
