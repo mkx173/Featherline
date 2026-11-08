@@ -39,7 +39,6 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
@@ -95,6 +94,7 @@ import com.mkx.hrttracker.ui.components.HazeTopAppBar
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtSection
+import com.mkx.hrttracker.ui.components.HrtTooltipBox
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -748,7 +748,7 @@ private fun PatchOffInfoTooltipIcon(message: String) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
     ) {
-        TooltipBox(
+        HrtTooltipBox(
             positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                 TooltipAnchorPosition.Below,
             ),

@@ -8,7 +8,6 @@ import android.content.res.Resources
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -77,6 +76,7 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockBackHandler
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity() {
                     )
                     when {
                         contentLayers.showInWindowLockScreen && !contentLayers.showHomeShell -> {
-                            BackHandler(enabled = true) { }
+                            AppLockBackHandler(enabled = true)
                             AppLockScreen(
                                 errorMessageRes = appLockUiState.errorMessageRes,
                                 onUnlockClick = appLockViewModel::requestUnlock
@@ -497,7 +497,7 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
 
-                                BackHandler(enabled = contentLayers.showInWindowLockScreen) { }
+                                AppLockBackHandler(enabled = contentLayers.showInWindowLockScreen)
                                 AnimatedVisibility(
                                     visible = contentLayers.showInWindowLockScreen,
                                     modifier = Modifier.fillMaxSize(),

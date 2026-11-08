@@ -7,18 +7,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorPosition
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipScope
+import androidx.compose.material3.TooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.window.PopupPositionProvider
 
 data class HrtDropdownMenuItem(
     val text: String,
@@ -124,6 +130,30 @@ fun HrtDropdownMenuPopup(
         CountOpenMenu(exemption)
         content()
     }
+}
+
+/**
+ * [TooltipBox] for the app's tooltips. Its popup is a window of its own, which a persistent one
+ * keeps up until dismissed, over the lock screen too: under the app lock, it's gone at once, as a
+ * menu's is ([HrtDropdownMenuPopup]), so nothing in it, such as a colour picker, takes a tap there,
+ * and it's open again after.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HrtTooltipBox(
+    positionProvider: PopupPositionProvider,
+    tooltip: @Composable TooltipScope.() -> Unit,
+    state: TooltipState,
+    content: @Composable () -> Unit,
+) {
+    val locked by rememberUpdatedState(LocalAppLocked.current)
+    // TooltipBox shows the popup while its state is visible.
+    val shownState = remember(state) {
+        object : TooltipState by state {
+            override val isVisible: Boolean get() = state.isVisible && !locked
+        }
+    }
+    TooltipBox(positionProvider = positionProvider, tooltip = tooltip, state = shownState, content = content)
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

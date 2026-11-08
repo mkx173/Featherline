@@ -1,8 +1,16 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.activity.ComponentActivity
+import androidx.activity.ComponentDialog
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TooltipState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,28 +19,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.lifecycle.ViewModel
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.ui.security.AppLockBackHandler
+import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.settings.WeightSheet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowDialog
 
 /**
  * Sheets, dialogs and menus are windows of their own, above the in-window lock screen. While the
  * app is locked they must not show, and must not close either: a half-filled sheet comes back
- * after unlock, as does one restored after process death under the lock.
+ * after unlock, as does one restored after process death under the lock. Back doesn't reach them,
+ * nor anything else under the lock screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(RobolectricTestRunner::class)
@@ -40,10 +56,39 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34])
 class AppLockModalWindowsTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private var locked by mutableStateOf(false)
     private var dismissals = 0
+
+    // MainActivity's layers: the home shell, and the lock screen's back handler over it.
+    @Composable
+    private fun Shell(content: @Composable () -> Unit) {
+        HiddenUnderAppLock(locked = locked, content = content)
+        AppLockBackHandler(enabled = locked)
+    }
+
+    // A top-level page, as TopLevelPager hosts Settings, with a dispatcher of its own that its
+    // sheets' windows inherit: their back handlers sit on the activity's, not their own window's.
+    @Composable
+    private fun TopLevelPage(content: @Composable () -> Unit) {
+        CompositionLocalProvider(
+            LocalNavigationEventDispatcherOwner provides rememberNavigationEventDispatcherOwner(),
+            content = content,
+        )
+    }
+
+    // Back, as the lock screen's window gets it, and as each modal window would if it had focus.
+    private fun pressBack() {
+        composeRule.runOnIdle {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+            // Not isShowing, false for a window hidden under the lock: one not dismissed.
+            ShadowDialog.getShownDialogs().filter { it.window!!.decorView.isAttachedToWindow }.forEach { dialog ->
+                (dialog as ComponentDialog).onBackPressedDispatcher.onBackPressed()
+            }
+        }
+        composeRule.waitForIdle()
+    }
 
     @Test
     fun weightSheet_hidesUnderTheLock_andComesBackWithItsDraftOnUnlock() {
@@ -81,6 +126,86 @@ class AppLockModalWindowsTest {
     }
 
     @Test
+    fun backUnderTheLock_leavesAnOpenSheetWithItsDraft() {
+        var open by mutableStateOf(false)
+        composeRule.setContent {
+            Shell {
+                TopLevelPage {
+                    if (open) {
+                        WeightSheet(
+                            profile = UserProfile(
+                                weightKg = 62.4,
+                                weightOriginalValue = 62.4,
+                                weightOriginalUnit = WeightUnit.KILOGRAMS,
+                            ),
+                            syncEnabled = false,
+                            healthConnect = HealthConnectCapabilityState(sdkAvailable = true, hasAccess = true),
+                            isSyncing = false,
+                            readingProblem = null,
+                            isInProgress = false,
+                            onSave = { _, _ -> },
+                            onClear = {},
+                            onSyncEnable = {},
+                            onSyncDisable = {},
+                            onSyncNow = {},
+                            onDismissRequest = { dismissals++ },
+                        )
+                    }
+                }
+            }
+        }
+        // Opened after launch, so its back handler registers after the lock screen's.
+        open = true
+        composeRule.onNodeWithText("62.4").performTextReplacement("65")
+
+        locked = true
+        pressBack()
+        assertEquals("Back under the lock screen dismissed the sheet hidden there", 0, dismissals)
+
+        locked = false
+        composeRule.onNodeWithText("65").assertIsDisplayed()
+        assertEquals(0, dismissals)
+
+        pressBack()
+        assertEquals("Back after the unlock didn't dismiss the sheet", 1, dismissals)
+    }
+
+    @Test
+    fun backUnderTheLock_leavesTheDiscardPromptOverADirtyEditor() {
+        val unsavedChanges = UnsavedChangesState()
+        val editor = object : ViewModel() {}
+        var pops = 0
+        var editorOpen by mutableStateOf(false)
+        composeRule.setContent {
+            Shell {
+                CompositionLocalProvider(LocalUnsavedChanges provides unsavedChanges) {
+                    if (editorOpen) unsavedChangesBack(editor = editor, onBack = { pops++; true })
+                    UnsavedChangesDialog(hazeState = null)
+                }
+            }
+        }
+        // Pushed after launch, so its back handler registers after the lock screen's.
+        editorOpen = true
+        unsavedChanges.update(editor, dirty = true)
+        pressBack()
+        composeRule.onNodeWithText("Discard your unsaved changes?").assertIsDisplayed()
+        val leave = unsavedChanges.pendingLeave
+
+        locked = true
+        pressBack()
+        assertSame(
+            "Back under the lock screen reached the editor or the prompt hidden there",
+            leave,
+            unsavedChanges.pendingLeave,
+        )
+        assertEquals("The hidden prompt's window was re-created", 1, ShadowDialog.getShownDialogs().size)
+
+        locked = false
+        composeRule.onNodeWithText("Discard").performClick()
+        assertEquals(1, pops)
+    }
+
+    @Test
     fun backupPasswordDialog_hidesUnderTheLock_andKeepsItsPasswordForUnlock() {
         var confirmed: String? = null
         composeRule.setContent {
@@ -105,6 +230,12 @@ class AppLockModalWindowsTest {
         composeRule.onNodeWithText("Export").performClick()
         assertEquals("secret12", confirmed)
         assertEquals(0, dismissals)
+
+        composeRule.runOnIdle {
+            (ShadowDialog.getLatestDialog() as ComponentDialog).onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+        assertEquals("Back on the dialog after the unlock didn't dismiss it", 1, dismissals)
     }
 
     @Test
@@ -162,6 +293,36 @@ class AppLockModalWindowsTest {
         assertEquals(0, dismissals)
     }
 
+    // A persistent tooltip's popup, such as the group colour picker's, is a window of its own.
+    @Test
+    fun persistentTooltip_isGoneUnderTheLock_andOpenAgainOnUnlock() {
+        var picked = 0
+        val tooltipState = TooltipState(initialIsVisible = true, isPersistent = true)
+        composeRule.setContent {
+            CompositionLocalProvider(LocalAppLocked provides locked) {
+                HrtTooltipBox(
+                    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                        TooltipAnchorPosition.Below,
+                    ),
+                    tooltip = {
+                        RichTooltip { TextButton(onClick = { picked++ }) { Text("Rose") } }
+                    },
+                    state = tooltipState,
+                ) {
+                    Text("Group colour")
+                }
+            }
+        }
+        composeRule.onNodeWithText("Rose").assertIsDisplayed()
+
+        locked = true
+        composeRule.onNodeWithText("Rose").assertDoesNotExist()
+
+        locked = false
+        composeRule.onNodeWithText("Rose").performClick()
+        assertEquals(1, picked)
+    }
+
     @Test
     fun discardDialog_waitsUnderTheLock_andAsksOnUnlock() {
         val unsavedChanges = UnsavedChangesState()
@@ -170,7 +331,10 @@ class AppLockModalWindowsTest {
             unsavedChanges.update(editor, dirty = true)
         }
         var left = 0
-        // A Home deep link leaving a dirty editor while the app is locked.
+        // Left asking when the activity is recreated, as a font size changed while away does,
+        // and comes back locked: the retained leave's prompt is composed again under the lock.
+        // (A Home deep link waits for the unlock before it asks; nor does a leave outlive the
+        // process.)
         unsavedChanges.leaveBackStack { left++; true }
         locked = true
         composeRule.setContent {
@@ -180,6 +344,12 @@ class AppLockModalWindowsTest {
         }
 
         composeRule.onNodeWithText("Discard your unsaved changes?").assertIsNotDisplayed()
+        // Not even shown and then hidden: it would draw a frame or more over the lock screen.
+        assertEquals(
+            "A window was shown under the lock screen",
+            0,
+            ShadowDialog.getShownDialogs().size,
+        )
         assertNotNull(unsavedChanges.pendingLeave)
 
         locked = false

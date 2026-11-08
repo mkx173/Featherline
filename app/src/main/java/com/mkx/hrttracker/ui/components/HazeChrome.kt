@@ -73,6 +73,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
+import androidx.navigationevent.findViewTreeNavigationEventDispatcherOwner
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import dev.chrisbanes.haze.HazeInput
@@ -406,11 +407,18 @@ internal val LocalAppLocked = compositionLocalOf { false }
 
 // Hides the modal window whose content it is applied to while the app lock is up, as Dialog.hide()
 // does: still composed, the modal keeps what it holds, such as a half-typed draft, and shows again
-// on unlock. Composed, to reach the window the content lands in rather than the caller's.
+// on unlock. Its own back does nothing meanwhile, would it get any. One first composed under the
+// lock isn't shown at all until the unlock, see rememberModalWindowAllowed. Composed, to reach the
+// window the content lands in rather than the caller's.
 private fun Modifier.hiddenUnderAppLock(): Modifier = composed {
     val locked = LocalAppLocked.current
     val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-    SideEffect { window?.decorView?.visibility = if (locked) View.GONE else View.VISIBLE }
+    SideEffect {
+        val decorView = window?.decorView ?: return@SideEffect
+        decorView.visibility = if (locked) View.GONE else View.VISIBLE
+        decorView.findViewTreeNavigationEventDispatcherOwner()?.navigationEventDispatcher?.isEnabled =
+            !locked
+    }
     Modifier
 }
 
@@ -432,14 +440,19 @@ val LocalTopAppBarBesideSideNavigation = compositionLocalOf { false }
 //    lifecycle event the hold could observe.
 //  - still current: settling in (tab return, config change, paused
 //    activity) — show when the host resumes, as before.
+// Held back too while first composed under the app lock: a window hides only
+// once its content composes, after it has drawn a frame or more over the lock
+// screen, so it isn't shown until the unlock. Rather than lose a draft, one
+// shown before the lock hides under it (hiddenUnderAppLock).
 // Once shown, a modal stays shown through later lifecycle dips (e.g. the
 // activity pausing behind a system dialog).
 @Composable
 internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val isHostCurrentDestination = LocalModalHostIsCurrentDestination.current
+    val locked = LocalAppLocked.current
     var allowed by remember {
-        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        mutableStateOf(!locked && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
     val currentOnDismissRequest by rememberUpdatedState(onDismissRequest)
     val hostShown = LocalModalHostShown.current
@@ -459,13 +472,13 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
         // One drop per held window, whichever of the two checks fires first.
         val dropped = remember { mutableStateOf(false) }
         val leaving = isHostCurrentDestination?.invoke() == false
-        LaunchedEffect(leaving) {
+        LaunchedEffect(leaving, locked) {
             if (leaving) {
                 if (!dropped.value) {
                     dropped.value = true
                     currentOnDismissRequest()
                 }
-            } else {
+            } else if (!locked) {
                 lifecycle.withResumed { }
                 allowed = true
             }

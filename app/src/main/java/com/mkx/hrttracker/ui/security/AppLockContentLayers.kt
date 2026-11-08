@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +18,10 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.navigationevent.NavigationEventDispatcher
+import androidx.navigationevent.NavigationEventHandler
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.mkx.hrttracker.ui.components.LocalAppLocked
 
 internal data class AppLockContentLayers(
@@ -69,6 +74,28 @@ internal fun HiddenUnderAppLock(
             .focusGroup(),
     ) {
         CompositionLocalProvider(LocalAppLocked provides locked, content = content)
+    }
+}
+
+/**
+ * Back on the in-window lock screen, while [enabled]: it does nothing, and nothing under it gets
+ * it either, whenever it registered: not the shell's own handlers, such as an editor's or the
+ * NavHost's, nor a hidden sheet's, which inherits a top-level page's dispatcher (TopLevelPager).
+ * Every other one is on the default priority; this one is on the overlay's, ahead of them all.
+ */
+@Composable
+internal fun AppLockBackHandler(enabled: Boolean) {
+    val dispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher ?: return
+    DisposableEffect(dispatcher, enabled) {
+        if (!enabled) return@DisposableEffect onDispose { }
+        val handler = object : NavigationEventHandler<NavigationEventInfo>(
+            initialInfo = NavigationEventInfo.None,
+            isBackEnabled = true,
+        ) {
+            override fun onBackCompleted() = Unit
+        }
+        dispatcher.addHandler(handler, NavigationEventDispatcher.PRIORITY_OVERLAY)
+        onDispose { handler.remove() }
     }
 }
 

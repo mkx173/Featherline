@@ -53,7 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
@@ -118,6 +117,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.components.HrtSectionHeader
+import com.mkx.hrttracker.ui.components.HrtTooltipBox
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.NavigationLockEffect
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -2449,7 +2449,7 @@ private fun MedicationGroupColorPickerLeadingIcon(
     BackHandler(enabled = tooltipState.isVisible) {
         tooltipState.dismiss()
     }
-    TooltipBox(
+    HrtTooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
             TooltipAnchorPosition.Below,
         ),
