@@ -384,6 +384,7 @@
     <string name="group_schedule_start_now">现在</string>
     <string name="group_schedule_start_reset_to_now">重置</string>
     <string name="group_schedule_recreated_start_date_past_note">重新创建的分组不能将开始日期设在过去</string>
+    <string name="group_schedule_recreated_start_before_cutoff">重新创建的分组不能早于 %1$s 开始，也就是已归档分组结束的时间</string>
     <string name="group_past_schedule_mark_completed">标记为已完成</string>
     <string name="group_past_schedule_mark_missed">标记为已错过</string>
     <string name="group_past_schedule_hide">隐藏</string>
@@ -395,6 +396,7 @@
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
     <string name="group_schedule_preview">预览</string>
     <string name="group_schedule_duplicate_time">该时间已存在于计划中</string>
+    <string name="group_schedule_time_moves_logged_dose_before_start">这个时间会让已记录的用药早于分组的开始时间，因此无法使用</string>
     <string name="group_medication_duplicate_exists">该药物已存在于分组中</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>

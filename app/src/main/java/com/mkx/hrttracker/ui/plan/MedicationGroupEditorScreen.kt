@@ -457,6 +457,7 @@ fun MedicationGroupEditorScreen(
             )
         },
         onSaveMedicationGroupResultConsumed = viewModel::consumeSaveMedicationGroupResult,
+        onScheduleEditNoticeConsumed = viewModel::consumeScheduleEditNotice,
         onDeleteRelatedEntriesClick = viewModel::showDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesDismiss = viewModel::dismissDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesConfirm = viewModel::deleteRelatedEntries,
@@ -529,6 +530,7 @@ private fun MedicationGroupEditorScreenContent(
     onSaveMedicationClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveMedicationGroupResultConsumed: () -> Unit,
+    onScheduleEditNoticeConsumed: () -> Unit = {},
     onDeleteRelatedEntriesClick: () -> Unit,
     onDeleteRelatedEntriesDismiss: () -> Unit,
     onDeleteRelatedEntriesConfirm: () -> Unit,
@@ -593,6 +595,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.save_medication_group_failure)
     val saveMedicationGroupLockedByRecordsMessage =
         stringResource(R.string.save_medication_group_locked_by_records)
+    val loggedDoseBeforeStartMessage =
+        stringResource(R.string.group_schedule_time_moves_logged_dose_before_start)
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
     val archiveMedicationGroupBlockedByPlannedSlotsMessage =
@@ -756,8 +760,31 @@ private fun MedicationGroupEditorScreenContent(
                 onSaveMedicationGroupResultConsumed()
             }
 
+            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START -> {
+                Toast.makeText(
+                    context,
+                    loggedDoseBeforeStartMessage,
+                    Toast.LENGTH_LONG,
+                ).show()
+                onSaveMedicationGroupResultConsumed()
+            }
+
             null -> Unit
         }
+    }
+
+    LaunchedEffect(uiState.scheduleEditNotice) {
+        val message = when (uiState.scheduleEditNotice) {
+            ScheduleEditNotice.LOGGED_DOSE_BEFORE_START -> loggedDoseBeforeStartMessage
+            ScheduleEditNotice.START_MOVED_TO_CUTOFF -> context.getString(
+                R.string.group_schedule_recreated_start_before_cutoff,
+                uiState.recreatedStartFloor?.format(timeFormatter).orEmpty(),
+            )
+
+            null -> return@LaunchedEffect
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        onScheduleEditNoticeConsumed()
     }
 
     LaunchedEffect(uiState.deleteMedicationGroupResult) {

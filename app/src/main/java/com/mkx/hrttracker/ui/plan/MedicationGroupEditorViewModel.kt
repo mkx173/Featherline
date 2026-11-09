@@ -7,16 +7,21 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.data.repository.CurrentOrFuturePlannedSlotsBlockArchiveException
+import com.mkx.hrttracker.data.repository.LockedMedicationGroupDayBoundaryException
 import com.mkx.hrttracker.data.repository.LockedMedicationGroupMedicationsException
+import com.mkx.hrttracker.data.repository.LockedMedicationGroupRecordBeforeStartException
 import com.mkx.hrttracker.data.repository.LockedMedicationGroupScheduleException
+import com.mkx.hrttracker.data.repository.LockedMedicationGroupSlotRepointException
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.ScheduleTimeCountMismatchException
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.keepsRecordsOf
+import com.mkx.hrttracker.data.repository.movesARecordBeforeItsStart
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -141,6 +146,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     // The edited plan as saved: a record that arrives mid-edit locks the draft's schedule to it.
     private var savedPlan: MedicationGroup? = cachedEditingGroup
+
+    // Its planned records as last seen, which a retime moves with their slots.
+    private var plannedRecords: List<MedicationGroupSlotKey> = emptyList()
     private val _uiState = MutableStateFlow(
         run {
             // A new plan's day ends at midnight until the user turns night owl on.
@@ -346,6 +354,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
                 .collect { (counts, timeSnapshot, boundary) ->
+                    plannedRecords = counts.plannedRecords
                     _uiState.update {
                         val shouldLockRecreatedStartDate =
                             it.recreatedFromGroupId != null &&
@@ -497,9 +506,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.isArchived) {
                 it
             } else {
-                it.copy(
-                    weeklyTime = time.withSecond(0).withNano(0),
-                    scheduleTimeOrderError = false,
+                it.retimedTo(
+                    it.copy(
+                        weeklyTime = time.withSecond(0).withNano(0),
+                        scheduleTimeOrderError = false,
+                    )
                 )
             }
         }
@@ -508,20 +519,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
             val today = medicationDay(currentMinute.value, it.medicationDayBoundary)
-            val withDate = editorStateWithUpdatedSinceDate(
+            editorStateWithUpdatedSinceDate(
                 uiState = it,
                 date = date,
                 // A recreated plan starts no earlier than the archived plan it
                 // was split from ends, so the two never overlap.
                 minimumRecreatedStartDate = it.minimumRecreatedStartDate(today),
             )
-            // The cutoff's own day starts at the cutoff.
-            val floor = withDate.recreatedStartFloor
-            if (floor != null && withDate.startsBeforeItsPredecessorsCutoff(currentMinute.value)) {
-                withDate.copy(scheduleStart = ScheduleStart.At(floor.toLocalTime()))
-            } else {
-                withDate
-            }
+                // The cutoff's own day starts at the cutoff.
+                .withStartFromItsPredecessorsCutoff(currentMinute.value)
         }
     }
 
@@ -537,16 +543,27 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateStartTime(time: LocalTime) {
         _uiState.update {
+            val now = currentMinute.value
             val withTime = it.copy(scheduleStart = ScheduleStart.At(time))
-            if (!it.canEditScheduleStart || withTime.startsBeforeItsPredecessorsCutoff(currentMinute.value)) {
-                it
-            } else {
-                withTime
+            // With night owl on, the start date before a small-hours cutoff is the day that began
+            // yesterday, so 11:00 picked then means 11:00 on the cutoff's own date, later today.
+            val onTheCutoffsDate = it.recreatedStartFloor?.let { cutoff ->
+                cutoff.toLocalDate().atTime(time).takeUnless { at -> at.isBefore(cutoff) }
+            }
+            when {
+                !it.canEditScheduleStart -> it
+                !withTime.startsBeforeItsPredecessorsCutoff(now) -> withTime
+                onTheCutoffsDate != null -> withTime.copy(
+                    sinceDate = medicationDay(onTheCutoffsDate, it.medicationDayBoundary),
+                )
+                // Before the cutoff: the plan starts at it, and the screen says why.
+                else -> withTime.withStartFromItsPredecessorsCutoff(now)
+                    .copy(scheduleEditNotice = ScheduleEditNotice.START_MOVED_TO_CUTOFF)
             }
         }
     }
 
-    // Now is never before a recreated plan's cutoff, so any plan can start now.
+    // With the clock behind a recreated plan's cutoff, now is before it: the plan starts at it.
     fun resetStartToNow() {
         _uiState.update {
             if (!it.canEditScheduleStart) {
@@ -555,9 +572,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 editorStateStartingNow(
                     uiState = it,
                     today = medicationDay(currentMinute.value, it.medicationDayBoundary),
-                )
+                ).withStartFromItsPredecessorsCutoff(currentMinute.value)
             }
         }
+    }
+
+    fun consumeScheduleEditNotice() {
+        _uiState.update { it.copy(scheduleEditNotice = null) }
     }
 
     fun updateIncludePastScheduledSlots(includePastScheduledSlots: Boolean) {
@@ -668,7 +689,40 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     MedicationDayBoundary.Midnight,
                 )
             )
-            updatedState.copy(scheduleTimeOrderError = false)
+            currentState.retimedTo(updatedState.copy(scheduleTimeOrderError = false))
+        }
+    }
+
+    /**
+     * [retimed], this draft with a slot's time changed. A locked plan's records move with their
+     * slot, and none before the plan's start, so a time that would take one there is refused:
+     * this draft stays, and the screen says why. This change is judged alone, with every other
+     * time at its saved one: an earlier kept time that takes a record there is the save's to refuse.
+     */
+    private fun MedicationGroupEditorUiState.retimedTo(
+        retimed: MedicationGroupEditorUiState,
+    ): MedicationGroupEditorUiState {
+        val lockedPlan = savedPlan?.takeIf { plan -> plan.uuid.toString() == editingGroupId }
+            ?: return retimed
+        val savedTimes = lockedPlan.schedule.timeSlots.associate { slot -> slot.uuid.toString() to slot.time }
+        val timesBefore = dailyTimes.associate { dailyTime -> dailyTime.localId to dailyTime.time }
+        val thisChangeAlone = retimed.copy(
+            dailyTimes = retimed.dailyTimes.map { dailyTime ->
+                if (timesBefore[dailyTime.localId] == dailyTime.time) {
+                    dailyTime.copy(time = savedTimes[dailyTime.localId] ?: dailyTime.time)
+                } else {
+                    dailyTime
+                }
+            },
+        )
+        return if (
+            isLocked &&
+            thisChangeAlone.toScheduleInput(currentMinute.value)
+                .movesARecordBeforeItsStart(lockedPlan.schedule, plannedRecords)
+        ) {
+            copy(scheduleEditNotice = ScheduleEditNotice.LOGGED_DOSE_BEFORE_START)
+        } else {
+            retimed
         }
     }
 
@@ -1179,8 +1233,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 onSuccess = { null },
                 onFailure = { cause ->
                     when (cause) {
+                        // A retime picked before the record it moves arrived: the editor refuses
+                        // one only as it is picked, so it is left to this save.
+                        is LockedMedicationGroupRecordBeforeStartException ->
+                            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START
+
+                        // A record logged after the editor loaded locks the day ending and the
+                        // slots too, which the editor locked only once it saw one.
                         is LockedMedicationGroupScheduleException,
-                        is LockedMedicationGroupMedicationsException ->
+                        is LockedMedicationGroupMedicationsException,
+                        is LockedMedicationGroupDayBoundaryException,
+                        is ScheduleTimeCountMismatchException,
+                        is LockedMedicationGroupSlotRepointException ->
                             SaveMedicationGroupResult.LOCKED_BY_RECORDS
 
                         else -> SaveMedicationGroupResult.FAILURE
@@ -2210,19 +2274,22 @@ internal fun editorStateStartingNow(
 
 /**
  * A draft starting now, on [now]'s medication day: one left open past the day's end
- * (midnight, or 04:00 for night owl) starts today.
+ * (midnight, or 04:00 for night owl) starts today. A recreated plan's, with the clock gone
+ * back behind its cutoff since it started now, starts at the cutoff.
  */
 internal fun MedicationGroupEditorUiState.withStartsNowOn(now: LocalDateTime): MedicationGroupEditorUiState {
     if (!startsNow) return this
     val today = medicationDay(now, medicationDayBoundary)
-    return if (sinceDate == today) this else editorStateStartingNow(this, today)
+    return (if (sinceDate == today) this else editorStateStartingNow(this, today))
+        .withStartFromItsPredecessorsCutoff(now)
 }
 
 /**
  * The draft with its day ending turned to [boundary]. A start that is a moment (starting
  * now, a picked start time, or a saved start [ScheduleStart.Loaded.isMoment] marks) keeps that
  * moment, and its start date follows it; untouched weekdays follow the start date. Any
- * other start keeps its date. Turning it back restores the draft.
+ * other start keeps its date, but a whole day that now starts before a recreated plan's
+ * cutoff starts at the cutoff. Turning it back restores the draft, or that start.
  */
 internal fun MedicationGroupEditorUiState.withDayBoundary(
     boundary: MedicationDayBoundary,
@@ -2232,7 +2299,8 @@ internal fun MedicationGroupEditorUiState.withDayBoundary(
     val withBoundary = copy(medicationDayBoundary = boundary)
     when (val start = scheduleStart) {
         ScheduleStart.Now -> return editorStateStartingNow(withBoundary, medicationDay(now, boundary))
-        ScheduleStart.WholeDay -> return withBoundary
+        // Turned to midnight, a whole day can start before a recreated plan's 04:00 cutoff.
+        ScheduleStart.WholeDay -> return withBoundary.withStartFromItsPredecessorsCutoff(now)
         is ScheduleStart.Loaded -> if (!start.isMoment) return withBoundary
         is ScheduleStart.At -> Unit
     }
@@ -2279,6 +2347,25 @@ internal fun MedicationGroupEditorUiState.startsBeforeItsPredecessorsCutoff(now:
     recreatedFromGroupId != null &&
             recreatedStartFloor?.let { floor -> scheduleStartAt(now).isBefore(floor) } == true
 
+/**
+ * This draft, starting at its predecessor's cutoff, on the cutoff's day, where it would start
+ * before it. The repository would start it there anyway, without the doses shown before it.
+ */
+internal fun MedicationGroupEditorUiState.withStartFromItsPredecessorsCutoff(
+    now: LocalDateTime,
+): MedicationGroupEditorUiState {
+    val floor = recreatedStartFloor
+    return if (floor != null && startsBeforeItsPredecessorsCutoff(now)) {
+        // A saved recreated plan's weekdays are its own, so they stay as the date moves.
+        copy(
+            sinceDate = medicationDay(floor, medicationDayBoundary),
+            scheduleStart = ScheduleStart.At(floor.toLocalTime()),
+        )
+    } else {
+        this
+    }
+}
+
 /** The schedule this draft saves, its start resolved at [now]. */
 internal fun MedicationGroupEditorUiState.toScheduleInput(now: LocalDateTime): MedicationGroupScheduleInput {
     val isWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY
@@ -2299,8 +2386,12 @@ internal fun MedicationGroupEditorUiState.toScheduleInput(now: LocalDateTime): M
  * The draft as a plan with [records] may save it over [saved]. Its medications go back to
  * [saved]'s, which its records are matched against. Its slots go back to [saved]'s when it
  * changed the schedule type or added, removed or replaced a slot. Then its cadence, weekdays
- * and start go back too if any record would no longer be an occurrence of its slot. The rest
- * (name, color, reminders, slot times) is kept.
+ * and start go back too if any record would no longer be an occurrence of its slot. When only a
+ * slot's new time moves one before the start, the cadence and weekdays stay, as they keep it.
+ * So does the start if the time would move it before the saved start too: the save refuses that
+ * time with its own reason. Otherwise the start goes back, with weekdays its date reset, so the
+ * draft saves with its new time.
+ * The rest (name, color, reminders, slot times) is kept.
  */
 internal fun MedicationGroupEditorUiState.keepingRecordsOf(
     saved: MedicationGroup,
@@ -2325,10 +2416,28 @@ internal fun MedicationGroupEditorUiState.keepingRecordsOf(
             dailyTimes = savedState.dailyTimes,
         )
     }
-    return if (withSlots.toScheduleInput(now).keepsRecordsOf(saved.schedule, records)) {
-        withSlots
-    } else {
-        withSlots.copy(
+    val input = withSlots.toScheduleInput(now)
+    val withSavedStart = withSlots.copy(
+        sinceDate = savedState.sinceDate,
+        scheduleStart = savedState.scheduleStart,
+    ).let { withStart ->
+        // Weekdays a picked start date reset to its own go back with it.
+        if (withSlots.hasUserCustomizedWeeklyDays) {
+            withStart
+        } else {
+            withStart.copy(
+                weeklyDaysOfWeek = savedState.weeklyDaysOfWeek,
+                hasUserCustomizedWeeklyDays = savedState.hasUserCustomizedWeeklyDays,
+            )
+        }
+    }
+    val fromSavedStart = withSavedStart.toScheduleInput(now)
+    val onlyTheTimeLosesOne = input.movesARecordBeforeItsStart(saved.schedule, records)
+    return when {
+        input.keepsRecordsOf(saved.schedule, records) -> withSlots
+        onlyTheTimeLosesOne && fromSavedStart.movesARecordBeforeItsStart(saved.schedule, records) -> withSlots
+        onlyTheTimeLosesOne && fromSavedStart.keepsRecordsOf(saved.schedule, records) -> withSavedStart
+        else -> withSlots.copy(
             weeklyIntervalWeeks = savedState.weeklyIntervalWeeks,
             weeklyDaysOfWeek = savedState.weeklyDaysOfWeek,
             hasUserCustomizedWeeklyDays = savedState.hasUserCustomizedWeeklyDays,
@@ -2543,7 +2652,10 @@ internal data class MedicationGroupEditedDraft(
     // Null while the clock keeps it: a plan starting now starts today, and its weekdays left on
     // the start date's follow it, both moving on past the day's end untouched.
     val sinceDate: LocalDate?,
-    val scheduleStart: ScheduleStart,
+    // The moment it starts, however the form holds it (a whole day, a picked time, a loaded
+    // start), so a start moved up to a recreated plan's cutoff that lands back on it is no edit.
+    // Null starting now, which moves with the clock.
+    val startAt: LocalDateTime?,
     val medicationDayBoundary: MedicationDayBoundary,
     // The other schedule type's fields are null: the plan saves only its own type's.
     val weeklyIntervalWeeks: String?,
@@ -2580,7 +2692,8 @@ internal fun MedicationGroupEditorUiState.toEditedDraft(
         groupColorKey = groupColorKey,
         scheduleType = scheduleType,
         sinceDate = sinceDate.takeUnless { startsNow },
-        scheduleStart = scheduleStart,
+        // Only a "Now" start reads the time it is given.
+        startAt = if (startsNow) null else scheduleStartAt(now = LocalDateTime.MIN),
         medicationDayBoundary = medicationDayBoundary,
         weeklyIntervalWeeks = weeklyIntervalWeeks.takeIf { isWeekly },
         weeklyDaysOfWeek = weeklyDaysOfWeek.takeIf { days ->
@@ -2653,6 +2766,8 @@ data class MedicationGroupEditorUiState(
     val createPastScheduledSlotRecordsEnabledAt: LocalDateTime? = null,
     val isScheduleStartDateLocked: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
+    // Why a schedule edit was refused or moved, for the screen to show once.
+    val scheduleEditNotice: ScheduleEditNotice? = null,
     val createPastScheduledSlotRecordsResult: CreatePastScheduledSlotRecordsResult? = null,
     val createdPastScheduledSlotRecordCount: Int? = null,
     val relatedEntryCount: Int = 0,
@@ -2803,6 +2918,17 @@ enum class SaveMedicationGroupResult {
 
     /** Refused because the change would take the plan's records off their slots or medications. */
     LOCKED_BY_RECORDS,
+
+    /** Refused because a retime would move a logged dose to before the plan's start. */
+    LOGGED_DOSE_BEFORE_START,
+}
+
+enum class ScheduleEditNotice {
+    /** A retime refused: it would move a logged dose to before the plan's start. */
+    LOGGED_DOSE_BEFORE_START,
+
+    /** A start time picked before a recreated plan's cutoff, moved up to the cutoff. */
+    START_MOVED_TO_CUTOFF,
 }
 
 enum class DeleteRelatedEntriesResult {

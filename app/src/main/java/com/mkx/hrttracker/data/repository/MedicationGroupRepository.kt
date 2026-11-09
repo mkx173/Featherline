@@ -463,7 +463,11 @@ class MedicationGroupRepository @Inject constructor(
                         newTimes = schedule.timeSlots.map(MedicationGroupScheduleTimeInput::time),
                     )
                     if (!schedule.keepsRecordsOf(savedSchedule, plannedRecords)) {
-                        throw LockedMedicationGroupScheduleException(groupUuid)
+                        throw if (schedule.movesARecordBeforeItsStart(savedSchedule, plannedRecords)) {
+                            LockedMedicationGroupRecordBeforeStartException(groupUuid)
+                        } else {
+                            LockedMedicationGroupScheduleException(groupUuid)
+                        }
                     }
                     // A record is on the plan while its medicine and dose are one of the plan's,
                     // and a slot is logged by its items' counts: the items stay as they are.
@@ -757,6 +761,13 @@ class LockedMedicationGroupScheduleException(
     "Medication group $uuid has records that this schedule would take off their slots."
 )
 
+/** A retime that would move a record, with its slot, to before the plan's start or its slot's. */
+class LockedMedicationGroupRecordBeforeStartException(
+    uuid: UUID,
+) : IllegalStateException(
+    "Medication group $uuid has a record that this schedule would move before its start."
+)
+
 class LockedMedicationGroupMedicationsException(
     uuid: UUID,
 ) : IllegalStateException(
@@ -857,6 +868,24 @@ internal fun MedicationGroupScheduleInput.keepsRecordsOf(
         // Not before the plan's start, nor before the slot's own (a slot added later starts then).
         edited.isScheduledAt(scheduledFor) && !scheduledFor.isBefore(maxOf(start, savedSlot.effectiveFrom))
     }
+}
+
+/**
+ * Whether saving this would move one of [records], with its slot's new time, to before the plan's
+ * start or its slot's: [keepsRecordsOf] refuses it, but not with every slot back at its saved time.
+ * A retime keeps a record on its medication day, so that is the only way a new time can lose it.
+ */
+internal fun MedicationGroupScheduleInput.movesARecordBeforeItsStart(
+    saved: MedicationGroupSchedule,
+    records: List<MedicationGroupSlotKey>,
+): Boolean {
+    val savedTimes = saved.timeSlots.associate { slot -> slot.uuid to slot.time }
+    val atSavedTimes = timeSlots.map { slot ->
+        slot.copy(time = slot.uuid?.let(savedTimes::get) ?: slot.time)
+    }
+    return !keepsRecordsOf(saved, records) &&
+            copy(times = atSavedTimes.map { slot -> slot.time }, timeSlots = atSavedTimes)
+                .keepsRecordsOf(saved, records)
 }
 
 /**

@@ -384,6 +384,7 @@
     <string name="group_schedule_start_now">現在</string>
     <string name="group_schedule_start_reset_to_now">重設</string>
     <string name="group_schedule_recreated_start_date_past_note">重新建立的群組不能將開始日期設在過去</string>
+    <string name="group_schedule_recreated_start_before_cutoff">重新建立的群組不能早於 %1$s 開始，也就是已歸檔群組結束的時間</string>
     <string name="group_past_schedule_mark_completed">標記為已完成</string>
     <string name="group_past_schedule_mark_missed">標記為已錯過</string>
     <string name="group_past_schedule_hide">隱藏</string>
@@ -395,6 +396,7 @@
     <string name="group_schedule_times_with_count">每日時間 · %d</string>
     <string name="group_schedule_preview">預覽</string>
     <string name="group_schedule_duplicate_time">該時間已存在於計劃中</string>
+    <string name="group_schedule_time_moves_logged_dose_before_start">這個時間會讓已記錄的用藥早於群組的開始時間，因此無法使用</string>
     <string name="group_medication_duplicate_exists">該藥物已存在於群組中</string>
     <string name="group_schedule_since_summary">開始於 %1$s</string>
     <string name="field_date_of_application">用藥日期</string>

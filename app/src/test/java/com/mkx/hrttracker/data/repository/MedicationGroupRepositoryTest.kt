@@ -2570,7 +2570,7 @@ class MedicationGroupRepositoryTest {
             testPlannedEntryEntity(groupUuid, "evening", testScheduleTimeUuid(1), "2026-04-29T20:00"),
         )
 
-        // At 10:00 the dose would come before the slot existed.
+        // At 10:00 the dose would come before the slot existed, the refusal the editor explains.
         val thrown = runCatching {
             repository.saveGroup(
                 uuid = groupUuid,
@@ -2586,8 +2586,8 @@ class MedicationGroupRepositoryTest {
         }.exceptionOrNull()
 
         assertTrue(
-            "Expected LockedMedicationGroupScheduleException but got $thrown",
-            thrown is LockedMedicationGroupScheduleException,
+            "Expected LockedMedicationGroupRecordBeforeStartException but got $thrown",
+            thrown is LockedMedicationGroupRecordBeforeStartException,
         )
         coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
     }

@@ -403,6 +403,7 @@
     <string name="group_schedule_start_now">Now</string>
     <string name="group_schedule_start_reset_to_now">Reset</string>
     <string name="group_schedule_recreated_start_date_past_note">Recreated groups can’t set a start date in the past.</string>
+    <string name="group_schedule_recreated_start_before_cutoff">Recreated groups can’t start before %1$s, when the archived group ends.</string>
     <string name="group_past_schedule_mark_completed">Mark as completed</string>
     <string name="group_past_schedule_mark_missed">Mark as missed</string>
     <string name="group_past_schedule_hide">Hide</string>
@@ -414,6 +415,7 @@
     <string name="group_schedule_times_with_count">Times of day · %d</string>
     <string name="group_schedule_preview">Preview</string>
     <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
+    <string name="group_schedule_time_moves_logged_dose_before_start">This time would move a logged dose to before the group’s start, so it can’t be used.</string>
     <string name="group_medication_duplicate_exists">This medication is already in the group.</string>
     <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
