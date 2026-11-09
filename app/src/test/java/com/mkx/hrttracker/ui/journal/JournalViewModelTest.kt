@@ -293,19 +293,19 @@ class JournalViewModelTest {
     }
 
     @Test
-    fun saveNote_writeFailure_setsSaveErrorAndBumpsToken() = runTest {
+    fun saveNote_writeFailure_setsSaveErrorAndFailsTheSave() = runTest {
         val noteDate = LocalDate.of(2026, 6, 1)
         stubEmptyObservers()
         coEvery { repository.saveNoteForDate(noteDate, "boom") } throws IOException("disk full")
         val viewModel = JournalViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
-        viewModel.saveNote(noteDate, "boom")
+        val id = viewModel.saveNote(noteDate, "boom")
+        assertEquals(NoteSaveOutcome.InFlight, viewModel.noteSaves.outcome(id))
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.SAVE, viewModel.uiState.value.noteMutationError)
-        assertEquals(tokenBefore + 1, viewModel.uiState.value.noteSaveFailureToken)
+        assertEquals(NoteSaveOutcome.Failed, viewModel.noteSaves.outcome(id))
 
         viewModel.consumeNoteMutationError()
         advanceUntilIdle()
@@ -319,13 +319,11 @@ class JournalViewModelTest {
         coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
         val viewModel = JournalViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
         viewModel.deleteNote(noteDate)
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
-        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
     }
 
     @Test
@@ -335,10 +333,11 @@ class JournalViewModelTest {
         coEvery { repository.saveNoteForDate(noteDate, "ok") } returns Unit
         val viewModel = JournalViewModel(repository, appTimeSource)
 
-        viewModel.saveNote(noteDate, "ok")
+        val id = viewModel.saveNote(noteDate, "ok")
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.noteMutationError)
+        assertEquals(NoteSaveOutcome.Landed, viewModel.noteSaves.outcome(id))
         coVerify(exactly = 1) { repository.saveNoteForDate(noteDate, "ok") }
     }
 

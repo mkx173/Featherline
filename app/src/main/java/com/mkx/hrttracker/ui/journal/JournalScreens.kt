@@ -141,11 +141,11 @@ fun JournalScreen(
         onOpenAllNotes = onOpenAllNotes,
         onSaveTodayNote = viewModel::saveNote,
         onSaveNote = viewModel::saveNote,
+        noteSaves = viewModel.noteSaves,
         onDeleteTodayNote = viewModel::deleteNote,
         onDeleteNote = viewModel::deleteNote,
         onAddDebugNotes = viewModel::addDebugSampleNotes,
         scrollToTopSignal = scrollToTopSignal,
-        noteSaveFailureToken = uiState.noteSaveFailureToken,
         modifier = modifier,
     )
 }
@@ -157,23 +157,23 @@ fun JournalScreenContent(
     onOpenMilestones: () -> Unit,
     onAddDate: () -> Unit = onOpenMilestones,
     onOpenAllNotes: () -> Unit,
-    onSaveTodayNote: (LocalDate, String) -> Unit,
-    onSaveNote: (LocalDate, String) -> Unit,
+    // Each sends a save and returns its id in [noteSaves], where the note card follows its outcome.
+    onSaveTodayNote: (LocalDate, String) -> Long,
+    onSaveNote: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
     onDeleteTodayNote: (LocalDate) -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
     onAddDebugNotes: () -> Unit = { },
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
-    noteSaveFailureToken: Int = 0,
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
-    // The day the Today composer's session began on. It follows today while the composer is idle;
-    // an edit of an existing note with unsaved changes, a save or a delete confirmation still open
-    // when the date rolls over (midnight or a time-zone change) keeps the day it began on until it
-    // ends, so its draft is neither dropped nor filed under the new day. A new note's draft is
-    // shown on today instead (see the composer below). An open edit with nothing to keep is closed
-    // and the composer moves on.
+    // The day of the Today composer's session. A session is open while an editor is (new or
+    // existing, changed or not, empty or not), a save is in flight, a failed draft is held, or a
+    // delete confirmation is up. A date rollover (midnight or a time-zone change) neither moves nor
+    // closes it: it stays on the day it began, dated, and its save or delete writes that day. Once
+    // it ends, the composer moves on to today (the composer's onIdle below).
     var composerDate by rememberSaveable { mutableStateOf(uiState.today) }
     val composerNote = if (composerDate == uiState.today) {
         uiState.todayNote
@@ -184,6 +184,9 @@ fun JournalScreenContent(
     // One controller shared by the Today composer and the timeline rows: a single editor stays
     // open at a time, and it resets to closed when this screen leaves composition.
     val editorController = rememberNoteEditorController()
+    // The timeline rows holding a save (one in flight, or a failed draft), by note id. Saveable, as
+    // their latches are, so it is right on the first frame after a restore.
+    var heldTimelineNotes by rememberSaveable { mutableStateOf(emptySet<String>()) }
     ScrollToTopSignalEffect(
         signal = scrollToTopSignal,
         topAppBarState = scrollBehavior.state,
@@ -299,29 +302,27 @@ fun JournalScreenContent(
                     },
                 ) {
                     item(key = "journal-today-composer") {
-                        // A new note is filed under the day it is saved on, so while its draft is
-                        // open (its day has no note yet) it follows today, unless today already has
-                        // a note it would overwrite. A sent save has left the editor, so it stays on
-                        // the day it was sent for.
-                        val followsToday = composerNote == null && uiState.todayNote == null &&
-                            editorController.isEditing(TodayComposerNewNoteIdentity)
-                        val shownDate = if (followsToday) uiState.today else composerDate
                         TodayComposer(
-                            today = shownDate,
+                            today = composerDate,
                             note = composerNote,
-                            onSave = { date, text ->
-                                composerDate = date
-                                onSaveTodayNote(date, text)
-                            },
+                            onSave = onSaveTodayNote,
+                            noteSaves = noteSaves,
                             onDelete = onDeleteTodayNote,
                             editorController = editorController,
-                            saveFailureToken = noteSaveFailureToken,
-                            onIdle = if (composerDate != uiState.today) {
+                            // Not while the timeline row of the day it would move to (after a
+                            // westward zone change, or a held session on a day before a note
+                            // written ahead) is open or holds a save: the row would leave the
+                            // timeline, taking its editor or its latch with it.
+                            onIdle = if (
+                                composerDate != uiState.today &&
+                                !editorController.isEditing(uiState.todayNote?.id) &&
+                                uiState.todayNote?.id !in heldTimelineNotes
+                            ) {
                                 { composerDate = uiState.today }
                             } else {
                                 null
                             },
-                            isToday = shownDate == uiState.today,
+                            isToday = composerDate == uiState.today,
                         )
                     }
                 }
@@ -337,9 +338,12 @@ fun JournalScreenContent(
                                 notes = timelineNotes,
                                 today = uiState.today,
                                 onSave = onSaveNote,
+                                noteSaves = noteSaves,
                                 onDelete = onDeleteNote,
                                 editorController = editorController,
-                                saveFailureToken = noteSaveFailureToken,
+                                onHeldChange = { id, held ->
+                                    heldTimelineNotes = if (held) heldTimelineNotes + id else heldTimelineNotes - id
+                                },
                             )
                         }
                     }
@@ -779,8 +783,8 @@ fun AllNotesScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onSaveNote = viewModel::saveNote,
+        noteSaves = viewModel.noteSaves,
         onDeleteNote = viewModel::deleteNote,
-        noteSaveFailureToken = uiState.noteSaveFailureToken,
         onToggleSelection = viewModel::toggleSelection,
         onEnterSelection = viewModel::toggleSelection,
         onSelectAll = viewModel::selectDates,
@@ -795,10 +799,11 @@ fun AllNotesScreen(
 fun AllNotesScreenContent(
     uiState: AllNotesUiState,
     onNavigateBack: () -> Unit,
-    onSaveNote: (LocalDate, String) -> Unit,
+    // Sends a save and returns its id in [noteSaves], as JournalScreenContent's do.
+    onSaveNote: (LocalDate, String) -> Long,
+    noteSaves: NoteSaves,
     onDeleteNote: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
-    noteSaveFailureToken: Int = 0,
     onToggleSelection: (LocalDate) -> Unit = {},
     onEnterSelection: (LocalDate) -> Unit = {},
     onSelectAll: (Set<LocalDate>) -> Unit = {},
@@ -1109,8 +1114,8 @@ fun AllNotesScreenContent(
                                 count = group.notes.size,
                                 controller = editorController,
                                 onSave = onSaveNote,
+                                noteSaves = noteSaves,
                                 onDelete = onDeleteNote,
-                                saveFailureToken = noteSaveFailureToken,
                                 isSelectionMode = uiState.isSelectionMode,
                                 isSelected = note.date in uiState.selectedDates,
                                 onToggleSelection = onToggleSelection,

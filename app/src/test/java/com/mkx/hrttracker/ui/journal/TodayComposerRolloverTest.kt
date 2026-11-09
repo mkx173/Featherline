@@ -2,6 +2,9 @@ package com.mkx.hrttracker.ui.journal
 
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,6 +21,7 @@ import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -27,6 +31,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -43,12 +48,11 @@ private const val TodayComposerTextFieldTag = "today-composer-text-field"
 
 /**
  * The Today composer across a local-date rollover (midnight or a time-zone change), wired to the
- * real [JournalViewModel]. Its draft, open editor and in-flight save survive the rollover (H3). An
- * edit of an existing note, a save in flight and a delete confirmation belong to the day they began
- * on: they are dated, not labelled Today, and write that day, never the day the clock has moved on
- * to (H4). A new note's draft is the day it is saved on, so it follows the new day, unless that day
- * already has a note it would overwrite. An open editor with nothing unsaved is released, and the
- * composer moves on.
+ * real [JournalViewModel]. While a session is open (an editor, new or existing, changed or not,
+ * empty or not; a save in flight; a failed draft; a delete confirmation), the composer stays on the
+ * day the session began: the header names that date instead of Today, and a save or delete writes
+ * it, never the day the clock has moved on to (H3, H4). Once the session ends, the composer moves on
+ * to today, and the old day's note joins the timeline.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -59,6 +63,7 @@ class TodayComposerRolloverTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val tokyo = ZoneId.of("Asia/Tokyo")
+    private val june14 = LocalDate.of(2026, 6, 14)
     private val june15 = LocalDate.of(2026, 6, 15)
     private val june16 = LocalDate.of(2026, 6, 16)
     private val june17 = LocalDate.of(2026, 6, 17)
@@ -109,6 +114,11 @@ class TodayComposerRolloverTest {
         }
     }
 
+    // MockK keeps every mock's stub for the rest of the run, and these answers capture this test, so
+    // without this each test's activity (a tall window) stays reachable until the test JVM exits.
+    @After
+    fun releaseMocks() = clearAllMocks()
+
     private fun setContent() {
         val viewModel = JournalViewModel(repository, clock)
         composeRule.setContent {
@@ -133,6 +143,9 @@ class TodayComposerRolloverTest {
         composeRule.runOnIdle { clock.setCurrentSnapshot(minute, zone) }
     }
 
+    private fun tapCancel() =
+        composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
+
     // The composer header's date, in the app's own format (e.g. "Jun 17 Wed").
     private fun dateLabel(date: LocalDate): String =
         medicationGroupScheduleDateFormatter(context.resources.configuration.locales[0], date)(date)
@@ -146,19 +159,67 @@ class TodayComposerRolloverTest {
             .assertIsDisplayed()
     }
 
+    // The composer's editor is still open on [day], a day that is no longer today: the header names
+    // that date, not Today.
+    private fun assertEditorOpenOn(day: LocalDate) {
+        composeRule.onNodeWithText(dateLabel(day)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsDisplayed()
+    }
+
     @Test
-    fun unchangedNewNoteEditor_isReleasedAtMidnight_andShowsTheNewDay() {
+    fun emptyNewNoteEditor_staysOpenAcrossMidnight_onItsDay_andSavesThere() {
         setContent()
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .performClick()
 
         rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
 
+        assertEditorOpenOn(june16)
+        // It keeps focus, so the keyboard stays up, and what you then write is June 16's note.
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsFocused()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Just before midnight")
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
+        composeRule.runOnIdle { assertEquals(listOf("save $june16: Just before midnight"), writes) }
+        // The session is over: the composer moves on, and June 16's note joins the timeline.
         assertComposerShowsEmptyToday(june17)
+        composeRule.onNodeWithText("Just before midnight").assertIsDisplayed()
     }
 
     @Test
-    fun unchangedNewNoteEditor_restoredAfterProcessDeathOnTheNextDay_isReleased() {
+    fun newNoteDraft_openAcrossMidnight_staysOnItsDay_andSavesToIt() {
+        setContent()
+        startNewNote("Late entry")
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        assertEditorOpenOn(june16)
+        composeRule.onNodeWithText("Late entry").assertExists()
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
+        composeRule.runOnIdle { assertEquals(listOf("save $june16: Late entry"), writes) }
+        assertComposerShowsEmptyToday(june17)
+        composeRule.onNodeWithText("Late entry").assertIsDisplayed()
+    }
+
+    @Test
+    fun unchangedExistingNoteEditor_staysOpenOnItsDay_andClosingItMovesTheComposerOn() {
+        notes.value = listOf(Note(id = "june-16", date = june16, text = "Morning"))
+        setContent()
+        composeRule.onNodeWithText("Morning").performClick()
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        assertEditorOpenOn(june16)
+        tapCancel()
+        assertComposerShowsEmptyToday(june17)
+        // June 16's note is a closed timeline row now.
+        composeRule.onNodeWithText("Morning").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(emptyList<String>(), writes) }
+    }
+
+    @Test
+    fun emptyNewNoteEditor_restoredAfterProcessDeathOnTheNextDay_staysOnItsOldDay_untilClosed() {
         var viewModel = JournalViewModel(repository, clock)
         val restorationTester = StateRestorationTester(composeRule)
         restorationTester.setContent {
@@ -182,67 +243,14 @@ class TodayComposerRolloverTest {
         )
         restorationTester.emulateSavedInstanceStateRestore()
 
+        // Restored silently, as any open editor is: open on its own day, keyboard down.
+        assertEditorOpenOn(june16)
+        composeRule.onNodeWithTag(TodayComposerTextFieldTag).assertIsNotFocused()
+        tapCancel()
         assertComposerShowsEmptyToday(june17)
     }
 
-    @Test
-    fun unchangedExistingNoteEditor_isReleasedAtMidnight_andTheNoteMovesToTheTimeline() {
-        notes.value = listOf(Note(id = "june-16", date = june16, text = "Morning"))
-        setContent()
-        composeRule.onNodeWithText("Morning").performClick()
-
-        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
-
-        assertComposerShowsEmptyToday(june17)
-        // June 16's note is a closed timeline row now, not an editor still open on it.
-        composeRule.onNodeWithText("Morning").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertDoesNotExist()
-        composeRule.runOnIdle { assertEquals(emptyList<String>(), writes) }
-    }
-
-    // The new day already has a note (written ahead, or from another surface): following it would
-    // overwrite that note, so the draft is held on its own day, dated, and saves there.
-    @Test
-    fun newNoteDraft_whoseNewDayAlreadyHasANote_keepsItsOwnDay_andDoesNotOverwriteIt() {
-        notes.value = listOf(Note(id = "june-17", date = june17, text = "Written ahead"))
-        setContent()
-        startNewNote("Late entry")
-
-        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
-
-        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertDoesNotExist()
-        composeRule.onNodeWithText(dateLabel(june16)).assertIsDisplayed()
-        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
-        composeRule.runOnIdle {
-            assertEquals(listOf("save $june16: Late entry"), writes)
-            assertEquals("Written ahead", notes.value.single { it.date == june17 }.text)
-        }
-    }
-
-    @Test
-    fun newNoteDraft_followingTheNewDay_returnsToItsOwnDay_whenANoteLandsThereFromElsewhere() {
-        setContent()
-        startNewNote("Late entry")
-        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
-        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertIsDisplayed()
-
-        // Another surface writes June 17's note while the draft is still open.
-        composeRule.runOnIdle {
-            notes.update { it + Note(id = "june-17", date = june17, text = "From elsewhere") }
-        }
-
-        composeRule.onNodeWithText("Late entry").assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertDoesNotExist()
-        composeRule.onNodeWithText(dateLabel(june16)).assertIsDisplayed()
-        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
-        composeRule.runOnIdle {
-            assertEquals(listOf("save $june16: Late entry"), writes)
-            assertEquals("From elsewhere", notes.value.single { it.date == june17 }.text)
-        }
-    }
-
-    // An unchanged draft is released at a rollover, but an open delete confirmation still holds
-    // its day: confirming it deletes the note it was asked about.
+    // An open delete confirmation holds its day: confirming it deletes the note it was asked about.
     @Test
     fun deleteConfirmationOpenAtMidnight_holdsItsDay_andDeletesThatNote() {
         notes.value = listOf(Note(id = "june-16", date = june16, text = "Morning"))
@@ -255,27 +263,10 @@ class TodayComposerRolloverTest {
 
         composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm)).performClick()
         composeRule.runOnIdle { assertEquals(listOf("delete $june16"), writes) }
+        assertComposerShowsEmptyToday(june17)
     }
 
-    // A new note is the day it is saved on: a draft begun on June 16 and saved after midnight is
-    // June 17's note, and the composer reads Today throughout.
-    @Test
-    fun newNoteDraft_openAcrossMidnight_followsTheNewDay_andSavesToIt() {
-        setContent()
-        startNewNote("Late entry")
-
-        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
-
-        composeRule.onNodeWithText("Late entry").assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertIsDisplayed()
-        composeRule.onNodeWithText(dateLabel(june17)).assertIsDisplayed()
-        composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
-        composeRule.runOnIdle { assertEquals(listOf("save $june17: Late entry"), writes) }
-        composeRule.onNodeWithText("Late entry").assertIsDisplayed()
-        composeRule.onNodeWithText(dateLabel(june16)).assertDoesNotExist()
-    }
-
-    // A save sent before midnight already carries its day; it is not a draft to move.
+    // A save sent before midnight carries its day; once it lands, the composer moves on.
     @Test
     fun newNoteSaveInFlightAtMidnight_landsOnItsOwnDay_andTheComposerMovesOn() {
         val gate = CompletableDeferred<Unit>()
@@ -303,14 +294,13 @@ class TodayComposerRolloverTest {
         rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
 
         composeRule.onNodeWithText("Morning, and evening").assertExists()
-        composeRule.onNodeWithText(context.getString(R.string.journal_today)).assertDoesNotExist()
-        composeRule.onNodeWithText(dateLabel(june16)).assertIsDisplayed()
+        assertEditorOpenOn(june16)
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performImeAction()
         composeRule.runOnIdle { assertEquals(listOf("save $june16: Morning, and evening"), writes) }
     }
 
     @Test
-    fun saveInFlightAtMidnight_thatFails_reopensItsDraft() {
+    fun saveInFlightAtMidnight_thatFails_reopensItsDraft_onItsDay() {
         val writeResult = CompletableDeferred<Unit>()
         coEvery { repository.saveNoteForDate(any(), any()) } coAnswers { writeResult.await() }
         setContent()
@@ -321,7 +311,7 @@ class TodayComposerRolloverTest {
         composeRule.runOnIdle { writeResult.completeExceptionally(IOException("disk full")) }
 
         composeRule.onNodeWithText("Late entry").assertExists()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsDisplayed()
+        assertEditorOpenOn(june16)
     }
 
     @Test
@@ -352,5 +342,68 @@ class TodayComposerRolloverTest {
 
         composeRule.onNodeWithText(context.getString(R.string.delete_entries_confirm)).performClick()
         composeRule.runOnIdle { assertEquals(listOf("delete $june16"), writes) }
+    }
+
+    // Flying west moves today back to a day whose note is open in the timeline. The composer waits
+    // for that edit to end before moving to the day, so the note stays in the timeline under its
+    // open editor, and what you type there is saved to it.
+    @Test
+    fun timelineEditOfTheNewToday_staysOpenAcrossAWestwardZoneChange() {
+        notes.value = listOf(Note(id = "june-15", date = june15, text = "Yesterday"))
+        clock.setCurrentSnapshot(LocalDateTime.of(2026, 6, 16, 0, 30), tokyo)
+        setContent()
+        val june15Field = "note-timeline-text-field-june-15"
+        composeRule.onNodeWithTag(june15Field).performClick()
+        composeRule.onNodeWithTag(june15Field).performTextInput(" edited")
+
+        rollClockTo(LocalDateTime.of(2026, 6, 15, 5, 30), ZoneId.of("Pacific/Honolulu"))
+
+        composeRule.onNodeWithTag(june15Field).assertIsFocused()
+        composeRule.onNodeWithTag(june15Field).assertTextEquals("Yesterday edited")
+        composeRule.onNodeWithTag(june15Field).performImeAction()
+        composeRule.runOnIdle { assertEquals(listOf("save $june15: Yesterday edited"), writes) }
+    }
+
+    // The same edit saved after the zone change: the row holds its save in the timeline, and the
+    // composer doesn't move onto its day, so a failure reopens the edit there.
+    @Test
+    fun timelineSaveOfTheNewToday_isHeldInTheTimeline_andAFailureReopensIt() {
+        val writeResult = CompletableDeferred<Unit>()
+        coEvery { repository.saveNoteForDate(any(), any()) } coAnswers { writeResult.await() }
+        notes.value = listOf(Note(id = "june-15", date = june15, text = "Yesterday"))
+        clock.setCurrentSnapshot(LocalDateTime.of(2026, 6, 16, 0, 30), tokyo)
+        setContent()
+        val june15Field = "note-timeline-text-field-june-15"
+        composeRule.onNodeWithTag(june15Field).performClick()
+        composeRule.onNodeWithTag(june15Field).performTextInput(" edited")
+        rollClockTo(LocalDateTime.of(2026, 6, 15, 5, 30), ZoneId.of("Pacific/Honolulu"))
+
+        composeRule.onNodeWithTag(june15Field).performImeAction()
+        composeRule.onNodeWithTag(june15Field).assertTextEquals("Yesterday edited")
+        composeRule.runOnIdle { writeResult.completeExceptionally(IOException("disk full")) }
+
+        composeRule.onNodeWithTag(june15Field).assertTextEquals("Yesterday edited")
+        composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsDisplayed()
+    }
+
+    // Today's note joins the top of the timeline at midnight, shifting every row down: an edit open
+    // in a row below stays on its own note, so what you type is saved to it.
+    @Test
+    fun timelineEditOpenAtMidnight_staysOnItsNote_whenTodaysNoteJoinsTheTimeline() {
+        notes.value = listOf(
+            Note(id = "june-16", date = june16, text = "Today"),
+            Note(id = "june-15", date = june15, text = "Yesterday"),
+            Note(id = "june-14", date = june14, text = "Two days ago"),
+        )
+        setContent()
+        val june14Field = "note-timeline-text-field-june-14"
+        composeRule.onNodeWithTag(june14Field).performClick()
+
+        rollClockTo(LocalDateTime.of(2026, 6, 17, 0, 0))
+
+        composeRule.onNodeWithTag(june14Field).assertIsFocused()
+        composeRule.onNodeWithTag(june14Field).performTextInput(" more")
+        composeRule.onNodeWithTag(june14Field).performImeAction()
+        composeRule.runOnIdle { assertEquals(listOf("save $june14: Two days ago more"), writes) }
     }
 }

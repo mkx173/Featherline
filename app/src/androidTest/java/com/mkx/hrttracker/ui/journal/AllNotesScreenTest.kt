@@ -31,6 +31,9 @@ class AllNotesScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    // Every save stays in flight unless a test settles it, as the ViewModel's would.
+    private val noteSaves = NoteSaves()
+
     @Test
     fun rendersMonthSectionsAndBackNavigation() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -59,7 +62,8 @@ class AllNotesScreenTest {
                         ),
                     ),
                     onNavigateBack = { navigatedBack = true },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                 )
             }
@@ -119,7 +123,8 @@ class AllNotesScreenTest {
                         ),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { deletedDates += it },
                 )
             }
@@ -163,7 +168,8 @@ class AllNotesScreenTest {
                         ),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                 )
             }
@@ -215,7 +221,8 @@ class AllNotesScreenTest {
                 AllNotesScreenContent(
                     uiState = uiState.value,
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                     onEnterSelection = { enteredDate = it },
                 )
@@ -269,7 +276,8 @@ class AllNotesScreenTest {
                         selectedDates = setOf(firstDate),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                     onToggleSelection = { toggledDates += it },
                 )
@@ -309,7 +317,8 @@ class AllNotesScreenTest {
                         selectedDates = setOf(firstDate),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                     onSelectAll = { selectedAll = it },
                 )
@@ -343,7 +352,8 @@ class AllNotesScreenTest {
                         selectedDates = setOf(firstDate),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                     onDeleteSelected = { deleteSelectedCount++ },
                 )
@@ -386,7 +396,8 @@ class AllNotesScreenTest {
                         selectedDates = setOf(firstDate),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                     onCancelSelection = { cancelled = true },
                 )
@@ -420,7 +431,8 @@ class AllNotesScreenTest {
                             selectedDates = setOf(firstDate),
                         ),
                         onNavigateBack = { },
-                        onSaveNote = { _, _ -> },
+                        onSaveNote = { _, _ -> noteSaves.start() },
+                        noteSaves = noteSaves,
                         onDeleteNote = { },
                         onCancelSelection = { cancelled = true },
                     )
@@ -454,7 +466,8 @@ class AllNotesScreenTest {
                         ),
                     ),
                     onNavigateBack = { },
-                    onSaveNote = { _, _ -> },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteNote = { },
                 )
             }

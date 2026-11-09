@@ -35,9 +35,6 @@ data class JournalUiState(
     // One-shot note write failure (consumed by the screen Toast). Imperatively set; not derived
     // from the data combine.
     val noteMutationError: JournalNoteMutation? = null,
-    // Monotonic counter bumped on every note SAVE failure; the composer watches it to recover its
-    // unsaved draft after a failed save.
-    val noteSaveFailureToken: Int = 0,
 ) {
     val hasAnchors: Boolean get() = pinnedAnchors.isNotEmpty()
 }

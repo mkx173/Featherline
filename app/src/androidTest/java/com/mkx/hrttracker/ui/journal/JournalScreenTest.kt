@@ -50,6 +50,9 @@ class JournalScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    // Every save stays in flight unless a test settles it, as the ViewModel's would.
+    private val noteSaves = NoteSaves()
+
     // Tapping a timeline row that sits below the fold while another editor's IME is up is racy:
     // performScrollToNode brings it into view, but the IME animation and the open editor's
     // bring-into-view can scroll it back out before the tap lands, and the LazyColumn then disposes
@@ -88,8 +91,9 @@ class JournalScreenTest {
                     onOpenMilestones = {},
                     onAddDate = { addDateRequested = true },
                     onOpenAllNotes = { allNotesOpened = true },
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -125,8 +129,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -173,8 +178,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -208,8 +214,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     scrollToTopSignal = scrollToTopSignal,
                 )
             }
@@ -342,8 +349,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, text -> savedTexts += text },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -395,8 +403,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> saved = true },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> saved = true; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -436,8 +445,9 @@ class JournalScreenTest {
                     // Mirror the real ViewModel: the save round-trips through the repository, so the
                     // note text is NOT fed back synchronously. The editor must hold the field until
                     // the saved text lands rather than blinking back to the "write about today" prompt.
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -474,8 +484,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -511,8 +522,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, text -> savedTexts += text },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -551,8 +563,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     onDeleteTodayNote = { deletedDates += it },
                     onDeleteNote = { deletedDates += it },
                 )
@@ -598,8 +611,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> todayNoteSaved = true },
-                    onSaveNote = { _, _ -> olderNoteSaved = true },
+                    onSaveTodayNote = { _, _ -> todayNoteSaved = true; noteSaves.start() },
+                    onSaveNote = { _, _ -> olderNoteSaved = true; noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -633,7 +647,8 @@ class JournalScreenTest {
                         )
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -667,7 +682,8 @@ class JournalScreenTest {
                         ),
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -714,7 +730,8 @@ class JournalScreenTest {
                         ),
                     ),
                     today = today,
-                    onSave = { _, _ -> },
+                    onSave = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -756,10 +773,12 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { date, text ->
                         savedNotes += date to text
+                        noteSaves.start()
                     },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -822,8 +841,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -861,8 +881,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                     // Simulate a delete that fails to persist: the note stays in uiState.
                     onDeleteTodayNote = {},
                     onDeleteNote = {},
@@ -898,8 +919,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, text -> savedTexts += text },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -943,8 +965,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -981,8 +1004,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> },
-                    onSaveNote = { _, _ -> },
+                    onSaveTodayNote = { _, _ -> noteSaves.start() },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }
@@ -996,10 +1020,9 @@ class JournalScreenTest {
     @Test
     fun todayEditor_failedSave_keepsDraftAndReopensForRetry() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        // The composer's draft-recovery reacts to a bumped save-failure token. Simulate the VM:
-        // the save never feeds text back (failed write) and the token bumps. The draft must stay
-        // in the field and the editor must re-open for retry.
-        var token by mutableIntStateOf(0)
+        // The composer's draft-recovery follows its save's outcome. Simulate the VM: the save
+        // never feeds text back (failed write) and fails at once. The draft must stay in the
+        // field and the editor must re-open for retry.
 
         composeRule.setContent {
             HrtTrackerTheme(dynamicColor = false) {
@@ -1017,9 +1040,9 @@ class JournalScreenTest {
                     ),
                     onOpenMilestones = {},
                     onOpenAllNotes = {},
-                    onSaveTodayNote = { _, _ -> token++ },
-                    onSaveNote = { _, _ -> },
-                    noteSaveFailureToken = token,
+                    onSaveTodayNote = { _, _ -> noteSaves.start().also { noteSaves.settle(it, landed = false) } },
+                    onSaveNote = { _, _ -> noteSaves.start() },
+                    noteSaves = noteSaves,
                 )
             }
         }

@@ -89,19 +89,19 @@ class AllNotesViewModelTest {
     }
 
     @Test
-    fun saveNote_writeFailure_setsSaveErrorAndBumpsToken() = runTest {
+    fun saveNote_writeFailure_setsSaveErrorAndFailsTheSave() = runTest {
         val noteDate = LocalDate.of(2026, 6, 1)
         every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(emptyList())
         coEvery { repository.saveNoteForDate(noteDate, "boom") } throws IOException("disk full")
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
-        viewModel.saveNote(noteDate, "boom")
+        val id = viewModel.saveNote(noteDate, "boom")
+        assertEquals(NoteSaveOutcome.InFlight, viewModel.noteSaves.outcome(id))
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.SAVE, viewModel.uiState.value.noteMutationError)
-        assertEquals(tokenBefore + 1, viewModel.uiState.value.noteSaveFailureToken)
+        assertEquals(NoteSaveOutcome.Failed, viewModel.noteSaves.outcome(id))
 
         viewModel.consumeNoteMutationError()
         advanceUntilIdle()
@@ -115,13 +115,11 @@ class AllNotesViewModelTest {
         coEvery { repository.deleteNoteForDate(noteDate) } throws IOException("io")
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
         viewModel.deleteNote(noteDate)
         advanceUntilIdle()
 
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
-        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
     }
 
     @Test
@@ -180,7 +178,7 @@ class AllNotesViewModelTest {
     }
 
     @Test
-    fun deleteSelectedNotes_failure_retainsSelectionSetsDeleteErrorKeepsToken() = runTest {
+    fun deleteSelectedNotes_failure_retainsSelectionSetsDeleteError() = runTest {
         val date = LocalDate.of(2026, 6, 1)
         every { repository.observeNotesOnOrAfter(LocalDate.MIN) } returns flowOf(
             listOf(note(id = "june-1", date = date, text = "June 1"))
@@ -188,7 +186,6 @@ class AllNotesViewModelTest {
         coEvery { repository.deleteNotesForDates(setOf(date)) } throws IOException("io")
         val viewModel = AllNotesViewModel(repository, appTimeSource)
         advanceUntilIdle()
-        val tokenBefore = viewModel.uiState.value.noteSaveFailureToken
 
         viewModel.toggleSelection(date)
         viewModel.deleteSelectedNotes()
@@ -198,7 +195,6 @@ class AllNotesViewModelTest {
         assertTrue(viewModel.uiState.value.isSelectionMode)
         assertFalse(viewModel.uiState.value.isDeletingSelected)
         assertEquals(JournalNoteMutation.DELETE, viewModel.uiState.value.noteMutationError)
-        assertEquals(tokenBefore, viewModel.uiState.value.noteSaveFailureToken)
         assertNull(viewModel.uiState.value.deleteSelectedSuccessCount)
     }
 
