@@ -245,6 +245,58 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
+    fun aSecondRecordAtTheStoredMillisecond_doesNotHideTheHeldReading() = runTest {
+        hc.filtersByNotAfter = true
+        val stored = HealthConnectWeight(weightKg = 61.8, time = t1)
+        hc.records += stored
+        coordinator.sync(now = now)
+        val twin = HealthConnectWeight(weightKg = 62.5, time = t1)
+
+        // Either one may come first: HC's order between equal times is unspecified.
+        for (records in listOf(listOf(twin, stored), listOf(stored, twin))) {
+            hc.records.clear()
+            hc.records += records
+            coordinator.sync(now = t1 - Duration.ofDays(1))
+
+            assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+            assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+            assertNull(coordinator.readingProblem.value)
+        }
+    }
+
+    @Test
+    fun aHeldSync_clearsTheLastSyncsProblem() = runTest {
+        hc.filtersByNotAfter = true
+        hc.records += HealthConnectWeight(weightKg = 61.8, time = t1)
+        coordinator.sync(now = now)
+        hc.records += HealthConnectWeight(weightKg = 0.0, time = t1 + Duration.ofHours(1))
+        coordinator.sync(now = now)
+        assertEquals(ReadingProblem.INVALID, coordinator.readingProblem.value)
+
+        coordinator.sync(now = t1 - Duration.ofDays(1))
+
+        assertEquals(t1.toEpochMilli(), dao.row!!.weightMeasuredAtEpochMillis)
+        // The sheet would show the problem above the held reading's date.
+        assertNull(coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun clearSyncResult_dropsWhatADisableThatDiedOrARestoreLeftBehind() = runTest {
+        hc.records += HealthConnectWeight(weightKg = 61.8, time = t0)
+        coordinator.sync(now = now)
+        hc.records += HealthConnectWeight(weightKg = 0.0, time = t1)
+        coordinator.sync(now = now)
+        // The flag went off, but the date and the problem stayed.
+        syncEnabled = false
+
+        coordinator.clearSyncResult()
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+        assertNull(coordinator.readingProblem.value)
+    }
+
+    @Test
     fun deletedReadingWithinTheTolerance_fallsBackToTheOlderOne() = runTest {
         hc.filtersByNotAfter = true
         val scaleAhead = HealthConnectWeight(weightKg = 61.8, time = now + Duration.ofMinutes(3))
@@ -325,16 +377,46 @@ class WeightSyncCoordinatorTest {
     }
 
     @Test
-    fun restoredFutureWeightWithNoHcReading_isKept() = runTest {
+    fun restoredFutureWeightWithNoHcReading_keepsTheWeightButDropsItsDate() = runTest {
         hc.filtersByNotAfter = true
         restoreWeightMeasuredAt(farFuture)
-        val restored = dao.row
 
         coordinator.sync(now = now)
 
-        // Not erased, but not held either: the sync ran and found no reading.
-        assertEquals(restored, dao.row)
+        // Not held, since HC lacks it: the weight stays, but not beside a 2099 date.
+        assertEquals(90.0, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
         assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun clockSetBackPastAReadingHcThenLost_keepsTheWeightButDropsItsDate() = runTest {
+        hc.filtersByNotAfter = true
+        val reading = HealthConnectWeight(weightKg = 61.8, time = t1)
+        hc.records += reading
+        coordinator.sync(now = now)
+
+        // Deleted from HC, with the clock set back before it and nothing older.
+        hc.records -= reading
+        coordinator.sync(now = t1 - Duration.ofDays(1))
+
+        assertEquals(61.8, dao.row!!.weightOriginalValue!!, 0.0)
+        assertNull(dao.row!!.weightMeasuredAtEpochMillis)
+        assertEquals(ReadingProblem.NONE_FOUND, coordinator.readingProblem.value)
+    }
+
+    @Test
+    fun invalidLatestReading_keepsARestoredFutureDateHcLacks() = runTest {
+        hc.filtersByNotAfter = true
+        restoreWeightMeasuredAt(farFuture)
+        val restored = dao.row
+        hc.records += HealthConnectWeight(weightKg = 0.0, time = t1)
+
+        coordinator.sync(now = now)
+
+        // As now, pending W3: an invalid reading keeps the weight and its date.
+        assertEquals(restored, dao.row)
+        assertEquals(ReadingProblem.INVALID, coordinator.readingProblem.value)
     }
 
     private fun restoreWeightMeasuredAt(measuredAt: Instant) {
@@ -411,5 +493,12 @@ internal class FakeHealthConnectManager : HealthConnectManager {
         lastNotAfter = notAfter
         readGate?.await()
         return records.filter { !filtersByNotAfter || it.time < notAfter }.maxByOrNull { it.time }
+    }
+
+    // As the real read's between(time, time + 1 ms): start inclusive, end exclusive.
+    override suspend fun readWeightsAt(time: Instant): List<HealthConnectWeight> {
+        reads++
+        readGate?.await()
+        return records.filter { it.time >= time && it.time < time.plusMillis(1) }
     }
 }

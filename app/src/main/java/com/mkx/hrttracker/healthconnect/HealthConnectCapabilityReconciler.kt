@@ -113,10 +113,17 @@ class HealthConnectCapabilityReconciler @Inject constructor(
         }
     }
 
-    /** Queues enable with disable and reconcile so the last toggle wins. */
+    /**
+     * Queues enable with disable and reconcile so the last toggle wins. Clears
+     * the last sync's result before the flag goes on: a death inside disable()
+     * or a restore that turned sync off can leave it behind. The guard is reset
+     * so the reconcile below syncs it back.
+     */
     suspend fun enableSync() {
         reconcileMutex.withLock {
+            weightSyncCoordinator.clearSyncResult()
             settingsRepository.setHealthConnectWeightSyncEnabled(true)
+            lastSyncAt = null
         }
         requestReconcile("weight_sync_enabled")
     }

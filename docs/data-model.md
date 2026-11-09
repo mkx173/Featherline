@@ -127,10 +127,22 @@ round-trip the user's chosen unit without re-converting). Updated
 timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis`
 serves read-only Health Connect weight sync (see `WeightSyncCoordinator`):
 the time of the adopted HC reading, null for a typed weight or none. It
-backs the weight sheet's "Measured ..." line and lets a sync skip the
-write when the reading hasn't changed. While the stored measured time is
-after now plus the 5-minute tolerance (the device clock was set back), a
-sync leaves the weight and its measured time unchanged. Clearing the weight keeps
+backs the weight sheet's "recorded <date>" text and lets a sync skip the
+write when the reading hasn't changed. With sync on, HC's latest
+reading before now plus the 5-minute tolerance, if valid, becomes the
+weight and its measured time, rounded to 0.1 in the stored unit. A
+stored reading at or after that point which HC still has (the device
+clock was set back past it) is held: the sync leaves it unchanged until
+the clock catches up. With no reading left, the weight stays but its
+measured time is cleared, a future one HC lacks included. An invalid
+latest reading (under 0.1 kg) keeps the weight and its measured time;
+only the latest is read. Why a sync kept the weight is
+`WeightSyncCoordinator.readingProblem`, in memory, not a column:
+`NONE_FOUND` with no reading, `INVALID` with an invalid latest one, and
+null after a held sync or a valid reading. Turning sync off clears
+the measured time and `readingProblem`, and turning it on clears them
+again before the flag is set, so the sheet reads "Syncing…" until the
+new sync. Clearing the weight keeps
 `weightOriginalUnit`, so a later adopted reading shows in the user's
 unit.
 

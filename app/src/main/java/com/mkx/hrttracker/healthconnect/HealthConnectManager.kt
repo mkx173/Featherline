@@ -42,6 +42,9 @@ interface HealthConnectManager {
 
     /** The latest weight record measured before [notAfter] (HC's end is exclusive), or null. */
     suspend fun readLatestWeight(notAfter: Instant): HealthConnectWeight?
+
+    /** Every weight record measured within the millisecond starting at [time]. */
+    suspend fun readWeightsAt(time: Instant): List<HealthConnectWeight>
 }
 
 val HEALTH_CONNECT_READ_WEIGHT_PERMISSION: String =
@@ -82,6 +85,17 @@ class AndroidHealthConnectManager @Inject constructor(
             HealthConnectWeight(weightKg = record.weight.inKilograms, time = record.time)
         }
     }
+
+    override suspend fun readWeightsAt(time: Instant): List<HealthConnectWeight> =
+        client.readRecords(
+            ReadRecordsRequest(
+                recordType = WeightRecord::class,
+                // between's end is exclusive.
+                timeRangeFilter = TimeRangeFilter.between(time, time.plusMillis(1)),
+            )
+        ).records.map { record ->
+            HealthConnectWeight(weightKg = record.weight.inKilograms, time = record.time)
+        }
 }
 
 @Module

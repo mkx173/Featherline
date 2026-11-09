@@ -50,13 +50,16 @@ class WeightSyncCoordinator @Inject constructor(
                 ?.takeIf { !it.isBefore(notAfter) } // the read below excludes notAfter itself
             // A stored reading after now that HC still has: the clock was set back
             // past it, so the read below can't see it. Keep it until the clock
-            // catches up. One HC lacks, e.g. a bad date from a backup, gives way.
-            // The read's end is exclusive, hence the extra millisecond; what it
-            // returns is only compared, never adopted.
+            // catches up. One HC lacks, e.g. a bad date from a backup, isn't held:
+            // the read below replaces it or drops its date, unless the latest
+            // reading is invalid. Every record at that millisecond is compared, as
+            // another at the same time may come first; none is adopted.
             if (storedAfterNow != null &&
-                healthConnectManager.readLatestWeight(storedAfterNow.plusMillis(1))
-                    ?.let { userProfileRepository.isStoredReading(it.weightKg, it.time) } == true
+                healthConnectManager.readWeightsAt(storedAfterNow)
+                    .any { userProfileRepository.isStoredReading(it.weightKg, it.time) }
             ) {
+                // Held, not kept for want of a reading: no problem to show.
+                _readingProblem.value = null
                 diagnosticsLogger.info(TAG, "weight_sync_skipped reason=$reason stored_reading_after_now")
                 return@withLock
             }
@@ -77,8 +80,9 @@ class WeightSyncCoordinator @Inject constructor(
                 valid != null -> userProfileRepository.adoptHcWeight(valid.weightKg, valid.time, now) {
                     settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
                 }
-                // No reading to replace it: a stored one after now stays, date and all.
-                latest == null && storedAfterNow == null -> userProfileRepository.clearHcMeasuredAt()
+                // No reading to replace it: the weight stays but its date goes,
+                // one after now too (a held one has returned above).
+                latest == null -> userProfileRepository.clearHcMeasuredAt()
                 // ponytail: only the latest is read, not a search for a valid one;
                 // the last saved weight and its date stay until a valid reading.
                 else -> false
@@ -101,11 +105,17 @@ class WeightSyncCoordinator @Inject constructor(
      */
     suspend fun disable() {
         settingsRepository.setHealthConnectWeightSyncEnabled(false)
-        syncMutex.withLock {
-            userProfileRepository.clearHcMeasuredAt()
-            // Turning it back on reads "Syncing…" until the new sync, not the old result.
-            _readingProblem.value = null
-        }
+        clearSyncResult()
+    }
+
+    /**
+     * Clears the last sync's result, the reading's measured time and
+     * [readingProblem], after any in-flight sync. Turning sync on then reads
+     * "Syncing…" until the new sync, not the old result.
+     */
+    suspend fun clearSyncResult() = syncMutex.withLock {
+        userProfileRepository.clearHcMeasuredAt()
+        _readingProblem.value = null
     }
 
     private companion object {

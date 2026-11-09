@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -109,6 +110,27 @@ class HealthConnectCapabilityReconcilerTest {
         // and syncs again.
         reconciler.disableSync()
         coVerify(exactly = 1) { coordinator.disable() }
+        reconciler.enableSync()
+        advanceUntilIdle()
+        coVerify(exactly = 2) { coordinator.sync(any(), now) }
+    }
+
+    @Test
+    fun enableSync_clearsTheLastResultBeforeTheFlag_andSyncsItBack() = runTest {
+        // Off, with a date or a problem a death inside disable() or a restore left.
+        syncEnabled = false
+        val reconciler = reconciler()
+
+        reconciler.enableSync()
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            coordinator.clearSyncResult()
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+            coordinator.sync(any(), now)
+        }
+
+        // Already on and synced this minute: what it cleared is still synced back.
         reconciler.enableSync()
         advanceUntilIdle()
         coVerify(exactly = 2) { coordinator.sync(any(), now) }
