@@ -19,15 +19,16 @@ package com.mkx.hrttracker.ui.components.datepicker
  * "UNSPECIFIED and WILL NOT BE PRESERVED" — re-sync on every Material3 bump).
  *
  * Changes vs upstream: `YearPicker`'s LazyVerticalGrid background (see the `ponytail:`
- * comment there), and month navigation/labelling via `headingMonthIndex` (see there).
- * Everything else is a verbatim copy.
+ * comment there), month navigation/labelling via `headingMonthIndex` (see there), and
+ * the arrows' tooltips through `HrtTooltipBox`, so a back swipe started while one shows
+ * still closes the picker. Everything else is a verbatim copy.
  */
 
 // Public Material3 symbols referenced by simple name below
 // (ButtonDefaults, DatePickerColors, DatePickerDefaults, DatePickerFormatter,
 // DatePickerState, DisplayMode, DividerDefaults, HorizontalDivider, Icon,
 // IconButton, LocalContentColor, PlainTooltipInternal, ProvideTextStyle, SelectableDates,
-// Surface, Text, TextButton, TooltipAnchorPosition, TooltipBox, TooltipDefaults,
+// Surface, Text, TextButton, TooltipAnchorPosition, TooltipDefaults,
 // rememberTooltipState) and the internal chain (BaseDatePickerStateImpl,
 // DateEntryContainer, DateInputContent, DisplayModeToggleButton, Month, WeekDays,
 // numberOfMonthsInRange, createCalendarModel, getString,
@@ -95,7 +96,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.WeekDays
 import androidx.compose.material3.formatDatePickerNavigateToYearString
@@ -160,6 +160,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.ui.components.AppBlurRadius
+import com.mkx.hrttracker.ui.components.HrtTooltipBox
 import com.mkx.hrttracker.ui.components.LocalHazeBlurEnabled
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeInput
@@ -914,7 +915,7 @@ private fun IconButtonWithTooltip(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    TooltipBox(
+    HrtTooltipBox(
         positionProvider =
             TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltipInternal(contentDescription) { Text(contentDescription) } },
