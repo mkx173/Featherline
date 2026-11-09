@@ -14,11 +14,11 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
 import org.junit.Test
 import java.time.LocalDateTime
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicationReminderActionReceiverTest {
@@ -69,7 +69,7 @@ class MedicationReminderActionReceiverTest {
         slots = listOf(slot),
         logTargets = null,
         notificationTag = null,
-        deadline = TimeSource.Monotonic.markNow() + 8.seconds,
+        deadline = testTimeSource.markNow() + 8.seconds,
         appScope = backgroundScope,
         actionHandler = actionHandler,
         homeSnapshotRepository = homeSnapshotRepository,

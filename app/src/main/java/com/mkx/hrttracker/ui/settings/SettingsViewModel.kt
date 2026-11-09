@@ -41,6 +41,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -104,9 +106,9 @@ class SettingsViewModel @Inject constructor(
     )
 
     // Replay the most recent result so the UI still sees it after a config
-    // change recreates the collector. The restore itself sets the app locale,
-    // which triggers an activity recreate; without replay the success/failure
-    // toast would be lost in the gap.
+    // change recreates the collector; without replay the success/failure
+    // toast would be lost in the gap. The restored locale and dark mode
+    // apply in place (the manifest handles them), so they don't recreate it.
     private val restoreEvents = MutableSharedFlow<BackupRestoreEvent>(
         replay = 1,
         extraBufferCapacity = 4,
@@ -280,6 +282,10 @@ class SettingsViewModel @Inject constructor(
     fun setHideMedicationDetails(hidden: Boolean) {
         launchSettingsMutation {
             settingsRepository.setHideMedicationDetails(hidden)
+            // Reminders on screen show or hide their medications too, reposted silently.
+            runReminderSideEffectBestEffort {
+                medicationReminderScheduler.refreshDoseReminderNotifications()
+            }
         }
     }
 
@@ -537,10 +543,9 @@ class SettingsViewModel @Inject constructor(
 
     /**
      * Restore handler that survives configuration change. The restored
-     * settings include `appLanguageOption`, which triggers an activity
-     * recreate; if we launched this in `rememberCoroutineScope()` the
-     * coroutine would be cancelled mid-flight and the success toast would
-     * be lost. Running on `viewModelScope` and emitting events via a
+     * language and dark mode apply in place, but any other recreate would
+     * cancel a `rememberCoroutineScope()` launch mid-flight and lose the
+     * success toast. Running on `viewModelScope` and emitting events via a
      * replaying SharedFlow lets the new composition pick up the result.
      */
     fun requestBackupRestore(password: String) {
@@ -558,7 +563,7 @@ class SettingsViewModel @Inject constructor(
         setBackupRestoreInProgress(true)
         // Keep the pending request in state while the restore is active so
         // the password dialog stays rendered and locked across a slow Room
-        // open or the activity recreate caused by restored settings.
+        // open or a recreate.
         viewModelScope.launch {
             try {
                 val outcome = backupRestoreService.restoreBackupBytes(
@@ -572,7 +577,9 @@ class SettingsViewModel @Inject constructor(
                     }
                 )
             } catch (error: CancellationException) {
-                throw error
+                // Still active, it was a step's own failure, not a cancel: report it, not nothing.
+                ensureActive()
+                restoreEvents.tryEmit(BackupRestoreEvent.Failure(error))
             } catch (error: Exception) {
                 restoreEvents.tryEmit(BackupRestoreEvent.Failure(error))
             } finally {
@@ -759,8 +766,9 @@ class SettingsViewModel @Inject constructor(
     private suspend fun runReminderSideEffectBestEffort(block: suspend () -> Unit) {
         try {
             block()
-        } catch (error: CancellationException) {
-            throw error
+        } catch (_: CancellationException) {
+            // Still active, it was the step's own failure, not a cancel: best effort goes on.
+            currentCoroutineContext().ensureActive()
         } catch (_: Exception) {
             // Reminder alarms and snoozes are reconciled again by lifecycle
             // hooks; the settings DataStore write above is the user-visible change.

@@ -69,6 +69,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -647,13 +649,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
     /**
      * Null when the mark can't be stored, and the write goes ahead without it. A cancelled
      * caller stops here instead: its mark may be down, and a write it then commits would
-     * have no mark to release.
+     * have no mark to release. A caller still active got the store's own failure.
      */
     private suspend fun markReconcilePendingBestEffort(): MedicationReminderScheduler.ReconcileMark? =
         try {
             medicationReminderScheduler.markReconcilePending()
-        } catch (error: CancellationException) {
-            throw error
+        } catch (_: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            null
         } catch (_: Exception) {
             null
         }

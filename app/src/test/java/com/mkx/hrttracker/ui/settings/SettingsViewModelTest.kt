@@ -46,6 +46,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -462,6 +463,28 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun requestBackupRestore_reportsACancellationExceptionThatIsNotACancelAsAFailure() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val failure = CancellationException("datastore scope")
+        coEvery { backupRestoreService.restoreBackupBytes(any(), "password") } throws failure
+        viewModel.setPendingRestoreRequest(
+            fileUri = mockk(),
+            displayName = "backup.json",
+            encryptedBytes = byteArrayOf(1),
+        )
+        advanceUntilIdle()
+
+        viewModel.requestBackupRestore("password")
+        advanceUntilIdle()
+
+        // viewModelScope is still active, so the dialog closes with a message, not silently.
+        val event = viewModel.backupRestoreEvents.replayCache.single() as BackupRestoreEvent.Failure
+        assertSame(failure, event.error)
+        assertFalse(viewModel.uiState.value.isBackupRestoreInProgress)
+    }
+
+    @Test
     fun requestBackupExport_handsThePreparedBackupToTheFolderPicker() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -621,6 +644,21 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setHideMedicationDetails_repostsTheRemindersOnScreen() = runTest {
+        coEvery { settingsRepository.setHideMedicationDetails(any()) } just Runs
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setHideMedicationDetails(true)
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            settingsRepository.setHideMedicationDetails(true)
+            medicationReminderScheduler.refreshDoseReminderNotifications()
+        }
+    }
+
+    @Test
     fun setRemindersEnabled_keepsSnoozesWhenEnablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -661,6 +699,22 @@ class SettingsViewModelTest {
             reconcileMark.committed()
             medicationReminderScheduler.rescheduleAll(any())
         }
+    }
+
+    // Still active, the exception is the mark store's own: the toggle goes ahead without a mark.
+    @Test
+    fun setRemindersEnabled_goesOnWhenItsMarksStoreThrowsACancellationException() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws
+            CancellationException("datastore scope")
+
+        viewModel.setRemindersEnabled(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test

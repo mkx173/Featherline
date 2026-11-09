@@ -1,10 +1,8 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.widget.Toast
 import androidx.glance.GlanceId
 import androidx.glance.action.actionParametersOf
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
@@ -32,7 +30,6 @@ import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -48,11 +45,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -176,7 +173,8 @@ class QuickLogActionCallbackTest {
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { medicineStockRepository.projectAllOnce(any()) } returns emptyList()
 
-        val action = launch { QuickLogActionCallback().onAction(context, mockk(), parameters) }
+        // The budget on the test's own clock: a slow real second (a GC pause) can't use it up.
+        val action = launch { QuickLogActionCallback(testTimeSource).onAction(context, mockk(), parameters) }
         runCurrent()
         advanceTimeBy(7_000L)
         runCurrent()
@@ -246,14 +244,10 @@ class QuickLogActionCallbackTest {
 
     @Test
     fun onAction_showsFailureToastAndLogsWhenWidgetQuickLogWriteFails() = runTest {
-        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         mockkStatic(EntryPointAccessors::class)
-        mockkStatic(Toast::class)
         mockkStatic("com.mkx.hrttracker.widget.HrtWidgetKt")
-        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         val context: Context = mockk()
         val appContext: Context = mockk()
-        val localizedContext: Context = mockk()
         val glanceId: GlanceId = mockk()
         val entryPoint: WidgetEntryPoint = mockk()
         val groupRepository: MedicationGroupRepository = mockk()
@@ -262,7 +256,6 @@ class QuickLogActionCallbackTest {
         val settingsRepository: SettingsRepository = mockk()
         val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
         val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
-        val toast: Toast = mockk(relaxed = true)
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val group = medicationGroup(
             uuid = UUID.fromString("7f8f2630-bf28-4d6c-994d-35e09bfe895e"),
@@ -270,15 +263,12 @@ class QuickLogActionCallbackTest {
             medicationKey = MedicationKey.ESTRADIOL,
         )
         val failure = IllegalStateException("database write failed")
-        val failureMessage = "Unable to quick-log dose."
         val parameters = actionParametersOf(
             GroupUuidKey to group.uuid.toString(),
             ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
             ScheduledAtKey to scheduledAt.toString(),
         )
         every { context.applicationContext } returns appContext
-        every { appContext.withAppLanguage() } returns localizedContext
-        every { localizedContext.getString(R.string.widget_quick_log_failed) } returns failureMessage
         every {
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
         } returns entryPoint
@@ -289,7 +279,7 @@ class QuickLogActionCallbackTest {
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
-        every { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) } returns toast
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
         coEvery { groupRepository.getGroup(group.uuid) } returns group
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } throws failure
@@ -305,8 +295,8 @@ class QuickLogActionCallbackTest {
             )
         }
         coVerify { updateAllHrtWidgets(appContext) }
-        verify { Toast.makeText(localizedContext, failureMessage, Toast.LENGTH_SHORT) }
-        verify { toast.show() }
+        // In the app language, as the notification manager's other toasts.
+        verify { notificationManager.showQuickLogFailedToast() }
     }
 
     @Test
@@ -448,7 +438,9 @@ class QuickLogActionCallbackTest {
         every { entryPoint.medicationGroupRepository() } returns groupRepository
         every { entryPoint.medicationLogRepository() } returns logRepository
         every { entryPoint.medicineStockRepository() } returns medicineStockRepository
-        every { entryPoint.settingsRepository() } returns mockk()
+        every { entryPoint.settingsRepository() } returns mockk {
+            coEvery { getCurrentSettings() } returns SettingsState()
+        }
         every { entryPoint.reminderNotificationManager() } returns notificationManager
         every { entryPoint.diagnosticsLogger() } returns mockk(relaxed = true)
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
@@ -463,6 +455,7 @@ class QuickLogActionCallbackTest {
 
         coVerify { updateAllHrtWidgets(appContext) }
         verify(exactly = 0) { notificationManager.showDoseReminderLoggedToast(any()) }
+        verify(exactly = 0) { notificationManager.showQuickLogFailedToast() }
         coVerify(exactly = 0) { homeSnapshotRepository.rebuildNow() }
     }
 

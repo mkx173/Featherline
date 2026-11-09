@@ -70,6 +70,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -554,6 +555,65 @@ class BackupRestoreServiceTest {
 
         assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+    }
+
+    @Test
+    fun restoreBackupBytes_stillReschedulesWhenTheSnoozeClearFails() = runTest {
+        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } throws IOException("snooze store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_runsTheFollowUpsWhenSettingsThrowACancellationException() = runTest {
+        // Not a cancel of the restore, which can't reach the gate: the write's own failure.
+        coEvery {
+            settingsRepository.restoreSettings(
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(),
+                any(), any(), any(),
+                any(),
+            )
+        } throws CancellationException("datastore scope")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        verify(exactly = 1) {
+            healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
+        }
+    }
+
+    @Test
+    fun restoreBackupBytes_restoresWithoutTheReconcileMarkWhenItCantBeStored() = runTest {
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws IOException("schedule store")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        // A cold start runs a full pass anyway, so the mark is only a safety net.
+        assertEquals(BackupRestoreOutcome.RESTORED, outcome)
+        coVerify(exactly = 1) { databaseHolder.runTransaction(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun restoreBackupBytes_runsTheRestWhenAFollowUpThrowsACancellationException() = runTest {
+        // Not a cancel of the restore, which can't reach the follow-ups: the step's own failure.
+        coEvery { widgetAppearanceRepository.setDefault(any()) } throws
+            CancellationException("datastore scope")
+
+        val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
+        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     private fun emptySnapshotBytes(): ByteArray = backupCrypto.encryptSnapshotJson(

@@ -107,8 +107,12 @@ class HrtTrackerApplication : Application() {
         }
         ToastManager.init(this)
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")
-        reminderNotificationManager.createNotificationChannel()
-        diagnosticsLogger.info(TAG, "application_notification_channel_requested")
+        applicationScope.launch {
+            // After a settings read: below API 33 the app language may be known only from it.
+            settingsRepository.getCurrentSettings()
+            reminderNotificationManager.createNotificationChannel()
+            diagnosticsLogger.info(TAG, "application_notification_channel_requested")
+        }
         timeZoneChangeNoticeController.attachToProcessLifecycle()
         diagnosticsLogger.info(TAG, "application_timezone_notice_controller_attached")
         // Re-read the wall clock on every foreground so the home/plan/history

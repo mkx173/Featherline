@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
+import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
@@ -28,8 +29,10 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.appLanguageLocale
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,6 +50,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
@@ -55,6 +59,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val SECURITY_SETTINGS_RETRY_DELAY_MILLIS = 1_000L
+private const val TAG = "SettingsRepository"
 
 private val Context.dataStore by preferencesDataStore(
     name = "settings",
@@ -64,9 +69,13 @@ private val Context.dataStore by preferencesDataStore(
 @Singleton
 class SettingsRepository internal constructor(
     private val preferencesDataStore: DataStore<Preferences>,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(context.dataStore)
+    constructor(
+        @ApplicationContext context: Context,
+        diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
+    ) : this(context.dataStore, diagnosticsLogger)
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
@@ -105,7 +114,17 @@ class SettingsRepository internal constructor(
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
+    private val appLanguageTagKey = stringPreferencesKey("app_language_tag")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
+
+    // ponytail: the stored tag as of the last write or getCurrentSettings, so a notification can
+    // read it without suspending; every reminder path reads the settings before it posts.
+    @Volatile
+    private var storedAppLanguageTag: String? = null
+
+    // The tag last chosen in this process, which a read never overwrites.
+    @Volatile
+    private var requestedAppLanguageTag: String? = null
 
     private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
@@ -215,9 +234,21 @@ class SettingsRepository internal constructor(
         }
 
     suspend fun getCurrentSettings(): SettingsState {
-        return preferencesToStoredSettingsState(activeDataStore().data.first())
+        val preferences = activeDataStore().data.first()
+        storedAppLanguageTag = preferences[appLanguageTagKey]
+        return preferencesToStoredSettingsState(preferences)
             .copy(appLanguageOption = appLanguageOption.value)
     }
+
+    /**
+     * The app language for text posted outside an activity, or null for the application
+     * context's own. AppCompat knows the chosen one only once an activity has attached, so a
+     * process an alarm woke falls back to the one stored with the last change. From API 33 the
+     * framework keeps the application context in the app language itself.
+     */
+    fun appLanguageTag(): String? =
+        AppCompatDelegate.getApplicationLocales().takeUnless(LocaleListCompat::isEmpty)?.toLanguageTags()
+            ?: storedAppLanguageTag.takeIf { Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU }
 
     suspend fun setDarkModeOption(option: DarkModeOption) {
         activeDataStore().edit { preferences ->
@@ -551,7 +582,9 @@ class SettingsRepository internal constructor(
 
             preferences[homeCardOrderKey] = homeCardLayout.order.joinToString(",") { it.name }
             preferences[homeCardHiddenKey] = homeCardLayout.hidden.map { it.name }.toSet()
+            preferences[appLanguageTagKey] = appLanguageOption.languageTag
         }
+        storedAppLanguageTag = appLanguageOption.languageTag
 
         // setApplicationLocales must be called on the main thread; restore runs on IO.
         withContext(Dispatchers.Main) { setAppLanguageOption(appLanguageOption) }
@@ -564,10 +597,33 @@ class SettingsRepository internal constructor(
         // so syncing it here keeps formatted doses aligned with the chosen UI language.
         Locale.setDefault(locale)
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
+        storeAppLanguageTag(option.languageTag)
     }
 
     fun refreshAppLanguageOption() {
         appLanguageOption.value = AppLanguageOption.fromLocale(appLanguageLocale())
+        // Stores one chosen before the tag was kept, or from the system's app language settings.
+        AppCompatDelegate.getApplicationLocales().takeUnless(LocaleListCompat::isEmpty)
+            ?.let { locales -> storeAppLanguageTag(locales.toLanguageTags()) }
+    }
+
+    private fun storeAppLanguageTag(tag: String) {
+        storedAppLanguageTag = tag
+        requestedAppLanguageTag = tag
+        repositoryScope.launch {
+            try {
+                // The latest one asked for, not this call's: of quick changes, the write that
+                // runs last stores the last one. DataStore skips a write that changes nothing.
+                activeDataStore().edit { preferences ->
+                    requestedAppLanguageTag?.let { latest -> preferences[appLanguageTagKey] = latest }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                // Read back only where no activity attached; the next change or app start writes it.
+                diagnosticsLogger.warning(TAG, "app_language_tag_store_failed tag=$tag", error)
+            }
+        }
     }
 
     private fun preferencesToStoredSettingsState(preferences: Preferences): SettingsState {

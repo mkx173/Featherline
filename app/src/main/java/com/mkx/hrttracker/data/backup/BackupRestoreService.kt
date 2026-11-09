@@ -60,6 +60,7 @@ import com.mkx.hrttracker.widget.legacyWidgetAppearance
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -241,8 +242,15 @@ class BackupRestoreService @Inject constructor(
         // failed follow-up, not a failed restore.
         var followUpFailed = false
         homeSnapshotRepository.runHomeDataMutation {
-            // Startup reconciles if the process dies before rescheduleAll does.
-            val reconcileMark = medicationReminderScheduler.markReconcilePending()
+            // Startup reconciles if the process dies before rescheduleAll does. Null when the
+            // mark can't be stored, and the restore goes ahead: a cold start runs a full pass anyway.
+            // The gate is NonCancellable, so a CancellationException is the store's own failure too.
+            val reconcileMark = try {
+                medicationReminderScheduler.markReconcilePending()
+            } catch (error: Exception) {
+                diagnosticsLogger.warning(TAG, "restore_reconcile_mark_failed", error)
+                null
+            }
             try {
                 databaseHolder.runTransaction { database ->
                     // Delete order: logs and group items (children) before medicines
@@ -336,79 +344,81 @@ class BackupRestoreService @Inject constructor(
                         stockNudgeUserEnabled = validatedSnapshot.settings.stockNudgeUserEnabled,
                         homeCardLayout = validatedSnapshot.settings.homeCardLayout,
                     )
-                } catch (error: CancellationException) {
-                    throw error
                 } catch (error: Throwable) {
+                    // The gate is NonCancellable, so a CancellationException is the write's
+                    // own failure; rethrown, it would skip the follow-ups and report nothing.
                     followUpFailed = true
                     diagnosticsLogger.warning(TAG, "restore_settings_apply_failed", error)
                 }
             } finally {
                 // Committed or rolled back, before rescheduleAll below, so it may settle the mark.
-                reconcileMark.committed()
+                reconcileMark?.committed()
             }
         }
 
-        // Restore REPLACES the default appearance wholesale, including hue, saturation
-        // and balance from the backup (or Defaults via the legacy mirror for
-        // pre-customization backups). appWidgetIds are not stable across devices,
-        // so only the default entry travels in the backup.
-        //
-        // Validation already hard-failed any malformed appearance payload before
-        // the commit above; only the DataStore IO apply here is best-effort, so a
-        // write failure must not sink an otherwise-successful restore.
-        try {
-            widgetAppearanceRepository.setDefault(
-                validatedSnapshot.settings.widgetAppearance
-                    ?: legacyWidgetAppearance(
-                        contentScale = validatedSnapshot.settings.widgetContentScale,
-                        backgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
-                        darkMode = validatedSnapshot.settings.widgetDarkModeOption,
-                    )
-            )
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            followUpFailed = true
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_widget_appearance_apply_failed",
-                error,
-            )
-        }
+        // Past the commit, a cancel (the restore runs on viewModelScope) must not skip
+        // these: restored plans would get no alarms, and old snoozes would stay until the
+        // next cold start. So a CancellationException in here is a step's own failure, not
+        // the caller's, and is caught like any other; rethrown, it would skip the rest.
+        withContext(NonCancellable) {
+            // Restore REPLACES the default appearance wholesale, including hue, saturation
+            // and balance from the backup (or Defaults via the legacy mirror for
+            // pre-customization backups). appWidgetIds are not stable across devices,
+            // so only the default entry travels in the backup.
+            //
+            // Validation already hard-failed any malformed appearance payload before
+            // the commit above; only the DataStore IO apply here is best-effort, so a
+            // write failure must not sink an otherwise-successful restore.
+            try {
+                widgetAppearanceRepository.setDefault(
+                    validatedSnapshot.settings.widgetAppearance
+                        ?: legacyWidgetAppearance(
+                            contentScale = validatedSnapshot.settings.widgetContentScale,
+                            backgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
+                            darkMode = validatedSnapshot.settings.widgetDarkModeOption,
+                        )
+                )
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_widget_appearance_apply_failed",
+                    error,
+                )
+            }
 
-        // Reminder rescheduling is a best-effort side effect — the data is
-        // already committed. Surfacing a failure here as a generic
-        // exception caused "restore failed" toasts even when the user's
-        // data had been restored successfully. The reconcile marked above
-        // stays pending, so startup runs it on the next app launch.
-        try {
-            medicationReminderScheduler.rescheduleAll()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            followUpFailed = true
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_reminder_reschedule_failed",
-                error,
-            )
+            // Before rescheduleAll: its reconcile reposts a changed reminder with Remind
+            // later worked out from the snooze counts, so they must be reset first.
+            try {
+                medicationReminderSnoozeScheduler.clearAllSnoozes()
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_snooze_clear_failed",
+                    error,
+                )
+            }
+            // Reminder rescheduling is a best-effort side effect — the data is
+            // already committed. Surfacing a failure here as a generic
+            // exception caused "restore failed" toasts even when the user's
+            // data had been restored successfully. The reconcile marked above
+            // stays pending, so startup runs it on the next app launch.
+            try {
+                medicationReminderScheduler.rescheduleAll()
+            } catch (error: Throwable) {
+                followUpFailed = true
+                diagnosticsLogger.warning(
+                    TAG,
+                    "restore_reminder_reschedule_failed",
+                    error,
+                )
+            }
+            // The app is already in the foreground, so a restored sync flag would
+            // otherwise wait for the next onStart. Fire-and-forget; it never throws.
+            // The restored weight must give way to HC's, however recent the last sync.
+            healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
         }
-        try {
-            medicationReminderSnoozeScheduler.clearAllSnoozes()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            followUpFailed = true
-            diagnosticsLogger.warning(
-                TAG,
-                "restore_snooze_clear_failed",
-                error,
-            )
-        }
-        // The app is already in the foreground, so a restored sync flag would
-        // otherwise wait for the next onStart. Fire-and-forget; it never throws.
-        // The restored weight must give way to HC's, however recent the last sync.
-        healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
         if (followUpFailed) BackupRestoreOutcome.FOLLOW_UP_FAILED else BackupRestoreOutcome.RESTORED
     }
 

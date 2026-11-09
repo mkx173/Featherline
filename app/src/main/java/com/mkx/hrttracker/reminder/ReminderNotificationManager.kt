@@ -27,13 +27,13 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ScheduledDoseRowHighlightTarget
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.toStorageValue
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.appLanguageLocale
+import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicineDisplayName
 import com.mkx.hrttracker.util.uses24HourTimeFormat
-import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import javax.inject.Inject
@@ -42,11 +42,12 @@ import javax.inject.Singleton
 @Singleton
 class ReminderNotificationManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     /**
      * Creates (or updates the mutable name/description fields of) the
-     * dose-reminder channel.
+     * dose-reminder channel, in the app language.
      *
      * When called in response to a locale change, pass [languageTag] (e.g.
      * `"en"`, `"zh-Hans"`). The strings are then resolved through a
@@ -58,7 +59,7 @@ class ReminderNotificationManager @Inject constructor(
      * old-locale strings.
      */
     fun createNotificationChannel(languageTag: String? = null) {
-        val resolvedContext = languageTag?.let(::localizedContextFor) ?: context
+        val resolvedContext = languageTag?.let(::localizedContextFor) ?: localizedContext()
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
@@ -75,6 +76,14 @@ class ReminderNotificationManager @Inject constructor(
                     "languageTag=${languageTag ?: "default"}"
         )
     }
+
+    /**
+     * [context] in the app language. Its own Resources stay on the system locale below API 33,
+     * and a process an alarm woke has no activity for AppCompat to know the app language from
+     * ([SettingsRepository.appLanguageTag]).
+     */
+    private fun localizedContext(): Context =
+        settingsRepository.appLanguageTag()?.let(::localizedContextFor) ?: context
 
     private fun localizedContextFor(languageTag: String): Context {
         val locale = LocaleListCompat.forLanguageTags(languageTag).get(0) ?: return context
@@ -100,11 +109,9 @@ class ReminderNotificationManager @Inject constructor(
         }
         createNotificationChannel()
 
-        // Resolve every user-facing string and number through a context pinned to
-        // the chosen app language. The injected ApplicationContext stays on the
-        // system locale below API 33 (see Localization.withAppLanguage), so without
-        // this the title, body, and dose details would ignore the user's language.
-        val localizedContext = context.withAppLanguage()
+        // Every user-facing string, number and date in the app language.
+        val localizedContext = localizedContext()
+        val locale = localizedContext.currentAppLocale()
 
         val notificationTag = bundle.notificationTag
         val contentIntent = PendingIntent.getActivity(
@@ -134,9 +141,9 @@ class ReminderNotificationManager @Inject constructor(
             .setSubText(
                 localizedContext.getString(
                     R.string.reminder_notification_scheduled_at,
-                    dateLabelFormatter(appLanguageLocale(), LocalDate.now())(bundle.scheduledAt.toLocalDate()),
+                    dateLabelFormatter(locale, LocalDate.now())(bundle.scheduledAt.toLocalDate()),
                     bundle.scheduledAt.format(
-                        localizedShortTimeFormatter(appLanguageLocale(), context.uses24HourTimeFormat())
+                        localizedShortTimeFormatter(locale, context.uses24HourTimeFormat())
                     ),
                 )
             )
@@ -155,7 +162,7 @@ class ReminderNotificationManager @Inject constructor(
                         EXTRA_REMINDER_SLOTS,
                         ArrayList(bundle.slots.map(MedicationReminderSlot::toStorageValue)),
                     )
-                    putString(EXTRA_REMINDER_CONTENT_HASH, bundle.contentHash)
+                    putString(EXTRA_REMINDER_CONTENT_HASH, bundle.postedContentHash(hideMedicationDetails))
                 }
             )
             .setStyle(
@@ -315,6 +322,11 @@ class ReminderNotificationManager @Inject constructor(
         showToast { localized -> localized.getString(R.string.reminder_notification_no_longer_scheduled) }
     }
 
+    fun showQuickLogFailedToast() {
+        diagnosticsLogger.info(TAG, "reminder_notification_quick_log_failed_toast")
+        showToast { localized -> localized.getString(R.string.widget_quick_log_failed) }
+    }
+
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
         diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
         showToast { localized ->
@@ -333,12 +345,7 @@ class ReminderNotificationManager @Inject constructor(
         diagnosticsLogger.info(TAG, "reminder_notification_cancelled tag=$notificationTag")
     }
 
-    /**
-     * Cancel every dose-reminder notification this app currently has visible.
-     * Used by backup restore: any active reminder references slot UUIDs from the
-     * pre-restore database, so the notification must be dismissed before the
-     * user can tap an action that would dispatch with stale state.
-     */
+    /** Cancels every notification this app has on screen, once reminders are off. */
     fun cancelAllDoseReminderNotifications() {
         NotificationManagerCompat.from(context).cancelAll()
         diagnosticsLogger.info(TAG, "reminder_notifications_cancelled_all")
@@ -443,11 +450,7 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     private fun showToast(message: (Context) -> String) {
-        // Resolve the toast string through a context pinned to the chosen app language.
-        // The injected ApplicationContext stays on the system locale below API 33 (see
-        // Localization.withAppLanguage), so resolving off it would show toasts in the
-        // system language even when the user picked a different app language.
-        val localizedContext = context.withAppLanguage()
+        val localizedContext = localizedContext()
         val text = message(localizedContext)
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(localizedContext, text, Toast.LENGTH_SHORT).show()

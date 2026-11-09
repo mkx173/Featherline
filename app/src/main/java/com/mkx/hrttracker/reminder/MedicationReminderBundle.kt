@@ -82,7 +82,14 @@ data class MedicationReminderBundle(
         ).toString()
 }
 
-/** A dose reminder on screen: the doses it names, and [MedicationReminderBundle.contentHash] when posted. */
+/**
+ * [MedicationReminderBundle.contentHash], and whether the post hid its medications: a change to
+ * either calls for a repost. The same as the plain hash when shown, as an older build posted it.
+ */
+internal fun MedicationReminderBundle.postedContentHash(hideMedicationDetails: Boolean): String =
+    if (hideMedicationDetails) "$contentHash/hidden" else contentHash
+
+/** A dose reminder on screen: the doses it names, and [postedContentHash] when posted. */
 data class ShownDoseReminder(
     val slots: List<MedicationReminderSlot>,
     val contentHash: String?,

@@ -39,6 +39,7 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -56,6 +57,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -307,6 +309,31 @@ class MedicationReminderSchedulerTest {
         verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
         verify(exactly = 0) {
             notificationManager.showDoseReminderNotification(any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun refreshDoseReminderNotifications_reposts_a_shown_reminder_silently_once_details_are_hidden() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e70"),
+            notificationsEnabled = true,
+        )
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+        // You turn on Hide medication details after the reminder was posted with them.
+        coEvery { settingsRepository.getCurrentSettings() } returns
+                SettingsState(remindersEnabled = true, hideMedicationDetails = true)
+
+        scheduler.refreshDoseReminderNotifications()
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                canSnooze = any(),
+                hideMedicationDetails = true,
+                silent = true,
+            )
         }
     }
 
@@ -592,14 +619,17 @@ class MedicationReminderSchedulerTest {
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
         coEvery { groupRepository.getGroups() } returns emptyList()
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        lateinit var writer: Job
         // DataStore's write doesn't check for cancellation; the caller's resumption does.
         coEvery { reminderScheduleStore.setReconcilePending(true) } answers {
             reconcilePending = true
+            writer.cancel()
             throw CancellationException("the editor went")
         }
 
         // The writer never gets the mark, but its commit can still land under NonCancellable.
-        runCatching { scheduler.markReconcilePending() }
+        writer = launch { scheduler.markReconcilePending() }
+        writer.join()
         scheduler.rescheduleAll(reminderNow)
 
         assertTrue("the cancelled writer's reconcile is still owed", scheduler.isReconcilePending())
@@ -674,6 +704,47 @@ class MedicationReminderSchedulerTest {
         val tomorrowMorning = morning.plusDays(1)
         assertEquals(listOf(testInstant(tomorrowMorning).toEpochMilli()), armedAlarms.values.toList())
         assertEquals(mapOf<UUID, LocalDateTime?>(twiceDaily.uuid to tomorrowMorning), storedReminders)
+    }
+
+    @Test
+    fun rescheduleGroup_in_the_repeated_hour_arms_again_a_first_pass_dose_whose_alarm_has_not_come() = runTest {
+        // New York's clocks go back from 02:00 to 01:00 on Nov 1 2026. It's the second 01:10
+        // (EST), and the 01:30 alarm, armed at the first 01:30 (EDT), hasn't come yet.
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val night = medicationGroup(
+                UUID.fromString("7d3e9c20-4f5b-4a6c-9d7e-8f9a0b1c2d3e"),
+                notificationsEnabled = true,
+            ).atTime(LocalTime.of(1, 30))
+            val firstPass = LocalDateTime.of(2026, 11, 1, 1, 30)
+            val atSecondTenPastOne = MedicationReminderScheduler(
+                context = context,
+                medicationGroupRepository = groupRepository,
+                medicationLogRepository = logRepository,
+                settingsRepository = settingsRepository,
+                reminderScheduleStore = reminderScheduleStore,
+                medicationReminderSnoozeScheduler = snoozeScheduler,
+                reminderNotificationManager = notificationManager,
+                homeSnapshotRepository = homeSnapshotRepository,
+                diagnosticsLogger = diagnosticsLogger,
+                sdkInt = Build.VERSION_CODES.S,
+                instantNow = { Instant.parse("2026-11-01T06:10:00Z") },
+            )
+            trackAlarmsAndStore()
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+            coEvery { groupRepository.getGroup(night.uuid) } returns night
+            coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+            storedReminders[night.uuid] = firstPass
+
+            atSecondTenPastOne.rescheduleGroup(night.uuid, after = LocalDateTime.of(2026, 11, 1, 1, 10))
+
+            // At its own time, which has passed, so it fires at once and its dose still rings.
+            assertEquals(mapOf<UUID, LocalDateTime?>(night.uuid to firstPass), storedReminders)
+            assertEquals(listOf(testInstant(firstPass).toEpochMilli()), armedAlarms.values.toList())
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
     }
 
     @Test

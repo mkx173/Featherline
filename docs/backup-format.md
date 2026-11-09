@@ -382,26 +382,41 @@ incompatible files are rejected at the cheapest detection point.
    unsupported unit fails before the database is touched. It also
    parses `homeE2ChartWindow` as a `HomeE2ChartWindowOption`, so an
    unknown chart-window name rejects the backup during validation.
-6. **Cancel visible reminders.** Any posted dose-reminder notification
-   references slot UUIDs from the pre-restore database;
-   `cancelAllDoseReminderNotifications` runs before any mutation so a
-   tap afterwards doesn't dispatch with stale state.
-7. **Restore in one transaction.** Wrapped in
-   `homeSnapshotRepository.runHomeDataMutation { databaseHolder
-   .runTransaction { … } }`. The transaction deletes every backed-up
+6. **Mark a reconcile owed.** Inside
+   `homeSnapshotRepository.runHomeDataMutation`,
+   `markReconcilePending` stores a flag, so the next app launch runs a
+   full reminder pass if the process dies before the restore's own.
+   It is best-effort: if the flag can't be stored, the restore goes
+   ahead without it, since a cold start runs a full pass anyway.
+   Reminders on screen are left alone; the reschedule in step 9
+   reconciles them with the restored data.
+7. **Restore in one transaction.** Still inside the mutation,
+   `databaseHolder.runTransaction { … }` deletes every backed-up
    table in dependency order, including `notes` and `tracked_dates`,
    then inserts the validated entities. Journal rows are restored via
    `JournalDao.insertTrackedDates` and `JournalDao.insertNotes` after
    the core medication and blood-test rows are back in place.
    Either the whole import lands or none of it does.
 8. **Restore settings.** `settingsRepository.restoreSettings` writes
-   the validated `BackupSettingsSnapshot` to DataStore. Outside the
-   Room transaction — DataStore is a separate storage layer.
-9. **Best-effort reminder re-scheduling.** `rescheduleAll` and
-   `clearAllSnoozes` are called; any non-`CancellationException`
-   throwable is logged via `AppDiagnosticsLogger.warning` rather than
-   surfaced. The data has already committed, and the alarm scheduler
-   reconciles on the next app launch.
+   the validated `BackupSettingsSnapshot` to DataStore, inside the
+   mutation but outside the Room transaction — DataStore is a separate
+   storage layer. From here on the data is restored, so a failure,
+   even a `CancellationException` (the mutation is `NonCancellable`),
+   no longer fails the restore; it is reported as `FOLLOW_UP_FAILED`
+   (step 9).
+9. **Best-effort follow-ups.** After the mutation, in
+   `withContext(NonCancellable)` so a cancelled caller can't skip
+   them: the widget appearance write, `clearAllSnoozes`, then
+   `rescheduleAll`, then the Health Connect reconcile. The snoozes
+   are cleared first because `rescheduleAll` reposts a changed
+   reminder with Remind later worked out from their counts; it also
+   keeps a reminder still due in the restored data and drops the
+   rest. A failed step is logged via `AppDiagnosticsLogger.warning`,
+   and the others still run. The restore then returns
+   `BackupRestoreOutcome.FOLLOW_UP_FAILED` instead of `RESTORED`,
+   and Settings says the backup was restored but some settings or
+   reminders weren't updated. A reschedule that didn't run is left
+   to the next app launch.
 
 ## Forward-compatibility policy
 

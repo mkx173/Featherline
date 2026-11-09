@@ -192,9 +192,9 @@ fun SettingsScreen(
     val externalImportReviewSheetState =
         rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Restore runs in viewModelScope so it survives the activity recreate
-    // that the restored app-locale setting triggers. Results come back
-    // through this replaying SharedFlow so the new composition still
+    // Restore runs in viewModelScope so it survives an activity recreate
+    // (the restored app locale applies in place, without one). Results come
+    // back through this replaying SharedFlow so the new composition still
     // shows the toast.
     LaunchedEffect(viewModel) {
         viewModel.backupRestoreEvents.collect { event ->
@@ -646,8 +646,8 @@ fun SettingsScreen(
             },
             onConfirm = { password ->
                 // Routed through the ViewModel so the restore + result toast
-                // outlive the activity recreate that the restored app-locale
-                // setting triggers. See backupRestoreEvents collector above.
+                // outlive an activity recreate. See backupRestoreEvents
+                // collector above.
                 viewModel.requestBackupRestore(password)
             },
         )

@@ -17,9 +17,11 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -40,6 +42,8 @@ class MedicationReminderScheduler private constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
     private val sdkIntProvider: () -> Int,
+    /** The clock: in the hour the clocks go back, it tells which pass a `now` is on. */
+    private val instantNow: () -> Instant = Instant::now,
 ) {
     @Inject
     constructor(
@@ -76,6 +80,7 @@ class MedicationReminderScheduler private constructor(
         homeSnapshotRepository: HomeSnapshotRepository,
         diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
         sdkInt: Int,
+        instantNow: () -> Instant = Instant::now,
     ) : this(
         context = context,
         medicationGroupRepository = medicationGroupRepository,
@@ -87,6 +92,7 @@ class MedicationReminderScheduler private constructor(
         homeSnapshotRepository = homeSnapshotRepository,
         diagnosticsLogger = diagnosticsLogger,
         sdkIntProvider = { sdkInt },
+        instantNow = instantNow,
     )
 
     private val alarmManager: AlarmManager
@@ -113,6 +119,8 @@ class MedicationReminderScheduler private constructor(
         try {
             reminderScheduleStore.setReconcilePending(true)
         } catch (error: CancellationException) {
+            // A caller still active got the store's own failure, and may go on without the mark.
+            if (currentCoroutineContext().isActive) openReconcileMarks.remove(mark)
             throw error
         } catch (error: Throwable) {
             // Nothing written, and the caller has no mark to release.
@@ -168,15 +176,18 @@ class MedicationReminderScheduler private constructor(
             entries = entries,
             now = now,
             armed = stored.armedTimes(),
+            clockNow = instantNow(),
         )
 
+        // Stored first: a failure after leaves a key with no alarm, which the next pass arms,
+        // not an alarm with no key, which posts nothing.
+        reminderScheduleStore.replaceScheduledReminders(
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
+        )
         uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
-        reminderScheduleStore.replaceScheduledReminders(
-            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
-        )
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_all_complete groups=${groups.size} " +
@@ -249,15 +260,17 @@ class MedicationReminderScheduler private constructor(
             entries = entries,
             now = now,
             armed = stored.armedTimes(),
+            clockNow = instantNow(),
         )
 
+        // Stored first, as in rescheduleAll.
+        reminderScheduleStore.replaceScheduledReminders(
+            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
+        )
         uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
-        reminderScheduleStore.replaceScheduledReminders(
-            plans.associate { plan -> plan.groupUuid to plan.scheduledAt }
-        )
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_from_snapshot_complete groups=${groups.size} " +
@@ -275,15 +288,26 @@ class MedicationReminderScheduler private constructor(
 
     /**
      * Whether [groupUuid]'s alarm armed for [scheduledAt] still stands: no other time was armed
-     * since, and no delivery of it was marked ([markReminderDelivered]). A group with no time
-     * stored, as from an older build, takes any. The receiver checks, posts and marks in one
-     * hold of the lock, so of an alarm that comes twice, as one a pass armed again while it was
-     * in flight, only the first posts.
+     * since, and no delivery of it was marked ([markReminderDelivered]). A group with no key was
+     * delivered, cancelled or turned off; one stored with no time, as from an older build, takes
+     * any. The receiver checks, posts and marks in one hold of the lock, so of an alarm that
+     * comes twice, as one a pass armed again while it was in flight, only the first posts.
      */
     suspend fun awaitsReminderDelivery(groupUuid: UUID, scheduledAt: LocalDateTime): Boolean =
         withReminderScheduleLock {
-            reminderScheduleStore.getScheduledReminders()[groupUuid]
-                .let { armedAt -> armedAt == null || armedAt == scheduledAt }
+            val stored = reminderScheduleStore.getScheduledReminders()
+            groupUuid in stored && (stored[groupUuid] == null || stored[groupUuid] == scheduledAt)
+        }
+
+    /**
+     * Each group whose alarm armed for [slotAt] or before is not delivered yet, with the time it
+     * is armed for. A delivery at [slotAt] names another group's dose only while it is here, and
+     * marks it, so that group's own alarm finds it delivered.
+     */
+    suspend fun undeliveredRemindersBy(slotAt: LocalDateTime): Map<UUID, LocalDateTime> =
+        withReminderScheduleLock {
+            reminderScheduleStore.getScheduledReminders().armedTimes()
+                .filterValues { armedAt -> !armedAt.isAfter(slotAt) }
         }
 
     /**
@@ -317,24 +341,36 @@ class MedicationReminderScheduler private constructor(
             TAG,
             "reminder_reschedule_group_start groupUuid=$groupUuid after=$after"
         )
+        val clockNow = instantNow()
+        val passed = after.passedAsOf(clockNow)
+        // Every read and the snooze tidy-up before the cancel: one that fails leaves the alarm
+        // and its key as they were, and an alarm left armed reschedules its plan when it comes.
         val armedAt = reminderScheduleStore.getScheduledReminders()[groupUuid]
+        val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+        val group = if (remindersEnabled) medicationGroupRepository.getGroup(groupUuid) else null
+        group?.let { medicationReminderSnoozeScheduler.clearStaleSnoozesForGroup(it) }
+        val active = group != null && !group.isArchived() && group.notificationsEnabled
+        val entries = if (active) {
+            medicationLogRepository.getScheduledGroupEntriesSince(minOf(passed, armedAt ?: passed))
+        } else {
+            emptyList()
+        }
         cancelReminderSchedule(groupUuid)
 
-        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+        if (!remindersEnabled) {
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_group_skipped reason=master_disabled groupUuid=$groupUuid"
             )
             return
         }
-
-        val group = medicationGroupRepository.getGroup(groupUuid)
-            ?: return diagnosticsLogger.info(
+        if (group == null) {
+            return diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_group_skipped reason=missing_group groupUuid=$groupUuid"
             )
-        medicationReminderSnoozeScheduler.clearStaleSnoozesForGroup(group)
-        if (group.isArchived() || !group.notificationsEnabled) {
+        }
+        if (!active) {
             diagnosticsLogger.info(
                 TAG,
                 "reminder_reschedule_group_skipped reason=inactive_or_notifications_disabled " +
@@ -344,14 +380,13 @@ class MedicationReminderScheduler private constructor(
             return
         }
 
-        val entries = medicationLogRepository.getScheduledGroupEntriesSince(minOf(after, armedAt ?: after))
         // Armed for a dose that passed and hasn't come, as an inexact alarm can be an hour late
         // when another dose is logged: while the dose its receiver would name still misses some,
         // it's armed again and fires at once, as rescheduleAll does. The receiver drops a
         // delivered one first ([markReminderDelivered]).
         val undelivered = armedAt?.takeIf { at ->
-            !at.isAfter(after) && buildMedicationReminderBundle(
-                scheduledAt = group.reminderSlotAt(armedAt = at, now = after),
+            !at.isAfter(passed) && buildMedicationReminderBundle(
+                scheduledAt = group.reminderSlotAt(armedAt = at, now = passed),
                 groups = listOf(group),
                 entries = entries,
             ) != null
@@ -359,15 +394,17 @@ class MedicationReminderScheduler private constructor(
         val plan = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = entries,
-            now = after,
+            now = passed,
             armed = undelivered?.let { at -> mapOf(groupUuid to at) }.orEmpty(),
+            clockNow = clockNow,
         ).firstOrNull() ?: return diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_skipped reason=no_plan groupUuid=$groupUuid entries=${entries.size}"
         )
 
-        scheduleReminder(plan)
+        // Stored first, as in rescheduleAll.
         reminderScheduleStore.addScheduledReminder(plan.groupUuid, plan.scheduledAt)
+        scheduleReminder(plan)
         diagnosticsLogger.info(
             TAG,
             "reminder_reschedule_group_complete groupUuid=${plan.groupUuid} " +
@@ -394,13 +431,14 @@ class MedicationReminderScheduler private constructor(
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(
             shown.values.flatMap(ShownDoseReminder::slots).minOf(MedicationReminderSlot::scheduledAt)
         )
+        val hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails
         var cancelled = 0
         var reposted = 0
         shown.forEach { (tag, reminder) ->
             val remaining = remainingMedicationReminderBundle(reminder.slots, groups, entries)
             // Same doses can still mean other medications, counts or names, and Log
-            // now would log the old ones.
-            if (remaining != null && remaining.contentHash == reminder.contentHash) {
+            // now would log the old ones. Or the medications are now shown or hidden.
+            if (remaining != null && remaining.postedContentHash(hideMedicationDetails) == reminder.contentHash) {
                 return@forEach
             }
             // The same doses keep the tag, and posting under it replaces the old one.
@@ -419,7 +457,7 @@ class MedicationReminderScheduler private constructor(
                 canSnooze = remaining.slots.any { slot ->
                     (recordsBySlot[slot]?.snoozeCount ?: 0) < MAX_REMINDER_SNOOZE_COUNT
                 },
-                hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails,
+                hideMedicationDetails = hideMedicationDetails,
                 silent = true,
             )
             reposted++
@@ -427,6 +465,13 @@ class MedicationReminderScheduler private constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_notifications_reconciled shown=${shown.size} cancelled=$cancelled reposted=$reposted"
+        )
+    }
+
+    /** Reposts the reminders on screen silently, after a change to how they show, as Hide medication details. */
+    suspend fun refreshDoseReminderNotifications() = withReminderScheduleLock {
+        reconcileDoseReminderNotifications(
+            remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
         )
     }
 
@@ -549,8 +594,8 @@ private object ReminderScheduleLockHeld :
 
 /**
  * Runs [block] under the lock every alarm and schedule-store change of both schedulers takes,
- * so no two passes interleave their reads and writes; a dose reminder's delivery holds it from
- * its check to its reschedule. A call made under it, as rescheduleGroup
+ * so no two passes interleave their reads and writes; a dose or snooze reminder's delivery holds
+ * it from its check to its reschedule or mark. A call made under it, as rescheduleGroup
  * clearing its plan's stale snoozes, runs in the same hold. Nothing under it may wait on the
  * Home mutation gate: a restore marks a reconcile while it holds the gate.
  */

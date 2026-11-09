@@ -109,8 +109,8 @@ class AppLockViewModel @Inject constructor(
                 return
             }
         } else if (state.isUnlocked) {
-            // Activity recreated without a prior onBackgrounded (e.g. language / dark
-            // mode change triggers AppCompatDelegate recreation). The app is still
+            // Activity recreated without a prior onBackgrounded (e.g. a font-size
+            // change; language and dark mode apply in place). The app is still
             // unlocked, so don't re-prompt.
             return
         } else if (pendingPrompt.value != null) {

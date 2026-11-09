@@ -45,13 +45,16 @@ with `ACTION_MEDICATION_REMINDER_SNOOZE_ALARM`, which calls
 
 [`MedicationReminderPlanner.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderPlanner.kt)
 exposes one pure function, `buildNextMedicationReminderPlans`. It takes
-the active medication groups, recent scheduled log entries, and the
-current `LocalDateTime`. For each non-archived group with
-`notificationsEnabled = true` and at least one medication, it walks
-`MedicationGroup.nextOccurrencesInPlanWindowFrom` (a 90-day default
-look-ahead) and returns the first *strictly-future* occurrence
-(`scheduledFor.isAfter(now)`) that isn't already fulfilled by a logged
-entry. Output is a list of
+the active medication groups, recent scheduled log entries, the
+current `LocalDateTime`, and each group's armed time from the schedule
+store. For each non-archived group with `notificationsEnabled = true`
+and at least one medication, it walks
+`MedicationGroup.occurrencesInPlanWindowFrom(now)` however far ahead it
+has to, with no look-ahead cap (some dose ahead isn't logged, so the
+walk ends), and returns the first *strictly-future* occurrence
+(`scheduledFor.isAfter(now)`) that still misses a medication. A group
+whose armed time has passed is planned at that time again instead (see
+[Edge cases](#edge-cases)). Output is a list of
 `MedicationReminderPlan(groupUuid, groupName, scheduledAt,
 scheduleTimeUuid)`, sorted by `scheduledAt`.
 
@@ -62,9 +65,10 @@ fired, so re-arming it would set an alarm in the past that
 `AlarmManager` delivers immediately. (`MainActivity` previously passed
 the minute-truncated `mainUiState.now` and hit this.)
 
-Fulfillment is delegated to the model layer's `isSlotFulfilled`
-predicate; the planner's only time logic is the look-ahead default and
-the strictly-future cutoff.
+Fulfillment is delegated to the model layer's `missingSlotCounts`, so a
+dose logged early or late, even outside its window, counts as taken.
+The planner's only time logic is the strictly-future cutoff and the
+re-arm of a passed armed time.
 
 ### Schedule
 
@@ -105,11 +109,15 @@ URI (`hrttracker://medication-reminder/<groupUuid>`), so a fresh
 the previous alarm via `FLAG_UPDATE_CURRENT`. Cancellation rebuilds an
 equivalent `PendingIntent` and hands it to `alarmManager.cancel`.
 
-After each reschedule cycle, the scheduler writes the set of currently
-scheduled group UUIDs to
+After each reschedule cycle, the scheduler writes each group it armed,
+with the time its alarm is armed for, to
 [`ReminderScheduleStore`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/ReminderScheduleStore.kt)
 so the next reschedule can cancel any orphans whose owning group has
-since been deleted.
+since been deleted, and arm again a time that passed undelivered. The
+receiver drops a group's entry once it delivers that alarm. A group
+with no entry has nothing armed: delivered, cancelled, or reminders
+turned off. An entry with no time, from an older build, takes any
+alarm.
 
 ### Receive
 
@@ -126,7 +134,16 @@ Each calls `goAsync()` and launches work on the application-scope
   (see [Edge cases](#edge-cases)), posts the notification, and then
   asks the scheduler to reschedule the same group one second after that
   time, or from now when that is later, so the next occurrence is
-  queued without a race.
+  queued without a race. It holds the schedule lock from its check to
+  that reschedule. It posts only while the group's stored time is still
+  the alarm's (`awaitsReminderDelivery`) and reminders are still on, so
+  a repeat of the alarm, or one for a group cancelled or turned off
+  meanwhile, posts nothing. Another group with a dose at the same time
+  joins the bundle only while its own alarm for that dose hasn't been
+  delivered (`undeliveredRemindersBy`: its stored time is at or before
+  the dose). The receiver then marks that group delivered and
+  reschedules it too, so its alarm posts nothing and the dose rings
+  once.
 - [`MedicationReminderActionReceiver`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
   — fires for user actions (`ACTION_MEDICATION_REMINDER_LOG_NOW`,
   `ACTION_MEDICATION_REMINDER_REMIND_LATER`) and for the snooze-fire
@@ -184,7 +201,13 @@ implements the three user-facing actions:
   [`MedicationReminderBundle`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderBundle.kt),
   and re-posts. `canSnooze` is computed from each slot's snooze count
   against `MAX_REMINDER_SNOOZE_COUNT = 4`, so the "Remind later" action
-  disappears once a slot has been snoozed four times.
+  disappears once a slot has been snoozed four times. It checks that
+  its snooze record still awaits this alarm, reads, posts, and marks
+  the record delivered in one hold of the schedule lock, so a widget
+  log, Settings or an archive tidies reminders on screen only after
+  the post. It reads the settings again just before the post: with
+  reminders turned off meanwhile, it marks the record and posts
+  nothing.
 
 If the master `remindersEnabled` setting has been flipped off between
 the alarm firing and the user tapping an action, `remindLater` and
@@ -204,6 +227,21 @@ configuration-overridden context, sidestepping the timing gap where
 `AppCompatDelegate.setApplicationLocales` has updated the per-app
 locale but the singleton `ApplicationContext`'s resources cache hasn't
 caught up.
+
+Every string, date and time a reminder or toast shows, and the
+channel's name, are resolved in the app language. In a process an
+alarm woke, no activity has attached, so AppCompat reports no app
+language. Below API 33 the application context is on the system's, so
+`SettingsRepository.appLanguageTag()` falls back to the tag
+`setAppLanguageOption` and a backup restore store in the settings
+DataStore. From API 33 the framework keeps the application context in
+the app language itself. The widget's quick-log toasts go through the
+same path; the widgets themselves resolve their own language.
+
+With **Hide medication details** on, a reminder shows only its plan
+names. The setting is part of the hash a reminder carries
+(`postedContentHash`), so turning it on or off reposts the reminders on
+screen silently (`refreshDoseReminderNotifications`).
 
 Each posted notification carries a deterministic tag derived from the
 slot set (see [Notification text](#notification-text)). Re-posting the
@@ -228,11 +266,11 @@ channel**; the only channel is `dose_reminders`, and the persistent
 low-stock surface is the home `MainLowStockSection`. The widget
 quick-log path shows the same toast (see [widget.md](widget.md#quick-log-action)).
 
-The companion `cancelAllDoseReminderNotifications` is called from the
-backup restore path: any active reminder still references slot UUIDs
-from the pre-restore database, so every notification has to be
-dismissed before the user can tap an action that would dispatch with
-stale state.
+The companion `cancelAllDoseReminderNotifications` is called only by
+the reconcile once reminders are off: no dose reminder stays on screen
+then. A backup restore doesn't dismiss reminders itself: its
+`rescheduleAll`, after the commit and after `clearAllSnoozes`, keeps a
+reminder still due in the restored data and drops or reposts the rest.
 
 ### Tap (content intent deep link)
 
@@ -283,9 +321,12 @@ Three files cooperate:
 - [`MedicationReminderSnoozeStore.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeStore.kt)
   persists the records via Preferences DataStore (`name =
   "medication_reminder_snoozes"`) as a set of strings, with each
-  record encoded as `slot U+001F snoozeAt U+001F snoozeCount` (`U+001F` is the
-  ASCII unit separator). `ReplaceFileCorruptionHandler` recovers a
-  corrupt file to an empty store.
+  record encoded as `slot U+001F snoozeAt U+001F snoozeCount U+001F fired`
+  (`U+001F` is the ASCII unit separator). `fired` is true once the
+  snooze's reminder was delivered, posted or found not due; a record an
+  older build stored with three fields is read once as fired if its
+  time has passed. `ReplaceFileCorruptionHandler` recovers a corrupt
+  file to an empty store.
 - [`MedicationReminderSnoozeModels.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeModels.kt)
   defines `MedicationReminderSnoozeRecord`,
   `buildNextSnoozeRecords` (the count increment / cap enforcement
@@ -294,11 +335,17 @@ Three files cooperate:
 
 Because the store is DataStore-backed, snoozes survive reboot. On any
 reschedule-triggering event the scheduler calls `rescheduleAll(now)`,
-which prunes records whose `snoozeAt` is in the past and re-arms
-alarms for the rest. The companion `clearStaleSnoozesForGroup` runs
-when a group is rescheduled and drops any snoozed slot whose
-`scheduleTimeUuid` no longer matches the group's current schedule (the
-user moved the dose time after snoozing).
+which drops each record that outlived its dose (the plan is deleted,
+archived, muted or no longer has the dose, the dose is logged, or the
+plan's next dose at that slot has come) and re-arms every record not
+delivered yet. One whose `snoozeAt` passed undelivered, as when the
+phone was off, is armed at that time and fires at once. A delivered
+record stays, unarmed, for as long as its dose, so its count keeps the
+limit. The
+companion `clearStaleSnoozesForGroup` runs when a group is rescheduled
+and drops any snoozed slot whose `scheduleTimeUuid` no longer matches
+the group's current schedule (the user moved the dose time after
+snoozing), or whose dated dose the plan no longer has.
 
 ### Capability and permissions
 
@@ -403,20 +450,24 @@ fold every "the world changed" event into a single re-derivation:
   disk. It is a system event, not a data change: the run carries no
   newer generation, so Home shows no updating indicator while it lands.
 - `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` — the user just
-  granted or revoked `SCHEDULE_EXACT_ALARM` in system settings. The
-  reconciler re-reads `canScheduleExactAlarms()` into the state flow
-  and reschedules so the new precision tier takes effect immediately.
+  granted `SCHEDULE_EXACT_ALARM` in system settings. It is sent only on
+  a grant: a revoke kills the app and drops its exact alarms, and the
+  next start or resume reconciles. The reconciler re-reads
+  `canScheduleExactAlarms()` into the state flow and reschedules so the
+  new precision tier takes effect immediately.
 
 The strategy is "re-derive, don't replay". *Persisting* `triggerAtMillis`
 / `scheduleTimeUuid` would force a translation pass on every TZ change,
 and a re-derive from the schedule sources is cheap enough (one DB scan
-per group) that the store keeps only the bare set of active group UUIDs.
+per group) that the store keeps only each armed group with the local
+dose time its alarm is armed for, which a zone change doesn't move.
 
 ## Edge cases
 
 - **Exact-alarm permission denied.** The regular reminder and snooze
   schedulers fall back to `setAndAllowWhileIdle`; alarms still fire,
-  with a few minutes of Doze-deferred jitter. The reconciler exposes
+  but late: Doze defers them to a maintenance window, and an app in a
+  rare or restricted standby bucket can wait hours. The reconciler exposes
   `hasExactAlarmAccess = false` on the state flow so the settings
   screen can offer a "fix this" call-to-action.
 - **Notification permission denied.** `canPostNotifications()` returns
@@ -437,12 +488,12 @@ per group) that the store keeps only the bare set of active group UUIDs.
   AlarmManager fires it at once, and the receiver names the group's
   latest due dose. The same covers an alarm the system held back past
   its time. An alarm in flight when the reschedule runs is delivered
-  twice; the second replaces the same notification.
+  twice; the first delivery marks it, so the second posts nothing.
 - **Snooze across reboot.** Snooze alarms are also process-scoped, but
   `MedicationReminderSnoozeStore` survives. `rescheduleAll(now)`
-  prunes records whose `snoozeAt` is in the past and re-arms the
-  remainder, so a 15-minute snooze that started before a 5-minute
-  boot still re-fires roughly on time.
+  re-arms every record not delivered yet, so a 15-minute snooze that
+  started before a 5-minute boot still fires roughly on time, and one
+  whose time passed while the phone was off fires at once.
 - **Schedule edits while a reminder is pending.** Every mutation that
   changes scheduling (group create/edit/archive, schedule edit,
   master settings toggle) calls into the scheduler's per-group or
@@ -458,3 +509,25 @@ per group) that the store keeps only the bare set of active group UUIDs.
   `T + 1s`, each past slot would fire at once and re-arm the next, one
   notification for every slot in between. Earlier missed doses get no
   reminder of their own; today's show as overdue on Home.
+- **The clocks go back.** An hour repeats, and a dose time in it is
+  armed at its first pass (`atZone` picks the earlier offset). On the
+  second pass, every pass and delivery reads its `now` as that hour's
+  end (`passedAsOf`), so a dose in the hour, already rung, is neither
+  armed again nor named as the latest due one. Two limits stay:
+  - A dose time in the hour first armed on its second pass, as for a
+    plan created or edited then, is taken as passed too, so it gets no
+    reminder that day (product decision R10, accepted for now).
+  - `passedAsOf` knows only the zone's own clock changes. Setting the
+    clock back by hand, or moving to a zone further west, repeats wall
+    times the zone rules don't, so a dose that rang can ring again
+    (R11).
+- **A failed delivery.** The receiver reschedules each plan its post
+  named in its own try, and `scheduleGroupReminder` does its reads
+  before it cancels. A plan whose reschedule fails keeps the alarm and
+  key it had: a plan another plan's post named keeps its pending alarm,
+  whose delivery reschedules it. The delivered plan's own alarm was the
+  one consumed, so if its reschedule fails, it has none until the next
+  full pass (app start, boot, time change). A pass stores its plans
+  before it arms them, so a failure leaves a key with no alarm, which
+  the next pass arms, rather than an alarm with no key, which would post
+  nothing.

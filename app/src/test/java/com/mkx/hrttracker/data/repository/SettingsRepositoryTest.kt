@@ -2,10 +2,12 @@ package com.mkx.hrttracker.data.repository
 
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
@@ -18,35 +20,49 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.appLanguageLocale
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -508,6 +524,161 @@ class SettingsRepositoryTest {
 
         assertEquals("test-main", localeThread)
     }
+
+    @Test
+    fun `a restored app language is read back by a process no activity has attached to`() =
+        runTest(testDispatcher) {
+            mockkStatic(AppCompatDelegate::class)
+            every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+            // As in a process an alarm woke below API 33: AppCompat knows no app language.
+            every { AppCompatDelegate.getApplicationLocales() } returns LocaleListCompat.getEmptyLocaleList()
+            val defaultLocale = Locale.getDefault()
+            try {
+                settingsRepository.restoreSettings(
+                    darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+                    adaptiveColorEnabled = true,
+                    pureBlackEnabled = false,
+                    remindersEnabled = true,
+                    showArchivedGroupRecords = true,
+                    hideReferenceRanges = false,
+                    onboardingCompleted = true,
+                    appLanguageOption = AppLanguageOption.SIMPLIFIED_CHINESE,
+                    calibrationDefaultUnits = emptySet(),
+                    homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                        BloodAnalyteKey.E2,
+                        BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+                    ),
+                    homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+                )
+                val woken = SettingsRepository(dataStore)
+                woken.getCurrentSettings()
+
+                assertEquals("zh-Hans", woken.appLanguageTag())
+            } finally {
+                Locale.setDefault(defaultLocale)
+                unmockkStatic(AppCompatDelegate::class)
+            }
+        }
+
+    @Test
+    fun `setAppLanguageOption stores the tag`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            settingsRepository.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+
+            assertEquals("zh-Hant", awaitStoredAppLanguageTag("zh-Hant"))
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `refreshAppLanguageOption stores the language AppCompat has`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        // One chosen before the tag was stored, read back once an activity attached.
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns false
+            every { toLanguageTags() } returns "yue-Hant-HK"
+        }
+        try {
+            settingsRepository.refreshAppLanguageOption()
+
+            assertEquals("yue-Hant-HK", awaitStoredAppLanguageTag("yue-Hant-HK"))
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `a tag write that fails is logged and never reaches the uncaught exception handler`() {
+        val failing = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = flowOf(emptyPreferences())
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IOException("EBUSY")
+        }
+        val logged = CompletableDeferred<Throwable?>()
+        val logger: AppDiagnosticsLogger = mockk(relaxed = true) {
+            every { warning(any(), any(), any()) } answers { logged.complete(thirdArg()) }
+        }
+        val uncaught = CompletableDeferred<Throwable>()
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, error -> uncaught.complete(error) }
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            SettingsRepository(failing, logger).setAppLanguageOption(AppLanguageOption.ENGLISH)
+
+            runBlocking {
+                withTimeout(5_000) {
+                    select {
+                        logged.onAwait {}
+                        uncaught.onAwait {}
+                    }
+                }
+            }
+            assertFalse("uncaught: ${uncaught.takeIf { it.isCompleted }?.getCompleted()}", uncaught.isCompleted)
+            assertTrue(logged.getCompleted() is IOException)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previousHandler)
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `of quick language changes the last one chosen is stored whatever order the writes run in`() {
+        val writes = Channel<suspend (Preferences) -> Preferences>(Channel.UNLIMITED)
+        // Holds every write, so the test picks the order they run in.
+        val held = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = flowOf(emptyPreferences())
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+                writes.send(transform)
+                awaitCancellation()
+            }
+        }
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            val repository = SettingsRepository(held)
+            repository.setAppLanguageOption(AppLanguageOption.ENGLISH)
+            repository.setAppLanguageOption(AppLanguageOption.TRADITIONAL_CHINESE)
+            repository.setAppLanguageOption(AppLanguageOption.ENGLISH)
+
+            val key = stringPreferencesKey("app_language_tag")
+            val stored = runBlocking {
+                val held3 = List(3) { withTimeout(5_000) { writes.receive() } }
+                // The write that would store Traditional Chinese runs last.
+                val tags = held3.map { write -> write(emptyPreferences())[key] }
+                var preferences = emptyPreferences()
+                for ((write, _) in held3.zip(tags).sortedBy { (_, tag) -> tag == "zh-Hant" }) {
+                    preferences = write(preferences)
+                }
+                preferences[key]
+            }
+            assertEquals(AppLanguageOption.ENGLISH.languageTag, stored)
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    /** The stored tag once it is [expected], as the write is asynchronous. */
+    private suspend fun awaitStoredAppLanguageTag(expected: String): String? =
+        withContext(Dispatchers.Default) {
+            withTimeout(5_000) {
+                var tag: String? = null
+                while (tag != expected) {
+                    tag = dataStore.data.first()[stringPreferencesKey("app_language_tag")]
+                    if (tag != expected) delay(10)
+                }
+                tag
+            }
+        }
 
     @Test
     fun `homeCardLayoutFlow defaults to HomeCardLayout when unset`() =

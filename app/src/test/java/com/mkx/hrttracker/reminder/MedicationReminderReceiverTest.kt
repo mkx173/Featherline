@@ -32,6 +32,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -138,6 +139,19 @@ class MedicationReminderReceiverTest {
         clearMocks(reminderNotificationManager)
         deliver(now)
         assertEquals(listOf(group.uuid to scheduledAt), postedSlots())
+    }
+
+    @Test
+    fun aReminderReceivedOnTheRepeatedHoursSecondPass_readsItsNowAsThatHoursEnd() {
+        // New York's clocks go back from 02:00 to 01:00 on Nov 1 2026.
+        val newYork = ZoneId.of("America/New_York")
+
+        assertEquals(LocalDateTime.of(2026, 4, 20, 9, 0), receiptTime(Instant.parse("2026-04-20T13:00:00Z"), newYork))
+        assertEquals(LocalDateTime.of(2026, 11, 1, 1, 10), receiptTime(Instant.parse("2026-11-01T05:10:00Z"), newYork))
+        assertEquals(
+            LocalDateTime.of(2026, 11, 1, 1, 59, 59, 999_999_999),
+            receiptTime(Instant.parse("2026-11-01T06:10:00Z"), newYork),
+        )
     }
 
     /** The alarm of [groupUuid]'s group for [scheduledAt], received at [now]. */

@@ -739,7 +739,7 @@ class MedicationReminderSnoozeSchedulerTest {
     }
 
     @Test
-    fun a_snooze_armed_again_while_its_delivery_reads_the_plan_posts_once() = runTest {
+    fun a_pass_and_a_repeat_while_a_snooze_delivery_reads_the_plan_post_it_once() = runTest {
         val group = dailyGroup(UUID.fromString("16ad3e8f-37f8-4d6a-9f06-b7c8d9eafb0c"))
         val slot = group.reminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
         val snoozeAt = scheduler.snoozeSlots(
@@ -752,19 +752,20 @@ class MedicationReminderSnoozeSchedulerTest {
         var posted = 0
         every { notificationManager.showDoseReminderNotification(any(), any(), any(), any()) } answers { posted++ }
 
-        // The first delivery reads its plan; meanwhile a pass arms the record again, and it fires.
+        // The first delivery reads its plan; meanwhile a pass starts, and the alarm comes again.
         val first = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17)) }
         reading.await()
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18))
-        assertEquals("the pass arms it again", listOf(snoozeAt.toEpochMilli()), armedAlarms.values.toList())
+        val pass = launch { scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
         val second = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
         runCurrent()
         release.complete(Unit)
         first.join()
+        pass.join()
         second.join()
 
         assertEquals("one snooze posts once, however its deliveries overlap", 1, posted)
         assertEquals(listOf(true), storedRecords().map(MedicationReminderSnoozeRecord::fired))
+        assertEquals("the pass waits for the mark, so it arms nothing", emptyMap<String, Long>(), armedAlarms)
     }
 
     @Test
@@ -783,11 +784,13 @@ class MedicationReminderSnoozeSchedulerTest {
 
         val first = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 17)) }
         reading.await()
-        scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18))
+        // Waits for the first delivery's hold, then arms the snooze again.
+        val pass = launch { scheduler.rescheduleAll(now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
         val second = launch { fireSnoozeAlarm(slot, snoozeAt, now = LocalDateTime.of(2026, 4, 20, 9, 18)) }
         runCurrent()
         release.completeExceptionally(java.io.IOException("database busy"))
         first.join()
+        pass.join()
         second.join()
 
         assertEquals("the delivery left after the failed one posts it", 1, posted)

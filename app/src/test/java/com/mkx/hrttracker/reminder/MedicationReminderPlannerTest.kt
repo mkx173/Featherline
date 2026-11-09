@@ -19,6 +19,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.TimeZone
 import java.util.UUID
 
 class MedicationReminderPlannerTest {
@@ -395,6 +396,35 @@ class MedicationReminderPlannerTest {
         )
 
         assertEquals(listOf(LocalDateTime.of(2027, 1, 15, 9, 0)), plans.map { it.scheduledAt })
+    }
+
+    @Test
+    fun buildNextMedicationReminderPlans_after_the_clocks_go_back_does_not_arm_a_dose_that_rang_again() {
+        // New York's clocks go back from 02:00 to 01:00 on Nov 1 2026, so 01:10 comes twice.
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val group = medicationGroup(
+                uuid = UUID.fromString("6c2d8b1f-3e4a-4f5b-8c6d-7e8f9a0b1c2d"),
+                name = "Night estradiol",
+                time = LocalTime.of(1, 30),
+                notificationsEnabled = true,
+            )
+            val tenPastOne = LocalDateTime.of(2026, 11, 1, 1, 10)
+            fun planAt(clockNow: Instant) = buildNextMedicationReminderPlans(
+                groups = listOf(group),
+                entries = emptyList(),
+                now = tenPastOne,
+                clockNow = clockNow,
+            ).map { it.scheduledAt }
+
+            // The first 01:10 (EDT): the 01:30 dose is ahead.
+            assertEquals(listOf(LocalDateTime.of(2026, 11, 1, 1, 30)), planAt(Instant.parse("2026-11-01T05:10:00Z")))
+            // The second (EST): the 01:30 alarm, armed at the first 01:30, rang already.
+            assertEquals(listOf(LocalDateTime.of(2026, 11, 2, 1, 30)), planAt(Instant.parse("2026-11-01T06:10:00Z")))
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
     }
 
     private fun medicationGroup(

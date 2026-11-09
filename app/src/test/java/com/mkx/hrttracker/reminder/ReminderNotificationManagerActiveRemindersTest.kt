@@ -6,7 +6,10 @@ import android.app.NotificationManager
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,7 +27,7 @@ class ReminderNotificationManagerActiveRemindersTest {
     @Test
     fun activeDoseReminders_reads_back_posted_doses_and_skips_one_without_them() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        val manager = ReminderNotificationManager(context)
+        val manager = ReminderNotificationManager(context, mockk<SettingsRepository> { every { appLanguageTag() } returns null })
         val bundle = MedicationReminderBundle(
             scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
             items = listOf(

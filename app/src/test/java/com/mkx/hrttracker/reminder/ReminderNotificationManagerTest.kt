@@ -16,9 +16,10 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.currentAppLocale
 import com.mkx.hrttracker.util.uses24HourTimeFormat
-import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -33,12 +34,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDateTime
+import java.util.Locale
 import java.util.UUID
 
 class ReminderNotificationManagerTest {
     private val context: Context = mockk(relaxed = true)
     private val resources: Resources = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+    private val settingsRepository: SettingsRepository = mockk()
     private val toast: Toast = mockk(relaxed = true)
     private lateinit var notificationManager: ReminderNotificationManager
 
@@ -62,11 +65,11 @@ class ReminderNotificationManagerTest {
             true
         }
         every { context.resources } returns resources
-        // showDoseReminderNotification pins content to the app language via
-        // context.withAppLanguage(); that locale machinery is verified separately,
-        // so here it resolves to the same mock context.
+        // No app language beyond the context's own; that locale machinery is verified
+        // separately (ReminderNotificationLanguageTest), so here it resolves to the mock context.
+        every { settingsRepository.appLanguageTag() } returns null
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
-        every { context.withAppLanguage() } returns context
+        every { any<Context>().currentAppLocale() } returns Locale.ENGLISH
         // Reads the device's 12/24-hour setting through Resources.getSystem(),
         // which is null on the JVM.
         mockkStatic("com.mkx.hrttracker.util.AppDateTimeFormattersKt")
@@ -100,6 +103,7 @@ class ReminderNotificationManagerTest {
         notificationManager = spyk(
             ReminderNotificationManager(
                 context = context,
+                settingsRepository = settingsRepository,
                 diagnosticsLogger = diagnosticsLogger,
             )
         )
@@ -210,12 +214,13 @@ class ReminderNotificationManagerTest {
     @Test
     fun stockWarningToasts_resolveStringsThroughAppLanguageContext() {
         // Regression: below API 33 the injected ApplicationContext stays on the system
-        // locale, so a post-log toast must resolve its text through context.withAppLanguage()
-        // rather than the plain context, or it shows in the system language even when the
-        // user picked a different app language.
+        // locale, so a post-log toast must resolve its text through a context in the app
+        // language rather than the plain context, or it shows in the system language even
+        // when the user picked a different app language.
         val localizedContext: Context = mockk(relaxed = true)
         val localizedResources: Resources = mockk(relaxed = true)
-        every { context.withAppLanguage() } returns localizedContext
+        every { settingsRepository.appLanguageTag() } returns "zh-Hans"
+        every { context.createConfigurationContext(any()) } returns localizedContext
         every { localizedContext.resources } returns localizedResources
         every {
             localizedResources.getQuantityString(R.plurals.stock_toast_out_multiple, 2, 2)

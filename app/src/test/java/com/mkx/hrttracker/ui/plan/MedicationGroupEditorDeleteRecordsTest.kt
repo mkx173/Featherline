@@ -40,6 +40,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -831,8 +832,11 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        coEvery { medicationReminderScheduler.markReconcilePending() } throws
-                CancellationException("the editor went")
+        // A real cancel: the editor's job goes while the mark is being stored.
+        coEvery { medicationReminderScheduler.markReconcilePending() } coAnswers {
+            currentCoroutineContext().cancel()
+            throw CancellationException("the editor went")
+        }
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
@@ -870,8 +874,11 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { settingsRepository.setRemindersEnabled(any()) } returns Unit
-        coEvery { medicationReminderScheduler.markReconcilePending() } throws
-                CancellationException("the editor went")
+        // A real cancel: the editor's job goes while the mark is being stored.
+        coEvery { medicationReminderScheduler.markReconcilePending() } coAnswers {
+            currentCoroutineContext().cancel()
+            throw CancellationException("the editor went")
+        }
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
@@ -889,6 +896,35 @@ class MedicationGroupEditorDeleteRecordsTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { settingsRepository.setRemindersEnabled(any()) }
+    }
+
+    // Still active, the exception is the mark store's own: the toggle goes ahead without a mark.
+    @Test
+    fun setMasterRemindersEnabled_goesOnWhenItsMarksStoreThrowsACancellationException() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { settingsRepository.setRemindersEnabled(any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        coEvery { medicationReminderScheduler.markReconcilePending() } throws
+                CancellationException("datastore scope")
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.setMasterRemindersEnabled(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test
