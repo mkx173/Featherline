@@ -80,6 +80,8 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
+import androidx.navigationevent.NavigationEventDispatcherOwner
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import androidx.navigationevent.findViewTreeNavigationEventDispatcherOwner
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -620,25 +622,36 @@ fun HazeModalBottomSheet(
         ViewCompat.getRootWindowInsets(hostView)
             ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
     }
-    MaterialModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        modifier = modifier.hiddenUnderAppLock(),
-        sheetState = sheetState,
-        containerColor = hazeBottomSheetContainerColor(),
-        // Explicit: contentColorFor(transparent haze container) falls back to
-        // LocalContentColor, which is black where the sheet is composed outside
-        // a Surface (onboarding).
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        dragHandle = null,
-        contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
+    // The sheet's back handlers go on the dispatcher they inherit, by default their own window's.
+    // A top-level page provides one of its own (TopLevelPager), on the activity's window, which
+    // gets no Back while the sheet's window has focus: once that window is up, they get its own.
+    var windowBackOwner by remember { mutableStateOf<NavigationEventDispatcherOwner?>(null) }
+    CompositionLocalProvider(
+        *listOfNotNull(windowBackOwner?.let { LocalNavigationEventDispatcherOwner provides it })
+            .toTypedArray(),
     ) {
-        HazeBottomSheetSurface(
-            sheetState = sheetState,
+        MaterialModalBottomSheet(
             onDismissRequest = onDismissRequest,
-            statusBarTop = statusBarTop,
-            dragHandle = dragHandle,
-            content = content,
-        )
+            modifier = modifier.hiddenUnderAppLock(),
+            sheetState = sheetState,
+            containerColor = hazeBottomSheetContainerColor(),
+            // Explicit: contentColorFor(transparent haze container) falls back to
+            // LocalContentColor, which is black where the sheet is composed outside
+            // a Surface (onboarding).
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            dragHandle = null,
+            contentWindowInsets = { hazeBottomSheetContentWindowInsets() },
+        ) {
+            val sheetWindowBackOwner = LocalView.current.findViewTreeNavigationEventDispatcherOwner()
+            SideEffect { windowBackOwner = sheetWindowBackOwner }
+            HazeBottomSheetSurface(
+                sheetState = sheetState,
+                onDismissRequest = onDismissRequest,
+                statusBarTop = statusBarTop,
+                dragHandle = dragHandle,
+                content = content,
+            )
+        }
     }
 }
 

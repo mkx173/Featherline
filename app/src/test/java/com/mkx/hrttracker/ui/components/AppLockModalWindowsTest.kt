@@ -5,9 +5,12 @@ import android.view.WindowManager.LayoutParams
 import android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND
 import android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
 import android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Text
@@ -20,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
@@ -31,11 +35,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModel
-import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import androidx.navigationevent.compose.rememberNavigationEventDispatcherOwner
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.ui.navigation.TopLevelPager
+import com.mkx.hrttracker.ui.navigation.topLevelNavigationItems
 import com.mkx.hrttracker.ui.security.AppLockBackHandler
 import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.settings.WeightSheet
@@ -76,26 +80,70 @@ class AppLockModalWindowsTest {
         AppLockBackHandler(enabled = locked)
     }
 
-    // A top-level page, as TopLevelPager hosts Settings, with a dispatcher of its own that its
-    // sheets' windows inherit: their back handlers sit on the activity's, not their own window's.
+    // A top-level page, as Settings is: the first page of the pager itself, which gives each page a
+    // dispatcher of its own on the activity's, off while the page is off screen.
     @Composable
     private fun TopLevelPage(content: @Composable () -> Unit) {
-        CompositionLocalProvider(
-            LocalNavigationEventDispatcherOwner provides rememberNavigationEventDispatcherOwner(),
-            content = content,
-        )
+        val first = topLevelNavigationItems.first().screen
+        TopLevelPager(
+            state = rememberPagerState { topLevelNavigationItems.size },
+            dragInteractions = remember { MutableInteractionSource() },
+            swipeExemption = remember { PagerSwipeExemption() },
+            swipeEnabled = true,
+        ) { screen -> if (screen == first) content() }
     }
 
-    // Back, as the lock screen's window gets it, and as each modal window would if it had focus.
+    // Back, as the window with focus gets it: the topmost modal window that takes focus, else the
+    // activity's, as with the lock screen up. And on each window hidden under the lock, would it
+    // get any.
     private fun pressBack() {
         composeRule.runOnIdle {
-            composeRule.activity.onBackPressedDispatcher.onBackPressed()
             // Not isShowing, false for a window hidden under the lock: one not dismissed.
-            ShadowDialog.getShownDialogs().filter { it.window!!.decorView.isAttachedToWindow }.forEach { dialog ->
-                (dialog as ComponentDialog).onBackPressedDispatcher.onBackPressed()
-            }
+            val (hidden, focusable) = ShadowDialog.getShownDialogs()
+                .filter { it.window!!.decorView.isAttachedToWindow }
+                .partition { it.window!!.attributes.flags and FLAG_NOT_FOCUSABLE != 0 }
+            ((focusable.lastOrNull() as ComponentDialog?) ?: composeRule.activity)
+                .onBackPressedDispatcher.onBackPressed()
+            hidden.forEach { dialog -> (dialog as ComponentDialog).onBackPressedDispatcher.onBackPressed() }
         }
         composeRule.waitForIdle()
+    }
+
+    @Composable
+    private fun BodyWeightSheet() {
+        HazeModalBottomSheet(
+            onDismissRequest = { dismissals++ },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) { Text("Body weight") }
+    }
+
+    // Below API 33, and for the Back key whenever the window has no back callback registered.
+    @Test
+    @Config(sdk = [29])
+    fun back_onTheWindowOfATopLevelPagesSheet_dismissesIt() {
+        composeRule.setContent { TopLevelPage { BodyWeightSheet() } }
+        composeRule.onNodeWithText("Body weight").assertIsDisplayed()
+
+        pressBack()
+        assertEquals("Back on the sheet's window didn't dismiss it", 1, dismissals)
+    }
+
+    // From API 33 the system hands the back gesture to the focused window only while one of its own
+    // handlers is enabled; the sheet's animates it, and dismisses the sheet on release.
+    @Test
+    fun backGesture_onTheWindowOfATopLevelPagesSheet_dismissesIt() {
+        composeRule.setContent { TopLevelPage { BodyWeightSheet() } }
+        composeRule.onNodeWithText("Body weight").assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            val window = (ShadowDialog.getLatestDialog() as ComponentDialog).onBackPressedDispatcher
+            assertTrue("The sheet's window doesn't take the back gesture", window.hasEnabledCallbacks())
+            window.dispatchOnBackStarted(BackEventCompat(0f, 800f, 0f, BackEventCompat.EDGE_LEFT))
+            window.dispatchOnBackProgressed(BackEventCompat(200f, 800f, 0.5f, BackEventCompat.EDGE_LEFT))
+            window.onBackPressed()
+        }
+        composeRule.waitForIdle()
+        assertEquals("The back gesture on the sheet's window didn't dismiss it", 1, dismissals)
     }
 
     @Test

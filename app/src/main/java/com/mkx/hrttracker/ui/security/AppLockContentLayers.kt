@@ -80,8 +80,8 @@ internal fun HiddenUnderAppLock(
 /**
  * Back on the in-window lock screen, while [enabled]: it does nothing, and nothing under it gets
  * it either, whenever it registered: not the shell's own handlers, such as an editor's or the
- * NavHost's, nor a hidden sheet's, which inherits a top-level page's dispatcher (TopLevelPager).
- * Every other one is on the default priority; this one is on the overlay's, ahead of them all.
+ * NavHost's. A hidden sheet's are on its own window's dispatcher, off until the unlock. Every
+ * other one is on the default priority; this one is on the overlay's, ahead of them all.
  */
 @Composable
 internal fun AppLockBackHandler(enabled: Boolean) {
