@@ -10,8 +10,10 @@ data class UserProfileEntity(
     val weightOriginalValue: Double?,
     val weightOriginalUnit: String?,
     val updatedAtEpochMillis: Long,
-    // The adopted Health Connect reading's time; null for a typed weight or none.
-    // Shown as "Measured ..." and lets a sync skip a write when nothing changed.
+    // The weight's date: when a typed weight was saved, or the adopted Health
+    // Connect reading's time. Null with no weight, or for one saved by an older
+    // build or restored from an older backup. Shown as "recorded ..." and lets a
+    // sync skip a write when nothing changed.
     val weightMeasuredAtEpochMillis: Long? = null,
 ) {
     companion object {

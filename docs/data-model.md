@@ -124,25 +124,37 @@ the body-weight inputs that feed PK simulation
 (`weightKg`, `weightOriginalValue`, `weightOriginalUnit` — the
 original value plus its display unit are kept so the UI can
 round-trip the user's chosen unit without re-converting). Updated
-timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis`
-serves read-only Health Connect weight sync (see `WeightSyncCoordinator`):
-the time of the adopted HC reading, null for a typed weight or none. It
-backs the weight sheet's "recorded <date>" text and lets a sync skip the
+timestamp via `updatedAtEpochMillis`. `weightMeasuredAtEpochMillis` is
+the weight's date: the time a typed weight was saved, or the time of the
+adopted Health Connect reading (see `WeightSyncCoordinator`). It is null
+only with no weight, or for a weight saved before dates were kept or
+restored from a backup without one, until the next typed or synced weight.
+It backs the weight sheet's "recorded <date>" text and lets a sync skip the
 write when the reading hasn't changed. With sync on, HC's latest
-reading before now plus the 5-minute tolerance, if valid, becomes the
-weight and its measured time, rounded to 0.1 in the stored unit. A
-stored reading at or after that point which HC still has (the device
-clock was set back past it) is held: the sync leaves it unchanged until
-the clock catches up. With no reading left, the weight stays but its
-measured time is cleared, a future one HC lacks included. An invalid
-latest reading (under 0.1 kg) keeps the weight and its measured time;
-only the latest is read. Why a sync kept the weight is
+reading dated before now (the read ends at now, exclusive: on Android
+14+ connect-client rebuilds each record through the platform's, which
+refuses a time after now, so a wider read would turn one future-dated
+record into a failed sync; such a reading is read once its time comes)
+becomes the weight and its date if valid, rounded to 0.1 in the stored
+unit. With no reading before now, or an invalid latest one (under
+0.1 kg), the weight and its date stay; only the latest is read. A stored
+weight dated after now is treated like any other: a past reading
+replaces it, or it stays with its date. Why a sync kept the weight is
 `WeightSyncCoordinator.readingProblem`, in memory, not a column:
 `NONE_FOUND` with no reading, `INVALID` with an invalid latest one, and
-null after a held sync or a valid reading. Turning sync off clears
-the measured time and `readingProblem`, and turning it on clears them
-again before the flag is set, so the sheet reads "Syncing…" until the
-new sync. Clearing the weight keeps
+null after a valid reading. Turning sync off keeps the weight and its
+date and clears `readingProblem`; turning it on clears it again before the
+flag is set, and the sheet reads "Syncing…" until the new sync
+(`HealthConnectCapabilityState.syncPending`). With sync on, the unit
+switch works only while the weight shown is the last sync's valid
+reading (a weight, access, no sync pending or failed, no
+`readingProblem`). It stores the weight rounded to 0.1 in the new unit,
+with `weightKg` derived from that, as for an adopted reading, so the
+backup validator's kg/unit check still holds, and the date kept; nothing
+is written if that rounds to 0. It then forces a sync, which rewrites the
+row from HC's own value, so the final value never depends on the rounded
+one. If that sync fails, the converted value stays until the next one.
+Clearing the weight keeps
 `weightOriginalUnit`, so a later adopted reading shows in the user's
 unit.
 

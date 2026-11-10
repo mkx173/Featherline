@@ -564,6 +564,7 @@ fun OnboardingScreen(
             readingProblem = healthConnectReadingProblem,
             isInProgress = false,
             onSave = viewModel::setWeight,
+            onUnitChange = viewModel::setWeightUnit,
             onClear = viewModel::clearWeight,
             onSyncEnable = viewModel::enableHealthConnectWeightSync,
             onSyncDisable = viewModel::disableHealthConnectWeightSync,

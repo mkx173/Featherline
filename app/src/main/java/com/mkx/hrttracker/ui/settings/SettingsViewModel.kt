@@ -196,6 +196,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** The unit switch with sync on; the sync rewrites it from Health Connect's value. */
+    fun setWeightUnit(unit: WeightUnit) {
+        launchWeightMutation {
+            userProfileRepository.setWeightUnit(unit)
+            healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", sync = true)
+        }
+    }
+
     fun clearWeight() {
         launchWeightMutation {
             userProfileRepository.clearWeight()
@@ -211,8 +219,7 @@ class SettingsViewModel @Inject constructor(
 
     fun disableHealthConnectWeightSync() {
         launchSettingsMutation {
-            // Also clears the reading's date: turning sync back on shouldn't show
-            // it before the new sync lands.
+            // The weight and its date stay.
             healthConnectCapabilityReconciler.disableSync()
         }
     }

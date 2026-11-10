@@ -44,6 +44,7 @@ class WeightSheetTest {
         syncEnabled: Boolean,
         onSave: (Double, WeightUnit) -> Unit = { _, _ -> },
         onClear: () -> Unit = {},
+        onUnitChange: (WeightUnit) -> Unit = {},
     ) {
         composeRule.setContent {
             WeightSheetContent(
@@ -59,6 +60,7 @@ class WeightSheetTest {
                 onSyncEnabledChange = {},
                 onSyncNow = {},
                 onClose = {},
+                onUnitChange = onUnitChange,
             )
         }
     }
@@ -70,7 +72,6 @@ class WeightSheetTest {
 
         composeRule.onNodeWithText("62.4").assertIsNotEnabled()
         composeRule.onNodeWithText("kg").assertExists()
-        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertIsNotEnabled()
         composeRule.onNodeWithText("OK").assertExists()
         composeRule.onNodeWithText("Clear").assertDoesNotExist()
         composeRule.onNodeWithText("Cancel").assertDoesNotExist()
@@ -82,10 +83,79 @@ class WeightSheetTest {
     }
 
     @Test
-    fun syncOn_withNoReadingYet_saysSyncing_untilASyncFindsNone() {
-        var profile by mutableStateOf(weight(62.4))
-        var readingProblem by mutableStateOf<ReadingProblem?>(null)
+    fun syncOn_unitSwitchConvertsTheStoredWeight_andTheFieldFollowsIt() {
+        var profile by mutableStateOf(weight(61.8, Instant.parse("2026-10-14T07:12:00Z")))
+        var changedTo: WeightUnit? = null
+        setSheet(profile = { profile }, syncEnabled = true, onUnitChange = { changedTo = it })
+
+        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertIsEnabled().performClick()
+        assertEquals(WeightUnit.POUNDS, changedTo)
+        // The field waits for the stored weight, not its own conversion.
+        composeRule.onNodeWithText("61.8").assertExists()
+
+        profile = profile.copy(weightOriginalValue = 136.2, weightOriginalUnit = WeightUnit.POUNDS)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("136.2").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("Unit: lb. Switch to kg").performClick()
+        assertEquals(WeightUnit.KILOGRAMS, changedTo)
+    }
+
+    @Test
+    fun syncOn_withNoWeight_theUnitSwitchIsOff() {
+        setSheet(profile = { weight(null) }, syncEnabled = true)
+
+        composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb").assertIsNotEnabled()
+    }
+
+    @Test
+    fun syncOn_theUnitSwitchIsOff_unlessTheWeightIsTheLastSyncsReading() {
+        // A typed weight kept with sync on, or one no sync has confirmed.
+        var readingProblem by mutableStateOf<ReadingProblem?>(ReadingProblem.NONE_FOUND)
         var healthConnect by mutableStateOf(access)
+        composeRule.setContent {
+            WeightSheetContent(
+                profile = weight(62.4, Instant.parse("2026-10-14T07:12:00Z")),
+                syncEnabled = true,
+                healthConnect = healthConnect,
+                isSyncing = false,
+                readingProblem = readingProblem,
+                isInProgress = false,
+                onSave = { _, _ -> },
+                onClearRequest = {},
+                onClear = {},
+                onSyncEnabledChange = {},
+                onSyncNow = {},
+                onClose = {},
+            )
+        }
+        val switch = composeRule.onNodeWithContentDescription("Unit: kg. Switch to lb")
+
+        // Health Connect empty.
+        switch.assertIsNotEnabled()
+        // Its latest reading invalid.
+        readingProblem = ReadingProblem.INVALID
+        composeRule.waitForIdle()
+        switch.assertIsNotEnabled()
+        // No sync since sync was turned on, or the last one failed.
+        readingProblem = null
+        healthConnect = access.copy(syncPending = true)
+        composeRule.waitForIdle()
+        switch.assertIsNotEnabled()
+        healthConnect = access.copy(syncFailed = true)
+        composeRule.waitForIdle()
+        switch.assertIsNotEnabled()
+
+        healthConnect = access
+        composeRule.waitForIdle()
+        switch.assertIsEnabled()
+    }
+
+    @Test
+    fun syncOn_withNoReadingYet_saysSyncing_untilASyncFindsNone() {
+        // Turning sync on keeps a typed weight's date.
+        var profile by mutableStateOf(weight(62.4, Instant.parse("2026-10-14T07:12:00Z")))
+        var readingProblem by mutableStateOf<ReadingProblem?>(null)
+        var healthConnect by mutableStateOf(access.copy(syncPending = true))
         composeRule.setContent {
             WeightSheetContent(
                 profile = profile,
@@ -103,11 +173,11 @@ class WeightSheetTest {
             )
         }
 
-        // Sync just turned on: no reading's date yet, and no sync found none.
+        // Sync just turned on: no sync has finished yet.
         composeRule.onNodeWithText("Syncing…").assertExists()
 
         // That sync threw: nothing is running any more.
-        healthConnect = access.copy(syncFailed = true)
+        healthConnect = access.copy(syncFailed = true, syncPending = true)
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Couldn’t sync").assertExists()
         healthConnect = access

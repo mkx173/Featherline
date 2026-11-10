@@ -8,16 +8,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.time.Duration
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Read-only, latest-only body-weight sync from Health Connect. With sync on, HC
- * is the source: its latest reading becomes the app's weight, so an HC deletion
- * makes the next-latest reading the weight. With no reading or an invalid one,
- * the current weight stays and [readingProblem] tells the UI.
+ * is the source: its latest reading dated before now becomes the app's weight
+ * and its date, so an HC deletion makes the next-latest reading the weight. With
+ * no such reading or an invalid one, the current weight and its date stay and
+ * [readingProblem] tells the UI.
  */
 @Singleton
 class WeightSyncCoordinator @Inject constructor(
@@ -45,48 +45,26 @@ class WeightSyncCoordinator @Inject constructor(
         if (!settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled) return@withLock
         _isSyncing.value = true
         try {
-            val notAfter = now + FUTURE_TOLERANCE
-            val storedAfterNow = userProfileRepository.getCurrentProfile().weightMeasuredAt
-                ?.takeIf { !it.isBefore(notAfter) } // the read below excludes notAfter itself
-            // A stored reading after now that HC still has: the clock was set back
-            // past it, so the read below can't see it. Keep it until the clock
-            // catches up. One HC lacks, e.g. a bad date from a backup, isn't held:
-            // the read below replaces it or drops its date, unless the latest
-            // reading is invalid. Every record at that millisecond is compared, as
-            // another at the same time may come first; none is adopted.
-            if (storedAfterNow != null &&
-                healthConnectManager.readWeightsAt(storedAfterNow)
-                    .any { userProfileRepository.isStoredReading(it.weightKg, it.time) }
-            ) {
-                // Held, not kept for want of a reading: no problem to show.
-                _readingProblem.value = null
-                diagnosticsLogger.info(TAG, "weight_sync_skipped reason=$reason stored_reading_after_now")
-                return@withLock
-            }
-            val latest = healthConnectManager.readLatestWeight(notAfter)
-            // Not from a scale whose clock is ahead, and not one that rounds to 0
-            // in either unit: backup restore rejects a 0 weight.
-            val valid = latest?.takeIf { reading ->
-                reading.time <= notAfter && reading.weightKg >= MIN_WEIGHT_KG
-            }
+            // Dated before now: Android 14+ can't hand out a later record (see
+            // latestWeightRequest). A stored weight dated after now isn't special:
+            // a past reading replaces it, or it stays with its date.
+            val latest = healthConnectManager.readLatestWeight(now)
+            // Not one that rounds to 0 in either unit: backup restore rejects a 0 weight.
+            val valid = latest?.takeIf { it.weightKg >= MIN_WEIGHT_KG }
             _readingProblem.value = when {
                 latest == null -> ReadingProblem.NONE_FOUND
                 valid == null -> ReadingProblem.INVALID
                 else -> null
             }
-            val changed = when {
-                // Rechecked under the lock manual edits share: turned off mid-sync,
-                // the weight is the user's now.
-                valid != null -> userProfileRepository.adoptHcWeight(valid.weightKg, valid.time, now) {
+            // Rechecked under the lock manual edits share: turned off mid-sync,
+            // the weight is the user's now. Without a valid reading the weight and
+            // its date stay.
+            // ponytail: only the latest is read, not a search for a valid one;
+            // the last saved weight and its date stay until a valid reading.
+            val changed = valid != null &&
+                userProfileRepository.adoptHcWeight(valid.weightKg, valid.time, now) {
                     settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled
                 }
-                // No reading to replace it: the weight stays but its date goes,
-                // one after now too (a held one has returned above).
-                latest == null -> userProfileRepository.clearHcMeasuredAt()
-                // ponytail: only the latest is read, not a search for a valid one;
-                // the last saved weight and its date stay until a valid reading.
-                else -> false
-            }
             diagnosticsLogger.info(
                 TAG,
                 "weight_sync_complete reason=$reason reading=${latest != null} changed=$changed",
@@ -99,9 +77,9 @@ class WeightSyncCoordinator @Inject constructor(
     }
 
     /**
-     * Turns sync off. The flag goes first so an in-flight sync drops its reading
-     * (adoptHcWeight checks it under the lock manual edits share); the measured
-     * time is cleared after that sync, so it can't write one back.
+     * Turns sync off; the weight and its date stay. The flag goes first so an
+     * in-flight sync drops its reading (adoptHcWeight checks it under the lock
+     * manual edits share).
      */
     suspend fun disable() {
         settingsRepository.setHealthConnectWeightSyncEnabled(false)
@@ -109,18 +87,15 @@ class WeightSyncCoordinator @Inject constructor(
     }
 
     /**
-     * Clears the last sync's result, the reading's measured time and
-     * [readingProblem], after any in-flight sync. Turning sync on then reads
-     * "Syncing…" until the new sync, not the old result.
+     * Clears [readingProblem] after any in-flight sync, so that sync can't set
+     * it back. Turning sync on then shows no old problem before the new sync.
      */
     suspend fun clearSyncResult() = syncMutex.withLock {
-        userProfileRepository.clearHcMeasuredAt()
         _readingProblem.value = null
     }
 
     private companion object {
         const val TAG = "WeightSyncCoordinator"
-        val FUTURE_TOLERANCE: Duration = Duration.ofMinutes(5)
         // 0.1 kg rounds to at least 0.1 in kg and 0.2 in lb.
         const val MIN_WEIGHT_KG = 0.1
     }

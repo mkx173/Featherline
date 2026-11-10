@@ -153,9 +153,9 @@ flattened into the parent's JSON.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries
   `weightKg` plus the original value + unit for display round-trip, and
-  `weightMeasuredAtEpochMillis` (the adopted Health Connect reading's time).
+  `weightMeasuredAtEpochMillis` (the weight's date, typed or synced).
   That field was added without a snapshot version bump: a backup without it
-  restores null, which only blanks the "Measured" time until the next sync.
+  restores null, an undated weight until the next typed or synced one.
 - `BackupMedicineSnapshot` →
   [`MedicineEntity`](data-model.md#medicineentity); the canonical
   identity row that most group items and log entries point at via

@@ -46,6 +46,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -363,8 +364,30 @@ class SettingsViewModelTest {
         viewModel.disableHealthConnectWeightSync()
         advanceUntilIdle()
 
-        // Turns the flag off, clears the reading's date, and resets the daily gate under one lock.
+        // Turns the flag off and resets the daily gate under one lock.
         coVerify(exactly = 1) { healthConnectCapabilityReconciler.disableSync() }
+    }
+
+    @Test
+    fun setWeightUnit_convertsTheStoredWeight_asAWeightMutation() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val allowWriteToFinish = CompletableDeferred<Unit>()
+        coEvery { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) } coAnswers {
+            allowWriteToFinish.await()
+        }
+
+        viewModel.setWeightUnit(WeightUnit.POUNDS)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isWeightMutationInProgress)
+        verify(exactly = 0) { healthConnectCapabilityReconciler.requestReconcile(any(), any()) }
+
+        allowWriteToFinish.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+        coVerify(exactly = 1) { userProfileRepository.setWeightUnit(WeightUnit.POUNDS, any()) }
+        // Then a sync past the burst guard rewrites it from Health Connect's own value.
+        verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("weight_unit_changed", true) }
     }
 
     @Test
