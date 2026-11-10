@@ -92,9 +92,10 @@ not a defence against an in-process attacker.
 `SecureRandom`, never reused; 128-bit auth tag appended to the
 ciphertext by JCA. The full 65-byte header is the AAD, so tampering
 with any declared parameter fails the tag check. On decrypt, a tag
-mismatch becomes `IOException("Unable to decrypt the selected backup
-file.")` — wrong password and tampered ciphertext are not
-distinguished externally.
+mismatch becomes `BackupDecryptionException`, an `IOException` — wrong
+password and tampered ciphertext are not distinguished externally.
+It is the only failure Settings reports as "Wrong password or
+corrupted backup file".
 
 The plaintext fed into AES-GCM is `gzip(json)`, not the JSON. The
 header's uncompressed-length field is the pre-gzip JSON byte count;
@@ -138,7 +139,8 @@ flattened into the parent's JSON.
   balance, scale, opacity, dark mode), the `groupNameCounter` used to
   suffix default group names, the stock-tracking-nudge flags
   `stockNudgeEnabled` / `stockNudgeUserEnabled`,
-  `healthConnectWeightSyncEnabled` (default false), and the home-card layout
+  `healthConnectWeightSyncEnabled` (absent before weight sync; the restore
+  then keeps the device's setting), and the home-card layout
   `homeCardOrder` / `homeCardHidden`). The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
@@ -317,8 +319,9 @@ incompatible files are rejected at the cheapest detection point.
    parses magic, version, KDF / cipher / compression identifiers, and
    Argon2 parameters. Failures wrap as
    `IncompatibleBackupFileException` so the UI can distinguish "not a
-   backup" from "wrong password". Runs before the password dialog
-   opens.
+   backup" from "wrong password". A container version above this
+   app's throws `NewerBackupVersionException` ("This backup is from a
+   newer version"). Runs before the password dialog opens.
 3. **Pass 2 — decrypt + auth-tag verify.**
    [`decrypt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    derives the key from the entered password and the envelope's salt,
@@ -332,8 +335,10 @@ incompatible files are rejected at the cheapest detection point.
    runs these checks:
    - version + identity: `snapshotVersion` must fall in
      `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION`
-     (currently `2..8`); v1 backups are rejected here with no
-     migration path because the medicine-identity refactor removed
+     (currently `2..8`). One above it is checked first, right after
+     decryption, and throws `NewerBackupVersionException`; v1
+     backups are rejected here with no migration path because the
+     medicine-identity refactor removed
      the denormalized identity fields older payloads relied on.
      `app.packageName` must match the stable backup identity
      (`com.mkx.hrttracker`), not the installed package name.
@@ -414,9 +419,9 @@ incompatible files are rejected at the cheapest detection point.
    rest. A failed step is logged via `AppDiagnosticsLogger.warning`,
    and the others still run. The restore then returns
    `BackupRestoreOutcome.FOLLOW_UP_FAILED` instead of `RESTORED`,
-   and Settings says the backup was restored but some settings or
-   reminders weren't updated. A reschedule that didn't run is left
-   to the next app launch.
+   and Settings shows "Unable to restore, please try again", the same
+   as any failure that isn't the password's. A reschedule that didn't
+   run is left to the next app launch.
 
 ## Forward-compatibility policy
 
@@ -501,7 +506,9 @@ worth it.
 or primitives change. KDF and cipher are recorded as identifier bytes
 ([`KDF_ARGON2_ID = 2`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt),
 [`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)),
-so additions can extend the readable set without bumping. A bump is
+so additions can extend the readable set without bumping. An older
+reader takes a KDF, cipher or compression id above its known ones for
+`NewerBackupVersionException` ("update the app"). A bump is
 reserved for changes that break parser invariants — different field
 ordering, a different fixed-header length, a different AAD contract.
 The medicine-identity refactor did *not* touch the envelope; only the
@@ -519,8 +526,8 @@ inner snapshot version moved.
 | v3 | v4, v5, v6, v7, or v8 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
-| Future | any | This version | Rejected at `parseContainer` (`IllegalArgumentException("Unsupported backup file version: …")`). |
-| v3 | Future snapshot version | This version | Rejected by `toValidatedSnapshot`'s `snapshotVersion` range check. |
+| Future | any | This version | Rejected at `parseContainer` with `NewerBackupVersionException`: "update the app". |
+| v3 | Future snapshot version | This version | Rejected right after decryption with `NewerBackupVersionException`: "update the app". |
 
 Writers only emit current envelope + current snapshot version. The
 asymmetry is intentional: older-into-newer restores are supported down

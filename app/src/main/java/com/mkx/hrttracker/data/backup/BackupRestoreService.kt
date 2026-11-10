@@ -81,6 +81,12 @@ class IncompatibleBackupFileException(
     cause: Throwable? = null,
 ) : IOException(message, cause)
 
+/** The password is wrong, or the encrypted payload is damaged: authentication failed. */
+class BackupDecryptionException(message: String, cause: Throwable) : IOException(message, cause)
+
+/** Written by a newer version of the app, with a format this one doesn't know yet. */
+class NewerBackupVersionException(message: String) : IOException(message)
+
 /** How a restore that replaced the data went; one that didn't throws instead. */
 enum class BackupRestoreOutcome {
     RESTORED,
@@ -215,7 +221,10 @@ class BackupRestoreService @Inject constructor(
                 TAG,
                 "restore_backup_decrypted snapshotVersion=$snapshotVersion",
             )
-            require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
+            if (snapshotVersion > CURRENT_BACKUP_SNAPSHOT_VERSION) {
+                throw NewerBackupVersionException("Backup snapshot version $snapshotVersion is newer.")
+            }
+            require(snapshotVersion >= MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION) {
                 "Unsupported backup snapshot version: $snapshotVersion."
             }
             val snapshot = BackupSnapshotJsonCodec.decode(json)
@@ -462,15 +471,13 @@ class BackupRestoreService @Inject constructor(
     }
 
     // The buffers that ran out are garbage once the error unwinds, so the app carries on.
+    // A plain IOException: the file may be fine, this device just can't hold it.
     private fun tooLargeForTheHeap(
         step: String,
         error: OutOfMemoryError,
-    ): IncompatibleBackupFileException {
+    ): IOException {
         diagnosticsLogger.warning(TAG, "${step}_out_of_memory", error)
-        return IncompatibleBackupFileException(
-            message = "Selected backup file is too large to restore on this device.",
-            cause = error,
-        )
+        return IOException("Selected backup file is too large to restore on this device.", error)
     }
 }
 
@@ -481,11 +488,8 @@ class BackupRestoreService @Inject constructor(
  * [requiredPrefix] is rejected after reading only that many bytes, so a file of
  * another kind isn't buffered at all.
  *
- * Throws [IncompatibleBackupFileException] (not a plain [IOException]) on
- * over-cap input so the picker — which runs this before the password prompt —
- * surfaces the accurate "not a compatible backup" message rather than the
- * generic "wrong password or corrupted" toast for a file no password was ever
- * entered against.
+ * Throws [IncompatibleBackupFileException] for input that isn't a backup, and a
+ * plain [IOException] for one over the cap, which the app can't restore.
  */
 internal fun readBoundedBytes(
     inputStream: InputStream,
@@ -511,9 +515,7 @@ internal fun readBoundedBytes(
         if (bytesRead == -1) break
         total += bytesRead
         if (total > maxBytes) {
-            throw IncompatibleBackupFileException(
-                "Selected backup file exceeds the maximum supported size."
-            )
+            throw IOException("Selected backup file exceeds the maximum supported size.")
         }
         buffer.write(chunk, 0, bytesRead)
     }
@@ -1783,7 +1785,7 @@ internal data class ValidatedBackupSettings(
     val hazeBlurEnabled: Boolean,
     val classicNavigationBarEnabled: Boolean,
     val remindersEnabled: Boolean,
-    val healthConnectWeightSyncEnabled: Boolean,
+    val healthConnectWeightSyncEnabled: Boolean?,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,
     val onboardingCompleted: Boolean,

@@ -8,7 +8,9 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.local.E2CalibrationMetadataEntity
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.JournalDao
@@ -55,6 +57,8 @@ import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.ui.settings.BackupRestoreEvent
+import com.mkx.hrttracker.ui.settings.messageRes
 import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
@@ -238,6 +242,27 @@ class BackupRestoreServiceTest {
             )
         }
 
+    // W8: a backup from before weight sync has no flag, and keeps the device's; one with a flag sets it.
+    @Test
+    fun restoreBackupBytes_keepsWeightSyncWithoutAFlag_andTakesOne() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setHealthConnectWeightSyncEnabled(true)
+            val service = restoreServiceFor(device)
+            fun restore(flag: Boolean?) = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(
+                    emptySnapshot().let { it.copy(settings = it.settings.copy(healthConnectWeightSyncEnabled = flag)) },
+                ),
+                password = "password".toCharArray(),
+            )
+
+            service.restoreBackupBytes(restore(flag = null), password = "password")
+            assertEquals(true, device.getCurrentSettings().healthConnectWeightSyncEnabled)
+
+            service.restoreBackupBytes(restore(flag = false), password = "password")
+            assertEquals(false, device.getCurrentSettings().healthConnectWeightSyncEnabled)
+        }
+
     @Test
     fun restoreBackupBytes_restoresABackupWithAGraceOptionFromANewerVersion() =
         runTest(settingsDispatcher) {
@@ -411,10 +436,8 @@ class BackupRestoreServiceTest {
 
         val result = runCatching { service.loadEncryptedBackupBytes(fileUri) }
 
-        assertTrue(
-            "the picker shows an incompatible file, not ${result.exceptionOrNull()}",
-            result.exceptionOrNull() is IncompatibleBackupFileException,
-        )
+        // The file may be fine: this device can't hold it (B5).
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(result))
     }
 
     @Test
@@ -436,13 +459,94 @@ class BackupRestoreServiceTest {
             outOfHeap.restoreBackupBytes(emptySnapshotBytes(), password = "password")
         }
 
-        assertTrue(
-            "the restore shows an incompatible file, not ${result.exceptionOrNull()}",
-            result.exceptionOrNull() is IncompatibleBackupFileException,
-        )
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(result))
         coVerify(exactly = 0) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
         coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
     }
+
+    // B5: only a failed decryption blames the password.
+    @Test
+    fun restoreBackupBytes_aWrongPasswordSaysSo() = runTest {
+        val result = runCatching { service.restoreBackupBytes(emptySnapshotBytes(), password = "wrong") }
+
+        assertEquals(R.string.settings_backup_restore_failed, messageFor(result))
+    }
+
+    @Test
+    fun restoreBackupBytes_aFailedWriteOrALostKeyIsAPlainFailure() = runTest {
+        for (failure in listOf(
+            IOException("No space left on device"),
+            DatabaseKeyUnavailableException("The keystore key is missing."),
+        )) {
+            coEvery { databaseHolder.runTransaction(any()) } throws failure
+
+            val result = runCatching { service.restoreBackupBytes(emptySnapshotBytes(), "password") }
+
+            assertEquals("$failure", R.string.settings_backup_restore_unable, messageFor(result))
+        }
+    }
+
+    // B6: the data is in, but the user is told to restore again, like any plain failure.
+    @Test
+    fun aFollowUpFailureIsAPlainFailure() {
+        assertEquals(
+            R.string.settings_backup_restore_unable,
+            BackupRestoreEvent.FollowUpFailed.messageRes(),
+        )
+    }
+
+    // The format check stays "not a compatible backup".
+    @Test
+    fun restoreBackupBytes_anotherAppsBackupIsIncompatible() = runTest {
+        val bytes = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                emptySnapshot().copy(app = BackupAppSnapshot(packageName = "com.example.other")),
+            ),
+            password = "password".toCharArray(),
+        )
+
+        val result = runCatching { service.restoreBackupBytes(bytes, password = "password") }
+
+        assertEquals(R.string.settings_backup_restore_incompatible_file, messageFor(result))
+    }
+
+    // B7: a newer snapshot inside a known container, and a newer container at the picker.
+    @Test
+    fun aBackupFromANewerVersionSaysToUpdate() = runTest {
+        val newerSnapshot = backupCrypto.encryptSnapshotJson(
+            json = BackupSnapshotJsonCodec.encode(
+                emptySnapshot().copy(snapshotVersion = CURRENT_BACKUP_SNAPSHOT_VERSION + 1),
+            ),
+            password = "password".toCharArray(),
+        )
+        val newerContainer = emptySnapshotBytes().also {
+            it[BackupCrypto.MAGIC_BYTES.size] = (BackupCrypto.CURRENT_BACKUP_CONTAINER_VERSION + 1).toByte()
+        }
+
+        val restored = runCatching { service.restoreBackupBytes(newerSnapshot, "password") }
+        val picked = runCatching { service.validateBackupBytes(newerContainer) }
+
+        assertEquals(R.string.settings_backup_restore_newer_version, messageFor(restored))
+        assertEquals(R.string.settings_backup_restore_newer_version, messageFor(picked))
+        coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
+    }
+
+    // B7: new KDF, cipher and compression ids extend the set without a container bump, so an
+    // id above the known ones is a newer app's.
+    @Test
+    fun aContainerIdAboveTheKnownOnesSaysToUpdate() = runTest {
+        // After the magic and the version byte: the KDF (2), cipher (1) and compression (1) ids.
+        for ((offset, newer) in listOf(1 to 3, 2 to 2, 3 to 2)) {
+            val bytes = emptySnapshotBytes().also { it[BackupCrypto.MAGIC_BYTES.size + offset] = newer.toByte() }
+
+            val picked = runCatching { service.validateBackupBytes(bytes) }
+
+            assertEquals("id at +$offset", R.string.settings_backup_restore_newer_version, messageFor(picked))
+        }
+    }
+
+    private fun messageFor(result: Result<*>): Int =
+        BackupRestoreEvent.Failure(checkNotNull(result.exceptionOrNull())).messageRes()
 
     private class CountingInputStream(bytes: ByteArray) : ByteArrayInputStream(bytes) {
         val bytesRead: Int get() = pos

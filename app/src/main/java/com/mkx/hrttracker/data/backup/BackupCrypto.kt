@@ -143,7 +143,7 @@ class BackupCrypto internal constructor(
                 }
             }
         } catch (error: GeneralSecurityException) {
-            throw IOException("Unable to decrypt the selected backup file.", error)
+            throw BackupDecryptionException("Unable to decrypt the selected backup file.", error)
         } finally {
             parsedContainer.header.fill(0)
             parsedContainer.salt.fill(0)
@@ -242,6 +242,8 @@ class BackupCrypto internal constructor(
         val fixedHeaderLength = when (backupVersion) {
             LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V2
             CURRENT_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V3
+            in CURRENT_BACKUP_CONTAINER_VERSION + 1..BYTE_MASK ->
+                throw NewerBackupVersionException("Backup file version $backupVersion is newer.")
             else -> throw IllegalArgumentException("Unsupported backup file version: $backupVersion.")
         }
         require(encryptedBytes.size >= fixedHeaderLength) {
@@ -254,16 +256,23 @@ class BackupCrypto internal constructor(
         )
     }
 
+    private fun requireNotNewer(id: Int, highestKnown: Int, what: String) {
+        if (id > highestKnown) throw NewerBackupVersionException("Backup $what $id is newer.")
+    }
+
     private fun parseArgon2Container(
         encryptedBytes: ByteArray,
         buffer: ByteBuffer,
         backupVersion: Int,
     ): ParsedBackupContainer {
         val kdfType = buffer.get().toInt() and BYTE_MASK
+        // An id above the known ones is a newer app's: new ids extend the set without a bump.
+        requireNotNewer(kdfType, KDF_ARGON2_ID, "KDF")
         require(kdfType == KDF_ARGON2_ID) {
             "Unsupported backup KDF: $kdfType."
         }
         val cipherType = buffer.get().toInt() and BYTE_MASK
+        requireNotNewer(cipherType, CIPHER_AES_256_GCM, "cipher")
         require(cipherType == CIPHER_AES_256_GCM) {
             "Unsupported backup cipher: $cipherType."
         }
@@ -272,6 +281,7 @@ class BackupCrypto internal constructor(
             CURRENT_BACKUP_CONTAINER_VERSION -> buffer.get().toInt() and BYTE_MASK
             else -> error("Unexpected backup file version: $backupVersion.")
         }
+        requireNotNewer(compressionType, SUPPORTED_COMPRESSION_TYPES.max(), "compression")
         require(compressionType in SUPPORTED_COMPRESSION_TYPES) {
             "Unsupported backup compression: $compressionType."
         }
@@ -284,8 +294,9 @@ class BackupCrypto internal constructor(
             require(uncompressedLengthBytes >= 0L) {
                 "Backup file declares an invalid uncompressed payload length."
             }
-            require(uncompressedLengthBytes <= MAX_BACKUP_JSON_BYTES) {
-                "Backup file exceeds the maximum supported restore size."
+            // Too large for this app to restore, not malformed.
+            if (uncompressedLengthBytes > MAX_BACKUP_JSON_BYTES) {
+                throw IOException("Backup file exceeds the maximum supported restore size.")
             }
         }
 

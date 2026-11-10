@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.data.backup
 
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.settings.BackupRestoreEvent
+import com.mkx.hrttracker.ui.settings.messageRes
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -114,15 +118,15 @@ class BackupCryptoTest {
             declaredUncompressedLengthBytes = MAX_BACKUP_JSON_BYTES + 1,
         )
 
-        try {
-            backupCrypto.decrypt(
-                encryptedBytes = encryptedBytes,
-                password = "secret".toCharArray(),
-            )
-            fail("Expected oversized v3 backup containers to be rejected.")
-        } catch (_: IllegalArgumentException) {
-            // Expected.
-        }
+        val error = runCatching {
+            backupCrypto.decrypt(encryptedBytes = encryptedBytes, password = "secret".toCharArray())
+        }.exceptionOrNull()
+
+        // Too large for this app, not malformed: the generic failure (B5).
+        assertEquals(
+            R.string.settings_backup_restore_unable,
+            BackupRestoreEvent.Failure(checkNotNull(error)).messageRes(),
+        )
     }
 
     @Test

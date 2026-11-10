@@ -15,9 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The Health Connect weight-sync fields are additive: they came without a snapshot version bump. */
@@ -40,7 +38,7 @@ class HealthConnectWeightBackupTest {
         val validated = decoded.toValidatedSnapshot(expectedPackageName = PACKAGE)
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, decoded.snapshotVersion)
-        assertTrue(validated.settings.healthConnectWeightSyncEnabled)
+        assertEquals(true, validated.settings.healthConnectWeightSyncEnabled)
         val profile = validated.userProfile!!
         assertEquals(1_500L, profile.weightMeasuredAtEpochMillis)
     }
@@ -79,7 +77,8 @@ class HealthConnectWeightBackupTest {
         val validated = BackupSnapshotJsonCodec.decode(json)!!
             .toValidatedSnapshot(expectedPackageName = PACKAGE)
 
-        assertFalse(validated.settings.healthConnectWeightSyncEnabled)
+        // No flag: the restore keeps the device's setting (W8).
+        assertNull(validated.settings.healthConnectWeightSyncEnabled)
         val profile = validated.userProfile!!
         // An undated weight, valid until the next typed or synced one.
         assertNull(profile.weightMeasuredAtEpochMillis)

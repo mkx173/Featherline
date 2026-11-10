@@ -719,8 +719,9 @@
     <string name="settings_backup_password_min_length">至少使用 %1$d 個字元</string>
     <string name="settings_backup_password_mismatch">密碼不一致</string>
     <string name="settings_backup_restore_success">備份已還原</string>
-    <string name="settings_backup_restore_follow_up_failed">備份已還原，但部分設定或提醒無法更新</string>
     <string name="settings_backup_restore_failed">密碼錯誤或備份檔案已損壞</string>
+    <string name="settings_backup_restore_unable">無法還原，請重試</string>
+    <string name="settings_backup_restore_newer_version">此備份來自較新版本，請更新應用程式後再還原</string>
     <string name="settings_backup_restore_incompatible_file">備份檔案不相容</string>
     <string name="settings_backup_restore_confirm_title">還原備份？</string>
     <string name="settings_backup_restore_password_message">這會用所選備份替換目前本機資料，輸入備份密碼以繼續</string>

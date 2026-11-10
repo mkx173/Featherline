@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -85,11 +86,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -183,9 +185,7 @@ fun SettingsScreen(
     val isBackupFlowPending = uiState.pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
-    val backupRestoreIncompatibleFileMessage =
-        stringResource(R.string.settings_backup_restore_incompatible_file)
-    val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
+    val backupRestoreUnableMessage = stringResource(R.string.settings_backup_restore_unable)
     val externalImportFailedMessage = stringResource(R.string.external_import_failed)
     val isBackupActionBlocked = isBackupExportInProgress || isBackupRestoreInProgress ||
             isBackupFlowPending || uiState.isExternalImportInProgress
@@ -198,19 +198,9 @@ fun SettingsScreen(
     // shows the toast.
     LaunchedEffect(viewModel) {
         viewModel.backupRestoreEvents.collect { event ->
-            val messageRes = when (event) {
-                BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
-                BackupRestoreEvent.FollowUpFailed -> R.string.settings_backup_restore_follow_up_failed
-                is BackupRestoreEvent.Failure -> when (event.error) {
-                    is IncompatibleBackupFileException,
-                    is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
-
-                    else -> R.string.settings_backup_restore_failed
-                }
-            }
             Toast.makeText(
                 latestContext,
-                latestContext.getString(messageRes),
+                latestContext.getString(event.messageRes()),
                 Toast.LENGTH_SHORT,
             ).show()
             viewModel.consumeBackupRestoreEvent()
@@ -366,11 +356,7 @@ fun SettingsScreen(
             } catch (error: Exception) {
                 Toast.makeText(
                     context,
-                    if (error is IncompatibleBackupFileException) {
-                        backupRestoreIncompatibleFileMessage
-                    } else {
-                        backupRestoreFailedMessage
-                    },
+                    latestContext.getString(BackupRestoreEvent.Failure(error).messageRes()),
                     Toast.LENGTH_SHORT
                 ).show()
             } finally {
@@ -454,6 +440,14 @@ fun SettingsScreen(
                 appLockViewModel.onOtherPromptEnded(succeeded = false)
             }
         }
+    }
+    // The activity's own stop and resume, not this page's. Posted: below API 30 the PIN
+    // screen's result is queued on this thread before the resume.
+    val activityLifecycle = LocalActivity.current as ComponentActivity
+    val view = LocalView.current
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP, activityLifecycle) { viewModel.onActivityStopped() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME, activityLifecycle) {
+        view.post(viewModel::onActivityResumed)
     }
     AppAuthenticationPromptEffect(
         request = uiState.pendingPrompt,
@@ -557,7 +551,7 @@ fun SettingsScreen(
                 } catch (_: Exception) {
                     Toast.makeText(
                         context,
-                        backupRestoreFailedMessage,
+                        backupRestoreUnableMessage,
                         Toast.LENGTH_SHORT
                     ).show()
                 }

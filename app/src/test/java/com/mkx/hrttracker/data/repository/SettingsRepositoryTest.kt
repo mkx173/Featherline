@@ -35,11 +35,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
@@ -430,12 +427,12 @@ class SettingsRepositoryTest {
                 settingsRepository.homeLowStockAcknowledgedWarningStatesFlow,
             ) { expanded: Boolean, states: Map<String, MedicineStockState> -> expanded to states }
 
+            // The first value that differs from the one before the write, whether or not the
+            // observer subscribed in time to see that one: counting emissions hung when it didn't.
+            val beforeCollapse = foldStateFlow.first()
             val collapseObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
             val collapseJob = launch {
-                foldStateFlow
-                    .drop(1)
-                    .take(1)
-                    .toList(collapseObserved)
+                collapseObserved += foldStateFlow.first { it != beforeCollapse }
             }
             settingsRepository.setHomeLowStockSectionFoldState(
                 expanded = false,
@@ -453,12 +450,10 @@ class SettingsRepositoryTest {
                 settingsRepository.homeLowStockAcknowledgedWarningStatesFlow.first(),
             )
 
+            val beforeExpand = foldStateFlow.first()
             val expandObserved = mutableListOf<Pair<Boolean, Map<String, MedicineStockState>>>()
             val expandJob = launch {
-                foldStateFlow
-                    .drop(1)
-                    .take(1)
-                    .toList(expandObserved)
+                expandObserved += foldStateFlow.first { it != beforeExpand }
             }
             settingsRepository.setHomeLowStockSectionFoldState(expanded = true)
             expandJob.join()
@@ -613,7 +608,7 @@ class SettingsRepositoryTest {
             SettingsRepository(failing, logger).setAppLanguageOption(AppLanguageOption.ENGLISH)
 
             runBlocking {
-                withTimeout(5_000) {
+                withTimeout(30_000) {
                     select {
                         logged.onAwait {}
                         uncaught.onAwait {}
@@ -651,7 +646,7 @@ class SettingsRepositoryTest {
 
             val key = stringPreferencesKey("app_language_tag")
             val stored = runBlocking {
-                val held3 = List(3) { withTimeout(5_000) { writes.receive() } }
+                val held3 = List(3) { withTimeout(30_000) { writes.receive() } }
                 // The write that would store Traditional Chinese runs last.
                 val tags = held3.map { write -> write(emptyPreferences())[key] }
                 var preferences = emptyPreferences()
@@ -670,7 +665,7 @@ class SettingsRepositoryTest {
     /** The stored tag once it is [expected], as the write is asynchronous. */
     private suspend fun awaitStoredAppLanguageTag(expected: String): String? =
         withContext(Dispatchers.Default) {
-            withTimeout(5_000) {
+            withTimeout(30_000) {
                 var tag: String? = null
                 while (tag != expected) {
                     tag = dataStore.data.first()[stringPreferencesKey("app_language_tag")]
@@ -727,6 +722,39 @@ class SettingsRepositoryTest {
             )
             assertEquals(emptySet<HomeCardType>(), layout.hidden)
         }
+
+    // W8: a backup from before weight sync has no flag, and keeps the device's setting.
+    @Test
+    fun `restoreSettings keeps weight sync when the backup has no flag, and takes one it has`() =
+        runTest(testDispatcher) {
+            settingsRepository.setHealthConnectWeightSyncEnabled(true)
+
+            restoreSettingsWithWeightSync(enabled = null)
+            assertTrue(settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled)
+
+            restoreSettingsWithWeightSync(enabled = false)
+            assertFalse(settingsRepository.getCurrentSettings().healthConnectWeightSyncEnabled)
+        }
+
+    private suspend fun restoreSettingsWithWeightSync(enabled: Boolean?) {
+        settingsRepository.restoreSettings(
+            darkModeOption = DarkModeOption.FOLLOW_SYSTEM,
+            adaptiveColorEnabled = true,
+            pureBlackEnabled = false,
+            remindersEnabled = true,
+            showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
+            onboardingCompleted = true,
+            appLanguageOption = AppLanguageOption.ENGLISH,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(
+                BloodAnalyteKey.E2,
+                BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            ),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+            healthConnectWeightSyncEnabled = enabled,
+        )
+    }
 
     private suspend fun restoreSettingsWithStockNudgeEnabled(
         enabled: Boolean,

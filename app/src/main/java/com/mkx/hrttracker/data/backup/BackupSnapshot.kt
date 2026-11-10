@@ -34,7 +34,8 @@ data class BackupSettingsSnapshot(
     val hazeBlurEnabled: Boolean = true,
     val classicNavigationBarEnabled: Boolean = false,
     val remindersEnabled: Boolean,
-    val healthConnectWeightSyncEnabled: Boolean = false,
+    // Null in a backup from before weight sync: the restore keeps the device's setting.
+    val healthConnectWeightSyncEnabled: Boolean? = null,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
     val appLockGracePeriodOption: String,
@@ -71,7 +72,7 @@ data class BackupUserProfileSnapshot(
     val weightOriginalUnit: String,
     val updatedAtEpochMillis: Long? = null,
     // Additive (no snapshot version bump): a backup without it restores null,
-    // which only blanks the "Measured" time until the next sync.
+    // an undated weight until the next typed or synced one.
     val weightMeasuredAtEpochMillis: Long? = null,
 )
 

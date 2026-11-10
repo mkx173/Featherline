@@ -520,7 +520,8 @@ class SettingsRepository internal constructor(
         stockNudgeUserEnabled: Boolean = false,
         homeCardLayout: HomeCardLayout = HomeCardLayout(),
         pkCalibrationIntroSeen: Boolean = false,
-        healthConnectWeightSyncEnabled: Boolean = false,
+        // Null keeps the device's setting.
+        healthConnectWeightSyncEnabled: Boolean? = null,
         classicNavigationBarEnabled: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
@@ -534,7 +535,7 @@ class SettingsRepository internal constructor(
             preferences[hazeBlurKey] = hazeBlurEnabled
             preferences[classicNavigationBarKey] = classicNavigationBarEnabled
             preferences[remindersEnabledKey] = remindersEnabled
-            preferences[healthConnectWeightSyncEnabledKey] = healthConnectWeightSyncEnabled
+            healthConnectWeightSyncEnabled?.let { preferences[healthConnectWeightSyncEnabledKey] = it }
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
             // The lock, its grace period and hide screen content stay local: a backup can't loosen them.
