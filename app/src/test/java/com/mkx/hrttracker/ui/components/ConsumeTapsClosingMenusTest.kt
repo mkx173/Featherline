@@ -72,6 +72,52 @@ class ConsumeTapsClosingMenusTest {
         composeRule.runOnIdle { assertEquals(0, clicks) }
     }
 
+    // F4: a menu kept open for a touch begun on a back-swipe edge closes when it ends as a tap,
+    // and not when the system takes it for a back swipe, which cancels it, nor on a drag.
+    @Test
+    fun aTapClosesTheMenuKeptOpenForIt() {
+        keepMenuOpen()
+        setTarget()
+        composeRule.onNodeWithTag("target").performClick()
+        composeRule.runOnIdle { assertEquals(1, keptMenuClosed) }
+    }
+
+    @Test
+    fun aCancelledTouchLeavesTheKeptMenuOpen() {
+        keepMenuOpen()
+        setTarget()
+        composeRule.onNodeWithTag("target").performTouchInput {
+            down(centerLeft)
+            cancel()
+        }
+        composeRule.runOnIdle { assertEquals(0, keptMenuClosed) }
+    }
+
+    @Test
+    fun aDragLeavesTheKeptMenuOpen() {
+        keepMenuOpen()
+        setTarget()
+        composeRule.onNodeWithTag("target").performTouchInput { swipeLeft() }
+        composeRule.runOnIdle { assertEquals(0, keptMenuClosed) }
+    }
+
+    // The kept close belongs to one touch: a later tap elsewhere doesn't use it.
+    @Test
+    fun theKeptCloseEndsWithItsTouch() {
+        keepMenuOpen()
+        setTarget()
+        composeRule.onNodeWithTag("target").performTouchInput { swipeLeft() }
+        composeRule.onNodeWithTag("target").performClick()
+        composeRule.runOnIdle { assertEquals(0, keptMenuClosed) }
+    }
+
+    private var keptMenuClosed = 0
+
+    private fun keepMenuOpen() {
+        exemption.openMenus = 1
+        exemption.closeKeptMenu = { keptMenuClosed++ }
+    }
+
     @Test
     fun dragKeepsItsRelease_whenAMenuIsOpen() {
         exemption.openMenus = 1

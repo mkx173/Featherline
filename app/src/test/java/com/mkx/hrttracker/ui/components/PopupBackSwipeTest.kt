@@ -63,8 +63,10 @@ class PopupBackSwipeTest {
     private lateinit var popup: View
     private val screen: View get() = composeRule.activity.window.decorView
 
+    private val pages = PagerSwipeExemption()
+
     private fun setMenu(overPages: Boolean, inFloatingDialog: Boolean = false) {
-        val exemption = if (overPages) PagerSwipeExemption() else null
+        val exemption = if (overPages) pages else null
         composeRule.setContent {
             CompositionLocalProvider(LocalPagerSwipeExemption provides exemption) {
                 if (inFloatingDialog) {
@@ -119,7 +121,7 @@ class PopupBackSwipeTest {
 
     // A touch below the popup, [x] across the screen, told to the popup's window as the system
     // tells it: in the popup's own coordinates, and the screen's raw ones.
-    private fun touch(action: Int, x: Float) {
+    private fun touch(action: Int, x: Float, y: Float = 10f) {
         composeRule.runOnIdle {
             // Gesture navigation: a back swipe starts within 30 px of either side. Robolectric's
             // windows have no system gesture insets, so the activity's full-screen window gets
@@ -134,7 +136,7 @@ class PopupBackSwipeTest {
             )
             val screenAt = IntArray(2).also(screen::getLocationOnScreen)
             val popupAt = IntArray(2).also(popup::getLocationOnScreen)
-            val event = MotionEvent.obtain(0L, 0L, action, screenAt[0] + x, popupAt[1] + popup.height + 10f, 0)
+            val event = MotionEvent.obtain(0L, 0L, action, screenAt[0] + x, popupAt[1] + popup.height + y, 0)
             event.offsetLocation(-popupAt[0].toFloat(), -popupAt[1].toFloat())
             popup.dispatchTouchEvent(event)
             event.recycle()
@@ -187,6 +189,39 @@ class PopupBackSwipeTest {
         composeRule.onNodeWithText("Immediately").assertIsDisplayed()
 
         pressBackOnPopup()
+        composeRule.onNodeWithText("Immediately").assertDoesNotExist()
+    }
+
+    // F4: a tap there isn't a swipe, so it closes the menu, as anywhere outside it.
+    @Test
+    fun tapOnTheRightEdge_closesAMenuElsewhere() {
+        setMenu(overPages = false)
+        touch(MotionEvent.ACTION_DOWN, x = screen.width - 5f)
+        composeRule.onNodeWithText("Immediately").assertIsDisplayed()
+        touch(MotionEvent.ACTION_UP, x = screen.width - 5f)
+        composeRule.onNodeWithText("Immediately").assertDoesNotExist()
+    }
+
+    // A drag the system didn't take for a back swipe is no tap either: the menu stays.
+    @Test
+    fun dragFromTheLeftEdge_leavesAMenuElsewhereOpen() {
+        setMenu(overPages = false)
+        touch(MotionEvent.ACTION_DOWN, x = 5f)
+        touch(MotionEvent.ACTION_MOVE, x = 5f, y = 200f)
+        // Released back where it began: the move alone made it a drag.
+        touch(MotionEvent.ACTION_UP, x = 5f)
+        composeRule.onNodeWithText("Immediately").assertIsDisplayed()
+    }
+
+    // Over the pages the menu is told only of the touch down: the pages see its end, and close
+    // the menu on a tap (ConsumeTapsClosingMenusTest).
+    @Test
+    fun touchOnTheLeftEdge_leavesAMenuOverThePagesForThePagesToClose() {
+        setMenu(overPages = true)
+        touch(MotionEvent.ACTION_OUTSIDE, x = 5f)
+        composeRule.onNodeWithText("Immediately").assertIsDisplayed()
+
+        composeRule.runOnIdle { checkNotNull(pages.closeKeptMenu).invoke() }
         composeRule.onNodeWithText("Immediately").assertDoesNotExist()
     }
 

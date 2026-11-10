@@ -219,6 +219,10 @@ class PagerSwipeExemption {
     // Menus open over the pages, see [HrtDropdownMenuPopup] and [consumeTapsClosingMenus].
     internal var openMenus = 0
 
+    // Closes the menu kept open for a touch begun beside it on a back-swipe edge, once the pages
+    // see that touch end as a tap.
+    internal var closeKeptMenu: (() -> Unit)? = null
+
     /**
      * Takes the touch of [pointer] from the pager, as long as the pager hasn't started swiping
      * with it yet, for a gesture recognized after touch down, such as a long press.
@@ -272,9 +276,16 @@ fun Modifier.consumeTapsClosingMenus(exemption: PagerSwipeExemption): Modifier =
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             if (exemption.openMenus == 0) return@awaitEachGesture
             var dragged = false
+            var tap = true
             do {
                 // Ahead of the content, which acts on a release in a later pass.
                 val event = awaitPointerEvent(PointerEventPass.Initial)
+                // A cancel, as when the system takes a back swipe, is a release consumed from the
+                // start; a tap's release isn't, and stays within the touch slop.
+                tap = tap && event.changes.all { change ->
+                    (change.pressed || !change.isConsumed) &&
+                        (change.position - down.position).getDistance() <= viewConfiguration.touchSlop
+                }
                 if (!dragged) event.changes.forEach { if (!it.pressed) it.consume() }
                 // After the content: a move past the slop that it took is a drag.
                 dragged = dragged || awaitPointerEvent(PointerEventPass.Final).changes.any {
@@ -282,6 +293,8 @@ fun Modifier.consumeTapsClosingMenus(exemption: PagerSwipeExemption): Modifier =
                             (it.position - down.position).getDistance() > viewConfiguration.touchSlop
                 }
             } while (event.changes.any { it.pressed })
+            if (tap) exemption.closeKeptMenu?.invoke()
+            exemption.closeKeptMenu = null
         }
     }
 

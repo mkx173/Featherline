@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Build
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.PopupPositionProvider
@@ -138,7 +140,7 @@ fun HrtDropdownMenuPopup(
         properties = pagerMenuPopupProperties(exemption),
     ) {
         CountOpenMenu(exemption)
-        KeepOpenOnBackSwipes(screen)
+        KeepOpenOnBackSwipes(screen, onTap = { currentOnDismissRequest() }, exemption = exemption)
         content()
     }
 }
@@ -168,7 +170,7 @@ fun HrtTooltipBox(
     TooltipBox(
         positionProvider = positionProvider,
         tooltip = {
-            KeepOpenOnBackSwipes(screen)
+            KeepOpenOnBackSwipes(screen, onTap = state::dismiss)
             tooltip()
         },
         state = shownState,
@@ -181,25 +183,61 @@ fun HrtTooltipBox(
  * does: at a side of [screen], within its system gesture insets. Closed on that touch down, the
  * popup's window would go mid-swipe and take the swipe's Back astray: on Android 14 a menu's goes
  * on to the window beneath, which navigates, and a tooltip's is lost. The swipe's Back closes it
- * instead, as the Back key does.
+ * instead, as the Back key does. A tap there calls [onTap]: a back swipe the system takes ends
+ * the touch with a cancel, a tap with an up within the touch slop. A touch modal popup sees that
+ * end itself; a menu over the pages leaves it to the pages ([consumeTapsClosingMenus]).
  */
-// ponytail: a tap within a side's gesture inset no longer closes the popup either, and over the
-// pages a vertical drag starting there scrolls the page under the open menu. Telling either from a
-// swipe takes the touch's moves or release, which a popup over the pages, told only of the touch
-// down, never sees.
+// ponytail: a popup that is told only of the touch down and has no pages beneath, such as a
+// tooltip, can't see the end, so a tap there still leaves it open. (A menu in a dialog is touch
+// modal and closes; checked on API 35.) Over the pages, a vertical drag starting there scrolls
+// the page under the open menu.
 @SuppressLint("ClickableViewAccessibility")
 @Composable
-private fun KeepOpenOnBackSwipes(screen: View) {
+private fun KeepOpenOnBackSwipes(
+    screen: View,
+    onTap: () -> Unit,
+    exemption: PagerSwipeExemption? = null,
+) {
     val popup = LocalView.current.rootView
-    DisposableEffect(popup, screen) {
+    val currentOnTap by rememberUpdatedState(onTap)
+    DisposableEffect(popup, screen, exemption) {
+        val touchSlop = ViewConfiguration.get(popup.context).scaledTouchSlop
+        // A touch modal popup's edge touch, followed to its end; whether it's still a tap.
+        var edgeDown: Offset? = null
+        var tap = false
         // Ahead of the popup's own dismissal, on touch down outside it: taken, it never sees it.
         popup.setOnTouchListener { _, event ->
+            // A new touch starts afresh, should the last one's end have gone astray.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) edgeDown = null
+            val start = edgeDown
+            if (start != null) {
+                val moved = (Offset(event.rawX, event.rawY) - start).getDistance() > touchSlop
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_UP -> {
+                        edgeDown = null
+                        if (tap && !moved) currentOnTap()
+                    }
+                    MotionEvent.ACTION_CANCEL -> edgeDown = null
+                    else -> if (moved || event.pointerCount > 1) tap = false
+                }
+                return@setOnTouchListener true
+            }
             val outside = event.actionMasked == MotionEvent.ACTION_OUTSIDE ||
                 event.actionMasked == MotionEvent.ACTION_DOWN &&
                 (event.x < 0 || event.x >= popup.width || event.y < 0 || event.y >= popup.height)
-            outside && screen.isOnBackSwipeEdge(event.rawX)
+            if (!outside || !screen.isOnBackSwipeEdge(event.rawX)) return@setOnTouchListener false
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                edgeDown = Offset(event.rawX, event.rawY)
+                tap = true
+            } else {
+                exemption?.closeKeptMenu = { currentOnTap() }
+            }
+            true
         }
-        onDispose { popup.setOnTouchListener(null) }
+        onDispose {
+            popup.setOnTouchListener(null)
+            exemption?.closeKeptMenu = null
+        }
     }
 }
 
