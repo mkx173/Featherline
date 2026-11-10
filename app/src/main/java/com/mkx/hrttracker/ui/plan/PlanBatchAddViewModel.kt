@@ -16,7 +16,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -30,7 +29,6 @@ import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
-import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.systemLocale
@@ -50,7 +48,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 
@@ -570,22 +567,8 @@ internal fun buildPlanBatchAddEntryPlan(
         .filter { entry -> entry.sourceGroupUuid == group.uuid }
         .mapNotNull(MedicationLogEntry::scheduledFor)
         .toSet()
-    // Pre-start occurrences are saved as manual rows, so a rerun finds them by medicine and
-    // wall-clock minute in their own zone. Any matching row skips the medicine whatever its
-    // count, as a plan row skips its slot. It also skips a hand-entered dose at that minute.
-    // Only a range starting before the plan has pre-start occurrences.
-    val manualDoses = if (startDate.isBefore(group.schedule.since)) {
-        existingEntries
-            .asSequence()
-            .filter { entry -> entry.sourceGroupUuid == null }
-            .map { entry ->
-                MedicationSignature.fromLogEntry(entry) to
-                        appliedAtAsLocalDateTime(entry, zoneId).truncatedTo(ChronoUnit.MINUTES)
-            }
-            .toSet()
-    } else {
-        emptySet()
-    }
+    // Pre-start occurrences are saved as manual rows, which aren't matched: a rerun over a
+    // range before the plan's start adds them again (F9).
 
     val entries = mutableListOf<MedicationLogEntryInput>()
     var skippedEntryCount = 0
@@ -612,15 +595,9 @@ internal fun buildPlanBatchAddEntryPlan(
             return@forEach
         }
 
-        // A time in a spring-forward gap is saved at the shifted time, so match the row as saved.
+        // A time in a spring-forward gap is saved at the shifted time.
         val appliedAt = occurrence.atZone(zoneId)
         group.medications.forEach { medication ->
-            if (isBeforePlanStart &&
-                (MedicationSignature.fromGroupMedication(medication) to appliedAt.toLocalDateTime()) in manualDoses
-            ) {
-                skippedEntryCount++
-                return@forEach
-            }
             entries += MedicationLogEntryInput(
                 medicineUuid = medication.medicineUuid,
                 applicationType = medication.applicationType,

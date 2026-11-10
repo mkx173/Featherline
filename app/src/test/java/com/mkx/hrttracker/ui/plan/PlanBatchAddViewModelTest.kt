@@ -444,36 +444,37 @@ class PlanBatchAddViewModelTest {
         assertEquals(LocalDateTime.of(2026, 4, 10, 9, 0), entries[1].scheduledFor)
     }
 
+    // F9: pre-start occurrences aren't matched against manual rows, so a rerun before the
+    // plan's start adds them again: the accepted duplicate.
     @Test
-    fun buildPlanBatchAddEntryPlan_rerunBeforePlanStart_skipsTheManualRowsTheFirstRunWrote() {
+    fun buildPlanBatchAddEntryPlan_rerunBeforePlanStart_addsTheManualRowsAgain() {
+        val saved = savedRows(preStartRun())
+
+        val secondRun = preStartRun(existingEntries = saved)
+
+        assertEquals(4, secondRun.entries.size)
+        assertEquals(0, secondRun.skippedEntryCount)
+    }
+
+    // A plan slot that already has a record is still skipped, so a rerun from the start adds nothing.
+    @Test
+    fun buildPlanBatchAddEntryPlan_rerunFromPlanStart_addsNothingNew() {
         val group = preStartBatchAddGroup()
-        val medicinesByUuid = listOf(estradiolMedicine(), spironolactoneMedicine()).associateBy { it.uuid }
         val firstRun = buildPlanBatchAddEntryPlan(
             group = group,
-            startDate = LocalDate.of(2026, 4, 8),
-            endDate = LocalDate.of(2026, 4, 9),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 11),
+            now = LocalDateTime.of(2026, 4, 11, 12, 0),
             zoneId = ZoneId.of("UTC"),
         )
         assertEquals(4, firstRun.entries.size)
-        // What the first run saved, as the second run reads it back.
-        val saved = firstRun.entries.map { input ->
-            testMedicationLogEntry(
-                medicine = medicinesByUuid.getValue(input.medicineUuid!!),
-                applicationType = input.applicationType,
-                doseInstruction = input.doseInstruction,
-                sourceGroupUuid = input.sourceGroupUuid,
-                appliedAt = input.appliedAt,
-                appliedAtTimeZoneId = input.appliedAtTimeZoneId,
-                scheduledFor = input.scheduledFor,
-                count = input.count,
-            )
-        }
 
         val secondRun = buildPlanBatchAddEntryPlan(
             group = group,
-            existingEntries = saved,
-            startDate = LocalDate.of(2026, 4, 8),
-            endDate = LocalDate.of(2026, 4, 9),
+            existingEntries = savedRows(firstRun),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 11),
+            now = LocalDateTime.of(2026, 4, 11, 12, 0),
             zoneId = ZoneId.of("UTC"),
         )
 
@@ -481,143 +482,48 @@ class PlanBatchAddViewModelTest {
         assertEquals(4, secondRun.skippedEntryCount)
     }
 
-    @Test
-    fun buildPlanBatchAddEntryPlan_beforePlanStart_matchesAManualRowByItsOwnZonesWallClockMinute() {
-        // 09:00:30 in Tokyo is 00:00:30 UTC, but its wall-clock minute is the 09:00 dose.
-        val manualRow = testMedicationLogEntry(
-            medicine = estradiolMedicine(),
-            sourceGroupUuid = null,
-            appliedAt = Instant.parse("2026-04-09T00:00:30Z"),
-            appliedAtTimeZoneId = "Asia/Tokyo",
-        )
-
-        val plan = buildPlanBatchAddEntryPlan(
+    private fun preStartRun(existingEntries: List<MedicationLogEntry> = emptyList()) =
+        buildPlanBatchAddEntryPlan(
             group = preStartBatchAddGroup(),
-            existingEntries = listOf(manualRow),
-            startDate = LocalDate.of(2026, 4, 9),
+            existingEntries = existingEntries,
+            startDate = LocalDate.of(2026, 4, 8),
             endDate = LocalDate.of(2026, 4, 9),
             zoneId = ZoneId.of("UTC"),
         )
 
-        assertEquals(1, plan.skippedEntryCount)
-        assertEquals(listOf(spironolactoneMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
-    }
-
-    @Test
-    fun buildPlanBatchAddEntryPlan_rerunBeforePlanStart_skipsARowTheSpringForwardGapShifted() {
-        // 02:30 on Mar 8 does not exist in New York, so the first run saved it at 03:30 EDT.
-        val zone = ZoneId.of("America/New_York")
-        val group = preStartBatchAddGroup(since = LocalDate.of(2026, 3, 9), time = LocalTime.of(2, 30))
+    // What a run saved, as the next run reads it back.
+    private fun savedRows(run: PlanBatchAddEntryPlan): List<MedicationLogEntry> {
         val medicinesByUuid = listOf(estradiolMedicine(), spironolactoneMedicine()).associateBy { it.uuid }
-        val firstRun = buildPlanBatchAddEntryPlan(
-            group = group,
-            startDate = LocalDate.of(2026, 3, 8),
-            endDate = LocalDate.of(2026, 3, 8),
-            now = LocalDateTime.of(2026, 3, 9, 12, 0),
-            zoneId = zone,
-        )
-        assertEquals(
-            listOf(Instant.parse("2026-03-08T07:30:00Z"), Instant.parse("2026-03-08T07:30:00Z")),
-            firstRun.entries.map(MedicationLogEntryInput::appliedAt),
-        )
-        val saved = firstRun.entries.map { input ->
+        return run.entries.map { input ->
             testMedicationLogEntry(
                 medicine = medicinesByUuid.getValue(input.medicineUuid!!),
+                applicationType = input.applicationType,
+                doseInstruction = input.doseInstruction,
                 sourceGroupUuid = input.sourceGroupUuid,
+                scheduleTimeUuid = input.scheduleTimeUuid,
                 appliedAt = input.appliedAt,
                 appliedAtTimeZoneId = input.appliedAtTimeZoneId,
+                scheduledFor = input.scheduledFor,
                 count = input.count,
             )
         }
+    }
 
-        val secondRun = buildPlanBatchAddEntryPlan(
-            group = group,
-            existingEntries = saved,
+    @Test
+    fun buildPlanBatchAddEntries_savesASpringForwardGapTimeAtItsShiftedTime() {
+        // 02:30 on Mar 8 does not exist in New York: it's saved at 03:30 EDT.
+        val entries = buildPlanBatchAddEntries(
+            group = preStartBatchAddGroup(since = LocalDate.of(2026, 3, 9), time = LocalTime.of(2, 30)),
             startDate = LocalDate.of(2026, 3, 8),
             endDate = LocalDate.of(2026, 3, 8),
             now = LocalDateTime.of(2026, 3, 9, 12, 0),
-            zoneId = zone,
-        )
-
-        assertEquals(emptyList<MedicationLogEntryInput>(), secondRun.entries)
-        assertEquals(2, secondRun.skippedEntryCount)
-    }
-
-    @Test
-    fun buildPlanBatchAddEntryPlan_beforePlanStart_matchesAManualRowAtTheSameMinuteInADstZone() {
-        // 09:00:30 EDT on Apr 9, an ordinary day in New York.
-        val manualRow = testMedicationLogEntry(
-            medicine = estradiolMedicine(),
-            sourceGroupUuid = null,
-            appliedAt = Instant.parse("2026-04-09T13:00:30Z"),
-            appliedAtTimeZoneId = "America/New_York",
-        )
-
-        val plan = buildPlanBatchAddEntryPlan(
-            group = preStartBatchAddGroup(),
-            existingEntries = listOf(manualRow),
-            startDate = LocalDate.of(2026, 4, 9),
-            endDate = LocalDate.of(2026, 4, 9),
-            now = LocalDateTime.of(2026, 4, 10, 12, 0),
             zoneId = ZoneId.of("America/New_York"),
         )
 
-        assertEquals(1, plan.skippedEntryCount)
-        assertEquals(listOf(spironolactoneMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
-    }
-
-    @Test
-    fun buildPlanBatchAddEntryPlan_beforePlanStart_aFallBackOverlapMatchesOnlyItsOwnMinute() {
-        // On Nov 1 New York's clock runs 01:00-01:59 twice, and 01:30 resolves to 01:30 EDT.
-        val estradiolAtTheSlot = testMedicationLogEntry(
-            medicine = estradiolMedicine(),
-            sourceGroupUuid = null,
-            appliedAt = Instant.parse("2026-11-01T05:30:00Z"),
-            appliedAtTimeZoneId = "America/New_York",
+        assertEquals(
+            listOf(Instant.parse("2026-03-08T07:30:00Z"), Instant.parse("2026-03-08T07:30:00Z")),
+            entries.map(MedicationLogEntryInput::appliedAt),
         )
-        // 02:30 EST, an hour later on the clock, is another dose.
-        val spironolactoneAnHourLater = testMedicationLogEntry(
-            medicine = spironolactoneMedicine(),
-            sourceGroupUuid = null,
-            appliedAt = Instant.parse("2026-11-01T07:30:00Z"),
-            appliedAtTimeZoneId = "America/New_York",
-        )
-
-        val plan = buildPlanBatchAddEntryPlan(
-            group = preStartBatchAddGroup(since = LocalDate.of(2026, 11, 2), time = LocalTime.of(1, 30)),
-            existingEntries = listOf(estradiolAtTheSlot, spironolactoneAnHourLater),
-            startDate = LocalDate.of(2026, 11, 1),
-            endDate = LocalDate.of(2026, 11, 1),
-            now = LocalDateTime.of(2026, 11, 2, 12, 0),
-            zoneId = ZoneId.of("America/New_York"),
-        )
-
-        assertEquals(1, plan.skippedEntryCount)
-        assertEquals(listOf(spironolactoneMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
-        assertEquals(listOf(Instant.parse("2026-11-01T05:30:00Z")), plan.entries.map { entry -> entry.appliedAt })
-    }
-
-    @Test
-    fun buildPlanBatchAddEntryPlan_beforePlanStart_aManualRowOfAnotherMedicineDoesNotBlock() {
-        val manualRow = testMedicationLogEntry(
-            medicine = spironolactoneMedicine(),
-            sourceGroupUuid = null,
-            appliedAt = Instant.parse("2026-04-09T09:00:00Z"),
-            appliedAtTimeZoneId = "UTC",
-        )
-
-        val plan = buildPlanBatchAddEntryPlan(
-            group = preStartBatchAddGroup(
-                medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
-            ),
-            existingEntries = listOf(manualRow),
-            startDate = LocalDate.of(2026, 4, 9),
-            endDate = LocalDate.of(2026, 4, 9),
-            zoneId = ZoneId.of("UTC"),
-        )
-
-        assertEquals(0, plan.skippedEntryCount)
-        assertEquals(listOf(estradiolMedicine().uuid), plan.entries.map { entry -> entry.medicineUuid })
     }
 
     @Test
