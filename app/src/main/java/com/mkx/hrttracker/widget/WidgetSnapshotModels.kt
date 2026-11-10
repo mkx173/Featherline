@@ -105,4 +105,10 @@ data class WidgetSnapshotRecord(
     val appLanguageTag: String,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
+    /**
+     * The Home data's `generatedAtEpochMillis` the rows were built from: the 15-minute
+     * worker rewrites a record whose stamp isn't the current state's. Null when
+     * unknown (a record from before the field), which never matches.
+     */
+    val sourceGeneratedAtEpochMillis: Long? = null,
 )

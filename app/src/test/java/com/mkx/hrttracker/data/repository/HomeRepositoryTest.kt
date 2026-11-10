@@ -406,6 +406,7 @@ class HomeRepositoryTest {
             plannedSources = emptyList(),
         )
         coEvery { homeSnapshotGenerationStore.readGeneration() } returns 0L
+        coEvery { homeSnapshotGenerationStore.readEpoch() } returns 0L
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
         every {
             settingsRepository.homeE2ChartWindowOptionFlow

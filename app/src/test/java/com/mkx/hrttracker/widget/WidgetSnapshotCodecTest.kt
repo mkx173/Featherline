@@ -126,6 +126,17 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips the source stamp, and reads a v19 record with an unknown one`() {
+        val stamped = baseRecord.copy(sourceGeneratedAtEpochMillis = 1_747_540_123_456L)
+        assertEquals(stamped, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(stamped)))
+
+        // A v19 record is v20's bytes without the trailing stamp: still drawn after the update.
+        val v20 = WidgetSnapshotCodec.encode(baseRecord)
+        val v19 = v20.copyOf(v20.size - 1).also { bytes -> ByteBuffer.wrap(bytes).putInt(0, 19) }
+        assertEquals(baseRecord.copy(sourceGeneratedAtEpochMillis = null), WidgetSnapshotCodec.decode(v19))
+    }
+
+    @Test
     fun `codec round-trips a full record`() {
         val bytes = WidgetSnapshotCodec.encode(baseRecord)
         val decoded = WidgetSnapshotCodec.decode(bytes)

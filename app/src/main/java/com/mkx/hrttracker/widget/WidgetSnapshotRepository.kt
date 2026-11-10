@@ -73,7 +73,8 @@ class WidgetSnapshotRepository @Inject constructor(
         // Read under the lock too: a write of the same state read before a
         // section start, queued behind one after it, would otherwise land last
         // and leave the rows on the old side of it.
-        val now = LocalDateTime.ofInstant(clock.instant(), zoneId)
+        val clockNow = clock.instant()
+        val now = LocalDateTime.ofInstant(clockNow, zoneId)
         val settings = settingsRepository.getCurrentSettings()
         // Wrap with an explicitly-localized context so context.getString() inside the
         // builder resolves against the user's chosen app language even on API levels
@@ -92,6 +93,7 @@ class WidgetSnapshotRepository @Inject constructor(
             now = now,
             zoneId = zoneId,
             timeFormatter = timeFormatter,
+            clockNow = clockNow,
         )
         // Null only when the derivation threw, and memoized until its key
         // moves, at midnight at the latest: the rows update under the last

@@ -542,7 +542,11 @@ reads Room to build them.
 
 The three files use the same `HomeSnapshotCrypto` key (alias
 `hrt_home_snapshot_key`) and are excluded from backup, along with the
-durable generation in `home_snapshot_metadata.preferences_pb`:
+durable generation in `home_snapshot_metadata.preferences_pb`. Beside the
+generation that file keeps a random epoch, made whenever the file has none:
+at install, and after its corruption handler empties it, which also starts
+the generation again from 0. Each part carries the epoch it was built under,
+so a part from before such a reset never matches the new generation 0.
 
 - [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
   persists Home data, `HomeSnapshotRecord`, in `home_snapshot.pb`: the
@@ -550,12 +554,12 @@ durable generation in `home_snapshot_metadata.preferences_pb`:
   the latest antiandrogen doses, the profile, the stock-tracked medicines
   and the scheduled doses logged in the stock window, the hero anchor and
   the latest estradiol entry. The codec is at
-  `SNAPSHOT_CODEC_VERSION = 31` and the schema record at
+  `SNAPSHOT_CODEC_VERSION = 32` and the schema record at
   `HOME_SNAPSHOT_SCHEMA_VERSION = 9`. It is valid when the schema is
-  current, its generation is the durable one, its zone is the device's,
-  and today is within ten days of its anchor date.
+  current, its epoch and generation are the durable ones, its zone is the
+  device's, and today is within ten days of its anchor date.
 - It persists the E2 inputs, `E2InputsRecord`, in `home_e2_inputs.pb`,
-  with its own codec, `E2_INPUTS_CODEC_VERSION = 4`: the logged estradiol
+  with its own codec, `E2_INPUTS_CODEC_VERSION = 5`: the logged estradiol
   doses from 17 + 180 days back, with no upper bound, so one read serves
   every chart option and the calibration page; the active groups with an
   estradiol dose, whose slots after now are Home's planned doses; the
@@ -596,7 +600,9 @@ start. v20 appends external-import medicine payloads, v21 medication-log
 import provenance, and v22 the cached Home hero anchor. v23 through v27
 carried Home's calibrated curve, band and status, and v28 what they are
 derived from instead. v29 holds Home data only: the E2 inputs and the fit
-moved to their own file, and the widget's projection went.
+moved to their own file, and the widget's projection went. v32 (and E2
+inputs v5) add the metadata epoch, so files from before it read as
+missing and the first run rebuilds both, the fit included.
 
 [`E2EstimateRepository`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/repository/E2EstimateRepository.kt)
 derives the E2 estimates from the published E2 inputs and the clock with

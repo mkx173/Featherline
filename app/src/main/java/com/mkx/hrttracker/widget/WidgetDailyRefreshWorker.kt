@@ -5,10 +5,16 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.mkx.hrttracker.data.repository.E2EstimateRepository
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
+import com.mkx.hrttracker.model.medication.isDueSoon
+import com.mkx.hrttracker.model.medication.isPastDue
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.medicationDay
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 class WidgetDailyRefreshWorker(
     private val appContext: Context,
@@ -18,8 +24,10 @@ class WidgetDailyRefreshWorker(
     override suspend fun doWork(): Result {
         val entryPoint =
             EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        val clockNow = Instant.now()
         handleWidgetDailyRefresh(
-            now = LocalDateTime.now(),
+            now = LocalDateTime.ofInstant(clockNow, ZoneId.systemDefault()),
+            clockNow = clockNow,
             snapshot = entryPoint.widgetSnapshotStore().readSnapshot(),
             homeSnapshotRepository = entryPoint.homeSnapshotRepository(),
             widgetSnapshotRepository = entryPoint.widgetSnapshotRepository(),
@@ -43,7 +51,11 @@ class WidgetDailyRefreshWorker(
  * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are.
  * They are also stale once a section start passes after they were built:
  * noon and 18:00 move no date and may leave no row to turn stale, so this
- * run rebuilds what a late, missed or unarmed date alarm left.
+ * run rebuilds what a late, missed or unarmed date alarm left. A dose
+ * status is stale once the builder would give it another, between instants
+ * as it does. And the record is stale when it wasn't built from the current
+ * state: the write of that state threw, and nothing else writes it again. A
+ * rewrite that throws is logged, and the widget re-rendered from its record.
  */
 internal suspend fun handleWidgetDailyRefresh(
     now: LocalDateTime,
@@ -52,24 +64,36 @@ internal suspend fun handleWidgetDailyRefresh(
     widgetSnapshotRepository: WidgetSnapshotRepository,
     e2EstimateRepository: E2EstimateRepository,
     rerender: suspend () -> Unit,
+    /** The clock's instant: which pass of a fall-back hour [now] is on. */
+    clockNow: Instant = now.atZone(ZoneId.systemDefault()).toInstant(),
+    diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
+    val zoneId = ZoneId.systemDefault()
     val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
     val doseStatusStale = snapshot?.doseRows?.any { row ->
+        val pastDue = isPastDue(row.scheduledAt, now, zoneId, clockNow)
         when (row.status) {
-            WidgetDoseStatus.UPCOMING ->
-                !now.isBefore(row.scheduledAt.minusHours(1))
-
-            WidgetDoseStatus.DUE_SOON ->
-                !now.isBefore(row.scheduledAt.plusHours(1))
-
+            WidgetDoseStatus.UPCOMING -> pastDue || isDueSoon(row.scheduledAt, now, zoneId, clockNow)
+            WidgetDoseStatus.DUE_SOON -> pastDue
             else -> false
         }
     } == true
 
     try {
-        if (snapshot == null || anchorDateStale || doseStatusStale) {
-            val written = homeSnapshotRepository.currentState()
-                ?.let { state -> widgetSnapshotRepository.writeWidgetSnapshot(state) } == true
+        val state = homeSnapshotRepository.currentState()
+        val notFromState = state?.homeData?.generatedAtEpochMillis
+            ?.let { stamp -> snapshot?.sourceGeneratedAtEpochMillis != stamp } == true
+        if (snapshot == null || anchorDateStale || doseStatusStale || notFromState) {
+            val written = try {
+                state?.let { widgetSnapshotRepository.writeWidgetSnapshot(it) } == true
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (throwable: Throwable) {
+                // Every run would throw the same way: keep drawing the record, and try again next run.
+                diagnosticsLogger.warning(TAG, "widget_daily_refresh_write_failed", throwable)
+                rerender()
+                return
+            }
             // HomeWidgetManager's cache observer rewrites the widget from the run's publish.
             // Waited for, so the job, and the process with it, outlive the run. A state a
             // newer publish superseded isn't written either: the observer writes that one,
@@ -85,6 +109,8 @@ internal suspend fun handleWidgetDailyRefresh(
         e2EstimateRepository.warmHome()
     }
 }
+
+private const val TAG = "WidgetDailyRefreshWorker"
 
 internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime): Boolean =
     anchorDateEpochDay < now.toLocalDate().toEpochDay() ||

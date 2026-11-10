@@ -37,6 +37,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WidgetSnapshotRepositoryTest {
@@ -91,7 +92,7 @@ class WidgetSnapshotRepositoryTest {
         mockkStatic("com.mkx.hrttracker.util.AppDateTimeFormattersKt")
         every { any<Context>().uses24HourTimeFormat() } returns true
         mockkStatic("com.mkx.hrttracker.widget.WidgetSnapshotBuilderKt")
-        every { buildWidgetSnapshotRecord(any(), any(), any(), any(), any(), any(), any()) } answers {
+        every { buildWidgetSnapshotRecord(any(), any(), any(), any(), any(), any(), any(), any()) } answers {
             record(
                 tag = secondArg<HomeSnapshotRecord>().zoneId,
                 pkProjection = thirdArg<PkProjectionResult?>()?.let { derivedProjection },
@@ -130,6 +131,27 @@ class WidgetSnapshotRepositoryTest {
 
         verify(exactly = 1) { homeSnapshotRepository.requestRebuild() }
         confirmVerified(widgetSnapshotStore)
+    }
+
+    @Test
+    fun aWriteInTheRepeatedHour_buildsOnThePassTheClockIsOn() = runTest {
+        val defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            // 01:10 EST, the second pass: the wall clock alone would read 01:10 EDT, an hour earlier.
+            val secondPass = Instant.parse("2026-11-01T06:10:00Z")
+            clock.instant = secondPass
+            val current = state(generation = 0L, tag = "current")
+            cache.value = current
+
+            assertTrue(repository.writeWidgetSnapshot(current))
+
+            verify {
+                buildWidgetSnapshotRecord(any(), any(), any(), any(), LocalDateTime.of(2026, 11, 1, 1, 10), any(), any(), secondPass)
+            }
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
     }
 
     @Test

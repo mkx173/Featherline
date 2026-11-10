@@ -28,6 +28,8 @@ internal object WidgetSnapshotCodec {
             stream.writeString(record.appLanguageTag)
             stream.writeList(record.doseRows) { writeDoseRow(it) }
             stream.writePkProjection(record.pkProjection)
+            stream.writeBoolean(record.sourceGeneratedAtEpochMillis != null)
+            record.sourceGeneratedAtEpochMillis?.let(stream::writeLong)
         }
         return out.toByteArray()
     }
@@ -35,7 +37,9 @@ internal object WidgetSnapshotCodec {
     fun decode(bytes: ByteArray): WidgetSnapshotRecord {
         return DataInputStream(ByteArrayInputStream(bytes)).use { stream ->
             val version = stream.readInt()
-            require(version == WIDGET_SNAPSHOT_CODEC_VERSION) {
+            // v19 is v20 without the source stamp: still read, so an updated app keeps
+            // drawing it, with an unknown stamp the worker rewrites at its next run.
+            require(version == WIDGET_SNAPSHOT_CODEC_VERSION || version == WIDGET_SNAPSHOT_CODEC_VERSION_NO_SOURCE) {
                 "Unsupported widget snapshot codec version: $version."
             }
             WidgetSnapshotRecord(
@@ -54,6 +58,11 @@ internal object WidgetSnapshotCodec {
                 appLanguageTag = stream.readString(),
                 doseRows = stream.readList { readDoseRow() },
                 pkProjection = stream.readPkProjection(),
+                sourceGeneratedAtEpochMillis = if (version != WIDGET_SNAPSHOT_CODEC_VERSION_NO_SOURCE && stream.readBoolean()) {
+                    stream.readLong()
+                } else {
+                    null
+                },
             )
         }
     }
@@ -189,5 +198,7 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 19
+// v20 appends the Home data stamp the rows were built from.
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 20
+private const val WIDGET_SNAPSHOT_CODEC_VERSION_NO_SOURCE = 19
 private const val BYTE_MASK = 0xff

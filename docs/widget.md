@@ -391,8 +391,14 @@ graph TD
   04:00, whatever the plans are), whether a section start
   (`nextWidgetDateRefreshAt`) passed after its `builtAt` (noon and
   18:00 move no date, so a late, missed or unarmed date alarm is caught
-  here), or whether any row's `UPCOMING`/`DUE_SOON` status should
-  have transitioned by `now`. If so, it rebuilds the widget snapshot
+  here), whether any row's `UPCOMING`/`DUE_SOON` status should
+  have transitioned by `now`, measured between instants as the builder
+  measures it (`isDueSoon`, `isPastDue`), or whether its
+  `sourceGeneratedAtEpochMillis` (the Home data stamp it was built from)
+  isn't the current state's: the observer's write of that state threw,
+  and it only logs that. A record from before the stamp (widget codec 19)
+  reads with none, so the first run after the update rewrites it. If so,
+  it rebuilds the widget snapshot
   from the current cache state through `writeWidgetSnapshot`, which
   reads the clock under its lock (the rows from its Home data, the
   estimate from its E2 inputs), with no Room read and no solve.
@@ -402,7 +408,8 @@ graph TD
   earlier is retried. It does the same when a newer publish superseded
   the state it read, which the observer writes; the run is then only
   redundant. With fresh rows it just calls
-  `updateAllHrtWidgets` to re-render against the existing snapshot.
+  `updateAllHrtWidgets` to re-render against the existing snapshot, and so
+  does a rewrite that throws, after logging it.
   Either way it ends with `E2EstimateRepository.warmHome()`, which
   stores Home's estimate when a planned slot passed without a reminder
   (reminders off, or Doze delayed the alarm); with an unchanged key that

@@ -80,6 +80,7 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToLong
+import kotlin.random.Random
 
 private val Context.homeSnapshotDataStore: DataStore<EncryptedRecordState<HomeSnapshotRecord>> by dataStore(
     fileName = "home_snapshot.pb",
@@ -167,6 +168,21 @@ class HomeSnapshotGenerationStore @Inject constructor(
             .first()
     }
 
+    /**
+     * A random value kept beside the generation, made whenever the file has
+     * none: at install, and after the corruption handler empties it. Each part
+     * carries it, so a part from before a reset never matches the generation
+     * the reset starts again from.
+     */
+    suspend fun readEpoch(): Long {
+        context.homeSnapshotGenerationDataStore.data.first()[HOME_SNAPSHOT_EPOCH_KEY]?.let { return it }
+        var epoch = 0L
+        context.homeSnapshotGenerationDataStore.edit { preferences ->
+            epoch = preferences[HOME_SNAPSHOT_EPOCH_KEY] ?: Random.nextLong().also { preferences[HOME_SNAPSHOT_EPOCH_KEY] = it }
+        }
+        return epoch
+    }
+
     suspend fun incrementGeneration(): Long {
         var nextGeneration = 0L
         context.homeSnapshotGenerationDataStore.edit { preferences ->
@@ -181,6 +197,8 @@ class HomeSnapshotGenerationStore @Inject constructor(
 data class HomeSnapshotRecord(
     val schemaVersion: Int,
     val generation: Long = 0L,
+    /** home_snapshot_metadata's epoch when it was built (HomeSnapshotGenerationStore.readEpoch). */
+    val epoch: Long = 0L,
     val generatedAtEpochMillis: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
@@ -214,6 +232,8 @@ data class E2InputsRecord(
     /** [PK_ENGINE_VERSION] of the run that solved [fit]; another engine's is rebuilt. */
     val engineVersion: Int = PK_ENGINE_VERSION,
     val generation: Long,
+    /** As [HomeSnapshotRecord.epoch]. */
+    val epoch: Long = 0L,
     val anchorDateEpochDay: Long,
     val zoneId: String,
     /** Home's chart window when the run read it: the one its estimates cover. */
@@ -315,6 +335,7 @@ internal object HomeSnapshotCodec {
             stream.writeInt(SNAPSHOT_CODEC_VERSION)
             stream.writeInt(record.schemaVersion)
             stream.writeLong(record.generation)
+            stream.writeLong(record.epoch)
             stream.writeLong(record.generatedAtEpochMillis)
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeString(record.zoneId)
@@ -348,6 +369,7 @@ internal object HomeSnapshotCodec {
             HomeSnapshotRecord(
                 schemaVersion = stream.readInt(),
                 generation = stream.readLong(),
+                epoch = stream.readLong(),
                 generatedAtEpochMillis = stream.readLong(),
                 anchorDateEpochDay = stream.readLong(),
                 zoneId = stream.readString(),
@@ -368,6 +390,7 @@ internal object HomeSnapshotCodec {
         writeInt(E2_INPUTS_CODEC_VERSION)
         writeInt(record.engineVersion)
         writeLong(record.generation)
+        writeLong(record.epoch)
         writeLong(record.anchorDateEpochDay)
         writeString(record.zoneId)
         writeString(record.option.name)
@@ -392,6 +415,7 @@ internal object HomeSnapshotCodec {
         E2InputsRecord(
             engineVersion = readInt(),
             generation = readLong(),
+            epoch = readLong(),
             anchorDateEpochDay = readLong(),
             zoneId = readString(),
             option = HomeE2ChartWindowOption.valueOf(readString()),
@@ -1359,10 +1383,12 @@ private const val TAG = "HomeSnapshotStore"
 // still-valid E2 inputs part.
 // v30 appends the profile's Health Connect measured time.
 // v31 appends each plan's own day ending (night owl) to its schedule.
-private const val SNAPSHOT_CODEC_VERSION = 31
+// v32 adds the metadata epoch after the generation.
+private const val SNAPSHOT_CODEC_VERSION = 32
 // The E2 inputs record's own version, separate from the snapshot's. A bump
 // drops the inputs part, fit included, so the next run re-solves.
-private const val E2_INPUTS_CODEC_VERSION = 4
+// v5 adds the metadata epoch after the generation.
+private const val E2_INPUTS_CODEC_VERSION = 5
 // The Home E2 estimate record's own version, separate from the snapshot's.
 private const val HOME_E2_ESTIMATE_CODEC_VERSION = 1
 private const val FIT_OUTCOME_SOLVED = 0
@@ -1374,6 +1400,7 @@ private const val PATCH_SPECIFICATION_RELEASE_RATE = 1
 // the snapshot codec. Distinct from every MedicationKey.name.
 private const val PATCH_OFF_SELECTION_MARKER = "__PATCH_OFF__"
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
+private val HOME_SNAPSHOT_EPOCH_KEY = longPreferencesKey("epoch")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"

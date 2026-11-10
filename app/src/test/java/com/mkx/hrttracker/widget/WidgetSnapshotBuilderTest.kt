@@ -84,6 +84,24 @@ class WidgetSnapshotBuilderTest {
     }
 
     @Test
+    fun theRecord_isStampedWithTheHomeDataItWasBuiltFrom() {
+        // Without it the 15-minute worker finds every record not built from the current state,
+        // and rewrites the widget at every run.
+        val now = LocalDateTime.of(2026, 5, 20, 10, 0)
+        val homeData = homeSnapshotRecord(now = now, activeGroups = emptyList())
+            .copy(generatedAtEpochMillis = 1_747_540_123_456L)
+
+        val snapshot = buildWidgetSnapshotRecord(
+            context = realContext,
+            homeSnapshot = homeData,
+            widgetEstimate = null,
+            settings = SettingsState(), now = now, zoneId = zoneId,
+        )
+
+        assertEquals(1_747_540_123_456L, snapshot.sourceGeneratedAtEpochMillis)
+    }
+
+    @Test
     fun eachPlanKeepsItsOwnDayEndingBeforeFourAm() {
         // 00:30: the night-owl plan's evening is still its today; the midnight plan has rolled over.
         val now = LocalDateTime.of(2026, 10, 29, 0, 30)

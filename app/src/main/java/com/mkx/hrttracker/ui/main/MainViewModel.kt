@@ -74,7 +74,7 @@ class MainViewModel @Inject constructor(
     private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
     private val e2EstimateRepository: E2EstimateRepository,
     @ProcessLifecycleState processLifecycleState: StateFlow<@JvmSuppressWildcards Lifecycle.State>,
-    appTimeSource: AppTimeSource,
+    private val appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
@@ -431,6 +431,8 @@ class MainViewModel @Inject constructor(
             option = chartWindowOption,
         )
 
+        // Which pass of a fall-back hour `now` is on, for every due and late test below.
+        val clockNow = appTimeSource.now()
         val doseSections = buildMainDoseSections(
             groups = scheduleGroups,
             entries = visibleEntries,
@@ -439,6 +441,7 @@ class MainViewModel @Inject constructor(
             includeUnloggedArchivedSlots = false,
             unloggedArchivedSlotCutoff = now,
             allGroups = allGroups,
+            clockNow = clockNow,
         )
 
         return MainUiState(
@@ -474,6 +477,7 @@ class MainViewModel @Inject constructor(
                 displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,
                 now = now,
+                clockNow = clockNow,
             ),
             e2Chart = buildMainE2Chart(
                 trendResult = trendResult,
@@ -491,6 +495,7 @@ class MainViewModel @Inject constructor(
                     now = now,
                     zoneId = zoneId,
                     category = category,
+                    clockNow = clockNow,
                 )
                 cards.takeIf { it.isNotEmpty() }
                     ?.let { MainMedicationCategorySection(category = category, cards = it) }

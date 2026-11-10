@@ -184,7 +184,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -206,7 +205,6 @@ private val PreviewPatchScheduleUuid = UUID.fromString("99cc2da0-e3ea-4bbd-a3ce-
 private val PreviewAntiandrogenScheduleUuid =
     UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
 private const val MainScheduleGraceMinutes = 60L
-private val MainScheduleGracePeriod = Duration.ofMinutes(MainScheduleGraceMinutes)
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
 
@@ -3824,7 +3822,6 @@ private fun MainTodayDoseRow(
                 MainTodayTrailingContent(
                     row = row,
                     dayDate = dayDate,
-                    now = now,
                     timeFormatter = timeFormatter,
                     onStatusClick = onStatusClick
                 )
@@ -3955,53 +3952,26 @@ private fun MainUpcomingDoseRow(
 private fun MainTodayTrailingContent(
     row: MainTodayDoseRowUiState,
     dayDate: LocalDate,
-    now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
     onStatusClick: () -> Unit,
 ) {
     val loggedAt = row.loggedAt ?: row.outsideScheduleWindowLoggedAt
     val isLogged = loggedAt != null
     val isMutedLogged = row.loggedAt == null && row.outsideScheduleWindowLoggedAt != null
-    val isDueSoon = !isLogged && mainTodayIsInGracePeriod(
-        scheduledFor = row.scheduledAt,
-        now = now
+    // The row's own status, measured between instants, so the fall-back hour doesn't walk it back.
+    val isDueSoon = !isLogged && row.status == MainTodayDoseStatus.DUE_SOON
+    val timeText = MainTodayTrailingText(
+        text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, row.dayBoundary, timeFormatter),
+        isDelta = false
     )
-    val textLabel = if (row.isManualRecord) {
-        null
-    } else {
-        when (loggedAt) {
-            null -> when {
-                mainTodayIsBeforeOrInGracePeriod(
-                    scheduledFor = row.scheduledAt,
-                    now = now
-                ) -> MainTodayTrailingText(
-                    text = medicationDayTimeText(LocalContext.current, row.scheduledAt, dayDate, row.dayBoundary, timeFormatter),
-                    isDelta = false
-                )
-
-                else -> mainTodayScheduleOffsetText(
-                    scheduledFor = row.scheduledAt,
-                    comparedAt = now
-                )?.let { text ->
-                    MainTodayTrailingText(
-                        text = text,
-                        isDelta = true
-                    )
-                }
-            }
-
-            else -> {
-                mainTodayScheduleOffsetText(
-                    scheduledFor = row.scheduledAt,
-                    comparedAt = loggedAt
-                )?.let { text ->
-                    MainTodayTrailingText(
-                        text = text,
-                        isDelta = true
-                    )
-                }
-            }
-        }
+    val offsetText = mainTodayScheduleOffsetText(row.scheduleOffsetMinutes)
+        ?.let { text -> MainTodayTrailingText(text = text, isDelta = true) }
+    val textLabel = when {
+        row.isManualRecord -> null
+        isLogged -> offsetText
+        // Never blank: an overdue dose less than an hour late by the label's count shows its time.
+        row.status == MainTodayDoseStatus.OVERDUE -> offsetText ?: timeText
+        else -> timeText
     }
 
     Row(
@@ -4111,32 +4081,16 @@ private fun MainTodayTrailingStatusButton(
     }
 }
 
+/** The "N h late" text for [offsetMinutes] real minutes, or null inside the hour's grace. */
 @Composable
-private fun mainTodayScheduleOffsetText(
-    scheduledFor: LocalDateTime,
-    comparedAt: LocalDateTime,
-): String? {
-    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, comparedAt)
-    val absoluteMinutes = kotlin.math.abs(deltaMinutes)
-    if (absoluteMinutes < MainScheduleGraceMinutes) {
+private fun mainTodayScheduleOffsetText(offsetMinutes: Long): String? {
+    if (kotlin.math.abs(offsetMinutes) < MainScheduleGraceMinutes) {
         return null
     }
-    return medicationLogScheduleOffset(scheduledFor = scheduledFor, appliedAt = comparedAt)
+    // The shared helper takes two times; only their minutes apart count.
+    val anchor = LocalDateTime.of(2000, 1, 1, 0, 0)
+    return medicationLogScheduleOffset(scheduledFor = anchor, appliedAt = anchor.plusMinutes(offsetMinutes))
         ?.let { offset -> stringResource(offset.labelRes, offset.value) }
-}
-
-private fun mainTodayIsBeforeOrInGracePeriod(
-    scheduledFor: LocalDateTime,
-    now: LocalDateTime,
-): Boolean {
-    return scheduledFor.isAfter(now.minus(MainScheduleGracePeriod))
-}
-
-private fun mainTodayIsInGracePeriod(
-    scheduledFor: LocalDateTime,
-    now: LocalDateTime,
-): Boolean {
-    return Duration.between(scheduledFor, now).abs() < MainScheduleGracePeriod
 }
 
 private fun mainTodayTimeRangeTimeLabel(
@@ -4668,7 +4622,6 @@ private fun MainTodayTrailingContentPreview() {
                 MainTodayTrailingContent(
                     row = row,
                     dayDate = uiState.todaySection.date,
-                    now = uiState.now,
                     timeFormatter = timeFormatter,
                     onStatusClick = { }
                 )

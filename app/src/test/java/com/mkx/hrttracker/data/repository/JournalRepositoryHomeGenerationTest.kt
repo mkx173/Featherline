@@ -55,6 +55,7 @@ class JournalRepositoryHomeGenerationTest {
     private var persistedSnapshot: HomeSnapshotRecord? = null
     private val generationStore: HomeSnapshotGenerationStore = mockk {
         coEvery { readGeneration() } answers { durableGeneration }
+        coEvery { readEpoch() } returns 0L
         coEvery { incrementGeneration() } answers { ++durableGeneration }
     }
     private val snapshotStore: HomeSnapshotStore = mockk {
