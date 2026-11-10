@@ -813,7 +813,7 @@ fun AllNotesScreenContent(
     val listState = rememberLazyListState()
     val scrollBehavior = pinnedTopAppBarScrollBehavior(lazyListState = listState)
     // Shared across every month's timeline so a single note edits at a time, reset on navigation.
-    val editorController = rememberNoteEditorController()
+    val editorController = rememberNoteEditorController(inBackStack = true)
     val appLocale = rememberAppLocale()
 
     DisposableEffect(Unit) {
@@ -842,7 +842,23 @@ fun AllNotesScreenContent(
             onDismiss = { isMonthPickerVisible = false },
             onConfirm = { month ->
                 isMonthPickerVisible = false
-                selectedMonth = month
+                // A filter that hides the open row closes its editor, asking first, as no pin
+                // keeps a row that has left the list.
+                // ponytail: a closed row holding a failed draft isn't asked about; hidden by the
+                // filter, its draft goes at the next state save. Track held rows here if a failed
+                // save is ever followed by a filter in practice.
+                val openId = editorController.activeEditorId
+                val hidesOpenRow = uiState.monthGroups.any { group ->
+                    group.month != month && group.notes.any { it.id == openId }
+                }
+                if (hidesOpenRow) {
+                    editorController.askFirst {
+                        editorController.finish(openId)
+                        selectedMonth = month
+                    }
+                } else {
+                    selectedMonth = month
+                }
             },
         )
     }
@@ -1002,7 +1018,7 @@ fun AllNotesScreenContent(
                     FlipSlot(
                         flipped = uiState.isSelectionMode,
                         front = {
-                            IconButton(onClick = onNavigateBack) {
+                            IconButton(onClick = { editorController.askFirst(navigates = true, action = onNavigateBack) }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = stringResource(R.string.navigate_back),
@@ -1119,7 +1135,8 @@ fun AllNotesScreenContent(
                                 isSelectionMode = uiState.isSelectionMode,
                                 isSelected = note.date in uiState.selectedDates,
                                 onToggleSelection = onToggleSelection,
-                                onEnterSelection = onEnterSelection,
+                                // Selecting closes the open editor.
+                                onEnterSelection = { date -> editorController.askFirst { onEnterSelection(date) } },
                             )
                             if (index < group.notes.lastIndex) {
                                 Spacer(

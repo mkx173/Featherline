@@ -29,6 +29,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -407,6 +408,7 @@ class JournalScreenTest {
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
                 )
+                UnsavedChangesDialog(hazeState = null)
             }
         }
 
@@ -414,6 +416,8 @@ class JournalScreenTest {
             .performClick()
         composeRule.onNodeWithTag(TodayComposerTextFieldTag).performTextInput("Unsaved draft")
         composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
+        // The typed draft asks first (J1).
+        composeRule.onNodeWithText(context.getString(R.string.unsaved_changes_discard)).performClick()
 
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today))
             .assertIsDisplayed()
@@ -802,17 +806,14 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15").performTextClearance()
         composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertIsEnabled()
         composeRule.onNodeWithContentDescription(context.getString(R.string.save)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.save))
-            .assertIsNotDisplayed()
+        // Cleared, Save offers to delete the note (J6); kept, the editor is still open.
+        composeRule.onNodeWithText(context.getString(R.string.journal_delete_note_confirmation))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.cancel)).performClick()
         composeRule.runOnIdle {
             assertTrue(savedNotes.isEmpty())
         }
 
-        composeRule.onNodeWithText("Yesterday note")
-            .assertIsDisplayed()
-            .performClick()
-        composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
-            .performTextClearance()
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Edited yesterday")
         composeRule.onNodeWithContentDescription(context.getString(R.string.save))
@@ -845,6 +846,7 @@ class JournalScreenTest {
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
                 )
+                UnsavedChangesDialog(hazeState = null)
             }
         }
 
@@ -854,8 +856,11 @@ class JournalScreenTest {
         composeRule.onNodeWithTag("${NoteTimelineTextFieldTagPrefix}june-15")
             .performTextInput("Abandoned edit")
 
-        // Switch to row B without saving — the shared controller closes A without its cancel path.
+        // Switch to row B without saving: it asks first (J1), and Discard closes A, dropping its draft.
         tapTimelineRow("june-14")
+        composeRule.onNodeWithText(
+            InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.unsaved_changes_discard),
+        ).performClick()
 
         // Re-open A: the abandoned draft must NOT survive; the field shows the persisted text.
         tapTimelineRow("june-15")

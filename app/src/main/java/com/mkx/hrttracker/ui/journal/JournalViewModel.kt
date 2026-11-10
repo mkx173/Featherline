@@ -48,6 +48,9 @@ class JournalViewModel @Inject constructor(
             journalRepository.observeTrackedDates(),
             journalRepository.observePinnedTrackedDates(),
             todayFlow.flatMapLatest { today ->
+                // ponytail: the window's oldest row leaves the timeline at a date change even with
+                // an unsaved draft open on it, which is then dropped. Keep an open or held row
+                // listed until its session ends if that ever matters.
                 val windowStart = today.minusDays(29)
                 combine(
                     journalRepository.observeNotesOnOrAfter(windowStart),

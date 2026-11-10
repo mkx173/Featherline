@@ -113,6 +113,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -162,9 +163,11 @@ import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.HrtPill
 import com.mkx.hrttracker.ui.components.HrtPillSize
+import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SegmentPosition
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.components.isHazeBlurSupported
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -2313,6 +2316,30 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
         if (activeEditorId == identity) activeEditorId = null
     }
 
+    // The editor whose draft closing it would lose, as that editor reports it.
+    private var unsavedEditorId by mutableStateOf<Any?>(null)
+    internal var unsavedChanges: UnsavedChangesState? = null
+
+    // The open editor's field, which takes the focus back from a tapped one that asks first.
+    internal var openField: FocusRequester? = null
+
+    val hasUnsavedDraft: Boolean get() = activeEditorId != null && unsavedEditorId == activeEditorId
+
+    internal fun reportUnsaved(identity: Any, unsaved: Boolean) {
+        if (unsaved) unsavedEditorId = identity else if (unsavedEditorId == identity) unsavedEditorId = null
+    }
+
+    /**
+     * Runs [action], which closes the open editor and loses its draft, at once, or once the user
+     * discards the draft in the unsaved-changes dialog. [navigates]: [action] leaves the screen.
+     */
+    fun askFirst(navigates: Boolean = false, action: () -> Unit) {
+        val guard = unsavedChanges
+        if (guard == null || !hasUnsavedDraft) return action()
+        guard.update(this, true)
+        guard.leave(setOf(this)) { action(); navigates }
+    }
+
     companion object {
         val Saver: Saver<NoteEditorController, String> = Saver(
             save = { it.activeEditorId as? String },
@@ -2321,9 +2348,23 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
     }
 }
 
+// Registers the controller's open draft with the unsaved-changes guard while composed; [inBackStack]
+// for a screen of its own in the NavHost (All Notes), whose draft a tab or a Home deep link loses.
+// ponytail: only while composed; All Notes covered by a page pushed over it (the milestones deep
+// link) doesn't ask, as the plan editor's ViewModel-held edits do.
 @Composable
-fun rememberNoteEditorController(): NoteEditorController =
-    rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
+fun rememberNoteEditorController(inBackStack: Boolean = false): NoteEditorController {
+    val controller = rememberSaveable(saver = NoteEditorController.Saver) { NoteEditorController() }
+    val unsavedChanges = LocalUnsavedChanges.current
+    val unsaved = controller.hasUnsavedDraft
+    SideEffect {
+        controller.unsavedChanges = unsavedChanges
+        if (inBackStack) unsavedChanges.hostInBackStack(controller)
+        unsavedChanges.update(controller, unsaved)
+    }
+    DisposableEffect(unsavedChanges, controller) { onDispose { unsavedChanges.remove(controller) } }
+    return controller
+}
 
 // [today] is the day this composer shows, and the day its save and delete write. [onSave] sends a
 // save and returns its id in [noteSaves], where the composer follows its outcome. [onIdle] is passed
@@ -2523,7 +2564,7 @@ private fun NoteEditorCard(
     // position to a character index. Null parks the cursor at the end, the natural spot for the
     // prompt and for any tap that doesn't land on the text itself. A held draft (a save in flight,
     // or a failed one) is what the idle text shows, so it is what opens; otherwise the saved text.
-    val beginEditingAtCursor = { cursorOffset: Int? ->
+    val openAtCursor = { cursorOffset: Int? ->
         val seed = if (savePending) draft.text else text
         val offset = (cursorOffset ?: seed.length).coerceIn(0, seed.length)
         draft = TextFieldValue(seed, TextRange(offset))
@@ -2531,17 +2572,33 @@ private fun NoteEditorCard(
         releaseFailedSave()
         controller.begin(identity)
     }
+    // Opening this card closes another one open, which asks first if its draft is unsaved. What
+    // runs after the dialog is the latest composition's, as is Cancel's below.
+    val latestOpenAtCursor by rememberUpdatedState(openAtCursor)
+    val beginEditingAtCursor = { cursorOffset: Int? -> controller.askFirst { latestOpenAtCursor(cursorOffset) } }
     val beginEditing = { beginEditingAtCursor(null) }
+    // A tap into the field opens it as it is, held draft or saved text.
+    val openOnFocus = {
+        editingExistingNote = text.isNotEmpty()
+        releaseFailedSave()
+        controller.begin(identity)
+    }
+    val latestOpenOnFocus by rememberUpdatedState(openOnFocus)
     // The idle text's gesture detector outlives recompositions; read the latest callbacks through
     // these so a fresh [onIdleLongPress]/[beginEditingAtCursor] lambda doesn't restart it each frame.
     val currentBeginEditingAtCursor by rememberUpdatedState(beginEditingAtCursor)
     val currentIdleLongPress by rememberUpdatedState(onIdleLongPress)
 
     // Commit the draft and close the editor. Shared by the Save button and the IME "Done" action
-    // so both follow the same save-then-clear-focus path. A blank or unchanged draft writes
-    // nothing and just reverts to the saved text.
-    val saveEditing = {
+    // so both follow the same save-then-clear-focus path. An unchanged draft, or a new note's blank
+    // one, writes nothing and just reverts to the saved text; an existing note's blank one offers
+    // to delete the note instead (the editor stays open if you keep it).
+    val saveEditing = saveEditing@{
         val trimmed = draft.text.trim()
+        if (trimmed.isEmpty() && text.isNotEmpty()) {
+            isDeleteConfirmationVisible = true
+            return@saveEditing
+        }
         if (trimmed.isNotEmpty() && trimmed != text.trim()) {
             // Hold the field through the async save so the prompt doesn't blink back in while the
             // committed text round-trips. Released by the outcome effect below once the save lands.
@@ -2565,11 +2622,31 @@ private fun NoteEditorCard(
         if (revertTo != null) draft = TextFieldValue(revertTo, TextRange(revertTo.length))
         finishEditing()
     }
+    val latestCancelEditing by rememberUpdatedState(cancelEditing)
+    val cancelAskingFirst = { controller.askFirst { latestCancelEditing() } }
+
+    // What closing the editor would lose: the draft, unless it is what Cancel goes back to.
+    val hasUnsavedDraft = isEditing &&
+        draft.text.trim() != (if (savePending) pendingSaveText.orEmpty() else text).trim()
+    SideEffect {
+        controller.reportUnsaved(identity, hasUnsavedDraft)
+        if (isEditing) controller.openField = focusRequester
+    }
+
+    // A lazy list keeps a scrolled-away item's saved state only until the next state save, so the
+    // card stays composed while it holds work to lose: an open editor (and its dialogs), or a save
+    // held in flight or failed.
+    val pinnable = LocalPinnableContainer.current
+    val holdsWork = isEditing || savePending
+    DisposableEffect(pinnable, holdsWork) {
+        val handle = if (holdsWork) pinnable?.pin() else null
+        onDispose { handle?.release() }
+    }
 
     // While an editor is open, back cancels the edit and dismisses the keyboard instead of leaving
     // the journal; once nothing is open the handler is disabled and back falls through to
     // navigation (home). Only the open card has isEditing == true, so only its handler is enabled.
-    BackHandler(enabled = isEditing) { cancelEditing() }
+    BackHandler(enabled = isEditing) { cancelAskingFirst() }
 
     Column(
         modifier = modifier,
@@ -2646,9 +2723,22 @@ private fun NoteEditorCard(
                             onValueChange = { draft = it },
                             focusRequester = focusRequester,
                             onFocused = {
-                                editingExistingNote = text.isNotEmpty()
-                                releaseFailedSave()
-                                controller.begin(identity)
+                                if (isEditing) {
+                                    openOnFocus()
+                                } else {
+                                    controller.askFirst { latestOpenOnFocus() }
+                                    // Asking: the open editor takes the focus back, so typing
+                                    // can't reach this closed field, and keeping it resumes there.
+                                    if (!controller.isEditing(identity)) {
+                                        val open = controller.openField
+                                        revealScope.launch {
+                                            // false, not a throw, when the open card has left composition.
+                                            if (open == null || !open.requestFocus()) {
+                                                focusManager.clearFocus()
+                                            }
+                                        }
+                                    }
+                                }
                             },
                             onImeAction = saveEditing,
                             expanded = isEditing,
@@ -2682,7 +2772,7 @@ private fun NoteEditorCard(
                             } else {
                                 null
                             },
-                            onCancel = cancelEditing,
+                            onCancel = cancelAskingFirst,
                             onSave = saveEditing,
                         )
                     }
@@ -2702,7 +2792,8 @@ private fun NoteEditorCard(
     // row renders the draft, and re-opening goes through controller.begin (not beginEditing) without
     // re-seeding, so an abandoned edit would otherwise resurface — and be re-savable — after
     // switching to another card, cancelling, backing out, or confirming a delete (whose write may
-    // fail, leaving the row showing an unsaved draft as if persisted). A pending save keeps the text
+    // fail, leaving the row showing an unsaved draft as if persisted). All but the delete ask
+    // first when the draft is unsaved (NoteEditorController.askFirst). A pending save keeps the text
     // it sent instead (an edit made after reopening it is discarded the same way): that text is held
     // through the round-trip and the failure-recovery reopen.
     var firstCompositionSettled by remember { mutableStateOf(false) }
@@ -2789,6 +2880,11 @@ private fun NoteEditorCard(
             onDismissRequest = { isDeleteConfirmationVisible = false },
             onConfirm = {
                 isDeleteConfirmationVisible = false
+                // The delete runs after any save of this card's in flight and supersedes it: the
+                // note may never show that save's text, which the latch would wait on forever.
+                pendingSaveId = null
+                saveFailed = false
+                hold(false)
                 finishEditing()
                 onDelete()
             },
@@ -3208,7 +3304,7 @@ fun AllNotesNoteRow(
     val rowOnClick: (() -> Unit)? = when {
         isSelectionMode -> { { onToggleSelection(note.date) } }
         isEditingThisRow -> null
-        else -> { { controller.begin(note.id) } }
+        else -> { { controller.askFirst { controller.begin(note.id) } } }
     }
     val rowOnLongClick: (() -> Unit)? = when {
         isSelectionMode -> { { onToggleSelection(note.date) } }

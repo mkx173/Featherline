@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.journal
 
 import android.content.Context
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -23,6 +24,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.Note
+import com.mkx.hrttracker.ui.components.LocalUnsavedChanges
+import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
+import com.mkx.hrttracker.ui.components.UnsavedChangesState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -123,14 +127,19 @@ class TodayComposerSaveTest {
     // Read on each composition, so a test can stand a new one in for process death.
     private var viewModel = JournalViewModel(repository, clock)
 
+    private val unsavedChanges = UnsavedChangesState()
+
     private fun setContent() {
         restorationTester.setContent {
             HrtTrackerTheme(dynamicColor = false) {
-                val stateHolder = rememberSaveableStateHolder()
-                if (journalShown) {
-                    stateHolder.SaveableStateProvider("journal") {
-                        JournalScreen(onOpenMilestones = {}, onAddDate = {}, onOpenAllNotes = {}, viewModel = viewModel)
+                CompositionLocalProvider(LocalUnsavedChanges provides unsavedChanges) {
+                    val stateHolder = rememberSaveableStateHolder()
+                    if (journalShown) {
+                        stateHolder.SaveableStateProvider("journal") {
+                            JournalScreen(onOpenMilestones = {}, onAddDate = {}, onOpenAllNotes = {}, viewModel = viewModel)
+                        }
                     }
+                    UnsavedChangesDialog(hazeState = null)
                 }
             }
         }
@@ -152,6 +161,12 @@ class TodayComposerSaveTest {
         composeRule.onNodeWithContentDescription(context.getString(R.string.save)).assertDoesNotExist()
 
     private fun tapCancel() = composeRule.onNodeWithContentDescription(context.getString(R.string.cancel)).performClick()
+
+    // Cancel on a changed draft asks first (J1).
+    private fun cancelAndDiscard() {
+        tapCancel()
+        composeRule.onNodeWithText(context.getString(R.string.unsaved_changes_discard)).performClick()
+    }
 
     private fun dateLabel(date: LocalDate): String =
         medicationGroupScheduleDateFormatter(context.resources.configuration.locales[0], date)(date)
@@ -184,7 +199,7 @@ class TodayComposerSaveTest {
         failSave()
         assertComposerOpenWith("x")
 
-        tapCancel()
+        cancelAndDiscard()
 
         composeRule.onNodeWithText("x").assertDoesNotExist()
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today)).assertIsDisplayed()
@@ -212,7 +227,7 @@ class TodayComposerSaveTest {
         // You tap it, and it opens for a retry. Cancel then clears it.
         composeRule.onNodeWithTag(composerField).performClick()
         assertComposerOpenWith("x")
-        tapCancel()
+        cancelAndDiscard()
 
         composeRule.onNodeWithText("x").assertDoesNotExist()
         composeRule.onNodeWithText(context.getString(R.string.journal_write_about_today)).assertIsDisplayed()
@@ -257,7 +272,7 @@ class TodayComposerSaveTest {
         composeRule.onNodeWithTag(composerField).performClick()
         composeRule.onNodeWithTag(composerField).performTextInput("C")
 
-        tapCancel()
+        cancelAndDiscard()
 
         composeRule.onNodeWithTag(composerField).assertTextEquals("AB")
         failSave()
