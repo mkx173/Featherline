@@ -40,12 +40,12 @@ class MedicationGroupEditorArchiveActionTest {
             onArchiveConfirm = {
                 calls += "archive:$it"
             },
-            onArchiveAndRecreateConfirm = {
-                calls += "recreate:$it"
+            onArchiveAndDuplicateConfirm = {
+                calls += "duplicate:$it"
             },
         )
 
-        assertEquals(listOf("focus", "hide", "recreate:2026-04-25"), calls)
+        assertEquals(listOf("focus", "hide", "duplicate:2026-04-25"), calls)
     }
 
     @Test

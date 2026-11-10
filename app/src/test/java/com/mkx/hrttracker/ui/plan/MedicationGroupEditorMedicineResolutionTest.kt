@@ -122,7 +122,6 @@ class MedicationGroupEditorMedicineResolutionTest {
                 medications = capture(savedMedications),
                 notificationsEnabled = any(),
                 includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
                 now = any(),
             )
         } returns savedGroupUuid

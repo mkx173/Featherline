@@ -395,8 +395,6 @@
     <string name="decrease_schedule_interval">Zkrátit interval rozvrhu</string>
     <string name="increase_schedule_interval">Prodloužit interval rozvrhu</string>
     <string name="group_schedule_since">Datum zahájení</string>
-    <string name="group_schedule_recreated_start_date_past_note">U znovu vytvořených skupin nelze nastavit datum zahájení v minulosti.</string>
-    <string name="group_past_schedule_recreated_locked_note">U znovu vytvořených skupin se minulý rozvrh nezobrazí.</string>
     <string name="group_schedule_backfill_records_empty">Nebyly přidány žádné záznamy.</string>
     <string name="group_schedule_backfill_records_failure">Skupina byla uložena, ale záznamy se nepodařilo přidat.</string>
     <string name="group_schedule_days_of_week">Dny v týdnu</string>
@@ -457,8 +455,6 @@
     </plurals>
     <string name="archive_create_active_copy">Po archivaci vytvořit aktivní kopii</string>
     <string name="duplicate_medication_group">Vytvořit kopii jako novou skupinu</string>
-    <string name="archive_and_recreate_medication_group_success">Archivováno.</string>
-    <string name="archive_and_recreate_medication_group_failure">Skupinu se nepodařilo archivovat a znovu vytvořit.</string>
     <string name="group_locked_banner">Tato skupina už má související záznamy, proto některá nastavení nelze změnit. Pokud je potřebujete upravit, archivujte aktuální skupinu a vytvořte novou.</string>
     <string name="group_locked_time_note">Změnou naplánovaného času se zároveň změní naplánovaný čas zobrazený u minulých záznamů.</string>
     <string name="add">Přidat</string>

@@ -383,12 +383,9 @@
     <string name="group_schedule_start_time">開始時間</string>
     <string name="group_schedule_start_now">而家</string>
     <string name="group_schedule_start_reset_to_now">重設</string>
-    <string name="group_schedule_recreated_start_date_past_note">重新建立嘅群組唔可以將開始日期設喺過去</string>
-    <string name="group_schedule_recreated_start_before_cutoff">重新建立嘅群組唔可以早過 %1$s 開始，即係已封存群組結束嘅時間</string>
     <string name="group_past_schedule_mark_completed">標記做已完成</string>
     <string name="group_past_schedule_mark_missed">標記做已錯過</string>
     <string name="group_past_schedule_hide">隱藏</string>
-    <string name="group_past_schedule_recreated_locked_note">重新建立嘅群組唔會顯示過去嘅計劃</string>
     <string name="group_schedule_backfill_records_empty">未新增記錄</string>
     <string name="group_schedule_backfill_records_failure">群組已儲存，但未能新增記錄</string>
     <string name="group_schedule_days_of_week">選擇星期</string>
@@ -411,6 +408,7 @@
     <string name="load_medication_group_retry">再試一次</string>
     <string name="save_medication_group_failure">未能儲存群組</string>
     <string name="save_medication_group_locked_by_records">呢項更改同群組入面已有嘅記錄唔符合，所以未能儲存</string>
+    <string name="save_medication_group_deleted">呢個群組已經刪除咗，所以未能儲存</string>
     <string name="delete_medication_group_failure">未能刪除群組</string>
     <string name="delete_group_related_records">刪除記錄</string>
     <string name="delete_group_also_related_records">同時刪除相關記錄</string>
@@ -441,8 +439,6 @@
     </plurals>
     <string name="archive_create_active_copy">封存後建立副本</string>
     <string name="duplicate_medication_group">複製為新群組</string>
-    <string name="archive_and_recreate_medication_group_success">已封存</string>
-    <string name="archive_and_recreate_medication_group_failure">未能封存並重建群組</string>
     <string name="group_locked_banner">呢個群組已有相關嘅記錄，因此你未能更改部分內容，如需調整，請封存現時群組並重新建立</string>
     <string name="group_locked_time_note">更改計劃時間亦會更新歷史記錄入面顯示嘅計劃時間</string>
     <string name="add">新增</string>

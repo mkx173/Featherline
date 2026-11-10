@@ -104,10 +104,10 @@ class MedicationGroupEditorUnsavedChangesTest {
 
     @Test
     fun editedDraft_comparesTheMomentTheStartFallsOn() {
-        // A recreated plan's start loaded at its 12:00 cutoff, and a pick moved up to it.
+        // A loaded start, and a pick landing back on it.
         val loaded = MedicationGroupEditorUiState(
             sinceDate = LocalDate.of(2026, 4, 25),
-            scheduleStart = ScheduleStart.Loaded(LocalDateTime.of(2026, 4, 25, 12, 0), isMoment = true),
+            scheduleStart = ScheduleStart.Loaded(LocalDateTime.of(2026, 4, 25, 12, 0), LocalDate.of(2026, 4, 25)),
         )
         assertEquals(
             loaded.toEditedDraft(),

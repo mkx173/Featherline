@@ -91,6 +91,7 @@ class MedicationGroupEditorUpcomingSlotsTest {
             sinceDate = LocalDate.of(2026, 4, 1),
             weeklyIntervalWeeks = "1",
             weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+            hasUserCustomizedWeeklyDays = true,
             weeklyTime = LocalTime.of(9, 0),
             medicationDayBoundary = MedicationDayBoundary.Midnight,
         )

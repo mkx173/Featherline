@@ -12,10 +12,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.HrtSection
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
-import com.mkx.hrttracker.util.MedicationDayBoundary
-import com.mkx.hrttracker.util.isPastMidnight
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationDay
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -27,7 +24,6 @@ internal fun ScheduleStartEditor(
     sinceDate: LocalDate,
     startsNow: Boolean,
     start: LocalDateTime,
-    boundary: MedicationDayBoundary,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onDateClick: () -> Unit,
@@ -57,17 +53,13 @@ internal fun ScheduleStartEditor(
             )
         }
         item {
-            // A small-hours start of a night-owl plan counts toward the night before:
-            // lead it with the moon, as the plan's time rows do.
-            val startIsPastMidnight = !startsNow && boundary.isPastMidnight(start.toLocalTime())
+            // A picked start is a calendar date and time, so it gets no night-owl moon.
             EditorFieldRow(
                 label = stringResource(R.string.group_schedule_start_time),
                 value = when {
                     startsNow -> stringResource(R.string.group_schedule_start_now)
-                    // A saved start past the start date's own day: a plan that hid its
-                    // past from a later save, or a small-hours start of a plan whose
-                    // night owl was turned off before it had records.
-                    medicationDay(start, boundary) != sinceDate ->
+                    // A saved start past the start date: a plan that hid its past from a later save.
+                    start.toLocalDate() != sinceDate ->
                         stringResource(
                             R.string.plan_group_upcoming_format,
                             dateFormatter(start.toLocalDate()),
@@ -76,14 +68,7 @@ internal fun ScheduleStartEditor(
 
                     else -> start.format(timeFormatter)
                 },
-                icon = painterResource(
-                    if (startIsPastMidnight) R.drawable.ic_moon_stars else R.drawable.ic_calendar_clock
-                ),
-                iconContentDescription = if (startIsPastMidnight) {
-                    stringResource(R.string.medication_day_past_midnight)
-                } else {
-                    null
-                },
+                icon = painterResource(R.drawable.ic_calendar_clock),
                 onClick = onTimeClick,
                 enabled = enabled,
                 locked = shapeLocked,
@@ -111,7 +96,6 @@ private fun ScheduleStartEditorPreview() {
             sinceDate = LocalDate.of(2026, 4, 20),
             startsNow = false,
             start = LocalDate.of(2026, 4, 20).atStartOfDay(),
-            boundary = MedicationDayBoundary.Midnight,
             dateFormatter = medicationGroupScheduleDateFormatter(
                 locale = previewLocale,
                 today = LocalDate.of(2026, 4, 22),

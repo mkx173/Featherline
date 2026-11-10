@@ -45,11 +45,40 @@ class MedicationGroupEditorScheduleStartTest {
             LocalDateTime.of(today, LocalTime.of(8, 0)),
             state(startTime = LocalTime.of(8, 0)).scheduleStartAt(now),
         )
-        // With the day ending at 04:00, 02:00 is the night after the start date.
+        // A picked time is the calendar moment, whatever the day ending.
         assertEquals(
-            LocalDateTime.of(today.plusDays(1), LocalTime.of(2, 0)),
+            LocalDateTime.of(today, LocalTime.of(2, 0)),
             state(startTime = LocalTime.of(2, 0), boundary = MedicationDayBoundary.FourAm).scheduleStartAt(now),
         )
+    }
+
+    @Test
+    fun aNightOwlStartInTheSmallHoursSavesFromTheDayItFallsOn() {
+        // Picked: Sat Apr 25, 01:00, night owl on. 01:00 belongs to Friday's medication day.
+        val picked = state(startTime = LocalTime.of(1, 0), boundary = MedicationDayBoundary.FourAm)
+            .copy(dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(2, 0))))
+        fun MedicationGroupEditorUiState.saved() = toScheduleInput(now).let { it.since to it.startAt }
+
+        // Daily at 02:00: from Friday, so tonight's 02:00 (Friday's) is the first dose.
+        assertEquals(today.minusDays(1) to today.atTime(1, 0), picked.saved())
+        assertEquals(today.atTime(2, 0), buildMedicationGroupEditorUpcomingOccurrences(picked, today.atStartOfDay()).first())
+        // Every 2 days counts from Friday too: Friday, Sunday, so 02:00 tonight, then Monday 02:00.
+        assertEquals(
+            listOf(today.atTime(2, 0), today.plusDays(2).atTime(2, 0)),
+            buildMedicationGroupEditorUpcomingOccurrences(picked.copy(dailyIntervalDays = "2"), today.atStartOfDay()),
+        )
+        // Weekly, weekdays untouched: Friday's, the day the start falls on, so tonight's 02:00.
+        val weekly = picked.copy(scheduleType = MedicationGroupScheduleType.WEEKLY, weeklyTime = LocalTime.of(2, 0))
+        assertEquals(today.minusDays(1), weekly.toScheduleInput(now).since)
+        assertEquals(setOf(DayOfWeek.FRIDAY), weekly.toScheduleInput(now).weeklyDaysOfWeek)
+        assertEquals(today.atTime(2, 0), buildMedicationGroupEditorUpcomingOccurrences(weekly, today.atStartOfDay()).first())
+        // Saturday picked: Saturday's 02:00 is Sunday 02:00.
+        val saturday = weekly.copy(weeklyDaysOfWeek = setOf(today.dayOfWeek), hasUserCustomizedWeeklyDays = true)
+        assertEquals(today.plusDays(1).atTime(2, 0), buildMedicationGroupEditorUpcomingOccurrences(saturday, today.atStartOfDay()).first())
+        // Midnight, the same pick is that day's own 01:00.
+        assertEquals(today to today.atTime(1, 0), picked.copy(medicationDayBoundary = MedicationDayBoundary.Midnight).saved())
+        // A whole day stays its own date's day, from 04:00.
+        assertEquals(today to today.atTime(4, 0), state(boundary = MedicationDayBoundary.FourAm).saved())
     }
 
     @Test
@@ -83,7 +112,7 @@ class MedicationGroupEditorScheduleStartTest {
         // a later save has: it holds until the start is edited.
         val loadedStartAt = LocalDateTime.of(today, LocalTime.of(23, 0))
         val loaded = state(sinceDate = today.minusDays(1), boundary = MedicationDayBoundary.FourAm)
-            .copy(scheduleStart = ScheduleStart.Loaded(loadedStartAt, isMoment = false))
+            .copy(scheduleStart = ScheduleStart.Loaded(loadedStartAt, today.minusDays(1)))
 
         assertEquals(loadedStartAt, loaded.scheduleStartAt(now))
         assertEquals(
@@ -96,7 +125,7 @@ class MedicationGroupEditorScheduleStartTest {
     fun loadedStart_isNeverBeforeTheStartDatesDay() {
         // 02:00 is still the previous day when the day ends at 04:00.
         val loaded = state(boundary = MedicationDayBoundary.FourAm)
-            .copy(scheduleStart = ScheduleStart.Loaded(today.atTime(2, 0), isMoment = false))
+            .copy(scheduleStart = ScheduleStart.Loaded(today.atTime(2, 0), today))
 
         assertEquals(today.atTime(4, 0), loaded.scheduleStartAt(now))
     }

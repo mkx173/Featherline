@@ -1,6 +1,12 @@
 package com.mkx.hrttracker.ui.plan
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import androidx.room.withTransaction
@@ -14,13 +20,16 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
+import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.data.repository.SaveRefusal
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.toEntity
 import com.mkx.hrttracker.data.repository.toMedicationLogEntryModel
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -33,9 +42,12 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.catalog.MedicineSlotResult
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.withAppLanguage
+import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -65,6 +77,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -79,6 +92,9 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicationGroupEditorRecordLockTest {
+    @get:Rule
+    val composeRule = createComposeRule()
+
     private val dispatcher = StandardTestDispatcher()
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
@@ -108,7 +124,7 @@ class MedicationGroupEditorRecordLockTest {
     private lateinit var repository: MedicationGroupRepository
     private var failNextUpsert = false
 
-    // Null keeps the repository's groups flow quiet; a recreated plan's cutoff comes from it.
+    // Null keeps the repository's groups flow quiet.
     private val databaseFlow = MutableStateFlow<HrtTrackerDatabase?>(null)
 
     @Before
@@ -165,36 +181,58 @@ class MedicationGroupEditorRecordLockTest {
 
     @After
     fun tearDown() {
+        clearAllMocks()
         room.close()
         Dispatchers.resetMain()
         unmockkStatic("com.mkx.hrttracker.util.LocalizationKt")
     }
 
     @Test
-    fun aRecordArrivingAfterAScheduleTypeChangeStaysOnItsSlot() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
-        val viewModel = editor(groupUuid)
-        viewModel.updateGroupName("Mornings")
-        viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY)
+    fun aRecordArrivingMidEditRevertsNothingAndRefusesASaveItConflictsWith() = runTest(dispatcher) {
+        val edits = listOf<Pair<String, (MedicationGroupEditorViewModel) -> Unit>>(
+            "weekly" to { viewModel -> viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY) },
+            "a time added" to { viewModel -> viewModel.addDailyTime(LocalTime.of(20, 0)) },
+            "a medicine removed" to { viewModel ->
+                viewModel.removeMedication(
+                    viewModel.uiState.value.medications.single { it.medicineUuid == medicine.uuid }.localId
+                )
+            },
+            "night owl on" to { viewModel -> viewModel.updateDayEndsAtFourAm(true) },
+            "start date moved past the record" to { viewModel ->
+                viewModel.updateSinceDate(now.toLocalDate().plusDays(2))
+            },
+        )
+        for ((name, edit) in edits) {
+            val groupUuid = createDailyPlan(LocalTime.of(8, 0), medicines = planMedicines)
+            val viewModel = editor(groupUuid)
+            viewModel.updateGroupName("Mornings")
+            edit(viewModel)
+            val edited = viewModel.uiState.value
 
-        val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
-        viewModel.saveGroup()
-        advanceUntilIdle()
+            val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
+            // Seen, and the draft is as the user left it.
+            assertTrue(name, viewModel.uiState.value.isLocked)
+            assertEquals(name, edited.toEditedDraft(), viewModel.uiState.value.toEditedDraft())
+            viewModel.saveGroup()
+            advanceUntilIdle()
 
-        assertRecordOnItsSlot(groupUuid, record)
-        assertNull(viewModel.uiState.value.saveMedicationGroupResult)
-        // The name isn't the schedule's: it is still saved.
-        assertEquals("Mornings", repository.getGroup(groupUuid)?.name)
+            assertEquals(name, SaveMedicationGroupResult.LOCKED_BY_RECORDS, viewModel.uiState.value.saveMedicationGroupResult)
+            assertFalse(name, viewModel.uiState.value.isSaved)
+            assertEquals(name, "Mornings", viewModel.uiState.value.groupName)
+            // Nothing written: the plan is as it was.
+            assertEquals(name, "Plan", repository.getGroup(groupUuid)?.name)
+            assertRecordOnItsSlot(groupUuid, record)
+        }
     }
 
     @Test
-    fun aRecordLandingAsTheSaveStartsRefusesAScheduleTypeChangeUntilTheEditorSeesIt() =
+    fun aRecordLandingAsTheSaveStartsRefusesAScheduleTypeChangeAndSoDoesTheEditorOnceItSeesIt() =
         runTest(dispatcher) {
             val groupUuid = createDailyPlan(LocalTime.of(8, 0))
             val viewModel = editor(groupUuid)
             viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY)
 
-            // Written, but not yet observed by the editor.
+            // Written, but not yet observed by the editor: the repository refuses it at commit.
             val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0), observe = false)
             viewModel.saveGroup()
             advanceUntilIdle()
@@ -205,60 +243,34 @@ class MedicationGroupEditorRecordLockTest {
                 viewModel.uiState.value.saveMedicationGroupResult,
             )
 
-            // Once the editor sees the record, the next save goes through.
+            // Seen now, the editor refuses it for the same reason, and keeps the edit.
             observeRecords()
             advanceUntilIdle()
             viewModel.consumeSaveMedicationGroupResult()
             viewModel.saveGroup()
             advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.isSaved)
-            assertRecordOnItsSlot(groupUuid, record)
+            assertEquals(
+                SaveMedicationGroupResult.LOCKED_BY_RECORDS,
+                viewModel.uiState.value.saveMedicationGroupResult,
+            )
+            assertEquals(MedicationGroupScheduleType.WEEKLY, viewModel.uiState.value.scheduleType)
+            assertEquals(MedicationGroupScheduleType.DAILY, repository.getGroup(groupUuid)?.schedule?.type)
         }
 
     @Test
-    fun aRecordArrivingAfterATimeWasAddedStillLetsThePlanSave() = runTest(dispatcher) {
+    fun aDeletedPlansSaveIsRefusedWithItsOwnReason() = runTest(dispatcher) {
         val groupUuid = createDailyPlan(LocalTime.of(8, 0))
-        val slotUuid = slotUuids(groupUuid).single()
         val viewModel = editor(groupUuid)
         viewModel.updateGroupName("Mornings")
-        viewModel.addDailyTime(LocalTime.of(20, 0))
 
-        val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
+        repository.deleteGroup(groupUuid)
         viewModel.saveGroup()
         advanceUntilIdle()
 
-        assertNull(
-            "The save should go through once the record locks the slots",
-            viewModel.uiState.value.saveMedicationGroupResult,
-        )
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertEquals(listOf(slotUuid), slotUuids(groupUuid))
-        assertRecordOnItsSlot(groupUuid, record)
-        assertEquals("Mornings", repository.getGroup(groupUuid)?.name)
-    }
-
-    @Test
-    fun aRecordArrivingAfterAMedicineWasRemovedStillMatchesThePlan() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0), medicines = planMedicines)
-        val viewModel = editor(groupUuid)
-        viewModel.updateGroupName("Mornings")
-        viewModel.removeMedication(
-            viewModel.uiState.value.medications.single { it.medicineUuid == medicine.uuid }.localId
-        )
-
-        // Logged from the saved plan, which still has the removed medicine.
-        val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
-        viewModel.saveGroup()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertRecordMatchesAPlanMedication(groupUuid, record)
-        assertEquals(
-            planMedicines.map { it.uuid },
-            checkNotNull(repository.getGroup(groupUuid)).medications.map { it.medicineUuid },
-        )
-        assertEquals("Mornings", repository.getGroup(groupUuid)?.name)
+        assertEquals(SaveMedicationGroupResult.GROUP_DELETED, viewModel.uiState.value.saveMedicationGroupResult)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull("The save brought the deleted plan back", repository.getGroup(groupUuid))
     }
 
     @Test
@@ -270,21 +282,60 @@ class MedicationGroupEditorRecordLockTest {
         assertTrue(viewModel.uiState.value.isLocked)
 
         // 06:00 would move that dose before the plan's start.
-        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(6, 0))
+        assertEquals(
+            SaveRefusal.LOGGED_DOSE_BEFORE_START,
+            viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(6, 0)),
+        )
 
         assertEquals(LocalTime.of(8, 0), viewModel.uiState.value.dailyTimes.single().time)
-        assertEquals(ScheduleEditNotice.LOGGED_DOSE_BEFORE_START, viewModel.uiState.value.scheduleEditNotice)
-        viewModel.consumeScheduleEditNotice()
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
         // 07:00 is the start itself, so it is taken.
-        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(7, 0))
+        assertNull(viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(7, 0)))
         viewModel.saveGroup()
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSaved)
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
         assertEquals(since.atTime(7, 0).toString(), room.medicationLogDao().getEntry(record)?.scheduledForIso)
         assertRecordOnItsSlot(groupUuid, record)
+    }
+
+    @Test
+    fun aRefusedTimeKeepsThePickerOpenWithItsReason() = runTest(dispatcher) {
+        val groupUuid = createDailyPlan(LocalTime.of(8, 0), startAt = since.atTime(7, 0))
+        logRecord(groupUuid, since.atTime(8, 0))
+        val viewModel = editor(groupUuid)
+        val localId = viewModel.uiState.value.dailyTimes.single().localId
+        val shown = mutableListOf<SaveRefusal>()
+        val confirmText = ApplicationProvider.getApplicationContext<Context>().getString(R.string.confirm)
+        var pickedTime by mutableStateOf<LocalTime?>(LocalTime.of(6, 0))
+        composeRule.setContent {
+            pickedTime?.let { initialTime ->
+                TimePickerModal(
+                    onTimeSelected = { time -> pickedTimeCloses(viewModel.updateDailyTime(localId, time), shown::add) },
+                    onDismiss = { pickedTime = null },
+                    initialTime = initialTime,
+                    is24Hour = true,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(confirmText).performClick()
+        composeRule.waitForIdle()
+
+        // 06:00 would put the logged dose before the start: still open, with the reason.
+        assertEquals(LocalTime.of(6, 0), pickedTime)
+        assertEquals(listOf(SaveRefusal.LOGGED_DOSE_BEFORE_START), shown)
+        assertEquals(LocalTime.of(8, 0), viewModel.uiState.value.dailyTimes.single().time)
+
+        // Opened afresh, as a tap on the time does.
+        pickedTime = null
+        composeRule.waitForIdle()
+        pickedTime = LocalTime.of(9, 0)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText(confirmText).performClick()
+        composeRule.waitForIdle()
+
+        assertNull(pickedTime)
+        assertEquals(LocalTime.of(9, 0), viewModel.uiState.value.dailyTimes.single().time)
     }
 
     @Test
@@ -292,12 +343,11 @@ class MedicationGroupEditorRecordLockTest {
         val groupUuid = createDailyPlan(LocalTime.of(8, 0), startAt = since.atTime(7, 0))
         val viewModel = editor(groupUuid)
         viewModel.updateDailyIntervalDays("2")
-        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(6, 0))
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
+        assertNull(viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(6, 0)))
 
         // The first day's dose, logged after the retime: the editor learns of it only now.
         val record = logRecord(groupUuid, since.atTime(8, 0))
-        // Every other day still has it, so that edit stays; the retime is left to the save.
+        // Nothing goes back.
         assertEquals("2", viewModel.uiState.value.dailyIntervalDays)
         assertEquals(LocalTime.of(6, 0), viewModel.uiState.value.dailyTimes.single().time)
         viewModel.saveGroup()
@@ -312,7 +362,7 @@ class MedicationGroupEditorRecordLockTest {
 
         // The time put back, the plan saves every other day.
         viewModel.consumeSaveMedicationGroupResult()
-        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(8, 0))
+        assertNull(viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(8, 0)))
         viewModel.saveGroup()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.isSaved)
@@ -321,7 +371,7 @@ class MedicationGroupEditorRecordLockTest {
     }
 
     @Test
-    fun aSecondRetimeThatMovesAnotherDoseBeforeTheStartIsRefusedAsItIsPicked() = runTest(dispatcher) {
+    fun aDraftAlreadyRefusedTakesAnyTimeAndSaveSaysWhy() = runTest(dispatcher) {
         val groupUuid = createDailyPlan(LocalTime.of(8, 0), LocalTime.of(20, 0), startAt = since.atTime(7, 0))
         val viewModel = editor(groupUuid)
         val (morning, evening) = viewModel.uiState.value.dailyTimes
@@ -330,90 +380,19 @@ class MedicationGroupEditorRecordLockTest {
         logRecord(groupUuid, since.atTime(8, 0))
         logRecord(groupUuid, since.atTime(20, 0))
 
-        // 06:30 would move the 20:00 dose before 07:00 too, whatever 08:00 is changed to.
-        viewModel.updateDailyTime(evening.localId, LocalTime.of(6, 30))
-
-        assertEquals(ScheduleEditNotice.LOGGED_DOSE_BEFORE_START, viewModel.uiState.value.scheduleEditNotice)
-        assertEquals(
-            listOf(LocalTime.of(6, 0), LocalTime.of(20, 0)),
-            viewModel.uiState.value.dailyTimes.map { it.time },
-        )
-    }
-
-    @Test
-    fun aStartDatePutBackByAnArrivingRecordTakesBackTheWeekdaysItReset() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(
-            LocalTime.of(11, 0),
-            startAt = since.atTime(9, 0),
-            weeklyOn = setOf(DayOfWeek.SUNDAY, DayOfWeek.TUESDAY),
-        )
-        val viewModel = editor(groupUuid)
-        val today = now.toLocalDate()
-        viewModel.updateSinceDate(today)
-        assertEquals(setOf(DayOfWeek.SUNDAY), viewModel.uiState.value.weeklyDaysOfWeek)
-        viewModel.updateStartTime(LocalTime.of(10, 30))
-        viewModel.updateWeeklyTime(LocalTime.of(10, 0))
-
-        // Today's dose: 10:00 moves it before 10:30, but not before the saved 09:00 start.
-        val record = logRecord(groupUuid, today.atTime(11, 0))
-
-        assertEquals(since, viewModel.uiState.value.sinceDate)
-        assertEquals(setOf(DayOfWeek.SUNDAY, DayOfWeek.TUESDAY), viewModel.uiState.value.weeklyDaysOfWeek)
-        viewModel.saveGroup()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertEquals(
-            setOf(DayOfWeek.SUNDAY, DayOfWeek.TUESDAY),
-            repository.getGroup(groupUuid)?.schedule?.weeklyDaysOfWeek,
-        )
-        assertEquals(today.atTime(10, 0).toString(), room.medicationLogDao().getEntry(record)?.scheduledForIso)
-    }
-
-    @Test
-    fun aKeptRetimeBeforeTheStartLeavesTheOtherTimesFreeToChange() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0), LocalTime.of(20, 0), startAt = since.atTime(7, 0))
-        val viewModel = editor(groupUuid)
-        val (morning, evening) = viewModel.uiState.value.dailyTimes
-        viewModel.updateDailyTime(morning.localId, LocalTime.of(6, 0))
-        // The first day's 08:00 dose, logged after: 06:00 stays for the save to refuse.
-        logRecord(groupUuid, since.atTime(8, 0))
-
-        viewModel.updateDailyTime(evening.localId, LocalTime.of(21, 0))
-
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
+        // The picker refuses only a time that makes the draft refused; this one already is.
+        assertNull(viewModel.updateDailyTime(evening.localId, LocalTime.of(21, 0)))
         assertEquals(
             listOf(LocalTime.of(6, 0), LocalTime.of(21, 0)),
             viewModel.uiState.value.dailyTimes.map { it.time },
         )
         viewModel.saveGroup()
         advanceUntilIdle()
-        assertEquals(
-            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START,
-            viewModel.uiState.value.saveMedicationGroupResult,
-        )
-    }
-
-    @Test
-    fun aStartEditOnlyARetimeCantKeepGoesBackWhenARecordArrives() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0), startAt = since.atTime(7, 0))
-        val viewModel = editor(groupUuid)
-        // Each fine alone: a start at 08:00, and the dose at 07:30.
-        viewModel.updateStartTime(LocalTime.of(8, 0))
-        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(7, 30))
-
-        val record = logRecord(groupUuid, since.atTime(8, 0))
-
-        // From 08:00 the moved dose comes before the start, from the saved 07:00 it doesn't: the
-        // start goes back, now that the record locks it, and the time stays.
-        val state = viewModel.uiState.value
-        assertFalse(state.canEditScheduleStart)
-        assertEquals(since.atTime(7, 0), state.scheduleStartAt(now))
-        assertEquals(LocalTime.of(7, 30), state.dailyTimes.single().time)
-        viewModel.saveGroup()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertEquals(since.atTime(7, 30).toString(), room.medicationLogDao().getEntry(record)?.scheduledForIso)
-        assertRecordOnItsSlot(groupUuid, record)
+        assertEquals(SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START, viewModel.uiState.value.saveMedicationGroupResult)
+        // Once it is saveable, a time that would refuse it is refused again as it is picked.
+        viewModel.consumeSaveMedicationGroupResult()
+        assertNull(viewModel.updateDailyTime(morning.localId, LocalTime.of(7, 30)))
+        assertEquals(SaveRefusal.LOGGED_DOSE_BEFORE_START, viewModel.updateDailyTime(evening.localId, LocalTime.of(6, 30)))
     }
 
     @Test
@@ -427,14 +406,250 @@ class MedicationGroupEditorRecordLockTest {
         val viewModel = editor(groupUuid)
         assertTrue(viewModel.uiState.value.isLocked)
 
-        viewModel.updateWeeklyTime(LocalTime.of(6, 0))
+        assertEquals(SaveRefusal.LOGGED_DOSE_BEFORE_START, viewModel.updateWeeklyTime(LocalTime.of(6, 0)))
 
         assertEquals(LocalTime.of(8, 0), viewModel.uiState.value.weeklyTime)
-        assertEquals(ScheduleEditNotice.LOGGED_DOSE_BEFORE_START, viewModel.uiState.value.scheduleEditNotice)
-        viewModel.consumeScheduleEditNotice()
-        viewModel.updateWeeklyTime(LocalTime.of(9, 0))
+        assertNull(viewModel.updateWeeklyTime(LocalTime.of(9, 0)))
         assertEquals(LocalTime.of(9, 0), viewModel.uiState.value.weeklyTime)
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
+    }
+
+    @Test
+    fun theArchiveShortcutStartsTheCopyAtTheArchiveInstant() = runTest(dispatcher) {
+        // Archived now at 12:00; the 12:15 dose falls before the copy is saved at 13:00.
+        val groupUuid = createDailyPlan(LocalTime.of(8, 0), LocalTime.of(12, 15))
+        val clock = FakeAppTimeSource(now)
+        val viewModel = editor(groupUuid, clock)
+
+        viewModel.archiveGroup(archivedThroughDate = null, thenDuplicate = true)
+        advanceUntilIdle()
+
+        val draft = viewModel.uiState.value
+        assertNotNull(repository.getGroup(groupUuid)?.archivedAt)
+        assertNull(draft.editingGroupId)
+        assertFalse(draft.isFinishingAfterDeleteOrArchive)
+        assertEquals(now.toLocalDate(), draft.sinceDate)
+        assertEquals(ScheduleStart.At(LocalTime.of(12, 0)), draft.scheduleStart)
+        // The copy was asked for, so leaving asks first; backing out leaves the plan archived, with no copy.
+        assertTrue(viewModel.hasUnsavedChanges.value)
+        assertEquals(listOf(groupUuid), repository.getGroups().map { it.uuid })
+
+        clock.setCurrentSnapshot(now.plusHours(1), ZoneId.systemDefault())
+        advanceUntilIdle()
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        val copy = checkNotNull(repository.getGroup(UUID.fromString(viewModel.uiState.value.editingGroupId)))
+        assertEquals(listOf(now, now), copy.schedule.timeSlots.map { it.effectiveFrom })
+        assertNull(copy.recreatedFromGroupUuid)
+        assertEquals(
+            listOf(now.toLocalDate().atTime(12, 15)),
+            copy.occurrencesBetweenInPlanWindow(now.toLocalDate(), now.toLocalDate()).map { it.scheduledFor },
+        )
+    }
+
+    @Test
+    fun theArchiveShortcutThroughAPastDayStartsTheCopyWhereTheOldPlanStopped() = runTest(dispatcher) {
+        for (nightOwl in listOf(false, true)) {
+            val groupUuid = createDailyPlan(
+                LocalTime.of(8, 0),
+                dayBoundary = MedicationDayBoundary.fromSwitch(nightOwl),
+            )
+            val viewModel = editor(groupUuid)
+
+            viewModel.archiveGroup(archivedThroughDate = now.toLocalDate().minusDays(2), thenDuplicate = true)
+            advanceUntilIdle()
+
+            // Where the archived plan's last day ends: the start of the day after it.
+            val cutoff = now.toLocalDate().minusDays(1).atTime(if (nightOwl) 4 else 0, 0)
+            assertEquals("$nightOwl", cutoff, viewModel.uiState.value.scheduleStartAt(now))
+            viewModel.saveGroup()
+            advanceUntilIdle()
+
+            val copy = checkNotNull(repository.getGroup(UUID.fromString(viewModel.uiState.value.editingGroupId)))
+            assertEquals("$nightOwl", cutoff.toLocalDate(), copy.schedule.since)
+            assertEquals("$nightOwl", listOf(cutoff), copy.schedule.timeSlots.map { it.effectiveFrom })
+            // Yesterday's dose, unlogged, is the copy's to show as missed.
+            assertEquals(
+                "$nightOwl",
+                listOf(cutoff.toLocalDate().atTime(8, 0)),
+                copy.occurrencesBetweenInPlanWindow(cutoff.toLocalDate(), cutoff.toLocalDate()).map { it.scheduledFor },
+            )
+        }
+    }
+
+    @Test
+    fun theArchiveShortcutsCopySurvivesProcessDeathWithItsCutoffStart() = runTest(dispatcher) {
+        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
+        val handle = SavedStateHandle(mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString()))
+        val viewModel = editor(groupUuid, savedStateHandle = handle)
+        viewModel.archiveGroup(archivedThroughDate = now.toLocalDate().minusDays(1), thenDuplicate = true)
+        advanceUntilIdle()
+
+        // A new process, an hour on, restores from what the first one saved.
+        val restored = editor(
+            groupUuid,
+            FakeAppTimeSource(now.plusHours(1)),
+            savedStateHandle = SavedStateHandle(handle.keys().associateWith { key -> handle.get<Any>(key) }),
+        )
+
+        val state = restored.uiState.value
+        assertNull(state.editingGroupId)
+        assertEquals(groupUuid.toString(), state.duplicateSourceGroupId)
+        assertEquals(now.toLocalDate(), state.sinceDate)
+        assertEquals(ScheduleStart.At(LocalTime.MIDNIGHT), state.scheduleStart)
+        assertTrue(restored.hasUnsavedChanges.value)
+    }
+
+    @Test
+    fun aReopenedStartShowsAsEnteredAndKeepsThePlanUntilItIsEdited() = runTest(dispatcher) {
+        // Night owl, every 2 days at 03:00, started Nov 9 at 01:00: Nov 8's medication day.
+        val start = LocalDate.of(2026, 11, 9).atTime(1, 0)
+        for (nightOwl in listOf(true, false)) {
+            val groupUuid = createThroughTheEditor(nightOwl, start)
+            val saved = checkNotNull(repository.getGroup(groupUuid)).schedule
+            val firstDay = if (nightOwl) start.toLocalDate().minusDays(1) else start.toLocalDate()
+            assertEquals("$nightOwl", firstDay, saved.since)
+            for (edit in listOf("untouched", "time confirmed", "time 02:00", "night owl toggled")) {
+                val case = "night owl $nightOwl, $edit"
+                val viewModel = editor(groupUuid)
+                // (a) As entered: the start's own date and time.
+                assertEquals(case, start.toLocalDate(), viewModel.uiState.value.sinceDate)
+                assertEquals(case, start, viewModel.uiState.value.scheduleStartAt(now))
+                when (edit) {
+                    "time confirmed" -> viewModel.updateStartTime(LocalTime.of(1, 0))
+                    "time 02:00" -> viewModel.updateStartTime(LocalTime.of(2, 0))
+                    "night owl toggled" -> viewModel.updateDayEndsAtFourAm(!nightOwl)
+                }
+                advanceUntilIdle()
+                // (a), (b): nothing to lose when the start is as saved.
+                assertEquals(case, edit in listOf("time 02:00", "night owl toggled"), viewModel.hasUnsavedChanges.value)
+                viewModel.saveGroup()
+                advanceUntilIdle()
+                assertTrue(case, viewModel.uiState.value.isSaved)
+                val after = checkNotNull(repository.getGroup(groupUuid)).schedule
+                when (edit) {
+                    // (a), (b): the identical plan.
+                    "untouched", "time confirmed" -> assertEquals(case, saved, after)
+                    // (c): the same night, from the same first day.
+                    "time 02:00" -> {
+                        assertEquals(case, firstDay, after.since)
+                        assertEquals(case, listOf(start.withHour(2)), after.timeSlots.map { it.effectiveFrom })
+                    }
+                    // (d): the first day stays, so each dose keeps its medication day.
+                    "night owl toggled" -> assertEquals(case, saved.since, after.since)
+                }
+                // Back to the saved plan for the next edit.
+                repository.saveGroup(
+                    uuid = groupUuid, name = "Plan", colorKey = MedicationGroupColorKey.ROSE,
+                    schedule = MedicationGroupScheduleInput(
+                        type = saved.type, interval = saved.interval, since = saved.since,
+                        weeklyDaysOfWeek = saved.weeklyDaysOfWeek, times = saved.times,
+                        timeSlots = saved.timeSlots.map { MedicationGroupScheduleTimeInput(it.uuid, it.time) },
+                        startAt = start, dayBoundary = saved.dayBoundary,
+                    ),
+                    medications = listOf(
+                        MedicationGroupMedicationInput(
+                            uuid = checkNotNull(repository.getGroup(groupUuid)).medications.single().uuid,
+                            medicineUuid = medicine.uuid,
+                            applicationType = MedicationApplicationType.ORAL,
+                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        ),
+                    ),
+                    includePastScheduledSlots = true,
+                    now = since.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant(),
+                )
+                assertEquals(case, saved, checkNotNull(repository.getGroup(groupUuid)).schedule)
+            }
+        }
+    }
+
+    @Test
+    fun aReopenedPlanThatHidItsPastShowsItsStartAndRoundTrips() = runTest(dispatcher) {
+        // (e) Every 5 days at 08:00 from Nov 1, saved on Nov 4 at 12:00 with its past hidden: it
+        // starts then, and still counts from Nov 1 (doses Nov 6, 11, 16).
+        val groupUuid = createDailyPlan(
+            LocalTime.of(8, 0), interval = 5, includePastScheduledSlots = false, savedAt = since.plusDays(3).atTime(12, 0),
+        )
+        val saved = checkNotNull(repository.getGroup(groupUuid))
+        assertEquals(since, saved.schedule.since)
+        fun MedicationGroup.doseDays() = occurrencesBetweenInPlanWindow(since, since.plusDays(30)).map { it.scheduledFor.toLocalDate() }
+        assertEquals(listOf(6, 11, 16, 21, 26, 31).map { since.plusDays(it - 1L) }, saved.doseDays())
+        for (edit in listOf("untouched", "time confirmed", "time 13:00")) {
+            val viewModel = editor(groupUuid)
+            // The form's date is the first day as entered, Nov 1; the time row names the start's own date.
+            assertEquals(edit, since, viewModel.uiState.value.sinceDate)
+            assertEquals(edit, since.plusDays(3).atTime(12, 0), viewModel.uiState.value.scheduleStartAt(now))
+            when (edit) {
+                "time confirmed" -> viewModel.updateStartTime(LocalTime.of(12, 0))
+                "time 13:00" -> viewModel.updateStartTime(LocalTime.of(13, 0))
+            }
+            advanceUntilIdle()
+            // A same-time confirm is no edit, and stores the identical plan.
+            assertEquals(edit, edit == "time 13:00", viewModel.hasUnsavedChanges.value)
+            viewModel.saveGroup()
+            advanceUntilIdle()
+            val after = checkNotNull(repository.getGroup(groupUuid))
+            // The time moves on the start's own date, and the count stays on Nov 1.
+            assertEquals(edit, since, after.schedule.since)
+            assertEquals(edit, saved.doseDays(), after.doseDays())
+            if (edit == "time 13:00") {
+                assertEquals(edit, listOf(since.plusDays(3).atTime(13, 0)), after.schedule.timeSlots.map { it.effectiveFrom })
+            } else {
+                assertEquals(edit, saved.schedule, after.schedule)
+            }
+        }
+    }
+
+    /** A new plan made in the editor, every 2 days at 03:00, started at [start]. */
+    private suspend fun TestScope.createThroughTheEditor(nightOwl: Boolean, start: LocalDateTime): UUID {
+        if (room.medicineDao().getByUuids(listOf(medicine.uuid.toString())).isEmpty()) {
+            room.medicineDao().insert(medicine.toEntity())
+        }
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = repository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = FakeAppTimeSource(now),
+        )
+        advanceUntilIdle()
+        viewModel.addCompletedMedicationSlot(
+            localId = "slot",
+            slot = MedicineSlotResult(medicine.uuid, MedicationApplicationType.ORAL, DoseInstruction.TabletFraction(1, 1), 1),
+        )
+        viewModel.updateDayEndsAtFourAm(nightOwl)
+        viewModel.updateDailyTime(viewModel.uiState.value.dailyTimes.single().localId, LocalTime.of(3, 0))
+        viewModel.updateDailyIntervalDays("2")
+        viewModel.updateSinceDate(start.toLocalDate())
+        viewModel.updateStartTime(start.toLocalTime())
+        viewModel.saveGroup()
+        advanceUntilIdle()
+        return UUID.fromString(checkNotNull(viewModel.uiState.value.editingGroupId))
+    }
+
+    @Test
+    fun duplicatingAnArchivedPlanStillStartsNowThroughProcessDeath() = runTest(dispatcher) {
+        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
+        repository.archiveGroup(groupUuid, now = now.minusDays(1).atZone(ZoneId.systemDefault()).toInstant())
+        val handle = SavedStateHandle(mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString()))
+        val viewModel = editor(groupUuid, savedStateHandle = handle)
+        viewModel.duplicateArchivedGroup()
+        assertTrue(viewModel.uiState.value.startsNow)
+        advanceUntilIdle()
+
+        val restored = editor(
+            groupUuid,
+            savedStateHandle = SavedStateHandle(handle.keys().associateWith { key -> handle.get<Any>(key) }),
+        )
+
+        assertEquals(groupUuid.toString(), restored.uiState.value.duplicateSourceGroupId)
+        assertTrue(restored.uiState.value.startsNow)
+        // A plain duplicate, untouched, loses nothing on leaving.
+        assertFalse(restored.hasUnsavedChanges.value)
     }
 
     @Test
@@ -466,138 +681,6 @@ class MedicationGroupEditorRecordLockTest {
                 )
             }
         }
-
-    @Test
-    fun aWholeDayTurnedToMidnightStartsAtTheRecreatedPlansFourAmCutoff() = runTest(dispatcher) {
-        // Archived through yesterday with the day ending at 04:00: the successor starts today at 04:00.
-        val viewModel = recreatedEditor(nightOwl = true, archivedThroughDate = now.toLocalDate().minusDays(1))
-        val today = now.toLocalDate()
-        assertEquals(today.atTime(4, 0), viewModel.uiState.value.recreatedStartFloor)
-        viewModel.updateSinceDate(today.plusDays(1))
-        viewModel.updateSinceDate(today)
-
-        viewModel.updateDayEndsAtFourAm(false)
-
-        // Not midnight, which would show today's 02:00 dose that the cutoff keeps off the plan.
-        val state = viewModel.uiState.value
-        assertEquals(today, state.sinceDate)
-        assertEquals(ScheduleStart.At(LocalTime.of(4, 0)), state.scheduleStart)
-        assertEquals(today.atTime(4, 0), state.scheduleStartAt(now))
-    }
-
-    @Test
-    fun startingNowWithTheClockBehindTheCutoffStartsAtTheCutoff() = runTest(dispatcher) {
-        val recreatedAt = now.toLocalDate().atTime(0, 30)
-        val clock = FakeAppTimeSource(recreatedAt)
-        val viewModel = recreatedEditor(nightOwl = false, clock = clock)
-        // Set back across midnight, before the cutoff's day.
-        clock.setCurrentSnapshot(recreatedAt.minusHours(1), ZoneId.systemDefault())
-        advanceUntilIdle()
-
-        viewModel.resetStartToNow()
-
-        assertEquals(recreatedAt.toLocalDate(), viewModel.uiState.value.sinceDate)
-        assertEquals(ScheduleStart.At(LocalTime.of(0, 30)), viewModel.uiState.value.scheduleStart)
-        viewModel.saveGroup()
-        advanceUntilIdle()
-        assertNull(viewModel.uiState.value.saveMedicationGroupResult)
-        assertTrue(viewModel.uiState.value.isSaved)
-    }
-
-    @Test
-    fun aStartNowLeftBehindByTheClockStartsAtTheCutoff() = runTest(dispatcher) {
-        val clock = FakeAppTimeSource(now)
-        val viewModel = recreatedEditor(nightOwl = false, clock = clock)
-        viewModel.resetStartToNow()
-        assertTrue(viewModel.uiState.value.startsNow)
-
-        // An hour back, now is 11:00: starting then would show the 11:30 dose the cutoff keeps off.
-        clock.setCurrentSnapshot(now.minusHours(1), ZoneId.systemDefault())
-        advanceUntilIdle()
-        viewModel.saveGroup()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isSaved)
-        val saved = checkNotNull(repository.getGroup(UUID.fromString(viewModel.uiState.value.editingGroupId)))
-        assertEquals(listOf(now, now), saved.schedule.timeSlots.map { it.effectiveFrom })
-        assertEquals(ScheduleStart.At(LocalTime.of(12, 0)), viewModel.uiState.value.scheduleStart)
-    }
-
-    @Test
-    fun aStartTimeBeforeTheCutoffMovesUpToItAndSaysSo() = runTest(dispatcher) {
-        val viewModel = recreatedEditor(nightOwl = false)
-
-        viewModel.updateStartTime(LocalTime.of(11, 0))
-
-        val state = viewModel.uiState.value
-        assertEquals(ScheduleStart.At(LocalTime.of(12, 0)), state.scheduleStart)
-        assertEquals(now, state.scheduleStartAt(now))
-        assertEquals(ScheduleEditNotice.START_MOVED_TO_CUTOFF, state.scheduleEditNotice)
-        // The start is the loaded one again, so leaving loses nothing, nor after night owl on and off.
-        advanceUntilIdle()
-        assertFalse(viewModel.hasUnsavedChanges.value)
-        viewModel.updateDayEndsAtFourAm(true)
-        viewModel.updateDayEndsAtFourAm(false)
-        advanceUntilIdle()
-        assertFalse(viewModel.hasUnsavedChanges.value)
-        // A time after it is taken as picked.
-        viewModel.consumeScheduleEditNotice()
-        viewModel.updateStartTime(LocalTime.of(15, 0))
-        assertEquals(ScheduleStart.At(LocalTime.of(15, 0)), viewModel.uiState.value.scheduleStart)
-        assertNull(viewModel.uiState.value.scheduleEditNotice)
-    }
-
-    @Test
-    fun aNightOwlStartTimePickedAfterMidnightLandsLaterToday() = runTest(dispatcher) {
-        // At 00:30 the day that began yesterday at 04:00 is still the start date.
-        val recreatedAt = now.toLocalDate().atTime(0, 30)
-        val viewModel = recreatedEditor(nightOwl = true, clock = FakeAppTimeSource(recreatedAt))
-        assertEquals(recreatedAt.toLocalDate().minusDays(1), viewModel.uiState.value.sinceDate)
-
-        viewModel.updateStartTime(LocalTime.of(11, 0))
-
-        val state = viewModel.uiState.value
-        assertEquals(recreatedAt.toLocalDate(), state.sinceDate)
-        assertEquals(ScheduleStart.At(LocalTime.of(11, 0)), state.scheduleStart)
-        assertEquals(recreatedAt.toLocalDate().atTime(11, 0), state.scheduleStartAt(recreatedAt))
-        assertNull(state.scheduleEditNotice)
-    }
-
-    @Test
-    fun aStartMovedPastARecordThatArrivesGoesBackToTheSavedStart() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
-        val viewModel = editor(groupUuid)
-        viewModel.updateGroupName("Mornings")
-        viewModel.updateSinceDate(now.toLocalDate().plusDays(2))
-
-        val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
-        assertEquals(since, viewModel.uiState.value.sinceDate)
-        viewModel.saveGroup()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertRecordOnItsSlot(groupUuid, record)
-        assertEquals("Mornings", repository.getGroup(groupUuid)?.name)
-    }
-
-    @Test
-    fun aStartThatKeepsTheRecordsStaysWhenAnAddedTimeGoesBack() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
-        val viewModel = editor(groupUuid)
-        viewModel.updateStartTime(LocalTime.of(7, 0))
-        viewModel.addDailyTime(LocalTime.of(20, 0))
-
-        val record = logRecord(groupUuid, now.toLocalDate().atTime(8, 0))
-        viewModel.saveGroup()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isSaved)
-        assertRecordOnItsSlot(groupUuid, record)
-        assertEquals(
-            listOf(since.atTime(7, 0)),
-            checkNotNull(repository.getGroup(groupUuid)).schedule.timeSlots.map { it.effectiveFrom },
-        )
-    }
 
     @Test
     fun aLockedTimeChangeRetriedAfterAFailedSaveMovesEachRecordWithItsOwnSlot() =
@@ -634,44 +717,12 @@ class MedicationGroupEditorRecordLockTest {
             assertRecordOnItsSlot(groupUuid, evening)
         }
 
-    @Test
-    fun aReplacementThatFailsLeavesThePlanActiveAndARetryReplacesIt() = runTest(dispatcher) {
-        val groupUuid = createDailyPlan(LocalTime.of(8, 0))
-        val viewModel = editor(groupUuid)
-
-        failNextUpsert = true
-        viewModel.archiveAndRecreateGroup()
-        advanceUntilIdle()
-
-        assertEquals(
-            ArchiveAndRecreateMedicationGroupResult.FAILURE,
-            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
-        )
-        assertNull(
-            "A replacement that failed archived the plan anyway",
-            repository.getGroup(groupUuid)?.archivedAt,
-        )
-        assertFalse(viewModel.uiState.value.isArchived)
-        assertEquals(groupUuid.toString(), viewModel.uiState.value.editingGroupId)
-
-        viewModel.consumeArchiveAndRecreateMedicationGroupResult()
-        viewModel.archiveAndRecreateGroup()
-        advanceUntilIdle()
-
-        assertEquals(
-            ArchiveAndRecreateMedicationGroupResult.SUCCESS,
-            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
-        )
-        val original = checkNotNull(repository.getGroup(groupUuid))
-        val successorUuid = UUID.fromString(viewModel.uiState.value.editingGroupId)
-        assertNotNull(original.archivedAt)
-        assertEquals(successorUuid, original.replacedByGroupUuid)
-        assertEquals(groupUuid, repository.getGroup(successorUuid)?.recreatedFromGroupUuid)
-    }
-
     private suspend fun createDailyPlan(
         vararg times: LocalTime,
         medicines: List<Medicine> = listOf(medicine),
+        includePastScheduledSlots: Boolean = true,
+        savedAt: LocalDateTime = since.atStartOfDay(),
+        interval: Int = 1,
         startAt: LocalDateTime? = null,
         dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
         // A weekly plan on those days instead.
@@ -689,7 +740,7 @@ class MedicationGroupEditorRecordLockTest {
             colorKey = MedicationGroupColorKey.ROSE,
             schedule = MedicationGroupScheduleInput(
                 type = if (weeklyOn.isNotEmpty()) MedicationGroupScheduleType.WEEKLY else MedicationGroupScheduleType.DAILY,
-                interval = 1,
+                interval = interval,
                 since = since,
                 weeklyDaysOfWeek = weeklyOn,
                 times = times.toList(),
@@ -703,38 +754,16 @@ class MedicationGroupEditorRecordLockTest {
                     doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             },
-            includePastScheduledSlots = true,
-            now = since.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant(),
+            includePastScheduledSlots = includePastScheduledSlots,
+            now = savedAt.atZone(ZoneId.systemDefault()).toInstant(),
         )
-    }
-
-    /** An editor on a plan at 02:00 and 11:30, just archived and recreated in it at [clock]'s now. */
-    private suspend fun TestScope.recreatedEditor(
-        nightOwl: Boolean,
-        archivedThroughDate: LocalDate? = null,
-        clock: FakeAppTimeSource = FakeAppTimeSource(now),
-    ): MedicationGroupEditorViewModel {
-        // Live, as in the app: the editor reads the archived plan's cutoff from it.
-        databaseFlow.value = database
-        val predecessor = createDailyPlan(
-            LocalTime.of(2, 0),
-            LocalTime.of(11, 30),
-            dayBoundary = MedicationDayBoundary.fromSwitch(nightOwl),
-        )
-        val viewModel = editor(predecessor, clock)
-        viewModel.archiveAndRecreateGroup(archivedThroughDate)
-        advanceUntilIdle()
-        assertEquals(
-            ArchiveAndRecreateMedicationGroupResult.SUCCESS,
-            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
-        )
-        assertNotNull(viewModel.uiState.value.recreatedStartFloor)
-        return viewModel
     }
 
     private fun TestScope.editor(
         groupUuid: UUID,
         clock: FakeAppTimeSource = FakeAppTimeSource(now),
+        savedStateHandle: SavedStateHandle =
+            SavedStateHandle(mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())),
     ): MedicationGroupEditorViewModel {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = repository,
@@ -744,9 +773,7 @@ class MedicationGroupEditorRecordLockTest {
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
-            savedStateHandle = SavedStateHandle(
-                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
-            ),
+            savedStateHandle = savedStateHandle,
             appTimeSource = clock,
         )
         advanceUntilIdle()

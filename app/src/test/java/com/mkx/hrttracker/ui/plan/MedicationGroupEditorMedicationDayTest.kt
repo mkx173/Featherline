@@ -114,7 +114,8 @@ class MedicationGroupEditorMedicationDayTest {
     }
 
     @Test
-    fun turningNightOwlOnMakesAFourAmPlanAndItsDefaultStartFollows() = runTest {
+    fun turningNightOwlOnKeepsANowStartAndItsDate() = runTest {
+        // Monday Oct 19 at 01:32: still Sunday's medication day once the day ends at 04:00.
         val now = LocalDateTime.of(2026, 10, 19, 1, 32)
         val viewModel = newViewModel(now = now)
         advanceUntilIdle()
@@ -124,10 +125,15 @@ class MedicationGroupEditorMedicationDayTest {
 
         val state = viewModel.uiState.value
         assertEquals(MedicationDayBoundary.FourAm, state.medicationDayBoundary)
-        assertEquals(LocalDate.of(2026, 10, 18), state.sinceDate)
+        // The start as chosen: now, on the calendar date.
+        assertEquals(LocalDate.of(2026, 10, 19), state.sinceDate)
         assertTrue(state.startsNow)
-        assertEquals(setOf(DayOfWeek.SUNDAY), state.weeklyDaysOfWeek)
         assertEquals(LocalTime.of(2, 0), state.weeklyTime)
+        // Stored from Sunday, the medication day now falls on, and its untouched weekday follows
+        // that day: Sunday's 02:00 is tonight's.
+        assertEquals(LocalDate.of(2026, 10, 18), state.toScheduleInput(now).since)
+        assertEquals(setOf(DayOfWeek.SUNDAY), state.scheduleWeekdays(now))
+        assertEquals(setOf(DayOfWeek.SUNDAY), state.toScheduleInput(now).weeklyDaysOfWeek)
         assertEquals(
             listOf(
                 LocalDateTime.of(2026, 10, 19, 2, 0),
@@ -135,6 +141,8 @@ class MedicationGroupEditorMedicationDayTest {
             ),
             buildMedicationGroupEditorUpcomingOccurrences(uiState = state, start = now),
         )
+        // At midnight the chip doesn't flip: the medication day is still Sunday until 04:00.
+        assertEquals(setOf(DayOfWeek.SUNDAY), state.withStartsNowOn(LocalDateTime.of(2026, 10, 19, 3, 59)).scheduleWeekdays(LocalDateTime.of(2026, 10, 19, 3, 59)))
         assertEquals(
             listOf(
                 LocalDateTime.of(2026, 10, 19, 2, 0),
@@ -182,7 +190,8 @@ class MedicationGroupEditorMedicationDayTest {
         viewModel.updateDayEndsAtFourAm(true)
 
         val state = viewModel.uiState.value
-        assertEquals(LocalDate.of(2026, 10, 28), state.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 29), state.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 28), state.toScheduleInput(now).since)
         assertEquals(now, state.scheduleStartAt(now))
         assertEquals(
             LocalDateTime.of(2026, 10, 29, 3, 0),
@@ -271,7 +280,6 @@ class MedicationGroupEditorMedicationDayTest {
                 medications = any(),
                 notificationsEnabled = any(),
                 includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
                 now = any(),
             )
         } coAnswers {
@@ -299,7 +307,7 @@ class MedicationGroupEditorMedicationDayTest {
     }
 
     @Test
-    fun archiveAndRecreateKeepsTheEndingAndStartsOnThePlansOwnToday() = runTest {
+    fun theArchiveShortcutsCopyKeepsTheEndingAndStartsAtTheCutoff() = runTest {
         // 02:00 on Oct 29 is still Oct 28 for the night-owl plan.
         val now = LocalDateTime.of(2026, 10, 29, 2, 0)
         for (type in MedicationGroupScheduleType.entries) {
@@ -308,9 +316,8 @@ class MedicationGroupEditorMedicationDayTest {
             every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
             every { medicationLogRepository.observeEntries() } returns
                     flowOf(listOf(planRecord(LocalDateTime.of(2026, 10, 28, 1, 0))))
-            coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns
-                    group.copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
-            val savedSchedule = stubArchiveAndRecreateGroup(returns = savedGroupUuid)
+            coEvery { medicationGroupRepository.archiveGroup(groupUuid, null, any()) } returns now
+            val savedSchedule = stubSaveGroup(uuid = null, returns = savedGroupUuid)
             val viewModel = editingViewModel(now = now)
             advanceUntilIdle()
             // The window ends the day before the plan's own today.
@@ -319,15 +326,17 @@ class MedicationGroupEditorMedicationDayTest {
                 viewModel.uiState.value.archiveDateWindow.maxDate,
             )
 
-            viewModel.archiveAndRecreateGroup()
+            viewModel.archiveGroup(archivedThroughDate = null, thenDuplicate = true)
+            advanceUntilIdle()
+            // The copy is a new plan, so it takes a new ending.
+            assertTrue(viewModel.uiState.value.canEditDayBoundary)
+            viewModel.saveGroup()
             advanceUntilIdle()
 
             assertEquals(type, savedSchedule.captured.type)
             assertEquals(MedicationDayBoundary.FourAm, savedSchedule.captured.dayBoundary)
+            assertEquals(now, savedSchedule.captured.startAt)
             assertEquals(LocalDate.of(2026, 10, 28), savedSchedule.captured.since)
-            // The recreated plan is a new plan, so it takes a new ending.
-            assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
-            assertTrue(viewModel.uiState.value.canEditDayBoundary)
         }
     }
 
@@ -344,11 +353,12 @@ class MedicationGroupEditorMedicationDayTest {
         advanceUntilIdle()
 
         assertEquals(MedicationDayBoundary.FourAm, viewModel.uiState.value.medicationDayBoundary)
-        assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.sinceDate)
         assertTrue(viewModel.uiState.value.canEditDayBoundary)
         viewModel.saveGroup()
         advanceUntilIdle()
         assertEquals(MedicationDayBoundary.FourAm, savedSchedule.captured.dayBoundary)
+        assertEquals(LocalDate.of(2026, 10, 28), savedSchedule.captured.since)
     }
 
     @Test
@@ -370,99 +380,29 @@ class MedicationGroupEditorMedicationDayTest {
     }
 
     @Test
-    fun recreatedPlanKeepsItsSeamWithTheArchivedPlanWhenItsEndingChanges() = runTest {
-        // Archived through Oct 29 at 14:00; the recreated plan starts at the cutoff.
-        val now = LocalDateTime.of(2026, 10, 29, 14, 0)
-        for (type in MedicationGroupScheduleType.entries) {
-            for (from in MedicationDayBoundary.entries) {
-                val to = MedicationDayBoundary.entries.single { it != from }
-                val cutoff = LocalDate.of(2026, 10, 30).atTime(from.startTime)
-                val archived = nightOwlGroup(type = type, dayBoundary = from, everyDay = true)
-                    .copy(
-                        archivedAt = cutoff.atZone(ZoneId.systemDefault()).toInstant(),
-                        archivedAtLocal = cutoff,
-                    )
-                val recreated = nightOwlGroup(
-                    type = type,
-                    dayBoundary = from,
-                    everyDay = true,
-                    since = LocalDate.of(2026, 10, 30),
-                    effectiveFrom = cutoff,
-                ).copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
-                every { medicationGroupRepository.getCachedGroup(savedGroupUuid) } returns recreated
-                every { medicationGroupRepository.observeGroups() } returns
-                        flowOf(listOf(archived, recreated))
-                val savedSchedule = stubSaveGroup(uuid = savedGroupUuid, returns = savedGroupUuid)
-                val viewModel = editingViewModel(now = now, groupId = savedGroupUuid)
-                advanceUntilIdle()
-                val opened = viewModel.uiState.value
-                // Turning it on and back off restores the draft exactly.
-                viewModel.updateDayEndsAtFourAm(to.endsAtFourAm)
-                viewModel.updateDayEndsAtFourAm(from.endsAtFourAm)
-                assertEquals(opened, viewModel.uiState.value)
+    fun nightOwlLeavesAPickedStartAsChosen() = runTest {
+        val viewModel = newViewModel(now = LocalDateTime.of(2026, 10, 20, 12, 0))
+        advanceUntilIdle()
+        viewModel.updateScheduleType(MedicationGroupScheduleType.WEEKLY)
+        viewModel.updateSinceDate(LocalDate.of(2026, 10, 29))
+        viewModel.updateStartTime(LocalTime.of(2, 0))
+        val picked = viewModel.uiState.value
 
-                viewModel.updateDayEndsAtFourAm(to.endsAtFourAm)
-                viewModel.saveGroup()
-                advanceUntilIdle()
+        viewModel.updateDayEndsAtFourAm(true)
 
-                val input = savedSchedule.captured
-                assertEquals(to, input.dayBoundary)
-                assertEquals(cutoff, input.startAt)
-                // A recordless recreated plan saved before its start keeps startAt as
-                // each slot's effectiveFrom.
-                val saved = recreated.copy(
-                    schedule = recreated.schedule.copy(
-                        since = input.since,
-                        dayBoundary = input.dayBoundary,
-                        timeSlots = recreated.schedule.timeSlots.map {
-                            it.copy(effectiveFrom = checkNotNull(input.startAt))
-                        },
-                    ),
-                )
-                val start = LocalDate.of(2026, 10, 28)
-                val end = LocalDate.of(2026, 11, 1)
-                val owners = (archived.occurrencesBetweenInPlanWindow(start, end) +
-                        saved.occurrencesBetweenInPlanWindow(start, end))
-                    .groupingBy { it.scheduledFor }
-                    .eachCount()
-                for (day in 29..31) {
-                    val slot = LocalDateTime.of(2026, 10, day, 1, 0)
-                    assertEquals("$type $from -> $to at $slot", 1, owners[slot])
-                }
-
-            }
-        }
+        // Only the day ending changed: the date, the time and the weekdays are as picked.
+        assertEquals(picked.copy(medicationDayBoundary = MedicationDayBoundary.FourAm), viewModel.uiState.value)
+        viewModel.updateDayEndsAtFourAm(false)
+        assertEquals(picked, viewModel.uiState.value)
+        // A whole day stays a whole day.
+        viewModel.updateSinceDate(LocalDate.of(2026, 10, 29))
+        viewModel.updateDayEndsAtFourAm(true)
+        assertEquals(ScheduleStart.WholeDay, viewModel.uiState.value.scheduleStart)
+        assertEquals(LocalDateTime.of(2026, 10, 29, 4, 0), viewModel.uiState.value.scheduleStartAt(LocalDateTime.MIN))
     }
 
     @Test
-    fun aPickedStartTimeKeepsItsMomentAcrossNightOwl() {
-        val now = LocalDateTime.of(2026, 10, 20, 12, 0)
-        val picked = MedicationGroupEditorUiState(
-            sinceDate = LocalDate.of(2026, 10, 29),
-            scheduleStart = ScheduleStart.At(LocalTime.of(2, 0)),
-            scheduleType = MedicationGroupScheduleType.WEEKLY,
-            weeklyDaysOfWeek = setOf(DayOfWeek.THURSDAY),
-        )
-        val start = LocalDateTime.of(2026, 10, 29, 2, 0)
-        assertEquals(start, picked.scheduleStartAt(now))
-
-        val nightOwl = picked.withDayBoundary(MedicationDayBoundary.FourAm, now)
-
-        assertEquals(LocalDate.of(2026, 10, 28), nightOwl.sinceDate)
-        assertEquals(start, nightOwl.scheduleStartAt(now))
-        assertEquals(setOf(DayOfWeek.WEDNESDAY), nightOwl.weeklyDaysOfWeek)
-        assertEquals(picked, nightOwl.withDayBoundary(MedicationDayBoundary.Midnight, now))
-        // Weekdays the user picked stay.
-        assertEquals(
-            setOf(DayOfWeek.THURSDAY),
-            picked.copy(hasUserCustomizedWeeklyDays = true)
-                .withDayBoundary(MedicationDayBoundary.FourAm, now)
-                .weeklyDaysOfWeek,
-        )
-    }
-
-    @Test
-    fun aRecordArrivingAfterTheToggleRestoresTheSavedEnding() = runTest {
+    fun aRecordArrivingAfterTheToggleKeepsItAndRefusesTheSave() = runTest {
         val group = nightOwlGroup(dayBoundary = MedicationDayBoundary.Midnight)
         val entries = MutableStateFlow<List<MedicationLogEntry>?>(emptyList())
         every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
@@ -475,19 +415,21 @@ class MedicationGroupEditorMedicationDayTest {
         val opened = viewModel.uiState.value
         viewModel.updateDayEndsAtFourAm(true)
         advanceUntilIdle()
-        assertEquals(opened.sinceDate.minusDays(1), viewModel.uiState.value.sinceDate)
+        assertEquals(opened.sinceDate, viewModel.uiState.value.sinceDate)
 
         entries.value = listOf(planRecord(LocalDateTime.of(2026, 10, 19, 1, 0)))
         advanceUntilIdle()
 
+        // Nothing goes back; the save is refused instead.
         val state = viewModel.uiState.value
         assertFalse(state.canEditDayBoundary)
-        assertEquals(MedicationDayBoundary.Midnight, state.medicationDayBoundary)
+        assertEquals(MedicationDayBoundary.FourAm, state.medicationDayBoundary)
         assertEquals(opened.sinceDate, state.sinceDate)
         assertEquals(ScheduleStart.At(LocalTime.of(2, 0)), state.scheduleStart)
         viewModel.saveGroup()
         advanceUntilIdle()
-        assertEquals(MedicationDayBoundary.Midnight, savedSchedule.captured.dayBoundary)
+        assertEquals(SaveMedicationGroupResult.LOCKED_BY_RECORDS, viewModel.uiState.value.saveMedicationGroupResult)
+        assertFalse(savedSchedule.isCaptured)
     }
 
     @Test
@@ -513,9 +455,6 @@ class MedicationGroupEditorMedicationDayTest {
         val group = nightOwlGroup(dayBoundary = MedicationDayBoundary.Midnight)
         every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
-        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns
-                group.copy(uuid = savedGroupUuid, recreatedFromGroupUuid = groupUuid)
-        val savedSchedule = stubArchiveAndRecreateGroup(returns = savedGroupUuid)
         val viewModel = editingViewModel(now = LocalDateTime.of(2026, 10, 29, 2, 0))
         advanceUntilIdle()
 
@@ -524,9 +463,6 @@ class MedicationGroupEditorMedicationDayTest {
 
         assertEquals(MedicationDayBoundary.FourAm, viewModel.uiState.value.medicationDayBoundary)
         assertEquals(LocalDate.of(2026, 10, 28), viewModel.uiState.value.archiveDateWindow.maxDate)
-        viewModel.archiveAndRecreateGroup()
-        advanceUntilIdle()
-        assertEquals(LocalDate.of(2026, 10, 29), savedSchedule.captured.since)
     }
 
     @Test
@@ -547,10 +483,71 @@ class MedicationGroupEditorMedicationDayTest {
         viewModel.updateDayEndsAtFourAm(true)
 
         val nightOwl = viewModel.uiState.value
+        // A start past its first day: the form shows that first day, Oct 1, and counts from it.
         assertEquals(LocalDate.of(2026, 10, 1), nightOwl.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 1), nightOwl.toScheduleInput(now).since)
         assertEquals(upcoming, buildMedicationGroupEditorUpcomingOccurrences(nightOwl, now))
         viewModel.updateDayEndsAtFourAm(false)
         assertEquals(opened, viewModel.uiState.value)
+    }
+
+    @Test
+    fun nightOwlOnASavedPlanKeepsItsRhythm() = runTest {
+        // A midnight plan from Sun Nov 1, started at 02:00 that day.
+        val since = LocalDate.of(2026, 11, 1)
+        val now = LocalDateTime.of(2026, 11, 8, 12, 0)
+        for ((type, interval) in listOf(MedicationGroupScheduleType.DAILY to 2, MedicationGroupScheduleType.WEEKLY to 2)) {
+            val group = nightOwlGroup(
+                type = type,
+                interval = interval,
+                dayBoundary = MedicationDayBoundary.Midnight,
+                since = since,
+                times = listOf(LocalTime.of(9, 0)),
+                effectiveFrom = since.atTime(2, 0),
+            )
+            every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+            every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+            val savedSchedule = stubSaveGroup(uuid = groupUuid, returns = groupUuid)
+            val viewModel = editingViewModel(now = now)
+            advanceUntilIdle()
+            val upcoming = buildMedicationGroupEditorUpcomingOccurrences(viewModel.uiState.value, now)
+
+            viewModel.updateDayEndsAtFourAm(true)
+
+            // The start day stays, so the doses stay on their days; 02:00 now falls before that
+            // day's 04:00 start, so the plan starts then.
+            val nightOwl = viewModel.uiState.value
+            assertEquals("$type", upcoming, buildMedicationGroupEditorUpcomingOccurrences(nightOwl, now))
+            viewModel.saveGroup()
+            advanceUntilIdle()
+            assertEquals("$type", since, savedSchedule.captured.since)
+            assertEquals("$type", since.atTime(4, 0), savedSchedule.captured.startAt)
+            // Turned back, it is the saved start again.
+            viewModel.updateDayEndsAtFourAm(false)
+            assertEquals("$type", since.atTime(2, 0), viewModel.uiState.value.scheduleStartAt(now))
+        }
+    }
+
+    @Test
+    fun aSavedNightOwlStartInTheSmallHoursReopensOnItsSavedDate() = runTest {
+        // Saved from Oct 20's medication day, starting Oct 21 at 01:00 (still Oct 20's night).
+        val group = nightOwlGroup(since = LocalDate.of(2026, 10, 20), effectiveFrom = LocalDateTime.of(2026, 10, 21, 1, 0))
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        val savedSchedule = stubSaveGroup(uuid = groupUuid, returns = groupUuid)
+        val viewModel = editingViewModel(now = LocalDateTime.of(2026, 10, 19, 12, 0))
+        advanceUntilIdle()
+
+        // The form shows the start as entered; the saved first day is kept beside it.
+        assertEquals(LocalDate.of(2026, 10, 21), viewModel.uiState.value.sinceDate)
+        assertEquals(
+            ScheduleStart.Loaded(LocalDateTime.of(2026, 10, 21, 1, 0), LocalDate.of(2026, 10, 20)),
+            viewModel.uiState.value.scheduleStart,
+        )
+        viewModel.saveGroup()
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 10, 20), savedSchedule.captured.since)
+        assertEquals(LocalDateTime.of(2026, 10, 21, 1, 0), savedSchedule.captured.startAt)
     }
 
     @Test
@@ -570,37 +567,13 @@ class MedicationGroupEditorMedicationDayTest {
 
         viewModel.updateDayEndsAtFourAm(true)
 
+        // Past its first day under midnight: the form shows the first day, Oct 20.
         assertEquals(LocalDate.of(2026, 10, 20), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 20), viewModel.uiState.value.toScheduleInput(now).since)
         assertEquals(start, viewModel.uiState.value.scheduleStartAt(now))
         viewModel.updateDayEndsAtFourAm(false)
         assertEquals(opened, viewModel.uiState.value)
         assertEquals(start, viewModel.uiState.value.scheduleStartAt(now))
-    }
-
-    @Test
-    fun aRecreatedPlansSavedStartPastItsDatesOwnDayKeepsItsDateAndRhythm() = runTest {
-        // Archived through Oct 27 and recreated on Oct 29 at 14:00: since Oct 28,
-        // saved start Oct 29 14:00, every 2 days at 01:00.
-        val now = LocalDateTime.of(2026, 10, 29, 15, 0)
-        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns nightOwlGroup(
-            dayBoundary = MedicationDayBoundary.Midnight,
-            since = LocalDate.of(2026, 10, 28),
-            effectiveFrom = LocalDateTime.of(2026, 10, 29, 14, 0),
-            interval = 2,
-        ).copy(recreatedFromGroupUuid = savedGroupUuid)
-        val viewModel = editingViewModel(now = now)
-        advanceUntilIdle()
-        val opened = viewModel.uiState.value
-        val upcoming = buildMedicationGroupEditorUpcomingOccurrences(opened, now)
-        assertEquals(LocalDateTime.of(2026, 10, 30, 1, 0), upcoming.first())
-
-        viewModel.updateDayEndsAtFourAm(true)
-
-        val nightOwl = viewModel.uiState.value
-        assertEquals(LocalDate.of(2026, 10, 28), nightOwl.sinceDate)
-        viewModel.updateDayEndsAtFourAm(false)
-        assertEquals(opened, viewModel.uiState.value)
-        assertEquals(upcoming, buildMedicationGroupEditorUpcomingOccurrences(viewModel.uiState.value, now))
     }
 
     @Test
@@ -619,12 +592,19 @@ class MedicationGroupEditorMedicationDayTest {
         assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
         assertEquals(setOf(DayOfWeek.FRIDAY), viewModel.uiState.value.weeklyDaysOfWeek)
 
-        // A night-owl draft's day only ends at 04:00.
+        // A night-owl draft's date stays the calendar's; the day it saves from ends at 04:00.
         viewModel.updateDayEndsAtFourAm(true)
-        assertEquals(LocalDate.of(2026, 10, 29), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
+        assertEquals(
+            LocalDate.of(2026, 10, 29),
+            viewModel.uiState.value.toScheduleInput(LocalDateTime.of(2026, 10, 30, 0, 10)).since,
+        )
         timeSource.setCurrentMinute(LocalDateTime.of(2026, 10, 30, 4, 0))
         advanceUntilIdle()
-        assertEquals(LocalDate.of(2026, 10, 30), viewModel.uiState.value.sinceDate)
+        assertEquals(
+            LocalDate.of(2026, 10, 30),
+            viewModel.uiState.value.toScheduleInput(LocalDateTime.of(2026, 10, 30, 4, 0)).since,
+        )
     }
 
     @Test
@@ -675,24 +655,6 @@ class MedicationGroupEditorMedicationDayTest {
                 medications = any(),
                 notificationsEnabled = any(),
                 includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
-                now = any(),
-            )
-        } returns returns
-        return savedSchedule
-    }
-
-    private fun stubArchiveAndRecreateGroup(returns: UUID): CapturingSlot<MedicationGroupScheduleInput> {
-        val savedSchedule = slot<MedicationGroupScheduleInput>()
-        coEvery {
-            medicationGroupRepository.archiveAndRecreateGroup(
-                uuid = groupUuid,
-                archivedThroughDate = any(),
-                name = any(),
-                colorKey = any(),
-                schedule = capture(savedSchedule),
-                medications = any(),
-                notificationsEnabled = any(),
                 now = any(),
             )
         } returns returns

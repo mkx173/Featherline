@@ -160,9 +160,10 @@ owl; it can't change once the plan has records or is archived). Soft-deleted via
 active); the archived-at timestamp also acts as the plan's
 slot-generation end cutoff, and is user-selectable — it may be
 backdated to an earlier day's end of day instead of the archive
-moment. Replacement chains are tracked via `replacedByGroupUuid` and
-`recreatedFromGroupUuid` so an edited group can preserve historical
-fulfillment links.
+moment. `replacedByGroupUuid` and `recreatedFromGroupUuid` linked a plan
+to the one an older build's archive-and-recreate replaced it with. Nothing
+reads them now, and no new plan sets them: a save, a backup and the Home
+snapshot only carry them.
 
 ### `MedicationGroupItemEntity`
 

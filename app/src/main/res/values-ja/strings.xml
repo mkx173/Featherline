@@ -368,8 +368,6 @@
     <string name="decrease_schedule_interval">スケジュール間隔の短縮</string>
     <string name="increase_schedule_interval">スケジュール間隔の延長</string>
     <string name="group_schedule_since">開始日</string>
-    <string name="group_schedule_recreated_start_date_past_note">再作成されたグループでは、開始日を過去に設定することはできません。</string>
-    <string name="group_past_schedule_recreated_locked_note">再作成されたグループには、過去のスケジュールは表示されません。</string>
     <string name="group_schedule_backfill_records_empty">記録が追加されていません。</string>
     <string name="group_schedule_backfill_records_failure">グループは保存されましたが、記録を追加することはできません。</string>
     <string name="group_schedule_days_of_week">曜日の選択</string>
@@ -418,8 +416,6 @@
     </plurals>
     <string name="archive_create_active_copy">アーカイブして複製</string>
     <string name="duplicate_medication_group">新しいグループとして複製</string>
-    <string name="archive_and_recreate_medication_group_success">アーカイブが完了しました。</string>
-    <string name="archive_and_recreate_medication_group_failure">グループのアーカイブと再構築に失敗しました。</string>
     <string name="group_locked_banner">このグループには既に関連する記録が存在するため、内容を変更することはできません。変更が必要な場合は、現在のグループを「アーカイブしてコピー」してください。</string>
     <string name="group_locked_time_note">スケジュール時間を変更すると、履歴に表示されるスケジュール時間も更新されます。</string>
     <string name="add">追加</string>

@@ -431,6 +431,9 @@ default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
 the optional `BackupMedicineSnapshot.stock` object (the entire stock
 feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
 actual-amount feature) all shipped without a snapshot-version bump.
+`replacedByGroupUuid` and `recreatedFromGroupUuid` are now only carried:
+the app no longer reads them or sets them on a new plan, but exports and
+restores them, so the format is unchanged.
 `BackupSnapshot.trackedDates` and `BackupSnapshot.notes` are the same
 kind of additive change: both top-level lists default to `emptyList()`,
 so v2-v5 backups that omit them restore with no journal rows, and

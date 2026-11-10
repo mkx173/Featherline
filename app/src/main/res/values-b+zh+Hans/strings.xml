@@ -383,12 +383,9 @@
     <string name="group_schedule_start_time">开始时间</string>
     <string name="group_schedule_start_now">现在</string>
     <string name="group_schedule_start_reset_to_now">重置</string>
-    <string name="group_schedule_recreated_start_date_past_note">重新创建的分组不能将开始日期设在过去</string>
-    <string name="group_schedule_recreated_start_before_cutoff">重新创建的分组不能早于 %1$s 开始，也就是已归档分组结束的时间</string>
     <string name="group_past_schedule_mark_completed">标记为已完成</string>
     <string name="group_past_schedule_mark_missed">标记为已错过</string>
     <string name="group_past_schedule_hide">隐藏</string>
-    <string name="group_past_schedule_recreated_locked_note">重新创建的分组不会显示过去的计划</string>
     <string name="group_schedule_backfill_records_empty">未添加记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
     <string name="group_schedule_days_of_week">选择星期</string>
@@ -411,6 +408,7 @@
     <string name="load_medication_group_retry">重试</string>
     <string name="save_medication_group_failure">无法保存分组</string>
     <string name="save_medication_group_locked_by_records">这项更改与分组里已有的记录不符，因此无法保存</string>
+    <string name="save_medication_group_deleted">这个分组已被删除，因此无法保存</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
     <string name="delete_group_also_related_records">同时删除相关记录</string>
@@ -441,8 +439,6 @@
     </plurals>
     <string name="archive_create_active_copy">归档后创建副本</string>
     <string name="duplicate_medication_group">复制为新分组</string>
-    <string name="archive_and_recreate_medication_group_success">已归档</string>
-    <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录，因此你无法更改部分内容，如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
     <string name="add">添加</string>
