@@ -41,7 +41,6 @@ import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.catalog.MedicineSlotResult
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -102,8 +101,6 @@ class MedicationGroupEditorRecordLockTest {
     private val medicineRepository: MedicineRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
-        mockk(relaxed = true)
     private val context: Context = mockk(relaxed = true)
     private val entries = MutableStateFlow<List<MedicationLogEntry>?>(emptyList())
     private val now = LocalDateTime.of(2026, 11, 8, 12, 0)
@@ -611,7 +608,6 @@ class MedicationGroupEditorRecordLockTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = FakeAppTimeSource(now),
@@ -771,7 +767,6 @@ class MedicationGroupEditorRecordLockTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = savedStateHandle,
             appTimeSource = clock,

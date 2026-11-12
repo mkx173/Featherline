@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
 import com.mkx.hrttracker.data.local.BloodTestDao
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
@@ -54,9 +55,10 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.settings.BackupRestoreEvent
 import com.mkx.hrttracker.ui.settings.messageRes
 import com.mkx.hrttracker.util.appLanguageLocale
@@ -119,7 +121,7 @@ class BackupRestoreServiceTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val reconcileMark: MedicationReminderScheduler.ReconcileMark = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val reminderCapabilityReconciler: ReminderCapabilityReconciler = mockk()
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler = mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
 
@@ -162,8 +164,8 @@ class BackupRestoreServiceTest {
             )
         } just Runs
         coEvery { medicationReminderScheduler.markReconcilePending() } returns reconcileMark
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any(), any()) } just Runs
+        coEvery { medicationReminderScheduler.clearSkips() } just Runs
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
 
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
@@ -183,7 +185,7 @@ class BackupRestoreServiceTest {
         settingsRepository = settingsRepository,
         homeSnapshotRepository = homeSnapshotRepository,
         medicationReminderScheduler = medicationReminderScheduler,
-        medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        reminderCapabilityReconciler = reminderCapabilityReconciler,
         widgetAppearanceRepository = widgetAppearanceRepository,
         backupCrypto = backupCrypto,
         healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
@@ -262,6 +264,70 @@ class BackupRestoreServiceTest {
             service.restoreBackupBytes(restore(flag = false), password = "password")
             assertEquals(false, device.getCurrentSettings().healthConnectWeightSyncEnabled)
         }
+
+    // As the weight-sync flag: a backup from before repeats keeps the device's; one with them sets them.
+    @Test
+    fun restoreBackupBytes_keepsTheReminderRepeatsWithoutThem_andTakesThem() =
+        runTest(settingsDispatcher) {
+            val device = deviceSettingsRepository("device")
+            device.setReminderRepeats(ReminderRepeats(count = 1, intervalMinutes = 30))
+            val service = restoreServiceFor(device)
+            fun restore(count: Int?, interval: Int?) = backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(
+                    emptySnapshot().let {
+                        it.copy(
+                            settings = it.settings.copy(
+                                reminderRepeatCount = count,
+                                reminderRepeatIntervalMinutes = interval,
+                            )
+                        )
+                    },
+                ),
+                password = "password".toCharArray(),
+            )
+
+            service.restoreBackupBytes(restore(count = null, interval = null), password = "password")
+            assertEquals(ReminderRepeats(1, 30), device.getCurrentSettings().reminderRepeats)
+
+            service.restoreBackupBytes(restore(count = 0, interval = 60), password = "password")
+            assertEquals(ReminderRepeats(0, 60), device.getCurrentSettings().reminderRepeats)
+            // The picker offers only valid ones; the store refuses any other.
+            assertTrue(runCatching { device.setReminderRepeats(ReminderRepeats(5, 15)) }.isFailure)
+        }
+
+    @Test
+    fun aStoredReminderRepeatOutOfRange_readsAsTheDefault() = runTest(settingsDispatcher) {
+        Dispatchers.setMain(settingsDispatcher)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        val raw = PreferenceDataStoreFactory.create(
+            scope = settingsScope,
+            produceFile = { tmpFolder.newFile("raw.preferences_pb") },
+        )
+        raw.edit { preferences ->
+            preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_count")] = 9
+            preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_interval_minutes")] = 15
+        }
+
+        assertEquals(ReminderRepeats(), SettingsRepository(raw).getCurrentSettings().reminderRepeats)
+    }
+
+    @Test
+    fun aBackupsReminderRepeats_roundTrip_andOutOfRangeOrHalfOnesAreRejected() {
+        fun validated(count: Int?, interval: Int?) = runCatching {
+            emptySnapshot().let {
+                it.copy(settings = it.settings.copy(reminderRepeatCount = count, reminderRepeatIntervalMinutes = interval))
+            }.let { snapshot -> BackupSnapshotJsonCodec.decode(BackupSnapshotJsonCodec.encode(snapshot))!! }
+                .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+                .settings.reminderRepeats
+        }
+
+        assertEquals(ReminderRepeats(4, 5), validated(4, 5).getOrThrow())
+        assertEquals(null, validated(null, null).getOrThrow())
+        assertTrue(validated(5, 15).isFailure)
+        assertTrue(validated(3, 7).isFailure)
+        assertTrue(validated(3, null).isFailure)
+    }
 
     @Test
     fun restoreBackupBytes_restoresABackupWithAGraceOptionFromANewerVersion() =
@@ -449,7 +515,7 @@ class BackupRestoreServiceTest {
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
             widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = BackupCrypto { _, _, _ -> throw OutOfMemoryError("Java heap space") },
             healthConnectCapabilityReconciler = healthConnectCapabilityReconciler,
@@ -553,7 +619,7 @@ class BackupRestoreServiceTest {
     }
 
     @Test
-    fun restoreBackup_clears_existing_snoozes_after_restoring_snapshot() = runTest {
+    fun restoreBackup_clearsTheSkips_andReconcilesWithARepost_afterRestoringTheSnapshot() = runTest {
         val fileUri: Uri = mockk(relaxed = true)
         every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
             backupCrypto.encryptSnapshotJson(
@@ -564,8 +630,11 @@ class BackupRestoreServiceTest {
 
         service.restoreBackup(fileUri = fileUri, password = "password")
 
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        // The skips first, then a forced reconcile that reposts what's on screen (B3, B11).
+        coVerifyOrder {
+            medicationReminderScheduler.clearSkips()
+            reminderCapabilityReconciler.reconcile("backup_restore", forceReschedule = true, repostShown = true)
+        }
         // A restored sync flag syncs now, or turns off without access.
         verify(exactly = 1) { healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true) }
     }
@@ -580,7 +649,7 @@ class BackupRestoreServiceTest {
         // the restored data and drops or refreshes the rest.
         coVerifyOrder {
             databaseHolder.runTransaction(any())
-            medicationReminderScheduler.rescheduleAll(any())
+            reminderCapabilityReconciler.reconcile(any(), any(), any())
         }
     }
 
@@ -595,7 +664,7 @@ class BackupRestoreServiceTest {
         assertTrue(result.exceptionOrNull() is IllegalStateException)
         // Nothing changed, so the reminders on screen are still right, and
         // nothing that could dismiss them ran.
-        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 0) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
         // Rolled back: the next pass, or the next start's, settles the mark.
         verify(exactly = 1) { reconcileMark.committed() }
     }
@@ -617,7 +686,7 @@ class BackupRestoreServiceTest {
             )
             // Past the settings, which hold the master switch the pass reads.
             reconcileMark.committed()
-            medicationReminderScheduler.rescheduleAll(any())
+            reminderCapabilityReconciler.reconcile(any(), any(), any())
         }
     }
 
@@ -644,8 +713,8 @@ class BackupRestoreServiceTest {
                 result.getOrNull(),
             )
             coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
-            coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-            coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+            coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
+            coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
             verify(exactly = 1) {
                 healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
             }
@@ -653,22 +722,22 @@ class BackupRestoreServiceTest {
 
     @Test
     fun restoreBackupBytes_reportsAFailedFollowUpWhenTheRescheduleFails() = runTest {
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws IOException("alarm store")
+        coEvery { reminderCapabilityReconciler.reconcile(any(), any(), any()) } throws IOException("alarm store")
 
         val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
 
         assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
     }
 
     @Test
-    fun restoreBackupBytes_stillReschedulesWhenTheSnoozeClearFails() = runTest {
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } throws IOException("snooze store")
+    fun restoreBackupBytes_stillReconcilesWhenTheSkipClearFails() = runTest {
+        coEvery { medicationReminderScheduler.clearSkips() } throws IOException("schedule store")
 
         val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
 
         assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
     }
 
     @Test
@@ -688,8 +757,8 @@ class BackupRestoreServiceTest {
 
         assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
         coVerify(exactly = 1) { widgetAppearanceRepository.setDefault(any()) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
         verify(exactly = 1) {
             healthConnectCapabilityReconciler.requestReconcile("backup_restore", sync = true)
         }
@@ -704,7 +773,7 @@ class BackupRestoreServiceTest {
         // A cold start runs a full pass anyway, so the mark is only a safety net.
         assertEquals(BackupRestoreOutcome.RESTORED, outcome)
         coVerify(exactly = 1) { databaseHolder.runTransaction(any()) }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
     }
 
     @Test
@@ -716,8 +785,8 @@ class BackupRestoreServiceTest {
         val outcome = service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
 
         assertEquals(BackupRestoreOutcome.FOLLOW_UP_FAILED, outcome)
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.clearSkips() }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
     }
 
     private fun emptySnapshotBytes(): ByteArray = backupCrypto.encryptSnapshotJson(
@@ -1723,7 +1792,7 @@ class BackupRestoreServiceTest {
                 any(),
             )
         }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any(), any(), any()) }
     }
 
     @Test

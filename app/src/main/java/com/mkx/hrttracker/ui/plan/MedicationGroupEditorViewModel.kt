@@ -32,7 +32,6 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.catalog.DraftGroupReferences
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationDoseDraft
@@ -95,7 +94,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicineRepository: MedicineRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     @param:ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val appTimeSource: AppTimeSource,
@@ -1423,7 +1421,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 }
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-                    runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
@@ -1688,7 +1685,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-                    runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
                 }
             }
         }

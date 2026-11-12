@@ -15,7 +15,6 @@ import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderScheduleStore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.ToastManager
@@ -45,7 +44,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.io.IOException
-import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
 
 class StartupPreloaderTest {
@@ -59,7 +57,6 @@ class StartupPreloaderTest {
     private val userProfileRepository: UserProfileRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     @Test
@@ -74,8 +71,7 @@ class StartupPreloaderTest {
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } returns Unit
 
         StartupPreloader(
             appScope = CoroutineScope(Dispatchers.IO),
@@ -87,15 +83,10 @@ class StartupPreloaderTest {
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
         ).startAfterFirstHomeFrame()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(
-            timeout = 1_000,
-            exactly = 1
-        ) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -103,16 +94,14 @@ class StartupPreloaderTest {
     fun startReminderRescheduleFromSnapshot_usesSnapshotWithoutWarmingDatabase() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshot: HomeSnapshotRecord = mockk()
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(0L, snapshot, e2Inputs = null)
         coEvery { medicationReminderScheduler.isReconcilePending() } returns false
         coEvery {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
-                now = now,
+                now = any(),
             )
         } returns true
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
 
         StartupPreloader(
             appScope = CoroutineScope(dispatcher),
@@ -124,9 +113,8 @@ class StartupPreloaderTest {
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromSnapshot(now = now)
+        ).startReminderRescheduleFromSnapshot()
         advanceUntilIdle()
 
         coVerify(
@@ -136,25 +124,19 @@ class StartupPreloaderTest {
         coVerify(timeout = 1_000, exactly = 1) {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
-                now = now,
+                now = any(),
             )
         }
-        coVerify(
-            timeout = 1_000,
-            exactly = 1
-        ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun startReminderRescheduleFromSnapshot_reschedulesSnoozesWhenNoUsableSnapshotExists() =
+    fun startReminderRescheduleFromSnapshot_logsWhenNoUsableSnapshotExists() =
         runTest {
             val dispatcher = StandardTestDispatcher(testScheduler)
-            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
             coEvery { homeSnapshotRepository.currentState() } returns null
             coEvery { medicationReminderScheduler.isReconcilePending() } returns false
-            coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
 
             StartupPreloader(
                 appScope = CoroutineScope(dispatcher),
@@ -166,28 +148,22 @@ class StartupPreloaderTest {
                 userProfileRepository = userProfileRepository,
                 settingsRepository = settingsRepository,
                 medicationReminderScheduler = medicationReminderScheduler,
-                medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
                 diagnosticsLogger = diagnosticsLogger,
-            ).startReminderRescheduleFromSnapshot(now = now)
+            ).startReminderRescheduleFromSnapshot()
             advanceUntilIdle()
-
-            coVerify(
-                timeout = 1_000,
-                exactly = 1
-            ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-            coVerify(timeout = 1_000, exactly = 0) {
-                medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any())
-            }
-            verify(exactly = 0) { databaseHolder.get() }
-            verify {
+            // The job runs on Dispatchers.IO: wait for its last step before the negative checks.
+            verify(timeout = 1_000) {
                 diagnosticsLogger.info(
                     "StartupPreloader",
                     match { message ->
-                        "snapshot_reminder_reschedule_no_usable_snapshot" in message &&
-                                "now=2026-05-06T10:15" in message
+                        "snapshot_reminder_reschedule_no_usable_snapshot" in message
                     }
                 )
             }
+            coVerify(exactly = 0) {
+                medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any())
+            }
+            verify(exactly = 0) { databaseHolder.get() }
         }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -197,12 +173,10 @@ class StartupPreloaderTest {
         // snapshot can predate the restore, and only rescheduleAll reconciles what's shown.
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshot: HomeSnapshotRecord = mockk()
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(0L, snapshot, e2Inputs = null)
         coEvery { medicationReminderScheduler.isReconcilePending() } returns true
         coEvery { medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any()) } returns true
-        coEvery { medicationReminderScheduler.rescheduleAll(now = now) } returns Unit
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } returns Unit
 
         StartupPreloader(
             appScope = CoroutineScope(dispatcher),
@@ -214,37 +188,34 @@ class StartupPreloaderTest {
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromSnapshot(now = now)
+        ).startReminderRescheduleFromSnapshot()
         advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any(), any()) }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any()) }
     }
 
     @Test
     fun startReminderRescheduleFromSnapshot_reconcilesFromRoomForAMarkThatAPassBeforeItsCommitLeft() = runTest {
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         // The reminder schedule store, as DataStore keeps it from one process to the next.
         val reconcilePending = AtomicBoolean(false)
         val reminderScheduleStore: ReminderScheduleStore = mockk {
             coEvery { getScheduledReminders() } returns emptyMap()
             coEvery { replaceScheduledReminders(any()) } returns Unit
+            coEvery { getSkippedThrough() } returns emptyMap()
             coEvery { isReconcilePending() } answers { reconcilePending.get() }
             coEvery { setReconcilePending(any()) } answers { reconcilePending.set(firstArg()) }
         }
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
         coEvery { medicationGroupRepository.getGroups() } returns emptyList()
         coEvery { medicationLogRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
         fun schedulerOfAProcess() = MedicationReminderScheduler(
             context = mockk(),
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             reminderNotificationManager = mockk { every { activeDoseReminders() } returns emptyMap() },
             homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
@@ -253,10 +224,10 @@ class StartupPreloaderTest {
         // the restore commits, and its own pass fails.
         val earlier = schedulerOfAProcess()
         val restoreMark = earlier.markReconcilePending()
-        earlier.rescheduleAll(now)
+        earlier.rescheduleAll()
         restoreMark.committed()
         coEvery { medicationGroupRepository.getGroups() } throws IllegalStateException("database closed")
-        runCatching { earlier.rescheduleAll(now) }
+        runCatching { earlier.rescheduleAll() }
         assertTrue("the restore's reconcile is owed at the next start", reconcilePending.get())
         coEvery { medicationGroupRepository.getGroups() } returns emptyList()
 
@@ -270,38 +241,13 @@ class StartupPreloaderTest {
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = schedulerOfAProcess(),
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromSnapshot(now = now)
+        ).startReminderRescheduleFromSnapshot()
 
         // Last in the startup job, on either path.
-        coVerify(timeout = 1_000) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000) { reminderScheduleStore.setReconcilePending(false) }
         coVerify(exactly = 0) { homeSnapshotRepository.currentState() }
         assertFalse("the startup reconcile settles the mark", reconcilePending.get())
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun startReminderRescheduleFromSnapshot_reschedulesSnoozesAfterTheSnapshotPass() = runTest {
-        // The snooze pass reads Room once records exist; the snapshot pass shouldn't wait on it.
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val snapshot: HomeSnapshotRecord = mockk()
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(0L, snapshot, e2Inputs = null)
-        coEvery { medicationReminderScheduler.isReconcilePending() } returns false
-        coEvery { medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot, now) } returns true
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
-
-        preloader(dispatcher).startReminderRescheduleFromSnapshot(now = now)
-        advanceUntilIdle()
-
-        // On Dispatchers.IO, past the test scheduler: wait for both before checking their order.
-        coVerify(timeout = 1_000) { medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot, now) }
-        coVerify(timeout = 1_000) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-        coVerifyOrder {
-            medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot, now)
-            medicationReminderSnoozeScheduler.rescheduleAll(now = now)
-        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -310,17 +256,15 @@ class StartupPreloaderTest {
         // A save since the snapshot was read: the scheduler turned the snapshot down.
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshot: HomeSnapshotRecord = mockk()
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
         coEvery { homeSnapshotRepository.currentState() } returns HomeCacheState(0L, snapshot, e2Inputs = null)
         coEvery { medicationReminderScheduler.isReconcilePending() } returns false
-        coEvery { medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot, now) } returns false
-        coEvery { medicationReminderScheduler.rescheduleAll(now = now) } returns Unit
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot, any()) } returns false
+        coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } returns Unit
 
-        preloader(dispatcher).startReminderRescheduleFromSnapshot(now = now)
+        preloader(dispatcher).startReminderRescheduleFromSnapshot()
         advanceUntilIdle()
 
-        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     private fun preloader(dispatcher: CoroutineDispatcher) = StartupPreloader(
@@ -333,7 +277,6 @@ class StartupPreloaderTest {
         userProfileRepository = userProfileRepository,
         settingsRepository = settingsRepository,
         medicationReminderScheduler = medicationReminderScheduler,
-        medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         diagnosticsLogger = diagnosticsLogger,
     )
 
@@ -341,9 +284,7 @@ class StartupPreloaderTest {
     @Test
     fun startReminderRescheduleFromWarmDatabase_reschedulesWithoutWarmupPass() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-        coEvery { medicationReminderScheduler.rescheduleAll(now = now) } returns Unit
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } returns Unit
 
         StartupPreloader(
             appScope = CoroutineScope(dispatcher),
@@ -355,61 +296,20 @@ class StartupPreloaderTest {
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
-        ).startReminderRescheduleFromWarmDatabase(now = now)
+        ).startReminderRescheduleFromWarmDatabase()
         advanceUntilIdle()
 
         coVerify(
             timeout = 1_000,
             exactly = 1
-        ) { medicationReminderScheduler.rescheduleAll(now = now) }
-        coVerify(
-            timeout = 1_000,
-            exactly = 1
-        ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        ) { medicationReminderScheduler.rescheduleAll(any(), any()) }
         verify(exactly = 0) { databaseHolder.get() }
         coVerify(exactly = 0) { medicationGroupRepository.getGroups() }
         coVerify(exactly = 0) { medicationLogRepository.getEntries() }
         coVerify(exactly = 0) { userProfileRepository.getCurrentProfile() }
         coVerify(exactly = 0) { settingsRepository.getCurrentSettings() }
     }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun startReminderRescheduleFromWarmDatabase_reschedulesSnoozesWhenRoomReminderRescheduleFails() =
-        runTest {
-            val dispatcher = StandardTestDispatcher(testScheduler)
-            val now = LocalDateTime.of(2026, 5, 6, 10, 15)
-            coEvery { medicationReminderScheduler.rescheduleAll(now = now) } throws
-                    RuntimeException("Room unavailable")
-            coEvery { medicationReminderSnoozeScheduler.rescheduleAll(now = now) } returns Unit
-
-            StartupPreloader(
-                appScope = CoroutineScope(dispatcher),
-                databaseHolder = databaseHolder,
-                homeSnapshotRepository = homeSnapshotRepository,
-                medicationGroupRepository = medicationGroupRepository,
-                medicationLogRepository = medicationLogRepository,
-                medicineRepository = medicineRepository,
-                userProfileRepository = userProfileRepository,
-                settingsRepository = settingsRepository,
-                medicationReminderScheduler = medicationReminderScheduler,
-                medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-                diagnosticsLogger = diagnosticsLogger,
-            ).startReminderRescheduleFromWarmDatabase(now = now)
-            advanceUntilIdle()
-
-            coVerify(
-                timeout = 1_000,
-                exactly = 1
-            ) { medicationReminderScheduler.rescheduleAll(now = now) }
-            coVerify(
-                timeout = 1_000,
-                exactly = 1
-            ) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-            verify(exactly = 0) { databaseHolder.get() }
-        }
 
     // Intent: a database key that can't be recovered (DatabaseKeyUnavailableException)
     // closes the app from the in-app startup open: no database opens again until the data is

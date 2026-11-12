@@ -132,12 +132,12 @@ class MedicationDayCadenceTest {
         val plans = buildNextMedicationReminderPlans(
             groups = listOf(group),
             entries = emptyList(),
-            now = LocalDateTime.of(2026, 10, 19, 1, 32),
+            now = LocalDateTime.of(2026, 10, 19, 1, 32).atZone(java.time.ZoneId.systemDefault()).toInstant(),
         )
 
         assertEquals(
             listOf(LocalDateTime.of(2026, 10, 19, 2, 0)),
-            plans.map(MedicationReminderPlan::scheduledAt),
+            plans.map(MedicationReminderPlan::doseAt),
         )
     }
 

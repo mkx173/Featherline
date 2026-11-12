@@ -27,6 +27,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -90,6 +91,8 @@ class SettingsRepository internal constructor(
     private val hazeBlurKey = booleanPreferencesKey("haze_blur")
     private val classicNavigationBarKey = booleanPreferencesKey("classic_navigation_bar")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val reminderRepeatCountKey = intPreferencesKey("reminder_repeat_count")
+    private val reminderRepeatIntervalKey = intPreferencesKey("reminder_repeat_interval_minutes")
     private val healthConnectWeightSyncEnabledKey =
         booleanPreferencesKey("health_connect_weight_sync_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
@@ -391,6 +394,14 @@ class SettingsRepository internal constructor(
         }
     }
 
+    suspend fun setReminderRepeats(repeats: ReminderRepeats) {
+        require(repeats.isValid()) { "Unsupported reminder repeats: $repeats" }
+        activeDataStore().edit { preferences ->
+            preferences[reminderRepeatCountKey] = repeats.count
+            preferences[reminderRepeatIntervalKey] = repeats.intervalMinutes
+        }
+    }
+
     suspend fun setHealthConnectWeightSyncEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[healthConnectWeightSyncEnabledKey] = enabled
@@ -523,6 +534,8 @@ class SettingsRepository internal constructor(
         // Null keeps the device's setting.
         healthConnectWeightSyncEnabled: Boolean? = null,
         classicNavigationBarEnabled: Boolean = false,
+        // Null keeps the device's setting, as from a backup made before repeats.
+        reminderRepeats: ReminderRepeats? = null,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -536,6 +549,10 @@ class SettingsRepository internal constructor(
             preferences[classicNavigationBarKey] = classicNavigationBarEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             healthConnectWeightSyncEnabled?.let { preferences[healthConnectWeightSyncEnabledKey] = it }
+            reminderRepeats?.let { repeats ->
+                preferences[reminderRepeatCountKey] = repeats.count
+                preferences[reminderRepeatIntervalKey] = repeats.intervalMinutes
+            }
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[hideReferenceRangesKey] = hideReferenceRanges
             // The lock, its grace period and hide screen content stay local: a backup can't loosen them.
@@ -644,6 +661,11 @@ class SettingsRepository internal constructor(
             homeE2ChartWindowOption = HomeE2ChartWindowOption
                 .fromStorageValue(preferences[homeE2ChartWindowKey]),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
+            reminderRepeats = ReminderRepeats(
+                count = preferences[reminderRepeatCountKey] ?: ReminderRepeats.DEFAULT_COUNT,
+                intervalMinutes = preferences[reminderRepeatIntervalKey]
+                    ?: ReminderRepeats.DEFAULT_INTERVAL_MINUTES,
+            ).takeIf(ReminderRepeats::isValid) ?: ReminderRepeats(),
             healthConnectWeightSyncEnabled = preferences[healthConnectWeightSyncEnabledKey] ?: false,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,

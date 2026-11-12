@@ -50,7 +50,8 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.model.settings.ReminderRepeats
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
@@ -102,7 +103,7 @@ class BackupRestoreService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val reminderCapabilityReconciler: ReminderCapabilityReconciler,
     private val widgetAppearanceRepository: WidgetAppearanceRepository,
     private val backupCrypto: BackupCrypto,
     private val healthConnectCapabilityReconciler: HealthConnectCapabilityReconciler,
@@ -335,6 +336,7 @@ class BackupRestoreService @Inject constructor(
                         hazeBlurEnabled = validatedSnapshot.settings.hazeBlurEnabled,
                         classicNavigationBarEnabled = validatedSnapshot.settings.classicNavigationBarEnabled,
                         remindersEnabled = validatedSnapshot.settings.remindersEnabled,
+                        reminderRepeats = validatedSnapshot.settings.reminderRepeats,
                         healthConnectWeightSyncEnabled =
                             validatedSnapshot.settings.healthConnectWeightSyncEnabled,
                         showArchivedGroupRecords = validatedSnapshot.settings.showArchivedGroupRecords,
@@ -366,8 +368,7 @@ class BackupRestoreService @Inject constructor(
         }
 
         // Past the commit, a cancel (the restore runs on viewModelScope) must not skip
-        // these: restored plans would get no alarms, and old snoozes would stay until the
-        // next cold start. So a CancellationException in here is a step's own failure, not
+        // these: restored plans would get no alarms until the next cold start. So a CancellationException in here is a step's own failure, not
         // the caller's, and is caught like any other; rethrown, it would skip the rest.
         withContext(NonCancellable) {
             // Restore REPLACES the default appearance wholesale, including hue, saturation
@@ -396,15 +397,15 @@ class BackupRestoreService @Inject constructor(
                 )
             }
 
-            // Before rescheduleAll: its reconcile reposts a changed reminder with Remind
-            // later worked out from the snooze counts, so they must be reset first.
+            // Skips were of this phone's doses; before the pass, so it arms a restored dose's
+            // remaining alerts. Lost to a death before it, a skip only keeps a dose quiet.
             try {
-                medicationReminderSnoozeScheduler.clearAllSnoozes()
+                medicationReminderScheduler.clearSkips()
             } catch (error: Throwable) {
                 followUpFailed = true
                 diagnosticsLogger.warning(
                     TAG,
-                    "restore_snooze_clear_failed",
+                    "restore_skip_clear_failed",
                     error,
                 )
             }
@@ -413,8 +414,15 @@ class BackupRestoreService @Inject constructor(
             // exception caused "restore failed" toasts even when the user's
             // data had been restored successfully. The reconcile marked above
             // stays pending, so startup runs it on the next app launch.
+            // Through the capability reconcile: a restored switch on, on a phone without
+            // notification access, is turned off (B11). And every reminder on screen is
+            // reposted, so none keeps the old language or Hide medication details (B3).
             try {
-                medicationReminderScheduler.rescheduleAll()
+                reminderCapabilityReconciler.reconcile(
+                    reason = "backup_restore",
+                    forceReschedule = true,
+                    repostShown = true,
+                )
             } catch (error: Throwable) {
                 followUpFailed = true
                 diagnosticsLogger.warning(
@@ -765,9 +773,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         }
     }
 
-    val groupEntitiesWithLineage = groupEntities.withDerivedRecreatedFromGroupUuids()
-    val validGroupUuids =
-        groupEntitiesWithLineage.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
+    val validGroupUuids = groupEntities.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
     val scheduleTimeGroupByUuid = groupScheduleTimeEntities.associate { scheduleTime ->
         scheduleTime.uuid to scheduleTime.groupUuid
     }
@@ -1005,7 +1011,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         settings = validatedSettings,
         userProfile = validatedUserProfile,
         medicines = medicineEntities,
-        medicationGroups = groupEntitiesWithLineage,
+        medicationGroups = groupEntities,
         medicationGroupItems = groupItemEntities,
         medicationGroupScheduleTimes = groupScheduleTimeEntities,
         medicationGroupWeeklyDays = groupWeeklyDayEntities,
@@ -1052,24 +1058,6 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
         disposition = disposition.name,
         updatedAtEpochMillis = updatedAtEpochMillis,
     )
-}
-
-private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): List<MedicationGroupEntity> {
-    val sourceUuidBySuccessorUuid = mutableMapOf<String, String>()
-    forEach { group ->
-        val successorUuid = group.replacedByGroupUuid ?: return@forEach
-        if (successorUuid !in sourceUuidBySuccessorUuid) {
-            sourceUuidBySuccessorUuid[successorUuid] = group.uuid
-        }
-    }
-    return map { group ->
-        val derivedSourceUuid = sourceUuidBySuccessorUuid[group.uuid]
-        if (group.recreatedFromGroupUuid == null && derivedSourceUuid != null) {
-            group.copy(recreatedFromGroupUuid = derivedSourceUuid)
-        } else {
-            group
-        }
-    }
 }
 
 private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
@@ -1120,6 +1108,17 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
     }
 
     val homeCardLayout = HomeCardLayout.decode(homeCardOrder, homeCardHidden)
+    // Both or neither: a backup from before repeats has neither, and keeps the device's.
+    val reminderRepeats = if (reminderRepeatCount == null && reminderRepeatIntervalMinutes == null) {
+        null
+    } else {
+        ReminderRepeats(
+            count = requireNotNull(reminderRepeatCount) { "Reminder repeat count is missing." },
+            intervalMinutes = requireNotNull(reminderRepeatIntervalMinutes) {
+                "Reminder repeat interval is missing."
+            },
+        ).also { repeats -> require(repeats.isValid()) { "Unsupported reminder repeats $repeats." } }
+    }
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -1128,6 +1127,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         hazeBlurEnabled = hazeBlurEnabled,
         classicNavigationBarEnabled = classicNavigationBarEnabled,
         remindersEnabled = remindersEnabled,
+        reminderRepeats = reminderRepeats,
         healthConnectWeightSyncEnabled = healthConnectWeightSyncEnabled,
         showArchivedGroupRecords = showArchivedGroupRecords,
         hideReferenceRanges = hideReferenceRanges,
@@ -1785,6 +1785,7 @@ internal data class ValidatedBackupSettings(
     val hazeBlurEnabled: Boolean,
     val classicNavigationBarEnabled: Boolean,
     val remindersEnabled: Boolean,
+    val reminderRepeats: ReminderRepeats?,
     val healthConnectWeightSyncEnabled: Boolean?,
     val showArchivedGroupRecords: Boolean,
     val hideReferenceRanges: Boolean,

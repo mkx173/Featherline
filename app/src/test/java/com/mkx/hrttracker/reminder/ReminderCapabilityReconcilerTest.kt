@@ -28,16 +28,13 @@ class ReminderCapabilityReconcilerTest {
     private val context: Context = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val appScope = CoroutineScope(UnconfinedTestDispatcher())
 
     @Before
     fun setUp() {
         mockkStatic("com.mkx.hrttracker.reminder.NotificationPermissionsKt")
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        coEvery { medicationReminderScheduler.rescheduleAll(any(), any()) } just Runs
         coEvery { settingsRepository.setRemindersEnabled(any()) } just Runs
     }
 
@@ -82,7 +79,6 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
     }
 
     @Test
@@ -94,7 +90,6 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile()
 
         coVerify(exactly = 0) { settingsRepository.setRemindersEnabled(any()) }
-        coVerify(exactly = 0) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
     }
 
     @Test
@@ -118,8 +113,7 @@ class ReminderCapabilityReconcilerTest {
         val reconciler = createReconciler()
         reconciler.reconcile()
 
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     @Test
@@ -134,8 +128,7 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile()
 
         coVerify(exactly = 1) { settingsRepository.getCurrentSettings() }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     @Test
@@ -149,7 +142,7 @@ class ReminderCapabilityReconcilerTest {
         givenCapabilities(notification = true, exactAlarm = false)
         reconciler.reconcile()
 
-        coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     @Test
@@ -163,7 +156,7 @@ class ReminderCapabilityReconcilerTest {
         reconciler.reconcile()
         reconciler.reconcile(forceReschedule = true)
 
-        coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 2) { medicationReminderScheduler.rescheduleAll(any(), any()) }
     }
 
     @Test
@@ -176,21 +169,26 @@ class ReminderCapabilityReconcilerTest {
 
         coVerifyOrder {
             settingsRepository.setRemindersEnabled(false)
-            medicationReminderSnoozeScheduler.clearAllSnoozes()
-            medicationReminderScheduler.rescheduleAll(any())
-            medicationReminderSnoozeScheduler.rescheduleAll(any())
+            medicationReminderScheduler.rescheduleAll(any(), any())
         }
     }
 
+    // B11: a restore's reconcile turns a restored switch off on a phone without access.
     @Test
-    fun reconcile_doesNotClearSnoozesWhenAccessIsGranted() = runTest {
-        givenCapabilities(notification = true, exactAlarm = false)
+    fun aRestoresReconcile_turnsRemindersOffWithoutAccess_andRepostsWhatIsShown() = runTest {
+        givenCapabilities(notification = false, exactAlarm = true)
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
-
         val reconciler = createReconciler()
         reconciler.reconcile()
 
-        coVerify(exactly = 0) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+        reconciler.reconcile(reason = "backup_restore", forceReschedule = true, repostShown = true)
+
+        coVerifyOrder {
+            settingsRepository.setRemindersEnabled(false)
+            medicationReminderScheduler.rescheduleAll(any(), repostShown = false)
+            settingsRepository.setRemindersEnabled(false)
+            medicationReminderScheduler.rescheduleAll(any(), repostShown = true)
+        }
     }
 
     @Test
@@ -219,7 +217,6 @@ class ReminderCapabilityReconcilerTest {
             appScope = appScope,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             diagnosticsLogger = diagnosticsLogger,
         )
     }

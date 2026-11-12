@@ -102,6 +102,7 @@ data class SettingsState(
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val remindersEnabled: Boolean = true,
+    val reminderRepeats: ReminderRepeats = ReminderRepeats(),
     // Intent flag: the user wants weight synced with Health Connect. Sync also
     // needs Health Connect access (HealthConnectCapabilityReconciler).
     val healthConnectWeightSyncEnabled: Boolean = false,
@@ -134,4 +135,28 @@ fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodU
     return calibrationDefaultUnits[analyteKey]
         ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
         ?: BloodTestCatalog.canonicalUnitFor(analyteKey)
+}
+
+/**
+ * How often a dose reminder rings while its dose is unlogged: at the dose time, then [count] more
+ * times, [intervalMinutes] apart. One setting for every plan, so plans that share a dose time
+ * share their alert times too.
+ */
+data class ReminderRepeats(
+    val count: Int = DEFAULT_COUNT,
+    val intervalMinutes: Int = DEFAULT_INTERVAL_MINUTES,
+) {
+    /** From the dose time to its last alert. */
+    val spanMinutes: Long get() = count.toLong() * intervalMinutes
+
+    fun isValid(): Boolean = count in COUNTS && intervalMinutes in INTERVALS_MINUTES
+
+    companion object {
+        const val DEFAULT_COUNT = 3
+        const val DEFAULT_INTERVAL_MINUTES = 15
+
+        /** 0 is Off: the dose rings once. */
+        val COUNTS: List<Int> = (0..4).toList()
+        val INTERVALS_MINUTES: List<Int> = (5..60 step 5).toList()
+    }
 }

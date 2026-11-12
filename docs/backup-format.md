@@ -140,7 +140,11 @@ flattened into the parent's JSON.
   suffix default group names, the stock-tracking-nudge flags
   `stockNudgeEnabled` / `stockNudgeUserEnabled`,
   `healthConnectWeightSyncEnabled` (absent before weight sync; the restore
-  then keeps the device's setting), and the home-card layout
+  then keeps the device's setting), `reminderRepeatCount` /
+  `reminderRepeatIntervalMinutes` (the reminder repeats, 0-4 and 5-60 in
+  steps of 5; both absent before repeats, and the restore then keeps the
+  device's; one without the other, or a value outside those, rejects the
+  backup), and the home-card layout
   `homeCardOrder` / `homeCardHidden`). The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
@@ -411,12 +415,17 @@ incompatible files are rejected at the cheapest detection point.
    (step 9).
 9. **Best-effort follow-ups.** After the mutation, in
    `withContext(NonCancellable)` so a cancelled caller can't skip
-   them: the widget appearance write, `clearAllSnoozes`, then
-   `rescheduleAll`, then the Health Connect reconcile. The snoozes
-   are cleared first because `rescheduleAll` reposts a changed
-   reminder with Remind later worked out from their counts; it also
-   keeps a reminder still due in the restored data and drops the
-   rest. A failed step is logged via `AppDiagnosticsLogger.warning`,
+   them: the widget appearance write, `clearSkips` (each plan's skip
+   watermark was this phone's), then a forced
+   `ReminderCapabilityReconciler.reconcile` with `repostShown`, then
+   the Health Connect reconcile. The capability reconcile turns
+   reminders off when the phone has no notification access, though the
+   backup had them on (decision B11), and runs `rescheduleAll`, which
+   keeps a reminder still due in the restored data, drops the rest,
+   and reposts every one it keeps, silently, so none shows the old
+   language or Hide medication details (decision B3). A process death
+   before it leaves the reconcile mark owed, and the next start's pass
+   reposts likewise. A failed step is logged via `AppDiagnosticsLogger.warning`,
    and the others still run. The restore then returns
    `BackupRestoreOutcome.FOLLOW_UP_FAILED` instead of `RESTORED`,
    and Settings shows "Unable to restore, please try again", the same
@@ -429,7 +438,8 @@ incompatible files are rejected at the cheapest detection point.
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
 default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
-`pkCalibrationIntroSeen`,
+`pkCalibrationIntroSeen`, `healthConnectWeightSyncEnabled`,
+`reminderRepeatCount` / `reminderRepeatIntervalMinutes`,
 `homeE2ChartWindow`, `homeCardOrder` / `homeCardHidden`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`,
 `recreatedFromGroupUuid`, `BackupMedicineSnapshot.displayDoseUnit`, and
@@ -438,7 +448,9 @@ feature), and `BackupMedicationLogSnapshot.doseAmountDelta` (the
 actual-amount feature) all shipped without a snapshot-version bump.
 `replacedByGroupUuid` and `recreatedFromGroupUuid` are now only carried:
 the app no longer reads them or sets them on a new plan, but exports and
-restores them, so the format is unchanged.
+restores them as the backup has them (the restore no longer derives a
+missing `recreatedFromGroupUuid` from its source's `replacedByGroupUuid`),
+so the format is unchanged.
 `BackupSnapshot.trackedDates` and `BackupSnapshot.notes` are the same
 kind of additive change: both top-level lists default to `emptyList()`,
 so v2-v5 backups that omit them restore with no journal rows, and

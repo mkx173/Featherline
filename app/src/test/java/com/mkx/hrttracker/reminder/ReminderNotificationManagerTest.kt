@@ -143,7 +143,7 @@ class ReminderNotificationManagerTest {
             )
         } throws SecurityException("revoked")
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle)
 
         verify {
             diagnosticsLogger.warning(
@@ -284,7 +284,7 @@ class ReminderNotificationManagerTest {
         every { notifManagerCompat.areNotificationsEnabled() } returns true
         every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle)
 
         val flags = mutableListOf<Int>()
         verify { anyConstructed<Intent>().setFlags(capture(flags)) }
@@ -323,7 +323,7 @@ class ReminderNotificationManagerTest {
         every { notifManagerCompat.areNotificationsEnabled() } returns true
         every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
 
-        notificationManager.showDoseReminderNotification(bundle, canSnooze = false)
+        notificationManager.showDoseReminderNotification(bundle)
 
         verify {
             anyConstructed<Intent>().putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
@@ -336,5 +336,65 @@ class ReminderNotificationManagerTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun showDoseReminderNotification_hasASwipeDeleteIntentAndASkipAction() {
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle, silent = true)
+
+        verify { anyConstructed<NotificationCompat.Builder>().setDeleteIntent(any()) }
+        verify { anyConstructed<Intent>().setAction(ACTION_MEDICATION_REMINDER_DISMISSED) }
+        verify { anyConstructed<Intent>().setAction(ACTION_MEDICATION_REMINDER_SKIP) }
+        verify { anyConstructed<NotificationCompat.Builder>().setSilent(true) }
+    }
+
+    @Test
+    fun showNextReminderToast_showsOneWithinTwoSeconds_asClearAllSendsOnePerReminder() {
+        var clock = 10_000L
+        notificationManager.elapsedRealtime = { clock }
+        val next = java.time.Instant.parse("2026-05-20T09:15:00Z")
+
+        notificationManager.showNextReminderToast(next)
+        clock += 500
+        notificationManager.showNextReminderToast(next)
+        clock += NEXT_REMINDER_TOAST_THROTTLE_MS
+        notificationManager.showNextReminderToast(next)
+
+        verify(exactly = 2) { toast.show() }
+    }
+
+    @Test
+    fun nextReminderToastText_namesTodayTomorrowOrTheDate() {
+        val today = java.time.LocalDate.of(2026, 5, 20)
+        every { context.getString(R.string.reminder_notification_next_today, *anyVararg()) } answers {
+            "today ${(args[1] as Array<*>)[0]}"
+        }
+        every { context.getString(R.string.reminder_notification_next_tomorrow, *anyVararg()) } answers {
+            "tomorrow ${(args[1] as Array<*>)[0]}"
+        }
+        every { context.getString(R.string.reminder_notification_next_on_date, *anyVararg()) } answers {
+            "on ${(args[1] as Array<*>).joinToString(" ")}"
+        }
+
+        assertEquals("today 08:15", nextReminderToastText(context, today.atTime(8, 15), today, is24Hour = true))
+        assertEquals("tomorrow 08:00", nextReminderToastText(context, today.plusDays(1).atTime(8, 0), today, is24Hour = true))
+        assertEquals(
+            "on May 23 08:00",
+            nextReminderToastText(context, today.plusDays(3).atTime(8, 0), today, is24Hour = true),
+        )
     }
 }

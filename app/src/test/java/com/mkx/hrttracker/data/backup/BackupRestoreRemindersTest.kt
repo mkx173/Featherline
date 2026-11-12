@@ -18,19 +18,17 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
-import com.mkx.hrttracker.reminder.MAX_REMINDER_SNOOZE_COUNT
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSlot
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeRecord
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.reminder.ReminderScheduleStore
 import com.mkx.hrttracker.reminder.ShownDoseReminder
 import com.mkx.hrttracker.reminder.buildMedicationReminderBundle
+import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
 import io.mockk.Runs
@@ -44,11 +42,13 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -64,8 +64,9 @@ import java.util.UUID
 
 /**
  * What a restore's post-commit steps leave the reminders in, against the real
- * BackupRestoreService and MedicationReminderScheduler. These were the replays of the
- * findings in .claude/skills/verify-backup-restore/model/, flipped once fixed.
+ * BackupRestoreService, ReminderCapabilityReconciler and MedicationReminderScheduler. These
+ * were the replays of the findings in .claude/skills/verify-backup-restore/model/, flipped
+ * once fixed.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class BackupRestoreRemindersTest {
@@ -80,7 +81,6 @@ class BackupRestoreRemindersTest {
     private val groupRepository: MedicationGroupRepository = mockk()
     private val logRepository: MedicationLogRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
-    private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
     private val widgetAppearanceRepository: WidgetAppearanceRepository = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
@@ -89,17 +89,21 @@ class BackupRestoreRemindersTest {
 
     private val nine = LocalDateTime.of(2026, 4, 20, 9, 0)
     private val planU = dailyAtNine(count = 1)
-    private val slot = MedicationReminderSlot(planU.uuid, nine, planU.schedule.timeSlots.first().uuid)
 
-    /** The schedule store and the snooze records, as the steps change them. */
-    private val stored = mutableMapOf<UUID, LocalDateTime?>()
+    /** The schedule store, the skips and Settings, as the steps change them. */
+    private val stored = mutableMapOf<UUID, Instant?>()
+    private val skipped = mutableMapOf<UUID, LocalDateTime>()
     private var reconcilePending = false
-    private val records = mutableListOf<MedicationReminderSnoozeRecord>()
+    private var remindersEnabled = true
+    private var notificationAccess = true
 
     @Before
     fun setUp() {
         mockkStatic(PendingIntent::class)
         mockkStatic(Uri::class)
+        mockkStatic("com.mkx.hrttracker.reminder.NotificationPermissionsKt")
+        every { canPostNotifications(any()) } answers { notificationAccess }
+        every { canScheduleExactAlarms(any<Context>()) } returns true
         every { PendingIntent.getBroadcast(any(), any(), any(), any<Int>()) } returns mockk(relaxed = true)
         every { Uri.parse(any()) } returns mockk(relaxed = true)
         every { context.packageName } returns "com.mkx.hrttracker"
@@ -112,20 +116,21 @@ class BackupRestoreRemindersTest {
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
-        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
+        coEvery { settingsRepository.getCurrentSettings() } answers { SettingsState(remindersEnabled = remindersEnabled) }
+        coEvery { settingsRepository.setRemindersEnabled(any()) } answers { remindersEnabled = firstArg() }
         coEvery { widgetAppearanceRepository.setDefault(any()) } just Runs
         coEvery { reminderScheduleStore.getScheduledReminders() } answers { stored.toMap() }
         coEvery { reminderScheduleStore.addScheduledReminder(any(), any()) } answers { stored[firstArg()] = secondArg() }
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } answers { stored.remove(firstArg<UUID>()) }
         coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } answers {
             stored.clear()
-            stored.putAll(firstArg<Map<UUID, LocalDateTime>>())
+            stored.putAll(firstArg<Map<UUID, Instant>>())
         }
         coEvery { reminderScheduleStore.setReconcilePending(any()) } answers { reconcilePending = firstArg() }
+        coEvery { reminderScheduleStore.isReconcilePending() } answers { reconcilePending }
+        coEvery { reminderScheduleStore.getSkippedThrough() } answers { skipped.toMap() }
+        coEvery { reminderScheduleStore.clearSkippedThrough() } answers { skipped.clear() }
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
-        coEvery { snoozeScheduler.getSnoozeRecords() } answers { records.toList() }
-        coEvery { snoozeScheduler.clearAllSnoozes() } answers { records.clear() }
-        coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
 
         val scheduler = MedicationReminderScheduler(
             context = context,
@@ -133,7 +138,6 @@ class BackupRestoreRemindersTest {
             medicationLogRepository = logRepository,
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
-            medicationReminderSnoozeScheduler = snoozeScheduler,
             reminderNotificationManager = notificationManager,
             homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
@@ -144,7 +148,13 @@ class BackupRestoreRemindersTest {
             settingsRepository = settingsRepository,
             homeSnapshotRepository = homeSnapshotRepository,
             medicationReminderScheduler = scheduler,
-            medicationReminderSnoozeScheduler = snoozeScheduler,
+            reminderCapabilityReconciler = ReminderCapabilityReconciler(
+                context = context,
+                appScope = CoroutineScope(UnconfinedTestDispatcher()),
+                settingsRepository = settingsRepository,
+                medicationReminderScheduler = scheduler,
+                diagnosticsLogger = diagnosticsLogger,
+            ),
             widgetAppearanceRepository = widgetAppearanceRepository,
             backupCrypto = backupCrypto,
             healthConnectCapabilityReconciler = mockk<HealthConnectCapabilityReconciler>(relaxed = true),
@@ -156,39 +166,53 @@ class BackupRestoreRemindersTest {
         unmockkAll()
     }
 
-    /** BackupRestore model, RepostOffersRemindLater. */
+    /** BackupRestore model, RepostsOnScreenFollowTheRestore (decision B3 b). */
     @Test
-    fun aReminderTheRestoreRepostsOffersRemindLaterAgain() = runTest {
-        // Before the restore: u's 09:00 reminder is on screen after its last snooze, so it has
-        // no Remind later. The backup holds u with another count, so what it shows changed.
-        val shownBundle = buildMedicationReminderBundle(nine, listOf(planU), emptyList())!!
+    fun aRestoreRepostsEveryReminderOnScreen_evenOneWhoseDoseIsUnchanged() = runTest {
+        // u's 09:00 reminder is on screen; the backup holds u as it is.
+        val shownBundle = buildMedicationReminderBundle(nine, planU, emptyList())!!
         every { notificationManager.activeDoseReminders() } returns
             mapOf(shownBundle.notificationTag to ShownDoseReminder(shownBundle.slots, shownBundle.contentHash))
-        records += MedicationReminderSnoozeRecord(slot, testInstant(nine.plusHours(1)), MAX_REMINDER_SNOOZE_COUNT, fired = true)
-        // What Room holds once the backup is committed.
-        coEvery { groupRepository.getGroups() } returns listOf(dailyAtNine(count = 2))
+        coEvery { groupRepository.getGroups() } returns listOf(planU)
 
         service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
 
-        // The counts were cleared before rescheduleAll reposted it, so Remind later is back.
+        // In place, silently, so it shows in the restored language and Hide medication details.
         verify(exactly = 1) {
-            notificationManager.showDoseReminderNotification(any(), canSnooze = true, any(), silent = true)
+            notificationManager.showDoseReminderNotification(
+                match { bundle -> bundle.notificationTag == shownBundle.notificationTag },
+                any(),
+                silent = true,
+            )
         }
-        verify(exactly = 0) {
-            notificationManager.showDoseReminderNotification(any(), canSnooze = false, any(), any())
-        }
-        assertTrue(records.isEmpty())
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
     }
 
-    /** BackupRestore model, RemindersFollowRestoredData and NoOldSnoozeAfterRestore. */
+    /** BackupRestore model, NoRemindersWithoutAccess (decision B11). */
     @Test
-    fun aCancelPastTheCommitStillClearsTheSnoozesAndReschedules() = runTest {
+    fun aRestoreThatTurnsRemindersOn_onAPhoneWithoutAccess_turnsThemOffAgain() = runTest {
+        notificationAccess = false
+        // The restored settings say on (the backup's remindersEnabled; restoreSettings is a
+        // no-op mock here, so the switch starts on as if it had written it).
+        remindersEnabled = true
         coEvery { groupRepository.getGroups() } returns listOf(planU)
-        records += MedicationReminderSnoozeRecord(slot, testInstant(nine.plusHours(1)), 1, fired = true)
+
+        service.restoreBackupBytes(emptySnapshotBytes(), password = "password")
+
+        assertFalse(remindersEnabled)
+        assertTrue("no alarm is armed into nothing", stored.isEmpty())
+        verify { notificationManager.cancelAllDoseReminderNotifications() }
+    }
+
+    /** BackupRestore model, RemindersFollowRestoredData and NoOldSkipAfterRestore. */
+    @Test
+    fun aCancelPastTheCommitStillClearsTheSkipsAndReschedules() = runTest {
+        coEvery { groupRepository.getGroups() } returns listOf(planU)
+        skipped[planU.uuid] = nine
         // As the real one's lock would: throws if it runs cancelled.
-        coEvery { snoozeScheduler.clearAllSnoozes() } coAnswers {
+        coEvery { reminderScheduleStore.clearSkippedThrough() } coAnswers {
             currentCoroutineContext().ensureActive()
-            records.clear()
+            skipped.clear()
         }
         val inFollowUps = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -208,9 +232,9 @@ class BackupRestoreRemindersTest {
         release.complete(Unit)
         restore.join()
 
-        // u is armed from the restored data, the old snooze is gone, and the reconcile settled.
+        // u is armed from the restored data, the old skip is gone, and the reconcile settled.
         coVerify(exactly = 1) { reminderScheduleStore.replaceScheduledReminders(match { planU.uuid in it }) }
-        assertTrue(records.isEmpty())
+        assertTrue(skipped.isEmpty())
         assertFalse(reconcilePending)
     }
 
@@ -225,6 +249,71 @@ class BackupRestoreRemindersTest {
         // The restore went on without the mark, and its pass, finding no mark open, settled the flag.
         assertEquals(BackupRestoreOutcome.RESTORED, outcome)
         coVerify(exactly = 1) { reminderScheduleStore.setReconcilePending(false) }
+    }
+
+    /** A process's scheduler and capability reconciler, over the same stores. */
+    private fun process(): Pair<MedicationReminderScheduler, ReminderCapabilityReconciler> {
+        val scheduler = MedicationReminderScheduler(
+            context = context,
+            medicationGroupRepository = groupRepository,
+            medicationLogRepository = logRepository,
+            settingsRepository = settingsRepository,
+            reminderScheduleStore = reminderScheduleStore,
+            reminderNotificationManager = notificationManager,
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+        )
+        return scheduler to ReminderCapabilityReconciler(
+            context = context,
+            appScope = CoroutineScope(UnconfinedTestDispatcher()),
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = scheduler,
+            diagnosticsLogger = diagnosticsLogger,
+        )
+    }
+
+    private fun showUsReminder() {
+        val shown = buildMedicationReminderBundle(nine, planU, emptyList())!!
+        every { notificationManager.activeDoseReminders() } returns
+            mapOf(shown.notificationTag to ShownDoseReminder(shown.slots, shown.contentHash))
+        coEvery { groupRepository.getGroups() } returns listOf(planU)
+    }
+
+    /**
+     * BackupRestore model, RepostsFollowTheRestore with AppStarts' two launches in the unfavorable
+     * order: the first resume's capability reconcile settles the flag before StartupPreloader's
+     * pass reads it. Mark Commit Die ResumeReconcile StartupPass.
+     */
+    @Test
+    fun afterADeathMidRestore_theNewProcessesFirstPassReposts_whicheverLaunchRunsFirst() = runTest {
+        showUsReminder()
+        val (restoring, _) = process()
+        restoring.markReconcilePending()
+        // The commit, then the process dies.
+        val (started, reconciler) = process()
+        reconciler.reconcile(reason = "main_activity_on_resume")
+        started.rescheduleAll()
+
+        verify(exactly = 1) { notificationManager.showDoseReminderNotification(any(), any(), silent = true) }
+        assertFalse(reconcilePending)
+    }
+
+    /**
+     * BackupRestore model, RepostsFollowTheRestore (finding 2 at the first sync, now closed): a forced
+     * pass past the gate reposts, as it starts with the reconcile owed, and a death after it leaves
+     * nothing unreposted. Mark Commit LeaveGate OtherPass Die AppStarts.
+     */
+    @Test
+    fun aForcedPassPastTheGate_thenADeath_hasRepostedTheReminders() = runTest {
+        showUsReminder()
+        val (restoring, otherReconciler) = process()
+        restoring.markReconcilePending().committed()
+        otherReconciler.reconcile(reason = "receiver_time_set", forceReschedule = true)
+        // The process dies; the next start owes nothing.
+        val (started, _) = process()
+        started.rescheduleAll()
+
+        verify(exactly = 1) { notificationManager.showDoseReminderNotification(any(), any(), silent = true) }
     }
 
     private fun emptySnapshotBytes(): ByteArray = backupCrypto.encryptSnapshotJson(

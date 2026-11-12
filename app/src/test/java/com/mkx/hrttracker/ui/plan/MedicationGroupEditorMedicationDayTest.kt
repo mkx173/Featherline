@@ -24,7 +24,6 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.withAppLanguage
@@ -66,8 +65,6 @@ class MedicationGroupEditorMedicationDayTest {
     private val medicineRepository: MedicineRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
-        mockk(relaxed = true)
     private val context: Context = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
     private val groupUuid = UUID.fromString("0e1f2a3b-0000-4000-8000-000000000001")
@@ -742,7 +739,6 @@ class MedicationGroupEditorMedicationDayTest {
             medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = savedStateHandle,
             appTimeSource = timeSource,

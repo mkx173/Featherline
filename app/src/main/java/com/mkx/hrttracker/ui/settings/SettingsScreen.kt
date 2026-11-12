@@ -100,6 +100,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
@@ -522,6 +523,7 @@ fun SettingsScreen(
         onWeightSyncDisable = viewModel::disableHealthConnectWeightSync,
         onWeightSyncNow = viewModel::syncWeightNow,
         onRemindersEnabledChange = onRemindersEnabledChange,
+        onReminderRepeatsChange = viewModel::setReminderRepeats,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
         },
@@ -919,6 +921,7 @@ internal fun SettingsScreenContent(
     onWeightSyncDisable: () -> Unit = {},
     onWeightSyncNow: () -> Unit = {},
     onRemindersEnabledChange: (Boolean) -> Unit,
+    onReminderRepeatsChange: (ReminderRepeats) -> Unit = {},
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
@@ -946,6 +949,7 @@ internal fun SettingsScreenContent(
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
+    var showReminderRepeatsPicker by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
@@ -1142,6 +1146,19 @@ internal fun SettingsScreenContent(
                                     enabled = hasNotificationAccess
                                 )
                             }
+                        )
+                    }
+
+                    animatedItem(visible = settingsState.remindersEnabled && hasNotificationAccess) {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_reminder_repeats),
+                            supportingText = reminderRepeatsLabel(settingsState.reminderRepeats),
+                            onClick = { showReminderRepeatsPicker = true },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_repeat)
+                                )
+                            },
                         )
                     }
 
@@ -1759,6 +1776,17 @@ internal fun SettingsScreenContent(
                 }
             }
         }
+    }
+
+    if (showReminderRepeatsPicker) {
+        ReminderRepeatsPickerDialog(
+            repeats = settingsState.reminderRepeats,
+            onDismiss = { showReminderRepeatsPicker = false },
+            onConfirm = { repeats ->
+                showReminderRepeatsPicker = false
+                onReminderRepeatsChange(repeats)
+            },
+        )
     }
 
     if (showExactAlarmRecoveryDialog) {

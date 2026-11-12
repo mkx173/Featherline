@@ -95,26 +95,23 @@ data class ShownDoseReminder(
     val contentHash: String?,
 )
 
+/** [group]'s reminder for its doses at [scheduledAt], with what each still misses; null with none. */
 internal fun buildMedicationReminderBundle(
     scheduledAt: LocalDateTime,
-    groups: List<MedicationGroup>,
+    group: MedicationGroup,
     entries: List<MedicationLogEntry>,
 ): MedicationReminderBundle? {
-    val items = groups
-        .sortedBy(MedicationGroup::createdAt)
+    if (!group.isActive() || !group.notificationsEnabled || group.medications.isEmpty()) {
+        return null
+    }
+    val items = group
+        .occurrencesBetweenInPlanWindow(
+            startDate = scheduledAt.toLocalDate(),
+            endDate = scheduledAt.toLocalDate(),
+        )
         .asSequence()
-        .filter(MedicationGroup::isActive)
-        .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
-        .flatMap { group ->
-            group.occurrencesBetweenInPlanWindow(
-                startDate = scheduledAt.toLocalDate(),
-                endDate = scheduledAt.toLocalDate(),
-            )
-                .asSequence()
-                .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
-                .map { occurrence -> group to occurrence }
-        }
-        .mapNotNull { (group, occurrence) ->
+        .filter { occurrence -> occurrence.scheduledFor == scheduledAt }
+        .mapNotNull { occurrence ->
             val missingCounts = missingSlotCounts(
                 group = group,
                 slot = MedicationGroupSlotKey(
@@ -154,22 +151,18 @@ internal fun buildMedicationReminderBundle(
 }
 
 /**
- * The part of a reminder on screen for [slots] whose doses are still pending, built as a
- * fresh post for the same dose time would be, or null when none are left.
+ * The part of a reminder on screen for [group]'s [slots] whose doses are still pending, built as
+ * a fresh post for the same dose time would be, or null when none are left.
  */
 internal fun remainingMedicationReminderBundle(
     slots: List<MedicationReminderSlot>,
-    groups: List<MedicationGroup>,
+    group: MedicationGroup,
     entries: List<MedicationLogEntry>,
 ): MedicationReminderBundle? {
-    val groupUuids = slots.mapTo(mutableSetOf(), MedicationReminderSlot::groupUuid)
     val items = slots.map(MedicationReminderSlot::scheduledAt).distinct().sorted()
         .flatMap { scheduledAt ->
-            buildMedicationReminderBundle(
-                scheduledAt = scheduledAt,
-                groups = groups.filter { group -> group.uuid in groupUuids },
-                entries = entries,
-            )?.items.orEmpty()
+            buildMedicationReminderBundle(scheduledAt = scheduledAt, group = group, entries = entries)
+                ?.items.orEmpty()
         }
         .filter { item -> item.slot in slots }
     return items.takeIf(List<MedicationReminderBundleItem>::isNotEmpty)?.let { bundleItems ->

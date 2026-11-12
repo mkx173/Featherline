@@ -144,7 +144,7 @@ fun MonthPickerDialog(
                                 }
                         }
 
-                        MonthPickerWheel(
+                        PickerWheel(
                             options = wheelState.monthOptions.map { monthValue ->
                                 monthPickerMonthLabel(monthValue, appLocale)
                             },
@@ -152,7 +152,7 @@ fun MonthPickerDialog(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    MonthPickerWheel(
+                    PickerWheel(
                         options = wheelState.yearOptions.map(Int::toString),
                         state = yearWheelState,
                         modifier = Modifier.weight(1f),
@@ -174,7 +174,7 @@ fun MonthPickerDialog(
 }
 
 @Composable
-private fun MonthPickerWheel(
+internal fun PickerWheel(
     options: List<String>,
     state: WheelPickerState,
     modifier: Modifier = Modifier,

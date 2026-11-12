@@ -78,12 +78,13 @@
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_single_title">Time for your dose</string>
-    <string name="reminder_notification_merged_title">Time for your doses</string>
     <string name="reminder_notification_scheduled_at">Scheduled %1$s, %2$s</string>
     <string name="reminder_notification_action_log_now">Log now</string>
-    <string name="reminder_notification_action_log_all">Log all</string>
-    <string name="reminder_notification_action_remind_later">Remind later</string>
-    <string name="reminder_notification_snoozed">We’ll remind you in %1$d minutes.</string>
+    <string name="reminder_notification_action_skip">Skip</string>
+    <string name="reminder_notification_skipped">Notifications will stop for this dose.</string>
+    <string name="reminder_notification_next_today">Next reminder at %1$s.</string>
+    <string name="reminder_notification_next_tomorrow">Next reminder tomorrow at %1$s.</string>
+    <string name="reminder_notification_next_on_date">Next reminder on %1$s at %2$s.</string>
     <string name="stock_toast_out_single">Out of stock: %1$s</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="one">%1$d medicine out of stock</item>
@@ -638,6 +639,12 @@
     <string name="group_danger_zone_title">Danger zone</string>
     <string name="settings_reminders">Dose reminders</string>
     <string name="settings_reminders_summary">Controls all reminders.</string>
+    <string name="settings_reminder_repeats">Repeat reminders</string>
+    <string name="settings_reminder_repeats_value">%1$d × %2$d min</string>
+    <string name="settings_reminder_repeats_off">Off</string>
+    <string name="settings_reminder_repeats_count">Repeats</string>
+    <string name="settings_reminder_repeats_interval">Every</string>
+    <string name="settings_reminder_repeats_interval_value">%1$d min</string>
     <string name="settings_reminders_permission_off_summary">Notifications are off for this app.</string>
     <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings.</string>
     <string name="settings_appearance">Appearance</string>
@@ -899,11 +906,6 @@
     <string name="privacy_policy_url" translatable="false">https://asterismlabs.io/featherline/privacy/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>
 
-    <string name="reminder_notification_two_groups">%1$s and %2$s</string>
-    <plurals name="reminder_notification_more_groups">
-        <item quantity="one">%1$s, %2$s, and %3$d more group</item>
-        <item quantity="other">%1$s, %2$s, and %3$d more groups</item>
-    </plurals>
     <plurals name="reminder_notification_more_medications">
         <item quantity="one">…and %1$d more medication</item>
         <item quantity="other">…and %1$d more medications</item>

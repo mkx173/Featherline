@@ -240,6 +240,8 @@ class BackupExportService @Inject constructor(
                     hazeBlurEnabled = settings.hazeBlurEnabled,
                     classicNavigationBarEnabled = settings.classicNavigationBarEnabled,
                     remindersEnabled = settings.remindersEnabled,
+                    reminderRepeatCount = settings.reminderRepeats.count,
+                    reminderRepeatIntervalMinutes = settings.reminderRepeats.intervalMinutes,
                     healthConnectWeightSyncEnabled = settings.healthConnectWeightSyncEnabled,
                     showArchivedGroupRecords = settings.showArchivedGroupRecords,
                     hideReferenceRanges = settings.hideReferenceRanges,

@@ -34,6 +34,9 @@ data class BackupSettingsSnapshot(
     val hazeBlurEnabled: Boolean = true,
     val classicNavigationBarEnabled: Boolean = false,
     val remindersEnabled: Boolean,
+    // Both null in a backup from before reminder repeats: the restore keeps the device's setting.
+    val reminderRepeatCount: Int? = null,
+    val reminderRepeatIntervalMinutes: Int? = null,
     // Null in a backup from before weight sync: the restore keeps the device's setting.
     val healthConnectWeightSyncEnabled: Boolean? = null,
     val showArchivedGroupRecords: Boolean = true,

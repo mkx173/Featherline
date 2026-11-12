@@ -28,9 +28,9 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
@@ -90,7 +90,6 @@ class SettingsViewModelTest {
     }
     private val appLockSecurityManager: AppLockSecurityManager = mockk(relaxed = true)
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val backupExportService: BackupExportService = mockk()
     private val backupRestoreService: BackupRestoreService = mockk()
     private val externalImportService: ExternalImportService = mockk()
@@ -117,7 +116,6 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setHazeBlurEnabled(any()) } just Runs
         coEvery { settingsRepository.setHealthConnectWeightSyncEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         coEvery { backupExportService.discardAbandonedPreparedBackups() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
                 "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
@@ -654,7 +652,7 @@ class SettingsViewModelTest {
     )
 
     @Test
-    fun setRemindersEnabled_clearsSnoozesWhenDisablingMasterSwitch() = runTest {
+    fun setRemindersEnabled_reschedulesWhenDisablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
@@ -662,7 +660,6 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -682,7 +679,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setRemindersEnabled_keepsSnoozesWhenEnablingMasterSwitch() = runTest {
+    fun setRemindersEnabled_reschedulesWhenEnablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
@@ -690,7 +687,6 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
-        coVerify(exactly = 0) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -736,7 +732,6 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
@@ -762,30 +757,33 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun setRemindersEnabled_snoozeClearFailureDoesNotEmitSettingFailureEvent() = runTest {
+    fun setReminderRepeats_storesThemThenReschedulesEveryPlan() = runTest {
+        coEvery { settingsRepository.setReminderRepeats(any()) } just Runs
         val viewModel = createViewModel()
         advanceUntilIdle()
-        var clearAttempted = false
-        coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } coAnswers {
-            clearAttempted = true
-            throw IllegalStateException("snooze clear failed")
-        }
-        val events = mutableListOf<SettingsMutationEvent>()
-        backgroundScope.launch {
-            viewModel.settingsMutationEvents.collect { event -> events += event }
-        }
-        runCurrent()
 
-        viewModel.setRemindersEnabled(false)
+        viewModel.setReminderRepeats(ReminderRepeats(count = 2, intervalMinutes = 30))
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(false) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
-        // The snooze-clear failure must not bail out of the launch block:
-        // rescheduleAll still has to run afterward.
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-        assertTrue(clearAttempted)
-        assertTrue(events.isEmpty())
+        coVerifyOrder {
+            settingsRepository.setReminderRepeats(ReminderRepeats(count = 2, intervalMinutes = 30))
+            medicationReminderScheduler.rescheduleAll(any())
+        }
+    }
+
+    @Test
+    fun setReminderRepeats_aFailedWriteReschedulesNothingAndReportsIt() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(medicationReminderScheduler, answers = false, recordedCalls = true)
+        coEvery { settingsRepository.setReminderRepeats(any()) } throws IllegalStateException("disk full")
+        val event = backgroundScope.async { viewModel.settingsMutationEvents.first() }
+
+        viewModel.setReminderRepeats(ReminderRepeats(count = 0, intervalMinutes = 15))
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+        assertTrue(event.await() is SettingsMutationEvent.Failure)
     }
 
     @Test
@@ -1017,7 +1015,6 @@ class SettingsViewModelTest {
             bloodTestRepository = bloodTestRepository,
             appLockSecurityManager = appLockSecurityManager,
             medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
             externalImportService = externalImportService,

@@ -79,12 +79,13 @@
     <string name="reminder_notification_channel_name">用药提醒</string>
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_single_title">该用药了</string>
-    <string name="reminder_notification_merged_title">该用药了</string>
     <string name="reminder_notification_scheduled_at">计划于 %1$s %2$s</string>
     <string name="reminder_notification_action_log_now">立即记录</string>
-    <string name="reminder_notification_action_log_all">全部记录</string>
-    <string name="reminder_notification_action_remind_later">稍后提醒</string>
-    <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒你</string>
+    <string name="reminder_notification_action_skip">跳过</string>
+    <string name="reminder_notification_skipped">这次剂量不会再通知</string>
+    <string name="reminder_notification_next_today">下次提醒在 %1$s</string>
+    <string name="reminder_notification_next_tomorrow">下次提醒在明天 %1$s</string>
+    <string name="reminder_notification_next_on_date">下次提醒在 %1$s %2$s</string>
     <string name="stock_toast_out_single">%1$s 已用尽</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="other">%1$d 种药品已用尽</item>
@@ -614,6 +615,12 @@
     <string name="group_danger_zone_title">危险操作</string>
     <string name="settings_reminders">用药提醒</string>
     <string name="settings_reminders_summary">控制所有提醒</string>
+    <string name="settings_reminder_repeats">重复提醒</string>
+    <string name="settings_reminder_repeats_value">%1$d 次 × %2$d 分钟</string>
+    <string name="settings_reminder_repeats_off">关闭</string>
+    <string name="settings_reminder_repeats_count">重复次数</string>
+    <string name="settings_reminder_repeats_interval">间隔</string>
+    <string name="settings_reminder_repeats_interval_value">%1$d 分钟</string>
     <string name="settings_reminders_permission_off_summary">此应用的通知已关闭</string>
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
@@ -869,10 +876,6 @@
     <string name="onboarding_useful_stock_added">已启用库存追踪</string>
     <string name="onboarding_open_app">打开 Featherline</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
-    <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>
-    <plurals name="reminder_notification_more_groups">
-        <item quantity="other">%1$s、%2$s 和其他 %3$d 个分组</item>
-    </plurals>
     <plurals name="reminder_notification_more_medications">
         <item quantity="other">……以及其他 %1$d 个药物</item>
     </plurals>

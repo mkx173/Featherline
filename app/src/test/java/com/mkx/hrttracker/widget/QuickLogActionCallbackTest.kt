@@ -26,8 +26,6 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSlot
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.EntryPointAccessors
@@ -66,7 +64,6 @@ class QuickLogActionCallbackTest {
         coEvery { rebuildNow() } just Runs
     }
     private val reminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
-    private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk(relaxed = true)
 
     @After
     fun tearDown() {
@@ -460,7 +457,7 @@ class QuickLogActionCallbackTest {
     }
 
     @Test
-    fun onAction_afterLogging_clearsTheDosesSnoozeAndReconcilesItsReminder() = runTest {
+    fun onAction_afterLogging_reconcilesTheDosesReminder() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val group = medicationGroup(
             uuid = UUID.fromString("3f9a2c6e-1b84-4d07-a5e3-8c2d6f1b9e40"),
@@ -481,11 +478,10 @@ class QuickLogActionCallbackTest {
             logRepository.saveNewEntries(any())
             reminderScheduler.rescheduleGroup(group.uuid, any())
         }
-        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(group.reminderSlot(scheduledAt))) }
     }
 
     @Test
-    fun onAction_whenTheDoseWasAlreadyLogged_stillClearsItsSnoozeAndReminder() = runTest {
+    fun onAction_whenTheDoseWasAlreadyLogged_stillReconcilesItsReminder() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val group = medicationGroup(
             uuid = UUID.fromString("a7c41e9d-62b3-4f58-9e0a-d3b8f5c2a716"),
@@ -501,47 +497,6 @@ class QuickLogActionCallbackTest {
         QuickLogActionCallback().onAction(context, mockk(), quickLogParameters(group, scheduledAt))
 
         coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
-        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(group.reminderSlot(scheduledAt))) }
-        coVerify { reminderScheduler.rescheduleGroup(group.uuid, any()) }
-    }
-
-    @Test
-    fun onAction_loggingOneMedicineOfASlot_keepsTheSnoozeForTheRest() = runTest {
-        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
-        val estradiolOnly = medicationGroup(
-            uuid = UUID.fromString("5d0e8b3a-9c27-4f61-b4a8-2e7c1f9d6b53"),
-            scheduledTime = scheduledAt.toLocalTime(),
-            medicationKey = MedicationKey.ESTRADIOL,
-        )
-        val group = estradiolOnly.copy(
-            medications = estradiolOnly.medications + testMedicationGroupMedication(
-                medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
-                applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.TabletFraction(1, 1),
-                count = 1,
-            ),
-        )
-        val logRepository: MedicationLogRepository = mockk()
-        val context = givenQuickLogEntryPoint(group, logRepository)
-        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returnsMany listOf(
-            emptyList(),
-            listOf(recordFor(group, scheduledAt)),
-        )
-        coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
-
-        QuickLogActionCallback().onAction(
-            context,
-            mockk(),
-            actionParametersOf(
-                GroupUuidKey to group.uuid.toString(),
-                ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
-                ScheduledAtKey to scheduledAt.toString(),
-                MedicationUuidKey to group.medications.first().uuid.toString(),
-            ),
-        )
-
-        // The spiro is still due, so its snooze stays.
-        coVerify(exactly = 0) { snoozeScheduler.clearSnoozesForSlots(any()) }
         coVerify { reminderScheduler.rescheduleGroup(group.uuid, any()) }
     }
 
@@ -568,7 +523,6 @@ class QuickLogActionCallbackTest {
         every { entryPoint.settingsRepository() } returns settingsRepository
         every { entryPoint.reminderNotificationManager() } returns mockk(relaxed = true)
         every { entryPoint.medicationReminderScheduler() } returns reminderScheduler
-        every { entryPoint.medicationReminderSnoozeScheduler() } returns snoozeScheduler
         every { entryPoint.diagnosticsLogger() } returns mockk(relaxed = true)
         every { entryPoint.homeSnapshotRepository() } returns homeSnapshotRepository
         coEvery { groupRepository.getGroup(group.uuid) } returns group
@@ -584,12 +538,6 @@ class QuickLogActionCallbackTest {
             ScheduleTimeUuidKey to group.schedule.timeSlots.single().uuid.toString(),
             ScheduledAtKey to scheduledAt.toString(),
         )
-
-    private fun MedicationGroup.reminderSlot(scheduledAt: LocalDateTime) = MedicationReminderSlot(
-        groupUuid = uuid,
-        scheduledAt = scheduledAt,
-        scheduleTimeUuid = schedule.timeSlots.single().uuid,
-    )
 
     /** An on-time record of the group's first medication for its dose at [scheduledAt]. */
     private fun recordFor(group: MedicationGroup, scheduledAt: LocalDateTime) =

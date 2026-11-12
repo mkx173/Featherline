@@ -4,14 +4,11 @@ import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.isArchived
-import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.showPostLogToast
-import com.mkx.hrttracker.reminder.toMedicationGroupSlotKey
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
@@ -139,9 +136,9 @@ class QuickLogActionCallback internal constructor(
             } else {
                 emptyList()
             }
-            // A reminder or snooze may still name the dose, also when another writer
+            // A reminder and its repeats may still name the dose, also when another writer
             // logged it first, and the Home rebuild below doesn't reconcile them.
-            reconcileReminders(entryPoint, group, slot, diagnosticsLogger)
+            reconcileReminders(entryPoint, slot, diagnosticsLogger)
             if (savedEntries.isNotEmpty()) {
                 showPostLogToast(
                     entriesToSave = savedEntries,
@@ -182,22 +179,16 @@ class QuickLogActionCallback internal constructor(
     }
 
     /**
-     * As the notification's Log now does after its write: a dose with nothing left to log
-     * drops its snooze, and the reminder naming it is cleared, or reposted with what is
-     * left. A failure here leaves the committed log as it is.
+     * As the notification's Log now does after its write: the plan's next alert is armed past
+     * the logged dose, and the reminder naming it is cleared, or reposted with what is left.
+     * A failure here leaves the committed log as it is.
      */
     private suspend fun reconcileReminders(
         entryPoint: WidgetEntryPoint,
-        group: MedicationGroup,
         slot: MedicationReminderSlot,
         diagnosticsLogger: AppDiagnosticsLogger,
     ) {
         try {
-            val entries = entryPoint.medicationLogRepository()
-                .getScheduledGroupEntriesSince(slot.scheduledAt)
-            if (missingSlotCounts(group, slot.toMedicationGroupSlotKey(), entries).isEmpty()) {
-                entryPoint.medicationReminderSnoozeScheduler().clearSnoozesForSlots(listOf(slot))
-            }
             entryPoint.medicationReminderScheduler().rescheduleGroup(slot.groupUuid)
         } catch (error: CancellationException) {
             throw error

@@ -8,8 +8,6 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
-import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -63,18 +61,20 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                     "reminder_receiver_ignored reason=missing_or_invalid_group_uuid action=${intent.action}"
                 )
             }
-        val scheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
-            ?.let(LocalDateTime::parse)
-            ?: LocalDateTime.now()
+        // Null from a v1.4.2 alarm, which only a v1.4.2 key, with no time, takes.
+        val alertAt = intent.takeIf { it.hasExtra(EXTRA_ALERT_AT) }
+            ?.let { Instant.ofEpochMilli(it.getLongExtra(EXTRA_ALERT_AT, 0L)) }
 
         diagnosticsLogger.info(
             TAG,
-            "reminder_receiver_received groupUuid=$groupUuid scheduledAt=$scheduledAt action=${intent.action}"
+            "reminder_receiver_received groupUuid=$groupUuid alertAt=$alertAt action=${intent.action}"
         )
         handleDoseReminder(
             groupUuid = groupUuid,
-            scheduledAt = scheduledAt,
-            now = receiptTime(Instant.now()),
+            alertAt = alertAt,
+            legacyScheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
+                ?.let { value -> runCatching { LocalDateTime.parse(value) }.getOrNull() },
+            now = Instant.now(),
             deadline = deadline,
             appScope = appScope,
             settingsRepository = settingsRepository,
@@ -90,14 +90,18 @@ class MedicationReminderReceiver : BroadcastReceiver() {
 }
 
 /**
- * Posts the dose reminder for [scheduledAt], or for the group's latest due
- * time when that is later, and finishes the broadcast once it is done.
+ * Posts the plan's reminder for its latest alert from [alertAt] up to [now], then arms its next
+ * alert, and finishes the broadcast once it is done. Only the plan's own doses: plans that share
+ * an alert time each post their own, and only the first to arrive sounds.
  */
 internal fun handleDoseReminder(
     groupUuid: UUID,
-    scheduledAt: LocalDateTime,
-    /** When the broadcast was received, as far as it has passed ([passedAsOf]). */
-    now: LocalDateTime,
+    /** The alert the alarm was armed for; null from a v1.4.2 alarm. */
+    alertAt: Instant?,
+    /** The dose time a v1.4.2 alarm carried. */
+    legacyScheduledAt: LocalDateTime? = null,
+    /** When the broadcast was received. */
+    now: Instant,
     /** The end of the broadcast's budget, counted from its receipt. */
     deadline: TimeMark,
     appScope: CoroutineScope,
@@ -109,6 +113,7 @@ internal fun handleDoseReminder(
     e2EstimateRepository: E2EstimateRepository,
     diagnosticsLogger: AppDiagnosticsLogger,
     pendingResult: BroadcastReceiver.PendingResult,
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
     appScope.launch {
         runCatching {
@@ -116,41 +121,44 @@ internal fun handleDoseReminder(
             if (!settings.remindersEnabled) {
                 diagnosticsLogger.info(
                     TAG,
-                    "reminder_receiver_master_disabled groupUuid=$groupUuid scheduledAt=$scheduledAt"
+                    "reminder_receiver_master_disabled groupUuid=$groupUuid alertAt=$alertAt"
                 )
                 medicationReminderScheduler.cancelReminder(groupUuid)
                 return@runCatching
             }
 
             // One hold from the check to the reschedule: a pass in between would arm this
-            // dose again, and that alarm would pass the check too.
+            // alert again, and that alarm would pass the check too.
             withReminderScheduleLock {
-                val groups = medicationGroupRepository.getGroups()
-                val slotAt = groups.firstOrNull { group -> group.uuid == groupUuid }
-                    ?.reminderSlotAt(armedAt = scheduledAt, now = now)
-                    ?: scheduledAt
-                // The groups this post names, besides this one: each is marked and rescheduled with it.
-                var named = emptySet<UUID>()
-                if (!medicationReminderScheduler.awaitsReminderDelivery(groupUuid, scheduledAt)) {
+                if (!medicationReminderScheduler.awaitsReminderDelivery(groupUuid, alertAt)) {
                     diagnosticsLogger.info(
                         TAG,
                         "reminder_receiver_notification_skipped reason=delivered groupUuid=$groupUuid " +
-                                "scheduledAt=$scheduledAt"
+                                "alertAt=$alertAt"
                     )
                 } else {
-                    val entries = medicationLogRepository.getScheduledGroupEntriesSince(slotAt)
-                    // Another group's dose only while its own alarm for it is undelivered, as that
-                    // alarm rang it already otherwise. Marked below, that alarm then posts nothing.
-                    val undelivered = medicationReminderScheduler.undeliveredRemindersBy(slotAt)
-                    val bundle = buildMedicationReminderBundle(
-                        scheduledAt = slotAt,
-                        // A group due again since slotAt gets its own, later reminder.
-                        groups = groups.filter { group ->
-                            group.previousScheduledForBefore(now)?.isAfter(slotAt) != true &&
-                                    (group.uuid == groupUuid || group.uuid in undelivered)
-                        },
-                        entries = entries,
+                    // Compared as instants: an alert's own, never its wall time read back.
+                    val since = alertAt
+                        ?: legacyScheduledAt?.atZone(zone)?.toInstant()
+                        ?: now
+                    val repeats = settings.reminderRepeats
+                    val group = medicationGroupRepository.getGroup(groupUuid)
+                    val entries = medicationLogRepository.getScheduledGroupEntriesSince(
+                        reminderDosesFrom(minOf(since, now), repeats, zone)
                     )
+                    val alert = group?.latestDueReminderAlert(
+                        since = since,
+                        now = now,
+                        entries = entries,
+                        repeats = repeats,
+                        skippedThrough = medicationReminderScheduler.skippedThrough(groupUuid),
+                        zone = zone,
+                    )
+                    val bundle = if (group != null && alert != null) {
+                        buildMedicationReminderBundle(scheduledAt = alert.doseAt, group = group, entries = entries)
+                    } else {
+                        null
+                    }
                     // Read again last before the post: Settings may have turned reminders off
                     // since the read above, and its own pass runs only after this hold.
                     val current = settingsRepository.getCurrentSettings()
@@ -159,60 +167,53 @@ internal fun handleDoseReminder(
                             TAG,
                             "reminder_receiver_notification_skipped reason=master_disabled groupUuid=$groupUuid"
                         )
-                    } else if (bundle != null) {
+                    } else if (alert != null && bundle != null) {
+                        val sounds = medicationReminderScheduler.claimAlertSound(alert.alertAt)
                         reminderNotificationManager.showDoseReminderNotification(
                             bundle,
                             hideMedicationDetails = current.hideMedicationDetails,
+                            silent = !sounds,
                         )
-                        named = bundle.slots.mapTo(mutableSetOf(), MedicationReminderSlot::groupUuid) - groupUuid
-                        named.forEach { other ->
-                            medicationReminderScheduler.markReminderDelivered(other, undelivered.getValue(other))
-                        }
                         diagnosticsLogger.info(
                             TAG,
                             "reminder_receiver_notification_shown groupUuid=$groupUuid " +
-                                    "slotAt=$slotAt groups=${groups.size} entries=${entries.size} " +
-                                    "items=${bundle.items.size}"
+                                    "doseAt=${alert.doseAt} alertAt=${alert.alertAt} sounds=$sounds " +
+                                    "entries=${entries.size} items=${bundle.items.size}"
                         )
                     } else {
                         diagnosticsLogger.info(
                             TAG,
                             "reminder_receiver_notification_skipped reason=no_bundle groupUuid=$groupUuid " +
-                                    "slotAt=$slotAt groups=${groups.size} entries=${entries.size}"
+                                    "since=$since entries=${entries.size}"
                         )
                     }
                 }
-                medicationReminderScheduler.markReminderDelivered(groupUuid, scheduledAt)
+                medicationReminderScheduler.markReminderDelivered(groupUuid, alertAt)
 
-                // Not before now: a slot in the past would fire at once.
-                val after = maxOf(slotAt.plusSeconds(1), now)
-                (setOf(groupUuid) + named).forEach { uuid ->
-                    // Each in its own try: one that fails leaves the others to run.
-                    try {
-                        medicationReminderScheduler.rescheduleGroup(groupUuid = uuid, after = after)
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (error: Exception) {
-                        diagnosticsLogger.warning(
-                            TAG,
-                            "reminder_receiver_reschedule_failed groupUuid=$uuid after=$after",
-                            error,
-                        )
-                    }
+                // The next alert strictly after now: the one rung is at or before it.
+                try {
+                    medicationReminderScheduler.rescheduleGroup(
+                        groupUuid = groupUuid,
+                        after = now,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "reminder_receiver_reschedule_failed groupUuid=$groupUuid after=$now",
+                        error,
+                    )
                 }
-                diagnosticsLogger.info(
-                    TAG,
-                    "reminder_receiver_reschedule_requested groupUuid=$groupUuid named=${named.size} after=$after"
-                )
             }
-            // The slot is no longer planned, so Home's estimate moved: store
+            // The alert is no longer planned, so Home's estimate moved: store
             // the new one before the user opens the app, within what is left
             // of the budget.
             withTimeoutOrNull(-deadline.elapsedNow()) { e2EstimateRepository.warmHome() }
         }.onFailure { throwable ->
             diagnosticsLogger.warning(
                 TAG,
-                "reminder_receiver_failed groupUuid=$groupUuid scheduledAt=$scheduledAt",
+                "reminder_receiver_failed groupUuid=$groupUuid alertAt=$alertAt",
                 throwable,
             )
         }.also {
@@ -220,17 +221,6 @@ internal fun handleDoseReminder(
         }
     }
 }
-
-/**
- * The dose an alarm armed for [armedAt] names when received at [now]: delivered late, or after
- * the clock moved ahead, the group's latest due time, and not each time in between.
- */
-internal fun MedicationGroup.reminderSlotAt(armedAt: LocalDateTime, now: LocalDateTime): LocalDateTime =
-    previousScheduledForBefore(now)?.takeIf { latest -> latest.isAfter(armedAt) } ?: armedAt
-
-/** The wall time at [receivedAt], as far as it has passed ([passedAsOf]), both from one clock read. */
-internal fun receiptTime(receivedAt: Instant, zone: ZoneId = ZoneId.systemDefault()): LocalDateTime =
-    LocalDateTime.ofInstant(receivedAt, zone).passedAsOf(receivedAt, zone)
 
 private const val TAG = "MedicationReminderReceiver"
 

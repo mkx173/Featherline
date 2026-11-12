@@ -9,4 +9,12 @@
         <ignore path="**/values-ko/**" />
         <ignore path="**/values-ta/**" />
     </issue>
+    <!-- The same, for a dropped plural: lint files it under this id, not ExtraTranslation. -->
+    <issue id="MissingDefaultResource">
+        <ignore path="**/values-cs/**" />
+        <ignore path="**/values-es/**" />
+        <ignore path="**/values-ja/**" />
+        <ignore path="**/values-ko/**" />
+        <ignore path="**/values-ta/**" />
+    </issue>
 </lint>

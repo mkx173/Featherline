@@ -19,13 +19,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
-import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -35,7 +33,6 @@ import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -65,7 +62,6 @@ class ReminderDeliveryRaceTest {
     private val logRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
-    private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk {
         every { generation } returns MutableStateFlow(1L)
@@ -81,10 +77,13 @@ class ReminderDeliveryRaceTest {
     /** What Room, Settings and the schedule store hold, as the steps change them. */
     private var groups = listOf(planA, planB)
     private var remindersEnabled = true
-    private val stored = mutableMapOf<UUID, LocalDateTime?>()
+    private val stored = mutableMapOf<UUID, Instant?>()
+    private val skipped = mutableMapOf<UUID, LocalDateTime>()
+    private var clock: Instant = testInstant(justAfterNine)
 
-    /** Each reminder posted with sound, in order. */
+    /** Each reminder posted with sound, and each posted silently, in order. */
     private val audiblePosts = mutableListOf<MedicationReminderBundle>()
+    private val silentPosts = mutableListOf<MedicationReminderBundle>()
 
     @Before
     fun setUp() {
@@ -100,19 +99,23 @@ class ReminderDeliveryRaceTest {
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } answers { stored.remove(firstArg<UUID>()) }
         coEvery { reminderScheduleStore.replaceScheduledReminders(any()) } answers {
             stored.clear()
-            stored.putAll(firstArg<Map<UUID, LocalDateTime>>())
+            stored.putAll(firstArg<Map<UUID, Instant>>())
         }
         coEvery { reminderScheduleStore.setReconcilePending(any()) } just Runs
+        coEvery { reminderScheduleStore.isReconcilePending() } returns false
+        coEvery { reminderScheduleStore.getSkippedThrough() } answers { skipped.toMap() }
+        coEvery { reminderScheduleStore.skipThrough(any(), any()) } answers { skipped[firstArg()] = secondArg() }
         coEvery { settingsRepository.getCurrentSettings() } answers { SettingsState(remindersEnabled = remindersEnabled) }
         coEvery { groupRepository.getGroups() } answers { groups }
         coEvery { groupRepository.getGroup(any()) } answers { groups.firstOrNull { group -> group.uuid == firstArg() } }
         coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
-        coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
-        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
         every { notificationManager.activeDoseReminders() } returns emptyMap()
         every {
-            notificationManager.showDoseReminderNotification(any(), any(), any(), silent = false)
+            notificationManager.showDoseReminderNotification(any(), any(), silent = false)
         } answers { audiblePosts += firstArg<MedicationReminderBundle>() }
+        every {
+            notificationManager.showDoseReminderNotification(any(), any(), silent = true)
+        } answers { silentPosts += firstArg<MedicationReminderBundle>() }
 
         scheduler = MedicationReminderScheduler(
             context = context,
@@ -120,10 +123,11 @@ class ReminderDeliveryRaceTest {
             medicationLogRepository = logRepository,
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
-            medicationReminderSnoozeScheduler = snoozeScheduler,
             reminderNotificationManager = notificationManager,
             homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
+            sdkInt = 31,
+            instantNow = { clock },
         )
     }
 
@@ -132,58 +136,102 @@ class ReminderDeliveryRaceTest {
         unmockkAll()
     }
 
-    /** DoseAlarmDelivery, EachDoseRingsOnce. */
+    /** DoseAlarmDelivery, OneSoundPerAlertTime and EachAlertRingsOnce. */
     @Test
-    fun twoPlansAtOneTime_ringOnce_andTheOtherPlansAlarmPostsNothing() = runTest {
-        stored[planA.uuid] = nine
-        stored[planB.uuid] = nine
+    fun twoPlansAtOneTime_eachPostsItsOwn_andOnlyTheFirstSounds() = runTest {
+        stored[planA.uuid] = testInstant(nine)
+        stored[planB.uuid] = testInstant(nine)
 
         // The phone delivers A's alarm, then B's; each is handled.
         deliver(planA, armedFor = nine, now = justAfterNine)
         deliver(planB, armedFor = nine, now = justAfterNine)
 
-        assertEquals(listOf(setOf(planA.uuid, planB.uuid)), audiblePosts.map(::groupsOf))
-        // A's delivery moved both to tomorrow.
-        assertEquals(mapOf<UUID, LocalDateTime?>(planA.uuid to nine.plusDays(1), planB.uuid to nine.plusDays(1)), stored)
+        assertEquals(listOf(setOf(planA.uuid)), audiblePosts.map(::groupsOf))
+        assertEquals(listOf(setOf(planB.uuid)), silentPosts.map(::groupsOf))
+        // Each delivery armed its own plan's first repeat.
+        assertEquals(
+            mapOf<UUID, Instant?>(planA.uuid to testInstant(nine.plusMinutes(15)), planB.uuid to testInstant(nine.plusMinutes(15))),
+            stored,
+        )
     }
 
-    /** DoseAlarmDelivery, EachDoseRingsOnce: the reverse path. */
+    /** DoseAlarmDelivery, AlertsStopAtTheirCap: each repeat sounds, then the next dose is armed. */
     @Test
-    fun aPlanWhoseDoseWasLoggedFirst_doesNotPostTheOtherPlansDoseAgain() = runTest {
-        stored[planA.uuid] = nine
-        stored[planB.uuid] = nine
-        // You log A's 09:00 dose in the app.
-        val medication = planA.medications.single()
-        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns listOf(
-            testMedicationLogEntry(
-                medicine = medication.medicine,
-                applicationType = medication.applicationType,
-                doseInstruction = medication.doseInstruction,
-                sourceGroupUuid = planA.uuid,
-                appliedAt = testInstant(justAfterNine),
-                scheduledFor = nine,
-            )
-        )
+    fun aDoseRingsFourTimes_eachWithSound_andThenTheNextDoseIsArmed() = runTest {
+        groups = listOf(planA)
+        stored[planA.uuid] = testInstant(nine)
 
-        // B's alarm posts B alone; then A's alarm comes.
-        deliver(planB, armedFor = nine, now = justAfterNine)
+        listOf(0L, 15L, 30L, 45L).forEach { minutes ->
+            val alertAt = nine.plusMinutes(minutes)
+            clock = testInstant(alertAt)
+            deliver(planA, armedFor = alertAt, now = alertAt)
+        }
+
+        assertEquals(4, audiblePosts.size)
+        assertEquals(mapOf<UUID, Instant?>(planA.uuid to testInstant(nine.plusDays(1))), stored)
+    }
+
+    /** DoseAlarmDelivery, SwipeKeepsTheNextAlert: a swipe changes nothing stored. */
+    @Test
+    fun aSwipe_keepsTheNextAlert() = runTest {
+        groups = listOf(planA)
+        stored[planA.uuid] = testInstant(nine)
         deliver(planA, armedFor = nine, now = justAfterNine)
 
-        assertEquals(listOf(setOf(planB.uuid)), audiblePosts.map(::groupsOf))
+        // You swipe the reminder away: its delete intent.
+        actionHandler().dismissed(slots = listOf(planA.slotAt(nine)), now = testInstant(justAfterNine))
+        clock = testInstant(nine.plusMinutes(15))
+        deliver(planA, armedFor = nine.plusMinutes(15), now = nine.plusMinutes(15))
+
+        assertEquals(2, audiblePosts.size)
+        verify { notificationManager.showNextReminderToast(testInstant(nine.plusMinutes(15))) }
+    }
+
+    /** DoseAlarmDelivery, NoAlertAfterLoggedOrSkipped: a repeat in flight after a Skip posts nothing. */
+    @Test
+    fun aSkip_stopsTheDosesAlerts_evenOneAlreadyInFlight() = runTest {
+        groups = listOf(planA)
+        stored[planA.uuid] = testInstant(nine)
+        deliver(planA, armedFor = nine, now = justAfterNine)
+        // The 09:15 alarm leaves AlarmManager; before its receiver runs, you tap Skip.
+        clock = testInstant(nine.plusMinutes(15))
+        actionHandler().skip(slots = listOf(planA.slotAt(nine)), notificationTag = "tag")
+        // Skip's own reschedule moved the alarm to tomorrow's dose.
+        assertEquals(mapOf<UUID, Instant?>(planA.uuid to testInstant(nine.plusDays(1))), stored)
+        deliver(planA, armedFor = nine.plusMinutes(15), now = nine.plusMinutes(15))
+
+        assertEquals(1, audiblePosts.size)
+        assertEquals(mapOf<UUID, Instant?>(planA.uuid to testInstant(nine.plusDays(1))), stored)
+    }
+
+    /** A delivery is identified by its instant: an old alarm after a zone change posts nothing. */
+    @Test
+    fun anOldAlarmSharingTheNewOnesLocalTime_postsNothing() = runTest {
+        groups = listOf(planA)
+        // The zone pass armed A for 09:00 here; the alarm in flight is for 09:00 in a zone nine
+        // hours ahead, the same local time.
+        stored[planA.uuid] = testInstant(nine)
+        clock = testInstant(nine)
+
+        deliver(planA, armedFor = testInstant(nine).minusSeconds(9 * 3600), now = nine)
+
+        assertEquals(0, audiblePosts.size)
+        // It marked nothing: the 09:00 alarm still posts.
+        assertEquals(mapOf<UUID, Instant?>(planA.uuid to testInstant(nine)), stored)
     }
 
     /** DoseAlarmDelivery, NoRingAfterRemindersOff. */
     @Test
     fun aDeliveryPastItsMasterCheck_postsNothingOnceSettingsTurnedRemindersOff() = runTest {
         groups = listOf(planA)
-        stored[planA.uuid] = nine
+        stored[planA.uuid] = testInstant(nine)
         val resume = pauseAfterFirstSettingsRead()
 
         // The phone delivers A's alarm; the receiver reads reminders on.
         deliver(planA, armedFor = nine, now = justAfterNine)
         // You turn reminders off; Settings' full pass runs to the end and empties the store.
         remindersEnabled = false
-        scheduler.rescheduleAll(now = justAfterNine)
+        scheduler.rescheduleAll(now = testInstant(justAfterNine))
         assertTrue(stored.isEmpty())
         // The receiver takes the lock: A has no key, so it was delivered or cancelled.
         resume.complete(Unit)
@@ -196,7 +244,7 @@ class ReminderDeliveryRaceTest {
     @Test
     fun aDeliveryBetweenSettingsWriteAndItsPass_postsNothing() = runTest {
         groups = listOf(planA)
-        stored[planA.uuid] = nine
+        stored[planA.uuid] = testInstant(nine)
         val resume = pauseAfterFirstSettingsRead()
 
         deliver(planA, armedFor = nine, now = justAfterNine)
@@ -204,23 +252,23 @@ class ReminderDeliveryRaceTest {
         remindersEnabled = false
         resume.complete(Unit)
         runCurrent()
-        scheduler.rescheduleAll(now = justAfterNine)
+        scheduler.rescheduleAll(now = testInstant(justAfterNine))
 
         assertEquals(0, audiblePosts.size)
         assertTrue(stored.isEmpty())
     }
 
-    /** DoseAlarmDelivery, OneAlarmPostsOnce. */
+    /** DoseAlarmDelivery, EachAlertRingsOnce: an alarm armed again while in flight posts once. */
     @Test
     fun anAlarmArmedAgainWhileInFlight_postsOnce_whenItsPlanIsArchivedBetween() = runTest {
-        stored[planA.uuid] = nine
-        stored[planB.uuid] = nine
+        stored[planA.uuid] = testInstant(nine)
+        stored[planB.uuid] = testInstant(nine)
 
         // A's 09:00 alarm has left AlarmManager. Before its receiver runs, A is rescheduled
         // (editor save, widget log): the passed 09:00, still missing, is armed again.
-        scheduler.rescheduleGroup(planA.uuid, after = justAfterNine)
-        assertEquals(nine, stored[planA.uuid])
-        // The first delivery posts A + B 09:00 and moves A to tomorrow.
+        scheduler.rescheduleGroup(planA.uuid, after = testInstant(justAfterNine))
+        assertEquals(testInstant(nine), stored[planA.uuid])
+        // The first delivery posts A 09:00 and moves A to its repeat.
         deliver(planA, armedFor = nine, now = justAfterNine)
         // You archive A: the write, then cancelReminder drops its key.
         groups = listOf(planA.copy(archivedAt = testInstant(justAfterNine)), planB)
@@ -228,50 +276,41 @@ class ReminderDeliveryRaceTest {
         // The alarm armed again arrives: A has no key, so it posts nothing.
         deliver(planA, armedFor = nine, now = justAfterNine.plusSeconds(1))
 
-        assertEquals(listOf(setOf(planA.uuid, planB.uuid)), audiblePosts.map(::groupsOf))
+        assertEquals(listOf(setOf(planA.uuid)), audiblePosts.map(::groupsOf))
     }
 
-    /** H1's null branch: an older build stored A with no time. */
+    /** H1's null branch: v1.4.2 stored A with no time, and its alarm carries none. */
     @Test
-    fun aKeyWithNoTime_stillPosts_andIsNeverNamedInAnotherPlansReminder() = runTest {
+    fun aKeyWithNoTime_takesAV142Alarm() = runTest {
+        groups = listOf(planA)
         stored[planA.uuid] = null
-        stored[planB.uuid] = nine
 
-        deliver(planB, armedFor = nine, now = justAfterNine)
-        deliver(planA, armedFor = nine, now = justAfterNine.plusMinutes(20))
+        deliver(planA, armedFor = null, now = justAfterNine, legacyScheduledAt = nine)
 
-        assertEquals(listOf(setOf(planB.uuid), setOf(planA.uuid)), audiblePosts.map(::groupsOf))
+        assertEquals(listOf(setOf(planA.uuid)), audiblePosts.map(::groupsOf))
+        assertEquals(mapOf<UUID, Instant?>(planA.uuid to testInstant(nine.plusMinutes(15))), stored)
     }
 
-    /** Product note R1: B's alarm comes first, you swipe its reminder away, then A's comes late. */
+    /**
+     * DoseAlarmDelivery -failure, EachActivePlanArmed (open, R5): the delivered plan's own
+     * reschedule fails after its post, and it has no alarm until the next full pass.
+     */
     @Test
-    fun r1_theSecondPlansLateAlarm_bringsBackNoSwipedReminder() = runTest {
-        stored[planA.uuid] = nine
-        stored[planB.uuid] = nine
-
-        deliver(planB, armedFor = nine, now = justAfterNine)
-        // You swipe it away: nothing in the store changes.
-        deliver(planA, armedFor = nine, now = justAfterNine.plusMinutes(20))
-
-        // B's post named A, so A's alarm finds it delivered.
-        assertEquals(listOf(setOf(planA.uuid, planB.uuid)), audiblePosts.map(::groupsOf))
-    }
-
-    /** DoseAlarmDelivery, EachActivePlanArmed's guard: one plan's failed reschedule spares the rest. */
-    @Test
-    fun aRescheduleThatFails_cancelsNothing_andLeavesTheOtherPlansToRun() = runTest {
-        stored[planA.uuid] = nine
-        stored[planB.uuid] = nine
-        // A's plan read fails while its delivery reschedules it.
-        coEvery { groupRepository.getGroup(planA.uuid) } throws IOException("database busy")
+    fun aRescheduleThatFails_cancelsNothing_andLeavesThePlanUnarmed() = runTest {
+        groups = listOf(planA)
+        stored[planA.uuid] = testInstant(nine)
+        var reads = 0
+        // The receiver's read works; its reschedule's read fails.
+        coEvery { groupRepository.getGroup(planA.uuid) } answers {
+            if (reads++ == 0) planA else throw IOException("database busy")
+        }
 
         deliver(planA, armedFor = nine, now = justAfterNine)
 
-        assertEquals(listOf(setOf(planA.uuid, planB.uuid)), audiblePosts.map(::groupsOf))
-        // B, named in the post, is rescheduled all the same.
-        assertEquals(mapOf<UUID, LocalDateTime?>(planB.uuid to nine.plusDays(1)), stored)
-        // Only B's alarm was cancelled to arm it again: A's failed before it cancelled anything.
-        verify(exactly = 1) { alarmManager.cancel(any<PendingIntent>()) }
+        assertEquals(listOf(setOf(planA.uuid)), audiblePosts.map(::groupsOf))
+        assertTrue(stored.isEmpty())
+        // The reads come before the cancel, so nothing was cancelled.
+        verify(exactly = 0) { alarmManager.cancel(any<PendingIntent>()) }
     }
 
     /** A pass that fails while arming leaves keys, which the next pass arms, not alarms with none. */
@@ -280,80 +319,18 @@ class ReminderDeliveryRaceTest {
         every { alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>()) } throws
                 IllegalStateException("alarm service gone")
 
-        runCatching { scheduler.rescheduleAll(now = justAfterNine) }
+        runCatching { scheduler.rescheduleAll(now = testInstant(justAfterNine)) }
 
         assertEquals(
-            mapOf<UUID, LocalDateTime?>(planA.uuid to nine.plusDays(1), planB.uuid to nine.plusDays(1)),
+            mapOf<UUID, Instant?>(
+                planA.uuid to testInstant(nine.plusMinutes(15)),
+                planB.uuid to testInstant(nine.plusMinutes(15)),
+            ),
             stored,
         )
     }
 
-    /** SnoozeDelivery, NoSnoozeRingAfterRemindersOff. */
-    @Test
-    fun aSnoozeDelivery_postsNothingOnceRemindersAreTurnedOffDuringIt() = runTest {
-        val handler = actionHandler()
-        val slot = MedicationReminderSlot(planA.uuid, nine, planA.schedule.timeSlots.first().uuid)
-        coEvery { snoozeScheduler.checkSnoozeDelivery(any(), any()) } answers { firstArg() }
-        coEvery { snoozeScheduler.markSnoozeDelivered(any(), any()) } just Runs
-        // You turn reminders off while the delivery reads the plan and the log.
-        coEvery { snoozeScheduler.getSnoozeRecords() } answers {
-            remindersEnabled = false
-            emptyList()
-        }
-
-        handler.showSnoozedReminder(
-            slots = listOf(slot),
-            notificationTag = null,
-            snoozeAt = testInstant(nine.plusMinutes(15)),
-            now = nine.plusMinutes(15),
-        )
-
-        assertEquals(0, audiblePosts.size)
-        coVerify { snoozeScheduler.markSnoozeDelivered(listOf(slot), testInstant(nine.plusMinutes(15))) }
-    }
-
-    /** SnoozeDelivery, NoReminderForLoggedDose (and its WhileOff, ArchivedPlan siblings). */
-    @Test
-    fun aSnoozeDelivery_holdsTheScheduleLockFromItsDueReadToItsPost() = runTest {
-        val handler = actionHandler()
-        val slot = MedicationReminderSlot(planA.uuid, nine, planA.schedule.timeSlots.first().uuid)
-        val steps = mutableListOf<String>()
-        coEvery { snoozeScheduler.checkSnoozeDelivery(any(), any()) } answers { firstArg() }
-        coEvery { snoozeScheduler.markSnoozeDelivered(any(), any()) } answers { steps += "mark" }
-        every {
-            notificationManager.showDoseReminderNotification(any(), any(), any(), silent = false)
-        } answers { steps += "post" }
-        val inGap = CompletableDeferred<Unit>()
-        val resume = CompletableDeferred<Unit>()
-        // Read after the plan and the log, before the post.
-        coEvery { snoozeScheduler.getSnoozeRecords() } coAnswers {
-            inGap.complete(Unit)
-            resume.await()
-            emptyList()
-        }
-
-        // The snooze alarm goes off; the delivery checks its record and reads the dose as due.
-        backgroundScope.launch {
-            handler.showSnoozedReminder(
-                slots = listOf(slot),
-                notificationTag = null,
-                snoozeAt = testInstant(nine.plusMinutes(15)),
-                now = nine.plusMinutes(15),
-            )
-        }
-        runCurrent()
-        assertTrue(inGap.isCompleted)
-        // You log the dose from the widget: its clearSnoozesForSlots and its reconcile wait for
-        // the lock, so they tidy up after the post.
-        backgroundScope.launch { withReminderScheduleLock { steps += "widget tidy-up" } }
-        runCurrent()
-        resume.complete(Unit)
-        runCurrent()
-
-        assertEquals(listOf("post", "mark", "widget tidy-up"), steps)
-    }
-
-    /** Suspends the receiver's master read (Rcv:112) until the returned signal. */
+    /** Suspends the receiver's master read until the returned signal. */
     private fun pauseAfterFirstSettingsRead(): CompletableDeferred<Unit> {
         val resume = CompletableDeferred<Unit>()
         var first = true
@@ -374,7 +351,6 @@ class ReminderDeliveryRaceTest {
         medicineStockRepository = mockk<MedicineStockRepository>(relaxed = true),
         settingsRepository = settingsRepository,
         medicationReminderScheduler = scheduler,
-        medicationReminderSnoozeScheduler = snoozeScheduler,
         reminderNotificationManager = notificationManager,
         diagnosticsLogger = diagnosticsLogger,
     )
@@ -382,11 +358,23 @@ class ReminderDeliveryRaceTest {
     private fun groupsOf(bundle: MedicationReminderBundle): Set<UUID> =
         bundle.slots.mapTo(mutableSetOf(), MedicationReminderSlot::groupUuid)
 
-    private fun TestScope.deliver(plan: MedicationGroup, armedFor: LocalDateTime, now: LocalDateTime) {
+    private fun MedicationGroup.slotAt(at: LocalDateTime) =
+        MedicationReminderSlot(uuid, at, schedule.timeSlots.first().uuid)
+
+    private fun TestScope.deliver(plan: MedicationGroup, armedFor: LocalDateTime, now: LocalDateTime) =
+        deliver(plan, testInstant(armedFor), now)
+
+    private fun TestScope.deliver(
+        plan: MedicationGroup,
+        armedFor: Instant?,
+        now: LocalDateTime,
+        legacyScheduledAt: LocalDateTime? = null,
+    ) {
         handleDoseReminder(
             groupUuid = plan.uuid,
-            scheduledAt = armedFor,
-            now = now,
+            alertAt = armedFor,
+            legacyScheduledAt = legacyScheduledAt,
+            now = testInstant(now),
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,

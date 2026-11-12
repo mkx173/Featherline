@@ -13,7 +13,6 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,7 +35,6 @@ class StartupPreloader @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val started = AtomicBoolean(false)
@@ -92,96 +89,91 @@ class StartupPreloader @Inject constructor(
 
             backfillPatchOffSingletonIfNeeded()
 
-            rescheduleAllSnoozes()
             rescheduleAllReminders()
             diagnosticsLogger.info(TAG, "startup_after_first_home_frame_complete")
         }
     }
 
-    fun startReminderRescheduleFromSnapshot(now: LocalDateTime = LocalDateTime.now()) {
+    fun startReminderRescheduleFromSnapshot() {
         if (!snapshotReminderStarted.compareAndSet(false, true)) {
             diagnosticsLogger.info(
                 TAG,
-                "snapshot_reminder_reschedule_skipped reason=already_started now=$now"
+                "snapshot_reminder_reschedule_skipped reason=already_started"
             )
             return
         }
 
-        diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_enqueued now=$now")
+        diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_enqueued")
         appScope.launch(Dispatchers.IO) {
-            diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start now=$now")
+            diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_start")
             // A data change, such as a restore, committed without its reconcile:
             // the snapshot can predate it, and only rescheduleAll reconciles the
             // reminders on screen. Room opens early for it, but only then.
             if (runCatching { medicationReminderScheduler.isReconcilePending() }.getOrDefault(false)) {
                 diagnosticsLogger.info(
                     TAG,
-                    "snapshot_reminder_reschedule_skipped reason=reconcile_pending now=$now"
+                    "snapshot_reminder_reschedule_skipped reason=reconcile_pending"
                 )
-                rescheduleAllReminders(now = now)
-                rescheduleAllSnoozes(now = now)
+                rescheduleAllReminders()
                 return@launch
             }
             runCatching {
                 val snapshot = homeSnapshotRepository.currentState()?.homeData
                     ?: return@runCatching diagnosticsLogger.info(
                         TAG,
-                        "snapshot_reminder_reschedule_no_usable_snapshot now=$now"
+                        "snapshot_reminder_reschedule_no_usable_snapshot"
                     )
                 diagnosticsLogger.info(
                     TAG,
                     "snapshot_reminder_reschedule_using_snapshot " +
-                            "now=$now ${snapshot.reminderDiagnosticSummary()}"
+                            "${snapshot.reminderDiagnosticSummary()}"
                 )
                 // Turned down once Home data changed since it was read: Room has the newer plans.
-                if (!medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot = snapshot, now = now)) {
-                    diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_skipped reason=stale now=$now")
-                    rescheduleAllReminders(now = now)
+                if (!medicationReminderScheduler.rescheduleFromHomeSnapshot(snapshot = snapshot)) {
+                    diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_skipped reason=stale")
+                    rescheduleAllReminders()
                     return@runCatching
                 }
-                diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete now=$now")
+                diagnosticsLogger.info(TAG, "snapshot_reminder_reschedule_complete")
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(
                     TAG,
-                    "snapshot_reminder_reschedule_failed now=$now",
+                    "snapshot_reminder_reschedule_failed",
                     throwable
                 )
             }
-            // After the reminders: with a record this reads Room, and the snapshot pass
-            // shouldn't wait behind the SQLCipher open.
-            rescheduleAllSnoozes(now = now)
         }
     }
 
-    fun startReminderRescheduleFromWarmDatabase(now: LocalDateTime = LocalDateTime.now()) {
-        diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_enqueued now=$now")
+    fun startReminderRescheduleFromWarmDatabase() {
+        diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_enqueued")
         appScope.launch(Dispatchers.IO) {
-            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_start now=$now")
-            rescheduleAllSnoozes(now = now)
-            rescheduleAllReminders(now = now)
-            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_complete now=$now")
+            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_start")
+            rescheduleAllReminders()
+            diagnosticsLogger.info(TAG, "warm_database_reminder_reschedule_complete")
         }
     }
 
-    private suspend fun rescheduleAllReminders(now: LocalDateTime = LocalDateTime.now()) {
+    private suspend fun rescheduleAllReminders() {
         runCatching {
-            rescheduleAllRemindersOnce(now = now)
+            rescheduleAllRemindersOnce()
         }.onFailure { throwable ->
-            diagnosticsLogger.warning(TAG, "reminder_reschedule_failed now=$now", throwable)
+            diagnosticsLogger.warning(TAG, "reminder_reschedule_failed", throwable)
         }
     }
 
-    private suspend fun rescheduleAllRemindersOnce(now: LocalDateTime) {
+    private suspend fun rescheduleAllRemindersOnce() {
         if (!dbReminderStarted.compareAndSet(false, true)) {
             diagnosticsLogger.info(
                 TAG,
-                "reminder_reschedule_skipped reason=already_started now=$now"
+                "reminder_reschedule_skipped reason=already_started"
             )
             return
         }
-        diagnosticsLogger.info(TAG, "reminder_reschedule_start now=$now")
-        medicationReminderScheduler.rescheduleAll(now = now)
-        diagnosticsLogger.info(TAG, "reminder_reschedule_complete now=$now")
+        // A pass that starts with a reconcile owed reposts every reminder on screen itself.
+        diagnosticsLogger.info(TAG, "reminder_reschedule_start")
+        medicationReminderScheduler.rescheduleAll()
+        diagnosticsLogger.info(TAG, "reminder_reschedule_complete")
     }
 
     // The PATCH_OFF singleton is auto-created when a NEW patch medicine is
@@ -207,16 +199,6 @@ class StartupPreloader @Inject constructor(
             }
         }.onFailure { throwable ->
             diagnosticsLogger.warning(TAG, "patch_off_singleton_backfill_failed", throwable)
-        }
-    }
-
-    private suspend fun rescheduleAllSnoozes(now: LocalDateTime = LocalDateTime.now()) {
-        runCatching {
-            diagnosticsLogger.info(TAG, "snooze_reschedule_start now=$now")
-            medicationReminderSnoozeScheduler.rescheduleAll(now = now)
-            diagnosticsLogger.info(TAG, "snooze_reschedule_complete now=$now")
-        }.onFailure { throwable ->
-            diagnosticsLogger.warning(TAG, "snooze_reschedule_failed now=$now", throwable)
         }
     }
 

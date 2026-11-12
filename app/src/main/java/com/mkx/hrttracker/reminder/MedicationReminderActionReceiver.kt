@@ -10,7 +10,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import java.time.Instant
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
@@ -74,8 +73,6 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
             slots = slots,
             logTargets = logTargets,
             notificationTag = notificationTag,
-            snoozeAt = intent.takeIf { it.hasExtra(EXTRA_SNOOZE_AT) }
-                ?.let { Instant.ofEpochMilli(it.getLongExtra(EXTRA_SNOOZE_AT, 0L)) },
             deadline = deadline,
             appScope = appScope,
             actionHandler = actionHandler,
@@ -92,8 +89,6 @@ internal fun handleReminderAction(
     slots: List<MedicationReminderSlot>,
     logTargets: List<MedicationReminderLogTarget>?,
     notificationTag: String?,
-    /** A snooze alarm's time; null for other actions, and from an alarm an older build armed. */
-    snoozeAt: Instant? = null,
     /** The end of the broadcast's budget, counted from its receipt. */
     deadline: TimeMark,
     appScope: CoroutineScope,
@@ -123,17 +118,14 @@ internal fun handleReminderAction(
                     }
                 }
 
-                ACTION_MEDICATION_REMINDER_REMIND_LATER -> actionHandler.remindLater(
+                ACTION_MEDICATION_REMINDER_SKIP -> actionHandler.skip(
                     slots = slots,
                     notificationTag = notificationTag,
                 )
 
-                ACTION_MEDICATION_REMINDER_SNOOZE_ALARM -> actionHandler.showSnoozedReminder(
-                    slots = slots,
-                    notificationTag = notificationTag,
-                    snoozeAt = snoozeAt,
-                )
+                ACTION_MEDICATION_REMINDER_DISMISSED -> actionHandler.dismissed(slots = slots)
 
+                // A v1.4.2 Remind later on a reminder still on screen, or its snooze alarm: posts nothing.
                 else -> diagnosticsLogger.info(
                     TAG,
                     "reminder_action_receiver_ignored reason=unknown_action action=$action"
@@ -159,11 +151,12 @@ private const val HANDLE_BUDGET_MS = 8_000L
 
 const val ACTION_MEDICATION_REMINDER_LOG_NOW =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_LOG_NOW"
-const val ACTION_MEDICATION_REMINDER_REMIND_LATER =
-    "com.mkx.hrttracker.action.MEDICATION_REMINDER_REMIND_LATER"
-const val ACTION_MEDICATION_REMINDER_SNOOZE_ALARM =
-    "com.mkx.hrttracker.action.MEDICATION_REMINDER_SNOOZE_ALARM"
+const val ACTION_MEDICATION_REMINDER_SKIP =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_SKIP"
+
+/** The notification's delete intent: you swiped it away, or tapped Clear all. */
+const val ACTION_MEDICATION_REMINDER_DISMISSED =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_DISMISSED"
 const val EXTRA_REMINDER_SLOTS = "reminderSlots"
 const val EXTRA_REMINDER_LOG_TARGETS = "reminderLogTargets"
 const val EXTRA_NOTIFICATION_TAG = "notificationTag"
-const val EXTRA_SNOOZE_AT = "snoozeAt"

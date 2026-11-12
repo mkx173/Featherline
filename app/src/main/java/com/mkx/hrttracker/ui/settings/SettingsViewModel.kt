@@ -29,9 +29,9 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
 import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
@@ -72,7 +72,6 @@ class SettingsViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
     private val externalImportService: ExternalImportService,
@@ -335,11 +334,18 @@ class SettingsViewModel @Inject constructor(
                 reconcileMark?.committed()
             }
             withContext(NonCancellable) {
-                if (!enabled) {
-                    runReminderSideEffectBestEffort {
-                        medicationReminderSnoozeScheduler.clearAllSnoozes()
-                    }
+                runReminderSideEffectBestEffort {
+                    medicationReminderScheduler.rescheduleAll()
                 }
+            }
+        }
+    }
+
+    /** Every plan's alerts move to the new repeats: each armed alarm is armed again. */
+    fun setReminderRepeats(repeats: ReminderRepeats) {
+        launchSettingsMutation {
+            settingsRepository.setReminderRepeats(repeats)
+            withContext(NonCancellable) {
                 runReminderSideEffectBestEffort {
                     medicationReminderScheduler.rescheduleAll()
                 }
@@ -800,7 +806,7 @@ class SettingsViewModel @Inject constructor(
             // Still active, it was the step's own failure, not a cancel: best effort goes on.
             currentCoroutineContext().ensureActive()
         } catch (_: Exception) {
-            // Reminder alarms and snoozes are reconciled again by lifecycle
+            // Reminder alarms are reconciled again by lifecycle
             // hooks; the settings DataStore write above is the user-visible change.
         }
     }

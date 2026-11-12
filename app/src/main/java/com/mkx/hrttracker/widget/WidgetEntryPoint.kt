@@ -9,7 +9,6 @@ import com.mkx.hrttracker.data.repository.MedicineStockRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
-import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
@@ -33,7 +32,6 @@ interface WidgetEntryPoint {
     fun widgetAppearanceRepository(): WidgetAppearanceRepository
     fun reminderNotificationManager(): ReminderNotificationManager
     fun medicationReminderScheduler(): MedicationReminderScheduler
-    fun medicationReminderSnoozeScheduler(): MedicationReminderSnoozeScheduler
     fun diagnosticsLogger(): AppDiagnosticsLogger
     fun appTimeSource(): AppTimeSource
 

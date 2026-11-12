@@ -21,7 +21,6 @@ class ReminderCapabilityReconciler @Inject constructor(
     @AppScope private val appScope: CoroutineScope,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val _state = MutableStateFlow(
@@ -75,6 +74,8 @@ class ReminderCapabilityReconciler @Inject constructor(
     suspend fun reconcile(
         reason: String = "explicit",
         forceReschedule: Boolean = false,
+        /** Reposts every reminder on screen still due, as after a restore. */
+        repostShown: Boolean = false,
     ) = reconcileMutex.withLock {
         val snapshot = ReminderCapabilityState(
             hasNotificationAccess = canPostNotifications(context),
@@ -109,12 +110,16 @@ class ReminderCapabilityReconciler @Inject constructor(
             }
         }
 
-        if (disabledReminders) {
-            medicationReminderSnoozeScheduler.clearAllSnoozes()
-        }
+        // The upgrade from v1.4.2: the first pass after it (the package replaced, or the first
+        // start) cancels its snooze alarms. Its reminders, merged ones included, the system
+        // cleared when it replaced the package.
+        runCatching { cancelLegacySnoozes(context) }
+            .onSuccess { cancelled ->
+                if (cancelled > 0) diagnosticsLogger.info(TAG, "reminder_legacy_snoozes_cancelled bundles=$cancelled")
+            }
+            .onFailure { throwable -> diagnosticsLogger.warning(TAG, "reminder_legacy_snoozes_failed", throwable) }
 
-        medicationReminderScheduler.rescheduleAll()
-        medicationReminderSnoozeScheduler.rescheduleAll()
+        medicationReminderScheduler.rescheduleAll(repostShown = repostShown)
         lastReconciledSnapshot = snapshot
         diagnosticsLogger.info(
             TAG,
