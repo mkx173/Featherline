@@ -1151,4 +1151,62 @@
     <string name="unsaved_changes_title">放弃更改</string>
     <string name="unsaved_changes_confirmation">要放弃未保存的更改吗？</string>
     <string name="unsaved_changes_discard">放弃</string>
+    <!-- Persistent reminders: repeat until logged, snooze length, full-screen alarm. -->
+    <string name="settings_persistent_reminders">持续提醒</string>
+    <string name="settings_persistent_reminders_summary_off">重复提醒和全屏闹钟已关闭</string>
+    <string name="settings_persistent_reminders_summary_repeat">每 %1$s重复</string>
+    <string name="settings_persistent_reminders_summary_alarm">全屏闹钟</string>
+    <string name="persistent_reminders_section_repeat">重复</string>
+    <string name="persistent_reminders_repeat">重复提醒直到记录</string>
+    <string name="persistent_reminders_repeat_summary">持续提醒你某次用药，直到你记录、稍后提醒或停止提醒</string>
+    <string name="persistent_reminders_interval">重复间隔</string>
+    <string name="persistent_reminders_limit">停止条件</string>
+    <plurals name="persistent_reminders_limit_count">
+        <item quantity="other">再提醒 %1$d 次后</item>
+    </plurals>
+    <string name="persistent_reminders_limit_until_logged">直到记录</string>
+    <string name="persistent_reminders_limit_until_logged_summary">到计划的下一次用药时间时停止</string>
+    <string name="persistent_reminders_repeat_note">到计划的下一次用药时间时，重复提醒总会停止；那次用药会有自己的提醒</string>
+    <plurals name="persistent_reminders_minutes">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <string name="persistent_reminders_section_snooze">稍后提醒</string>
+    <string name="persistent_reminders_snooze_duration">稍后提醒间隔</string>
+    <string name="persistent_reminders_section_alarm">全屏闹钟</string>
+    <string name="persistent_reminders_full_screen">显示全屏闹钟</string>
+    <string name="persistent_reminders_full_screen_summary">唤醒屏幕，并在锁屏上方显示提醒</string>
+    <string name="persistent_reminders_full_screen_permission">此应用的全屏通知已关闭，点按以允许</string>
+    <string name="persistent_reminders_alarm_sound">闹钟铃声</string>
+    <string name="persistent_reminders_alarm_sound_summary">以闹钟音量播放你的闹钟铃声，静音模式下也会响起，一分钟后停止</string>
+    <string name="persistent_reminders_vibration">振动</string>
+    <string name="persistent_reminders_preview">试一下闹钟</string>
+    <string name="persistent_reminders_reminders_off">用药提醒已关闭，这些选项不会生效</string>
+    <string name="persistent_reminders_section_plans">药物</string>
+    <string name="persistent_reminders_plans_summary">选择哪些计划使用重复提醒和全屏闹钟，新计划默认包含在内</string>
+    <string name="persistent_reminders_plans_empty">还没有进行中的计划</string>
+    <string name="persistent_reminders_vibration_pattern">振动方式</string>
+    <string name="persistent_reminders_vibration_continuous">持续振动</string>
+    <string name="persistent_reminders_vibration_three_pulses">振动 3 次</string>
+    <string name="persistent_reminders_section_sound">声音</string>
+    <string name="persistent_reminders_sound">持续提醒声音</string>
+    <string name="persistent_reminders_sound_default">默认</string>
+    <string name="persistent_reminders_sound_summary">用于重复提醒和全屏闹钟。选择默认则使用用药提醒声音和闹钟铃声</string>
+    <string name="persistent_reminders_sound_unknown">自定义声音</string>
+    <string name="persistent_reminders_channel_description">在你记录用药前会再次出现的用药提醒</string>
+    <string name="dose_alarm_action_hold_to_log">按住以记录</string>
+    <string name="dose_alarm_action_hold_to_log_all">按住以全部记录</string>
+
+    <string name="reminder_notification_action_stop">停止提醒</string>
+    <string name="reminder_notification_repeats_stopped">已停止提醒这次用药</string>
+    <plurals name="dose_alarm_title">
+        <item quantity="other">该用药了</item>
+    </plurals>
+    <string name="dose_alarm_action_snooze">%1$d 分钟后提醒</string>
+    <string name="dose_alarm_action_dismiss">关闭</string>
+    <string name="dose_alarm_action_silence">静音</string>
+    <string name="dose_alarm_action_open_app">打开应用</string>
+    <string name="dose_alarm_preview_notice">这是预览，不会记录任何内容</string>
+    <string name="dose_alarm_preview_group">早上</string>
+    <string name="dose_alarm_preview_medication">你的药物</string>
+    <string name="dose_alarm_preview_detail">口服 · 1 片</string>
 </resources>

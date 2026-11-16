@@ -5,7 +5,7 @@ notification at the right wall-clock time, and how that pipeline
 survives reboots, time zone changes, and revoked permissions. The
 whole subsystem lives in
 [`reminder/`](../app/src/main/java/com/mkx/hrttracker/reminder)
-(18 files, ~2 300 LOC). For where it sits in the layer map, see
+(21 files, ~3 900 LOC). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -299,6 +299,90 @@ alarms for the rest. The companion `clearStaleSnoozesForGroup` runs
 when a group is rescheduled and drops any snoozed slot whose
 `scheduleTimeUuid` no longer matches the group's current schedule (the
 user moved the dose time after snoozing).
+
+### Persistent reminders
+
+Opt-in, from Settings > Notifications > Persistent reminders
+([`PersistentRemindersScreen`](../app/src/main/java/com/mkx/hrttracker/ui/settings/PersistentRemindersScreen.kt)).
+The choices live in `SettingsState.persistentReminders`
+([`PersistentReminderSettings`](../app/src/main/java/com/mkx/hrttracker/model/settings/PersistentReminderSettings.kt)),
+written in one DataStore edit by
+`SettingsRepository.setPersistentReminderSettings`. They are device
+settings and are not part of the backup format. Three features share
+them. The two persistent ones, repeats and the full-screen alarm, apply
+per plan: `excludedGroupUuids` holds the plans the user switched off in
+the page's Medications section, so a new plan takes part by default.
+`PersistentReminderSettings.appliesTo(groupUuid)` is the check, and
+`repeatsAny` / `doseReminderAlarm(slots)` apply it to a reminder's slots.
+
+- **Repeat until logged.** Three files mirror the snooze trio:
+  [`MedicationReminderRepeatScheduler`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderRepeatScheduler.kt),
+  [`MedicationReminderRepeatStore`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderRepeatStore.kt)
+  (`name = "medication_reminder_repeats"`, same record encoding as the
+  snooze store) and
+  [`MedicationReminderRepeatModels`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderRepeatModels.kt).
+  A chain starts when a reminder posts: `handleDoseReminder` and
+  `showSnoozedReminder` call `scheduleNextRepeats(slots, now)`, which
+  stores `MedicationReminderRepeatRecord(slot, repeatAt, repeatCount)`
+  one interval ahead and arms an alarm that fires
+  `ACTION_MEDICATION_REMINDER_REPEAT_ALARM`.
+  `MedicationReminderActionHandler.showRepeatedReminder` then reloads
+  the doses and drops each one that has been logged, dropped by a plan
+  edit, belongs to an archived or muted plan, has a snooze pending, or
+  whose group has had its next dose fall due (`isDueAgainSince`: that
+  dose's own reminder takes over, as in the receiver's late-delivery
+  rule). It cancels the old notification and posts it again so it
+  alerts again, then arms the next repeat. A slot leaves the chain once
+  it reaches `repeatLimit` (`UNTIL_LOGGED` has no limit). Log, Remind
+  later and the new **Stop reminding** action
+  (`ACTION_MEDICATION_REMINDER_DISMISS` → `stopReminding`) clear the
+  slot's repeats. Stop reminding does only that and dismisses the
+  reminder: nothing is logged, and later doses, their reminders, and
+  other doses' repeats and snoozes are left alone. Repeats post with
+  the picked `customSoundUri` when there is one. A channel's sound is
+  fixed once created, so each picked sound gets its own
+  `persistent_reminders_sound_<hash>` channel, and the channels for
+  earlier picks are deleted. A snooze replaces the chain, and the returning
+  reminder starts a new one. The pending-dose checks all run when the
+  alarm fires, so a stale record (after an in-app log, a restore, a
+  master-switch flip) costs at most one wake-up and never posts a
+  reminder.
+- **Full-screen alarm.** With `fullScreenAlarmEnabled`, a posted
+  reminder carries `setFullScreenIntent` to
+  [`DoseAlarmActivity`](../app/src/main/java/com/mkx/hrttracker/ui/alarm/DoseAlarmActivity.kt)
+  and `CATEGORY_ALARM`. The system launches the activity when the
+  device is locked or the screen is off, and shows a heads-up
+  otherwise. The activity turns the screen on, shows over the
+  keyguard, and sends the same broadcasts as the notification's buttons
+  (`buildReminderActionIntent`), so it logs exactly the medications it
+  shows. Logging takes a press-and-hold (`HoldToConfirmButton`), so a
+  stray touch from a pocket or a swipe to unlock can't log a dose. It
+  rings the picked sound, or else the alarm tone (`USAGE_ALARM`), and
+  vibrates continuously or in three pulses (`alarmVibrationPattern`)
+  through
+  [`DoseAlarmRinger`](../app/src/main/java/com/mkx/hrttracker/ui/alarm/DoseAlarmRinger.kt).
+  Left unanswered for a minute, it closes itself and does nothing else:
+  the dose stays unlogged, and the notification and repeats carry on.
+  It also stops ringing when it leaves the screen. When
+  the activity will ring, the notification posts silently so the two
+  sounds don't overlap. Medication details follow `hideMedicationDetails`,
+  and they are also hidden over the keyguard while the app lock is on.
+  On Android 14+ the user can withhold `USE_FULL_SCREEN_INTENT`, so
+  `ReminderNotificationManager.canUseFullScreenIntent()` gates the
+  intent and the settings page links to the system toggle. While the
+  full-screen alarm is on, repeats use `setAlarmClock` rather than
+  `setExactAndAllowWhileIdle`. In Doze the while-idle variants fire
+  at most about once per nine minutes per app, which would stretch a
+  short repeat interval on exactly the locked, idle phone the alarm is
+  for.
+- **Snooze length.** `snoozeDuration` replaces the fixed 15 minutes
+  (`REMINDER_SNOOZE_MINUTES`, still the default) in `remindLater`.
+
+`ReminderCapabilityReconciler` re-arms the stored chains
+(`MedicationReminderRepeatScheduler.rescheduleAll`) along with the
+snoozes after boot, an app update or a time change. A repeat whose
+time passed while the device was off fires at once. The reconciler
+clears the chains when it turns the master switch off.
 
 ### Capability and permissions
 

@@ -33,4 +33,5 @@ internal fun buildNextSnoozeRecords(
 }
 
 internal const val MAX_REMINDER_SNOOZE_COUNT = 4
+/** The default snooze length; the user can pick another in persistent-reminder settings. */
 internal const val REMINDER_SNOOZE_MINUTES = 15L

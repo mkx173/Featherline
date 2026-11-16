@@ -1151,4 +1151,62 @@
     <string name="unsaved_changes_title">捨棄變更</string>
     <string name="unsaved_changes_confirmation">要捨棄未儲存的變更嗎？</string>
     <string name="unsaved_changes_discard">捨棄</string>
+    <!-- Persistent reminders: repeat until logged, snooze length, full-screen alarm. -->
+    <string name="settings_persistent_reminders">持續提醒</string>
+    <string name="settings_persistent_reminders_summary_off">重複提醒和全螢幕鬧鐘已關閉</string>
+    <string name="settings_persistent_reminders_summary_repeat">每 %1$s重複</string>
+    <string name="settings_persistent_reminders_summary_alarm">全螢幕鬧鐘</string>
+    <string name="persistent_reminders_section_repeat">重複</string>
+    <string name="persistent_reminders_repeat">重複提醒直到記錄</string>
+    <string name="persistent_reminders_repeat_summary">持續提醒你某次用藥，直到你記錄、稍後提醒或停止提醒</string>
+    <string name="persistent_reminders_interval">重複間隔</string>
+    <string name="persistent_reminders_limit">停止條件</string>
+    <plurals name="persistent_reminders_limit_count">
+        <item quantity="other">再提醒 %1$d 次後</item>
+    </plurals>
+    <string name="persistent_reminders_limit_until_logged">直到記錄</string>
+    <string name="persistent_reminders_limit_until_logged_summary">到計劃的下一次用藥時間時停止</string>
+    <string name="persistent_reminders_repeat_note">到計劃的下一次用藥時間時，重複提醒總會停止；那次用藥會有自己的提醒</string>
+    <plurals name="persistent_reminders_minutes">
+        <item quantity="other">%1$d 分鐘</item>
+    </plurals>
+    <string name="persistent_reminders_section_snooze">稍後提醒</string>
+    <string name="persistent_reminders_snooze_duration">稍後提醒間隔</string>
+    <string name="persistent_reminders_section_alarm">全螢幕鬧鐘</string>
+    <string name="persistent_reminders_full_screen">顯示全螢幕鬧鐘</string>
+    <string name="persistent_reminders_full_screen_summary">喚醒螢幕，並在鎖定畫面上方顯示提醒</string>
+    <string name="persistent_reminders_full_screen_permission">此應用程式的全螢幕通知已關閉，輕觸以允許</string>
+    <string name="persistent_reminders_alarm_sound">鬧鐘鈴聲</string>
+    <string name="persistent_reminders_alarm_sound_summary">以鬧鐘音量播放你的鬧鐘鈴聲，靜音模式下也會響起，一分鐘後停止</string>
+    <string name="persistent_reminders_vibration">震動</string>
+    <string name="persistent_reminders_preview">試試鬧鐘</string>
+    <string name="persistent_reminders_reminders_off">用藥提醒已關閉，這些選項不會生效</string>
+    <string name="persistent_reminders_section_plans">藥物</string>
+    <string name="persistent_reminders_plans_summary">選擇哪些計劃使用重複提醒和全螢幕鬧鐘，新計劃預設包含在內</string>
+    <string name="persistent_reminders_plans_empty">還沒有進行中的計劃</string>
+    <string name="persistent_reminders_vibration_pattern">震動方式</string>
+    <string name="persistent_reminders_vibration_continuous">持續震動</string>
+    <string name="persistent_reminders_vibration_three_pulses">震動 3 次</string>
+    <string name="persistent_reminders_section_sound">聲音</string>
+    <string name="persistent_reminders_sound">持續提醒聲音</string>
+    <string name="persistent_reminders_sound_default">預設</string>
+    <string name="persistent_reminders_sound_summary">用於重複提醒和全螢幕鬧鐘。選擇預設則使用用藥提醒聲音和鬧鐘鈴聲</string>
+    <string name="persistent_reminders_sound_unknown">自訂聲音</string>
+    <string name="persistent_reminders_channel_description">在你記錄用藥前會再次出現的用藥提醒</string>
+    <string name="dose_alarm_action_hold_to_log">按住以記錄</string>
+    <string name="dose_alarm_action_hold_to_log_all">按住以全部記錄</string>
+
+    <string name="reminder_notification_action_stop">停止提醒</string>
+    <string name="reminder_notification_repeats_stopped">已停止提醒這次用藥</string>
+    <plurals name="dose_alarm_title">
+        <item quantity="other">該用藥了</item>
+    </plurals>
+    <string name="dose_alarm_action_snooze">%1$d 分鐘後提醒</string>
+    <string name="dose_alarm_action_dismiss">關閉</string>
+    <string name="dose_alarm_action_silence">靜音</string>
+    <string name="dose_alarm_action_open_app">開啟應用程式</string>
+    <string name="dose_alarm_preview_notice">這是預覽，不會記錄任何內容</string>
+    <string name="dose_alarm_preview_group">早上</string>
+    <string name="dose_alarm_preview_medication">你的藥物</string>
+    <string name="dose_alarm_preview_detail">口服 · 1 錠</string>
 </resources>

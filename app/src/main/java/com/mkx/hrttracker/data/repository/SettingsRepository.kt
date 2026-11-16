@@ -22,10 +22,15 @@ import com.mkx.hrttracker.model.home.HomeCardLayout
 import com.mkx.hrttracker.model.home.HomeCardType
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import com.mkx.hrttracker.model.settings.AlarmVibrationPatternOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.PersistentReminderSettings
+import com.mkx.hrttracker.model.settings.ReminderRepeatIntervalOption
+import com.mkx.hrttracker.model.settings.ReminderRepeatLimitOption
+import com.mkx.hrttracker.model.settings.ReminderSnoozeDurationOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.appLanguageLocale
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -99,6 +104,16 @@ class SettingsRepository internal constructor(
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
+    private val reminderRepeatEnabledKey = booleanPreferencesKey("reminder_repeat_enabled")
+    private val reminderRepeatIntervalKey = stringPreferencesKey("reminder_repeat_interval")
+    private val reminderRepeatLimitKey = stringPreferencesKey("reminder_repeat_limit")
+    private val reminderSnoozeDurationKey = stringPreferencesKey("reminder_snooze_duration")
+    private val reminderFullScreenAlarmKey = booleanPreferencesKey("reminder_full_screen_alarm")
+    private val reminderAlarmSoundKey = booleanPreferencesKey("reminder_alarm_sound")
+    private val reminderAlarmVibrationKey = booleanPreferencesKey("reminder_alarm_vibration")
+    private val reminderAlarmVibrationPatternKey = stringPreferencesKey("reminder_alarm_vibration_pattern")
+    private val reminderCustomSoundKey = stringPreferencesKey("reminder_persistent_sound")
+    private val reminderExcludedGroupsKey = stringSetPreferencesKey("reminder_persistent_excluded_groups")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
     private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
@@ -330,6 +345,31 @@ class SettingsRepository internal constructor(
     suspend fun setRemindersEnabled(enabled: Boolean) {
         activeDataStore().edit { preferences ->
             preferences[remindersEnabledKey] = enabled
+        }
+    }
+
+    /**
+     * Writes every persistent-reminder field in one edit, so a reader never sees
+     * half of a change (say, repeats on with the old interval).
+     */
+    suspend fun setPersistentReminderSettings(settings: PersistentReminderSettings) {
+        activeDataStore().edit { preferences ->
+            preferences[reminderRepeatEnabledKey] = settings.repeatEnabled
+            preferences[reminderRepeatIntervalKey] = settings.repeatInterval.name
+            preferences[reminderRepeatLimitKey] = settings.repeatLimit.name
+            preferences[reminderSnoozeDurationKey] = settings.snoozeDuration.name
+            preferences[reminderFullScreenAlarmKey] = settings.fullScreenAlarmEnabled
+            preferences[reminderAlarmSoundKey] = settings.alarmSoundEnabled
+            preferences[reminderAlarmVibrationKey] = settings.alarmVibrationEnabled
+            preferences[reminderAlarmVibrationPatternKey] = settings.alarmVibrationPattern.name
+            val soundUri = settings.customSoundUri
+            if (soundUri == null) {
+                preferences.remove(reminderCustomSoundKey)
+            } else {
+                preferences[reminderCustomSoundKey] = soundUri
+            }
+            preferences[reminderExcludedGroupsKey] =
+                settings.excludedGroupUuids.mapTo(mutableSetOf(), UUID::toString)
         }
     }
 
@@ -574,6 +614,25 @@ class SettingsRepository internal constructor(
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
             firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
+            persistentReminders = PersistentReminderSettings(
+                repeatEnabled = preferences[reminderRepeatEnabledKey] ?: false,
+                repeatInterval = ReminderRepeatIntervalOption
+                    .fromStorageValue(preferences[reminderRepeatIntervalKey]),
+                repeatLimit = ReminderRepeatLimitOption
+                    .fromStorageValue(preferences[reminderRepeatLimitKey]),
+                snoozeDuration = ReminderSnoozeDurationOption
+                    .fromStorageValue(preferences[reminderSnoozeDurationKey]),
+                fullScreenAlarmEnabled = preferences[reminderFullScreenAlarmKey] ?: false,
+                alarmSoundEnabled = preferences[reminderAlarmSoundKey] ?: true,
+                alarmVibrationEnabled = preferences[reminderAlarmVibrationKey] ?: true,
+                alarmVibrationPattern = AlarmVibrationPatternOption
+                    .fromStorageValue(preferences[reminderAlarmVibrationPatternKey]),
+                customSoundUri = preferences[reminderCustomSoundKey],
+                excludedGroupUuids = preferences[reminderExcludedGroupsKey].orEmpty()
+                    .mapNotNullTo(mutableSetOf()) { value ->
+                        runCatching { UUID.fromString(value) }.getOrNull()
+                    },
+            ),
         )
     }
 

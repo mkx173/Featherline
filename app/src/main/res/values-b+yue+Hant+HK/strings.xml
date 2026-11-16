@@ -1151,4 +1151,62 @@
     <string name="unsaved_changes_title">捨棄變更</string>
     <string name="unsaved_changes_confirmation">要捨棄未儲存嘅變更嗎？</string>
     <string name="unsaved_changes_discard">捨棄</string>
+    <!-- Persistent reminders: repeat until logged, snooze length, full-screen alarm. -->
+    <string name="settings_persistent_reminders">持續提醒</string>
+    <string name="settings_persistent_reminders_summary_off">重複提醒同全螢幕鬧鐘已經關咗</string>
+    <string name="settings_persistent_reminders_summary_repeat">每 %1$s重複一次</string>
+    <string name="settings_persistent_reminders_summary_alarm">全螢幕鬧鐘</string>
+    <string name="persistent_reminders_section_repeat">重複</string>
+    <string name="persistent_reminders_repeat">重複提醒到記錄為止</string>
+    <string name="persistent_reminders_repeat_summary">一直提醒你呢次用藥，直到你記錄、遲啲提醒或者停止提醒</string>
+    <string name="persistent_reminders_interval">重複間隔</string>
+    <string name="persistent_reminders_limit">幾時停</string>
+    <plurals name="persistent_reminders_limit_count">
+        <item quantity="other">再提醒 %1$d 次之後</item>
+    </plurals>
+    <string name="persistent_reminders_limit_until_logged">到記錄為止</string>
+    <string name="persistent_reminders_limit_until_logged_summary">到咗計劃下一次用藥時間就會停</string>
+    <string name="persistent_reminders_repeat_note">到咗計劃下一次用藥時間，重複提醒一定會停；嗰次用藥會有自己嘅提醒</string>
+    <plurals name="persistent_reminders_minutes">
+        <item quantity="other">%1$d 分鐘</item>
+    </plurals>
+    <string name="persistent_reminders_section_snooze">遲啲提醒</string>
+    <string name="persistent_reminders_snooze_duration">遲啲提醒間隔</string>
+    <string name="persistent_reminders_section_alarm">全螢幕鬧鐘</string>
+    <string name="persistent_reminders_full_screen">顯示全螢幕鬧鐘</string>
+    <string name="persistent_reminders_full_screen_summary">喚醒螢幕，喺鎖定畫面上面顯示提醒</string>
+    <string name="persistent_reminders_full_screen_permission">呢個應用程式嘅全螢幕通知已經關咗，㩒一下就可以開</string>
+    <string name="persistent_reminders_alarm_sound">鬧鐘鈴聲</string>
+    <string name="persistent_reminders_alarm_sound_summary">用鬧鐘音量播你嘅鬧鐘鈴聲，靜音模式都會響，一分鐘之後停</string>
+    <string name="persistent_reminders_vibration">震機</string>
+    <string name="persistent_reminders_preview">試吓個鬧鐘</string>
+    <string name="persistent_reminders_reminders_off">用藥提醒已經關咗，呢啲選項唔會生效</string>
+    <string name="persistent_reminders_section_plans">藥物</string>
+    <string name="persistent_reminders_plans_summary">揀邊啲計劃用重複提醒同全螢幕鬧鐘，新計劃預設會包埋</string>
+    <string name="persistent_reminders_plans_empty">仲未有進行緊嘅計劃</string>
+    <string name="persistent_reminders_vibration_pattern">震機方式</string>
+    <string name="persistent_reminders_vibration_continuous">持續震機</string>
+    <string name="persistent_reminders_vibration_three_pulses">震 3 下</string>
+    <string name="persistent_reminders_section_sound">聲音</string>
+    <string name="persistent_reminders_sound">持續提醒聲音</string>
+    <string name="persistent_reminders_sound_default">預設</string>
+    <string name="persistent_reminders_sound_summary">用喺重複提醒同全螢幕鬧鐘。揀預設就會用用藥提醒聲音同鬧鐘鈴聲</string>
+    <string name="persistent_reminders_sound_unknown">自訂聲音</string>
+    <string name="persistent_reminders_channel_description">你記錄用藥之前會再出現嘅用藥提醒</string>
+    <string name="dose_alarm_action_hold_to_log">㩒住嚟記錄</string>
+    <string name="dose_alarm_action_hold_to_log_all">㩒住嚟全部記錄</string>
+
+    <string name="reminder_notification_action_stop">停止提醒</string>
+    <string name="reminder_notification_repeats_stopped">已經停止提醒呢次用藥</string>
+    <plurals name="dose_alarm_title">
+        <item quantity="other">夠鐘用藥喇</item>
+    </plurals>
+    <string name="dose_alarm_action_snooze">%1$d 分鐘後提醒</string>
+    <string name="dose_alarm_action_dismiss">關閉</string>
+    <string name="dose_alarm_action_silence">靜音</string>
+    <string name="dose_alarm_action_open_app">打開應用程式</string>
+    <string name="dose_alarm_preview_notice">呢個係預覽，唔會記錄任何嘢</string>
+    <string name="dose_alarm_preview_group">朝早</string>
+    <string name="dose_alarm_preview_medication">你嘅藥物</string>
+    <string name="dose_alarm_preview_detail">口服 · 1 粒</string>
 </resources>

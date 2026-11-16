@@ -128,6 +128,15 @@ internal fun handleReminderAction(
                     notificationTag = notificationTag,
                 )
 
+                ACTION_MEDICATION_REMINDER_REPEAT_ALARM -> actionHandler.showRepeatedReminder(
+                    slots = slots,
+                )
+
+                ACTION_MEDICATION_REMINDER_DISMISS -> actionHandler.stopReminding(
+                    slots = slots,
+                    notificationTag = notificationTag,
+                )
+
                 else -> diagnosticsLogger.info(
                     TAG,
                     "reminder_action_receiver_ignored reason=unknown_action action=$action"
@@ -157,6 +166,10 @@ const val ACTION_MEDICATION_REMINDER_REMIND_LATER =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_REMIND_LATER"
 const val ACTION_MEDICATION_REMINDER_SNOOZE_ALARM =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_SNOOZE_ALARM"
+const val ACTION_MEDICATION_REMINDER_REPEAT_ALARM =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_REPEAT_ALARM"
+const val ACTION_MEDICATION_REMINDER_DISMISS =
+    "com.mkx.hrttracker.action.MEDICATION_REMINDER_DISMISS"
 const val EXTRA_REMINDER_SLOTS = "reminderSlots"
 const val EXTRA_REMINDER_LOG_TARGETS = "reminderLogTargets"
 const val EXTRA_NOTIFICATION_TAG = "notificationTag"

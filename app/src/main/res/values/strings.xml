@@ -637,6 +637,68 @@
     <string name="settings_reminders_summary">Controls all reminders.</string>
     <string name="settings_reminders_permission_off_summary">Notifications are off for this app.</string>
     <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings.</string>
+
+    <!-- Persistent reminders: repeat until logged, snooze length, full-screen alarm. -->
+    <string name="settings_persistent_reminders">Persistent reminders</string>
+    <string name="settings_persistent_reminders_summary_off">Repeat and full-screen alarm are off</string>
+    <string name="settings_persistent_reminders_summary_repeat">Repeats every %1$s</string>
+    <string name="settings_persistent_reminders_summary_alarm">Full-screen alarm</string>
+    <string name="persistent_reminders_section_repeat">Repeat</string>
+    <string name="persistent_reminders_repeat">Repeat until logged</string>
+    <string name="persistent_reminders_repeat_summary">Keep reminding you about a dose until you log it, snooze it, or stop it.</string>
+    <string name="persistent_reminders_interval">Repeat every</string>
+    <string name="persistent_reminders_limit">Stop after</string>
+    <plurals name="persistent_reminders_limit_count">
+        <item quantity="one">%1$d more reminder</item>
+        <item quantity="other">%1$d more reminders</item>
+    </plurals>
+    <string name="persistent_reminders_limit_until_logged">Until logged</string>
+    <string name="persistent_reminders_limit_until_logged_summary">Stops when the plan’s next dose is due</string>
+    <string name="persistent_reminders_repeat_note">Repeats always stop once the plan’s next dose is due; that dose gets its own reminder.</string>
+    <plurals name="persistent_reminders_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <string name="persistent_reminders_section_snooze">Snooze</string>
+    <string name="persistent_reminders_snooze_duration">Remind later after</string>
+    <string name="persistent_reminders_section_alarm">Full-screen alarm</string>
+    <string name="persistent_reminders_full_screen">Show full-screen alarm</string>
+    <string name="persistent_reminders_full_screen_summary">Wake the screen and show the reminder over the lock screen.</string>
+    <string name="persistent_reminders_full_screen_permission">Full-screen notifications are off for this app. Tap to allow them.</string>
+    <string name="persistent_reminders_alarm_sound">Alarm sound</string>
+    <string name="persistent_reminders_alarm_sound_summary">Ring your alarm tone at alarm volume, even in silent mode. Stops after a minute.</string>
+    <string name="persistent_reminders_vibration">Vibrate</string>
+    <string name="persistent_reminders_preview">Try the alarm</string>
+    <string name="persistent_reminders_reminders_off">Dose reminders are off, so these options have no effect.</string>
+    <string name="persistent_reminders_section_plans">Medications</string>
+    <string name="persistent_reminders_plans_summary">Choose which plans use repeats and the full-screen alarm. New plans are included.</string>
+    <string name="persistent_reminders_plans_empty">No active plans yet.</string>
+    <string name="persistent_reminders_vibration_pattern">Vibration pattern</string>
+    <string name="persistent_reminders_vibration_continuous">Continuous</string>
+    <string name="persistent_reminders_vibration_three_pulses">3 pulses</string>
+    <string name="persistent_reminders_section_sound">Sound</string>
+    <string name="persistent_reminders_sound">Persistent reminder sound</string>
+    <string name="persistent_reminders_sound_default">Default</string>
+    <string name="persistent_reminders_sound_summary">Used for repeats and the full-screen alarm. Default keeps your dose reminder sound and alarm tone.</string>
+    <string name="persistent_reminders_sound_unknown">Custom sound</string>
+    <string name="persistent_reminders_channel_description">Dose reminders that come back until you log the dose.</string>
+    <string name="dose_alarm_action_hold_to_log">Hold to log</string>
+    <string name="dose_alarm_action_hold_to_log_all">Hold to log all</string>
+
+    <string name="reminder_notification_action_stop">Stop reminding</string>
+    <string name="reminder_notification_repeats_stopped">Stopped reminding you about this dose.</string>
+    <plurals name="dose_alarm_title">
+        <item quantity="one">Time for your dose</item>
+        <item quantity="other">Time for your doses</item>
+    </plurals>
+    <string name="dose_alarm_action_snooze">Snooze %1$d min</string>
+    <string name="dose_alarm_action_dismiss">Dismiss</string>
+    <string name="dose_alarm_action_silence">Silence</string>
+    <string name="dose_alarm_action_open_app">Open app</string>
+    <string name="dose_alarm_preview_notice">This is a preview. Nothing will be logged.</string>
+    <string name="dose_alarm_preview_group">Morning</string>
+    <string name="dose_alarm_preview_medication">Your medication</string>
+    <string name="dose_alarm_preview_detail">Oral · 1 tablet</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_app_language">App language</string>
     <string name="settings_first_day_of_week">First day of week</string>

@@ -291,6 +291,7 @@ private fun navigationRouteContextFor(
         Screen.MedicineDetail.motionRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
         Screen.SettingsCalibration.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         Screen.SettingsCalibrationUnits.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
+        Screen.SettingsPersistentReminders.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         Screen.SettingsCalibrationEntry.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         else -> null
     }

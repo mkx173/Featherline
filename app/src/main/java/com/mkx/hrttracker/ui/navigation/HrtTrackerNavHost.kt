@@ -135,6 +135,7 @@ import com.mkx.hrttracker.ui.plan.toDraftGroupReferences
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.postLogStockWarningDestination
 import com.mkx.hrttracker.ui.postLogStockWarningSnackbarMessage
+import com.mkx.hrttracker.ui.settings.PersistentRemindersScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import com.mkx.hrttracker.util.medicineDisplayName
 import dev.chrisbanes.haze.HazeState
@@ -211,6 +212,19 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.settings_personalization_calibration
     ) {
         const val baseRoute = "settings_calibration"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+        ): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
+    data object SettingsPersistentReminders : Screen(
+        "settings_persistent_reminders?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_persistent_reminders
+    ) {
+        const val baseRoute = "settings_persistent_reminders"
 
         fun createRoute(
             topLevelParentRoute: String,
@@ -1266,6 +1280,11 @@ fun HrtTrackerNavHost(
                                         navController.navigate(
                                             Screen.SettingsCalibration.createRoute(Screen.Settings.route)
                                         )
+                                    },
+                                    onPersistentRemindersClick = {
+                                        navController.navigate(
+                                            Screen.SettingsPersistentReminders.createRoute(Screen.Settings.route)
+                                        )
                                     }
                                 )
                                 else -> Unit
@@ -1395,6 +1414,22 @@ fun HrtTrackerNavHost(
                                     )
                                 )
                             }
+                        )
+                    }
+                }
+                composable(
+                    route = Screen.SettingsPersistentReminders.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    )
+                ) {
+                    RoutedTopChromeHazeProvider(navController, it) {
+                        PersistentRemindersScreen(
+                            modifier = modifier,
+                            onNavigateBack = { navController.popBackStackSafely() },
                         )
                     }
                 }

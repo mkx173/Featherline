@@ -35,6 +35,7 @@ class MedicationReminderActionHandler @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler,
     private val reminderNotificationManager: ReminderNotificationManager,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
@@ -131,6 +132,7 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
+        medicationReminderRepeatScheduler.clearRepeatsForSlots(normalizedSlots)
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
         val groupUuidsToReschedule = normalizedSlots
             .map(MedicationReminderSlot::groupUuid)
@@ -156,7 +158,11 @@ class MedicationReminderActionHandler @Inject constructor(
             "reminder_action_remind_later_start slots=${normalizedSlots.size} " +
                     "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
         )
-        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+        // A snooze replaces the repeats: the snoozed reminder starts a fresh
+        // chain when it comes back.
+        medicationReminderRepeatScheduler.clearRepeatsForSlots(normalizedSlots)
+        val settings = settingsRepository.getCurrentSettings()
+        if (!settings.remindersEnabled) {
             diagnosticsLogger.info(
                 TAG,
                 "reminder_action_remind_later_skipped reason=master_disabled slots=${normalizedSlots.size}"
@@ -165,6 +171,7 @@ class MedicationReminderActionHandler @Inject constructor(
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
+        val snoozeMinutes = settings.persistentReminders.snoozeDuration.minutes
 
         val unfulfilledSlots = currentlyUnfulfilledSlots(normalizedSlots)
         if (unfulfilledSlots.isEmpty()) {
@@ -186,6 +193,7 @@ class MedicationReminderActionHandler @Inject constructor(
         val scheduledSnoozes = medicationReminderSnoozeScheduler.snoozeSlots(
             slots = unfulfilledSlots,
             now = now,
+            snoozeMinutes = snoozeMinutes,
         )
         if (scheduledSnoozes.isEmpty()) {
             diagnosticsLogger.info(
@@ -194,7 +202,7 @@ class MedicationReminderActionHandler @Inject constructor(
             )
             medicationReminderSnoozeScheduler.clearSnoozesForSlots(unfulfilledSlots)
         } else {
-            reminderNotificationManager.showDoseReminderSnoozedToast(REMINDER_SNOOZE_MINUTES)
+            reminderNotificationManager.showDoseReminderSnoozedToast(snoozeMinutes)
         }
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
         diagnosticsLogger.info(
@@ -236,7 +244,151 @@ class MedicationReminderActionHandler @Inject constructor(
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(
             normalizedSlots.minOf(MedicationReminderSlot::scheduledAt)
         )
-        val bundleItems = normalizedSlots
+        val bundleItems = pendingBundleItems(normalizedSlots, groupsByUuid, entries)
+        if (bundleItems.isEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots"
+            )
+            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
+            return
+        }
+        val unfulfilledSlots = bundleItems.map(MedicationReminderBundleItem::slot)
+        val canSnooze = canSnoozeAny(unfulfilledSlots)
+        val persistent = settings.persistentReminders
+
+        reminderNotificationManager.showDoseReminderNotification(
+            bundle = MedicationReminderBundle(
+                scheduledAt = unfulfilledSlots.minOf(MedicationReminderSlot::scheduledAt),
+                items = bundleItems,
+            ),
+            canSnooze = canSnooze,
+            hideMedicationDetails = settings.hideMedicationDetails,
+            alarm = persistent.doseReminderAlarm(unfulfilledSlots),
+            canStopRepeats = persistent.repeatsAny(unfulfilledSlots),
+        )
+        // The snooze replaced the old chain; the returning reminder starts its own.
+        if (persistent.repeatsAny(unfulfilledSlots)) {
+            medicationReminderRepeatScheduler.scheduleNextRepeats(unfulfilledSlots, now)
+        }
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_action_show_snoozed_complete slots=${normalizedSlots.size} " +
+                    "unfulfilledSlots=${unfulfilledSlots.size} bundleItems=${bundleItems.size} canSnooze=$canSnooze"
+        )
+    }
+
+    /**
+     * Fired by a repeat alarm: re-posts, as a fresh alert, the doses among
+     * [slots] still pending, and arms the next repeat. A dose drops out of its
+     * chain once logged, moved or dropped by a plan edit, its plan archived or
+     * muted, a snooze is pending for it, or its group's next dose fell due
+     * (that dose's own reminder takes over).
+     */
+    suspend fun showRepeatedReminder(
+        slots: List<MedicationReminderSlot>,
+        now: LocalDateTime = LocalDateTime.now(),
+    ) {
+        val normalizedSlots = slots.distinct()
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_action_show_repeat_start slots=${normalizedSlots.size} now=$now"
+        )
+        val settings = settingsRepository.getCurrentSettings()
+        val persistent = settings.persistentReminders
+        if (!settings.remindersEnabled || !persistent.repeatEnabled) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_show_repeat_skipped reason=disabled " +
+                        "master=${settings.remindersEnabled} repeat=${persistent.repeatEnabled}"
+            )
+            medicationReminderRepeatScheduler.clearRepeatsForSlots(normalizedSlots)
+            return
+        }
+
+        val groupsByUuid = loadRepresentedGroups(normalizedSlots)
+        val snoozedSlots = medicationReminderSnoozeScheduler.getSnoozeRecords()
+            .filter { record -> record.snoozeAt.isAfter(now) }
+            .mapTo(mutableSetOf(), MedicationReminderSnoozeRecord::slot)
+        val candidateSlots = normalizedSlots.filter { slot ->
+            val group = groupsByUuid[slot.groupUuid] ?: return@filter false
+            persistent.appliesTo(slot.groupUuid) &&
+                    slot !in snoozedSlots &&
+                    !group.isDueAgainSince(slot, now)
+        }
+        val bundleItems = if (candidateSlots.isEmpty()) {
+            emptyList()
+        } else {
+            pendingBundleItems(
+                slots = candidateSlots,
+                groupsByUuid = groupsByUuid,
+                entries = medicationLogRepository.getScheduledGroupEntriesSince(
+                    candidateSlots.minOf(MedicationReminderSlot::scheduledAt)
+                ),
+            )
+        }
+        val pendingSlots = bundleItems.map(MedicationReminderBundleItem::slot)
+        val endedSlots = normalizedSlots - pendingSlots.toSet()
+        medicationReminderRepeatScheduler.clearRepeatsForSlots(endedSlots)
+        if (bundleItems.isEmpty()) {
+            diagnosticsLogger.info(TAG, "reminder_action_show_repeat_skipped reason=nothing_pending")
+            return
+        }
+
+        val bundle = MedicationReminderBundle(
+            scheduledAt = pendingSlots.minOf(MedicationReminderSlot::scheduledAt),
+            items = bundleItems,
+        )
+        // Dismiss first so the repost alerts as a new notification: an update
+        // in place may not ring again or relaunch the full-screen alarm.
+        reminderNotificationManager.cancelDoseReminderNotification(bundle.notificationTag)
+        reminderNotificationManager.showDoseReminderNotification(
+            bundle = bundle,
+            canSnooze = canSnoozeAny(pendingSlots),
+            hideMedicationDetails = settings.hideMedicationDetails,
+            alarm = persistent.doseReminderAlarm(pendingSlots),
+            canStopRepeats = true,
+            sound = persistent.customSoundUri,
+        )
+        val armed = medicationReminderRepeatScheduler.scheduleNextRepeats(pendingSlots, now)
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_action_show_repeat_complete slots=${normalizedSlots.size} " +
+                    "pending=${pendingSlots.size} ended=${endedSlots.size} armed=${armed.size}"
+        )
+    }
+
+    /**
+     * "Stop reminding": stops nagging about these doses — their repeats end and
+     * the reminder is dismissed — and does nothing else. Nothing is logged (the
+     * dose stays pending on Home), and the plans' later doses, their reminders,
+     * and every other dose's repeats and snoozes carry on as before.
+     */
+    suspend fun stopReminding(
+        slots: List<MedicationReminderSlot>,
+        notificationTag: String?,
+    ) {
+        val normalizedSlots = slots.distinct()
+        medicationReminderRepeatScheduler.clearRepeatsForSlots(normalizedSlots)
+        notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
+        reminderNotificationManager.showDoseReminderRepeatsStoppedToast()
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_action_stop_reminding_complete slots=${normalizedSlots.size}"
+        )
+    }
+
+    /**
+     * The bundle items for those of [slots] still pending: their plan is loaded,
+     * still has the dated dose, and at least one of its medications is unlogged
+     * for it. Each item lists only the unlogged medications.
+     */
+    private fun pendingBundleItems(
+        slots: List<MedicationReminderSlot>,
+        groupsByUuid: Map<UUID, MedicationGroup>,
+        entries: List<MedicationLogEntry>,
+    ): List<MedicationReminderBundleItem> {
+        return slots
             .mapNotNull { slot ->
                 val group = groupsByUuid[slot.groupUuid]
                     ?.takeIf { group -> group.hasReminderOccurrence(slot) }
@@ -271,35 +423,15 @@ class MedicationReminderActionHandler @Inject constructor(
                     medications = medications,
                 )
             }
-        if (bundleItems.isEmpty()) {
-            diagnosticsLogger.info(
-                TAG,
-                "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots"
-            )
-            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
-            return
-        }
-        val unfulfilledSlots = bundleItems.map(MedicationReminderBundleItem::slot)
+    }
 
+    /** Snooze stays offered until every one of [slots] used up its snoozes. */
+    private suspend fun canSnoozeAny(slots: List<MedicationReminderSlot>): Boolean {
         val recordsBySlot = medicationReminderSnoozeScheduler.getSnoozeRecords()
             .associateBy(MedicationReminderSnoozeRecord::slot)
-        val canSnooze = unfulfilledSlots.any { slot ->
+        return slots.any { slot ->
             recordsBySlot[slot]?.snoozeCount.orZero() < MAX_REMINDER_SNOOZE_COUNT
         }
-
-        reminderNotificationManager.showDoseReminderNotification(
-            bundle = MedicationReminderBundle(
-                scheduledAt = unfulfilledSlots.minOf(MedicationReminderSlot::scheduledAt),
-                items = bundleItems,
-            ),
-            canSnooze = canSnooze,
-            hideMedicationDetails = settings.hideMedicationDetails,
-        )
-        diagnosticsLogger.info(
-            TAG,
-            "reminder_action_show_snoozed_complete slots=${normalizedSlots.size} " +
-                    "unfulfilledSlots=${unfulfilledSlots.size} bundleItems=${bundleItems.size} canSnooze=$canSnooze"
-        )
     }
 
     private suspend fun currentlyUnfulfilledSlots(

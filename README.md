@@ -33,6 +33,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 - Log doses across injection, patch, gel, oral, and sublingual routes
 - Configurable reminder schedules with snooze and exact-alarm handling
+- Optional persistent reminders: repeat every few minutes until a dose is logged, with an adjustable snooze and a full-screen alarm that wakes the screen over the lock screen
 - Group medications and apply schedules to grouped doses
 - Optional medicine stock tracking with low-stock warnings and schedule-aware "days remaining" estimates
 - Estradiol pharmacokinetic projection from your dose history

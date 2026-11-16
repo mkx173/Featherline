@@ -114,6 +114,7 @@ data class SettingsState(
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
     val groupNameCounter: Int = 0,
+    val persistentReminders: PersistentReminderSettings = PersistentReminderSettings(),
 )
 
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {

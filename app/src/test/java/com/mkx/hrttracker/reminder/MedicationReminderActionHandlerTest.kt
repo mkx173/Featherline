@@ -21,6 +21,8 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.settings.PersistentReminderSettings
+import com.mkx.hrttracker.model.settings.ReminderSnoozeDurationOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
@@ -51,6 +53,7 @@ class MedicationReminderActionHandlerTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduler: MedicationReminderScheduler = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val repeatScheduler: MedicationReminderRepeatScheduler = mockk(relaxed = true)
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
@@ -70,6 +73,7 @@ class MedicationReminderActionHandlerTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = reminderScheduler,
             medicationReminderSnoozeScheduler = snoozeScheduler,
+            medicationReminderRepeatScheduler = repeatScheduler,
             reminderNotificationManager = notificationManager,
             diagnosticsLogger = diagnosticsLogger,
         )
@@ -1005,6 +1009,268 @@ class MedicationReminderActionHandlerTest {
         verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
         coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
         verify { notificationManager.showDoseReminderNoLongerScheduledToast() }
+    }
+
+    private val repeatingSettings = SettingsState(
+        remindersEnabled = true,
+        persistentReminders = PersistentReminderSettings(repeatEnabled = true),
+    )
+
+    private fun estradiolAtNine(): MedicationGroup = medicationGroup(
+        uuid = UUID.fromString("0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"),
+        name = "Estradiol",
+        time = LocalTime.of(9, 0),
+        medicationKey = MedicationKey.ESTRADIOL,
+        medicationCount = 1,
+    )
+
+    @Test
+    fun showRepeatedReminder_reposts_a_pending_dose_and_arms_the_next_repeat() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val now = scheduledAt.plusMinutes(10)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        val posted = slot<MedicationReminderBundle>()
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = now)
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                capture(posted),
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = false,
+                alarm = null,
+                canStopRepeats = true,
+            )
+        }
+        assertEquals(listOf(slot), posted.captured.slots)
+        // Dismissed first so the repost alerts again rather than updating quietly.
+        verify { notificationManager.cancelDoseReminderNotification(posted.captured.notificationTag) }
+        coVerify(exactly = 1) { repeatScheduler.scheduleNextRepeats(listOf(slot), now) }
+    }
+
+    @Test
+    fun showRepeatedReminder_asks_for_the_full_screen_alarm_when_it_is_on() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings.copy(
+            persistentReminders = repeatingSettings.persistentReminders.copy(
+                fullScreenAlarmEnabled = true,
+                alarmSoundEnabled = false,
+            ),
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusMinutes(5))
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                any(),
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = false,
+                alarm = DoseReminderAlarm(playsSound = false),
+                canStopRepeats = true,
+            )
+        }
+    }
+
+    @Test
+    fun showRepeatedReminder_ends_the_chain_once_the_dose_is_logged() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns listOf(
+            scheduledEntry(
+                group = group,
+                appliedAt = scheduledAt.plusMinutes(3),
+                scheduledFor = scheduledAt,
+                count = 1,
+            )
+        )
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusMinutes(10))
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any(), any(), any())
+        }
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+        coVerify(exactly = 0) { repeatScheduler.scheduleNextRepeats(any(), any()) }
+    }
+
+    @Test
+    fun showRepeatedReminder_hands_over_once_the_groups_next_dose_is_due() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        // The next morning's 09:00 dose has its own reminder by now.
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusDays(1).plusMinutes(5))
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any(), any(), any())
+        }
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+        coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+    }
+
+    @Test
+    fun showRepeatedReminder_skips_a_dose_with_a_pending_snooze() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val now = scheduledAt.plusMinutes(10)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns listOf(
+            MedicationReminderSnoozeRecord(slot = slot, snoozeAt = now.plusMinutes(5), snoozeCount = 1)
+        )
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = now)
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any(), any(), any())
+        }
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+    }
+
+    @Test
+    fun showRepeatedReminder_ends_the_chain_when_repeats_are_off() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val slot = estradiolAtNine().toReminderSlot(scheduledAt)
+        // Default settings: reminders on, repeats off.
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusMinutes(10))
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any(), any(), any())
+        }
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+        coVerify(exactly = 0) { groupRepository.getGroup(any()) }
+    }
+
+    @Test
+    fun stopReminding_only_ends_this_doses_repeats_and_dismisses_it() = runTest {
+        val slot = estradiolAtNine().toReminderSlot(LocalDateTime.of(2026, 4, 20, 9, 0))
+
+        actionHandler.stopReminding(slots = listOf(slot), notificationTag = "bundle-tag")
+
+        coVerify(exactly = 1) { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        verify { notificationManager.showDoseReminderRepeatsStoppedToast() }
+        // Nothing else: no log, and later doses, reminders and snoozes untouched.
+        coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
+        coVerify(exactly = 0) { snoozeScheduler.clearSnoozesForSlots(any()) }
+        coVerify(exactly = 0) { reminderScheduler.rescheduleGroup(any(), any()) }
+        coVerify(exactly = 0) { reminderScheduler.cancelReminder(any()) }
+        coVerify(exactly = 0) { repeatScheduler.clearAllRepeats() }
+    }
+
+    @Test
+    fun showRepeatedReminder_ends_the_chain_of_a_plan_turned_off_for_persistent_reminders() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings.copy(
+            persistentReminders = repeatingSettings.persistentReminders.copy(
+                excludedGroupUuids = setOf(group.uuid),
+            ),
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusMinutes(10))
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any(), any(), any(), any(), any(), any())
+        }
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+    }
+
+    @Test
+    fun showRepeatedReminder_posts_with_the_picked_sound() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings.copy(
+            persistentReminders = repeatingSettings.persistentReminders.copy(
+                customSoundUri = "content://media/internal/audio/media/42",
+            ),
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns emptyList()
+
+        actionHandler.showRepeatedReminder(slots = listOf(slot), now = scheduledAt.plusMinutes(10))
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                any(),
+                canSnooze = true,
+                hideMedicationDetails = false,
+                silent = false,
+                alarm = null,
+                canStopRepeats = true,
+                sound = "content://media/internal/audio/media/42",
+            )
+        }
+    }
+
+    @Test
+    fun logNow_ends_the_repeats_for_the_logged_doses() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { logRepository.saveNewEntries(any()) } just Runs
+
+        actionHandler.logNow(
+            slots = listOf(slot),
+            logTargets = null,
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(12),
+        )
+
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+    }
+
+    @Test
+    fun remindLater_snoozes_for_the_chosen_length_and_ends_the_repeats() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val now = scheduledAt.plusMinutes(10)
+        val group = estradiolAtNine()
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { settingsRepository.getCurrentSettings() } returns repeatingSettings.copy(
+            persistentReminders = repeatingSettings.persistentReminders.copy(
+                snoozeDuration = ReminderSnoozeDurationOption.FIVE_MINUTES,
+            ),
+        )
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.snoozeSlots(listOf(slot), now, 5L) } returns listOf(
+            MedicationReminderSnoozeRecord(slot = slot, snoozeAt = now.plusMinutes(5), snoozeCount = 1)
+        )
+
+        actionHandler.remindLater(slots = listOf(slot), notificationTag = "bundle-tag", now = now)
+
+        coVerify { repeatScheduler.clearRepeatsForSlots(listOf(slot)) }
+        coVerify(exactly = 1) { snoozeScheduler.snoozeSlots(listOf(slot), now, 5L) }
+        verify { notificationManager.showDoseReminderSnoozedToast(5L) }
     }
 
     private fun medicationGroup(

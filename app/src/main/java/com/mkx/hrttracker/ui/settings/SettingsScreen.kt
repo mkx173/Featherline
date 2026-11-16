@@ -141,6 +141,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
+    onPersistentRemindersClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -605,6 +606,7 @@ fun SettingsScreen(
             }
         },
         onCalibrationClick = onCalibrationClick,
+        onPersistentRemindersClick = onPersistentRemindersClick,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
@@ -992,6 +994,7 @@ internal fun SettingsScreenContent(
     showDiagnosticsExport: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
+    onPersistentRemindersClick: () -> Unit = {},
     scrollToTopSignal: Int = 0,
 ) {
     val settingsState = uiState.settingsState
@@ -1215,6 +1218,22 @@ internal fun SettingsScreenContent(
                                 showChevron = true,
                             )
                         }
+                    }
+
+                    animatedItem(visible = settingsState.remindersEnabled && hasNotificationAccess) {
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_persistent_reminders),
+                            supportingText = persistentRemindersSummary(settingsState.persistentReminders),
+                            onClick = onPersistentRemindersClick,
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    painter = painterResource(R.drawable.ic_alarm_filled)
+                                )
+                            },
+                            trailingContent = {
+                                SettingsChevronTrailingIcon()
+                            }
+                        )
                     }
                 }
 

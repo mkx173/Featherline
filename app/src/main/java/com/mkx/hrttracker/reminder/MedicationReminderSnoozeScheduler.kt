@@ -55,6 +55,7 @@ class MedicationReminderSnoozeScheduler private constructor(
     suspend fun snoozeSlots(
         slots: List<MedicationReminderSlot>,
         now: LocalDateTime = LocalDateTime.now(),
+        snoozeMinutes: Long = REMINDER_SNOOZE_MINUTES,
     ): List<MedicationReminderSnoozeRecord> {
         if (slots.isEmpty()) {
             diagnosticsLogger.info(TAG, "snooze_slots_skipped reason=empty_slots now=$now")
@@ -63,7 +64,7 @@ class MedicationReminderSnoozeScheduler private constructor(
 
         diagnosticsLogger.info(TAG, "snooze_slots_start slots=${slots.size} now=$now")
         val existingRecords = snoozeStore.getSnoozeRecords()
-        val snoozeAt = now.plusMinutes(REMINDER_SNOOZE_MINUTES)
+        val snoozeAt = now.plusMinutes(snoozeMinutes)
         val nextRecords = buildNextSnoozeRecords(
             slots = slots,
             existingRecords = existingRecords,

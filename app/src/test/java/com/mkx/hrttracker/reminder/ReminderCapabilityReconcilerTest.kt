@@ -29,6 +29,7 @@ class ReminderCapabilityReconcilerTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val appScope = CoroutineScope(UnconfinedTestDispatcher())
 
@@ -220,6 +221,7 @@ class ReminderCapabilityReconcilerTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicationReminderRepeatScheduler = medicationReminderRepeatScheduler,
             diagnosticsLogger = diagnosticsLogger,
         )
     }

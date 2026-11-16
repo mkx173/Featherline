@@ -18,6 +18,11 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
+import com.mkx.hrttracker.model.settings.AlarmVibrationPatternOption
+import com.mkx.hrttracker.model.settings.PersistentReminderSettings
+import com.mkx.hrttracker.model.settings.ReminderRepeatIntervalOption
+import com.mkx.hrttracker.model.settings.ReminderRepeatLimitOption
+import com.mkx.hrttracker.model.settings.ReminderSnoozeDurationOption
 import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.every
 import io.mockk.mockk
@@ -41,6 +46,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.util.Locale
+import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsRepositoryTest {
@@ -65,6 +71,35 @@ class SettingsRepositoryTest {
         )
 
         settingsRepository = SettingsRepository(dataStore)
+    }
+
+    @Test
+    fun persistentReminders_default_to_off_with_a_fifteen_minute_snooze() = testScope.runTest {
+        assertEquals(PersistentReminderSettings(), settingsRepository.getCurrentSettings().persistentReminders)
+        assertEquals(
+            ReminderSnoozeDurationOption.FIFTEEN_MINUTES,
+            settingsRepository.getCurrentSettings().persistentReminders.snoozeDuration,
+        )
+    }
+
+    @Test
+    fun persistentReminders_round_trip_every_field() = testScope.runTest {
+        val chosen = PersistentReminderSettings(
+            repeatEnabled = true,
+            repeatInterval = ReminderRepeatIntervalOption.TWO_MINUTES,
+            repeatLimit = ReminderRepeatLimitOption.UNTIL_LOGGED,
+            snoozeDuration = ReminderSnoozeDurationOption.FIVE_MINUTES,
+            fullScreenAlarmEnabled = true,
+            alarmSoundEnabled = false,
+            alarmVibrationEnabled = false,
+            alarmVibrationPattern = AlarmVibrationPatternOption.THREE_PULSES,
+            customSoundUri = "content://media/internal/audio/media/42",
+            excludedGroupUuids = setOf(UUID.fromString("9f4c1d5b-6e7a-4b8c-0d9e-1f2a3b4c5d6e")),
+        )
+
+        settingsRepository.setPersistentReminderSettings(chosen)
+
+        assertEquals(chosen, settingsRepository.getCurrentSettings().persistentReminders)
     }
 
     @Test

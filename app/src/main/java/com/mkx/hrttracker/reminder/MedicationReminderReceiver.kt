@@ -43,6 +43,9 @@ class MedicationReminderReceiver : BroadcastReceiver() {
     lateinit var reminderNotificationManager: ReminderNotificationManager
 
     @Inject
+    lateinit var medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler
+
+    @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
     @Inject
@@ -78,6 +81,7 @@ class MedicationReminderReceiver : BroadcastReceiver() {
             medicationLogRepository = medicationLogRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             reminderNotificationManager = reminderNotificationManager,
+            medicationReminderRepeatScheduler = medicationReminderRepeatScheduler,
             e2EstimateRepository = e2EstimateRepository,
             diagnosticsLogger = diagnosticsLogger,
             pendingResult = pendingResult,
@@ -102,6 +106,7 @@ internal fun handleDoseReminder(
     medicationLogRepository: MedicationLogRepository,
     medicationReminderScheduler: MedicationReminderScheduler,
     reminderNotificationManager: ReminderNotificationManager,
+    medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler,
     e2EstimateRepository: E2EstimateRepository,
     diagnosticsLogger: AppDiagnosticsLogger,
     pendingResult: BroadcastReceiver.PendingResult,
@@ -135,10 +140,16 @@ internal fun handleDoseReminder(
                 entries = entries,
             )
             if (bundle != null) {
+                val persistent = settings.persistentReminders
                 reminderNotificationManager.showDoseReminderNotification(
                     bundle,
                     hideMedicationDetails = settings.hideMedicationDetails,
+                    alarm = persistent.doseReminderAlarm(bundle.slots),
+                    canStopRepeats = persistent.repeatsAny(bundle.slots),
                 )
+                if (persistent.repeatsAny(bundle.slots)) {
+                    medicationReminderRepeatScheduler.scheduleNextRepeats(bundle.slots, now)
+                }
                 diagnosticsLogger.info(
                     TAG,
                     "reminder_receiver_notification_shown groupUuid=$groupUuid " +

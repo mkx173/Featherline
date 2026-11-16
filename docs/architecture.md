@@ -56,7 +56,7 @@ are organized by role:
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
 - [`reminder`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
-  capability reconciliation, notification text and channels. 18 files;
+  capability reconciliation, notification text and channels, and the persistent-reminder repeat chain. 21 files;
   documented in detail in [reminders.md](reminders.md).
 - [`startup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/startup) — Hilt-eager startup
   preloader and timing instrumentation. Two files.

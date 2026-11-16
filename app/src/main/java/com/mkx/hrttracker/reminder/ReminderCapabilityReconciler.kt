@@ -22,6 +22,7 @@ class ReminderCapabilityReconciler @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val _state = MutableStateFlow(
@@ -111,10 +112,13 @@ class ReminderCapabilityReconciler @Inject constructor(
 
         if (disabledReminders) {
             medicationReminderSnoozeScheduler.clearAllSnoozes()
+            medicationReminderRepeatScheduler.clearAllRepeats()
         }
 
         medicationReminderScheduler.rescheduleAll()
         medicationReminderSnoozeScheduler.rescheduleAll()
+        // Clears every chain itself when reminders or repeats are off.
+        medicationReminderRepeatScheduler.rescheduleAll()
         lastReconciledSnapshot = snapshot
         diagnosticsLogger.info(
             TAG,

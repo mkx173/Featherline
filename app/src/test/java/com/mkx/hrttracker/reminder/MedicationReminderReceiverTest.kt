@@ -43,6 +43,7 @@ class MedicationReminderReceiverTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk(relaxed = true)
     private val reminderNotificationManager: ReminderNotificationManager = mockk(relaxed = true)
+    private val medicationReminderRepeatScheduler: MedicationReminderRepeatScheduler = mockk(relaxed = true)
     private val e2EstimateRepository: E2EstimateRepository = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val pendingResult: BroadcastReceiver.PendingResult = mockk(relaxed = true)
@@ -152,6 +153,7 @@ class MedicationReminderReceiverTest {
             medicationLogRepository = medicationLogRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             reminderNotificationManager = reminderNotificationManager,
+            medicationReminderRepeatScheduler = medicationReminderRepeatScheduler,
             e2EstimateRepository = e2EstimateRepository,
             diagnosticsLogger = diagnosticsLogger,
             pendingResult = pendingResult,
