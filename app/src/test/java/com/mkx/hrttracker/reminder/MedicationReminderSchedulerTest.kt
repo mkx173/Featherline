@@ -1059,6 +1059,67 @@ class MedicationReminderSchedulerTest {
         }
     }
 
+    @Test
+    fun a_delivery_hours_past_its_doses_alerts_posts_nothing_and_arms_the_next_alert() = runTest {
+        givenNoonArmed(entries = listOf(loggedAt(morning)))
+        // The clock jumped to 16:00: the noon dose's last alert, 12:45, is hours old.
+        val jumped = noon.withHour(16)
+        clock = testInstant(jumped)
+
+        deliverReminder(alertAt = noon, now = jumped)
+
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+        assertEquals(listOf(testInstant(morning.plusDays(1)).toEpochMilli()), armedAlarms.values.toList())
+    }
+
+    @Test
+    fun three_plans_past_due_by_hours_post_nothing() = runTest {
+        val plans = givenThreePlansArmedAtNoon()
+        val jumped = noon.withHour(16)
+        clock = testInstant(jumped)
+
+        plans.forEach { plan -> deliverReminder(alertAt = noon, now = jumped, groupUuid = plan.uuid) }
+
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun three_plans_a_few_minutes_past_their_alert_each_post_and_the_first_sounds() = runTest {
+        val plans = givenThreePlansArmedAtNoon()
+        val late = noon.plusMinutes(5)
+        clock = testInstant(late)
+
+        plans.forEach { plan -> deliverReminder(alertAt = noon, now = late, groupUuid = plan.uuid) }
+
+        plans.forEachIndexed { index, plan ->
+            verify(exactly = 1) {
+                notificationManager.showDoseReminderNotification(
+                    bundle = match { bundle -> bundle.slots.single().groupUuid == plan.uuid },
+                    hideMedicationDetails = any(),
+                    silent = index > 0,
+                )
+            }
+        }
+    }
+
+    /** [twiceDaily] and two plans like it, each with its morning dose logged and noon armed. */
+    private fun givenThreePlansArmedAtNoon(): List<MedicationGroup> {
+        val plans = listOf(
+            twiceDaily,
+            twiceDaily.copy(uuid = UUID.fromString("3c5e7a91-2b4d-4f6a-8c0e-1d3f5b7a9c2e")),
+            twiceDaily.copy(uuid = UUID.fromString("4d6f8b02-3c5e-4a7b-9d1f-2e4a6c8b0d3f")),
+        )
+        val entries = plans.map { plan -> loggedAt(morning).copy(sourceGroupUuid = plan.uuid) }
+        givenNoonArmed(entries = entries)
+        coEvery { groupRepository.getGroups() } returns plans
+        plans.forEach { plan ->
+            coEvery { groupRepository.getGroup(plan.uuid) } returns plan
+            armedAlarms[reminderIntentKey(plan.uuid)] = testInstant(noon).toEpochMilli()
+            storedReminders[plan.uuid] = testInstant(noon)
+        }
+        return plans
+    }
+
     // Doses at 08:00 and 12:00. At 12:10 the 12:00 alarm, inexact, still hasn't come.
     private val twiceDaily = medicationGroup(
         UUID.fromString("2b4d6f80-1a3c-4e5f-8a7b-9c0d1e2f3a4b"),

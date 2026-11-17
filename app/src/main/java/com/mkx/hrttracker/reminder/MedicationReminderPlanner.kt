@@ -78,7 +78,9 @@ internal fun MedicationGroup.nextReminderAlert(
 
 /**
  * The plan's latest alert from [since] up to [now]: what a delivery armed for [since] rings for.
- * Late, as after the phone was off, it is the latest one, not each one in between.
+ * Late, as after the phone was off, it is the latest one, not each one in between, and only while
+ * it is current: less than [ALERT_CURRENT_FOR] old. An older one rings nothing, so a delivery
+ * after a clock change, a boot or the phone being off posts no stale reminder per plan.
  */
 internal fun MedicationGroup.latestDueReminderAlert(
     since: Instant,
@@ -92,6 +94,15 @@ internal fun MedicationGroup.latestDueReminderAlert(
         .filter { alert -> !alert.alertAt.isBefore(since) }
         .takeWhile { alert -> !alert.alertAt.isAfter(now) }
         .lastOrNull()
+        ?.takeIf { alert -> now.isBefore(alert.alertAt.plus(ALERT_CURRENT_FOR)) }
+
+// ponytail: one fixed hour, so an alarm battery saver or Doze defers past it posts nothing. Widen
+// it, or tie it to the restrictions in force, if such reminders go missing.
+/**
+ * How long a due alert stays current: an inexact alarm (no exact alarm access) comes within an
+ * hour of its time on Android 12 and later, unless battery saver or Doze defers it.
+ */
+internal val ALERT_CURRENT_FOR: Duration = Duration.ofHours(1)
 
 /**
  * The wall time from which a plan's doses can still have an alert at or after [instant]: one

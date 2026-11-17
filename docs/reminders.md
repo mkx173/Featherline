@@ -24,7 +24,13 @@ model-checked by the `verify-reminders` skill.
    any other value outside these reads as the default from the store,
    and rejects a backup). The alerts stop at the
    first of: the count, a log of the dose, Skip, or the instant of the
-   plan's next dose.
+   plan's next dose. A late delivery posts only an alert that is still
+   current, less than one hour old, whatever the interval; an older one
+   posts nothing, as after a clock change, a boot or the phone being
+   off, and the dose shows as missed on Home. An hour because an
+   inexact alarm (no exact-alarm access) comes within an hour of its
+   time on Android 12 and later, unless battery saver or Doze defers
+   it.
    Nothing is stored per alert: each pass works the alerts out from the
    schedule, the log and the clock, and arms one alarm per plan, at its
    next alert. Nothing reads an armed instant back as a wall time.
@@ -85,8 +91,11 @@ sequenceDiagram
   reminder again.
 - `latestDueReminderAlert(since, now, …)` — the latest alert from the
   armed one up to now: what a delivery rings for. A late delivery rings
-  only that one, not each alert it was late for; an earlier missed dose
-  shows as overdue on Home.
+  only that one, not each alert it was late for, and only while it is
+  current: `now < alertAt + ALERT_CURRENT_FOR` (one hour). An older
+  one rings nothing, so
+  a burst of late deliveries posts no stale reminder per plan. A missed
+  dose shows as overdue on Home; nothing is logged.
 - `buildNextMedicationReminderPlans` — one plan per active group with
   reminders on and medications: an armed alert whose instant has passed
   is armed again as it is (it fires at once; see [Edge
@@ -151,7 +160,8 @@ dose's ring at its new local time was lost.
 - [`MedicationReminderReceiver`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderReceiver.kt)
   — reads the master switch, then in one hold of the lock: checks the
   stored instant, posts the plan's reminder for its latest due alert
-  (reading the switch again just before), marks it delivered, and arms
+  if that alert is under an hour old (reading the switch again just
+  before), marks it delivered, and arms
   the next alert. With reminders off it posts nothing.
 - [`MedicationReminderActionReceiver`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
   — Log now (`ACTION_MEDICATION_REMINDER_LOG_NOW`), Skip
@@ -278,8 +288,12 @@ the first resume):
 Boot and an APK replacement lose every alarm; a time or zone change
 moves every alarm's instant. Each goes through the forced capability
 reconcile, which re-derives every plan's next alert from the schedule:
-"re-derive, don't replay". The time receivers also refresh
-`AppTimeSource` and ask Home for a rebuild.
+"re-derive, don't replay". An alert that passed meanwhile is armed
+again and fires at once, and its delivery posts only if the alert is
+still current, under an hour old: after a boot hours on, or a
+clock set hours forward, nothing posts for doses whose alerts are spent.
+The time receivers also refresh `AppTimeSource` and ask Home for a
+rebuild.
 
 ## Edge cases
 
@@ -292,11 +306,15 @@ reconcile, which re-derives every plan's next alert from the schedule:
   the plan's stored alert with the next one after each delivery, so an
   alert still in the past at a pass was never delivered: it is armed
   again, fires at once, and the receiver rings the plan's latest due
-  alert. An alarm in flight when the pass runs is delivered twice; the
+  alert if it is under an hour old; else it posts nothing and arms the
+  next alert. An alarm in flight when the pass runs is delivered twice; the
   first delivery marks it, so the second posts nothing.
 - **Clock moved forward, or a late delivery.** The reminder names the
   latest due alert's dose, so Log now saves the dose that is due; the
-  next alarm is set from now.
+  next alarm is set from now. An hour or more past that alert, nothing
+  posts: the dose shows as missed on Home and the
+  next alert is armed. So a jump of hours posts nothing for doses whose
+  alerts are spent, rather than one stale, sounding reminder per plan.
 - **The clocks go back or forward.** Alerts are instants, and every
   pass and delivery takes its `now` as an instant from the clock, never
   as a wall time. An hour that repeats: a dose in it has its alert on
@@ -329,7 +347,9 @@ reconcile, which re-derives every plan's next alert from the schedule:
   normal use, and in low-power idle modes much less often, such as
   once per 15 minutes. So the shortest interval is 15 minutes; even so,
   a repeat on an idle phone can arrive late, and a late delivery rings
-  only the latest due alert: two repeats can collapse into one ring.
+  only the latest due alert: two repeats can collapse into one ring. An
+  alarm that battery saver or Doze defers an hour or more past a dose's
+  last alert posts nothing (ponytail comment at `ALERT_CURRENT_FOR`).
 - **A failed delivery.** `scheduleGroupReminder` does its reads before
   it cancels, so a failed reschedule leaves the plan's alarm and key as
   they were; the delivered plan's own alarm was the one consumed, so it
