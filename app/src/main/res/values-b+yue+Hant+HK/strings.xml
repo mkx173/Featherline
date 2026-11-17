@@ -126,7 +126,7 @@
     <string name="plan_group_upcoming_tomorrow">聽日</string>
     <string name="plan_group_upcoming_tonight">今晚</string>
     <string name="plan_group_upcoming_tomorrow_night">聽晚</string>
-    <string name="plan_group_upcoming_night_of">%1$s 晚上</string>
+    <string name="plan_group_upcoming_night_of">%1$s 夜晚</string>
     <string name="plan_group_notifications_enabled">提醒已開啟</string>
     <string name="plan_group_notifications_disabled">提醒已關閉</string>
     <string name="plan_regimen_title">用藥方案</string>
@@ -394,7 +394,7 @@
     <string name="group_schedule_times_with_count">每日時間 · %d</string>
     <string name="group_schedule_preview">預覽</string>
     <string name="group_schedule_duplicate_time">呢個時間已經喺計劃入面</string>
-    <string name="group_schedule_time_moves_logged_dose_before_start">呢個時間會令已記錄嘅用藥早過群組嘅開始時間，所以未能使用</string>
+    <string name="group_schedule_time_moves_logged_dose_before_start">呢個時間會令已記錄嘅用藥早過群組嘅開始時間，因此未能使用</string>
     <string name="group_medication_duplicate_exists">呢種藥物已經喺群組入面</string>
     <string name="group_schedule_since_summary">由 %1$s 開始</string>
     <string name="field_date_of_application">用藥日期</string>
@@ -794,7 +794,7 @@
     <string name="health_connect_status_off">同步已關閉</string>
     <string name="health_connect_status_unavailable">唔支援呢部裝置</string>
     <string name="health_connect_status_update_required">要安裝或者更新</string>
-    <string name="health_connect_status_sync_failed">同步唔到</string>
+    <string name="health_connect_status_sync_failed">未能同步</string>
     <string name="health_connect_permission_denied">存取被拒絕，撳一下去 Health Connect 允許</string>
     <string name="health_connect_update_required">要安裝或者更新 Health Connect，撳一下去 Google Play 攞</string>
     <string name="health_connect_sync_now">即刻同步</string>
@@ -1049,7 +1049,7 @@
     <string name="stock_cancel">取消</string>
     <string name="anchor_shortcut_disabled_message">呢個日期已經刪除</string>
 
-    <string name="settings_medication_day_ends_at_four_am">修仙模式</string>
+    <string name="settings_medication_day_ends_at_four_am">夜貓子模式</string>
     <string name="settings_medication_day_ends_at_four_am_summary">%1$s 前嘅用藥計入前一日</string>
     <string name="medication_day_past_midnight">凌晨</string>
 
@@ -1109,7 +1109,7 @@
     <!-- Route-isolated E2 calibration (PK) — lab row review flows -->
     <string name="calibration_pk_lab_ignored_numeric_note">未使用：計唔到呢個時間點嘅估算</string>
     <string name="calibration_pk_lab_ignored_signal_note">未使用：呢個時間點預計幾乎冇嚟自用藥嘅雌二醇</string>
-    <string name="calibration_pk_lab_ignored_future_note">暫時未用：抽血時間喺未來</string>
+    <string name="calibration_pk_lab_ignored_future_note">暫時未使用：抽血時間喺未來</string>
     <string name="calibration_pk_lab_invalid_body">數值要大過零，如果報告顯示低過檢測下限，可以忽略呢個提示</string>
     <string name="calibration_pk_lab_dismiss">忽略</string>
     <string name="calibration_pk_lab_keep">保留</string>

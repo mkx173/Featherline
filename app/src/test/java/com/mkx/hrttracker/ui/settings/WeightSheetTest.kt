@@ -189,7 +189,7 @@ class WeightSheetTest {
         // That sync threw: nothing is running any more.
         healthConnect = access.copy(syncFailed = true, syncPending = true)
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Couldn’t sync").assertExists()
+        composeRule.onNodeWithText("Unable to sync").assertExists()
         healthConnect = access
 
         // None found: the kept weight's date sits under the field, as with sync
@@ -367,7 +367,7 @@ class WeightSheetTest {
         }
 
         composeRule.onNodeWithText("62.4").assertIsNotEnabled()
-        composeRule.onNodeWithText("Couldn’t sync").assertExists()
+        composeRule.onNodeWithText("Unable to sync").assertExists()
     }
 
     @Test

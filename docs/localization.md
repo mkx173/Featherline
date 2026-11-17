@@ -71,7 +71,7 @@ enum class AppLanguageOption(val languageTag: String) {
 
 For languages with important script or region variants, do not rely only on `locale.language`; inspect `locale.toLanguageTag()`, `locale.script`, or `locale.country` so system/restored locales map to the correct option. For example, a naive `locale.language == "zh"` branch would incorrectly map Traditional Chinese to Simplified Chinese.
 
-Cantonese uses the `yue` language code. The `粵語` option uses `yue-Hant-HK`
+Cantonese uses the `yue` language code. The `廣東話` option uses `yue-Hant-HK`
 and Hong Kong/Macau wording; `fromLocale()` maps explicit `yue` locales to it,
 while `zh-Hant` and scriptless `zh-HK`/`zh-MO` remain Traditional Chinese.
 
