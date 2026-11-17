@@ -71,7 +71,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -160,7 +159,6 @@ fun SettingsScreen(
     // pre-resolved string from the composition that first launched them.
     val latestContext by rememberUpdatedState(context)
     val activity = LocalActivity.current
-    val configuration = LocalConfiguration.current
     val coroutineScope = rememberCoroutineScope()
     val pickerResultScope = remember(activity, coroutineScope) {
         (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
@@ -419,10 +417,6 @@ fun SettingsScreen(
                 isDiagnosticsExportInProgress = false
             }
         }
-    }
-
-    LaunchedEffect(configuration) {
-        viewModel.refreshAppLanguageOption()
     }
 
     LaunchedEffect(settingsState.remindersEnabled, hasNotificationAccess) {

@@ -25,6 +25,8 @@ class HrtTrackerApplicationTest {
                 AppLanguageOption.ENGLISH,
                 AppLanguageOption.SIMPLIFIED_CHINESE,
             ),
+            // The last run stored the start language, in the form AppCompat gives.
+            lastLanguageTag = { "en-US,zh-Hans-CN" },
             reminderNotificationManager = notificationManager,
             medicationReminderScheduler = { scheduler },
             diagnosticsLogger = mockk(relaxed = true),
@@ -33,6 +35,40 @@ class HrtTrackerApplicationTest {
         verify(exactly = 1) { notificationManager.createNotificationChannel(any()) }
         verify { notificationManager.createNotificationChannel(AppLanguageOption.SIMPLIFIED_CHINESE.languageTag) }
         coVerify(exactly = 1) { scheduler.refreshDoseReminderNotifications() }
+    }
+
+    @Test
+    fun followAppLanguage_repostsTheReminders_whenTheAppStartsInALanguageChangedWhileItWasDead() = runTest {
+        val notificationManager = mockk<ReminderNotificationManager>(relaxed = true)
+        val scheduler = mockk<MedicationReminderScheduler>(relaxed = true)
+
+        followAppLanguage(
+            languages = flowOf(AppLanguageOption.CANTONESE),
+            lastLanguageTag = { "zh-Hans" },
+            reminderNotificationManager = notificationManager,
+            medicationReminderScheduler = { scheduler },
+            diagnosticsLogger = mockk(relaxed = true),
+        )
+
+        verify(exactly = 1) { notificationManager.createNotificationChannel(AppLanguageOption.CANTONESE.languageTag) }
+        coVerify(exactly = 1) { scheduler.refreshDoseReminderNotifications() }
+    }
+
+    @Test
+    fun followAppLanguage_skipsTheStartLanguage_withNoLastOne() = runTest {
+        val notificationManager = mockk<ReminderNotificationManager>(relaxed = true)
+        val scheduler = mockk<MedicationReminderScheduler>(relaxed = true)
+
+        followAppLanguage(
+            languages = flowOf(AppLanguageOption.CANTONESE),
+            lastLanguageTag = { null },
+            reminderNotificationManager = notificationManager,
+            medicationReminderScheduler = { scheduler },
+            diagnosticsLogger = mockk(relaxed = true),
+        )
+
+        verify(exactly = 0) { notificationManager.createNotificationChannel(any()) }
+        coVerify(exactly = 0) { scheduler.refreshDoseReminderNotifications() }
     }
 
     @Test

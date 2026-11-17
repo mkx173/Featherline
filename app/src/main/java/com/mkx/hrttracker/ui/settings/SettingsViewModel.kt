@@ -373,10 +373,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun refreshAppLanguageOption() {
-        settingsRepository.refreshAppLanguageOption()
-    }
-
     fun onScreenLockProtectionToggle(enabled: Boolean) {
         if (enabled == uiState.value.settingsState.screenLockProtectionEnabled) {
             return

@@ -219,14 +219,20 @@ reminders on screen in line with the plans, one per plan: one whose dose
 is gone (logged, moved by an edit, plan archived, deleted or muted) is
 cancelled, one whose medications changed is reposted silently in place.
 With reminders off, every one goes. Turning Hide medication details on
-or off, and a change of the app language in Settings (followed in
+or off, and a change of the app language (followed in
 `HrtTrackerApplication`'s `followAppLanguage`), repost every reminder on
-screen silently (`refreshDoseReminderNotifications`). A change made in
-Android's per-app language setting isn't followed while the app runs,
-as for the app's own screens (`MainActivity` handles `locale`
-configuration changes itself); after the next start the screens show
-it, and the reminders already on screen keep the old language until
-their next alert.
+screen silently (`refreshDoseReminderNotifications`). The language
+changes in Settings, or from API 33 in Android's per-app language
+setting: `MainActivity` handles `locale` configuration changes itself,
+so that change arrives only as a configuration change, which
+`HrtTrackerApplication.onConfigurationChanged` reads into the app
+language (`followAndroidAppLanguageSetting`), with or without an
+activity; the screens switch and the reminders are reposted as for one
+made in Settings. One made while the app was dead is caught at the next
+start: when the start language differs from the tag the last run stored
+(`SettingsRepository.lastRunAppLanguageTag()`, read when the repository
+is built, before this run stores its own), the channel is re-registered
+and the reminders reposted too.
 
 Tapping the body opens the app on the dose's row
 (`hrttracker://medication-reminder-notification/<tag>`, with

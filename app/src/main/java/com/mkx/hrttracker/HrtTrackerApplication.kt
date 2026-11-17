@@ -3,6 +3,7 @@ package com.mkx.hrttracker
 import android.annotation.SuppressLint
 import android.app.Application
 import android.app.UiModeManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.ComposeMaterial3Flags
@@ -27,9 +28,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -86,6 +88,14 @@ class HrtTrackerApplication : Application() {
         applicationScope.launch {
             followAppLanguage(
                 languages = settingsRepository.settingsState.map { it.appLanguageOption },
+                // Only from API 33 can the language change while the app is dead.
+                lastLanguageTag = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        settingsRepository.lastRunAppLanguageTag()
+                    } else {
+                        null
+                    }
+                },
                 reminderNotificationManager = reminderNotificationManager,
                 medicationReminderScheduler = medicationReminderScheduler::get,
                 diagnosticsLogger = diagnosticsLogger,
@@ -116,6 +126,11 @@ class HrtTrackerApplication : Application() {
         anchorWidgetManager.start()
         diagnosticsLogger.info(TAG, "application_anchor_widget_manager_started")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        followAndroidAppLanguageSetting(settingsRepository)
     }
 
     private fun applyDarkMode(option: DarkModeOption) {
@@ -159,20 +174,43 @@ private fun applyApplicationNightModeOnSOrAbove(
 }
 
 /**
- * On each change of the app language seen while the app runs (the in-app picker; a change in
- * Android's per-app language setting isn't seen until the next start, where it is the starting
- * language): re-registers the reminder channel so its name and description in Android's settings
- * follow (the same channel ID updates only those fields), and reposts the reminders on screen in
- * it, silently. The language the app starts in is skipped: the channel is created in it right
- * after, and the reminders on screen already show it.
+ * From API 33 Android's per-app language setting changes the app language with neither the
+ * in-app picker nor a new activity (`MainActivity` handles `locale` itself): it arrives only as
+ * a configuration change, here read into the app language, so the screens switch and
+ * [followAppLanguage] sees it, with or without an activity. Below API 33 the language changes
+ * only through the picker, and AppCompat knows it only once an activity has attached, so a
+ * configuration change there is left alone.
+ */
+internal fun followAndroidAppLanguageSetting(
+    settingsRepository: SettingsRepository,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+) {
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) settingsRepository.refreshAppLanguageOption()
+}
+
+/**
+ * On each change of the app language while the app runs (the in-app picker, or Android's per-app
+ * language setting through [followAndroidAppLanguageSetting]): re-registers the reminder channel
+ * so its name and description in Android's settings follow (the same channel ID updates only
+ * those fields), and reposts the reminders on screen in it, silently. The language the app starts
+ * in counts as a change only when it differs from [lastLanguageTag], the one stored by the last
+ * run (null skips the check): a change made in Android's setting while the app was dead.
+ * Otherwise it is skipped: the channel is created in it right after, and the reminders on screen
+ * already show it.
  */
 internal suspend fun followAppLanguage(
     languages: Flow<AppLanguageOption>,
+    lastLanguageTag: suspend () -> String?,
     reminderNotificationManager: ReminderNotificationManager,
     medicationReminderScheduler: () -> MedicationReminderScheduler,
     diagnosticsLogger: AppDiagnosticsLogger,
 ) {
-    languages.distinctUntilChanged().drop(1).collect { option ->
+    // ponytail: the stored tag only changes when the app sees a language, so a run that ends on
+    // "System default" after a choice reposts silently at every start until a language is seen.
+    val lastLanguage = lastLanguageTag()
+        ?.let { tags -> AppLanguageOption.fromLocale(Locale.forLanguageTag(tags.substringBefore(','))) }
+    languages.distinctUntilChanged().withIndex().collect { (index, option) ->
+        if (index == 0 && option == (lastLanguage ?: option)) return@collect
         diagnosticsLogger.info(
             "HrtTrackerApplication",
             "application_notification_channel_refresh_for_locale option=$option"

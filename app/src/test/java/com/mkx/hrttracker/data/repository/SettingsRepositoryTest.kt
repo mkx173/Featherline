@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.mkx.hrttracker.followAndroidAppLanguageSetting
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -663,6 +664,58 @@ class SettingsRepositoryTest {
     }
 
     /** The stored tag once it is [expected], as the write is asynchronous. */
+    @Test
+    fun `each change in Android's per-app language setting reaches the app language`() = runTest(testDispatcher) {
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns true
+        }
+        try {
+            // Android's setting changes the app language twice; each arrives as a configuration change.
+            every { appLanguageLocale() } returns Locale.forLanguageTag("zh-Hans-CN")
+            followAndroidAppLanguageSetting(settingsRepository, sdkInt = 33)
+            assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, awaitAppLanguage(AppLanguageOption.SIMPLIFIED_CHINESE))
+
+            every { appLanguageLocale() } returns Locale.forLanguageTag("yue-Hant-HK")
+            followAndroidAppLanguageSetting(settingsRepository, sdkInt = 33)
+            assertEquals(AppLanguageOption.CANTONESE, awaitAppLanguage(AppLanguageOption.CANTONESE))
+
+            // Below API 33 AppCompat may not know the chosen one yet, so the change is left alone.
+            every { appLanguageLocale() } returns Locale.ENGLISH
+            followAndroidAppLanguageSetting(settingsRepository, sdkInt = 32)
+            assertEquals(AppLanguageOption.CANTONESE, settingsRepository.settingsState.value.appLanguageOption)
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
+    fun `lastRunAppLanguageTag is the tag stored before this run, not one this run stores`() = runTest(testDispatcher) {
+        dataStore.edit { it[stringPreferencesKey("app_language_tag")] = "zh-Hans" }
+        val nextRun = SettingsRepository(dataStore)
+
+        assertEquals("zh-Hans", nextRun.lastRunAppLanguageTag())
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.setApplicationLocales(any()) } just Runs
+        val defaultLocale = Locale.getDefault()
+        try {
+            nextRun.setAppLanguageOption(AppLanguageOption.CANTONESE)
+            awaitStoredAppLanguageTag("yue-Hant-HK")
+
+            assertEquals("zh-Hans", nextRun.lastRunAppLanguageTag())
+        } finally {
+            Locale.setDefault(defaultLocale)
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    private suspend fun awaitAppLanguage(expected: AppLanguageOption): AppLanguageOption =
+        withContext(Dispatchers.Default) {
+            withTimeout(30_000) {
+                settingsRepository.settingsState.first { it.appLanguageOption == expected }.appLanguageOption
+            }
+        }
+
     private suspend fun awaitStoredAppLanguageTag(expected: String): String? =
         withContext(Dispatchers.Default) {
             withTimeout(30_000) {

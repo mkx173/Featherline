@@ -37,6 +37,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -119,6 +120,10 @@ class SettingsRepository internal constructor(
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageTagKey = stringPreferencesKey("app_language_tag")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
+
+    // From settingsState's first read, started at construction (Application.onCreate), before
+    // the activity's first refresh stores this run's language. A failed read gives null.
+    private val lastRunAppLanguageTagRead = CompletableDeferred<String?>()
 
     // ponytail: the stored tag as of the last write or getCurrentSettings, so a notification can
     // read it without suspending; every reminder path reads the settings before it posts.
@@ -204,7 +209,10 @@ class SettingsRepository internal constructor(
         .distinctUntilChanged()
 
     val settingsState: StateFlow<SettingsState> = combine(
-        storedPreferences.map(::preferencesToStoredSettingsState),
+        storedPreferences.map { preferences ->
+            lastRunAppLanguageTagRead.complete(preferences[appLanguageTagKey])
+            preferencesToStoredSettingsState(preferences)
+        },
         appLanguageOption
     ) { storedSettingsState, currentAppLanguageOption ->
         storedSettingsState.copy(appLanguageOption = currentAppLanguageOption)
@@ -242,6 +250,9 @@ class SettingsRepository internal constructor(
         return preferencesToStoredSettingsState(preferences)
             .copy(appLanguageOption = appLanguageOption.value)
     }
+
+    /** The app language tag the last run stored, or null if none was or it can't be read. */
+    suspend fun lastRunAppLanguageTag(): String? = lastRunAppLanguageTagRead.await()
 
     /**
      * The app language for text posted outside an activity, or null for the application
