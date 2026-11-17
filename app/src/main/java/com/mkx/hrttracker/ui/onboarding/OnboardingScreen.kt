@@ -117,6 +117,7 @@ import com.mkx.hrttracker.ui.catalog.MedicinesScreen
 import com.mkx.hrttracker.ui.catalog.NewMedicineSlotViewModel
 import com.mkx.hrttracker.ui.catalog.canHideCreateMedicineThenDoseSheet
 import com.mkx.hrttracker.ui.components.AppContentMaxWidth
+import com.mkx.hrttracker.ui.components.rememberAccessDenials
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.LocalChromeHazeState
 import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
@@ -571,6 +572,7 @@ fun OnboardingScreen(
             onSyncDisable = viewModel::disableHealthConnectWeightSync,
             onSyncNow = viewModel::syncWeightNow,
             onDismissRequest = { showWeightDialog = false },
+            healthConnectDenial = rememberAccessDenials().healthConnect,
         )
     }
 

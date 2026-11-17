@@ -80,7 +80,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -101,8 +100,10 @@ import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
-import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.components.AccessDenial
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.FollowAccessDenial
+import com.mkx.hrttracker.ui.components.rememberAccessDenials
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
@@ -168,13 +169,24 @@ fun SettingsScreen(
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     var isReminderEnablePending by rememberSaveable { mutableStateOf(false) }
+    // As the Health Connect switch's: lives until access returns or the app restarts.
+    val accessDenials = rememberAccessDenials()
+    val notificationAccessDenial = accessDenials.notifications
+    FollowAccessDenial(
+        denial = notificationAccessDenial,
+        hasAccess = hasNotificationAccess,
+        onAccessAllowed = {
+            isReminderEnablePending = true
+            viewModel.setRemindersEnabled(true)
+        },
+    )
     val reminderSupportState = resolveSettingsReminderSupportState(
         hasNotificationAccess = reminderCapabilityState.hasNotificationAccess,
         hasExactAlarmAccess = reminderCapabilityState.hasExactAlarmAccess,
         remindersEnabled = settingsState.remindersEnabled,
         isReminderEnablePending = isReminderEnablePending,
+        isNotificationAccessDenied = notificationAccessDenial.isDenied,
     )
-    var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     val isBackupExportInProgress = uiState.isBackupExportInProgress
@@ -264,17 +276,9 @@ fun SettingsScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         isReminderEnablePending = isGranted
+        notificationAccessDenial.isDenied = !isGranted
         reminderCapabilityReconciler.requestReconcile("settings_notification_permission_result")
-        if (isGranted) {
-            viewModel.setRemindersEnabled(true)
-        } else {
-            viewModel.setRemindersEnabled(false)
-            Toast.makeText(
-                context,
-                reminderNotificationsUnavailableMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+        viewModel.setRemindersEnabled(isGranted)
     }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -455,44 +459,44 @@ fun SettingsScreen(
         if (!enabled) {
             isReminderEnablePending = false
             viewModel.setRemindersEnabled(false)
-        } else if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            if (
-                shouldShowNotificationPermissionRecoveryToast(
+        } else {
+            when (
+                reminderEnableStep(
                     sdkInt = Build.VERSION.SDK_INT,
-                    hasRequestedPermissionBefore = hasRequestedNotificationPermission,
-                    shouldShowPermissionRationale = activity?.let {
-                        ActivityCompat.shouldShowRequestPermissionRationale(
-                            it,
-                            Manifest.permission.POST_NOTIFICATIONS
-                        )
-                    } ?: false
+                    hasPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == PackageManager.PERMISSION_GRANTED,
+                    areNotificationsEnabled = NotificationManagerCompat.from(context)
+                        .areNotificationsEnabled(),
                 )
             ) {
-                Toast.makeText(
-                    context,
-                    reminderNotificationsUnavailableMessage,
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                hasRequestedNotificationPermission = true
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                // Denied for good, Android answers at once with no dialog: a denial all the same.
+                ReminderEnableStep.REQUEST_PERMISSION ->
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+
+                ReminderEnableStep.ASK_TO_ALLOW_IN_SETTINGS -> {
+                    notificationAccessDenial.isDenied = true
+                    // The message shows once the reconciler sees access is gone, as after a denial.
+                    reminderCapabilityReconciler.requestReconcile("settings_notifications_blocked")
+                }
+                ReminderEnableStep.ENABLE -> {
+                    isReminderEnablePending = true
+                    viewModel.setRemindersEnabled(true)
+                }
             }
-        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            isReminderEnablePending = false
-            Toast.makeText(
-                context,
-                reminderNotificationsUnavailableMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            isReminderEnablePending = true
-            viewModel.setRemindersEnabled(true)
+        }
+    }
+    val onOpenNotificationSettings = {
+        notificationAccessDenial.onOpenSettings()
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            )
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, reminderNotificationsUnavailableMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -513,6 +517,8 @@ fun SettingsScreen(
         onWeightSyncNow = viewModel::syncWeightNow,
         onRemindersEnabledChange = onRemindersEnabledChange,
         onReminderRepeatsChange = viewModel::setReminderRepeats,
+        onOpenNotificationSettings = onOpenNotificationSettings,
+        healthConnectDenial = accessDenials.healthConnect,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
         },
@@ -911,6 +917,9 @@ internal fun SettingsScreenContent(
     onWeightSyncNow: () -> Unit = {},
     onRemindersEnabledChange: (Boolean) -> Unit,
     onReminderRepeatsChange: (ReminderRepeats) -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
+    /** The weight sheet's Health Connect denial; the app's, from [rememberAccessDenials]. */
+    healthConnectDenial: AccessDenial = remember { AccessDenial() },
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
@@ -1099,24 +1108,30 @@ internal fun SettingsScreenContent(
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
+                // As the Health Connect switch: on, it asks for notifications; after a denial the
+                // message below is the way to allow them, so the switch waits for it.
+                val reminderSwitchEnabled =
+                    reminderSupportState != SettingsReminderSupportState.NOTIFICATION_OFF
                 HrtSection(title = stringResource(R.string.settings_notifications)) {
                     item {
                         SettingsSegmentedListItem(
                             title = stringResource(R.string.settings_reminders),
                             supportingText = stringResource(R.string.settings_reminders_summary),
-                            enabled = hasNotificationAccess,
+                            enabled = reminderSwitchEnabled,
                             // Pin the title color to the enabled/disabled value directly instead of
                             // letting it ride the list-item's animated content color. The switch's
                             // enabled state snaps when access is granted, but the animated title
                             // faded in a frame behind it; an explicit color keeps the two in lockstep.
-                            titleColor = if (hasNotificationAccess) {
+                            titleColor = if (reminderSwitchEnabled) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             },
                             onClick = {
-                                if (hasNotificationAccess) {
-                                    onRemindersEnabledChange(!settingsState.remindersEnabled)
+                                if (reminderSwitchEnabled) {
+                                    onRemindersEnabledChange(
+                                        !(settingsState.remindersEnabled && hasNotificationAccess)
+                                    )
                                 }
                             },
                             leadingContent = {
@@ -1133,7 +1148,7 @@ internal fun SettingsScreenContent(
                                     checked = (settingsState.remindersEnabled || isReminderEnablePending) &&
                                             hasNotificationAccess,
                                     onCheckedChange = onRemindersEnabledChange,
-                                    enabled = hasNotificationAccess
+                                    enabled = reminderSwitchEnabled
                                 )
                             }
                         )
@@ -1155,9 +1170,9 @@ internal fun SettingsScreenContent(
                     if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
                         item {
                             SettingsSupportMessage(
-                                text = stringResource(R.string.settings_reminders_permission_off_summary),
+                                text = stringResource(R.string.settings_reminders_notifications_unavailable),
                                 painter = painterResource(R.drawable.ic_error_outline),
-                                onClick = { onRemindersEnabledChange(true) },
+                                onClick = onOpenNotificationSettings,
                                 showChevron = true,
                             )
                         }
@@ -1864,6 +1879,7 @@ internal fun SettingsScreenContent(
             healthConnect = healthConnectState,
             isSyncing = isWeightSyncing,
             readingProblem = healthConnectReadingProblem,
+            healthConnectDenial = healthConnectDenial,
             isInProgress = uiState.isWeightMutationInProgress,
             onSave = onWeightSave,
             onUnitChange = onWeightUnitChange,
@@ -1887,9 +1903,16 @@ internal fun resolveSettingsReminderSupportState(
     hasExactAlarmAccess: Boolean,
     remindersEnabled: Boolean,
     isReminderEnablePending: Boolean = false,
+    /** Turning reminders on found notifications denied or blocked. */
+    isNotificationAccessDenied: Boolean = false,
 ): SettingsReminderSupportState {
+    // No message up front: only once turning reminders on was denied, as the Health Connect switch.
     if (!hasNotificationAccess) {
-        return SettingsReminderSupportState.NOTIFICATION_OFF
+        return if (isNotificationAccessDenied) {
+            SettingsReminderSupportState.NOTIFICATION_OFF
+        } else {
+            SettingsReminderSupportState.NONE
+        }
     }
 
     return if ((remindersEnabled || isReminderEnablePending) && !hasExactAlarmAccess) {
@@ -1897,6 +1920,23 @@ internal fun resolveSettingsReminderSupportState(
     } else {
         SettingsReminderSupportState.NONE
     }
+}
+
+internal enum class ReminderEnableStep { ENABLE, REQUEST_PERMISSION, ASK_TO_ALLOW_IN_SETTINGS }
+
+/**
+ * What turning the reminders switch on does: ask for POST_NOTIFICATIONS (API 33+), else, with
+ * notifications blocked for the app (also below API 33, with no runtime permission), point to
+ * Android's notification settings.
+ */
+internal fun reminderEnableStep(
+    sdkInt: Int,
+    hasPermission: Boolean,
+    areNotificationsEnabled: Boolean,
+): ReminderEnableStep = when {
+    sdkInt >= Build.VERSION_CODES.TIRAMISU && !hasPermission -> ReminderEnableStep.REQUEST_PERMISSION
+    !areNotificationsEnabled -> ReminderEnableStep.ASK_TO_ALLOW_IN_SETTINGS
+    else -> ReminderEnableStep.ENABLE
 }
 
 internal fun shouldShowAdaptiveColor(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =

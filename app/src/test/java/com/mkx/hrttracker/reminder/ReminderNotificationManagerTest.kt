@@ -83,7 +83,6 @@ class ReminderNotificationManagerTest {
         every { anyConstructed<NotificationCompat.Builder>().setSubText(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setPriority(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setContentIntent(any()) } answers { self as NotificationCompat.Builder }
-        every { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) } answers { self as NotificationCompat.Builder }
         every { anyConstructed<NotificationCompat.Builder>().setStyle(any()) } answers { self as NotificationCompat.Builder }
         every {
             anyConstructed<NotificationCompat.Builder>().addAction(
@@ -363,38 +362,91 @@ class ReminderNotificationManagerTest {
     }
 
     @Test
-    fun showNextReminderToast_showsOneWithinTwoSeconds_asClearAllSendsOnePerReminder() {
+    fun showNextReminderToast_clearAllShowsOneToastForTheEarliestAlert_thenThrottles() {
         var clock = 10_000L
         notificationManager.elapsedRealtime = { clock }
-        val next = java.time.Instant.parse("2026-05-20T09:15:00Z")
+        val delayed = mutableListOf<Runnable>()
+        every { anyConstructed<Handler>().postDelayed(any(), NEXT_REMINDER_TOAST_WINDOW_MS) } answers {
+            delayed += firstArg<Runnable>()
+            true
+        }
+        every { context.getString(R.string.reminder_notification_next, *anyVararg()) } answers {
+            "next ${(args[1] as Array<*>)[0]}"
+        }
+        val tomorrow = java.time.Instant.now().plus(java.time.Duration.ofDays(1))
+        val soon = java.time.Instant.now().plus(java.time.Duration.ofMinutes(5))
+        fun textFor(alertAt: java.time.Instant) = nextReminderToastText(
+            context,
+            LocalDateTime.ofInstant(alertAt, java.time.ZoneId.systemDefault()),
+            java.time.LocalDate.now(),
+            is24Hour = false,
+        )
 
-        notificationManager.showNextReminderToast(next)
-        clock += 500
-        notificationManager.showNextReminderToast(next)
+        // Clear all: three dismissals, handled one after another, the first naming tomorrow.
+        notificationManager.showNextReminderToast(tomorrow)
+        clock += 50
+        notificationManager.showNextReminderToast(soon)
+        clock += 50
+        notificationManager.showNextReminderToast(tomorrow.plusSeconds(60))
+        verify(exactly = 0) { toast.show() }
+        delayed.single().run()
+
+        verify(exactly = 1) { toast.show() }
+        val soonText = textFor(soon)
+        verify { Toast.makeText(context, soonText, Toast.LENGTH_SHORT) }
+
+        // A swipe within 2 s of the window's opening shows none; one after shows its own.
+        clock += 1_000
+        notificationManager.showNextReminderToast(soon)
+        assertEquals(1, delayed.size)
         clock += NEXT_REMINDER_TOAST_THROTTLE_MS
-        notificationManager.showNextReminderToast(next)
-
+        notificationManager.showNextReminderToast(tomorrow)
+        delayed.last().run()
         verify(exactly = 2) { toast.show() }
+        val tomorrowText = textFor(tomorrow)
+        verify { Toast.makeText(context, tomorrowText, Toast.LENGTH_SHORT) }
     }
 
     @Test
-    fun nextReminderToastText_namesTodayTomorrowOrTheDate() {
-        val today = java.time.LocalDate.of(2026, 5, 20)
-        every { context.getString(R.string.reminder_notification_next_today, *anyVararg()) } answers {
-            "today ${(args[1] as Array<*>)[0]}"
-        }
-        every { context.getString(R.string.reminder_notification_next_tomorrow, *anyVararg()) } answers {
-            "tomorrow ${(args[1] as Array<*>)[0]}"
-        }
-        every { context.getString(R.string.reminder_notification_next_on_date, *anyVararg()) } answers {
-            "on ${(args[1] as Array<*>).joinToString(" ")}"
+    fun nextReminderToastText_namesTheTimeToday_elseTheDateAndTime_withTheYearOnlyForAnotherYear() {
+        val today = java.time.LocalDate.of(2026, 11, 12)
+        every { context.getString(R.string.reminder_notification_next, *anyVararg()) } answers {
+            "Next reminder: ${(args[1] as Array<*>)[0]}"
         }
 
-        assertEquals("today 08:15", nextReminderToastText(context, today.atTime(8, 15), today, is24Hour = true))
-        assertEquals("tomorrow 08:00", nextReminderToastText(context, today.plusDays(1).atTime(8, 0), today, is24Hour = true))
+        assertEquals("Next reminder: 08:15", nextReminderToastText(context, today.atTime(8, 15), today, is24Hour = true))
+        // No "tomorrow".
         assertEquals(
-            "on May 23 08:00",
-            nextReminderToastText(context, today.plusDays(3).atTime(8, 0), today, is24Hour = true),
+            "Next reminder: Nov 13 · 08:00",
+            nextReminderToastText(context, today.plusDays(1).atTime(8, 0), today, is24Hour = true),
         )
+        assertEquals(
+            "Next reminder: Jan 1, 2027 · 08:15",
+            nextReminderToastText(context, java.time.LocalDate.of(2027, 1, 1).atTime(8, 15), today, is24Hour = true),
+        )
+    }
+
+    @Test
+    fun showDoseReminderNotification_isAReminder_andATapOnTheBodyLeavesIt() {
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+            scheduledAt = LocalDateTime.of(2026, 5, 20, 9, 0),
+            scheduleTimeUuid = null,
+        )
+        val bundle = MedicationReminderBundle(
+            scheduledAt = slot.scheduledAt,
+            items = listOf(MedicationReminderBundleItem(slot, "Morning", emptyList())),
+        )
+        val notifManagerCompat: NotificationManagerCompat = mockk()
+        every { NotificationManagerCompat.from(any()) } returns notifManagerCompat
+        every { notifManagerCompat.areNotificationsEnabled() } returns true
+        every { notifManagerCompat.notify(any<String>(), any(), any()) } just Runs
+
+        notificationManager.showDoseReminderNotification(bundle)
+
+        // Do Not Disturb's "allow reminders" lets it through (R9).
+        verify { anyConstructed<NotificationCompat.Builder>().setCategory(NotificationCompat.CATEGORY_REMINDER) }
+        // On the lock screen the tap asks to unlock first, and the reminder must still be there (R3).
+        verify(exactly = 0) { anyConstructed<NotificationCompat.Builder>().setAutoCancel(any()) }
     }
 }

@@ -83,9 +83,7 @@
     <string name="reminder_notification_action_log_now">立即記錄</string>
     <string name="reminder_notification_action_skip">跳過</string>
     <string name="reminder_notification_skipped">這次劑量不會再通知</string>
-    <string name="reminder_notification_next_today">下次提醒在 %1$s</string>
-    <string name="reminder_notification_next_tomorrow">下次提醒在明天 %1$s</string>
-    <string name="reminder_notification_next_on_date">下次提醒在 %1$s %2$s</string>
+    <string name="reminder_notification_next">下次提醒：%1$s</string>
     <string name="stock_toast_out_single">%1$s 已用盡</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="other">%1$d 種藥物已用盡</item>

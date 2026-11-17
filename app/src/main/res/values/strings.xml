@@ -82,9 +82,7 @@
     <string name="reminder_notification_action_log_now">Log now</string>
     <string name="reminder_notification_action_skip">Skip</string>
     <string name="reminder_notification_skipped">Notifications will stop for this dose.</string>
-    <string name="reminder_notification_next_today">Next reminder at %1$s.</string>
-    <string name="reminder_notification_next_tomorrow">Next reminder tomorrow at %1$s.</string>
-    <string name="reminder_notification_next_on_date">Next reminder on %1$s at %2$s.</string>
+    <string name="reminder_notification_next">Next reminder: %1$s</string>
     <string name="stock_toast_out_single">Out of stock: %1$s</string>
     <plurals name="stock_toast_out_multiple">
         <item quantity="one">%1$d medicine out of stock</item>

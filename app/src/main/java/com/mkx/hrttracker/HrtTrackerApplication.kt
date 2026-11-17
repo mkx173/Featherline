@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppTimeSource
@@ -22,8 +23,11 @@ import com.mkx.hrttracker.widget.HomeWidgetManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -51,6 +55,10 @@ class HrtTrackerApplication : Application() {
     @Inject
     lateinit var appTimeSource: AppTimeSource
 
+    // Lazy: built on the first language change, not at every start.
+    @Inject
+    lateinit var medicationReminderScheduler: dagger.Lazy<MedicationReminderScheduler>
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
         ComposeMaterial3Flags.isCheckboxStylingFixEnabled = true
@@ -75,35 +83,13 @@ class HrtTrackerApplication : Application() {
                 applyDarkMode(settings.darkModeOption)
             }
         }
-        // Re-register the reminder channel whenever the app locale changes so
-        // its name/description in system Settings → Apps → Notifications
-        // reflect the new language. Calling createNotificationChannel with the
-        // same channel ID updates the (mutable) name + description fields and
-        // leaves everything else untouched.
         applicationScope.launch {
-            var lastSeen: AppLanguageOption? = null
-            settingsRepository.settingsState
-                .map { it.appLanguageOption }
-                .distinctUntilChanged()
-                .collect { option ->
-                    // Skip the initial emission — the channel is already
-                    // created with the current locale right after this block
-                    // starts. We only need to react to actual changes.
-                    if (lastSeen != null && lastSeen != option) {
-                        diagnosticsLogger.info(
-                            TAG,
-                            "application_notification_channel_refresh_for_locale option=$option"
-                        )
-                        // Pass the new language tag so the channel's
-                        // name/description resolve via a config-overridden
-                        // context — the ApplicationContext's Resources may
-                        // still be on the old locale at this point.
-                        reminderNotificationManager.createNotificationChannel(
-                            languageTag = option.languageTag,
-                        )
-                    }
-                    lastSeen = option
-                }
+            followAppLanguage(
+                languages = settingsRepository.settingsState.map { it.appLanguageOption },
+                reminderNotificationManager = reminderNotificationManager,
+                medicationReminderScheduler = medicationReminderScheduler::get,
+                diagnosticsLogger = diagnosticsLogger,
+            )
         }
         ToastManager.init(this)
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")
@@ -170,4 +156,37 @@ private fun applyApplicationNightModeOnSOrAbove(
     applicationNightMode: Int,
 ) {
     uiModeManager.setApplicationNightMode(applicationNightMode)
+}
+
+/**
+ * On each change of the app language seen while the app runs (the in-app picker; a change in
+ * Android's per-app language setting isn't seen until the next start, where it is the starting
+ * language): re-registers the reminder channel so its name and description in Android's settings
+ * follow (the same channel ID updates only those fields), and reposts the reminders on screen in
+ * it, silently. The language the app starts in is skipped: the channel is created in it right
+ * after, and the reminders on screen already show it.
+ */
+internal suspend fun followAppLanguage(
+    languages: Flow<AppLanguageOption>,
+    reminderNotificationManager: ReminderNotificationManager,
+    medicationReminderScheduler: () -> MedicationReminderScheduler,
+    diagnosticsLogger: AppDiagnosticsLogger,
+) {
+    languages.distinctUntilChanged().drop(1).collect { option ->
+        diagnosticsLogger.info(
+            "HrtTrackerApplication",
+            "application_notification_channel_refresh_for_locale option=$option"
+        )
+        // Pass the new language tag so the channel's name/description resolve via a
+        // config-overridden context — the ApplicationContext's Resources may still be on the
+        // old locale at this point.
+        reminderNotificationManager.createNotificationChannel(languageTag = option.languageTag)
+        try {
+            medicationReminderScheduler().refreshDoseReminderNotifications()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diagnosticsLogger.warning("HrtTrackerApplication", "application_reminder_repost_failed", error)
+        }
+    }
 }

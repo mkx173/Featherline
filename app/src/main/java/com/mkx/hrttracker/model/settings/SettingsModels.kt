@@ -151,12 +151,20 @@ data class ReminderRepeats(
 
     fun isValid(): Boolean = count in COUNTS && intervalMinutes in INTERVALS_MINUTES
 
+    /**
+     * An interval under 15 minutes as 15, the shortest the wheel offers: earlier builds offered
+     * 5 and 10. The count stays. Read from the store and from a backup.
+     */
+    fun withShortIntervalRaised(): ReminderRepeats =
+        if (intervalMinutes < INTERVALS_MINUTES.first()) copy(intervalMinutes = INTERVALS_MINUTES.first()) else this
+
     companion object {
         const val DEFAULT_COUNT = 3
         const val DEFAULT_INTERVAL_MINUTES = 15
 
         /** 0 is Off: the dose rings once. */
         val COUNTS: List<Int> = (0..4).toList()
-        val INTERVALS_MINUTES: List<Int> = (5..60 step 5).toList()
+        // From 15: in Doze, Android lets an app's alarms go off about once per 15 minutes.
+        val INTERVALS_MINUTES: List<Int> = (15..60 step 5).toList()
     }
 }

@@ -2,11 +2,39 @@ package com.mkx.hrttracker
 
 import android.app.UiModeManager
 import android.os.Build
+import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.ReminderNotificationManager
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class HrtTrackerApplicationTest {
+    @Test
+    fun followAppLanguage_reregistersTheChannelAndRepostsTheReminders_onEachChangeOnly() = runTest {
+        val notificationManager = mockk<ReminderNotificationManager>(relaxed = true)
+        val scheduler = mockk<MedicationReminderScheduler>(relaxed = true)
+
+        // The start language, then the picker or Android's setting changing it.
+        followAppLanguage(
+            languages = flowOf(
+                AppLanguageOption.ENGLISH,
+                AppLanguageOption.ENGLISH,
+                AppLanguageOption.SIMPLIFIED_CHINESE,
+            ),
+            reminderNotificationManager = notificationManager,
+            medicationReminderScheduler = { scheduler },
+            diagnosticsLogger = mockk(relaxed = true),
+        )
+
+        verify(exactly = 1) { notificationManager.createNotificationChannel(any()) }
+        verify { notificationManager.createNotificationChannel(AppLanguageOption.SIMPLIFIED_CHINESE.languageTag) }
+        coVerify(exactly = 1) { scheduler.refreshDoseReminderNotifications() }
+    }
+
     @Test
     fun applyApplicationNightModeIfAvailable_belowS_doesNotCallApi31Method() {
         val uiModeManager = mockk<UiModeManager>(relaxed = true)

@@ -85,6 +85,8 @@ import com.mkx.hrttracker.healthconnect.HealthConnectCapabilityState
 import com.mkx.hrttracker.healthconnect.ReadingProblem
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.ui.components.AccessDenial
+import com.mkx.hrttracker.ui.components.FollowAccessDenial
 import com.mkx.hrttracker.ui.components.HazeAlertDialog
 import com.mkx.hrttracker.ui.components.HazeModalBottomSheet
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -110,35 +112,33 @@ private class HealthConnectWeightSync(
 
 /**
  * Turning sync on asks for READ weight first; a grant enables it, a denial
- * leaves it off. Lives in [WeightSheet], so a denial's pending enable dies with
- * the sheet: a grant made some other day can't turn sync on by itself and
- * replace a weight typed meanwhile.
+ * leaves it off and shows the message to Health Connect's settings. The denial
+ * is the app's ([denial], in AccessDenials): the message is there whenever the
+ * sheet opens again, until access returns or the app restarts. Access granted
+ * on the return from the message's trip to Health Connect finishes the enable;
+ * granted any other way, some other day, it only ends the denial: it can't turn
+ * sync on by itself and replace a weight typed meanwhile.
  */
 @Composable
 private fun rememberHealthConnectWeightSync(
     healthConnect: HealthConnectCapabilityState,
+    denial: AccessDenial,
     onEnable: () -> Unit,
     onDisable: () -> Unit,
 ): HealthConnectWeightSync {
     val context = LocalContext.current
     // Set by a denial: the sheet then points to Health Connect's settings, since
     // after repeated denials its dialog stops showing and the app can't tell.
-    var denied by rememberSaveable { mutableStateOf(false) }
+    val denied = denial.isDenied
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
     ) { granted ->
-        denied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
-        if (!denied) onEnable()
+        denial.isDenied = HEALTH_CONNECT_READ_WEIGHT_PERMISSION !in granted
+        if (!denial.isDenied) onEnable()
     }
     val hasAccess = healthConnect.hasAccess
-    // Access granted in Health Connect after a denial finishes the enable.
-    LaunchedEffect(hasAccess) {
-        if (hasAccess && denied) {
-            denied = false
-            onEnable()
-        }
-    }
-    return remember(healthConnect, denied, onEnable, onDisable) {
+    FollowAccessDenial(denial = denial, hasAccess = hasAccess, onAccessAllowed = onEnable)
+    return remember(healthConnect, denial, denied, onEnable, onDisable) {
         HealthConnectWeightSync(
             onSyncEnabledChange = { enabled ->
                 when {
@@ -162,6 +162,7 @@ private fun rememberHealthConnectWeightSync(
                 } else {
                     Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                 }
+                denial.onOpenSettings()
                 try {
                     context.startActivity(intent)
                 } catch (_: ActivityNotFoundException) {
@@ -217,12 +218,14 @@ internal fun WeightSheet(
     onSyncDisable: () -> Unit,
     onSyncNow: () -> Unit,
     onDismissRequest: () -> Unit,
+    /** The app's Health Connect denial (AccessDenials.healthConnect): it outlives the sheet. */
+    healthConnectDenial: AccessDenial,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     /** The unit switch with sync on: converts the stored weight. */
     onUnitChange: (WeightUnit) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val sync = rememberHealthConnectWeightSync(healthConnect, onSyncEnable, onSyncDisable)
+    val sync = rememberHealthConnectWeightSync(healthConnect, healthConnectDenial, onSyncEnable, onSyncDisable)
     // Shown beside the sheet, not inside its window: a dialog composed in the
     // sheet's content stretches edge to edge.
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }

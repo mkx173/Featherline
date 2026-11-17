@@ -18,9 +18,13 @@ model-checked by the `verify-reminders` skill.
    zone: a time the clocks skip rings once they have, an hour later; a
    time they repeat rings on its first pass), then *count* repeats *i*
    minutes apart in real time (Settings → Repeat reminders, one setting
-   for every plan, default 3 × 15 min; count Off or 1-4, interval 5-60
-   min in 5-minute steps). The alerts stop at the first of: the count, a
-   log of the dose, Skip, or the instant of the plan's next dose.
+   for every plan, default 3 × 15 min; count Off or 1-4, interval 15-60
+   min in 5-minute steps, from 15 because Doze holds alarms to about one
+   in 15 minutes; a stored or restored interval under 15 reads as 15;
+   any other value outside these reads as the default from the store,
+   and rejects a backup). The alerts stop at the
+   first of: the count, a log of the dose, Skip, or the instant of the
+   plan's next dose.
    Nothing is stored per alert: each pass works the alerts out from the
    schedule, the log and the clock, and arms one alarm per plan, at its
    next alert. Nothing reads an armed instant back as a wall time.
@@ -33,7 +37,13 @@ model-checked by the `verify-reminders` skill.
    logs nothing, so Home still shows the dose as missed. Toast:
    "Notifications will stop for this dose."
 5. **A swipe** (or Clear all) dismisses the notification, and the alerts
-   go on. A toast names the plan's next alert.
+   go on. A toast names the plan's next alert; after Clear all, one toast
+   names the earliest next alert of the plans dismissed together.
+6. **A tap on the body** opens the app on the dose's row and leaves the
+   reminder; it goes when the dose is logged (from the reminder or in the
+   app) or skipped, when it is swiped, or once the dose's day is over: at
+   the plan's next dose at the same schedule time (tomorrow's, for a daily
+   plan), so missed reminders don't pile up.
 
 ## Sequence
 
@@ -165,12 +175,17 @@ dose's ring at its new local time was lost.
   the tap is explicit.
 - `skip` — in one hold: cancels the notification, moves the watermark,
   reschedules the plan; then the toast.
-- `dismissed` — the swipe's toast: "Next reminder at 08:15", "Next
-  reminder tomorrow at 08:00", or "Next reminder on Nov 14 at 08:00",
-  from the plan's armed alert. No toast with reminders off or nothing
-  armed ahead. Toasts within 2 s of the last one are dropped, as the
-  Settings version copy does (`NEXT_REMINDER_TOAST_THROTTLE_MS`), so
-  Clear all shows one. The last-shown time lives in memory.
+- `dismissed` — the swipe's toast, from the plan's armed alert: "Next
+  reminder: 08:15" today, "Next reminder: Nov 14 · 08:15" another day,
+  "Next reminder: Jan 1, 2027 · 08:15" another year (`dateLabelFormatter`
+  and the device's 12/24-hour time). No toast with reminders off or
+  nothing armed ahead. Clear all sends one delete intent per reminder,
+  each its own broadcast, handled one after another: the first opens a
+  500 ms window (`NEXT_REMINDER_TOAST_WINDOW_MS`), the others join it,
+  and its end shows one toast for the earliest alert. A dismissal within
+  2 s of the window's opening that comes after it closed shows none, as
+  the Settings version copy (`NEXT_REMINDER_TOAST_THROTTLE_MS`). Both
+  live in memory: a process death at worst shows no toast, or one more.
 
 ### Notify
 
@@ -185,19 +200,36 @@ as its subtext, the medications in its expanded text (or only the plan
 name with Hide medication details on), Skip and Log now actions, and a
 delete intent. Its tag, `medication-reminder/<doseAt>/<hash of its
 slots>`, is per plan and dose, so a repeat posts in place, and with no
-`setOnlyAlertOnce` it alerts again. A silent post uses `setSilent`.
+`setOnlyAlertOnce` it alerts again. A silent post uses `setSilent`. Its
+category is `CATEGORY_REMINDER`, so a Do Not Disturb that allows
+reminders lets it through.
 
 `reconcileDoseReminderNotifications`, run by every pass, brings the
 reminders on screen in line with the plans, one per plan: one whose dose
 is gone (logged, moved by an edit, plan archived, deleted or muted) is
 cancelled, one whose medications changed is reposted silently in place.
 With reminders off, every one goes. Turning Hide medication details on
-or off reposts the reminders on screen
-(`refreshDoseReminderNotifications`).
+or off, and a change of the app language in Settings (followed in
+`HrtTrackerApplication`'s `followAppLanguage`), repost every reminder on
+screen silently (`refreshDoseReminderNotifications`). A change made in
+Android's per-app language setting isn't followed while the app runs,
+as for the app's own screens (`MainActivity` handles `locale`
+configuration changes itself); after the next start the screens show
+it, and the reminders already on screen keep the old language until
+their next alert.
 
 Tapping the body opens the app on the dose's row
 (`hrttracker://medication-reminder-notification/<tag>`, with
-`EXTRA_HIGHLIGHT_SCHEDULED_TARGETS`), as the widget's row tap does.
+`EXTRA_HIGHLIGHT_SCHEDULED_TARGETS`), as the widget's row tap does. It
+has no `setAutoCancel`, so the tap leaves the reminder on screen: on the
+lock screen Android asks to unlock first (its own behavior for a content
+intent that starts an activity), then the app lock, if on, asks too. The
+reminder goes with Log now, Skip, a swipe, or a log in the app, whose
+writer's pass (`rescheduleAll` or `rescheduleGroup`) cancels a reminder
+whose dose is logged. A missed dose's reminder stays past the plan's next
+dose (V4), until the plan's next dose at the same schedule time: then the
+next pass cancels it (`doseLifetimeEnded`), the bound v1.4.2's snoozes
+had.
 
 ### Capability and permissions
 
@@ -207,7 +239,22 @@ Tapping the body opens the app on the dose's row
   — re-reads both, publishes them, turns the master switch off when
   notification access is gone, and runs `rescheduleAll`. It skips the
   pass when nothing changed since its last run, unless forced (the
-  receivers, a restore). `MainActivity.onResume` calls it.
+  receivers, a restore). `MainActivity.onResume` calls it. Access that
+  comes back leaves reminders off.
+- The Settings switch works as the Health Connect weight-sync switch:
+  no message up front. Turning it on asks for `POST_NOTIFICATIONS` on API
+  33+ (`reminderEnableStep`); granted, reminders turn on. Denied, or
+  notifications blocked for the app (also below API 33), Settings shows
+  "Enable app notifications in system settings.", which opens the app's
+  notification settings, and the switch is disabled while it shows. The
+  denial (`AccessDenials`, in memory, as the weight sheet's Health
+  Connect denial) lasts the app's process: the message is there each time
+  Settings comes back, until notifications are allowed or the app
+  restarts. Allowed on the return from the message's trip to Android's
+  settings, reminders turn on; allowed any other way, the message goes
+  and the switch can be tapped again, but nothing turns on by itself.
+  Exact-alarm access has its own message, as before. Onboarding's
+  notification step and a plan editor's switch have their own flows.
 
 ## The upgrade from v1.4.2
 
@@ -280,9 +327,9 @@ reconcile, which re-derives every plan's next alert from the schedule:
 - **Repeats in Doze.** The platform limits how often an app's
   `setExactAndAllowWhileIdle` alarms go off: about once a minute in
   normal use, and in low-power idle modes much less often, such as
-  once per 15 minutes. So 5- and 10-minute repeats on an idle phone
-  can arrive late, and a late delivery rings only the latest due alert:
-  two repeats can collapse into one ring.
+  once per 15 minutes. So the shortest interval is 15 minutes; even so,
+  a repeat on an idle phone can arrive late, and a late delivery rings
+  only the latest due alert: two repeats can collapse into one ring.
 - **A failed delivery.** `scheduleGroupReminder` does its reads before
   it cancels, so a failed reschedule leaves the plan's alarm and key as
   they were; the delivered plan's own alarm was the one consumed, so it

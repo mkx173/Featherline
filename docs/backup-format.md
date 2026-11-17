@@ -141,10 +141,11 @@ flattened into the parent's JSON.
   `stockNudgeEnabled` / `stockNudgeUserEnabled`,
   `healthConnectWeightSyncEnabled` (absent before weight sync; the restore
   then keeps the device's setting), `reminderRepeatCount` /
-  `reminderRepeatIntervalMinutes` (the reminder repeats, 0-4 and 5-60 in
+  `reminderRepeatIntervalMinutes` (the reminder repeats, 0-4 and 15-60 in
   steps of 5; both absent before repeats, and the restore then keeps the
-  device's; one without the other, or a value outside those, rejects the
-  backup), and the home-card layout
+  device's; an interval under 15, as earlier builds offered, restores as
+  15 with its count; one without the other, or any other value outside
+  those, rejects the backup), and the home-card layout
   `homeCardOrder` / `homeCardHidden`). The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app

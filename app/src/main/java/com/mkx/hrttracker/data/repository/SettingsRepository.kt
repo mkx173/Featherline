@@ -665,7 +665,7 @@ class SettingsRepository internal constructor(
                 count = preferences[reminderRepeatCountKey] ?: ReminderRepeats.DEFAULT_COUNT,
                 intervalMinutes = preferences[reminderRepeatIntervalKey]
                     ?: ReminderRepeats.DEFAULT_INTERVAL_MINUTES,
-            ).takeIf(ReminderRepeats::isValid) ?: ReminderRepeats(),
+            ).withShortIntervalRaised().takeIf(ReminderRepeats::isValid) ?: ReminderRepeats(),
             healthConnectWeightSyncEnabled = preferences[healthConnectWeightSyncEnabledKey] ?: false,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,

@@ -167,6 +167,7 @@ class AppLockModalWindowsTest {
                     onSyncDisable = {},
                     onSyncNow = {},
                     onDismissRequest = { dismissals++ },
+                    healthConnectDenial = AccessDenial(),
                 )
             }
         }
@@ -205,6 +206,7 @@ class AppLockModalWindowsTest {
                             onSyncDisable = {},
                             onSyncNow = {},
                             onDismissRequest = { dismissals++ },
+                            healthConnectDenial = AccessDenial(),
                         )
                     }
                 }

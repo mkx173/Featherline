@@ -141,6 +141,9 @@ class BackupRestoreRemindersTest {
             reminderNotificationManager = notificationManager,
             homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
+            sdkInt = android.os.Build.VERSION.SDK_INT,
+            // On the reminder's day: one from an older day is past its dose's lifetime.
+            instantNow = { nine.plusMinutes(30).atZone(java.time.ZoneId.systemDefault()).toInstant() },
         )
         service = BackupRestoreService(
             context = context,
@@ -262,6 +265,9 @@ class BackupRestoreRemindersTest {
             reminderNotificationManager = notificationManager,
             homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
+            sdkInt = android.os.Build.VERSION.SDK_INT,
+            // On the reminder's day: one from an older day is past its dose's lifetime.
+            instantNow = { nine.plusMinutes(30).atZone(java.time.ZoneId.systemDefault()).toInstant() },
         )
         return scheduler to ReminderCapabilityReconciler(
             context = context,

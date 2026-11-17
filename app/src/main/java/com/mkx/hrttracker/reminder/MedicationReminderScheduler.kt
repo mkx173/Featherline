@@ -451,7 +451,8 @@ class MedicationReminderScheduler private constructor(
 
     /**
      * Brings the dose reminders on screen in line with the plans: one whose doses are all gone
-     * (dropped or moved by an edit, logged, plan archived, deleted or muted) is cancelled, and one
+     * (dropped or moved by an edit, logged, plan archived, deleted or muted, or past their
+     * lifetime: [doseLifetimeEnded]) is cancelled, and one
      * with only some gone, or whose plan's medications changed, is reposted silently with what is
      * pending now. [repostAll] reposts the rest too. Each names one plan's doses. v1.4.2's
      * reminders carried no doses in their extras, so none is here: the system cleared them when
@@ -474,10 +475,13 @@ class MedicationReminderScheduler private constructor(
             shown.values.flatMap(ShownDoseReminder::slots).minOf(MedicationReminderSlot::scheduledAt)
         )
         val hideMedicationDetails = settingsRepository.getCurrentSettings().hideMedicationDetails
+        val now = LocalDateTime.ofInstant(instantNow(), ZoneId.systemDefault())
         var cancelled = 0
         var reposted = 0
         shown.forEach { (tag, reminder) ->
+            // A missed dose's reminder stays past the plan's next dose, until its day is over.
             val remaining = groupsByUuid[reminder.slots.first().groupUuid]
+                ?.takeUnless { group -> reminder.slots.all { slot -> group.doseLifetimeEnded(slot, now) } }
                 ?.let { group -> remainingMedicationReminderBundle(reminder.slots, group, entries) }
             // Same doses can still mean other medications, counts or names, and Log
             // now would log the old ones. Or the medications are now shown or hidden.
@@ -506,10 +510,14 @@ class MedicationReminderScheduler private constructor(
         )
     }
 
-    /** Reposts the reminders on screen silently, after a change to how they show, as Hide medication details. */
+    /**
+     * Reposts every reminder on screen silently, after a change to how they show: Hide medication
+     * details, or the app language.
+     */
     suspend fun refreshDoseReminderNotifications() = withReminderScheduleLock {
         reconcileDoseReminderNotifications(
-            remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+            remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled,
+            repostAll = true,
         )
     }
 

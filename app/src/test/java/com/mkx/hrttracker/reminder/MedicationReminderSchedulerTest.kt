@@ -335,6 +335,49 @@ class MedicationReminderSchedulerTest {
     }
 
     @Test
+    fun a_missed_reminder_stays_until_the_plans_next_dose_at_its_time_then_goes() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e72"),
+            notificationsEnabled = true,
+        )
+        // Apr 20's 9:00 reminder, still unlogged.
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        clock = testInstant(LocalDateTime.of(2026, 4, 21, 8, 59))
+        scheduler.rescheduleGroup(group.uuid, after = clock)
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+
+        // Several days on, at a later pass: the next 9:00 has long come.
+        clock = testInstant(LocalDateTime.of(2026, 4, 24, 10, 0))
+        scheduler.rescheduleGroup(group.uuid, after = clock)
+        verify(exactly = 1) { notificationManager.cancelDoseReminderNotification(shown.notificationTag) }
+        verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshDoseReminderNotifications_reposts_an_unchanged_reminder_too_as_after_a_language_change() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c4d5e6f7-a8b9-4cad-8e1f-2a3b4c5d6e71"),
+            notificationsEnabled = true,
+        )
+        // What it shows is unchanged (a reschedule leaves it), but its strings are in the old language.
+        val shown = shownReminder(listOf(group))
+        givenPlans(listOf(group), shown = shown)
+
+        scheduler.refreshDoseReminderNotifications()
+
+        verify(exactly = 0) { notificationManager.cancelDoseReminderNotification(any()) }
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(
+                bundle = match { bundle -> bundle.notificationTag == shown.notificationTag },
+                hideMedicationDetails = false,
+                silent = true,
+            )
+        }
+    }
+
+    @Test
     fun cancelReminder_cancels_reminder_of_a_deleted_plan() = runTest {
         val group = medicationGroup(
             uuid = UUID.fromString("d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70"),

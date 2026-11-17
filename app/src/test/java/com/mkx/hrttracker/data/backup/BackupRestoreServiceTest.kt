@@ -296,24 +296,33 @@ class BackupRestoreServiceTest {
         }
 
     @Test
-    fun aStoredReminderRepeatOutOfRange_readsAsTheDefault() = runTest(settingsDispatcher) {
+    fun aStoredReminderRepeatOutOfRange_readsAsTheDefault_andAShortIntervalAs15() = runTest(settingsDispatcher) {
         Dispatchers.setMain(settingsDispatcher)
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         every { appLanguageLocale() } returns Locale.ENGLISH
-        val raw = PreferenceDataStoreFactory.create(
-            scope = settingsScope,
-            produceFile = { tmpFolder.newFile("raw.preferences_pb") },
-        )
-        raw.edit { preferences ->
-            preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_count")] = 9
-            preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_interval_minutes")] = 15
-        }
+        // A count past 4, or an interval off the wheel, reads as the default; one under 15 (the
+        // wheel offered 5 and 10 before batch F) as 15, with its count.
+        listOf(
+            Triple(9, 15, ReminderRepeats()),
+            Triple(2, 62, ReminderRepeats()),
+            Triple(2, 10, ReminderRepeats(2, 15)),
+            Triple(4, 5, ReminderRepeats(4, 15)),
+        ).forEachIndexed { index, (count, interval, expected) ->
+            val raw = PreferenceDataStoreFactory.create(
+                scope = settingsScope,
+                produceFile = { tmpFolder.newFile("raw$index.preferences_pb") },
+            )
+            raw.edit { preferences ->
+                preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_count")] = count
+                preferences[androidx.datastore.preferences.core.intPreferencesKey("reminder_repeat_interval_minutes")] = interval
+            }
 
-        assertEquals(ReminderRepeats(), SettingsRepository(raw).getCurrentSettings().reminderRepeats)
+            assertEquals(expected, SettingsRepository(raw).getCurrentSettings().reminderRepeats)
+        }
     }
 
     @Test
-    fun aBackupsReminderRepeats_roundTrip_andOutOfRangeOrHalfOnesAreRejected() {
+    fun aBackupsReminderRepeats_roundTrip_aShortIntervalReadsAs15_andOutOfRangeOrHalfOnesAreRejected() {
         fun validated(count: Int?, interval: Int?) = runCatching {
             emptySnapshot().let {
                 it.copy(settings = it.settings.copy(reminderRepeatCount = count, reminderRepeatIntervalMinutes = interval))
@@ -322,11 +331,17 @@ class BackupRestoreServiceTest {
                 .settings.reminderRepeats
         }
 
-        assertEquals(ReminderRepeats(4, 5), validated(4, 5).getOrThrow())
+        assertEquals(ReminderRepeats(4, 15), validated(4, 15).getOrThrow())
+        assertEquals(ReminderRepeats(1, 60), validated(1, 60).getOrThrow())
+        // An earlier build's 5 or 10 minutes: the backup restores, with 15.
+        assertEquals(ReminderRepeats(3, 15), validated(3, 10).getOrThrow())
+        assertEquals(ReminderRepeats(4, 15), validated(4, 5).getOrThrow())
         assertEquals(null, validated(null, null).getOrThrow())
         assertTrue(validated(5, 15).isFailure)
-        assertTrue(validated(3, 7).isFailure)
+        assertTrue(validated(3, 17).isFailure)
+        assertTrue(validated(3, 65).isFailure)
         assertTrue(validated(3, null).isFailure)
+        assertTrue(validated(null, 15).isFailure)
     }
 
     @Test

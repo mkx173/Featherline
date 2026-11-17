@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.toStorageValue
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
@@ -172,6 +173,21 @@ internal fun remainingMedicationReminderBundle(
         )
     }
 }
+
+/**
+ * Whether the dose at [slot] has had its day at [now]: the plan's next dose at the same schedule
+ * time has come (tomorrow's, for a daily plan). Its reminder on screen goes then, so missed
+ * ones don't pile up. v1.4.2's snooze lifetime, the same bound.
+ */
+internal fun MedicationGroup.doseLifetimeEnded(slot: MedicationReminderSlot, now: LocalDateTime): Boolean =
+    // Up to now only: the occurrences never end for an active plan, and a slot whose schedule
+    // time an edit removed never comes again.
+    occurrencesInPlanWindowFrom(start = slot.scheduledAt)
+        .takeWhile { occurrence -> !occurrence.scheduledFor.isAfter(now) }
+        .any { occurrence ->
+            occurrence.scheduledFor.isAfter(slot.scheduledAt) &&
+                    (slot.scheduleTimeUuid == null || occurrence.scheduleTimeUuid == slot.scheduleTimeUuid)
+        }
 
 internal fun medicationReminderNotificationTag(slots: List<MedicationReminderSlot>): String {
     val sortedSlotValues = slots.map(MedicationReminderSlot::toStorageValue).sorted()

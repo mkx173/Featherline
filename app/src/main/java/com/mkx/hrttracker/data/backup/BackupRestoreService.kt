@@ -1117,7 +1117,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
             intervalMinutes = requireNotNull(reminderRepeatIntervalMinutes) {
                 "Reminder repeat interval is missing."
             },
-        ).also { repeats -> require(repeats.isValid()) { "Unsupported reminder repeats $repeats." } }
+        )
+            // An interval under 15, from an earlier build, as 15: harmless, as a stale language is.
+            .withShortIntervalRaised()
+            .also { repeats -> require(repeats.isValid()) { "Unsupported reminder repeats $repeats." } }
     }
 
     return ValidatedBackupSettings(

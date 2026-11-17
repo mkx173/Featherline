@@ -158,7 +158,9 @@ class ReminderNotificationManager @Inject constructor(
                     notificationTag = notificationTag,
                 )
             )
-            .setAutoCancel(true)
+            // No setAutoCancel: a tap on the body opens the app (on the lock screen, after an
+            // unlock) and leaves the reminder until the dose is logged or skipped, or it is swiped.
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             // No setOnlyAlertOnce: a repeat posts under the same tag, and must sound.
             .setSilent(silent)
             // Read back by activeDoseReminders to tell which doses this one is
@@ -338,32 +340,50 @@ class ReminderNotificationManager @Inject constructor(
     /** The clock the next-reminder toast's throttle reads; a test sets its own. */
     internal var elapsedRealtime: () -> Long = SystemClock::elapsedRealtime
 
-    // In memory beside the toasts: a process death resets it, which at worst shows one more.
+    // In memory beside the toasts: a process death resets them, which at worst shows one more
+    // toast, or none for a window still open.
     private var lastNextReminderToastAt: Long? = null
+    private var pendingNextAlertAt: Instant? = null
 
     /**
-     * After a swipe: names the plan's next alert at [alertAt]. Throttled as the Settings version
-     * copy is: a swipe within 2 s of the last toast shows none, so Clear all shows one.
+     * After a swipe: names the plan's next alert at [alertAt]. Clear all sends one dismissal per
+     * reminder, each its own broadcast, and the receiver takes them one at a time: the first opens
+     * a window of [NEXT_REMINDER_TOAST_WINDOW_MS], the others join it, and its end shows one toast
+     * for the earliest alert among them. Throttled as the Settings version copy is: a swipe
+     * within 2 s of the last window's opening shows none.
      */
     fun showNextReminderToast(alertAt: Instant) {
         val shownAt = elapsedRealtime()
         synchronized(this) {
+            pendingNextAlertAt?.let { pending ->
+                pendingNextAlertAt = minOf(pending, alertAt)
+                diagnosticsLogger.info(TAG, "reminder_notification_next_toast_joined alertAt=$alertAt")
+                return
+            }
             val last = lastNextReminderToastAt
             if (last != null && shownAt - last < NEXT_REMINDER_TOAST_THROTTLE_MS) {
                 diagnosticsLogger.info(TAG, "reminder_notification_next_toast_throttled")
                 return
             }
             lastNextReminderToastAt = shownAt
+            pendingNextAlertAt = alertAt
         }
-        diagnosticsLogger.info(TAG, "reminder_notification_next_toast alertAt=$alertAt")
-        showToast { localized ->
-            nextReminderToastText(
-                context = localized,
-                alertAt = LocalDateTime.ofInstant(alertAt, ZoneId.systemDefault()),
-                today = LocalDate.now(),
-                is24Hour = context.uses24HourTimeFormat(),
-            )
-        }
+        // ponytail: a dismissal handled after the window closes (a slow cold start) is throttled,
+        // so its alert is left out even if earlier; a longer window would delay a single swipe's toast.
+        Handler(Looper.getMainLooper()).postDelayed({
+            val earliest = synchronized(this) {
+                pendingNextAlertAt.also { pendingNextAlertAt = null }
+            } ?: return@postDelayed
+            diagnosticsLogger.info(TAG, "reminder_notification_next_toast alertAt=$earliest")
+            showToast { localized ->
+                nextReminderToastText(
+                    context = localized,
+                    alertAt = LocalDateTime.ofInstant(earliest, ZoneId.systemDefault()),
+                    today = LocalDate.now(),
+                    is24Hour = context.uses24HourTimeFormat(),
+                )
+            }
+        }, NEXT_REMINDER_TOAST_WINDOW_MS)
     }
 
     fun cancelDoseReminderNotification(notificationTag: String) {
@@ -514,8 +534,8 @@ private fun buildExpandedNotificationBody(
 }
 
 /**
- * "Next reminder at 08:15", "Next reminder tomorrow at 08:00", or with its date when further off,
- * in [context]'s language and the app's time format.
+ * "Next reminder: 08:15" today, else "Next reminder: Nov 14 · 08:15", with the year when it is
+ * another year's, in [context]'s language, with the time in the device's 12/24-hour setting.
  */
 internal fun nextReminderToastText(
     context: Context,
@@ -526,15 +546,10 @@ internal fun nextReminderToastText(
     val locale = context.currentAppLocale()
     val time = alertAt.format(localizedShortTimeFormatter(locale, is24Hour))
     val date = alertAt.toLocalDate()
-    return when (date) {
-        today -> context.getString(R.string.reminder_notification_next_today, time)
-        today.plusDays(1) -> context.getString(R.string.reminder_notification_next_tomorrow, time)
-        else -> context.getString(
-            R.string.reminder_notification_next_on_date,
-            dateLabelFormatter(locale, today)(date),
-            time,
-        )
-    }
+    return context.getString(
+        R.string.reminder_notification_next,
+        if (date == today) time else "${dateLabelFormatter(locale, today)(date)} · $time",
+    )
 }
 
 internal fun reminderNotificationScheduledHighlightTargetStorageValues(
@@ -575,4 +590,6 @@ const val REMINDER_CHANNEL_ID = "dose_reminders"
 private const val EXTRA_REMINDER_CONTENT_HASH = "reminderContentHash"
 // As VERSION_COPY_THROTTLE_MS in SettingsScreen.
 internal const val NEXT_REMINDER_TOAST_THROTTLE_MS = 2_000L
+// Long enough for Clear all's other dismissals to be handled, short enough to read as a response.
+internal const val NEXT_REMINDER_TOAST_WINDOW_MS = 500L
 private const val TAG = "ReminderNotificationManager"
