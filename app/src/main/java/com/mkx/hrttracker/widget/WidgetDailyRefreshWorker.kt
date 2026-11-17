@@ -56,6 +56,7 @@ class WidgetDailyRefreshWorker(
  * as it does. And the record is stale when it wasn't built from the current
  * state: the write of that state threw, and nothing else writes it again. A
  * rewrite that throws is logged, and the widget re-rendered from its record.
+ * And when the rebuild worker gave up behind a write, this asks for the run.
  */
 internal suspend fun handleWidgetDailyRefresh(
     now: LocalDateTime,
@@ -83,7 +84,13 @@ internal suspend fun handleWidgetDailyRefresh(
         val state = homeSnapshotRepository.currentState()
         val notFromState = state?.homeData?.generatedAtEpochMillis
             ?.let { stamp -> snapshot?.sourceGeneratedAtEpochMillis != stamp } == true
-        if (snapshot == null || anchorDateStale || doseStatusStale || notFromState) {
+        // Behind a write, or missing a part, with no run pending or going: the
+        // rebuild worker gave up after its retries (see rebuilding), and nothing
+        // else may ask again soon. A run that publishes between the two reads
+        // only makes this ask for a redundant one.
+        val gaveUp = (state?.homeData == null || state.e2Inputs == null) &&
+            !homeSnapshotRepository.rebuilding.value
+        if (snapshot == null || anchorDateStale || doseStatusStale || notFromState || gaveUp) {
             val written = try {
                 state?.let { widgetSnapshotRepository.writeWidgetSnapshot(it) } == true
             } catch (cancellation: CancellationException) {

@@ -428,8 +428,6 @@
     <string name="load_medication_group_failure">Unable to load group.</string>
     <string name="load_medication_group_retry">Try again</string>
     <string name="save_medication_group_failure">Unable to save group.</string>
-    <string name="save_medication_group_locked_by_records">This change doesn’t fit the records already in this group, so it can’t be saved.</string>
-    <string name="save_medication_group_deleted">This group was deleted, so it can’t be saved.</string>
     <string name="delete_medication_group_failure">Unable to delete group.</string>
     <string name="delete_group_related_records">Delete records</string>
     <string name="delete_group_also_related_records">Also delete related records</string>
@@ -754,7 +752,6 @@
     <string name="settings_backup_restore_success">Backup restored</string>
     <string name="settings_backup_restore_failed">Wrong password or corrupted backup file</string>
     <string name="settings_backup_restore_unable">Unable to restore, please try again</string>
-    <string name="settings_backup_restore_newer_version">This backup is from a newer version. Update the app to restore it.</string>
     <string name="settings_backup_restore_incompatible_file">Selected file is not a compatible backup</string>
     <string name="settings_backup_restore_confirm_title">Restore backup?</string>
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
@@ -811,7 +808,6 @@
     <string name="personalization_weight_dialog_title">Body weight</string>
     <string name="personalization_weight_dialog_description">Used to improve plasma concentration estimates.</string>
     <string name="personalization_weight_dialog_description_recorded">Used to improve plasma concentration estimates · recorded %1$s</string>
-    <string name="personalization_weight_dialog_description_no_reading">Used to improve plasma concentration estimates · no weight records yet</string>
     <string name="personalization_weight_dialog_description_invalid_reading">Used to improve plasma concentration estimates · latest record isn’t a valid weight</string>
     <string name="personalization_weight_dialog_value_label">Weight</string>
     <string name="personalization_weight_dialog_save">Save</string>

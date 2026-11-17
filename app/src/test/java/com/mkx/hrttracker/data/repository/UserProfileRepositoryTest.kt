@@ -219,6 +219,26 @@ class UserProfileRepositoryTest {
     }
 
     @Test
+    fun theStoredRowTellsATypedWeightFromAHealthConnectReading() = runTest {
+        var row: UserProfileEntity? = null
+        coEvery { dao.getProfile() } answers { row }
+        coEvery { dao.upsertProfile(any()) } answers { row = firstArg() }
+        fun isReading() = row!!.toUserProfileModel().isHealthConnectReading
+
+        repository.setWeight(62.4, WeightUnit.KILOGRAMS, now = Instant.ofEpochMilli(5_000L))
+        assertFalse(isReading())
+        assertTrue(repository.adoptHcWeight(61.0, Instant.ofEpochMilli(4_000L), now = Instant.ofEpochMilli(6_000L)))
+        assertTrue(isReading())
+        // The unit switch with sync on keeps the reading's date.
+        repository.setWeightUnit(WeightUnit.POUNDS, now = Instant.ofEpochMilli(7_000L))
+        assertTrue(isReading())
+        repository.clearWeight(now = Instant.ofEpochMilli(8_000L))
+        assertFalse(isReading())
+        // A weight typed before weights were dated.
+        assertFalse(UserProfile(weightKg = 60.0, updatedAt = Instant.ofEpochMilli(1L)).isHealthConnectReading)
+    }
+
+    @Test
     fun setWeightUnit_convertsBothWays_deriving_kgFromTheRoundedValue() = runTest {
         var row = UserProfileEntity(
             weightKg = WeightUnit.POUNDS.toKg(136.3), // 61.825… kg

@@ -408,8 +408,6 @@
     <string name="load_medication_group_failure">无法加载分组</string>
     <string name="load_medication_group_retry">重试</string>
     <string name="save_medication_group_failure">无法保存分组</string>
-    <string name="save_medication_group_locked_by_records">这项更改与分组里已有的记录不符，因此无法保存</string>
-    <string name="save_medication_group_deleted">这个分组已被删除，因此无法保存</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
     <string name="delete_group_also_related_records">同时删除相关记录</string>
@@ -728,7 +726,6 @@
     <string name="settings_backup_restore_success">备份已恢复</string>
     <string name="settings_backup_restore_failed">密码错误或备份文件已损坏</string>
     <string name="settings_backup_restore_unable">无法恢复，请重试</string>
-    <string name="settings_backup_restore_newer_version">此备份来自较新版本，请更新应用后再恢复</string>
     <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
@@ -784,7 +781,6 @@
     <string name="personalization_weight_dialog_title">体重</string>
     <string name="personalization_weight_dialog_description">用于改进血药浓度估算</string>
     <string name="personalization_weight_dialog_description_recorded">用于改进血药浓度估算 · 记录于 %1$s</string>
-    <string name="personalization_weight_dialog_description_no_reading">用于改进血药浓度估算 · 还没有体重记录</string>
     <string name="personalization_weight_dialog_description_invalid_reading">用于改进血药浓度估算 · 最新记录不是有效体重</string>
     <string name="personalization_weight_dialog_value_label">体重</string>
     <string name="personalization_weight_dialog_save">保存</string>

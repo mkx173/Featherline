@@ -45,7 +45,7 @@ data class HealthConnectCapabilityState(
      * keeps sync on then) or while access is pending, so a weight typed before
      * the first reconcile can't be replaced by its sync. Drives the sheet's
      * switch and the "No records" text; the "· Health Connect" suffix outside
-     * needs [hasAccess].
+     * needs [hasAccess] and a weight that is a Health Connect reading.
      */
     fun isSyncOn(syncEnabled: Boolean): Boolean =
         syncEnabled && (hasAccess || providerUpdateRequired || accessPending)

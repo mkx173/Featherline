@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.startup
 
+import android.app.Activity
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.DatabaseKeyUnavailableException
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
@@ -14,9 +16,11 @@ import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.ToastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -38,13 +42,57 @@ class StartupPreloader @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val started = AtomicBoolean(false)
+    private val openStarted = AtomicBoolean(false)
     private val snapshotReminderStarted = AtomicBoolean(false)
     private val dbReminderStarted = AtomicBoolean(false)
 
-    // True once the startup open finds the database key lost. MainActivity toasts and closes
-    // the app on it; sticky, so a recreated or warm-relaunched activity does too.
+    // True once the startup open finds the database key lost. closeOnLostDatabaseKey toasts
+    // and closes the app on it; sticky, so a recreated or warm-relaunched activity does too.
     private val _databaseKeyLost = MutableStateFlow(false)
     val databaseKeyLost: StateFlow<Boolean> = _databaseKeyLost.asStateFlow()
+
+    /**
+     * The exit on a lost key, for MainActivity and WidgetConfigActivity once their first frame
+     * is up and unlocked, after they started the open ([startAfterFirstHomeFrame], or
+     * [startDatabaseOpen] alone): once it finds the key lost (nothing opens until the app's
+     * data is cleared), says so and closes [activity]'s task, on every exit, a warm relaunch's
+     * too. It's an app-context text toast, so it stays up once the task is gone. Suspends
+     * until then.
+     */
+    suspend fun closeOnLostDatabaseKey(activity: Activity) {
+        databaseKeyLost.first { it }
+        ToastManager.showMessageRes(R.string.database_key_unavailable)
+        activity.finishAndRemoveTask()
+    }
+
+    /**
+     * Only the startup open, for WidgetConfigActivity: it needs to learn whether the key is
+     * lost, not the warm-ups, the backfill or the reminder reschedule.
+     */
+    fun startDatabaseOpen() {
+        appScope.launch(Dispatchers.IO) { openDatabaseOnce() }
+    }
+
+    // Once per process, whichever path asks first.
+    private fun openDatabaseOnce() {
+        if (!openStarted.compareAndSet(false, true)) return
+        diagnosticsLogger.info(TAG, "database_warmup_start")
+        runCatching {
+            // openAndSignal, not get(): this is the normal in-app cold-start open, and
+            // a failure here must flip DatabaseHolder.openFailed or the journal's
+            // seeded flow (Milestones with no snapshot) waits forever.
+            databaseHolder.openAndSignal()
+        }.onSuccess {
+            diagnosticsLogger.info(TAG, "database_warmup_complete")
+        }.onFailure { throwable ->
+            diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
+            // The key is gone for good: only clearing the app's data opens a database
+            // again.
+            if (throwable is DatabaseKeyUnavailableException) {
+                _databaseKeyLost.value = true
+            }
+        }
+    }
 
     fun startAfterFirstHomeFrame() {
         if (!started.compareAndSet(false, true)) {
@@ -58,22 +106,7 @@ class StartupPreloader @Inject constructor(
         diagnosticsLogger.info(TAG, "startup_after_first_home_frame_enqueued")
         appScope.launch(Dispatchers.IO) {
             diagnosticsLogger.info(TAG, "startup_after_first_home_frame_start")
-            diagnosticsLogger.info(TAG, "database_warmup_start")
-            runCatching {
-                // openAndSignal, not get(): this is the normal in-app cold-start open, and
-                // a failure here must flip DatabaseHolder.openFailed or the journal's
-                // seeded flow (Milestones with no snapshot) waits forever.
-                databaseHolder.openAndSignal()
-            }.onSuccess {
-                diagnosticsLogger.info(TAG, "database_warmup_complete")
-            }.onFailure { throwable ->
-                diagnosticsLogger.warning(TAG, "database_warmup_failed", throwable)
-                // The key is gone for good: only clearing the app's data opens a database
-                // again.
-                if (throwable is DatabaseKeyUnavailableException) {
-                    _databaseKeyLost.value = true
-                }
-            }
+            openDatabaseOnce()
 
             diagnosticsLogger.info(TAG, "repository_warmup_start")
             runCatching {

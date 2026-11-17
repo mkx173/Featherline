@@ -127,6 +127,7 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.settings.WeightSheet
+import com.mkx.hrttracker.ui.settings.weightRowText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1479,11 +1480,12 @@ private fun UsefulInfoStep(
             title = stringResource(R.string.onboarding_useful_weight_title),
             // Sync on counts as set, like the Settings weight row.
             desc = formatWeightSummary(profile, weightEmptyRes).let { summary ->
-                if (weightSyncOn) {
-                    stringResource(R.string.personalization_weight_display_health_connect, summary)
-                } else {
-                    summary
-                }
+                weightRowText(
+                    summary = summary,
+                    withSource = stringResource(R.string.personalization_weight_display_health_connect, summary),
+                    syncOn = weightSyncOn,
+                    profile = profile,
+                )
             },
             index = 0,
             count = 3,

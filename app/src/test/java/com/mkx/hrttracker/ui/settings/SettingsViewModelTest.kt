@@ -802,61 +802,6 @@ class SettingsViewModelTest {
         }
     }
 
-    // F3: below API 30 the toggle's PIN screen, left with Home, never answers. Coming back
-    // another way drops the request, so the toggle can be tapped again.
-    @Test
-    fun lockTogglePrompt_leftOnItsPinScreen_isDroppedOnReturn() = runTest {
-        every { appLockSecurityManager.credentialScreenStopsActivity() } returns true
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.onScreenLockProtectionToggle(true)
-        advanceUntilIdle()
-        val first = checkNotNull(viewModel.uiState.value.pendingPrompt)
-        viewModel.onActivityStopped()
-        viewModel.onActivityResumed()
-        advanceUntilIdle()
-
-        assertNull(viewModel.uiState.value.pendingPrompt)
-        viewModel.onScreenLockProtectionToggle(true)
-        advanceUntilIdle()
-        assertTrue(checkNotNull(viewModel.uiState.value.pendingPrompt).id != first.id)
-    }
-
-    // The PIN screen's result lands before the resume: it applies, and nothing is dropped.
-    @Test
-    fun lockTogglePrompt_answeredBeforeTheResume_isApplied() = runTest {
-        every { appLockSecurityManager.credentialScreenStopsActivity() } returns true
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-        clearMocks(settingsRepository, answers = false, recordedCalls = true)
-
-        viewModel.onScreenLockProtectionToggle(true)
-        viewModel.onActivityStopped()
-        viewModel.onScreenLockProtectionAuthenticated()
-        viewModel.onActivityResumed()
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { settingsRepository.setScreenLockProtectionEnabled(true) }
-    }
-
-    // Only the request that was waiting at the stop is dropped, not a newer one.
-    @Test
-    fun lockTogglePrompt_madeAfterTheStoppedOneWasAnswered_isKept() = runTest {
-        every { appLockSecurityManager.credentialScreenStopsActivity() } returns true
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.onScreenLockProtectionToggle(true)
-        viewModel.onActivityStopped()
-        viewModel.onScreenLockProtectionAuthenticated()
-        viewModel.onScreenLockProtectionToggle(true)
-        viewModel.onActivityResumed()
-        advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.pendingPrompt)
-    }
-
     // After process death, a redelivered PIN success has no request to say what it was for:
     // it writes nothing, rather than taking it for an enable (and turning hide-content on).
     @Test
@@ -870,37 +815,6 @@ class SettingsViewModelTest {
 
         coVerify(exactly = 0) { settingsRepository.setScreenLockProtectionEnabled(any()) }
         coVerify(exactly = 0) { settingsRepository.setHideScreenContentEnabled(any()) }
-    }
-
-    // A stop for a request made after it, or a resume with no stop, drops nothing.
-    @Test
-    fun lockTogglePrompt_madeAfterTheStop_isKept() = runTest {
-        every { appLockSecurityManager.credentialScreenStopsActivity() } returns true
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.onActivityStopped()
-        viewModel.onScreenLockProtectionToggle(true)
-        viewModel.onActivityResumed()
-        viewModel.onActivityResumed()
-        advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.pendingPrompt)
-    }
-
-    // From API 30 the prompt is a dialog over the app, which the system cancels on a leave.
-    @Test
-    fun lockTogglePrompt_onTheDialogPath_isKeptAcrossAStop() = runTest {
-        every { appLockSecurityManager.credentialScreenStopsActivity() } returns false
-        val viewModel = createViewModel()
-        advanceUntilIdle()
-
-        viewModel.onScreenLockProtectionToggle(true)
-        viewModel.onActivityStopped()
-        viewModel.onActivityResumed()
-        advanceUntilIdle()
-
-        assertNotNull(viewModel.uiState.value.pendingPrompt)
     }
 
     @Test

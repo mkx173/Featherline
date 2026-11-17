@@ -592,18 +592,17 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_disabled)
     val saveMedicationGroupFailureMessage =
         stringResource(R.string.save_medication_group_failure)
-    val saveMedicationGroupLockedByRecordsMessage =
-        stringResource(R.string.save_medication_group_locked_by_records)
     val loggedDoseBeforeStartMessage =
         stringResource(R.string.group_schedule_time_moves_logged_dose_before_start)
-    val saveMedicationGroupDeletedMessage = stringResource(R.string.save_medication_group_deleted)
+    // The picker checks the time picked. Only a retime that moves a logged dose before the
+    // start is refused there; the other refusals need a record or a deletion that came first,
+    // which the picker lets through to Save, so they only fail plainly.
     val showTimeRefusal = { refusal: SaveRefusal ->
-        val message = when (refusal) {
-            SaveRefusal.GROUP_DELETED -> saveMedicationGroupDeletedMessage
-            SaveRefusal.LOCKED_BY_RECORDS -> saveMedicationGroupLockedByRecordsMessage
-            SaveRefusal.LOGGED_DOSE_BEFORE_START -> loggedDoseBeforeStartMessage
+        if (refusal == SaveRefusal.LOGGED_DOSE_BEFORE_START) {
+            Toast.makeText(context, loggedDoseBeforeStartMessage, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, saveMedicationGroupFailureMessage, Toast.LENGTH_SHORT).show()
         }
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
@@ -746,38 +745,16 @@ private fun MedicationGroupEditorScreenContent(
 
     LaunchedEffect(uiState.saveMedicationGroupResult) {
         when (uiState.saveMedicationGroupResult) {
-            SaveMedicationGroupResult.FAILURE -> {
+            // A refused Save comes from a race (a dose logged mid-edit, the plan deleted, or a
+            // draft the picker let through after one): rare, so it only says it failed.
+            SaveMedicationGroupResult.FAILURE,
+            SaveMedicationGroupResult.LOCKED_BY_RECORDS,
+            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START,
+            SaveMedicationGroupResult.GROUP_DELETED -> {
                 Toast.makeText(
                     context,
                     saveMedicationGroupFailureMessage,
                     Toast.LENGTH_SHORT,
-                ).show()
-                onSaveMedicationGroupResultConsumed()
-            }
-
-            SaveMedicationGroupResult.LOCKED_BY_RECORDS -> {
-                Toast.makeText(
-                    context,
-                    saveMedicationGroupLockedByRecordsMessage,
-                    Toast.LENGTH_LONG,
-                ).show()
-                onSaveMedicationGroupResultConsumed()
-            }
-
-            SaveMedicationGroupResult.LOGGED_DOSE_BEFORE_START -> {
-                Toast.makeText(
-                    context,
-                    loggedDoseBeforeStartMessage,
-                    Toast.LENGTH_LONG,
-                ).show()
-                onSaveMedicationGroupResultConsumed()
-            }
-
-            SaveMedicationGroupResult.GROUP_DELETED -> {
-                Toast.makeText(
-                    context,
-                    saveMedicationGroupDeletedMessage,
-                    Toast.LENGTH_LONG,
                 ).show()
                 onSaveMedicationGroupResultConsumed()
             }

@@ -324,8 +324,9 @@ incompatible files are rejected at the cheapest detection point.
    Argon2 parameters. Failures wrap as
    `IncompatibleBackupFileException` so the UI can distinguish "not a
    backup" from "wrong password". A container version above this
-   app's throws `NewerBackupVersionException` ("This backup is from a
-   newer version"). Runs before the password dialog opens.
+   app's throws `NewerBackupVersionException`, which Settings shows as
+   "Unable to restore, please try again", as other rare failures. Runs
+   before the password dialog opens.
 3. **Pass 2 — decrypt + auth-tag verify.**
    [`decrypt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    derives the key from the entered password and the envelope's salt,
@@ -520,7 +521,7 @@ or primitives change. KDF and cipher are recorded as identifier bytes
 [`CIPHER_AES_256_GCM = 1`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)),
 so additions can extend the readable set without bumping. An older
 reader takes a KDF, cipher or compression id above its known ones for
-`NewerBackupVersionException` ("update the app"). A bump is
+`NewerBackupVersionException` ("Unable to restore, please try again"). A bump is
 reserved for changes that break parser invariants — different field
 ordering, a different fixed-header length, a different AAD contract.
 The medicine-identity refactor did *not* touch the envelope; only the
@@ -538,8 +539,8 @@ inner snapshot version moved.
 | v3 | v4, v5, v6, v7, or v8 with omitted external-import fields | This version | Restores; missing import fields default to non-imported rows. |
 | v3 | v5 with additive same-version fields, such as `trackedDates` / `notes` | Same-version pre-field v5 reader | May restore after the version gate; Moshi ignores unknown keys, so the additive data is not imported. |
 | Any | v1 | This version | Rejected by `toValidatedSnapshot`'s floor check — `MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2`. No migration path: the medicine-identity refactor removed the denormalized fields v1 carried. |
-| Future | any | This version | Rejected at `parseContainer` with `NewerBackupVersionException`: "update the app". |
-| v3 | Future snapshot version | This version | Rejected right after decryption with `NewerBackupVersionException`: "update the app". |
+| Future | any | This version | Rejected at `parseContainer` with `NewerBackupVersionException`: "Unable to restore, please try again". |
+| v3 | Future snapshot version | This version | Rejected right after decryption with `NewerBackupVersionException`: "Unable to restore, please try again". |
 
 Writers only emit current envelope + current snapshot version. The
 asymmetry is intentional: older-into-newer restores are supported down

@@ -83,6 +83,16 @@ class WeightSheetTest {
     }
 
     @Test
+    fun syncOff_showsTheWeightsDate() {
+        setSheet(profile = { weight(62.4, Instant.parse("2026-10-14T07:12:00Z")) }, syncEnabled = false)
+
+        composeRule.onNodeWithText(
+            "Used to improve plasma concentration estimates · recorded",
+            substring = true,
+        ).assertExists()
+    }
+
+    @Test
     fun syncOn_unitSwitchConvertsTheStoredWeight_andTheFieldFollowsIt() {
         var profile by mutableStateOf(weight(61.8, Instant.parse("2026-10-14T07:12:00Z")))
         var changedTo: WeightUnit? = null
@@ -182,13 +192,16 @@ class WeightSheetTest {
         composeRule.onNodeWithText("Couldn’t sync").assertExists()
         healthConnect = access
 
-        // The reason sits under the field; the switch's line says the sync ran.
+        // None found: the kept weight's date sits under the field, as with sync
+        // off, and the switch's line says there are no records.
         readingProblem = ReadingProblem.NONE_FOUND
         composeRule.waitForIdle()
         composeRule.onNodeWithText(
-            "Used to improve plasma concentration estimates · no weight records yet"
+            "Used to improve plasma concentration estimates · recorded",
+            substring = true,
         ).assertExists()
-        composeRule.onNodeWithText("Synced").assertExists()
+        composeRule.onNodeWithText("No records").assertExists()
+        composeRule.onNodeWithText("Synced").assertDoesNotExist()
         composeRule.onNodeWithText("Syncing…").assertDoesNotExist()
 
         readingProblem = ReadingProblem.INVALID

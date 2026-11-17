@@ -10,7 +10,6 @@ import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupRestoreOutcome
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
-import com.mkx.hrttracker.data.backup.NewerBackupVersionException
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.importer.ExternalImportCommitResult
 import com.mkx.hrttracker.data.importer.ExternalImportPreview
@@ -86,7 +85,6 @@ class SettingsViewModel @Inject constructor(
     // Tracks the intent of pendingPrompt so the success handler knows whether the
     // user authenticated to enable or to disable screen-lock protection.
     private var pendingScreenLockIntent: ScreenLockPromptIntent? = null
-    private var promptIdAtStop: Long? = null
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
@@ -449,24 +447,6 @@ class SettingsViewModel @Inject constructor(
         pendingPrompt.value = null
         pendingScreenLockIntent = null
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
-    }
-
-    // Below API 30 the toggle's PIN screen is an activity, and its result lands before this
-    // activity resumes. A request still waiting after the resume was left on that screen (Home,
-    // then back another way): drop it so the toggle can be tapped again. The intent stays, so a
-    // late success from that screen still does what was asked.
-    fun onActivityStopped() {
-        promptIdAtStop = pendingPrompt.value?.id
-            ?.takeIf { appLockSecurityManager.credentialScreenStopsActivity() }
-    }
-
-    // Call after the resume's queued results have run.
-    fun onActivityResumed() {
-        val stoppedId = promptIdAtStop ?: return
-        promptIdAtStop = null
-        if (pendingPrompt.value?.id == stoppedId) {
-            pendingPrompt.value = null
-        }
     }
 
     // Clears the security error after it has been surfaced as a toast so it
@@ -848,14 +828,16 @@ sealed class BackupRestoreEvent {
     data class Failure(val error: Throwable) : BackupRestoreEvent()
 }
 
-/** Only a failed decryption blames the password; anything else unexplained says to try again. */
+/**
+ * Only a failed decryption blames the password; anything else unexplained says to try again,
+ * a backup from a newer version included (rare, so it only says it failed).
+ */
 fun BackupRestoreEvent.messageRes(): Int = when (this) {
     BackupRestoreEvent.Success -> R.string.settings_backup_restore_success
     // The data is in, but a setting or reminder isn't: restoring again redoes them (B6).
     BackupRestoreEvent.FollowUpFailed -> R.string.settings_backup_restore_unable
     is BackupRestoreEvent.Failure -> when (error) {
         is BackupDecryptionException -> R.string.settings_backup_restore_failed
-        is NewerBackupVersionException -> R.string.settings_backup_restore_newer_version
         is IncompatibleBackupFileException,
         is IllegalArgumentException -> R.string.settings_backup_restore_incompatible_file
 

@@ -534,7 +534,10 @@ reads Room to build them.
   `requestRebuild()`. The notification's "Log now" and the widget
   quick-log wait for `rebuildNow()` too, so the next open finds the
   estimate warmed, and the 15-minute widget worker waits for one when its
-  rows are stale and there is no current state with both parts.
+  rows are stale and there is no current state with both parts, and,
+  whatever its rows, when Home's cache is behind a write or missing a
+  part while the worker isn't `rebuilding` (the worker gave up after its
+  retries).
   `rebuildNow()` returns once a run that started after the call has
   published, its warm-up included, or failed. A run carries a newer
   generation only after a mutation, so the screens treat any other run

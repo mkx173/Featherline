@@ -79,9 +79,8 @@ import java.time.ZoneId
  * The data a write changes is Home's hero, Room's first pinned tracked date, as a journal
  * anchor write changes it.
  *
- * Finding 1 is accepted, so its test asserts what the code does. Findings 2 and 3 are fixed, and
- * their tests assert the rule the model checks along the path that broke it. The guard asserts a
- * rule along the path a broken variant of the model takes.
+ * Findings 1, 2 and 3 are fixed, and their tests assert the rule the model checks along the path
+ * that broke it. The guard asserts a rule along the path a broken variant of the model takes.
  *
  * Only finding 3's test may build the real HomeSnapshotGenerationStore: its DataStore is one per
  * JVM, and the test needs it to read the corrupt file first.
@@ -201,11 +200,12 @@ class HomeWidgetSnapshotModelReplayTest {
 
     /**
      * Finding 1, WorkerNeverGivesUpBehind on HomeWidgetSnapshot-giveup.cfg: WLoad MutBump
-     * MutCommit MutRequest WTop (WDrain WGenRead RunFails) x4 WTop. Accepted: the code waits for
-     * the next request after its last retry (HSR:788-789).
+     * MutCommit MutRequest WTop (WDrain WGenRead RunFails) x4 WTop. The rebuild worker still
+     * waits for the next request after its last retry; the 15-minute worker is that request
+     * (PAsk), even with rows the clock hasn't made stale.
      */
     @Test
-    fun finding1_aMutationsRunThatThrowsFourTimes_leavesHomeDataBehind_andOnlyAnObservationAsksAgain() = runTest {
+    fun finding1_aMutationsRunThatThrowsFourTimes_isAskedAgainByThe15MinuteWorker() = runTest {
         val process = startProcess()
         val repository = process.repository
         // WLoad: both files are valid at generation 0, so no run.
@@ -230,8 +230,9 @@ class HomeWidgetSnapshotModelReplayTest {
         assertEquals(null, repository.currentState())
         assertEquals("A", repository.cache.value?.homeData?.homeAnchor?.name)
 
-        // The 15-minute worker, with rows the clock hasn't made stale, only re-renders the
-        // widget's last record (pre-write): it asks for no run.
+        // PAsk: the 15-minute worker, with rows the clock hasn't made stale, finds the cache
+        // behind with no run pending, and asks for the run, which lands (the database opens now).
+        open = { database }
         var rerenders = 0
         handleWidgetDailyRefresh(
             now = now,
@@ -241,16 +242,9 @@ class HomeWidgetSnapshotModelReplayTest {
             e2EstimateRepository = mockk(relaxed = true),
             rerender = { rerenders += 1 },
         )
-        advanceTimeBy(10 * 60_000L)
-        settle()
-        assertEquals(1, rerenders)
-        assertEquals(4, opens.value)
-
-        // What asks again: an E2 observation's minute (Home or the calibration page in view).
-        open = { database }
-        repository.requestRebuildIfIdle()
-        repository.currentCache.first { state -> state != null }
-        assertEquals("B", repository.cache.value?.homeData?.homeAnchor?.name)
+        assertEquals(0, rerenders)
+        assertEquals(5, opens.value)
+        assertEquals("B", repository.currentState()?.homeData?.homeAnchor?.name)
         process.die()
     }
 

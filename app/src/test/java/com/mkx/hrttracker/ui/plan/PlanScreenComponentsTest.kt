@@ -261,57 +261,26 @@ class PlanScreenComponentsTest {
 
     @Test
     fun selectedDayScheduleOffset_omitsSubHourDelta() {
-        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
-
-        assertNull(
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusMinutes(59),
-            )
-        )
-        assertNull(
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusMinutes(59),
-            )
-        )
-        assertNull(
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusHours(1).minusSeconds(1),
-            )
-        )
-        assertNull(
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusHours(1).plusSeconds(1),
-            )
-        )
+        assertNull(selectedDayScheduleOffset(59))
+        assertNull(selectedDayScheduleOffset(-59))
+        assertNull(selectedDayScheduleOffset(0))
     }
 
     @Test
     fun selectedDayScheduleOffset_keepsExactHourDelta() {
-        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
-
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_hours_later,
                 value = 1,
             ),
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.plusHours(1),
-            )
+            selectedDayScheduleOffset(60)
         )
         assertEquals(
             MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_hours_earlier,
                 value = 1,
             ),
-            selectedDayScheduleOffset(
-                scheduledFor = scheduledFor,
-                appliedAt = scheduledFor.minusHours(1),
-            )
+            selectedDayScheduleOffset(-60)
         )
     }
 }

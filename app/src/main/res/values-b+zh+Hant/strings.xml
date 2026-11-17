@@ -408,8 +408,6 @@
     <string name="load_medication_group_failure">無法載入群組</string>
     <string name="load_medication_group_retry">重試</string>
     <string name="save_medication_group_failure">無法儲存群組</string>
-    <string name="save_medication_group_locked_by_records">這項更改與群組中已有的記錄不符，因此無法儲存</string>
-    <string name="save_medication_group_deleted">這個群組已被刪除，因此無法儲存</string>
     <string name="delete_medication_group_failure">無法刪除群組</string>
     <string name="delete_group_related_records">刪除記錄</string>
     <string name="delete_group_also_related_records">同時刪除相關記錄</string>
@@ -728,7 +726,6 @@
     <string name="settings_backup_restore_success">備份已還原</string>
     <string name="settings_backup_restore_failed">密碼錯誤或備份檔案已損壞</string>
     <string name="settings_backup_restore_unable">無法還原，請重試</string>
-    <string name="settings_backup_restore_newer_version">此備份來自較新版本，請更新應用程式後再還原</string>
     <string name="settings_backup_restore_incompatible_file">備份檔案不相容</string>
     <string name="settings_backup_restore_confirm_title">還原備份？</string>
     <string name="settings_backup_restore_password_message">這會用所選備份替換目前本機資料，輸入備份密碼以繼續</string>
@@ -784,7 +781,6 @@
     <string name="personalization_weight_dialog_title">體重</string>
     <string name="personalization_weight_dialog_description">用於改進血藥濃度估算</string>
     <string name="personalization_weight_dialog_description_recorded">用於改進血藥濃度估算 · 記錄於 %1$s</string>
-    <string name="personalization_weight_dialog_description_no_reading">用於改進血藥濃度估算 · 還沒有體重記錄</string>
     <string name="personalization_weight_dialog_description_invalid_reading">用於改進血藥濃度估算 · 最新記錄不是有效體重</string>
     <string name="personalization_weight_dialog_value_label">體重</string>
     <string name="personalization_weight_dialog_save">儲存</string>

@@ -407,7 +407,11 @@ graph TD
   routes back into the cache observer above, and a run that failed
   earlier is retried. It does the same when a newer publish superseded
   the state it read, which the observer writes; the run is then only
-  redundant. With fresh rows it just calls
+  redundant. Whatever its rows, it also waits for `rebuildNow()` when
+  Home's cache is behind a write or missing a part while
+  `homeSnapshotRepository.rebuilding` is false: the rebuild worker gave
+  up after its retries, and the widget would otherwise keep the rows from
+  before the write until something else asks. Otherwise, with fresh rows it just calls
   `updateAllHrtWidgets` to re-render against the existing snapshot, and so
   does a rewrite that throws, after logging it.
   Either way it ends with `E2EstimateRepository.warmHome()`, which

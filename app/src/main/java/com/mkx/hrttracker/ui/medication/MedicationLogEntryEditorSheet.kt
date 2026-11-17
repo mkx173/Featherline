@@ -60,6 +60,7 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.scheduleOffsetMinutes
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
@@ -77,7 +78,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
@@ -152,10 +152,7 @@ fun MedicationLogEntryEditorSheet(
         )
     }
     val sourceGroupScheduleOffset = sourceGroupScheduledFor?.let { scheduledFor ->
-        medicationLogScheduleOffset(
-            scheduledFor = scheduledFor,
-            appliedAt = LocalDateTime.of(appliedDate, appliedTime),
-        )
+        sourceGroupScheduleOffset(scheduledFor, LocalDateTime.of(appliedDate, appliedTime), appliedZoneId)
     }
     val sourceGroupScheduleOffsetText = sourceGroupScheduleOffset?.let { offset ->
         stringResource(offset.labelRes, offset.value)
@@ -610,14 +607,23 @@ private fun MedicationEditorGroupInfoCard(
 }
 
 // ---------------------------------------------------------------------------
-// Schedule offset (used by Plan + tests).
+// Schedule offset (used by Home, Plan + tests).
 // ---------------------------------------------------------------------------
 
-internal fun medicationLogScheduleOffset(
+/**
+ * The editor's offset from the plan's slot: real minutes, as Home counts them, with the slot in
+ * [appliedZoneId], the zone the dose is logged in. [appliedAt] resolves as the save resolves it.
+ */
+internal fun sourceGroupScheduleOffset(
     scheduledFor: LocalDateTime,
     appliedAt: LocalDateTime,
-): MedicationLogScheduleOffset? {
-    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, appliedAt)
+    appliedZoneId: ZoneId,
+): MedicationLogScheduleOffset? = medicationLogScheduleOffset(
+    scheduleOffsetMinutes(scheduledFor, appliedAt.atZone(appliedZoneId).toInstant(), appliedZoneId)
+)
+
+/** The label for [deltaMinutes] real minutes from the slot (scheduleOffsetMinutes), or null at 0. */
+internal fun medicationLogScheduleOffset(deltaMinutes: Long): MedicationLogScheduleOffset? {
     if (deltaMinutes == 0L) {
         return null
     }

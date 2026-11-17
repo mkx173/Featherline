@@ -32,6 +32,7 @@ import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
+import com.mkx.hrttracker.model.medication.scheduleOffsetMinutes
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
@@ -40,7 +41,6 @@ import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
-import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.medicationDay
 import java.time.Duration
@@ -1028,12 +1028,8 @@ private fun buildMainTodayRows(
                 else -> MainTodayDoseStatus.UPCOMING
             },
             scheduleOffsetMinutes = (lastFulfillingEntry ?: outsideScheduleWindowEntries.lastOrNull())
-                ?.let { entry ->
-                    // A logged slot sits in the zone it was logged in, as fulfilment places it.
-                    Duration.between(scheduledAt.atZone(displayZoneOf(entry, zoneId)).toInstant(), entry.appliedAt)
-                }
-                ?.toMinutes()
-                ?: Duration.between(scheduledAt.atZone(zoneId).toInstant(), now).toMinutes(),
+                ?.let { entry -> scheduleOffsetMinutes(scheduledAt, entry, zoneId) }
+                ?: scheduleOffsetMinutes(scheduledAt, now, zoneId),
             doseAmountDelta = lastFulfillingEntry?.doseAmountDelta,
             loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,

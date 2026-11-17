@@ -73,7 +73,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -86,8 +85,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
@@ -441,14 +438,6 @@ fun SettingsScreen(
                 appLockViewModel.onOtherPromptEnded(succeeded = false)
             }
         }
-    }
-    // The activity's own stop and resume, not this page's. Posted: below API 30 the PIN
-    // screen's result is queued on this thread before the resume.
-    val activityLifecycle = LocalActivity.current as ComponentActivity
-    val view = LocalView.current
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP, activityLifecycle) { viewModel.onActivityStopped() }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME, activityLifecycle) {
-        view.post(viewModel::onActivityResumed)
     }
     AppAuthenticationPromptEffect(
         request = uiState.pendingPrompt,
@@ -1021,11 +1010,12 @@ internal fun SettingsScreenContent(
             R.string.personalization_weight_not_set
         },
     ).let { summary ->
-        if (isWeightSyncOn) {
-            stringResource(R.string.personalization_weight_display_health_connect, summary)
-        } else {
-            summary
-        }
+        weightRowText(
+            summary = summary,
+            withSource = stringResource(R.string.personalization_weight_display_health_connect, summary),
+            syncOn = isWeightSyncOn,
+            profile = uiState.userProfile,
+        )
     }
     val appLanguageOption = AppLanguageOption.fromLocale(rememberAppLocale())
 
@@ -2085,6 +2075,18 @@ private fun formatWeightSummary(
         )
     }
 }
+
+/**
+ * The weight row's text, Settings' and onboarding's: [summary] (the weight, or its empty text),
+ * or [withSource] ("[summary] · Health Connect") only with sync on and a weight that is a Health
+ * Connect reading. A typed weight kept for want of a reading, or no weight, names no source.
+ */
+internal fun weightRowText(
+    summary: String,
+    withSource: String,
+    syncOn: Boolean,
+    profile: UserProfile,
+): String = if (syncOn && profile.isHealthConnectReading) withSource else summary
 
 private data class AppVersionInfo(
     val versionName: String,

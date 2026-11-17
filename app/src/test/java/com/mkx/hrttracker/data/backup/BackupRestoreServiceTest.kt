@@ -578,7 +578,7 @@ class BackupRestoreServiceTest {
 
     // B7: a newer snapshot inside a known container, and a newer container at the picker.
     @Test
-    fun aBackupFromANewerVersionSaysToUpdate() = runTest {
+    fun aBackupFromANewerVersionIsRefused_andSaysUnableToRestore() = runTest {
         val newerSnapshot = backupCrypto.encryptSnapshotJson(
             json = BackupSnapshotJsonCodec.encode(
                 emptySnapshot().copy(snapshotVersion = CURRENT_BACKUP_SNAPSHOT_VERSION + 1),
@@ -592,22 +592,27 @@ class BackupRestoreServiceTest {
         val restored = runCatching { service.restoreBackupBytes(newerSnapshot, "password") }
         val picked = runCatching { service.validateBackupBytes(newerContainer) }
 
-        assertEquals(R.string.settings_backup_restore_newer_version, messageFor(restored))
-        assertEquals(R.string.settings_backup_restore_newer_version, messageFor(picked))
+        // Still refused as newer (the picker's check runs before the password dialog), and
+        // said plainly: unable to restore.
+        assertTrue(restored.exceptionOrNull() is NewerBackupVersionException)
+        assertTrue(picked.exceptionOrNull() is NewerBackupVersionException)
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(restored))
+        assertEquals(R.string.settings_backup_restore_unable, messageFor(picked))
         coVerify(exactly = 0) { databaseHolder.runTransaction(any()) }
     }
 
     // B7: new KDF, cipher and compression ids extend the set without a container bump, so an
     // id above the known ones is a newer app's.
     @Test
-    fun aContainerIdAboveTheKnownOnesSaysToUpdate() = runTest {
+    fun aContainerIdAboveTheKnownOnesIsRefusedAsNewer() = runTest {
         // After the magic and the version byte: the KDF (2), cipher (1) and compression (1) ids.
         for ((offset, newer) in listOf(1 to 3, 2 to 2, 3 to 2)) {
             val bytes = emptySnapshotBytes().also { it[BackupCrypto.MAGIC_BYTES.size + offset] = newer.toByte() }
 
             val picked = runCatching { service.validateBackupBytes(bytes) }
 
-            assertEquals("id at +$offset", R.string.settings_backup_restore_newer_version, messageFor(picked))
+            assertTrue("id at +$offset", picked.exceptionOrNull() is NewerBackupVersionException)
+            assertEquals("id at +$offset", R.string.settings_backup_restore_unable, messageFor(picked))
         }
     }
 

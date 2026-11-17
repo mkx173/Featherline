@@ -2,6 +2,7 @@ package com.mkx.hrttracker.model.medication
 
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration
 import java.time.Instant
@@ -31,6 +32,8 @@ data class PlanDayScheduleEntry(
     val isLastFulfillingEntryCrossZone: Boolean = false,
     val isImportedRecord: Boolean = false,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
+    /** [scheduleOffsetMinutes] to the last fulfilling log, else the last one outside the window. */
+    val loggedOffsetMinutes: Long? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
@@ -161,6 +164,8 @@ fun buildPlanDaySchedule(
                                 zoneId
                             )
                         },
+                        loggedOffsetMinutes = (lastFulfillingEntry ?: lastOutsideWindowEntry)
+                            ?.let { entry -> scheduleOffsetMinutes(slotDateTime, entry, zoneId) },
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,
@@ -216,6 +221,18 @@ internal fun isPastDue(
     val pastDueAt = scheduledAt.atZone(zoneId).toInstant().plus(planDueSoonGracePeriod)
     return !now.instantAsOf(clockNow, zoneId).isBefore(pastDueAt)
 }
+
+/**
+ * Real minutes from the slot at [scheduledFor] to a dose at [appliedAt], the slot placed in
+ * [zoneId], the zone the dose was logged in, as fulfilment places it. Home's "N h late", the
+ * Plan screen's and the log editor's offsets all count with it, so they agree across a clock change.
+ */
+fun scheduleOffsetMinutes(scheduledFor: LocalDateTime, appliedAt: Instant, zoneId: ZoneId): Long =
+    Duration.between(scheduledFor.atZone(zoneId).toInstant(), appliedAt).toMinutes()
+
+/** [scheduleOffsetMinutes] for a logged [entry], in the zone it was logged in. */
+fun scheduleOffsetMinutes(scheduledFor: LocalDateTime, entry: MedicationLogEntry, deviceZone: ZoneId): Long =
+    scheduleOffsetMinutes(scheduledFor, entry.appliedAt, displayZoneOf(entry, deviceZone))
 
 /** This wall-clock time's instant: in a fall-back hour, on the pass [clockNow] is on. */
 internal fun LocalDateTime.instantAsOf(clockNow: Instant, zoneId: ZoneId): Instant =

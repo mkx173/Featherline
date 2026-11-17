@@ -291,22 +291,8 @@ private fun SelectedDayRow(
 
         is SelectedDayRowModel.Unplanned -> null
     }
-    val scheduleOffsetText = when (row) {
-        is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
-            displayedLoggedAt.let { loggedAt ->
-                selectedDayScheduleOffset(
-                    scheduledFor = row.entry.scheduledFor,
-                    appliedAt = loggedAt
-                )?.let { offset ->
-                    stringResource(offset.labelRes, offset.value)
-                }
-            }
-        } else {
-            null
-        }
-
-        is SelectedDayRowModel.Unplanned -> null
-    }
+    val scheduleOffsetText = selectedDayRowScheduleOffset(row, displayedLoggedAt)
+        ?.let { offset -> stringResource(offset.labelRes, offset.value) }
     val labelDisplayText = if (scheduleOffsetText == null) {
         labelText.uppercase()
     } else {
@@ -502,18 +488,27 @@ internal fun selectedDayLoggedTimeLabel(
     }
 }
 
-internal fun selectedDayScheduleOffset(
-    scheduledFor: LocalDateTime,
-    appliedAt: LocalDateTime,
-): MedicationLogScheduleOffset? {
-    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, appliedAt)
+/**
+ * A selected-day row's "N h later/earlier" label: real minutes, as on Home, to the log the row
+ * shows at [displayedLoggedAt]; none for an unlogged or off-plan row.
+ */
+internal fun selectedDayRowScheduleOffset(
+    row: SelectedDayRowModel,
+    displayedLoggedAt: LocalDateTime?,
+): MedicationLogScheduleOffset? = when (row) {
+    is SelectedDayRowModel.Scheduled -> row.entry.loggedOffsetMinutes
+        ?.takeIf { displayedLoggedAt != null }
+        ?.let(::selectedDayScheduleOffset)
+
+    is SelectedDayRowModel.Unplanned -> null
+}
+
+/** The label for a logged row's real-minute offset (scheduleOffsetMinutes), or null inside the hour. */
+internal fun selectedDayScheduleOffset(deltaMinutes: Long): MedicationLogScheduleOffset? {
     if (kotlin.math.abs(deltaMinutes) < MINUTES_PER_HOUR) {
         return null
     }
-    return medicationLogScheduleOffset(
-        scheduledFor = scheduledFor,
-        appliedAt = appliedAt,
-    )
+    return medicationLogScheduleOffset(deltaMinutes)
 }
 
 @Composable

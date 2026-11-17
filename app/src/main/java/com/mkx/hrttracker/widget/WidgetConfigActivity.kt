@@ -11,6 +11,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -37,6 +39,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Provider
 
 // Full-screen live-preview reconfigure UI, launched by the launcher's long-press
 // "reconfigure" affordance (WIDGET_FEATURE_RECONFIGURABLE, API 31+). The window is
@@ -69,6 +72,9 @@ class WidgetConfigActivity : AppCompatActivity() {
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
+
+    @Inject
+    lateinit var startupPreloaderProvider: Provider<StartupPreloader>
 
     // Persist must outlive the activity: the activity can be destroyed mid-write (system
     // kill, config change), and a lifecycleScope write would be cancelled with it.
@@ -129,6 +135,15 @@ class WidgetConfigActivity : AppCompatActivity() {
                 onAuthenticated = appLockViewModel::onAuthenticationSucceeded,
                 onError = appLockViewModel::onAuthenticationError,
             )
+            // As in MainActivity: a lost database key toasts and closes, once unlocked.
+            LaunchedEffect(appLockUiState.isReady, appLockUiState.shouldShowLockScreen) {
+                if (appLockUiState.isReady && !appLockUiState.shouldShowLockScreen) {
+                    // The open alone: no warm-ups, backfill or reminder reschedule.
+                    val startupPreloader = startupPreloaderProvider.get()
+                    startupPreloader.startDatabaseOpen()
+                    startupPreloader.closeOnLostDatabaseKey(this@WidgetConfigActivity)
+                }
+            }
             // One-shot read of the PERSISTED settings. We must NOT seed from
             // settingsRepository.settingsState: its eager initialValue is a placeholder
             // (scale/alpha 1.0, dark FOLLOW_SYSTEM) emitted before DataStore loads, and the

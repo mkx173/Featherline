@@ -129,6 +129,13 @@ the weight's date: the time a typed weight was saved, or the time of the
 adopted Health Connect reading (see `WeightSyncCoordinator`). It is null
 only with no weight, or for a weight saved before dates were kept or
 restored from a backup without one, until the next typed or synced weight.
+A typed weight stores it equal to `updatedAtEpochMillis`; an adopted
+reading's is always earlier than its sync's `updatedAtEpochMillis` (the
+read ends at the sync's time, exclusive), and the unit switch moves
+`updatedAtEpochMillis` alone, only on a reading. That equality is how
+`UserProfile.isHealthConnectReading` tells them apart for the Settings
+row's "· Health Connect": any new write that bumps `updatedAtEpochMillis`
+on a typed weight without moving its date would credit Health Connect.
 It backs the weight sheet's "recorded <date>" text and lets a sync skip the
 write when the reading hasn't changed. With sync on, HC's latest
 reading dated before now (the read ends at now, exclusive: on Android

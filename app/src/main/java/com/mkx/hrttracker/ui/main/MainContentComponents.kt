@@ -4087,9 +4087,7 @@ private fun mainTodayScheduleOffsetText(offsetMinutes: Long): String? {
     if (kotlin.math.abs(offsetMinutes) < MainScheduleGraceMinutes) {
         return null
     }
-    // The shared helper takes two times; only their minutes apart count.
-    val anchor = LocalDateTime.of(2000, 1, 1, 0, 0)
-    return medicationLogScheduleOffset(scheduledFor = anchor, appliedAt = anchor.plusMinutes(offsetMinutes))
+    return medicationLogScheduleOffset(offsetMinutes)
         ?.let { offset -> stringResource(offset.labelRes, offset.value) }
 }
 

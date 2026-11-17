@@ -428,14 +428,12 @@ internal fun WeightSheetContent(
                     text = when {
                         showValidationError ->
                             stringResource(R.string.personalization_weight_validation_invalid)
-                        // Why the last sync kept the field's value; the switch's
-                        // status line only says the sync ran.
-                        syncOn && readingProblem == ReadingProblem.NONE_FOUND ->
-                            stringResource(R.string.personalization_weight_dialog_description_no_reading)
+                        // Why the last sync kept the field's value. With none
+                        // found the status line says so, and the date shows.
                         syncOn && readingProblem == ReadingProblem.INVALID ->
                             stringResource(R.string.personalization_weight_dialog_description_invalid_reading)
-                        // The synced weight's date, shown with the field's value.
-                        syncOn && measuredAt != null -> {
+                        // The weight's date, typed or synced.
+                        measuredAt != null -> {
                             val zone = ZoneId.systemDefault()
                             stringResource(
                                 R.string.personalization_weight_dialog_description_recorded,
@@ -456,6 +454,7 @@ internal fun WeightSheetContent(
             syncOn = syncOn,
             healthConnect = healthConnect,
             isSyncing = isSyncingShown,
+            readingProblem = readingProblem,
             showPermissionDenied = showPermissionDenied,
             onToggle = { onSyncEnabledChange(!syncOn) },
             onSyncNow = onSyncNow,
@@ -592,13 +591,14 @@ private fun HealthConnectSection(
     syncOn: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
+    readingProblem: ReadingProblem?,
     showPermissionDenied: Boolean,
     onToggle: () -> Unit,
     onSyncNow: () -> Unit,
     onOpenHealthConnect: () -> Unit,
 ) {
     val containerColor = MaterialTheme.colorScheme.surfaceContainer
-    val status = healthConnectStatusText(syncEnabled, healthConnect, isSyncing)
+    val status = healthConnectStatusText(syncEnabled, healthConnect, isSyncing, readingProblem)
     // After a denial the message below is the way to grant access (see there).
     // Sync on without the SDK (update needed) can still be turned off.
     val switchEnabled = (healthConnect.sdkAvailable || syncOn) && !showPermissionDenied
@@ -700,6 +700,7 @@ private fun healthConnectStatusText(
     syncEnabled: Boolean,
     healthConnect: HealthConnectCapabilityState,
     isSyncing: Boolean,
+    readingProblem: ReadingProblem?,
 ): String {
     return when {
         healthConnect.providerUpdateRequired ->
@@ -720,6 +721,10 @@ private fun healthConnectStatusText(
         // A sync is on its way (sync just turned on, or this process's first
         // one): the weight and date shown may be typed ones.
         healthConnect.syncPending -> stringResource(R.string.health_connect_status_syncing)
+        // Health Connect holds no reading dated before now; the kept weight's
+        // date sits under the field.
+        readingProblem == ReadingProblem.NONE_FOUND ->
+            stringResource(R.string.personalization_weight_no_records)
         // The reading's date, or why the sync kept the weight, sits under the field.
         else -> stringResource(R.string.health_connect_status_synced)
     }

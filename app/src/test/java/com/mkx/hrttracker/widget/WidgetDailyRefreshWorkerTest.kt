@@ -74,6 +74,7 @@ class WidgetDailyRefreshWorkerTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true) {
         every { cache } returns this@WidgetDailyRefreshWorkerTest.cache
         every { generation } returns MutableStateFlow(state.generation)
+        every { rebuilding } returns MutableStateFlow(false)
         coEvery { currentState() } returns state
     }
     private val widgetSnapshotStore: WidgetSnapshotStore = mockk()
@@ -240,6 +241,28 @@ class WidgetDailyRefreshWorkerTest {
         }
         confirmVerified(widgetSnapshotStore)
         assertEquals(0, rerenders)
+    }
+
+    @Test
+    fun freshRows_behindAWriteTheRebuildWorkerGaveUpOn_askForARun() = runTest {
+        // Finding 1: behind a write, or missing a part, with no run pending or going.
+        val rebuilding = MutableStateFlow(false)
+        every { homeSnapshotRepository.rebuilding } returns rebuilding
+        val fresh = widget(rows = listOf(row(WidgetDoseStatus.UPCOMING, now.plusHours(2))))
+        for (current in listOf(null, state.copy(e2Inputs = null), state.copy(homeData = null))) {
+            if (current != null) cache.value = current
+            coEvery { homeSnapshotRepository.currentState() } returns current
+            refresh(fresh)
+        }
+        coVerify(exactly = 3) { homeSnapshotRepository.rebuildNow() }
+        assertEquals(0, rerenders)
+
+        // A run pending or going: its publish rewrites the widget, so this only re-renders.
+        rebuilding.value = true
+        coEvery { homeSnapshotRepository.currentState() } returns null
+        refresh(fresh)
+        coVerify(exactly = 3) { homeSnapshotRepository.rebuildNow() }
+        assertEquals(1, rerenders)
     }
 
     @Test
