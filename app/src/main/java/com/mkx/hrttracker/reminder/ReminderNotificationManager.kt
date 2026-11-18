@@ -82,9 +82,8 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     /**
-     * [context] in the app language. Its own Resources stay on the system locale below API 33,
-     * and a process an alarm woke has no activity for AppCompat to know the app language from
-     * ([SettingsRepository.appLanguageTag]).
+     * [context] in the app language ([SettingsRepository.appLanguageTag]): its own Resources stay
+     * on the system locale below API 33.
      */
     private fun localizedContext(): Context = localizedContextFor(settingsRepository.appLanguageTag())
 

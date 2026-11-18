@@ -78,9 +78,8 @@ fun medicationRouteLabel(
 fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
     // Read the locale from the caller's context (the widget passes a settings-derived
     // localized context; the reminder passes the app context). currentAppLocale() ties
-    // number formatting to the same context that resolves the strings — unlike
-    // appLanguageLocale(), which is unreadable in a freshly-spawned widget process below
-    // API 33 and would format numbers in the device locale while strings stay localized.
+    // number formatting to the same context that resolves the strings, whichever language
+    // that context was built for.
     val locale = context.currentAppLocale()
     return when (val preparation = medicine.preparation) {
         is MedicinePreparation.Pill -> context.getString(

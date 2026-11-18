@@ -298,6 +298,25 @@ class BackupRestoreValidationTest {
     }
 
     @Test
+    fun toValidatedSnapshot_restoresCzech() {
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 1L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings().copy(appLanguageOption = "CZECH"),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertEquals(AppLanguageOption.CZECH, validatedSnapshot.settings.appLanguageOption)
+    }
+
+    @Test
     fun toValidatedSnapshot_rejectsVersionBelowSupportedFloor() {
         val snapshot = BackupSnapshot(
             snapshotVersion = 1,

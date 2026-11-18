@@ -6,6 +6,7 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -90,7 +91,7 @@ object AnchorShortcutManager {
             ShortcutManagerCompat.disableShortcuts(
                 context,
                 plan.toDisable.toList(),
-                context.getString(R.string.anchor_shortcut_disabled_message),
+                context.withAppLanguage().getString(R.string.anchor_shortcut_disabled_message),
             )
         }
     }

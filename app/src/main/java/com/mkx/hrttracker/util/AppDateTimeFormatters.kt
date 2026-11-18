@@ -2,7 +2,6 @@ package com.mkx.hrttracker.util
 
 import android.content.Context
 import android.content.res.Configuration
-import android.content.res.Resources
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.os.ConfigurationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -277,26 +277,28 @@ fun Context.uses24HourTimeFormat(): Boolean {
 }
 
 private fun Context.systemLocaleContext(): Context {
-    val configuration = Configuration(resources.configuration).apply {
-        setLocales(Resources.getSystem().configuration.locales)
-    }
+    val configuration = Configuration(resources.configuration)
+    ConfigurationCompat.setLocales(configuration, systemLocales())
     return createConfigurationContext(configuration)
 }
 
+// Czech: CLDR's day-first numeric shapes for these skeletons ("18. 11.", "18. 11. 2026").
 private fun currentYearDateFormatter(locale: Locale): DateTimeFormatter {
-    return if (locale.isChineseLanguage()) {
-        DateTimeFormatter.ofPattern("M月d日", locale)
-    } else {
-        DateTimeFormatter.ofPattern("MMM d", locale)
+    val pattern = when {
+        locale.isChineseLanguage() -> "M月d日"
+        locale.language == "cs" -> "d. M."
+        else -> "MMM d"
     }
+    return DateTimeFormatter.ofPattern(pattern, locale)
 }
 
 private fun otherYearDateFormatter(locale: Locale): DateTimeFormatter {
-    return if (locale.isChineseLanguage()) {
-        DateTimeFormatter.ofPattern("yyyy年M月d日", locale)
-    } else {
-        DateTimeFormatter.ofPattern("MMM d, yyyy", locale)
+    val pattern = when {
+        locale.isChineseLanguage() -> "yyyy年M月d日"
+        locale.language == "cs" -> "d. M. yyyy"
+        else -> "MMM d, yyyy"
     }
+    return DateTimeFormatter.ofPattern(pattern, locale)
 }
 
 private val BackupFileNameTimestampFormatter: DateTimeFormatter =

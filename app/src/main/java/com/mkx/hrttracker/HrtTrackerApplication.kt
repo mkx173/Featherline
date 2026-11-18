@@ -94,7 +94,7 @@ class HrtTrackerApplication : Application() {
         }
         applicationScope.launch {
             followAppLanguage(
-                languages = settingsRepository.knownAppLanguage,
+                languages = settingsRepository.shownAppLanguage,
                 lastLanguageTag = settingsRepository::lastRunAppLanguageTag,
                 reminderNotificationManager = reminderNotificationManager,
                 medicationReminderScheduler = medicationReminderScheduler::get,
@@ -104,9 +104,6 @@ class HrtTrackerApplication : Application() {
         ToastManager.init(this)
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")
         applicationScope.launch {
-            // After a settings read: below API 33 the app language may be known only from it.
-            // If it fails the channel takes the phone's language, and a later change recreates it.
-            readSettingsOrNull(settingsRepository, diagnosticsLogger)
             reminderNotificationManager.createNotificationChannel()
             diagnosticsLogger.info(TAG, "application_notification_channel_requested")
         }
@@ -189,17 +186,10 @@ internal fun onAppForeground(appTimeSource: AppTimeSource, settingsRepository: S
  * Android's per-app language setting (from API 33), and the phone's language while the app
  * follows it, change the app language with neither the in-app picker nor a new activity
  * (`MainActivity` handles `locale` itself): it arrives only as a configuration change, here read
- * into the app language, so the screens switch and [followAppLanguage] sees it. Below API 33
- * AppCompat knows the chosen language only once an activity has attached, so until then a
- * configuration change is left alone, and the activity's own read at its start catches it.
+ * into the app language, so the screens switch and [followAppLanguage] sees it.
  */
-internal fun followAndroidAppLanguageSetting(
-    settingsRepository: SettingsRepository,
-    sdkInt: Int = Build.VERSION.SDK_INT,
-) {
-    if (sdkInt >= Build.VERSION_CODES.TIRAMISU || settingsRepository.isAppLanguageKnown) {
-        settingsRepository.refreshAppLanguageOption()
-    }
+internal fun followAndroidAppLanguageSetting(settingsRepository: SettingsRepository) {
+    settingsRepository.refreshAppLanguageOption()
 }
 
 /** The stored settings, or null after logging a failed read (an IOException). */
@@ -218,8 +208,8 @@ internal suspend fun readSettingsOrNull(
  * language setting, or the phone's language while following it, through
  * [followAndroidAppLanguageSetting]): re-registers the reminder channel so its name and
  * description in Android's settings follow (the same channel ID updates only those fields), and
- * reposts the reminders on screen in it, silently. The first language [languages] gives (once
- * known: below API 33 when an activity attaches) counts as a change only when it differs from
+ * reposts the reminders on screen in it, silently. The first language [languages] gives counts
+ * as a change only when it differs from
  * [lastLanguageTag], the one the last run showed (null skips the check): one changed while the
  * app was dead, in Android's setting or, while following it, the phone's. Otherwise it is
  * skipped: the channel is created in it right after, and the reminders on screen already show it.

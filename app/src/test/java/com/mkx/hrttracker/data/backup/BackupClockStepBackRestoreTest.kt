@@ -74,7 +74,7 @@ class BackupClockStepBackRestoreTest {
         }
         coEvery { gate.runHomeDataMutation<Any?>(any()) } coAnswers { firstArg<suspend () -> Any?>().invoke() }
         journal = JournalRepository(databaseHolder, clock, gate, mockk(relaxed = true), appScope)
-        medicines = MedicineRepository(context, databaseHolder, gate, MedicineStockMutator(), appScope)
+        medicines = MedicineRepository(databaseHolder, gate, MedicineStockMutator(), appScope)
     }
 
     @After

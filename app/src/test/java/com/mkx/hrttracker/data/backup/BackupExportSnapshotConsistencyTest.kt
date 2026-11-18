@@ -115,7 +115,6 @@ class BackupExportSnapshotConsistencyTest {
 
         val appScope = CoroutineScope(StandardTestDispatcher())
         val medicines = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = gate,
             stockMutator = MedicineStockMutator(),

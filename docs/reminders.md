@@ -231,20 +231,20 @@ changes: `MainActivity` handles `locale` configuration changes itself,
 so those arrive only as a configuration change, which
 `HrtTrackerApplication.onConfigurationChanged` reads into the app
 language (`followAndroidAppLanguageSetting`), with or without an
-activity (below API 33 only once one has attached, as AppCompat knows
-the choice only then); the screens switch and the reminders are reposted
-as for one made in Settings. One made while the app was dead is caught
-at the next start: when the first language known (below API 33 once the
-activity attaches) differs from the one the last run showed
+activity; the screens switch and the reminders are reposted as for one
+made in Settings. One made while the app was dead is caught at the next
+start: when the first language differs from the one the last run showed
 (`SettingsRepository.lastRunAppLanguageTag()`, read when the repository
 is built, before this run stores its own; with Follow system it is the
 phone's language it resolved to), the channel is re-registered and the
 reminders reposted too. A start with nothing changed reposts nothing.
 The repository stores the language it starts in once it has read the
-last one (from API 33, where it is known without an activity), so a
-process an alarm woke after a change reposts once, not at every start
-until the app is opened. Below API 33 such a process doesn't know the
-choice and stores nothing; the change, made in the app, was stored then.
+last one, so a process an alarm woke after a change reposts once, not at
+every start until the app is opened. The choice is known with no
+activity on every API level (`appLocales()`, see
+[localization](localization.md#language-switching-paths)), so after an
+update from v1.4.2, which kept it only in AppCompat's file, the first
+process an alarm wakes already posts in it.
 
 Tapping the body opens the app on the dose's row
 (`hrttracker://medication-reminder-notification/<tag>`, with

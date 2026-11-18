@@ -1,8 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
-import android.os.Build
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
@@ -37,6 +35,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.util.appLocales
+import com.mkx.hrttracker.util.setAppLocales
 import com.mkx.hrttracker.util.systemAppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -52,7 +51,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -167,49 +165,32 @@ class SettingsRepository internal constructor(
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
-    // The language last shown: the chosen one, or with app_language_follows_system the phone's,
-    // mapped. The flag tells a process no activity has attached to below API 33 which it is.
+    // The language last shown: the chosen tags, or the phone's language mapped when following it.
+    // Only the next start reads it, to tell whether the language changed while the app was closed.
     private val appLanguageTagKey = stringPreferencesKey("app_language_tag")
-    private val appLanguageFollowsSystemKey = booleanPreferencesKey("app_language_follows_system")
 
-    /**
-     * [known]: below API 33 AppCompat reads the chosen language from its storage only when an
-     * activity attaches, so until then (a process an alarm woke) an empty list says nothing.
-     * From API 33 [appLocales] reads the framework's, with or without an activity.
-     */
-    private data class AppLanguage(
-        val shown: AppLanguageOption,
-        val followsSystem: Boolean,
-        val known: Boolean,
-    )
+    private data class AppLanguage(val shown: AppLanguageOption, val followsSystem: Boolean)
 
+    // appLocales() knows the choice with or without an activity, on every API level.
     private val appLanguage = MutableStateFlow(
         AppLanguage(
             shown = AppLanguageOption.fromLocale(appLanguageLocale()),
             followsSystem = appLocales().isEmpty,
-            known = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
         )
     )
 
-    /** The language shown, from the moment it is known (see [AppLanguage.known]). */
-    val knownAppLanguage: Flow<AppLanguageOption> =
-        appLanguage.filter { it.known }.map { it.shown }
-
-    internal val isAppLanguageKnown: Boolean get() = appLanguage.value.known
+    /** The language shown. */
+    val shownAppLanguage: Flow<AppLanguageOption> = appLanguage.map { it.shown }
 
     // From settingsState's first read, started at construction (Application.onCreate), before
     // the activity's first refresh stores this run's language. A failed read is retried, so
     // this waits for the first one that succeeds.
     private val lastRunAppLanguageTagRead = CompletableDeferred<String?>()
 
-    // ponytail: the stored choice as of getCurrentSettings (null when following the system), so a
-    // notification can read it without suspending; every reminder path reads the settings first.
+    // The language tag last stored in this process, which a read never overwrites.
     @Volatile
-    private var storedChosenAppLanguageTag: String? = null
-
-    // The language (tag, follows system) last set in this process, which a read never overwrites.
-    @Volatile
-    private var requestedAppLanguage: Pair<String, Boolean>? = null
+    private var requestedAppLanguageTag: String? = null
+    private val appLanguageStoreLock = Any()
 
     private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
@@ -288,13 +269,10 @@ class SettingsRepository internal constructor(
     val settingsState: StateFlow<SettingsState> = combine(
         storedPreferences.map { preferences ->
             // Once read, the language this run starts in is stored for the next start, also in a
-            // process no activity attaches to (from API 33, where it is known without one): one an
-            // alarm woke after the language changed reposts once, not at every start until the
-            // app is opened. Unless this run has stored one already.
-            if (lastRunAppLanguageTagRead.complete(preferences[appLanguageTagKey]) &&
-                isAppLanguageKnown && requestedAppLanguage == null
-            ) {
-                refreshAppLanguageOption()
+            // process no activity attaches to: one an alarm woke after the language changed
+            // reposts once, not at every start until the app is opened.
+            if (lastRunAppLanguageTagRead.complete(preferences[appLanguageTagKey])) {
+                storeStartAppLanguage()
             }
             preferencesToStoredSettingsState(preferences)
         },
@@ -336,8 +314,6 @@ class SettingsRepository internal constructor(
 
     suspend fun getCurrentSettings(): SettingsState {
         val preferences = activeDataStore().data.first()
-        storedChosenAppLanguageTag = preferences[appLanguageTagKey]
-            .takeUnless { preferences[appLanguageFollowsSystemKey] == true }
         return preferencesToStoredSettingsState(preferences).withAppLanguage(appLanguage.value)
     }
 
@@ -347,15 +323,9 @@ class SettingsRepository internal constructor(
     /**
      * The app language for text posted outside an activity, mapped to a supported one as the
      * screens show it (the application context's own may be another): the chosen one, or the
-     * phone's. Below API 33 AppCompat knows the chosen one only once an activity has attached, so
-     * a process an alarm woke takes the choice stored with the last change.
+     * phone's.
      */
-    fun appLanguageTag(): String {
-        val chosen = appLocales()[0]
-            ?: storedChosenAppLanguageTag.takeUnless { isAppLanguageKnown }
-                ?.let { tags -> LocaleListCompat.forLanguageTags(tags)[0] }
-        return (chosen?.let(AppLanguageOption::fromLocale) ?: systemAppLanguage()).languageTag
-    }
+    fun appLanguageTag(): String = appLanguageLocale().toLanguageTag()
 
     suspend fun setDarkModeOption(option: DarkModeOption) {
         activeDataStore().edit { preferences ->
@@ -705,7 +675,6 @@ class SettingsRepository internal constructor(
             preferences[homeCardOrderKey] = homeCardLayout.order.joinToString(",") { it.name }
             preferences[homeCardHiddenKey] = homeCardLayout.hidden.map { it.name }.toSet()
             preferences[appLanguageTagKey] = (appLanguageOption ?: systemAppLanguage()).languageTag
-            preferences[appLanguageFollowsSystemKey] = appLanguageOption == null
         }
 
         // setApplicationLocales must be called on the main thread; restore runs on IO.
@@ -715,48 +684,53 @@ class SettingsRepository internal constructor(
     /** Sets the app language, or with null clears it to follow the phone's. */
     fun setAppLanguageOption(option: AppLanguageOption?) {
         val shown = option ?: systemAppLanguage()
-        appLanguage.value = AppLanguage(shown, followsSystem = option == null, known = true)
+        appLanguage.value = AppLanguage(shown, followsSystem = option == null)
         // Number formatters (e.g. medicationDoseText) read Locale.getDefault() directly,
         // so syncing it here keeps formatted doses aligned with the UI language.
         Locale.setDefault(Locale.forLanguageTag(shown.languageTag))
-        AppCompatDelegate.setApplicationLocales(
+        setAppLocales(
             option?.let { LocaleListCompat.forLanguageTags(it.languageTag) }
                 ?: LocaleListCompat.getEmptyLocaleList()
         )
-        storeAppLanguage(shown.languageTag, followsSystem = option == null)
+        storeAppLanguage(shown.languageTag)
     }
 
     /**
      * Reads the app language back ([appLocales]): an empty list follows the system, whichever
-     * screen emptied it (the picker, or "System default" in Android's per-app setting). Call it
-     * only where the list is known: from API 33 always, below once an activity has attached.
+     * screen emptied it (the picker, or "System default" in Android's per-app setting).
      */
     fun refreshAppLanguageOption() {
         val chosen = appLocales()
             .takeUnless(LocaleListCompat::isEmpty)?.toLanguageTags()
         val shown = AppLanguageOption.fromLocale(appLanguageLocale())
-        appLanguage.value = AppLanguage(shown, followsSystem = chosen == null, known = true)
+        appLanguage.value = AppLanguage(shown, followsSystem = chosen == null)
         // Also stores one chosen before the tag was kept or in Android's setting, and when
         // following the system the language it resolves to, which the next start compares with.
-        storeAppLanguage(chosen ?: shown.languageTag, followsSystem = chosen == null)
+        storeAppLanguage(chosen ?: shown.languageTag)
     }
 
-    private fun storeAppLanguage(tag: String, followsSystem: Boolean) {
-        requestedAppLanguage = tag to followsSystem
+    // Unless this run has stored one already. Only stores: run off the main thread, a read here
+    // could overwrite the language a picker tap set meanwhile.
+    private fun storeStartAppLanguage() = synchronized(appLanguageStoreLock) {
+        if (requestedAppLanguageTag == null) storeAppLanguage(appLanguage.value.shown.languageTag)
+    }
+
+    private fun storeAppLanguage(tag: String) {
+        synchronized(appLanguageStoreLock) { requestedAppLanguageTag = tag }
         repositoryScope.launch {
             try {
+                // Not before the last run's tag is read: settingsState's first read may come
+                // after this write, and would then take this run's tag for the last one.
+                lastRunAppLanguageTagRead.await()
                 // The latest one asked for, not this call's: of quick changes, the write that
                 // runs last stores the last one. DataStore skips a write that changes nothing.
                 activeDataStore().edit { preferences ->
-                    requestedAppLanguage?.let { (latest, follows) ->
-                        preferences[appLanguageTagKey] = latest
-                        preferences[appLanguageFollowsSystemKey] = follows
-                    }
+                    requestedAppLanguageTag?.let { latest -> preferences[appLanguageTagKey] = latest }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                // Read back only where no activity attached; the next change or app start writes it.
+                // Read back only by the next start; the next change or app start writes it.
                 diagnosticsLogger.warning(TAG, "app_language_tag_store_failed tag=$tag", error)
             }
         }

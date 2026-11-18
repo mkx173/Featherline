@@ -74,4 +74,12 @@ class AppDateTimeFormattersTest {
         assertEquals("Dec 31, 2025", formatter(LocalDate.of(2025, 12, 31)))
         assertEquals("Jan 2, 2026", formatter(LocalDate.of(2026, 1, 2)))
     }
+
+    @Test
+    fun dateLabelFormatter_putsTheDayFirstInCzech() {
+        val formatter = dateLabelFormatter(locale = Locale.forLanguageTag("cs"), today = LocalDate.of(2026, 4, 29))
+
+        assertEquals("1. 4.", formatter(LocalDate.of(2026, 4, 1)))
+        assertEquals("31. 12. 2025", formatter(LocalDate.of(2025, 12, 31)))
+    }
 }

@@ -1,6 +1,5 @@
 package com.mkx.hrttracker
 
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
@@ -85,10 +84,10 @@ import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.rememberAppLanguageContext
 import com.mkx.hrttracker.widget.EXTRA_OPEN_MILESTONES
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDateTime
-import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -253,25 +252,8 @@ class MainActivity : AppCompatActivity() {
                 onDispose { }
             }
 
-            val baseContext = LocalContext.current
-            val baseConfiguration = LocalConfiguration.current
-            val appLanguageTag = settingsState.appLanguageOption.languageTag
-            // Apply the chosen UI language in place through the composition
-            // locals so a language change re-localizes the whole UI — including
-            // date/time formatters that read LocalConfiguration — without
-            // recreating the activity (which would flash a blank screen).
-            val localizedContext = remember(baseContext, baseConfiguration, appLanguageTag) {
-                val locale = Locale.forLanguageTag(appLanguageTag)
-                val configuration = Configuration(baseConfiguration).apply { setLocale(locale) }
-                val localizedResources =
-                    baseContext.createConfigurationContext(configuration).resources
-                // Wrap the activity (rather than returning the config context) so the
-                // context still unwraps to the Activity — required by hiltViewModel()
-                // and LocalActivity — while serving localized resources.
-                object : ContextWrapper(baseContext) {
-                    override fun getResources(): Resources = localizedResources
-                }
-            }
+            val localizedContext =
+                rememberAppLanguageContext(settingsState.appLanguageOption.languageTag)
 
             val navigationLock = remember { NavigationLockState() }
             // The leave waiting on the discard dialog navigates this composition's controller.

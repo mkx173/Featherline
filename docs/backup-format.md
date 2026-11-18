@@ -151,11 +151,13 @@ flattened into the parent's JSON.
   phone's language; it came without a snapshot version bump. The restore
   follows the system for `FOLLOW_SYSTEM` and for a name it doesn't know (a
   language from a later release) instead of rejecting the backup, and keeps
-  an older backup's explicit language. An older build that reads v8
-  restores `FOLLOW_SYSTEM` as the phone's language mapped to a supported
-  one, chosen explicitly, as for any name it doesn't know (lenient since
-  v1.4.0); released builds up to v1.4.2 reject a v8 backup by its version
-  anyway. The legacy
+  an older backup's explicit language. `CZECH` came after `FOLLOW_SYSTEM`,
+  also without a bump: a build without it restores it as a name it doesn't
+  know. An older build that reads v8
+  restores `FOLLOW_SYSTEM` (and `CZECH`) as the phone's language mapped to
+  a supported one, chosen explicitly, as for any name it doesn't know
+  (lenient since v1.4.0); released builds up to v1.4.2 reject a v8 backup
+  by its version anyway. The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
   versions can read new backups; on restore, a present `widgetAppearance`

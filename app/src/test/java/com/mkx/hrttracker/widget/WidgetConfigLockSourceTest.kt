@@ -67,6 +67,27 @@ class WidgetConfigLockSourceTest {
         )
     }
 
+    // ponytail: a source guard, as above; a Robolectric run of this @AndroidEntryPoint activity
+    // needs Hilt's testing setup, which the project doesn't have.
+    @Test
+    fun widgetConfigActivity_showsEverythingInTheAppLanguage_theUnlockPromptIncluded() {
+        val source = source("app/src/main/java/com/mkx/hrttracker/widget/WidgetConfigActivity.kt")
+        val onCreate = source.substringAfter("override fun onCreate(").substringBefore("setContent {")
+        assertTrue(
+            "Like MainActivity, re-read the app language at onCreate: it may have changed while " +
+                "the process lived on.",
+            onCreate.contains("settingsRepository.refreshAppLanguageOption()"),
+        )
+
+        val content = source.substringAfter("setContent {")
+        val providerIndex = content.indexOf("LocalContext provides localizedContext")
+        assertTrue(
+            "The content must be provided the app-language context before the unlock prompt, " +
+                "which reads its strings from LocalContext, and before the screen.",
+            providerIndex in 0 until content.indexOf("AppAuthenticationPromptEffect("),
+        )
+    }
+
     private fun source(relativePath: String): String {
         return File(projectRoot(), relativePath).readText()
     }

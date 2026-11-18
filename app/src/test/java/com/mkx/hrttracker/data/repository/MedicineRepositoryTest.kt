@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
@@ -56,13 +55,11 @@ import java.time.Instant
 import java.util.UUID
 
 class MedicineRepositoryTest {
-    private val context: Context = mockk()
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
     private val stockMutator: MedicineStockMutator = mockk(relaxed = true)
-    private val duplicateMedicineMessage = "Medicine already exists."
 
     private lateinit var appScope: CoroutineScope
     private lateinit var repository: MedicineRepository
@@ -71,10 +68,7 @@ class MedicineRepositoryTest {
     fun setUp() {
         appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         mockkObject(ToastManager)
-        every { ToastManager.showMessage(any()) } just Runs
-
-        every { context.getString(R.string.medicine_already_exists) } returns
-                duplicateMedicineMessage
+        every { ToastManager.showMessageRes(any()) } just Runs
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicineDao() } returns dao
@@ -86,7 +80,6 @@ class MedicineRepositoryTest {
         }
 
         repository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -129,7 +122,7 @@ class MedicineRepositoryTest {
             now = Instant.ofEpochMilli(500),
         )
 
-        verify(exactly = 1) { ToastManager.showMessage(duplicateMedicineMessage) }
+        verify(exactly = 1) { ToastManager.showMessageRes(R.string.medicine_already_exists) }
     }
 
     @Test
@@ -165,7 +158,7 @@ class MedicineRepositoryTest {
             now = now,
         )
 
-        verify(exactly = 0) { ToastManager.showMessage(any()) }
+        verify(exactly = 0) { ToastManager.showMessageRes(any()) }
     }
 
     @Test
@@ -369,7 +362,6 @@ class MedicineRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
         every { dao.observeAllActive() } returns MutableStateFlow(listOf(entity))
         val repository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -931,7 +923,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns medicinesSource
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -981,7 +972,6 @@ class MedicineRepositoryTest {
         }
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1017,7 +1007,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1048,7 +1037,6 @@ class MedicineRepositoryTest {
         }
 
         MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1075,7 +1063,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns MutableStateFlow(listOf(tracked, untracked))
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1111,7 +1098,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1147,7 +1133,6 @@ class MedicineRepositoryTest {
         every { dao.observeAllActive() } returns medicinesSource
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1199,7 +1184,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,
@@ -1232,7 +1216,6 @@ class MedicineRepositoryTest {
         )
 
         val freshRepository = MedicineRepository(
-            context = context,
             databaseHolder = databaseHolder,
             homeSnapshotRepository = homeSnapshotRepository,
             stockMutator = stockMutator,

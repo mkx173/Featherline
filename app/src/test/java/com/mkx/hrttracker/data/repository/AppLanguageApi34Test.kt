@@ -3,22 +3,30 @@ package com.mkx.hrttracker.data.repository
 import android.app.Application
 import android.app.LocaleManager
 import android.os.LocaleList
+import android.provider.Settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.core.app.LocaleManagerCompat
+import androidx.core.os.LocaleListCompat
 import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.followAndroidAppLanguageSetting
 import com.mkx.hrttracker.followAppLanguage
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.initAppLocales
+import com.mkx.hrttracker.util.systemLocale
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import com.mkx.hrttracker.util.withAppLanguage
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,7 +41,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.time.DayOfWeek
 import java.util.Locale
 
 /**
@@ -88,10 +98,7 @@ class AppLanguageApi34Test {
     @Test
     fun aProcessAnAlarmWokeAfterAChange_storesIt_soOnlyThatStartReposts() = runBlocking {
         // The last run showed English; the language was changed in Android's setting since.
-        dataStore.edit { preferences ->
-            preferences[stringPreferencesKey("app_language_tag")] = "en"
-            preferences[booleanPreferencesKey("app_language_follows_system")] = false
-        }
+        dataStore.edit { preferences -> preferences[stringPreferencesKey("app_language_tag")] = "en" }
         chooseInAndroidSetting("zh-Hant")
 
         val woken = SettingsRepository(dataStore)
@@ -99,7 +106,6 @@ class AppLanguageApi34Test {
         withTimeout(30_000) {
             while (dataStore.data.first()[stringPreferencesKey("app_language_tag")] != "zh-Hant") delay(10)
         }
-        assertEquals(false, dataStore.data.first()[booleanPreferencesKey("app_language_follows_system")])
 
         assertEquals(0, repostsAtStart(SettingsRepository(dataStore)))
     }
@@ -126,6 +132,39 @@ class AppLanguageApi34Test {
         assertEquals(english(), context.withAppLanguage().getString(R.string.reminder_notification_single_title))
     }
 
+    @Test
+    fun followingTheSystem_theFirstDayOfWeekIsThePhonesNotTheAppLanguages() {
+        // An en-GB phone with English chosen in the app: Resources.getSystem() then carries the
+        // app's "en" first (as on a device), the framework's system locales the phone's en-GB.
+        RuntimeEnvironment.setQualifiers("en")
+        mockkStatic(LocaleManagerCompat::class)
+        try {
+            every { LocaleManagerCompat.getSystemLocales(any()) } returns LocaleListCompat.forLanguageTags("en-GB")
+            chooseInAndroidSetting("en")
+
+            assertEquals(Locale.forLanguageTag("en-GB"), systemLocale())
+            assertEquals(DayOfWeek.MONDAY, FirstDayOfWeekOption.FOLLOW_SYSTEM.resolve(systemLocale()))
+        } finally {
+            unmockkStatic(LocaleManagerCompat::class)
+        }
+    }
+
+    @Test
+    fun withTheTimeFormatOnTheLocaleDefault_the24HourClockIsThePhonesNotTheAppLanguages() {
+        // The same en-GB phone with English chosen; its time format follows the locale.
+        RuntimeEnvironment.setQualifiers("en")
+        Settings.System.putString(context.contentResolver, Settings.System.TIME_12_24, null)
+        mockkStatic(LocaleManagerCompat::class)
+        try {
+            every { LocaleManagerCompat.getSystemLocales(any()) } returns LocaleListCompat.forLanguageTags("en-GB")
+            chooseInAndroidSetting("en")
+
+            assertEquals(true, context.uses24HourTimeFormat())
+        } finally {
+            unmockkStatic(LocaleManagerCompat::class)
+        }
+    }
+
     private fun english(): String {
         val configuration = android.content.res.Configuration(context.resources.configuration)
             .apply { setLocale(Locale.ENGLISH) }
@@ -141,7 +180,7 @@ class AppLanguageApi34Test {
         }
         val run = CoroutineScope(Dispatchers.Unconfined).launch {
             followAppLanguage(
-                languages = settings.knownAppLanguage,
+                languages = settings.shownAppLanguage,
                 lastLanguageTag = settings::lastRunAppLanguageTag,
                 reminderNotificationManager = mockk(relaxed = true),
                 medicationReminderScheduler = { scheduler },

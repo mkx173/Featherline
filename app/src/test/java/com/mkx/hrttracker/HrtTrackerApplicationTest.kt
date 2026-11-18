@@ -7,7 +7,6 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
@@ -76,9 +75,7 @@ class HrtTrackerApplicationTest {
     @Test
     fun onAppForeground_rereadsTheAppLanguage() {
         // Android's per-app setting can change it with no configuration change.
-        val settingsRepository = mockk<SettingsRepository>(relaxed = true) {
-            every { isAppLanguageKnown } returns true
-        }
+        val settingsRepository = mockk<SettingsRepository>(relaxed = true)
 
         onAppForeground(mockk(relaxed = true), settingsRepository)
 

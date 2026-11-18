@@ -1,12 +1,17 @@
 package com.mkx.hrttracker.widget
 
+import android.app.LocaleManager
 import android.content.Context
+import android.os.LocaleList
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.test.core.app.ApplicationProvider
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.JournalRepository
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.util.initAppLocales
+import com.mkx.hrttracker.util.withAppLanguage
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.coEvery
 import io.mockk.every
@@ -20,6 +25,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +48,7 @@ class AnchorShortcutRefreshConcurrencyTest {
 
     // The launcher's pinned shortcuts: id to enabled.
     private val pins = ConcurrentHashMap<String, Boolean>()
+    private var disabledMessage: CharSequence? = null
 
     @Before
     fun setUp() {
@@ -64,6 +71,7 @@ class AnchorShortcutRefreshConcurrencyTest {
         }
         every { ShortcutManagerCompat.disableShortcuts(any(), any(), any()) } answers {
             secondArg<List<String>>().forEach { shortcutId -> pins[shortcutId] = false }
+            disabledMessage = thirdArg()
         }
         every { ShortcutManagerCompat.updateShortcuts(any(), any()) } returns true
     }
@@ -114,5 +122,20 @@ class AnchorShortcutRefreshConcurrencyTest {
             false,
             pins["anchor:a1"],
         )
+    }
+
+    @Test
+    fun aRemovedAnchorsShortcut_isDisabledWithAMessageInTheAppLanguage() = runTest {
+        // Chosen in the app; the application context's own resources stay on the phone's.
+        initAppLocales(context)
+        context.getSystemService(LocaleManager::class.java).applicationLocales =
+            LocaleList.forLanguageTags("zh-Hans")
+        pins["anchor:a1"] = true
+        coEvery { journalRepository.awaitTrackedDatesOrNull(any()) } returns emptyList()
+
+        AnchorShortcutManager.refreshAll(context)
+
+        assertEquals(context.withAppLanguage().getString(R.string.anchor_shortcut_disabled_message), disabledMessage)
+        assertNotEquals(context.getString(R.string.anchor_shortcut_disabled_message), disabledMessage)
     }
 }

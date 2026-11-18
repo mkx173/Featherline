@@ -100,8 +100,8 @@ data class WidgetSnapshotRecord(
     // The app UI language (BCP-47 tag) captured when the snapshot was built. The
     // live-rendered widget chrome (section headers, "done" label, E2 label) resolves
     // its strings against this so it matches the medication/dose strings already baked
-    // into the snapshot. Persisted because below API 33 a freshly-spawned widget
-    // process can't read the per-app locale back from AppCompatDelegate/the app context.
+    // into the snapshot. Persisted so the chrome renders from the snapshot alone, in the
+    // language it was built in.
     val appLanguageTag: String,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,

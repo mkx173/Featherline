@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
@@ -17,7 +16,6 @@ import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import com.mkx.hrttracker.util.ToastManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,7 +35,6 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicineRepository @Inject internal constructor(
-    @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val stockMutator: MedicineStockMutator,
@@ -569,9 +566,7 @@ class MedicineRepository @Inject internal constructor(
             }
         }
         if (notifyOnActiveExisting && activeExistingMedicineFound) {
-            ToastManager.showMessage(
-                context.getString(R.string.medicine_already_exists),
-            )
+            ToastManager.showMessageRes(R.string.medicine_already_exists)
         }
         return medicine
     }
