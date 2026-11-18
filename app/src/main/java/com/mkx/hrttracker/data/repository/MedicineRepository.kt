@@ -420,10 +420,18 @@ class MedicineRepository @Inject internal constructor(
                 val dao = database.medicineDao()
                 val existing = dao.getByUuid(uuid.toString())
                     ?: throw MedicineNotFoundException(uuid)
+                val existingMedicine = existing.toMedicineModel()
+                // The merged sheet sends the untouched preparation with a rename. It changes
+                // nothing, so no refusal below (a lock, an already-overfull container) may stop
+                // that save half done.
+                if (existingMedicine.preparation == preparation &&
+                    (displayDoseUnit == null || displayDoseUnit == existingMedicine.displayDoseUnit)
+                ) {
+                    return@withTransaction
+                }
                 if (dao.logReferenceCount(uuid.toString()) > 0) {
                     throw MedicineLockedException(uuid)
                 }
-                val existingMedicine = existing.toMedicineModel()
                 val newIdentityKey = when (val selection = existingMedicine.selection) {
                     is MedicineSelection.Catalog ->
                         MedicineIdentityKey.catalog(selection.medicationKey, preparation)

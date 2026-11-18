@@ -300,7 +300,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     .map { it.editingGroupId to it.originalMedicationDayBoundary }
                     .distinctUntilChanged(),
                 appTimeSource.currentSnapshot,
-            ) { entriesOrNull, (currentEditingGroupId, boundary), timeSnapshot ->
+                // Re-run when a save ends, so a record logged during a refused save locks the
+                // form at once instead of at the next minute tick. Not when a delete of the
+                // records ends: that sets the counts itself, and the last list may predate it.
+                _uiState.map { it.isSaving }.distinctUntilChanged(),
+            ) { entriesOrNull, (currentEditingGroupId, boundary), timeSnapshot, _ ->
                 Triple(
                     entryCountsForGroup(
                         entries = entriesOrNull.orEmpty(),

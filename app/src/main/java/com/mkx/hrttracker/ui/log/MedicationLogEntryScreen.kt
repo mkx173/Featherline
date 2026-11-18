@@ -170,20 +170,18 @@ fun MedicationLogEntryScreen(
     }
     // The dose being logged fulfills this scheduled slot; exclude it from the
     // preview's runway recompute so a future occurrence is not double-counted
-    // (pre-deducted stock + still-pending occurrence), but only when the saved
-    // log will actually fulfill the slot.
+    // (pre-deducted stock + still-pending occurrence). The saved record covers
+    // its slot even when it is early or late (the committed runway counts any
+    // attached record), so the preview does too, whatever the window says.
     val previewFulfilledSlot = remember(
         uiState.sourceGroupUuid,
         uiState.scheduleTimeUuid,
         uiState.scheduledFor,
-        sourceGroupScheduleOffsetOutsideFulfillmentWindow,
     ) {
         previewFulfilledScheduledSlot(
             sourceGroupUuid = uiState.sourceGroupUuid,
             scheduleTimeUuid = uiState.scheduleTimeUuid,
             scheduledFor = uiState.scheduledFor,
-            sourceGroupScheduleOffsetOutsideFulfillmentWindow =
-                sourceGroupScheduleOffsetOutsideFulfillmentWindow,
         )
     }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
@@ -221,12 +219,8 @@ internal fun previewFulfilledScheduledSlot(
     sourceGroupUuid: UUID?,
     scheduleTimeUuid: UUID?,
     scheduledFor: LocalDateTime?,
-    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
 ): FulfilledScheduledSlot? {
-    if (sourceGroupScheduleOffsetOutsideFulfillmentWindow) {
-        return null
-    }
-    return if (sourceGroupUuid != null && scheduleTimeUuid != null && scheduledFor != null) {
+    return if (sourceGroupUuid != null && scheduledFor != null) {
         FulfilledScheduledSlot(
             groupUuid = sourceGroupUuid,
             scheduleTimeUuid = scheduleTimeUuid,

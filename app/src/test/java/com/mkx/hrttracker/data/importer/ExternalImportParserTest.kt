@@ -503,6 +503,38 @@ class ExternalImportParserTest {
         )
     }
 
+    // A time in seconds or milliseconds read as hours, or one far before year 1 or after 9999:
+    // skipped as an invalid time, so the app never stores a date it can't keep.
+    @Test
+    fun timeHOutsideYears1To9999IsSkippedAsAnInvalidTime() {
+        val outOfRange = listOf("1.8e9", "1.8e12", "-2e7", "7.1e7")
+        val events = outOfRange.mapIndexed { index, timeH ->
+            """{ "id": "dose-$index", "timeH": $timeH, "route": "oral", "ester": "E2", "doseMG": 2 }"""
+        }
+        val labs = outOfRange.mapIndexed { index, timeH ->
+            """{ "id": "lab-$index", "timeH": $timeH, "unit": "pg/ml", "value": 120 }"""
+        }
+        val result = parser.parse(
+            """
+            {
+              "gelProducts": [],
+              "events": [
+                { "id": "ok", "timeH": 490000, "route": "oral", "ester": "E2", "doseMG": 2 },
+                ${events.joinToString(",\n")}
+              ],
+              "labResults": [
+                { "id": "lab-ok", "timeH": 490000, "unit": "pg/ml", "value": 120 },
+                ${labs.joinToString(",\n")}
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(listOf(round(490000 * 3_600_000.0).toLong()), result.medicationDoses.map { it.appliedAtEpochMillis })
+        assertEquals(listOf(round(490000 * 3_600_000.0).toLong()), result.labResults.map { it.collectedAtEpochMillis })
+        assertEquals(List(8) { ExternalImportWarningReason.MALFORMED_ROW }, result.warningReasons())
+    }
+
     @Test
     fun skipsUnsupportedEstrogenCompoundsAndTestosteroneDoseRows() {
         val result = parser.parse(

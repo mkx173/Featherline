@@ -29,7 +29,7 @@ import com.mkx.hrttracker.model.medication.missingSlotCounts
 import com.mkx.hrttracker.model.medication.comingUpTimeRange
 import com.mkx.hrttracker.model.medication.isComingUpVisible
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
-import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.scheduleOffsetMinutes
@@ -43,6 +43,7 @@ import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.calibrationUnitLabel
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.medicationDay
+import com.mkx.hrttracker.util.medicationDayStart
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -1087,7 +1088,6 @@ internal fun buildMainUpcomingSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = MainUpcomingLookaheadDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val groupsByBoundary = groups.groupBy { group -> group.schedule.dayBoundary }
@@ -1128,13 +1128,23 @@ internal fun buildMainUpcomingSection(
         )
     }
 
-    val lastLookaheadDate = now.toLocalDate().plusDays(lookaheadDays)
+    // The first medication day on or after [from] that some plan doses on, with no horizon, as
+    // reminders: a dose months away still shows. A plan with a medication misses every slot past
+    // its last record, so the scan below ends after the dosing days already logged ahead.
+    val dosingGroups = groups.filter { group -> group.medications.isNotEmpty() }
+    fun nextDosingDate(from: LocalDate): LocalDate? = dosingGroups.mapNotNull { group ->
+        val boundary = group.schedule.dayBoundary
+        group.occurrencesInPlanWindowFrom(start = medicationDayStart(from, boundary))
+            .firstOrNull()
+            ?.let { occurrence -> medicationDay(occurrence.scheduledFor, boundary) }
+    }.minOrNull()
+
     // A date after every plan's own tomorrow, so the rows and the header name the same day.
     val firstUpcomingDate = groupsByBoundary.keys.minOfOrNull { boundary ->
         medicationDay(now, boundary).plusDays(2)
     }
-    var date = firstUpcomingDate ?: lastLookaheadDate.plusDays(1)
-    while (!date.isAfter(lastLookaheadDate)) {
+    var date = firstUpcomingDate?.let(::nextDosingDate)
+    while (date != null) {
         val upcomingDate = date
         val upcomingRows = rowsOn { boundary ->
             upcomingDate.takeUnless { upcomingDate.isBefore(medicationDay(now, boundary).plusDays(2)) }
@@ -1146,7 +1156,7 @@ internal fun buildMainUpcomingSection(
                 rows = upcomingRows
             )
         }
-        date = date.plusDays(1)
+        date = nextDosingDate(upcomingDate.plusDays(1))
     }
 
     return MainUpcomingSectionUiState(
@@ -1246,12 +1256,10 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
     nowInstant: Instant,
     zoneId: ZoneId,
 ): MainAntiandrogenDueSlot? {
-    return occurrencesBetweenInPlanWindow(
-        startDate = now.toLocalDate().minusDays(MainAntiandrogenDueLookbackDays),
-        endDate = now.toLocalDate().plusDays(MainAntiandrogenDueLookaheadDays),
-        zoneId = zoneId,
+    // No horizon, as reminders; the first slot past the medication's last record ends the scan.
+    return occurrencesInPlanWindowFrom(
+        start = now.toLocalDate().minusDays(MainAntiandrogenDueLookbackDays).atStartOfDay(),
     )
-        .asSequence()
         .firstNotNullOfOrNull { occurrence ->
             val scheduledAt = occurrence.scheduledFor
             val slot = MedicationGroupSlotKey(
@@ -1305,9 +1313,7 @@ private fun Double.toVicoXHour(): Double {
 private const val E2_TARGET_MIN_CANONICAL = 100.0
 private const val E2_TARGET_MAX_CANONICAL = 200.0
 private const val E2_UNIT_PG_ML = "pg/mL"
-private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
-private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L

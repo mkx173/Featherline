@@ -13,7 +13,7 @@ import com.mkx.hrttracker.model.medication.PlanDaySchedule
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.missingSlotCounts
-import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.model.medication.occurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.MedicationDayBoundary
@@ -242,16 +242,14 @@ internal fun buildNextOccurrencesByGroup(
     entries: List<MedicationLogEntry>,
     start: LocalDateTime,
     limit: Int,
-    lookaheadDays: Long = 90L,
 ): Map<UUID, List<LocalDateTime>> {
     return groups.associate { group ->
+        // No horizon, as reminders: a dose months away still shows. With a medication, a
+        // slot past the last record is missing, so the scan ends after `limit` plus the
+        // records ahead.
+        if (group.medications.isEmpty()) return@associate group.uuid to emptyList()
         group.uuid to group
-            .nextOccurrencesInPlanWindowFrom(
-                start = start,
-                limit = Int.MAX_VALUE,
-                lookaheadDays = lookaheadDays,
-            )
-            .asSequence()
+            .occurrencesInPlanWindowFrom(start = start)
             .filter { occurrence ->
                 // A record logged early or late still takes the dose off the list.
                 missingSlotCounts(

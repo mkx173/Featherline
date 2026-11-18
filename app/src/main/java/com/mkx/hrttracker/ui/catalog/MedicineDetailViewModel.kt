@@ -419,7 +419,8 @@ class MedicineDetailViewModel @Inject constructor(
 
                     else -> MedicineDetailSaveResult.FAILURE_OTHER
                 }
-                // The name may already have been saved even if the preparation failed.
+                // The name is saved: only a changed preparation is refused (an untouched one
+                // writes nothing), and the toast names what was.
                 if (displayNameDraft != null) refreshReminders()
                 return@launch
             }

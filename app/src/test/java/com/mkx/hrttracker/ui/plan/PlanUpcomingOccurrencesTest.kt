@@ -199,6 +199,33 @@ class PlanUpcomingOccurrencesTest {
         )
     }
 
+    // The timeout turns a scan that never ends (a plan with no medication) into a failure.
+    @Test(timeout = 10_000)
+    fun buildNextOccurrencesByGroup_lists_doses_months_apart_as_reminders_ring_them() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 120,
+                since = LocalDate.of(2026, 1, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        )
+
+        val upcoming = buildNextOccurrencesByGroup(
+            groups = listOf(group, group.copy(uuid = UUID.randomUUID(), medications = emptyList())),
+            entries = emptyList(),
+            start = LocalDateTime.of(2026, 1, 2, 12, 0),
+            limit = 2,
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 5, 1, 9, 0), LocalDateTime.of(2026, 8, 29, 9, 0)),
+            upcoming.getValue(group.uuid)
+        )
+        assertEquals(2, upcoming.size)
+    }
+
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("ef6bec56-adbf-46f3-bcec-a10ff54fe5eb"),

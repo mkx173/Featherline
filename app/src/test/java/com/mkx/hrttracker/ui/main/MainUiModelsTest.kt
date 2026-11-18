@@ -2340,6 +2340,91 @@ class MainUiModelsTest {
         )
     }
 
+    // The timeout turns a scan that never ends (a plan with no medication) into a failure.
+    @Test(timeout = 10_000)
+    fun buildMainUpcomingSection_finds_a_dose_months_away_past_one_already_logged() {
+        // Every 120 days from Jan 1: May 1 (already logged) and Aug 29, both past the
+        // old 90-day horizon. A plan with no medication beside it never ends the scan.
+        val depot = medicationGroup(
+            uuid = UUID.fromString("0d1f5a43-8f0c-4c55-9a0e-6f3f2c1b7a01"),
+            name = "Depot",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 120,
+                since = LocalDate.of(2026, 1, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        )
+        val empty = medicationGroup(
+            uuid = UUID.fromString("0d1f5a43-8f0c-4c55-9a0e-6f3f2c1b7a02"),
+            name = "No medication",
+            schedule = depot.schedule.copy(interval = 1),
+            medications = emptyList(),
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(depot, empty),
+            entries = listOf(
+                scheduledEntry(
+                    groupUuid = depot.uuid,
+                    appliedAt = LocalDateTime.of(2026, 5, 1, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 5, 1, 9, 0),
+                )
+            ),
+            now = LocalDateTime.of(2026, 2, 1, 11, 0),
+        )
+
+        assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
+        assertEquals(LocalDate.of(2026, 8, 29), upcomingSection.anchorDate)
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 8, 29, 9, 0)),
+            upcomingSection.rows.map { it.scheduledAt }
+        )
+    }
+
+    // A plan with no medication has no rows on any day, so on its own it must not be scanned.
+    @Test(timeout = 10_000)
+    fun buildMainUpcomingSection_ends_for_a_lone_plan_with_no_medication() {
+        val empty = medicationGroup(
+            uuid = UUID.fromString("0d1f5a43-8f0c-4c55-9a0e-6f3f2c1b7a04"),
+            name = "No medication",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 1, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = emptyList(),
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(empty),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 2, 1, 11, 0),
+        )
+
+        assertEquals(emptyList<LocalDateTime>(), upcomingSection.rows.map { it.scheduledAt })
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_names_a_next_dose_months_away() {
+        val group = antiandrogenGroup(
+            uuid = UUID.fromString("0d1f5a43-8f0c-4c55-9a0e-6f3f2c1b7a03"),
+            times = listOf(LocalTime.of(9, 0)),
+        ).let { it.copy(schedule = it.schedule.copy(interval = 120, since = LocalDate.of(2026, 1, 1))) }
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 1, 2, 11, 0),
+            zoneId = testZoneId,
+        )
+
+        assertEquals(LocalDateTime.of(2026, 5, 1, 9, 0), cards.single().nextDoseAt)
+    }
+
     @Test
     fun buildMainUpcomingSection_orders_future_planned_ties_by_groupCreation_andMedicationOrder() {
         val weeklyDate = LocalDate.of(2026, 4, 20)

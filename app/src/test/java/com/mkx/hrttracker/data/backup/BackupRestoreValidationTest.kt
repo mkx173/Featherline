@@ -1091,6 +1091,72 @@ class BackupRestoreValidationTest {
         assertRejects(snapshot, "must reference an imported medicine")
     }
 
+    // A slot time, note or anchor date far past four-digit years: no writer leaves them, and
+    // they are read as instants.
+    @Test
+    fun toValidatedSnapshot_rejectsImpossibleDoseSlotNoteAndAnchorDates() {
+        val farFuture = "+300000000-01-01"
+        val log = importedPatchOffLogSnapshot(
+            logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009a1"),
+            externalId = "patch-off-9a1",
+        )
+        assertRejects(validationSnapshot(medicationLogs = listOf(log.copy(scheduledForIso = "${farFuture}T08:00"))), "Impossible")
+        val note = BackupNoteSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009a3",
+            dateIso = farFuture,
+            text = "Note",
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+        )
+        assertRejects(validationSnapshot().copy(notes = listOf(note)), "Impossible")
+        val anchor = BackupTrackedDateSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009a4",
+            name = "Anchor",
+            iconKey = "STAR",
+            dateIso = "-0001-12-31",
+            paletteKey = null,
+            pinnedOrder = null,
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+        )
+        assertRejects(validationSnapshot().copy(trackedDates = listOf(anchor)), "Impossible")
+    }
+
+    // Released builds stored an imported time in seconds or milliseconds as hours unchecked, so
+    // the user's own backup can hold a dose or lab in the year 205 million: it must restore.
+    @Test
+    fun toValidatedSnapshot_restoresAnImportedDoseAndLabFarOutOfRange() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b0")
+        val farMillis = Math.round(1.8e12 * 3_600_000.0)
+        val snapshot = validationSnapshot(
+            medicines = listOf(importedPillMedicineSnapshot(medicineUuid)),
+            medicationLogs = listOf(
+                importedPillLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b1"),
+                    medicineUuid = medicineUuid,
+                    externalId = "dose-9b1",
+                ).copy(appliedAtEpochMillis = farMillis),
+                importedPatchOffLogSnapshot(
+                    logUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b2"),
+                    externalId = "patch-off-9b2",
+                ).copy(appliedAtEpochMillis = Math.round(-2e7 * 3_600_000.0)),
+            ),
+            bloodTestPanels = listOf(
+                importedBloodPanelSnapshot(
+                    panelUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b3"),
+                    resultUuid = UUID.fromString("00000000-0000-0000-0000-0000000009b4"),
+                    panelKey = 91L,
+                    resultExternalId = "result-9b4",
+                ).copy(collectedAtInstantEpochMillis = Math.round(1.8e9 * 3_600_000.0)),
+            ),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertTrue(farMillis in result.medicationLogs.map { it.appliedAtEpochMillis })
+        assertEquals(Math.round(1.8e9 * 3_600_000.0), result.bloodTestPanels.single().collectedAtInstantEpochMillis)
+    }
+
     private fun baselineSettings(): BackupSettingsSnapshot = BackupSettingsSnapshot(
         darkModeOption = "FOLLOW_SYSTEM",
         adaptiveColorEnabled = true,

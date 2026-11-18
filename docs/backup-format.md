@@ -362,7 +362,18 @@ incompatible files are rejected at the cheapest detection point.
    - parseability: enum-name resolution, UUID parsing, `DayOfWeek`
      and `ZoneId.of` round-trips
    - value sanity: positive-finite doses, including `equivalentE2Mg`
-     on log entries when present
+     on log entries when present; plan dose times with `hourOfDay` in
+     0..23 and `minuteOfHour` in 0..59; a plan's dates in the years
+     0001..9999: its `sinceEpochDay`, each slot's effective start and
+     the archive time (the start date picker offers 1900..2100 and other
+     starts are the clock or an existing start, so only a hand-edited
+     file goes past them; a plan date far beyond would overflow the
+     reminder pass or throw in Home's and Plan's dose lists); a log's
+     `scheduledForIso` and note and tracked-date `dateIso` in the same
+     years (no writer leaves them). A log's `appliedAtEpochMillis` and a
+     panel's `collectedAtInstantEpochMillis` are not bounded: an import
+     by an older build can have stored a far-off one, and a backup the
+     app wrote always restores
    - FK consistency: the medicines section is consumed first, and the
      resulting `{medicineUuid → MedicineEntity}` map is what every
      subsequent group-item and log-entry check resolves against —

@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -604,6 +605,59 @@ class MedicineRepositoryTest {
         }
         coVerify(exactly = 0) {
             dao.updateStockFields(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun updatePreparation_unchangedOnAnOverfullOrLockedMedicine_writesNothingAndRefusesNothing() = runTest {
+        // The merged sheet sends the untouched preparation with a rename. 12 mL in a 10 mL vial
+        // (a bad restore or legacy data) and a record logged since the sheet opened would each
+        // refuse a changed preparation; the unchanged one must pass, so the rename stands alone.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns trackedVialEntity(uuid, openMl = 12.0)
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 1
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 40.0,
+                vialVolumeMl = 10.0,
+            ),
+            displayDoseUnit = MedicineDisplayDoseUnit.MG,
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 0) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
+            )
+        }
+    }
+
+    @Test
+    fun updatePreparation_unchangedPreparationWithANewDisplayUnit_writesTheUnit() = runTest {
+        // Same 2 mg tablet, now shown in mcg: the unit is a change and must be written.
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        stubUnitMutation()
+        coEvery { dao.getByUuid(uuid.toString()) } returns medicineEntity(uuid = uuid.toString())
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 0
+        coEvery { dao.getByIdentityKey(any()) } returns null
+
+        repository.updatePreparation(
+            uuid = uuid,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            displayDoseUnit = MedicineDisplayDoseUnit.MCG,
+            now = Instant.parse("2026-11-08T00:00:00Z"),
+        )
+
+        coVerify(exactly = 1) {
+            dao.updatePreparationFields(
+                any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), MedicineDisplayDoseUnit.MCG.name, any(), any(),
+            )
         }
     }
 

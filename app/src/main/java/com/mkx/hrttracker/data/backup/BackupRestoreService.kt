@@ -638,7 +638,11 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         require(group.schedule.interval > 0) {
             "Medication group ${group.uuid} must have a positive schedule interval."
         }
-        LocalDate.ofEpochDay(group.schedule.sinceEpochDay)
+        // The start date picker offers 1900 to 2100, and every other writer takes today (the
+        // device clock) or an existing start.
+        require(group.schedule.sinceEpochDay in BackupDates.start.toEpochDay()..BackupDates.endInclusive.toEpochDay()) {
+            "Medication group ${group.uuid} has an impossible start date."
+        }
         require(group.schedule.times.isNotEmpty()) {
             "Medication group ${group.uuid} must contain at least one schedule time."
         }
@@ -656,14 +660,12 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         weeklyDays.forEach { dayOfWeek ->
             DayOfWeek.of(dayOfWeek)
         }
-        val archivedAtLocalIso = group.archivedAtLocalIso?.let { archivedAtLocal ->
-            LocalDateTime.parse(archivedAtLocal).toString()
-        } ?: group.archivedAtEpochMillis?.let { archivedAtEpochMillis ->
-            Instant.ofEpochMilli(archivedAtEpochMillis)
-                .atZone(zoneId)
-                .toLocalDateTime()
-                .toString()
-        }
+        val archivedAtLocalIso = (
+            group.archivedAtLocalIso?.let(LocalDateTime::parse)
+                ?: group.archivedAtEpochMillis?.let { archivedAtEpochMillis ->
+                    Instant.ofEpochMilli(archivedAtEpochMillis).atZone(zoneId).toLocalDateTime()
+                }
+            )?.requireBackupDate("medication group ${group.uuid} archive time")?.toString()
         val replacedByGroupUuid = group.replacedByGroupUuid
             ?.parseUuid("medication group replaced-by UUID")
             ?.toString()
@@ -696,16 +698,18 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             require(seenScheduleTimeUuids.add(scheduleTimeUuid)) {
                 "Duplicate medication group schedule time UUID $scheduleTimeUuid in backup."
             }
-            val effectiveFromLocalIso = time.effectiveFromLocalIso?.let { effectiveFrom ->
-                LocalDateTime.parse(effectiveFrom).toString()
-            } ?: if (group.includePastScheduledSlots) {
-                LocalDate.ofEpochDay(group.schedule.sinceEpochDay).atStartOfDay().toString()
-            } else {
-                Instant.ofEpochMilli(group.createdAtEpochMillis)
-                    .atZone(zoneId)
-                    .toLocalDateTime()
-                    .toString()
+            // An impossible time fails every read of the plan, so Home never loads.
+            require(time.hourOfDay in 0..23 && time.minuteOfHour in 0..59) {
+                "Medication group ${group.uuid} has an impossible dose time."
             }
+            val effectiveFromLocalIso = (
+                time.effectiveFromLocalIso?.let(LocalDateTime::parse)
+                    ?: if (group.includePastScheduledSlots) {
+                        LocalDate.ofEpochDay(group.schedule.sinceEpochDay).atStartOfDay()
+                    } else {
+                        Instant.ofEpochMilli(group.createdAtEpochMillis).atZone(zoneId).toLocalDateTime()
+                    }
+                ).requireBackupDate("medication group ${group.uuid} slot start").toString()
             MedicationGroupScheduleTimeEntity(
                 uuid = scheduleTimeUuid,
                 groupUuid = groupUuid,
@@ -822,7 +826,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             }
         }
         val scheduledForIso = log.scheduledForIso?.let { value ->
-            LocalDateTime.parse(value)
+            LocalDateTime.parse(value).requireBackupDate("medication log ${log.uuid} dose time")
             value
         }
         val scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
@@ -1060,6 +1064,21 @@ private fun BackupBloodTestResultSnapshot.toValidatedCalibrationMetadata(
 }
 
 private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
+
+/**
+ * Years 0001 to 9999, for the plan dates the reminder pass and the unbounded dose lists step
+ * from (start, slot start, archive time), where one far beyond them stops every reminder or
+ * crashes Home at each launch, and for a dose's slot time and note and anchor dates, which are
+ * read as instants. No writer puts these outside them: the date pickers offer 1900 to 2100,
+ * other dates are the clock or an existing one, and a slot time is one of the plan's doses.
+ * A dose's and a lab's own time are not bounded: an import by an older build can have stored
+ * one far out, and the app must restore its own backups.
+ */
+private val BackupDates = LocalDate.of(1, 1, 1)..LocalDate.of(9999, 12, 31)
+
+private fun LocalDateTime.requireBackupDate(fieldName: String): LocalDateTime = also {
+    require(toLocalDate() in BackupDates) { "Impossible $fieldName $this in backup." }
+}
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
     val darkModeOption = requireEnumName<DarkModeOption>(
@@ -2024,8 +2043,9 @@ private fun String?.parseUuid(fieldName: String): UUID {
 }
 
 private fun String.parseLocalDateIso(fieldName: String): String {
-    return runCatching { LocalDate.parse(this).toString() }
+    val date = runCatching { LocalDate.parse(this) }
         .getOrElse { throw IllegalArgumentException("Invalid $fieldName.", it) }
+    return date.atStartOfDay().requireBackupDate(fieldName).toLocalDate().toString()
 }
 
 private fun validateImportPair(

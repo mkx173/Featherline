@@ -100,7 +100,9 @@ object ScheduledRunwayCalculator {
                 // demand is not double-counted against already-deducted stock.
                 if (fulfilledSlot != null &&
                     fulfilledSlot.groupUuid == group.uuid &&
-                    fulfilledSlot.scheduleTimeUuid == occurrence.scheduleTimeUuid &&
+                    // With no slot id (an older record) a save matches by exact time too.
+                    (fulfilledSlot.scheduleTimeUuid == null ||
+                        fulfilledSlot.scheduleTimeUuid == occurrence.scheduleTimeUuid) &&
                     fulfilledSlot.scheduledFor == occurrence.scheduledFor
                 ) {
                     continue
@@ -270,7 +272,7 @@ internal data class MedicineDoseOccurrence(
  */
 data class FulfilledScheduledSlot(
     val groupUuid: UUID,
-    val scheduleTimeUuid: UUID,
+    val scheduleTimeUuid: UUID?,
     val scheduledFor: LocalDateTime,
 )
 

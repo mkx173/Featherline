@@ -252,6 +252,57 @@ class ScheduledRunwayCalculatorTest {
     }
 
     @Test
+    fun fulfilledSlotWithNoSlotIdCoversTheSlotAtItsExactTime() {
+        // An older record with no slot id covers the slot at its exact time once saved
+        // (isEntryForPlanSlot), so the preview drops that slot too.
+        val medicine = pill(unitsRemaining = 2.0)
+        val group = dailyGroup(medicine)
+        val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
+
+        val suppressed = ScheduledRunwayCalculator.computeScheduledRunway(
+            medicine = medicine,
+            activeGroups = listOf(group),
+            logEntries = emptyList(),
+            now = now,
+            zoneId = zoneId,
+            fulfilledSlot = FulfilledScheduledSlot(
+                groupUuid = group.uuid,
+                scheduleTimeUuid = null,
+                scheduledFor = scheduledFor,
+            ),
+        )
+        assertEquals(
+            RunwayProjection.Days(days = 2, lastFulfillable = today.plusDays(2)),
+            suppressed
+        )
+    }
+
+    @Test
+    fun fulfilledSlotWithNoSlotIdDropsOnlyItsOwnPlansSlot() {
+        // Two plans dose the same tablet at 08:00; the preview logs plan A's. Plan B's dose
+        // today is still owed, as after the save.
+        val medicine = pill(unitsRemaining = 30.0)
+        val planA = dailyGroup(medicine)
+        val planB = dailyGroup(medicine, uuid = UUID.fromString("33333333-3333-3333-3333-333333333333"))
+        val scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
+
+        val owed = ScheduledRunwayCalculator.enumerateUnfulfilledOccurrencesForMedicine(
+            medicine = medicine,
+            activeGroups = listOf(planA, planB),
+            logEntries = emptyList(),
+            nowLocal = LocalDateTime.of(today, LocalTime.of(7, 0)),
+            horizonEnd = today.plusDays(1),
+            zoneId = zoneId,
+            fulfilledSlot = FulfilledScheduledSlot(
+                groupUuid = planA.uuid,
+                scheduleTimeUuid = null,
+                scheduledFor = scheduledFor,
+            ),
+        )
+        assertEquals(listOf(planB.uuid), owed.filter { it.scheduledFor == scheduledFor }.map { it.groupUuid })
+    }
+
+    @Test
     fun partialCountLogLeavesOnlyTheRemainingCountForThatSignature() {
         val medicine = pill(unitsRemaining = 2.0)
         val group =
