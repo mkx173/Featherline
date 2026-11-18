@@ -629,11 +629,17 @@ class SettingsRepository internal constructor(
         storeAppLanguageTag(option.languageTag)
     }
 
-    fun refreshAppLanguageOption() {
-        appLanguageOption.value = AppLanguageOption.fromLocale(appLanguageLocale())
+    fun refreshAppLanguageOption(sdkInt: Int = Build.VERSION.SDK_INT) {
+        val option = AppLanguageOption.fromLocale(appLanguageLocale())
+        appLanguageOption.value = option
         // Stores one chosen before the tag was kept, or from the system's app language settings.
-        AppCompatDelegate.getApplicationLocales().takeUnless(LocaleListCompat::isEmpty)
-            ?.let { locales -> storeAppLanguageTag(locales.toLanguageTags()) }
+        // "System default" there (API 33+) leaves no chosen language: store the one it resolves
+        // to, so a start with nothing changed doesn't count as a language change. Below 33 an
+        // empty list can mean no activity has attached yet, so nothing is stored.
+        val chosen = AppCompatDelegate.getApplicationLocales()
+            .takeUnless(LocaleListCompat::isEmpty)?.toLanguageTags()
+        (chosen ?: option.languageTag.takeIf { sdkInt >= Build.VERSION_CODES.TIRAMISU })
+            ?.let(::storeAppLanguageTag)
     }
 
     private fun storeAppLanguageTag(tag: String) {

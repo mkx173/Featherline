@@ -690,6 +690,23 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `System default in Android's per-app setting stores the language it resolves to`() = runTest(testDispatcher) {
+        // So the next start finds its language unchanged and reposts nothing.
+        mockkStatic(AppCompatDelegate::class)
+        every { AppCompatDelegate.getApplicationLocales() } returns mockk {
+            every { isEmpty } returns true
+        }
+        try {
+            every { appLanguageLocale() } returns Locale.forLanguageTag("zh-Hant-TW")
+            followAndroidAppLanguageSetting(settingsRepository, sdkInt = 33)
+
+            assertEquals("zh-Hant", awaitStoredAppLanguageTag("zh-Hant"))
+        } finally {
+            unmockkStatic(AppCompatDelegate::class)
+        }
+    }
+
+    @Test
     fun `lastRunAppLanguageTag is the tag stored before this run, not one this run stores`() = runTest(testDispatcher) {
         dataStore.edit { it[stringPreferencesKey("app_language_tag")] = "zh-Hans" }
         val nextRun = SettingsRepository(dataStore)

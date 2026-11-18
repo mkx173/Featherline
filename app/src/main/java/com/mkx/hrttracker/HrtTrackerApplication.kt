@@ -185,7 +185,7 @@ internal fun followAndroidAppLanguageSetting(
     settingsRepository: SettingsRepository,
     sdkInt: Int = Build.VERSION.SDK_INT,
 ) {
-    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) settingsRepository.refreshAppLanguageOption()
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) settingsRepository.refreshAppLanguageOption(sdkInt)
 }
 
 /**
@@ -205,8 +205,8 @@ internal suspend fun followAppLanguage(
     medicationReminderScheduler: () -> MedicationReminderScheduler,
     diagnosticsLogger: AppDiagnosticsLogger,
 ) {
-    // ponytail: the stored tag only changes when the app sees a language, so a run that ends on
-    // "System default" after a choice reposts silently at every start until a language is seen.
+    // "System default" in Android's setting stores the language it resolves to
+    // (refreshAppLanguageOption), so it compares equal here unless the phone's language changed.
     val lastLanguage = lastLanguageTag()
         ?.let { tags -> AppLanguageOption.fromLocale(Locale.forLanguageTag(tags.substringBefore(','))) }
     languages.distinctUntilChanged().withIndex().collect { (index, option) ->
