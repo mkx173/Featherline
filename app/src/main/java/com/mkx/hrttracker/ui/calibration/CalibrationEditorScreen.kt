@@ -94,7 +94,6 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -426,13 +425,11 @@ private fun CalibrationEditorScreenContent(
                         uiState.collectedDate,
                         uiState.collectedTime,
                         uiState.collectedZoneId,
+                        uiState.collectedOffset,
                         deviceZone,
                         itemLocale,
                     ) {
-                        val pickerInstant = LocalDateTime
-                            .of(uiState.collectedDate, uiState.collectedTime)
-                            .atZone(uiState.collectedZoneId)
-                            .toInstant()
+                        val pickerInstant = uiState.toCollectedAtInstant()
                         formatEditorZoneLabel(
                             appliedZoneId = uiState.collectedZoneId,
                             appliedAtInstant = pickerInstant,

@@ -78,6 +78,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
@@ -126,6 +128,7 @@ fun MedicationLogEntryEditorSheet(
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
+    appliedOffset: ZoneOffset?,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
     onDoseAmountDeltaChange: (Double?) -> Unit = { },
@@ -152,7 +155,12 @@ fun MedicationLogEntryEditorSheet(
         )
     }
     val sourceGroupScheduleOffset = sourceGroupScheduledFor?.let { scheduledFor ->
-        sourceGroupScheduleOffset(scheduledFor, LocalDateTime.of(appliedDate, appliedTime), appliedZoneId)
+        sourceGroupScheduleOffset(
+            scheduledFor,
+            LocalDateTime.of(appliedDate, appliedTime),
+            appliedZoneId,
+            appliedOffset,
+        )
     }
     val sourceGroupScheduleOffsetText = sourceGroupScheduleOffset?.let { offset ->
         stringResource(offset.labelRes, offset.value)
@@ -235,6 +243,7 @@ fun MedicationLogEntryEditorSheet(
             appliedDateText = dateFormatter(appliedDate),
             appliedTimeText = appliedTime.format(timeFormatter),
             appliedZoneId = appliedZoneId,
+            appliedOffset = appliedOffset,
             onAppliedDateChange = { if (!isSaving) onAppliedDateChange(it) },
             onAppliedTimeChange = { if (!isSaving) onAppliedTimeChange(it) },
         )
@@ -396,6 +405,7 @@ internal fun MedicationLogAppliedAtFields(
     appliedDateText: String,
     appliedTimeText: String,
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
+    appliedOffset: ZoneOffset?,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
 ) {
@@ -484,8 +494,8 @@ internal fun MedicationLogAppliedAtFields(
 
     val deviceZone = remember { ZoneId.systemDefault() }
     val zoneLabelLocale = rememberAppLocale()
-    val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId) {
-        LocalDateTime.of(appliedDate, appliedTime).atZone(appliedZoneId).toInstant()
+    val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId, appliedOffset) {
+        ZonedDateTime.ofLocal(LocalDateTime.of(appliedDate, appliedTime), appliedZoneId, appliedOffset).toInstant()
     }
     val zoneLabel = remember(pickerInstant, appliedZoneId, deviceZone, zoneLabelLocale) {
         formatEditorZoneLabel(appliedZoneId, pickerInstant, deviceZone, zoneLabelLocale)
@@ -612,14 +622,20 @@ private fun MedicationEditorGroupInfoCard(
 
 /**
  * The editor's offset from the plan's slot: real minutes, as Home counts them, with the slot in
- * [appliedZoneId], the zone the dose is logged in. [appliedAt] resolves as the save resolves it.
+ * [appliedZoneId], the zone the dose is logged in. [appliedAt] resolves as the save resolves it:
+ * on [preferredOffset]'s pass of a repeated fall-back hour.
  */
 internal fun sourceGroupScheduleOffset(
     scheduledFor: LocalDateTime,
     appliedAt: LocalDateTime,
     appliedZoneId: ZoneId,
+    preferredOffset: ZoneOffset? = null,
 ): MedicationLogScheduleOffset? = medicationLogScheduleOffset(
-    scheduleOffsetMinutes(scheduledFor, appliedAt.atZone(appliedZoneId).toInstant(), appliedZoneId)
+    scheduleOffsetMinutes(
+        scheduledFor,
+        ZonedDateTime.ofLocal(appliedAt, appliedZoneId, preferredOffset).toInstant(),
+        appliedZoneId,
+    )
 )
 
 /** The label for [deltaMinutes] real minutes from the slot (scheduleOffsetMinutes), or null at 0. */
@@ -710,6 +726,7 @@ private fun MedicationLogEntryEditorSheetPreview() {
             countText = "1",
             appliedDate = LocalDate.of(2026, 4, 22),
             appliedTime = LocalTime.of(20, 30),
+            appliedOffset = null,
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
             onConfirm = { },

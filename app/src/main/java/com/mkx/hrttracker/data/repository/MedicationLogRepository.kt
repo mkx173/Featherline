@@ -600,7 +600,7 @@ class MedicationLogRepository @Inject internal constructor(
             group = group,
             slot = slot,
             entries = records,
-            appliedAt = slot.scheduledAt,
+            appliedAt = slot.scheduledAt.atZone(ZoneId.systemDefault()).toInstant(),
         ).associateTo(mutableMapOf()) { missing -> missing.signature() to missing.count }
     }
 

@@ -18,6 +18,7 @@ import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,11 +35,13 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.math.abs
 
@@ -860,8 +863,43 @@ class NewMedicineSlotViewModelTest {
         assertEquals(originalTime, viewModel.uiState.value.appliedTime)
     }
 
+    // New York, 2026-11-01: 01:00-02:00 happens twice. A draft opened at the second 01:40
+    // (06:40Z), reset and saved untouched, is stamped then, not an hour earlier.
+    @Test
+    fun saveManualLog_openedOnTheSecondPassOfTheRepeatedHour_savesThatPass() = runTest {
+        val secondPass0140 = Instant.parse("2026-11-01T06:40:00Z")
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-0000000003aa"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            medicine.asNewlyCreated(invocation.args[2] as Instant)
+        }
+        val appliedAt = slot<Instant>()
+        coEvery {
+            medicationLogRepository.saveEntry(
+                any(), any(), any(), any(), any(), any(), capture(appliedAt), any(), any(), any(), any(),
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = newViewModel(
+            zoneId = ZoneId.of("America/New_York"),
+            clock = Clock.fixed(secondPass0140, ZoneOffset.UTC),
+        )
+        viewModel.reset()
+        assertEquals(LocalTime.of(1, 40), viewModel.uiState.value.appliedTime)
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveManualLog()
+        advanceUntilIdle()
+
+        assertEquals(secondPass0140, appliedAt.captured)
+    }
+
     private fun newViewModel(
         zoneId: ZoneId = ZoneId.of("Asia/Tokyo"),
+        clock: Clock = Clock.systemUTC(),
     ): NewMedicineSlotViewModel {
         return NewMedicineSlotViewModel(
             medicineRepository = medicineRepository,
@@ -869,6 +907,7 @@ class NewMedicineSlotViewModelTest {
             medicineStockRepository = medicineStockRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             initialAppliedZoneId = zoneId,
+            clock = clock,
         )
     }
 

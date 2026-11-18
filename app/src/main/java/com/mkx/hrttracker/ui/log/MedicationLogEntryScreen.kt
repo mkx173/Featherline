@@ -156,7 +156,6 @@ fun MedicationLogEntryScreen(
     }
 
     val previewStateMedicineUuid = uiState.resolvedMedicine?.uuid
-    val appliedAt = LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
     val sourceGroupScheduleOffsetOutsideFulfillmentWindow = remember(
         uiState.sourceGroupUuid,
         uiState.scheduledFor,
@@ -164,8 +163,10 @@ fun MedicationLogEntryScreen(
         uiState.sourceGroupNextScheduledFor,
         uiState.appliedDate,
         uiState.appliedTime,
+        uiState.appliedZoneId,
+        uiState.appliedOffset,
     ) {
-        uiState.shouldWarnScheduleWillNotBeFulfilled(appliedAt)
+        uiState.shouldWarnScheduleWillNotBeFulfilled()
     }
     // The dose being logged fulfills this scheduled slot; exclude it from the
     // preview's runway recompute so a future occurrence is not double-counted
@@ -325,6 +326,7 @@ private fun MedicationLogEntryScreenBody(
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
         appliedZoneId = uiState.appliedZoneId,
+        appliedOffset = uiState.appliedOffset,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
         onDoseAmountDeltaChange = { delta ->

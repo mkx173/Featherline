@@ -47,6 +47,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.TimeZone
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -874,6 +875,40 @@ class E2EstimateRepositoryTest {
         val result = checkNotNull(shown.result)
         assertEquals(PkCalibrationLabIgnoreReason.NON_POSITIVE_VALUE, result.ignoredLabs[nonPositive.resultId])
         assertTrue(labs[1].resultId !in result.ignoredLabs)
+    }
+
+    @Test
+    fun aLabInTheRepeatedHour_isDueOnTheClocksPass() = runTest {
+        // New York, 2026-11-01: 01:00-02:00 twice. The clock is at the second 01:20 (06:20Z),
+        // past a lab at 06:15Z that the fit left out; the minute alone reads as the first pass.
+        val deviceZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val labAt = Instant.parse("2026-11-01T06:15:00Z")
+            val lab = PkCalibrationLab(resultId = UUID(0L, 99L), collectedAtEpochMillis = labAt.toEpochMilli(), valuePgml = 140.0)
+            val input = buildPkCalibrationInput(
+                labs = fitLabs + lab,
+                entries = logged,
+                weightKg = 62.0,
+                metadata = emptyList(),
+                nowEpochMillis = labAt.toEpochMilli() - 1L,
+            )
+            val fit = E2FitRecord(
+                fitId = E2Derivation.fitId(input),
+                epoch = 0,
+                outcome = FitOutcome.Solved(PkCalibrationEngine.evaluate(input).result, input.originEpochMillis),
+            )
+            clock.instant = Instant.parse("2026-11-01T06:20:00Z")
+            minutes.value = LocalDateTime.of(2026, 11, 1, 1, 20)
+            publish(record(fit = fit, labs = fitLabs + lab))
+
+            observe(estimates())
+            runCurrent()
+
+            assertEquals(1, runsAsked)
+        } finally {
+            TimeZone.setDefault(deviceZone)
+        }
     }
 
     private val observers = mutableListOf<Job>()

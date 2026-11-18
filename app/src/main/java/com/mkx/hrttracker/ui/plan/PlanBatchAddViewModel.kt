@@ -611,7 +611,7 @@ internal fun buildPlanBatchAddEntryPlan(
                 group = group,
                 slot = MedicationReminderSlot(group.uuid, occurrence, scheduleTime.uuid),
                 entries = planRecordsByDate[occurrence.toLocalDate()].orEmpty(),
-                appliedAt = occurrence,
+                appliedAt = occurrence.atZone(zoneId).toInstant(),
                 zoneId = zoneId,
             )
             entries += missing

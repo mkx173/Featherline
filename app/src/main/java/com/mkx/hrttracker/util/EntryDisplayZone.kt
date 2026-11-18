@@ -49,9 +49,10 @@ fun appliedAtAsLocalDateTime(
     deviceZone: ZoneId = ZoneId.systemDefault(),
 ): LocalDateTime = atStoredZone(entry.appliedAt, entry.appliedAtTimeZoneId, deviceZone)
 
+/** [zoneId]'s long name in [locale]: the app's language, as the text around it. */
 fun zoneDisplayName(
     zoneId: ZoneId,
-    locale: Locale = Locale.getDefault(),
+    locale: Locale,
 ): String {
     val longName = zoneId.getDisplayName(TextStyle.FULL, locale)
     return if (longName != zoneId.id) longName else zoneId.id

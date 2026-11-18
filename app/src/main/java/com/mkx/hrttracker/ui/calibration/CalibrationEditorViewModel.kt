@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.pk.E2CalibrationMetadata
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationNumericValue
 import com.mkx.hrttracker.util.zoneDisplayName
@@ -51,6 +52,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.UUID
 import javax.inject.Inject
 
@@ -208,10 +211,12 @@ class CalibrationEditorViewModel @Inject constructor(
         val baseState = cachedEditingPanel?.toEditorState()?.copy(
             customAnalytes = cachedCustomAnalytes.orEmpty(),
         ) ?: run {
-            val collectedDate = LocalDate.now(defaultZoneId)
-            val collectedTime = LocalTime.now(defaultZoneId).withSecond(0).withNano(0)
-            val collectedAt = LocalDateTime.of(collectedDate, collectedTime)
-                .atZone(defaultZoneId)
+            // Now on the clock, on the pass of a repeated fall-back hour it is on.
+            val now = appTimeSource.now().atZone(defaultZoneId)
+            val collectedDate = now.toLocalDate()
+            val collectedTime = now.toLocalTime().withSecond(0).withNano(0)
+            val collectedAt = ZonedDateTime
+                .ofLocal(LocalDateTime.of(collectedDate, collectedTime), defaultZoneId, now.offset)
                 .toInstant()
             CalibrationEditorUiState(
                 panelUuid = editingPanelUuid?.toString(),
@@ -219,6 +224,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 isLoading = editingPanelUuid != null,
                 collectedDate = collectedDate,
                 collectedTime = collectedTime,
+                collectedOffset = now.offset,
                 timeSinceLastEstradiolDoseMillis = when (
                     val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(
                         collectedAt
@@ -420,7 +426,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             val latestState = uiState.value
-            val collectedAt = latestState.toCollectedAtInstant(latestState.collectedZoneId)
+            val collectedAt = latestState.toCollectedAtInstant()
             val resultInputs = buildResultInputs(latestState)
 
             runCatching {
@@ -447,7 +453,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 val crossZoneText = if (pickerOffset == deviceOffset) {
                     null
                 } else {
-                    zoneDisplayName(latestState.collectedZoneId)
+                    zoneDisplayName(latestState.collectedZoneId, appLanguageLocale())
                 }
                 _uiState.update { state ->
                     state.copy(
@@ -611,7 +617,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     private fun refreshTimeSinceLastEstradiolDose() {
         val targetState = uiState.value
-        val targetCollectedAt = targetState.toCollectedAtInstant(targetState.collectedZoneId)
+        val targetCollectedAt = targetState.toCollectedAtInstant()
         when (
             val lookup =
                 medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(targetCollectedAt)
@@ -648,7 +654,7 @@ class CalibrationEditorViewModel @Inject constructor(
         elapsedMillis: Long?,
     ) {
         _uiState.update { state ->
-            if (state.toCollectedAtInstant(state.collectedZoneId) != targetCollectedAt) {
+            if (state.toCollectedAtInstant() != targetCollectedAt) {
                 state
             } else {
                 state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
@@ -680,7 +686,8 @@ class CalibrationEditorViewModel @Inject constructor(
 
     private fun BloodTestPanel.toEditorState(): CalibrationEditorUiState {
         val panelZone = displayZoneOf(collectedAtTimeZoneId, defaultZoneId)
-        val collectedDateTime = collectedAt.atZone(panelZone).toLocalDateTime()
+        val collectedAtZoned = collectedAt.atZone(panelZone)
+        val collectedDateTime = collectedAtZoned.toLocalDateTime()
         val drafts = results.map { result ->
             when (val analyte = result.analyte) {
                 is BloodTestResultAnalyte.Builtin -> {
@@ -716,6 +723,7 @@ class CalibrationEditorViewModel @Inject constructor(
             collectedDate = collectedDateTime.toLocalDate(),
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
             collectedZoneId = panelZone,
+            collectedOffset = collectedAtZoned.offset,
             timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
             notes = notes.orEmpty(),
             drafts = drafts,
@@ -748,6 +756,9 @@ data class CalibrationEditorUiState(
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val collectedZoneId: ZoneId = ZoneId.systemDefault(),
+    // Which pass of a repeated fall-back hour the date and time mean: the panel's, or the
+    // clock's when the form opened. Ignored where the wall time is not ambiguous.
+    val collectedOffset: ZoneOffset? = null,
     val savedCrossZoneZoneText: String? = null,
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
@@ -876,9 +887,10 @@ internal fun defaultCalibrationUnitFor(
     return settingsState.calibrationDefaultUnitFor(analyteKey)
 }
 
-private fun CalibrationEditorUiState.toCollectedAtInstant(zoneId: ZoneId): Instant {
-    return LocalDateTime.of(collectedDate, collectedTime)
-        .atZone(zoneId)
+/** The collected date and time in [CalibrationEditorUiState.collectedZoneId], on [CalibrationEditorUiState.collectedOffset]'s pass. */
+internal fun CalibrationEditorUiState.toCollectedAtInstant(): Instant {
+    return ZonedDateTime
+        .ofLocal(LocalDateTime.of(collectedDate, collectedTime), collectedZoneId, collectedOffset)
         .toInstant()
 }
 
@@ -893,6 +905,7 @@ internal data class CalibrationEditorDraftSnapshot(
     val collectedZoneId: String,
     val notes: String,
     val drafts: List<CalibrationResultDraftSnapshot>,
+    val collectedOffsetSeconds: Int? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -914,6 +927,7 @@ internal fun CalibrationEditorUiState.toDraftSnapshot(): CalibrationEditorDraftS
         collectedDateEpochDay = collectedDate.toEpochDay(),
         collectedTimeSecondOfDay = collectedTime.toSecondOfDay(),
         collectedZoneId = collectedZoneId.id,
+        collectedOffsetSeconds = collectedOffset?.totalSeconds,
         notes = notes,
         drafts = drafts.map { draft ->
             CalibrationResultDraftSnapshot(
@@ -937,6 +951,8 @@ internal fun CalibrationEditorUiState.toDraftSnapshot(): CalibrationEditorDraftS
 internal fun CalibrationEditorDraftSnapshot.enteredContent(): CalibrationEditorDraftSnapshot {
     return copy(
         notes = notes.trim(),
+        // The pass the form opened on, not something entered (and absent from older baselines).
+        collectedOffsetSeconds = null,
         drafts = drafts
             .filter { draft -> draft.valueText.isNotBlank() }
             .map { draft ->
@@ -960,6 +976,10 @@ internal fun CalibrationEditorDraftSnapshot.applyTo(
         collectedTime = LocalTime.ofSecondOfDay(collectedTimeSecondOfDay.toLong()),
         collectedZoneId = runCatching { ZoneId.of(collectedZoneId) }
             .getOrDefault(base.collectedZoneId),
+        // A hand-edited or out-of-range offset falls back, as an unknown zone does.
+        collectedOffset = collectedOffsetSeconds
+            ?.let { seconds -> runCatching { ZoneOffset.ofTotalSeconds(seconds) }.getOrNull() }
+            ?: base.collectedOffset,
         notes = notes,
         drafts = drafts.map { draft -> draft.toDraftUiState(settingsState) },
     )

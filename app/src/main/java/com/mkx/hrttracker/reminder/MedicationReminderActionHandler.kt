@@ -18,7 +18,6 @@ import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
@@ -38,7 +37,7 @@ class MedicationReminderActionHandler @Inject constructor(
         slots: List<MedicationReminderSlot>,
         logTargets: List<MedicationReminderLogTarget>?,
         notificationTag: String?,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: Instant = Instant.now(),
     ) {
         val normalizedSlots = slots.distinct()
         diagnosticsLogger.info(
@@ -95,7 +94,7 @@ class MedicationReminderActionHandler @Inject constructor(
         val beforeStockStates = if (entriesToSave.isNotEmpty()) {
             captureStockStatesForLog(
                 medicineStockRepository = medicineStockRepository,
-                now = Instant.from(now.atZone(ZoneId.systemDefault())),
+                now = now,
             )
         } else {
             emptyMap()
@@ -221,7 +220,8 @@ internal fun buildMissingScheduledLogEntries(
     group: MedicationGroup,
     slot: MedicationReminderSlot,
     entries: List<MedicationLogEntry>,
-    appliedAt: LocalDateTime,
+    // An instant, not a wall time: a tap in a repeated fall-back hour names one pass.
+    appliedAt: Instant,
     zoneId: ZoneId = ZoneId.systemDefault(),
     restrictToSignatures: Set<MedicationSignature>? = null,
 ): List<MedicationLogEntryInput> {
@@ -266,7 +266,7 @@ internal fun buildMissingScheduledLogEntries(
                 doseInstruction = templateMedication.doseInstruction,
                 sourceGroupUuid = group.uuid,
                 scheduleTimeUuid = slot.scheduleTimeUuid,
-                appliedAt = appliedAt.atZone(zoneId).toInstant(),
+                appliedAt = appliedAt,
                 scheduledFor = slot.scheduledAt,
                 count = missingCount,
                 appliedAtTimeZoneId = zoneId.id,
@@ -316,7 +316,7 @@ internal suspend fun captureStockStatesForLog(
 
 internal suspend fun showPostLogToast(
     entriesToSave: Collection<MedicationLogEntryInput>,
-    now: LocalDateTime,
+    now: Instant,
     medicineStockRepository: MedicineStockRepository,
     reminderNotificationManager: ReminderNotificationManager,
     beforeStatesByUuid: Map<UUID, MedicineStockState>,
@@ -327,7 +327,7 @@ internal suspend fun showPostLogToast(
         .toSet()
     val projections = runCatching {
         medicineStockRepository
-            .projectAllOnce(now = Instant.from(now.atZone(ZoneId.systemDefault())))
+            .projectAllOnce(now = now)
     }.getOrElse { failure ->
         if (failure is CancellationException) throw failure
         reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)

@@ -17,6 +17,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 
 /** O6: the log editor's offset from the plan's slot, as the sheet shows it, counts real minutes. */
 @RunWith(RobolectricTestRunner::class)
@@ -42,6 +43,18 @@ class MedicationLogEntryEditorSheetOffsetTest {
         assertShown("+3h")
     }
 
+    @Test
+    fun fallBack_a0030DoseLoggedAtTheSecond0140_shows2HoursLater() {
+        // 01:40 EST, the second pass, is 06:40Z: 130 minutes after 00:30 EDT. The first pass
+        // would say "+1h".
+        showSheet(
+            scheduledFor = LocalDateTime.of(2026, 11, 1, 0, 30),
+            applied = LocalDateTime.of(2026, 11, 1, 1, 40),
+            appliedOffset = ZoneOffset.ofHours(-5),
+        )
+        assertShown("+2h")
+    }
+
     private fun assertShown(offset: String) {
         composeRule.waitForIdle()
         assertEquals(
@@ -52,7 +65,7 @@ class MedicationLogEntryEditorSheetOffsetTest {
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
-    private fun showSheet(scheduledFor: LocalDateTime, applied: LocalDateTime) {
+    private fun showSheet(scheduledFor: LocalDateTime, applied: LocalDateTime, appliedOffset: ZoneOffset? = null) {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
@@ -74,6 +87,7 @@ class MedicationLogEntryEditorSheetOffsetTest {
                 appliedDate = applied.toLocalDate(),
                 appliedTime = applied.toLocalTime(),
                 appliedZoneId = newYork,
+                appliedOffset = appliedOffset,
                 onAppliedDateChange = { },
                 onAppliedTimeChange = { },
                 onConfirm = { },

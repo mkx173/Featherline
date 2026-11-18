@@ -236,7 +236,7 @@ class MedicationLogSlotWriteTest {
             group = plan,
             slot = MedicationReminderSlot(plan.uuid, at, plan.schedule.timeSlots.single().uuid),
             entries = emptyList(),
-            appliedAt = at.plusMinutes(5),
+            appliedAt = testInstant(at.plusMinutes(5)),
         )
         suspend fun onTheSlot() = database.medicationLogDao().getEntries()
             .filter { entry -> entry.scheduledForIso == at.toString() }
@@ -334,7 +334,7 @@ class MedicationLogSlotWriteTest {
             group = plan,
             slot = slotOf(plan),
             entries = logRepository.getScheduledGroupEntriesSince(scheduledAt),
-            appliedAt = scheduledAt.plusMinutes(10),
+            appliedAt = testInstant(scheduledAt.plusMinutes(10)),
             zoneId = ZoneId.systemDefault(),
         )
     }

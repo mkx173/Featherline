@@ -24,11 +24,14 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.medication.MedicationLogRecordIndicator
+import com.mkx.hrttracker.util.appLanguageLocale
 import io.mockk.MockKMatcherScope
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +56,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.TextStyle
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.abs
 
@@ -512,7 +519,7 @@ class MedicationLogEntryViewModelTest {
         val medicine = estradiolMedicine
         val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
-        val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30)
+        val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30).atZone(ZoneOffset.UTC)
 
         val uiState = buildQuickLogUiState(
             groupId = groupId,
@@ -547,7 +554,7 @@ class MedicationLogEntryViewModelTest {
             applicationType = MedicationApplicationType.PATCH_OFF,
             doseInstruction = DoseInstruction.Noop,
             medicationCount = 1,
-            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15).atZone(ZoneOffset.UTC),
         )
 
         assertEquals(
@@ -571,7 +578,7 @@ class MedicationLogEntryViewModelTest {
             applicationType = MedicationApplicationType.INJECTION,
             doseInstruction = DoseInstruction.VolumeMl(0.2),
             medicationCount = 1,
-            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15).atZone(ZoneOffset.UTC),
         )
 
         assertTrue(uiState.allowsActualDoseDelta)
@@ -924,14 +931,16 @@ class MedicationLogEntryViewModelTest {
             Duration.ofHours(2),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = nextScheduledFor
+                adjacentScheduledFor = nextScheduledFor,
+                zoneId = ZoneOffset.UTC,
             )
         )
         assertEquals(
             Duration.ofHours(1),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = previousScheduledFor
+                adjacentScheduledFor = previousScheduledFor,
+                zoneId = ZoneOffset.UTC,
             )
         )
         assertTrue(
@@ -940,7 +949,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -949,7 +958,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0, 1).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -958,7 +967,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -967,7 +976,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -976,7 +985,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 10, 59, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 10, 59, 59).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -985,7 +994,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 1).atZone(ZoneOffset.UTC)
             )
         )
     }
@@ -1002,7 +1011,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0).atZone(ZoneOffset.UTC)
             )
         )
         assertFalse(
@@ -1011,7 +1020,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0, 1)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0, 1).atZone(ZoneOffset.UTC)
             )
         )
         assertTrue(
@@ -1020,7 +1029,7 @@ class MedicationLogEntryViewModelTest {
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
-                appliedAt = LocalDateTime.of(2026, 4, 22, 6, 59)
+                appliedAt = LocalDateTime.of(2026, 4, 22, 6, 59).atZone(ZoneOffset.UTC)
             )
         )
     }
@@ -1033,7 +1042,8 @@ class MedicationLogEntryViewModelTest {
             Duration.ofHours(24),
             scheduleFulfillmentAllowedOffset(
                 scheduledFor = scheduledFor,
-                adjacentScheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0)
+                adjacentScheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
+                zoneId = ZoneOffset.UTC,
             )
         )
     }
@@ -2323,6 +2333,65 @@ class MedicationLogEntryViewModelTest {
             viewModel.consumeCrossZoneToast()
             assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
         }
+
+    @Test
+    fun saveEntry_namesTheZoneInTheAppLanguage_notThePhones() = runTest(dispatcher) {
+        // The app follows a phone in Japanese, which it has no strings for: it shows English.
+        val phoneLocale = Locale.getDefault()
+        Locale.setDefault(Locale.JAPAN)
+        mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+        every { appLanguageLocale() } returns Locale.ENGLISH
+        try {
+            val entryId = UUID.randomUUID()
+            val newYork = ZoneId.of("America/New_York")
+            coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(
+                testMedicationLogEntry(
+                    uuid = entryId,
+                    medicine = estradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    sourceGroupUuid = null,
+                    appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant(),
+                    appliedAtTimeZoneId = newYork.id,
+                )
+            )
+            every { medicationGroupRepository.getCachedGroup(any()) } returns null
+            coEvery {
+                medicationLogRepository.saveEntry(
+                    uuid = any(), medicineUuid = any(),
+                    applicationType = any(),
+                    doseInstruction = any(), sourceGroupUuid = any(),
+                    scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+                    count = any(), appliedAtTimeZoneId = any()
+                )
+            } returns Unit
+            coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+            val viewModel = MedicationLogEntryViewModel(
+                medicationLogRepository = medicationLogRepository,
+                medicationGroupRepository = medicationGroupRepository,
+                medicineStockRepository = medicineStockRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+            )
+            viewModel.initialize(listOf(entryId.toString()))
+            advanceUntilIdle()
+            // A device zone whose offset differs from New York's, so the toast shows.
+            val deviceZone = TimeZone.getDefault()
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"))
+            try {
+                viewModel.saveEntry()
+                advanceUntilIdle()
+            } finally {
+                TimeZone.setDefault(deviceZone)
+            }
+
+            assertEquals(
+                newYork.getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+                viewModel.uiState.value.savedCrossZoneZoneText,
+            )
+        } finally {
+            unmockkStatic("com.mkx.hrttracker.util.LocalizationKt")
+            Locale.setDefault(phoneLocale)
+        }
+    }
 
     @Test
     fun saveEntry_does_not_emit_cross_zone_toast_payload_for_same_zone() = runTest(dispatcher) {

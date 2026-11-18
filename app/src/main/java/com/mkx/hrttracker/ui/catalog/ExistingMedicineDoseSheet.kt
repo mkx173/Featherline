@@ -347,6 +347,7 @@ fun ExistingMedicineDoseSheet(
                 appliedDateText = dateFormatter(manualLogUiState.appliedDate),
                 appliedTimeText = manualLogUiState.appliedTime.format(timeFormatter),
                 appliedZoneId = manualLogUiState.appliedZoneId,
+                appliedOffset = manualLogUiState.appliedOffset,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
             )

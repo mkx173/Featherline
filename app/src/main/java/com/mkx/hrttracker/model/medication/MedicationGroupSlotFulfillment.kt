@@ -81,7 +81,7 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
 ): Boolean {
     val scheduledFor = entry.scheduledFor ?: return false
     val appliedAtZoneId = displayZoneOf(entry.appliedAtTimeZoneId, zoneId)
-    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId).toLocalDateTime()
+    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId)
     return isWithinScheduleFulfillmentWindow(
         scheduledFor = scheduledFor,
         appliedAt = appliedAt,

@@ -49,6 +49,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -68,6 +69,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.TimeZone
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -676,6 +678,111 @@ class CalibrationEditorViewModelTest {
             assertTrue(restoredSession.uiState.value.isSaved)
             assertEquals("saving the entry again must not add a second lab", 1, storedPanels.size)
         }
+
+    // New York, 2026-11-01: 01:00-02:00 happens twice; the second 01:40 is 06:40Z.
+    @Test
+    fun aPanelCollectedOnTheSecondPassOfTheRepeatedHour_savedUntouched_keepsItsInstant() = runTest {
+        val secondPass0140 = Instant.parse("2026-11-01T06:40:00Z")
+        val panel = testBloodTestPanel(
+            uuid = UUID.randomUUID(),
+            collectedAt = secondPass0140,
+            collectedAtTimeZoneId = "America/New_York",
+        )
+        every { repository.getCachedPanel(panel.uuid) } returns panel
+        coEvery { repository.getPanel(panel.uuid) } returns panel
+
+        assertEquals(secondPass0140, savedCollectedAt(editorFor(panel)))
+    }
+
+    @Test
+    fun aNewPanelOpenedOnTheSecondPassOfTheRepeatedHour_savesThatPass() = runTest {
+        val secondPass0140 = Instant.parse("2026-11-01T06:40:00Z")
+        val deviceZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            appTimeSource.setCurrentZone(ZoneId.of("America/New_York"))
+            appTimeSource.setCurrentInstant(secondPass0140)
+            val viewModel = CalibrationEditorViewModel(
+                repository,
+                medicationLogRepository,
+                settingsRepository,
+                SavedStateHandle(),
+                pkStorageRepository = pkStorageRepository,
+                e2EstimateRepository = e2EstimateRepository,
+                appTimeSource = appTimeSource,
+            )
+            assertEquals(LocalTime.of(1, 40), viewModel.uiState.value.collectedTime)
+            advanceUntilIdle()
+            viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+            viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+
+            assertEquals(secondPass0140, savedCollectedAt(viewModel))
+        } finally {
+            TimeZone.setDefault(deviceZone)
+        }
+    }
+
+    // A new panel drafted at the first 01:40 (05:40Z, -04:00), restored after process death at
+    // 12:00 EST, still means the first pass. A hand-edited offset out of range falls back.
+    @Test
+    fun aNewPanelDraftedOnTheFirstPass_restoredLaterThatDay_keepsThatPass() = runTest {
+        val firstPass0140 = Instant.parse("2026-11-01T05:40:00Z")
+        val newYork = ZoneId.of("America/New_York")
+        val deviceZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone(newYork))
+        try {
+            appTimeSource.setCurrentZone(newYork)
+            appTimeSource.setCurrentInstant(firstPass0140)
+            val handle = SavedStateHandle()
+            val firstSession = newPanelEditor(handle)
+            advanceUntilIdle()
+            firstSession.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+            firstSession.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+            advanceUntilIdle()
+            val draft = checkNotNull(handle.get<String>("calibrationDraft"))
+
+            appTimeSource.setCurrentInstant(Instant.parse("2026-11-01T17:00:00Z"))
+            val restored = newPanelEditor(SavedStateHandle(mapOf("calibrationDraft" to draft)))
+            assertEquals(LocalTime.of(1, 40), restored.uiState.value.collectedTime)
+            assertEquals(firstPass0140, savedCollectedAt(restored))
+
+            val outOfRange = newPanelEditor(
+                SavedStateHandle(mapOf("calibrationDraft" to draft.replace("-14400", "999999"))),
+            )
+            assertEquals(LocalTime.of(1, 40), outOfRange.uiState.value.collectedTime)
+        } finally {
+            TimeZone.setDefault(deviceZone)
+        }
+    }
+
+    private fun newPanelEditor(handle: SavedStateHandle) = CalibrationEditorViewModel(
+        repository,
+        medicationLogRepository,
+        settingsRepository,
+        handle,
+        pkStorageRepository = pkStorageRepository,
+        e2EstimateRepository = e2EstimateRepository,
+        appTimeSource = appTimeSource,
+    )
+
+    private fun TestScope.savedCollectedAt(viewModel: CalibrationEditorViewModel): Instant {
+        val collectedAt = slot<Instant>()
+        coEvery {
+            repository.savePanel(
+                uuid = any(),
+                collectedAt = capture(collectedAt),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+                isNew = any(),
+            )
+        } answers { firstArg<UUID?>() ?: UUID.randomUUID() }
+        advanceUntilIdle()
+        viewModel.save()
+        advanceUntilIdle()
+        return collectedAt.captured
+    }
 
     @Test
     fun save_persistsE2AndAdditionalBuiltins() = runTest {

@@ -29,6 +29,13 @@ class CalibrationEditorUnsavedChangesTest {
         assertEquals(loaded.enteredContent(), unitsFollowedSettings.enteredContent())
     }
 
+    // The pass the form opened on isn't entered; a baseline saved before it was kept still
+    // matches an untouched form.
+    @Test
+    fun theCollectedOffset_isNotAnEdit() {
+        assertEquals(snapshot().enteredContent(), snapshot().copy(collectedOffsetSeconds = -18_000).enteredContent())
+    }
+
     @Test
     fun enteredValue_orNote_isAnEdit() {
         val loaded = snapshot(drafts = listOf(CalibrationResultDraftSnapshot(analyteKey = "e2")))

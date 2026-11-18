@@ -237,7 +237,9 @@ class E2EstimateRepository @Inject constructor(
                     // The clock reached a lab the fit left out as dated after
                     // its run: the run that solves it in, asked for again at
                     // each minute until it publishes, like a missing part's.
-                    if (current.hasDueLab(minute.atZone(zoneId).toInstant().toEpochMilli())) {
+                    // The clock's instant: a minute in a repeated fall-back hour
+                    // names two.
+                    if (current.hasDueLab(clock.millis())) {
                         homeSnapshotRepository.requestRebuildIfIdle()
                     }
                     val key = keyOf(current.e2Inputs(), minute, zoneId)

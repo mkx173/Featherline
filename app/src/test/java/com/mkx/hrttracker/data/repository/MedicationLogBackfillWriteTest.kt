@@ -172,7 +172,7 @@ class MedicationLogBackfillWriteTest {
                 scheduleTimeUuid = plan.schedule.timeSlots.single().uuid,
             ),
             entries = logRepository.getScheduledGroupEntriesSince(scheduledAt),
-            appliedAt = scheduledAt.plusMinutes(10),
+            appliedAt = testInstant(scheduledAt.plusMinutes(10)),
         )
     }
 

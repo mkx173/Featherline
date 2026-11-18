@@ -1284,6 +1284,7 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                         scheduledFor = scheduledAt,
                         zoneId = zoneId,
                     ),
+                    zoneId = zoneId,
                 )
                 if (!nowInstant.isAfter(scheduledInstant.plus(pastDueWindow))) {
                     MainAntiandrogenDueSlot(

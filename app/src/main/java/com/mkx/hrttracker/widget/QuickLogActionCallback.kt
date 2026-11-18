@@ -95,7 +95,7 @@ class QuickLogActionCallback internal constructor(
         }
 
         val zoneId = ZoneId.systemDefault()
-        val appliedAt = LocalDateTime.now()
+        val appliedAt = Instant.now()
         val slot = MedicationReminderSlot(
             groupUuid = groupUuid,
             scheduledAt = scheduledAt,

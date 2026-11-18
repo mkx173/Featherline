@@ -247,6 +247,7 @@ fun CreateMedicineThenDoseSheet(
                 appliedDateText = dateFormatter(uiState.appliedDate),
                 appliedTimeText = uiState.appliedTime.format(timeFormatter),
                 appliedZoneId = uiState.appliedZoneId,
+                appliedOffset = uiState.appliedOffset,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
             )

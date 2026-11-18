@@ -45,6 +45,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.TimeZone
 import java.util.UUID
 
 class MedicationReminderActionHandlerTest {
@@ -114,7 +115,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(firstSlot, secondSlot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = LocalDateTime.of(2026, 4, 20, 9, 10),
+            now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 10)),
         )
 
         assertEquals(
@@ -199,7 +200,7 @@ class MedicationReminderActionHandlerTest {
                 ),
             ),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         assertEquals(1, savedEntries.captured.size)
@@ -249,7 +250,7 @@ class MedicationReminderActionHandlerTest {
                 ),
             ),
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         assertEquals(
@@ -284,7 +285,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(slot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showStockUserLowToast(medicine) }
@@ -322,7 +323,7 @@ class MedicationReminderActionHandlerTest {
                 slots = listOf(slot),
                 logTargets = null,
                 notificationTag = "bundle-tag",
-                now = scheduledAt.plusMinutes(10),
+                now = testInstant(scheduledAt.plusMinutes(10)),
             )
 
             verify { notificationManager.showStockUserLowCountToast(1) }
@@ -367,7 +368,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(firstSlot, secondSlot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showStockManyAttentionToast(2) }
@@ -412,7 +413,7 @@ class MedicationReminderActionHandlerTest {
             ),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showStockOutToast(outMedicine) }
@@ -457,7 +458,7 @@ class MedicationReminderActionHandlerTest {
             ),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showStockManyAttentionToast(2) }
@@ -484,7 +485,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(slot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showDoseReminderLoggedToast(1) }
@@ -512,7 +513,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(slot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         verify { notificationManager.showDoseReminderNothingToAddToast() }
@@ -545,7 +546,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(slot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         assertEquals(listOf(group.uuid), savedEntries.captured.map { it.sourceGroupUuid })
@@ -575,7 +576,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(slot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         assertEquals(listOf(group.uuid), savedEntries.captured.map { it.sourceGroupUuid })
@@ -614,7 +615,7 @@ class MedicationReminderActionHandlerTest {
             slots = listOf(archivedSlot, activeSlot),
             logTargets = null,
             notificationTag = "bundle-tag",
-            now = scheduledAt.plusMinutes(10),
+            now = testInstant(scheduledAt.plusMinutes(10)),
         )
 
         assertEquals(
@@ -640,7 +641,7 @@ class MedicationReminderActionHandlerTest {
                         count = 1,
                     )
                 ),
-                now = LocalDateTime.of(2026, 4, 20, 9, 10),
+                now = testInstant(LocalDateTime.of(2026, 4, 20, 9, 10)),
                 medicineStockRepository = medicineStockRepository,
                 reminderNotificationManager = notificationManager,
                 beforeStatesByUuid = emptyMap(),
@@ -811,11 +812,44 @@ class MedicationReminderActionHandlerTest {
         coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
         coEvery { logRepository.saveNewEntries(any()) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
 
-        actionHandler.logNow(slots = listOf(slot), logTargets = null, notificationTag = "tag", now = scheduledAt.plusMinutes(20))
+        actionHandler.logNow(slots = listOf(slot), logTargets = null, notificationTag = "tag", now = testInstant(scheduledAt.plusMinutes(20)))
 
         verify(exactly = 0) { notificationManager.showDoseReminderNotification(any(), any(), any()) }
         coVerify(exactly = 0) { logRepository.saveNewEntries(any()) }
         verify { notificationManager.showDoseReminderNoLongerScheduledToast() }
+    }
+
+    // New York, 2026-11-01: 01:00-02:00 happens twice. Log now tapped at the second 01:40
+    // (06:40Z) stamps that instant, not the first pass an hour earlier.
+    @Test
+    fun logNow_tappedOnTheSecondPassOfTheRepeatedHour_stampsThatInstant() = runTest {
+        val deviceZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val scheduledAt = LocalDateTime.of(2026, 11, 1, 0, 30)
+            val group = medicationGroup(
+                uuid = UUID.fromString("7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a"),
+                name = "Estradiol",
+                time = LocalTime.of(0, 30),
+                medicationKey = MedicationKey.ESTRADIOL,
+                medicationCount = 1,
+            )
+            val savedEntries = slot<Collection<MedicationLogEntryInput>>()
+            coEvery { groupRepository.getGroup(group.uuid) } returns group
+            coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+            coEvery { logRepository.saveNewEntries(capture(savedEntries)) } coAnswers { savedEntries.captured.toList() }
+
+            actionHandler.logNow(
+                slots = listOf(group.toReminderSlot(scheduledAt)),
+                logTargets = null,
+                notificationTag = "tag",
+                now = Instant.parse("2026-11-01T06:40:00Z"),
+            )
+
+            assertEquals(listOf(Instant.parse("2026-11-01T06:40:00Z")), savedEntries.captured.map { it.appliedAt })
+        } finally {
+            TimeZone.setDefault(deviceZone)
+        }
     }
 
     @Test
