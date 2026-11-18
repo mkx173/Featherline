@@ -5,6 +5,8 @@ import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
 import android.content.res.Configuration
+import android.app.LocaleManager
+import android.os.LocaleList
 import androidx.core.app.NotificationCompat
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
@@ -13,12 +15,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.util.initAppLocales
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -69,15 +71,45 @@ class ReminderNotificationLanguageTest {
     }
 
     /**
-     * From API 33 the framework keeps the application context in the app language (here
-     * zh-Hans, as qualifiers), so a tag stored before the user changed it in system settings
-     * (here en) is ignored. On SDK 34, which the other Robolectric tests load already: one more
-     * SDK's sandbox runs the whole suite out of its heap.
+     * From API 33 the framework holds the app language, which a process with no activity reads
+     * from it directly (AppCompat would report none): here zh-Hans chosen on an English phone.
+     * On SDK 34, which the other Robolectric tests load already: one more SDK's sandbox runs the
+     * whole suite out of its heap.
+     */
+    @Test
+    @Config(sdk = [34], qualifiers = "en")
+    fun fromApi33_aReminderPostedWithNoActivity_isInTheChosenAppLanguage() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        initAppLocales(context)
+        context.getSystemService(LocaleManager::class.java).applicationLocales =
+            LocaleList.forLanguageTags("zh-Hans")
+        val dataStore = PreferenceDataStoreFactory.create(
+            produceFile = { temporaryFolder.newFile("settings.preferences_pb") },
+        )
+        val settings = SettingsRepository(dataStore)
+        settings.getCurrentSettings()
+
+        assertEquals("zh-Hans", settings.appLanguageTag())
+        ReminderNotificationManager(context, settings).showDoseReminderNotification(bundle)
+
+        val posted = context.getSystemService(NotificationManager::class.java).activeNotifications.single()
+        assertEquals(
+            context.localizedTo(Locale.forLanguageTag("zh-Hans"))
+                .getString(R.string.reminder_notification_single_title),
+            posted.notification.extras.getCharSequence(NotificationCompat.EXTRA_TITLE).toString(),
+        )
+    }
+
+    /**
+     * From API 33, with none chosen it follows the system (zh-Hans, as qualifiers), and a tag
+     * stored before the user changed it in system settings (here en) is ignored.
      */
     @Test
     @Config(sdk = [34], qualifiers = "b+zh+Hans")
-    fun fromApi33_aReminderPostedWithNoActivity_followsTheApplicationContext() = runBlocking {
+    fun fromApi33_followingTheSystem_aReminderPostedWithNoActivity_isInThePhonesLanguage() = runBlocking {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        initAppLocales(context)
+        context.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.getEmptyLocaleList()
         val dataStore = PreferenceDataStoreFactory.create(
             produceFile = { temporaryFolder.newFile("settings.preferences_pb") },
         )
@@ -85,7 +117,7 @@ class ReminderNotificationLanguageTest {
         val settings = SettingsRepository(dataStore)
         settings.getCurrentSettings()
 
-        assertNull(settings.appLanguageTag())
+        assertEquals("zh-Hans", settings.appLanguageTag())
         ReminderNotificationManager(context, settings).showDoseReminderNotification(bundle)
 
         val posted = context.getSystemService(NotificationManager::class.java).activeNotifications.single()

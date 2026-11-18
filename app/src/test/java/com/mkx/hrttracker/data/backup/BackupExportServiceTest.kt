@@ -170,6 +170,38 @@ class BackupExportServiceTest {
     }
 
     @Test
+    fun buildBackupSnapshotJson_exportsFollowSystemAsTheAppLanguage_andAChosenOneByName() = runTest {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)
+        every { settingsRepository.stockNudgeEnabledFlow } returns flowOf(true)
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns emptyList()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        for ((followsSystem, expected) in listOf(true to FOLLOW_SYSTEM_APP_LANGUAGE, false to "CANTONESE")) {
+            // Following the system shows the phone's language, here Cantonese, which isn't a choice.
+            coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(
+                appLanguageOption = AppLanguageOption.CANTONESE,
+                appLanguageFollowsSystem = followsSystem,
+            )
+
+            val exported = BackupSnapshotJsonCodec.decode(
+                service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+            )!!
+
+            assertEquals(expected, exported.settings.appLanguageOption)
+            assertEquals(
+                AppLanguageOption.CANTONESE.takeUnless { followsSystem },
+                exported.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+                    .settings.appLanguageOption,
+            )
+        }
+    }
+
+    @Test
     fun buildBackupSnapshotJson_exportsHomeCardLayout() = runTest {
         every { settingsRepository.onboardingCompleted } returns flowOf(false)
         every { settingsRepository.pkCalibrationIntroSeen } returns flowOf(false)

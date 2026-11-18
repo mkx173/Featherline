@@ -2,10 +2,12 @@ package com.mkx.hrttracker
 
 import android.app.UiModeManager
 import android.os.Build
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
@@ -69,6 +71,18 @@ class HrtTrackerApplicationTest {
 
         verify(exactly = 0) { notificationManager.createNotificationChannel(any()) }
         coVerify(exactly = 0) { scheduler.refreshDoseReminderNotifications() }
+    }
+
+    @Test
+    fun onAppForeground_rereadsTheAppLanguage() {
+        // Android's per-app setting can change it with no configuration change.
+        val settingsRepository = mockk<SettingsRepository>(relaxed = true) {
+            every { isAppLanguageKnown } returns true
+        }
+
+        onAppForeground(mockk(relaxed = true), settingsRepository)
+
+        verify(exactly = 1) { settingsRepository.refreshAppLanguageOption() }
     }
 
     @Test

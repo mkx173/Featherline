@@ -86,8 +86,7 @@ class ReminderNotificationManager @Inject constructor(
      * and a process an alarm woke has no activity for AppCompat to know the app language from
      * ([SettingsRepository.appLanguageTag]).
      */
-    private fun localizedContext(): Context =
-        settingsRepository.appLanguageTag()?.let(::localizedContextFor) ?: context
+    private fun localizedContext(): Context = localizedContextFor(settingsRepository.appLanguageTag())
 
     private fun localizedContextFor(languageTag: String): Context {
         val locale = LocaleListCompat.forLanguageTags(languageTag).get(0) ?: return context

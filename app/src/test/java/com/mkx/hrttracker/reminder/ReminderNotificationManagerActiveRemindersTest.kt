@@ -27,7 +27,7 @@ class ReminderNotificationManagerActiveRemindersTest {
     @Test
     fun activeDoseReminders_reads_back_posted_doses_and_skips_one_without_them() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        val manager = ReminderNotificationManager(context, mockk<SettingsRepository> { every { appLanguageTag() } returns null })
+        val manager = ReminderNotificationManager(context, mockk<SettingsRepository> { every { appLanguageTag() } returns "en" })
         val bundle = MedicationReminderBundle(
             scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
             items = listOf(

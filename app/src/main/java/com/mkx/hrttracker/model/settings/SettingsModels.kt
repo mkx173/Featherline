@@ -96,7 +96,10 @@ data class SettingsState(
     val pureBlackEnabled: Boolean = false,
     val hazeBlurEnabled: Boolean = true,
     val classicNavigationBarEnabled: Boolean = false,
+    // The language shown; with appLanguageFollowsSystem, the phone's mapped to a supported one.
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    // No language chosen in the app or in Android's per-app setting (its app locales are empty).
+    val appLanguageFollowsSystem: Boolean = false,
     val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),

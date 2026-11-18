@@ -53,7 +53,6 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.util.systemLocale
 import com.mkx.hrttracker.widget.WidgetAppearance
 import com.mkx.hrttracker.widget.WidgetAppearanceCodec
 import com.mkx.hrttracker.widget.WidgetAppearanceRepository
@@ -1073,13 +1072,11 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
     )
     // The grace period and hide screen content stay local, so they aren't validated: a grace
     // option from a newer version doesn't reject the backup.
-    // Language names from other app versions (the retired FOLLOW_SYSTEM value, or
-    // options added in later releases) fall back to the system-default language
-    // instead of rejecting the whole backup: a stale language choice is harmless,
-    // the medical data behind it is not.
+    // Null follows the system: FOLLOW_SYSTEM_APP_LANGUAGE, and a name from another version (a
+    // language added in a later release) instead of rejecting the whole backup: a stale language
+    // choice is harmless, the medical data behind it is not.
     val appLanguageOption = enumValues<AppLanguageOption>()
         .firstOrNull { entry -> entry.name == appLanguageOption }
-        ?: AppLanguageOption.fromLocale(systemLocale())
     val firstDayOfWeekOption = requireEnumName<FirstDayOfWeekOption>(
         firstDayOfWeekOption,
         "first day of week option",
@@ -1794,7 +1791,7 @@ internal data class ValidatedBackupSettings(
     val hideReferenceRanges: Boolean,
     val onboardingCompleted: Boolean,
     val pkCalibrationIntroSeen: Boolean,
-    val appLanguageOption: AppLanguageOption,
+    val appLanguageOption: AppLanguageOption?,
     val calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
     val homeE2DisplayUnit: AllowedAnalyteUnit,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption,

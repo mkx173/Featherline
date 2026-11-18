@@ -174,7 +174,9 @@ class SettingsViewModel @Inject constructor(
         // Seeded from the estimate Home already has (stored or derived) so
         // the calibration row has its support text on the first frame; the
         // combine above waits on a Room read before its first value.
+        // The settings too, so the language row doesn't show the language name before Follow system.
         initialValue = SettingsUiState(
+            settingsState = settingsRepository.settingsState.value,
             calibrationAdjusted = e2EstimateRepository.latestHome.value?.calibration?.adjusted,
         ),
     )
@@ -351,7 +353,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAppLanguageOption(option: AppLanguageOption) {
+    /** Null follows the system. */
+    fun setAppLanguageOption(option: AppLanguageOption?) {
         settingsRepository.setAppLanguageOption(option)
     }
 

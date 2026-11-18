@@ -7,21 +7,52 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
+import android.os.Build
+import androidx.core.app.LocaleManagerCompat
 import androidx.core.os.ConfigurationCompat
+import androidx.core.os.LocaleListCompat
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import java.util.Locale
 
 fun Context.currentAppLocale(): Locale {
     return ConfigurationCompat.getLocales(resources.configuration)[0] ?: Locale.getDefault()
 }
 
+// ponytail: process-wide, set first thing in Application.onCreate; pass a Context to
+// appLocales() instead if a caller ever needs it before then.
+@Volatile
+private var localesContext: Context? = null
+
+fun initAppLocales(context: Context) {
+    localesContext = context.applicationContext
+}
+
+// The app's chosen locales, empty when it follows the system. From API 33 the framework's, read
+// through the application context: AppCompatDelegate reaches the framework only through an
+// attached activity, so with none (a process an alarm woke) it would report none chosen. Below
+// 33 AppCompat's, which it reads from its storage only when an activity attaches.
+fun appLocales(): LocaleListCompat {
+    val context = localesContext
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && context != null) {
+        LocaleManagerCompat.getApplicationLocales(context)
+    } else {
+        AppCompatDelegate.getApplicationLocales()
+    }
+}
+
 // The per-app UI language chosen via AppCompatDelegate.setApplicationLocales.
 // This is authoritative on every API level, unlike a Context's Resources
 // configuration: below API 33 AppCompat applies the locale to AppCompat
 // activities only, never to the application context, so reading it back from
-// an @ApplicationContext would yield the stale system locale.
+// an @ApplicationContext would yield the stale system locale. Mapped to a supported one, as the
+// screens show it: the chosen one, or with none the phone's.
 fun appLanguageLocale(): Locale {
-    return AppCompatDelegate.getApplicationLocales()[0] ?: systemLocale()
+    val language = appLocales()[0]?.let(AppLanguageOption::fromLocale) ?: systemAppLanguage()
+    return Locale.forLanguageTag(language.languageTag)
 }
+
+// The phone's language mapped to a supported one: the app language when following the system.
+fun systemAppLanguage(): AppLanguageOption = AppLanguageOption.fromLocale(systemLocale())
 
 // Returns a Context whose resources resolve strings in the current app language.
 // Required when localizing user-facing strings off an @ApplicationContext below

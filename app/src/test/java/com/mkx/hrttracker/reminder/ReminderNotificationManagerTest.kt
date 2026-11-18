@@ -65,9 +65,10 @@ class ReminderNotificationManagerTest {
             true
         }
         every { context.resources } returns resources
-        // No app language beyond the context's own; that locale machinery is verified
-        // separately (ReminderNotificationLanguageTest), so here it resolves to the mock context.
-        every { settingsRepository.appLanguageTag() } returns null
+        // That locale machinery is verified separately (ReminderNotificationLanguageTest), so
+        // here the app language resolves to the mock context.
+        every { settingsRepository.appLanguageTag() } returns "en"
+        every { context.createConfigurationContext(any()) } returns context
         mockkStatic("com.mkx.hrttracker.util.LocalizationKt")
         every { any<Context>().currentAppLocale() } returns Locale.ENGLISH
         // Reads the device's 12/24-hour setting through Resources.getSystem(),

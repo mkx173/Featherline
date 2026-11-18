@@ -146,7 +146,16 @@ flattened into the parent's JSON.
   device's; an interval under 15, as earlier builds offered, restores as
   15 with its count; one without the other, or any other value outside
   those, rejects the backup), and the home-card layout
-  `homeCardOrder` / `homeCardHidden`). The legacy
+  `homeCardOrder` / `homeCardHidden`). `appLanguageOption` is an
+  `AppLanguageOption` name, or `FOLLOW_SYSTEM` when the app follows the
+  phone's language; it came without a snapshot version bump. The restore
+  follows the system for `FOLLOW_SYSTEM` and for a name it doesn't know (a
+  language from a later release) instead of rejecting the backup, and keeps
+  an older backup's explicit language. An older build that reads v8
+  restores `FOLLOW_SYSTEM` as the phone's language mapped to a supported
+  one, chosen explicitly, as for any name it doesn't know (lenient since
+  v1.4.0); released builds up to v1.4.2 reject a v8 backup by its version
+  anyway. The legacy
   `widgetContentScale` / `widgetBackgroundAlpha` / `widgetDarkModeOption`
   fields are still written as mirrors of the appearance so older app
   versions can read new backups; on restore, a present `widgetAppearance`

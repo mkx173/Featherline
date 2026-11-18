@@ -203,7 +203,9 @@ dose's ring at its new local time was lost.
 owns one channel, `dose_reminders` at `IMPORTANCE_HIGH`, whose name and
 description are in the app language. Every string, date and time a
 reminder or toast shows is resolved in the app language, also in a
-process an alarm woke (`SettingsRepository.appLanguageTag()`).
+process an alarm woke (`SettingsRepository.appLanguageTag()`). With
+Follow system that is the phone's language mapped to a supported one, as
+the screens show it, not the application context's own.
 
 A reminder carries the plan name as its text, the dose's date and time
 as its subtext, the medications in its expanded text (or only the plan
@@ -219,20 +221,30 @@ reminders on screen in line with the plans, one per plan: one whose dose
 is gone (logged, moved by an edit, plan archived, deleted or muted) is
 cancelled, one whose medications changed is reposted silently in place.
 With reminders off, every one goes. Turning Hide medication details on
-or off, and a change of the app language (followed in
+or off, and a change of the language the app shows (followed in
 `HrtTrackerApplication`'s `followAppLanguage`), repost every reminder on
-screen silently (`refreshDoseReminderNotifications`). The language
-changes in Settings, or from API 33 in Android's per-app language
-setting: `MainActivity` handles `locale` configuration changes itself,
-so that change arrives only as a configuration change, which
+screen silently (`refreshDoseReminderNotifications`); a switch between
+Follow system and the language it shows changes nothing, so reposts
+nothing. The language changes in Settings, from API 33 in Android's
+per-app language setting, and with Follow system when the phone's
+changes: `MainActivity` handles `locale` configuration changes itself,
+so those arrive only as a configuration change, which
 `HrtTrackerApplication.onConfigurationChanged` reads into the app
 language (`followAndroidAppLanguageSetting`), with or without an
-activity; the screens switch and the reminders are reposted as for one
-made in Settings. One made while the app was dead is caught at the next
-start: when the start language differs from the tag the last run stored
+activity (below API 33 only once one has attached, as AppCompat knows
+the choice only then); the screens switch and the reminders are reposted
+as for one made in Settings. One made while the app was dead is caught
+at the next start: when the first language known (below API 33 once the
+activity attaches) differs from the one the last run showed
 (`SettingsRepository.lastRunAppLanguageTag()`, read when the repository
-is built, before this run stores its own), the channel is re-registered
-and the reminders reposted too.
+is built, before this run stores its own; with Follow system it is the
+phone's language it resolved to), the channel is re-registered and the
+reminders reposted too. A start with nothing changed reposts nothing.
+The repository stores the language it starts in once it has read the
+last one (from API 33, where it is known without an activity), so a
+process an alarm woke after a change reposts once, not at every start
+until the app is opened. Below API 33 such a process doesn't know the
+choice and stores nothing; the change, made in the app, was stored then.
 
 Tapping the body opens the app on the dose's row
 (`hrttracker://medication-reminder-notification/<tag>`, with

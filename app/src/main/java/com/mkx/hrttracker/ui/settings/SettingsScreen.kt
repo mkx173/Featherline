@@ -918,7 +918,8 @@ internal fun SettingsScreenContent(
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
-    onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
+    // Null follows the system.
+    onAppLanguageOptionChange: (AppLanguageOption?) -> Unit,
     onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
@@ -956,7 +957,7 @@ internal fun SettingsScreenContent(
     // while the menu is still playing its exit animation, so the menu visibly lingers
     // over the already-translated UI. Deferring to onExitFinished keeps the switch from
     // overlapping the dismiss.
-    var pendingLanguageOption by remember { mutableStateOf<AppLanguageOption?>(null) }
+    var pendingLanguageChange by remember { mutableStateOf<(() -> Unit)?>(null) }
     // Same deferral for dark mode: applying it immediately re-themes the whole screen
     // while the dropdown is still animating out, leaving the menu lingering over the
     // already-recolored UI. The row's supporting text still reflects the pick right away
@@ -1380,8 +1381,15 @@ internal fun SettingsScreenContent(
                                 // locale flips a frame before the ViewModel's combine/stateIn relays
                                 // the new option, which made this row briefly show the old language
                                 // name. Reading the live locale keeps it in lockstep with the rest of
-                                // the re-localized UI.
-                                supportingText = stringResource(appLanguageOption.labelRes),
+                                // the re-localized UI. Follow system has no locale of its own, so
+                                // it comes from the ViewModel.
+                                supportingText = stringResource(
+                                    if (settingsState.appLanguageFollowsSystem) {
+                                        R.string.dark_mode_follow_system
+                                    } else {
+                                        appLanguageOption.labelRes
+                                    }
+                                ),
                                 onClick = { setLanguageMenuExpanded(true) },
                                 leadingContent = {
                                     SettingsLeadingIconSlot(
@@ -1393,17 +1401,19 @@ internal fun SettingsScreenContent(
                                 expanded = isLanguageMenuExpanded,
                                 onDismissRequest = { setLanguageMenuExpanded(false) },
                                 modifier = Modifier.width(IntrinsicSize.Min),
-                                items = AppLanguageOption.entries.map { option ->
+                                items = (listOf(null) + AppLanguageOption.entries).map { option ->
                                     HrtDropdownMenuItem(
-                                        text = stringResource(option.labelRes),
-                                        onClick = { pendingLanguageOption = option },
+                                        text = stringResource(
+                                            option?.labelRes ?: R.string.dark_mode_follow_system
+                                        ),
+                                        onClick = {
+                                            pendingLanguageChange = { onAppLanguageOptionChange(option) }
+                                        },
                                     )
                                 },
                                 onExitFinished = {
-                                    pendingLanguageOption?.let { option ->
-                                        onAppLanguageOptionChange(option)
-                                        pendingLanguageOption = null
-                                    }
+                                    pendingLanguageChange?.invoke()
+                                    pendingLanguageChange = null
                                 },
                             )
                         }

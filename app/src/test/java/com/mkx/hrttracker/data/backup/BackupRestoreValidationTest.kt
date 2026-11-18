@@ -18,7 +18,6 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Locale
 import java.util.UUID
 
 class BackupRestoreValidationTest {
@@ -274,17 +273,15 @@ class BackupRestoreValidationTest {
     }
 
     @Test
-    fun toValidatedSnapshot_fallsBackToSystemLanguageForUnknownAppLanguageOption() {
-        // Old backups carry the retired FOLLOW_SYSTEM value, and backups from newer
-        // releases may carry language options this version does not know; neither may
-        // reject the whole backup — the language falls back to the system default.
-        val previousDefault = Locale.getDefault()
-        Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
-        try {
+    fun toValidatedSnapshot_followsTheSystemForFollowSystemOrAnUnknownAppLanguageOption() {
+        // FOLLOW_SYSTEM restores following the system (null). A backup from a newer release
+        // may carry a language this version does not know: it must not reject the whole
+        // backup, and follows the system too.
+        for (name in listOf(FOLLOW_SYSTEM_APP_LANGUAGE, "FRENCH")) {
             val snapshot = BackupSnapshot(
                 exportedAtEpochMillis = 1L,
                 app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
-                settings = baselineSettings().copy(appLanguageOption = "FOLLOW_SYSTEM"),
+                settings = baselineSettings().copy(appLanguageOption = name),
                 userProfile = baselineUserProfile(),
                 medicines = emptyList(),
                 medicationGroups = emptyList(),
@@ -296,12 +293,7 @@ class BackupRestoreValidationTest {
             val validatedSnapshot =
                 snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
 
-            assertEquals(
-                AppLanguageOption.SIMPLIFIED_CHINESE,
-                validatedSnapshot.settings.appLanguageOption,
-            )
-        } finally {
-            Locale.setDefault(previousDefault)
+            assertNull(name, validatedSnapshot.settings.appLanguageOption)
         }
     }
 

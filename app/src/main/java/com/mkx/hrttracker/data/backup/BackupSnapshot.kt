@@ -45,6 +45,7 @@ data class BackupSettingsSnapshot(
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val pkCalibrationIntroSeen: Boolean = false,
+    // An AppLanguageOption name, or FOLLOW_SYSTEM_APP_LANGUAGE.
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
     val homeE2ChartWindow: String = "SEVEN_DAYS",
@@ -307,6 +308,10 @@ data class BackupNoteSnapshot(
 // night owl plan's doses before 04:00 to the next day.
 //
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 8
+
+// The app language follows the phone's. Builds before it fall back to the phone's language
+// mapped to a supported one, as for any language name they don't know.
+const val FOLLOW_SYSTEM_APP_LANGUAGE = "FOLLOW_SYSTEM"
 
 // Stable logical app identity for backups. Do not derive this from
 // Context.packageName: build variants may add an install suffix, but their

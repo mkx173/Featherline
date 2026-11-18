@@ -251,7 +251,11 @@ class BackupExportService @Inject constructor(
                     hideScreenContentEnabled = settings.hideScreenContentEnabled,
                     onboardingCompleted = onboardingCompleted,
                     pkCalibrationIntroSeen = pkCalibrationIntroSeen,
-                    appLanguageOption = settings.appLanguageOption.name,
+                    appLanguageOption = if (settings.appLanguageFollowsSystem) {
+                        FOLLOW_SYSTEM_APP_LANGUAGE
+                    } else {
+                        settings.appLanguageOption.name
+                    },
                     homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
                     homeE2ChartWindow = settings.homeE2ChartWindowOption.name,
                     calibrationDefaultUnits = settings.calibrationDefaultUnits.entries

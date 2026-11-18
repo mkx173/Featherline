@@ -5,17 +5,11 @@ This guide documents the current i18n surface in Featherline and the steps neede
 ## Current State
 
 - Default resources live in `app/src/main/res/values/strings.xml`.
-- Default resource locale is English via `app/src/main/res/resources.properties`:
-
-```properties
-unqualifiedResLocale = en
-```
-
 - Simplified Chinese lives in `app/src/main/res/values-b+zh+Hans/strings.xml`.
 - Traditional Chinese lives in `app/src/main/res/values-b+zh+Hant/strings.xml`.
 - Cantonese (Hong Kong and Macau) lives in
   `app/src/main/res/values-b+yue+Hant+HK/strings.xml`.
-- `app/build.gradle.kts` enables `androidResources.generateLocaleConfig = true`, so Android's locale config is generated from resource folders.
+- Android's per-app language setting (API 33+) offers the languages in `app/src/main/res/xml/locales_config.xml` (`android:localeConfig`), the same tags as `AppLanguageOption`. `androidResources.generateLocaleConfig` is off: a generated config would list every resource folder, including translations the screens can't show (`values-cs`, `values-es`, `values-ja`, `values-ko`, `values-ta` map to English).
 - App bundle language splits are disabled with `bundle.language.enableSplit = false`, so packaged resources stay available for in-app switching.
 - The app currently exposes `ENGLISH`, `SIMPLIFIED_CHINESE`,
   `TRADITIONAL_CHINESE`, and `CANTONESE` in `AppLanguageOption`.
@@ -41,6 +35,7 @@ Keep these rules:
 - Preserve escaped newlines where present, for example `\n`.
 - Do not copy `translatable="false"` strings into locale files unless there is a locale-specific non-translatable override.
 - Keep `<plurals>` category names valid for the target language. Android can use only the categories required by the locale, but each referenced plural must contain all categories that locale needs.
+- A folder alone doesn't make the language selectable: add it to `locales_config.xml` with the option (below).
 - Translate widget preview strings too, including `widget_preview_dose_time`, `widget_preview_dose_time_evening`, and the anchor-widget preview strings `anchor_widget_preview_since` and `anchor_widget_preview_days`; those are static app-widget picker previews on Android 12-14. (`anchor_widget_preview_name` is `translatable="false"` — leave it.)
 
 ## Add the Language Option
@@ -84,13 +79,21 @@ AppLanguageOption.FRENCH -> R.string.app_language_french
 
 Add each new `app_language_*` label to every language's `strings.xml`. Use the native language name as the label.
 
+Add the option's `languageTag` to `app/src/main/res/xml/locales_config.xml`, so Android's per-app language setting offers it too.
+
 ## Language Switching Paths
 
-The app uses `SettingsRepository.setAppLanguageOption()` to switch language:
+The choice is the app locale list, whichever screen set it: an empty list follows the system (Follow system, first in the picker, and what a fresh install shows), a set one is that language. From API 33 the list is the framework's, so Android's per-app language setting changes it too, and `appLocales()` (`util/Localization.kt`) reads it through `LocaleManagerCompat` with the application context: `AppCompatDelegate.getApplicationLocales()` reaches the framework only through an attached activity and reports an empty list without one. Below 33 it is the one AppCompat stores (`autoStoreLocales`). `SettingsState.appLanguageOption` is the language shown, and with `appLanguageFollowsSystem` it is the phone's, mapped by `fromLocale()` (`systemAppLanguage()`).
 
-- Calls `Locale.setDefault(locale)` so any non-Compose code still reading `Locale.getDefault()` formats in the selected app language.
-- Calls `AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))`.
+The picker calls `SettingsRepository.setAppLanguageOption()`, null for Follow system:
+
+- Calls `Locale.setDefault(locale)` with the language shown, so any non-Compose code still reading `Locale.getDefault()` formats in it until something resets it: below API 33 AppCompat sets the default to the phone's locales inside `setApplicationLocales` when the list is emptied, and from API 33 the framework sets it from the new configuration at the configuration change.
+- Calls `AppCompatDelegate.setApplicationLocales()` with the option's tag, or `LocaleListCompat.getEmptyLocaleList()` for Follow system.
 - AppCompat auto-stores locales through `AppLocalesMetadataHolderService` in `AndroidManifest.xml`.
+
+`SettingsRepository.refreshAppLanguageOption()` reads the list back: at `MainActivity.onCreate`, and on each configuration change (`HrtTrackerApplication.onConfigurationChanged` → `followAndroidAppLanguageSetting`), which is how a change in Android's per-app setting, or of the phone's language while following it, arrives (`MainActivity` handles `locale` itself). Below API 33 AppCompat reads its stored list only when an activity attaches, so until then (a process an alarm woke) the language isn't known (`knownAppLanguage`), and a configuration change is left alone.
+
+Both write DataStore: `app_language_tag`, the language shown (the chosen tags, or the phone's mapped), and `app_language_follows_system`. The tag is what the next start compares with to repost the reminders (see [reminders](reminders.md#notify)); the pair is what a process an alarm woke below API 33 posts in (`appLanguageTag()`): the chosen tag, or the phone's language now when following it. An install from before the flag has only the tag, which it stored only for a chosen language below 33, so a missing flag there reads as chosen.
 
 `currentAppLocale()` and `rememberAppLocale()` in `util/Localization.kt` read the active locale from Android resources. Use these in UI code instead of `Locale.getDefault()` unless the code is intentionally outside Compose and has already been given a localized context.
 
@@ -98,8 +101,8 @@ The app uses `SettingsRepository.setAppLanguageOption()` to switch language:
 
 Notifications and widgets have extra locale handling because they often run from singleton application contexts.
 
-- `ReminderNotificationManager.createNotificationChannel(languageTag)` resolves channel name/description through a locale-overridden context. `HrtTrackerApplication` re-registers the channel when `settingsState.appLanguageOption` changes.
-- Reminder notification titles, bodies, dose details, and actions are resolved through `context.withAppLanguage()` (a context pinned to the chosen app language) so they localize below API 33; the text comes from string resources and plurals in `ReminderNotificationText.kt` and `ReminderNotificationManager.kt`.
+- `ReminderNotificationManager.createNotificationChannel(languageTag)` resolves channel name/description through a locale-overridden context. `HrtTrackerApplication` re-registers the channel when the language shown (`SettingsRepository.knownAppLanguage`) changes.
+- Reminder notification titles, bodies, dose details, and actions are resolved through `context.withAppLanguage()` (a context pinned to the app language: the chosen one, or with Follow system the phone's mapped to a supported one, as the screens show it) so they localize below API 33; the text comes from string resources and plurals in `ReminderNotificationText.kt` and `ReminderNotificationManager.kt`.
 - Post-log toasts fired after notification "Log all" and widget quick-log resolve through `context.withAppLanguage()` (like the notification content), then come from string resources and plurals in `ReminderNotificationManager.kt` (the `showStock*Toast` helpers); the count variants use plurals, so translate the plural forms.
 - Stock UI strings — runway/"days remaining" labels, stock state labels, unit nouns (vials, containers, sachets, etc.), and the onboarding opt-in copy — live in `strings.xml` alongside the rest. Translate the new block and check the plural-bearing count strings.
 - `WidgetSnapshotRepository` creates a localized context from `settings.appLanguageOption.languageTag` before building snapshots. It also passes a locale-specific `localizedShortTimeFormatter`.

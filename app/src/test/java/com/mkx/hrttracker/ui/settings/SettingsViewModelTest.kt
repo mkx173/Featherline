@@ -28,6 +28,7 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -126,6 +127,19 @@ class SettingsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun uiState_startsFromTheSettingsAlreadyRead_soTheLanguageRowShowsFollowSystemFirst() = runTest {
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(appLanguageOption = AppLanguageOption.CANTONESE, appLanguageFollowsSystem = true)
+        )
+
+        // Before the combine's first value (which waits on reads).
+        val settings = createViewModel().uiState.value.settingsState
+
+        assertEquals(AppLanguageOption.CANTONESE, settings.appLanguageOption)
+        assertTrue(settings.appLanguageFollowsSystem)
     }
 
     @Test
