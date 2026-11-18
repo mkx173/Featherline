@@ -32,6 +32,7 @@ import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.security.HiddenUnderAppLock
 import com.mkx.hrttracker.ui.security.applyHideScreenContent
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -120,9 +121,8 @@ class WidgetConfigActivity : AppCompatActivity() {
             // In the app language, as MainActivity's content (the unlock prompt included): under
             // Follow system the activity's own resources would take the phone's language even where
             // the app doesn't offer it.
-            val appLanguageTag =
-                settingsRepository.settingsState.collectAsStateWithLifecycle().value
-                    .appLanguageOption.languageTag
+            val settings = settingsRepository.settingsState.collectAsStateWithLifecycle().value
+            val appLanguageTag = settings.appLanguageOption.languageTag
             val localizedContext = rememberAppLanguageContext(appLanguageTag)
             CompositionLocalProvider(
                 LocalContext provides localizedContext,
@@ -264,28 +264,25 @@ class WidgetConfigActivity : AppCompatActivity() {
                         }
                     }
                 }
-                loadedState?.let { loaded ->
-                    HrtTrackerTheme(
-                        darkTheme = loaded.settings.darkModeOption
-                            .resolveDarkTheme(isSystemInDarkTheme()),
-                        dynamicColor = loaded.settings.adaptiveColorEnabled,
-                        amoled = loaded.settings.pureBlackEnabled,
-                    ) {
-                        when {
-                            // Lock state not yet known: stay blank (same as the pre-load
-                            // window) rather than flashing anchors that may need to hide.
-                            !appLockUiState.isReady -> Unit
-
-                            appLockUiState.shouldShowLockScreen -> AppLockScreen(
-                                errorMessageRes = appLockUiState.errorMessageRes,
-                                onUnlockClick = appLockViewModel::requestUnlock,
-                            )
-
+                // The persisted settings once loaded; until then the lock screen takes the live ones.
+                val themeSettings = loadedState?.settings ?: settings
+                HrtTrackerTheme(
+                    darkTheme = themeSettings.darkModeOption.resolveDarkTheme(isSystemInDarkTheme()),
+                    dynamicColor = themeSettings.adaptiveColorEnabled,
+                    amoled = themeSettings.pureBlackEnabled,
+                ) {
+                    // Lock state not yet known: stay blank (same as the pre-load window) rather
+                    // than flashing anchors that may need to hide.
+                    val locked = appLockUiState.shouldShowLockScreen
+                    loadedState?.takeIf { appLockUiState.isReady }?.let { loaded ->
+                        // Under the lock screen, as MainActivity's home shell: a relock keeps
+                        // the screen's drafts, and its sheets and menu hide until the unlock.
+                        HiddenUnderAppLock(locked = locked) {
                             // key(appWidgetId) is load-bearing: without it, a retarget that
                             // unmounts and remounts the screen at the same position would let
                             // rememberSaveable RESTORE the previous widget's selection instead
                             // of re-seeding from the new widget's persisted state.
-                            else -> key(appWidgetId) {
+                            key(appWidgetId) {
                                 WidgetConfigScreen(
                                     initialAppearance = loaded.appearance,
                                     configType = configType,
@@ -438,6 +435,14 @@ class WidgetConfigActivity : AppCompatActivity() {
                                 )
                             }
                         }
+                    }
+                    // Outside the loaded gate: a prompt cancelled during the load leaves the
+                    // Unlock button, not a blank window.
+                    if (appLockUiState.isReady && locked) {
+                        AppLockScreen(
+                            errorMessageRes = appLockUiState.errorMessageRes,
+                            onUnlockClick = appLockViewModel::requestUnlock,
+                        )
                     }
                 }
             }

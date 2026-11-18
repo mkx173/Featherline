@@ -55,9 +55,10 @@ fun AppAuthenticationPromptEffect(
         if (result.resultCode == Activity.RESULT_OK) {
             currentOnAuthenticated()
         } else {
-            // No reason is given (Back, or Home closing it), so not USER_CANCELED: the app lock
-            // asks again when it closed while the app was stopped.
-            currentOnError(BiometricPrompt.ERROR_CANCELED)
+            // Back, or Home closing it: no reason is given. A user cancel, as androidx.biometric
+            // reports the same screen on API 26-28, so the lock screen stays with its Unlock
+            // button rather than asking again: with no fingerprint, Back would only reopen it.
+            currentOnError(BiometricPrompt.ERROR_USER_CANCELED)
         }
     }
 

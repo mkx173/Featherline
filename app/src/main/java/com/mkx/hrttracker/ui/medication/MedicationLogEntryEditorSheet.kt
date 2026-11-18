@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -180,6 +181,10 @@ fun MedicationLogEntryEditorSheet(
         disclaimerKinds = emptyList(),
         onConfirm = onConfirm,
     ) {
+        // Back while it saves does nothing. In here, on the sheet window's dispatcher, it gets to
+        // Back ahead of the sheet's own handler, which would shrink the sheet with the swipe and,
+        // with the hide refused, leave it shrunk.
+        BackHandler(enabled = isSaving) { }
         val linkedApplicationType = doseInstructionDraft?.let { draft ->
             lockedMedicine?.let { medicine ->
                 resolvedApplicationTypeForDose(medicine.preparation.type, draft)

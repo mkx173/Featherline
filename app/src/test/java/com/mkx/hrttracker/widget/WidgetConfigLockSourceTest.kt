@@ -25,17 +25,26 @@ class WidgetConfigLockSourceTest {
         )
 
         val content = source.substringAfter("setContent {")
-        val lockGateIndex = content.indexOf("appLockUiState.shouldShowLockScreen ->")
+        assertTrue(
+            "The lock the screen hides under must be the app lock's own decision.",
+            content.contains("val locked = appLockUiState.shouldShowLockScreen"),
+        )
+        val hiddenIndex = content.indexOf("HiddenUnderAppLock(locked = locked)")
         val screenIndex = content.indexOf("WidgetConfigScreen(")
         assertTrue(
-            "Content must branch on shouldShowLockScreen before composing " +
-                "WidgetConfigScreen, so locked launches show AppLockScreen instead of " +
-                "anchor data.",
-            lockGateIndex in 0 until screenIndex,
+            "WidgetConfigScreen must compose under HiddenUnderAppLock, as MainActivity's home " +
+                "shell: hidden while locked, and kept composed so a relock keeps its drafts.",
+            hiddenIndex in 0 until screenIndex,
         )
+        // After the loaded gate closes, so a prompt cancelled during the load shows the Unlock
+        // button, not a blank window.
+        val afterScreen = content.substringAfter("onCancel = { finish() },")
+        val lockScreenIndex = afterScreen.indexOf("AppLockScreen(")
         assertTrue(
-            "The lock branch should render AppLockScreen.",
-            content.contains("appLockUiState.shouldShowLockScreen -> AppLockScreen("),
+            "AppLockScreen must be drawn over the screen, outside the loaded gate.",
+            lockScreenIndex >= 0 &&
+                afterScreen.substring(0, lockScreenIndex)
+                    .contains("if (appLockUiState.isReady && locked) {"),
         )
 
         assertTrue(
@@ -63,7 +72,7 @@ class WidgetConfigLockSourceTest {
         assertTrue(
             "FLAG_SECURE must apply before the settings load gate, so the loading window and " +
                 "the sheets over it are covered too.",
-            secureIndex < content.indexOf("loadedState?.let"),
+            secureIndex < content.indexOf("loadedState?.takeIf"),
         )
     }
 

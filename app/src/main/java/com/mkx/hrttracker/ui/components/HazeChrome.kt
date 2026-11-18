@@ -548,7 +548,12 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
         // One drop per held window, whichever of the two checks fires first.
         val dropped = remember { mutableStateOf(false) }
         val leaving = isHostCurrentDestination?.invoke() == false
+        // Shown by the first composition that sees the host resumed with the app unlocked, not by
+        // the effect: back from a stop that relocked the app, ON_START and ON_RESUME come in one
+        // turn, so the resume lands before any composition has seen the lock.
+        var resumed by remember { mutableStateOf(false) }
         LaunchedEffect(leaving, locked) {
+            resumed = false
             if (leaving) {
                 if (!dropped.value) {
                     dropped.value = true
@@ -556,8 +561,11 @@ internal fun rememberModalWindowAllowed(onDismissRequest: () -> Unit): Boolean {
                 }
             } else if (!locked) {
                 lifecycle.withResumed { }
-                allowed = true
+                resumed = true
             }
+        }
+        if (resumed && !locked && !leaving) {
+            SideEffect { allowed = true }
         }
         DisposableEffect(Unit) {
             onDispose {

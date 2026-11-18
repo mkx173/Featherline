@@ -47,7 +47,7 @@ class AppAuthenticationPromptTest {
     }
 
     @Test
-    fun api29_aConfirmCredentialScreenClosedWithoutOkIsACancel() {
+    fun api29_aConfirmCredentialScreenClosedWithoutOkIsAUserCancel() {
         val activity = launchPrompt()
         val started = shadowOf(activity).nextStartedActivityForResult
         assertNotNull("API 29 did not open the confirm-credential screen, errors: $errors", started)
@@ -55,9 +55,10 @@ class AppAuthenticationPromptTest {
         shadowOf(activity).receiveResult(started!!.intent, Activity.RESULT_CANCELED, null)
 
         assertEquals(emptyList<Unit>(), authenticated)
-        // It gives no reason: Back, or Home closing it. Not USER_CANCELED, so the lock can ask
-        // again after a leave.
-        assertEquals(listOf(BiometricPrompt.ERROR_CANCELED), errors)
+        // It gives no reason: Back, or Home closing it. A user cancel, as androidx.biometric reports
+        // the same screen below API 29, so the lock screen keeps its Unlock button instead of
+        // reopening the PIN screen that Back just closed.
+        assertEquals(listOf(BiometricPrompt.ERROR_USER_CANCELED), errors)
     }
 
     @Test

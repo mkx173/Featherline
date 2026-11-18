@@ -36,6 +36,9 @@ class AppLockViewModel @Inject constructor(
     private var backgroundedAtElapsedRealtime: Long? = null
     // A stop came while a prompt was in flight, and the prompt was kept for its result.
     private var promptKeptAcrossStop = false
+    // That kept prompt was cancelled. On API 29 the PIN screen's cancel can land before the start
+    // that follows it, and the start must not ask again: the Unlock button stays.
+    private var keptPromptCancelled = false
     // The Settings lock toggle's prompt is up, and a stop came while it was (below API 30 its
     // PIN screen stops this activity). Its outcome settles the relock: onOtherPromptEnded.
     private var otherPromptInFlight = false
@@ -116,6 +119,9 @@ class AppLockViewModel @Inject constructor(
         } else if (pendingPrompt.value != null) {
             // Its result or cancel is still to come.
             return
+        } else if (keptPromptCancelled) {
+            keptPromptCancelled = false
+            return
         }
 
         requestUnlock()
@@ -128,12 +134,14 @@ class AppLockViewModel @Inject constructor(
             return
         }
 
+        keptPromptCancelled = false
         if (!state.isUnlocked) {
             backgroundedAtElapsedRealtime = null
             errorMessageRes.value = null
             // Before API 30 the PIN screen is an activity that stops this one, and its result
-            // lands after the start. If the user left instead, the system cancels the prompt
-            // and onAuthenticationError asks again.
+            // lands around the start. If the user left from the fingerprint dialog instead, the
+            // system cancels it and onAuthenticationError asks again; the PIN screen's own cancel,
+            // Back or a leave, is a user cancel and leaves the Unlock button.
             promptKeptAcrossStop = pendingPrompt.value != null &&
                     appLockSecurityManager.credentialScreenStopsActivity()
             if (!promptKeptAcrossStop) {
@@ -193,6 +201,7 @@ class AppLockViewModel @Inject constructor(
             requestUnlock()
             return
         }
+        keptPromptCancelled = keptAcrossStop
         errorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
 

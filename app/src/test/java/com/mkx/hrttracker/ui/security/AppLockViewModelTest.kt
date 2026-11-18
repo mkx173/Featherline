@@ -223,8 +223,8 @@ class AppLockViewModelTest {
 
     @Test
     fun userCancelAcrossAStop_keepsTheAppLockedWithoutAskingAgain() = runTest {
-        // API 26: the confirm-credential screen is the prompt itself and stops MainActivity, so
-        // its Cancel button lands after a stop and start.
+        // API 26-29: the confirm-credential screen is the prompt itself and stops MainActivity, so
+        // its Cancel button, Back or a leave lands after a stop and start.
         val viewModel = createViewModel()
         advanceUntilIdle()
 
@@ -235,10 +235,42 @@ class AppLockViewModelTest {
         viewModel.onAuthenticationError(BiometricPrompt.ERROR_USER_CANCELED)
         advanceUntilIdle()
 
-        val state = viewModel.uiState.value
+        var state = viewModel.uiState.value
         assertTrue(state.shouldShowLockScreen)
         assertNull("Asked again after the user cancelled: $state", state.pendingPrompt)
         assertNull(state.errorMessageRes)
+
+        // Leaving the lock screen and coming back asks, as before.
+        viewModel.onBackgrounded()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        state = viewModel.uiState.value
+        assertNotNull("No prompt on a later return: $state", state.pendingPrompt)
+    }
+
+    @Test
+    fun userCancelLandingBeforeTheStart_keepsTheUnlockButton_andALaterReturnAsks() = runTest {
+        // API 29: Back on the PIN screen, whose cancel reaches MainActivity before its start.
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        viewModel.onAuthenticationError(BiometricPrompt.ERROR_USER_CANCELED)
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        var state = viewModel.uiState.value
+        assertTrue(state.shouldShowLockScreen)
+        assertNull("Back on the PIN screen asked again: $state", state.pendingPrompt)
+        assertNull(state.errorMessageRes)
+
+        // Leaving the lock screen and coming back asks, as before.
+        viewModel.onBackgrounded()
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+        state = viewModel.uiState.value
+        assertNotNull("No prompt on a later return: $state", state.pendingPrompt)
     }
 
     @Test
