@@ -1155,7 +1155,8 @@ internal fun SettingsScreenContent(
                             onClick = { showReminderRepeatsPicker = true },
                             leadingContent = {
                                 SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_repeat)
+                                    painter = painterResource(R.drawable.ic_snooze),
+                                    iconSize = 22.dp
                                 )
                             },
                         )
