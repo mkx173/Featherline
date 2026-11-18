@@ -2316,6 +2316,12 @@ class NoteEditorController(initialActiveEditorId: Any? = null) {
         if (activeEditorId == identity) activeEditorId = null
     }
 
+    // A card gone for good takes its editor and draft with it, leaving nothing to ask about.
+    internal fun drop(identity: Any) {
+        finish(identity)
+        reportUnsaved(identity, unsaved = false)
+    }
+
     // The editor whose draft closing it would lose, as that editor reports it.
     private var unsavedEditorId by mutableStateOf<Any?>(null)
     internal var unsavedChanges: UnsavedChangesState? = null
@@ -3075,9 +3081,14 @@ fun NotesTimeline(
     onDelete: (LocalDate) -> Unit = { },
     modifier: Modifier = Modifier,
     editorController: NoteEditorController = rememberNoteEditorController(),
+    // Whether a note is still the caller's to list, read as its row leaves composition: a row
+    // whose note isn't has left for good, and its open editor is closed. One that is went with
+    // the screen, which keeps its editor open for its return.
+    isListed: (noteId: String) -> Boolean = { true },
     // Told, by note id, whenever a row starts or stops holding a save; see NoteEditorCard.
     onHeldChange: (noteId: String, held: Boolean) -> Unit = { _, _ -> },
 ) {
+    val latestIsListed by rememberUpdatedState(isListed)
     if (notes.isEmpty()) {
         return
     }
@@ -3096,6 +3107,10 @@ fun NotesTimeline(
                 // Keyed on the note, so a row's editor state stays with its note when the list
                 // shifts: today's note joining at midnight, or a note above being deleted.
                 key(note.id) {
+                    // An open row isn't scrolled out of composition: it pins its lazy item.
+                    DisposableEffect(Unit) {
+                        onDispose { if (!latestIsListed(note.id)) editorController.drop(note.id) }
+                    }
                     NoteTimelineRow(
                         note = note,
                         isFirst = index == 0,

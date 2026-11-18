@@ -51,7 +51,7 @@ class JournalViewModel @Inject constructor(
                 // ponytail: the window's oldest row leaves the timeline at a date change even with
                 // an unsaved draft open on it, which is then dropped. Keep an open or held row
                 // listed until its session ends if that ever matters.
-                val windowStart = today.minusDays(29)
+                val windowStart = recentNotesWindowStart(today)
                 combine(
                     journalRepository.observeNotesOnOrAfter(windowStart),
                     journalRepository.observeNoteForDate(today),
@@ -109,7 +109,7 @@ class JournalViewModel @Inject constructor(
         if (trackedDatesOrNull == null || pinnedOrNull == null || notesOrNull == null) {
             return JournalUiState(today = today)
         }
-        val windowStart = today.minusDays(29)
+        val windowStart = recentNotesWindowStart(today)
         return JournalUiState(
             isLoading = false,
             today = today,
@@ -123,6 +123,9 @@ class JournalViewModel @Inject constructor(
             olderNotesCount = notesOrNull.count { it.date.isBefore(windowStart) },
         )
     }
+
+    // The Today composer's note for a day it holds, which can be older than the 30-day window.
+    fun observeNoteForDate(date: LocalDate): Flow<Note?> = journalRepository.observeNoteForDate(date)
 
     // The Today composer saves and deletes through these too, with the day it shows: resolving
     // today here at write time would file an edit begun before a date rollover under the new day.
@@ -183,6 +186,9 @@ class JournalViewModel @Inject constructor(
         }
     }
 }
+
+// The first day of the Journal's 30-day window of recent notes, ending [today].
+internal fun recentNotesWindowStart(today: LocalDate): LocalDate = today.minusDays(29)
 
 private data class JournalDateUiState(
     val today: LocalDate,

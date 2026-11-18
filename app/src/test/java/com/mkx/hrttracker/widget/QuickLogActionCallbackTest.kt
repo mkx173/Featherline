@@ -50,6 +50,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -598,6 +599,46 @@ class QuickLogActionCallbackTest {
             maxPerAdministration = 1.0,
             state = state,
         )
+    }
+
+    // The database failing to open on a tap (getGroup throws) ends as every other quick-log
+    // failure does, with the "couldn't log" toast, not as an exception that Glance only logs.
+    @Test
+    fun onAction_showsTheFailedToast_whenTheGroupReadThrows() = runTest {
+        mockkStatic(EntryPointAccessors::class)
+        val context: Context = mockk()
+        val appContext: Context = mockk()
+        val entryPoint: WidgetEntryPoint = mockk(relaxed = true)
+        val groupRepository: MedicationGroupRepository = mockk()
+        val settingsRepository: SettingsRepository = mockk()
+        val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+        val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
+        val groupUuid = UUID.fromString("1246f246-6e7d-4fac-a16c-0a557dd0c7fd")
+        every { context.applicationContext } returns appContext
+        every {
+            EntryPointAccessors.fromApplication(appContext, WidgetEntryPoint::class.java)
+        } returns entryPoint
+        every { entryPoint.medicationGroupRepository() } returns groupRepository
+        every { entryPoint.settingsRepository() } returns settingsRepository
+        every { entryPoint.reminderNotificationManager() } returns notificationManager
+        every { entryPoint.diagnosticsLogger() } returns diagnosticsLogger
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        // As SQLCipher failing to open: the key is unavailable, or the file can't be read.
+        coEvery { groupRepository.getGroup(groupUuid) } throws IllegalStateException("database unavailable")
+
+        val thrown = runCatching {
+            QuickLogActionCallback().onAction(
+                context,
+                mockk<GlanceId>(),
+                actionParametersOf(
+                    GroupUuidKey to groupUuid.toString(),
+                    ScheduledAtKey to "2026-04-20T09:00",
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertNull("getGroup's failure left onAction", thrown)
+        verify { notificationManager.showQuickLogFailedToast() }
     }
 
     private companion object {

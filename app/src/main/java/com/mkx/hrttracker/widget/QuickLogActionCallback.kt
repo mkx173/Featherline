@@ -56,44 +56,6 @@ class QuickLogActionCallback internal constructor(
         val reminderNotificationManager = entryPoint.reminderNotificationManager()
         val diagnosticsLogger = entryPoint.diagnosticsLogger()
 
-        val group = groupRepository.getGroup(groupUuid) ?: run {
-            diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
-            updateAllHrtWidgets(appContext)
-            return
-        }
-
-        if (group.isArchived() && !wasRenderedAsArchivedGroup) {
-            // The group may have been archived after an active widget row was rendered.
-            // Only rows that were already rendered as archived are allowed to re-log
-            // archived-group doses.
-            diagnosticsLogger.info(
-                TAG,
-                "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid"
-            )
-            updateAllHrtWidgets(appContext)
-            return
-        }
-
-        // Restrict to the tapped medication so the callback doesn't log all
-        // medications in the group when only one row was tapped. A non-null
-        // uuid that no longer resolves means the snapshot is stale (e.g. the
-        // medication was removed) — refresh and bail rather than logging the
-        // remaining siblings.
-        val targetGroup = if (medicationUuid != null) {
-            val match = group.medications.firstOrNull { it.uuid == medicationUuid }
-            if (match == null) {
-                diagnosticsLogger.warning(
-                    TAG,
-                    "widget_quick_log_medication_not_found uuid=$medicationUuid"
-                )
-                updateAllHrtWidgets(appContext)
-                return
-            }
-            group.copy(medications = listOf(match))
-        } else {
-            group
-        }
-
         val zoneId = ZoneId.systemDefault()
         val appliedAt = Instant.now()
         val slot = MedicationReminderSlot(
@@ -105,6 +67,45 @@ class QuickLogActionCallback internal constructor(
         try {
             // First: each toast below, the failure's too, reads the app language from it.
             val settings = settingsRepository.getCurrentSettings()
+            // In the try, as a database that can't open throws here first.
+            val group = groupRepository.getGroup(groupUuid) ?: run {
+                diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
+                updateAllHrtWidgets(appContext)
+                return
+            }
+
+            if (group.isArchived() && !wasRenderedAsArchivedGroup) {
+                // The group may have been archived after an active widget row was rendered.
+                // Only rows that were already rendered as archived are allowed to re-log
+                // archived-group doses.
+                diagnosticsLogger.info(
+                    TAG,
+                    "widget_quick_log_stale_active_row_archived_group uuid=$groupUuid"
+                )
+                updateAllHrtWidgets(appContext)
+                return
+            }
+
+            // Restrict to the tapped medication so the callback doesn't log all
+            // medications in the group when only one row was tapped. A non-null
+            // uuid that no longer resolves means the snapshot is stale (e.g. the
+            // medication was removed) — refresh and bail rather than logging the
+            // remaining siblings.
+            val targetGroup = if (medicationUuid != null) {
+                val match = group.medications.firstOrNull { it.uuid == medicationUuid }
+                if (match == null) {
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "widget_quick_log_medication_not_found uuid=$medicationUuid"
+                    )
+                    updateAllHrtWidgets(appContext)
+                    return
+                }
+                group.copy(medications = listOf(match))
+            } else {
+                group
+            }
+
             // Load entries from scheduledAt onward — same approach used by the reminder action handler.
             val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
 

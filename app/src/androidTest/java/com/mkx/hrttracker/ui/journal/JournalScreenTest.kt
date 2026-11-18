@@ -33,6 +33,7 @@ import com.mkx.hrttracker.ui.components.UnsavedChangesDialog
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
+import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -95,6 +96,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -133,6 +135,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -182,6 +185,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -218,6 +222,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                     scrollToTopSignal = scrollToTopSignal,
                 )
             }
@@ -353,6 +358,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -407,6 +413,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> saved = true; noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
                 UnsavedChangesDialog(hazeState = null)
             }
@@ -452,6 +459,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -491,6 +499,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -529,6 +538,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -570,6 +580,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                     onDeleteTodayNote = { deletedDates += it },
                     onDeleteNote = { deletedDates += it },
                 )
@@ -618,6 +629,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> todayNoteSaved = true; noteSaves.start() },
                     onSaveNote = { _, _ -> olderNoteSaved = true; noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -783,6 +795,7 @@ class JournalScreenTest {
                         noteSaves.start()
                     },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -845,6 +858,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
                 UnsavedChangesDialog(hazeState = null)
             }
@@ -889,6 +903,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                     // Simulate a delete that fails to persist: the note stays in uiState.
                     onDeleteTodayNote = {},
                     onDeleteNote = {},
@@ -927,6 +942,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, text -> savedTexts += text; noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -973,6 +989,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -1012,6 +1029,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start() },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }
@@ -1048,6 +1066,7 @@ class JournalScreenTest {
                     onSaveTodayNote = { _, _ -> noteSaves.start().also { noteSaves.settle(it, landed = false) } },
                     onSaveNote = { _, _ -> noteSaves.start() },
                     noteSaves = noteSaves,
+                    observeNoteForDate = { emptyFlow() },
                 )
             }
         }

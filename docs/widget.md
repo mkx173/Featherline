@@ -392,7 +392,9 @@ graph TD
   whether there is none, whether its `anchorDateEpochDay` is before
   today's calendar date or its `fourAmAnchorDateEpochDay` before the
   medication day at 04:00 (a night-owl plan's rows leave Today at
-  04:00, whatever the plans are), whether a section start
+  04:00, whatever the plans are), whether it was built in another time
+  zone (after westward travel its dates are ahead of today's, which the
+  date checks miss when the time-zone rebuild didn't publish), whether a section start
   (`nextWidgetDateRefreshAt`) passed after its `builtAt` (noon and
   18:00 move no date, so a late, missed or unarmed date alarm is caught
   here), whether any row's `UPCOMING`/`DUE_SOON` status should
@@ -524,7 +526,9 @@ left of its 8 s budget, so the run that read the log, and its warm-up
 of Home's estimate, finish before the callback does; out of budget, the
 run carries on in the app scope. The only direct `updateAllHrtWidgets`
 call in this path is the no-op short-circuit, taken when the slot is
-already fulfilled.
+already fulfilled. Any failure from the group read on, a database that
+can't open included, is logged, refreshes the widget and shows the
+"Unable to quick-log dose." toast.
 
 Because the persist runs through `saveNewEntries`, quick-logged doses
 deduct medicine stock for tracking-enabled medicines just like an

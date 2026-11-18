@@ -46,9 +46,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -73,6 +75,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.journal.AnchorIcon
 import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.MilestoneUnit
+import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.FlipSlot
@@ -99,9 +102,13 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.monthHeaderFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.widget.AnchorShortcutManager
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.YearMonth
+
+// A held day's note before its read by date first emits.
+private object NoteUnread
 
 private const val JournalScreenListTestTag = "journal-screen-list"
 
@@ -145,6 +152,7 @@ fun JournalScreen(
         onDeleteTodayNote = viewModel::deleteNote,
         onDeleteNote = viewModel::deleteNote,
         onAddDebugNotes = viewModel::addDebugSampleNotes,
+        observeNoteForDate = viewModel::observeNoteForDate,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier,
     )
@@ -161,6 +169,8 @@ fun JournalScreenContent(
     onSaveTodayNote: (LocalDate, String) -> Long,
     onSaveNote: (LocalDate, String) -> Long,
     noteSaves: NoteSaves,
+    // A day's note, read by its date: the Today composer's held day.
+    observeNoteForDate: (LocalDate) -> Flow<Note?>,
     onDeleteTodayNote: (LocalDate) -> Unit = { },
     onDeleteNote: (LocalDate) -> Unit = { },
     onAddDebugNotes: () -> Unit = { },
@@ -175,12 +185,37 @@ fun JournalScreenContent(
     // closes it: it stays on the day it began, dated, and its save or delete writes that day. Once
     // it ends, the composer moves on to today (the composer's onIdle below).
     var composerDate by rememberSaveable { mutableStateOf(uiState.today) }
-    val composerNote = if (composerDate == uiState.today) {
-        uiState.todayNote
+    // A held day's note is read by its date, as the session can outlast the 30-day window. Until
+    // that read first emits: the window's copy while the window has the day; else the note this
+    // composition last showed for it (a clock jump past the window). With neither (held past the
+    // window when the screen comes back, or after process death), the screen waits, loading, as
+    // it does for today's note, so Save can't write over a note that hasn't loaded.
+    // ponytail: an idle composer whose saved state is restored 30 or more days later waits for the
+    // old day's read before onIdle can move it to today, so with that read failing the whole page
+    // stays loading until a retry lands. Skip the wait for an idle card if that ever matters.
+    val lastComposerNote = remember { arrayOfNulls<Pair<LocalDate, Note?>>(1) }
+    val heldRead: Any? = if (composerDate == uiState.today) {
+        NoteUnread
     } else {
-        uiState.recentNotes.firstOrNull { it.date == composerDate }
+        key(composerDate) {
+            remember { observeNoteForDate(composerDate) }.collectAsStateWithLifecycle<Any?>(NoteUnread).value
+        }
     }
+    val composerRead: Any? = when {
+        uiState.isLoading -> NoteUnread
+        composerDate == uiState.today -> uiState.todayNote
+        heldRead !== NoteUnread -> heldRead
+        !composerDate.isBefore(recentNotesWindowStart(uiState.today)) ->
+            uiState.recentNotes.firstOrNull { it.date == composerDate }
+        lastComposerNote[0]?.first == composerDate -> lastComposerNote[0]?.second
+        else -> NoteUnread
+    }
+    val composerNote = composerRead as? Note
+    if (composerRead !== NoteUnread) lastComposerNote[0] = composerDate to composerNote
     val timelineNotes = uiState.recentNotes.filter { it.date != composerDate }
+    // Read when a timeline row leaves composition: a row whose note is no longer listed has left
+    // for good (the window's oldest at midnight), while one still listed went with the screen.
+    val timelineNoteIds by rememberUpdatedState(timelineNotes.mapTo(HashSet()) { it.id })
     // One controller shared by the Today composer and the timeline rows: a single editor stays
     // open at a time, and it resets to closed when this screen leaves composition.
     val editorController = rememberNoteEditorController()
@@ -209,7 +244,7 @@ fun JournalScreenContent(
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.paddingBehindTopAppBar(innerPadding)) {
-            if (uiState.isLoading) {
+            if (composerRead === NoteUnread) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -341,6 +376,7 @@ fun JournalScreenContent(
                                 noteSaves = noteSaves,
                                 onDelete = onDeleteNote,
                                 editorController = editorController,
+                                isListed = { it in timelineNoteIds },
                                 onHeldChange = { id, held ->
                                     heldTimelineNotes = if (held) heldTimelineNotes + id else heldTimelineNotes - id
                                 },

@@ -48,7 +48,8 @@ class WidgetDailyRefreshWorker(
  * estimate.
  *
  * The rows are stale once the calendar day or the medication day at 04:00
- * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are.
+ * moves on: a night-owl plan's rows leave Today at 04:00, whatever the plans are,
+ * or once the time zone isn't the one they were built in.
  * They are also stale once a section start passes after they were built:
  * noon and 18:00 move no date and may leave no row to turn stale, so this
  * run rebuilds what a late, missed or unarmed date alarm left. A dose
@@ -70,7 +71,9 @@ internal suspend fun handleWidgetDailyRefresh(
     diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     val zoneId = ZoneId.systemDefault()
-    val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
+    // A record built in another zone is stale too: after westward travel its dates are ahead of
+    // now's, which the date checks don't see.
+    val anchorDateStale = snapshot?.let { it.zoneId != zoneId.id || it.isAnchoredBefore(now) } == true
     val doseStatusStale = snapshot?.doseRows?.any { row ->
         val pastDue = isPastDue(row.scheduledAt, now, zoneId, clockNow)
         when (row.status) {

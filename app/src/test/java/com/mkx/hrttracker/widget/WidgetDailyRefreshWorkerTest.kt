@@ -314,6 +314,35 @@ class WidgetDailyRefreshWorkerTest {
         verify(exactly = 0) { homeSnapshotRepository.requestRebuild() }
     }
 
+    @Test
+    fun aRecordBuiltInAnotherZone_isStale_afterWestwardTravel() = runTest {
+        val defaultZone = TimeZone.getDefault()
+        try {
+            coEvery { widgetSnapshotRepository.writeWidgetSnapshot(any()) } returns true
+            // Built in Tokyo at 08:00 on May 21, now 16:00 on May 20 in Los Angeles: the same
+            // instant, and every date of the record is a day ahead of now's.
+            val tokyo = ZoneId.of("Asia/Tokyo")
+            val builtInTokyo = widget(
+                anchorDate = today.plusDays(1),
+                builtAt = today.plusDays(1).atTime(8, 0),
+                zone = tokyo,
+            )
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"))
+            val inLosAngeles = today.atTime(16, 0)
+
+            refresh(builtInTokyo, at = inLosAngeles)
+            assertEquals(0, rerenders)
+            coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+
+            // The same record in its own zone is fresh: only re-rendered.
+            TimeZone.setDefault(TimeZone.getTimeZone(tokyo))
+            refresh(builtInTokyo, at = today.plusDays(1).atTime(8, 0))
+            assertEquals(1, rerenders)
+        } finally {
+            TimeZone.setDefault(defaultZone)
+        }
+    }
+
     private suspend fun refresh(
         snapshot: WidgetSnapshotRecord?,
         at: LocalDateTime = now,
@@ -363,9 +392,10 @@ class WidgetDailyRefreshWorkerTest {
         rows: List<WidgetDoseRow> = emptyList(),
         // Built from [state] unless a test says otherwise.
         source: Long? = state.homeData?.generatedAtEpochMillis,
+        zone: ZoneId = ZoneId.systemDefault(),
     ) = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
-        zoneId = zoneId.id,
+        zoneId = zone.id,
         anchorDateEpochDay = anchorDate.toEpochDay(),
         fourAmAnchorDateEpochDay = fourAmAnchorDate.toEpochDay(),
         builtAt = builtAt,
