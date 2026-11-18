@@ -70,13 +70,15 @@ private const val TAG = "SettingsRepository"
 
 private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
 private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
+private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
 
 /**
  * What a settings file that can't be parsed is replaced with. Over an existing database the
  * replacement has Hide screen content on, and the app lock on when the phone can unlock it: the
  * lock uses the phone's own credential, so turning it on loses nothing. On a phone with none it
- * stays off, as Settings won't turn it on there; the user couldn't get in. Everything else
- * comes back as defaults.
+ * stays off, as Settings won't turn it on there; the user couldn't get in. Onboarding counts as
+ * done, so the user isn't walked through setup again over their data, and its first frame doesn't
+ * store reminders off. Everything else comes back as defaults.
  */
 internal fun settingsCorruptionHandler(
     databaseExists: () -> Boolean,
@@ -86,6 +88,10 @@ internal fun settingsCorruptionHandler(
         preferencesOf(
             screenLockProtectionKey to appLockCanAuthenticate(),
             hideScreenContentKey to true,
+            // ponytail: the database file exists from the first launch, so a corruption before
+            // onboarding first finished would skip its disclaimer too. It needs a parse failure
+            // of a file seconds old.
+            onboardingCompletedKey to true,
         )
     } else {
         emptyPreferences()
@@ -147,7 +153,6 @@ class SettingsRepository internal constructor(
         booleanPreferencesKey("health_connect_weight_sync_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
-    private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val pkCalibrationIntroSeenKey = booleanPreferencesKey("pk_calibration_intro_seen")
     private val homeLowStockSectionExpandedKey =
         booleanPreferencesKey("home_low_stock_section_expanded")

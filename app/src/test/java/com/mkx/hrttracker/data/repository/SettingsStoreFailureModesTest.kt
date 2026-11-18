@@ -64,7 +64,10 @@ class SettingsStoreFailureModesTest {
         Dispatchers.resetMain()
     }
 
-    /** Over an existing database, a damaged settings file comes back locked, content hidden. */
+    /**
+     * Over an existing database, a damaged settings file comes back locked, content hidden, and
+     * onboarding done, so it doesn't run again and store reminders off.
+     */
     @Test
     fun aCorruptSettingsFile_overADatabase_comesBackWithTheLockAndHideContentOn() = runBlocking {
         val file = corruptSettingsFileWithTheLockOff()
@@ -78,9 +81,7 @@ class SettingsStoreFailureModesTest {
         after as SecuritySettingsState.Loaded
         assertTrue("the app lock reads on", after.screenLockProtectionEnabled)
         assertTrue("Hide screen content reads on", after.hideScreenContentEnabled)
-        // Not decided, left as the handler gives them: onboarding counts as not done, and
-        // reminders read as their default, on.
-        assertEquals(false, settings.onboardingCompleted.first())
+        assertEquals(true, settings.onboardingCompleted.first())
         assertEquals(true, settings.getCurrentSettings().remindersEnabled)
     }
 
@@ -110,6 +111,7 @@ class SettingsStoreFailureModesTest {
 
         assertFalse(after.screenLockProtectionEnabled)
         assertFalse(after.hideScreenContentEnabled)
+        assertEquals(false, settings.onboardingCompleted.first())
     }
 
     /**
