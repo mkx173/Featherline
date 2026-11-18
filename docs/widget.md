@@ -412,7 +412,11 @@ graph TD
   from the current cache state through `writeWidgetSnapshot`, which
   reads the clock under its lock (the rows from its Home data, the
   estimate from its E2 inputs), with no Room read and no solve.
-  Without a current state that has both parts it waits for `homeSnapshotRepository.rebuildNow()` instead, so
+  Without a current state that has both parts it waits for `homeSnapshotRepository.rebuildNow()` instead
+  (a cache built for a date after today, more than ten days ago, or in
+  another zone is not handed out as current: after the clock is set back
+  past its date and the time-change rebuild failed, the worker waits for a
+  run from Room rather than rebuilding the later date's rows), so
   the job, and the process with it, outlive the run: the run's publish
   routes back into the cache observer above, and a run that failed
   earlier is retried. It does the same when a newer publish superseded

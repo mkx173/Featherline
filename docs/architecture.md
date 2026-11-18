@@ -522,16 +522,23 @@ reads Room to build them.
   disk load, which seeds each part only from a file that is valid at the
   durable generation, and each publish replaces both parts at once, so a
   reader never sees Home data from one run beside E2 inputs from
-  another. A state is current while its generation equals the durable
-  one (`currentCache`, `currentState()`).
+  another. A state is handed out as current (`currentCache`,
+  `currentState()`) while its generation equals the durable one and its
+  Home data passes the load's zone and date rule at now: the device's
+  zone, and today neither before its anchor date nor more than ten days
+  after it. A state that fails it (the clock set back past its date, or
+  another zone, before the time-change run publishes, or after that run
+  failed for good) is withheld, and a run is asked for; Home's screen
+  then reads Room, and the widget waits for the run.
 - **Triggers.** A run is asked for by each gated mutation; by the load,
   when a part is missing; by an estimate observation whose inputs aren't
-  current, while the worker isn't `rebuilding`; and by a widget refresh without
-  a current state that has both parts. Requests carry nothing: a run reads everything it needs
-  itself. Nothing checks the date or the zone in memory, and no
-  in-process ticker watches them: Home data goes invalid by date only
-  after ten days, and the date and zone broadcasts ask for the run that
-  replaces both parts. `WidgetDateReceiver` (the widget's midnight
+  current, while the worker isn't `rebuilding`; by the handout itself, when
+  it withholds a state by the zone and date rule, while the worker isn't
+  `rebuilding`; and by a widget refresh without a current state that has
+  both parts. Requests carry nothing: a run reads everything it needs
+  itself. No in-process ticker watches the date or the zone: the date
+  and zone broadcasts ask for the run that replaces both parts, and the
+  handout applies the date rule only when it is read. `WidgetDateReceiver` (the widget's midnight
   alarm, boot, date, time and zone changes) waits for `rebuildNow()`
   within its broadcast budget, and `MedicationReminderRescheduleReceiver`
   (boot, time and zone changes, package replaced) calls

@@ -89,19 +89,21 @@ class HomeSnapshotRepository @Inject constructor(
      * each run's publish; null until the load. A state is current while its
      * generation equals [generation]. After a mutation the old state stays,
      * for the screens already showing it, until the mutation's run publishes.
-     * Nothing checks the date or the zone again in memory: a part goes
-     * invalid by date only after ten days, and the date and zone broadcasts
-     * (WidgetDateReceiver, MedicationReminderRescheduleReceiver) ask for a
-     * run at every date and zone change.
+     * The date and zone broadcasts (WidgetDateReceiver,
+     * MedicationReminderRescheduleReceiver) ask for a run at every date and
+     * zone change; until it publishes, [currentCache] and [currentState]
+     * withhold Home data the load's date rule would reject (see [handout]).
      */
     val cache: StateFlow<HomeCacheState?>
         get() = cacheState
     private val cacheState = MutableStateFlow<HomeCacheState?>(null)
 
-    /** [cache] while it is current: null before the load, and from a mutation until its run publishes. */
-    val currentCache: Flow<HomeCacheState?> = combine(cacheState, generationState) { state, current ->
-        state?.takeIf { it.generation == current }
-    }.distinctUntilChanged()
+    /**
+     * [cache] while it is current: null before the load, from a mutation until
+     * its run publishes, and while its Home data fails the date rule (see [handout]).
+     */
+    val currentCache: Flow<HomeCacheState?> = combine(cacheState, generationState, ::handout)
+        .distinctUntilChanged()
 
     /**
      * The fit epoch Try again asks for. Every run reads it when it starts,
@@ -252,10 +254,28 @@ class HomeSnapshotRepository @Inject constructor(
         runsFinished.first { finished -> finished > started }
     }
 
-    /** [cache] once the disk load is done, while it is current; null otherwise. */
-    suspend fun currentState(): HomeCacheState? {
-        val state = cacheState.filterNotNull().first()
-        return state.takeIf { state.generation == generationState.value }
+    /** [cache] once the disk load is done, while it is current (see [handout]); null otherwise. */
+    suspend fun currentState(): HomeCacheState? = handout(cacheState.filterNotNull().first(), generationState.value)
+
+    /**
+     * [state] when it is at [generation] and its Home data passes the load's
+     * date and zone rule now. A clock set back past its date, or another zone,
+     * leaves a state built for another day until the time-change run
+     * publishes, and that run can fail for good: such a state is not handed
+     * out as current, and a run is asked for instead. Readers then go to Room
+     * or wait for the run, as for a missing part. Checked when read, not on a
+     * timer: a state that ages past its ten days is withheld from the next read.
+     */
+    private fun handout(state: HomeCacheState?, generation: Long): HomeCacheState? {
+        if (state == null || state.generation != generation) return null
+        val zoneId = ZoneId.systemDefault()
+        val today = appTimeSource.now().atZone(zoneId).toLocalDate()
+        val failure = state.homeData?.let { homeData ->
+            zoneOrDateFailure(homeData.zoneId, homeData.anchorDateEpochDay, today, zoneId)
+        } ?: return state
+        diagnosticsLogger.info(TAG, "home_cache_withheld reason=$failure")
+        requestRebuildIfIdle()
+        return null
     }
 
     fun scheduleEntriesForHome(
@@ -322,10 +342,11 @@ class HomeSnapshotRepository @Inject constructor(
                         "homeData=[${homeData?.diagnosticSummary() ?: "none"}] " +
                         "e2Inputs=[${e2Inputs?.diagnosticSummary() ?: "none"}]"
             )
-            // The only date and zone check: at startup. A part missing then,
-            // for its generation, schema or engine, or its zone or ten-day
-            // window, is rebuilt now; later date and zone changes reach the
-            // repository as the broadcasts' runs (see [cache]).
+            // A part missing then, for its generation, schema or engine, or
+            // its zone or ten-day window, is rebuilt now; later date and zone
+            // changes reach the repository as the broadcasts' runs, and the
+            // handout applies the same date and zone rule until they publish
+            // (see [cache]).
             if (homeData == null || e2Inputs == null) requestRebuild()
         }
     }
@@ -757,10 +778,23 @@ private fun generationZoneOrDateFailure(
     today: LocalDate,
     zoneId: ZoneId,
 ): String? {
+    return if (recordGeneration != generation) {
+        "generation expected=$generation actual=$recordGeneration"
+    } else {
+        zoneOrDateFailure(recordZoneId, anchorDateEpochDay, today, zoneId)
+    }
+}
+
+/** The date and zone half of the rule: the load's, and the in-memory handout's. */
+private fun zoneOrDateFailure(
+    recordZoneId: String,
+    anchorDateEpochDay: Long,
+    today: LocalDate,
+    zoneId: ZoneId,
+): String? {
     val anchorDate = LocalDate.ofEpochDay(anchorDateEpochDay)
     val validUntil = anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS)
     return when {
-        recordGeneration != generation -> "generation expected=$generation actual=$recordGeneration"
         recordZoneId != zoneId.id -> "zone_id expected=${zoneId.id} actual=$recordZoneId"
         today.isBefore(anchorDate) || today.isAfter(validUntil) ->
             "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"

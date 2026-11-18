@@ -366,14 +366,30 @@ class WidgetDailyRefreshWorkerTest {
             TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"))
             val inLosAngeles = today.atTime(16, 0)
 
+            // Before the zone-change run publishes, the handout withholds the old zone's cache:
+            // the worker writes nothing from it and waits for the run.
+            coEvery { homeSnapshotRepository.currentState() } returns null
             refresh(builtInTokyo, at = inLosAngeles)
             assertEquals(0, rerenders)
-            coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+            coVerify(exactly = 0) { widgetSnapshotRepository.writeWidgetSnapshot(any()) }
+            coVerify(exactly = 1) { homeSnapshotRepository.rebuildNow() }
+
+            // The run's publish, built in Los Angeles: the record is rewritten from it.
+            val losAngeles = "America/Los_Angeles"
+            val published = state.copy(
+                homeData = state.homeData!!.copy(zoneId = losAngeles),
+                e2Inputs = state.e2Inputs!!.copy(zoneId = losAngeles),
+            )
+            coEvery { homeSnapshotRepository.currentState() } returns published
+            refresh(builtInTokyo, at = inLosAngeles)
+            assertEquals(0, rerenders)
+            coVerify(exactly = 1) { widgetSnapshotRepository.writeWidgetSnapshot(published) }
             // Once the wall clock has passed builtAt, on the record's own date and before its next
             // section start, only the zone tells it apart.
             refresh(builtInTokyo, at = today.plusDays(1).atTime(9, 0))
             assertEquals(0, rerenders)
-            coVerify(exactly = 2) { widgetSnapshotRepository.writeWidgetSnapshot(state) }
+            coVerify(exactly = 2) { widgetSnapshotRepository.writeWidgetSnapshot(published) }
+            coEvery { homeSnapshotRepository.currentState() } returns state
 
             // The same record in its own zone is fresh: only re-rendered.
             TimeZone.setDefault(TimeZone.getTimeZone(tokyo))

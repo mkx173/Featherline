@@ -95,10 +95,12 @@ internal suspend fun handleWidgetDailyRefresh(
         val state = homeSnapshotRepository.currentState()
         val notFromState = state?.homeData?.generatedAtEpochMillis
             ?.let { stamp -> snapshot?.sourceGeneratedAtEpochMillis != stamp } == true
-        // Behind a write, or missing a part, with no run pending or going: the
-        // rebuild worker gave up after its retries (see rebuilding), and nothing
-        // else may ask again soon. A run that publishes between the two reads
-        // only makes this ask for a redundant one.
+        // Behind a write, missing a part, or withheld by the handout's zone and
+        // date rule, with no run pending or going: the rebuild worker gave up
+        // after its retries (see rebuilding), and nothing else may ask again
+        // soon. A withheld state's own request may already have set
+        // rebuilding; a stale record still waits for that run below. A run that
+        // publishes between the two reads only makes this ask for a redundant one.
         val gaveUp = (state?.homeData == null || state.e2Inputs == null) &&
             !homeSnapshotRepository.rebuilding.value
         if (snapshot == null || anchorDateStale || builtInTheFuture || doseStatusStale || notFromState || gaveUp) {
