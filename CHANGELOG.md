@@ -65,6 +65,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - In the widget settings window with App Lock on, cancelling the unlock prompt while it loads shows the Unlock button instead of a blank window, and locking again no longer discards the choices you made.
 - On Android 10, Back on the PIN screen leaves you on the lock screen with its Unlock button instead of opening the PIN screen again. With a fingerprint set up, leaving the fingerprint prompt with Home and coming back also shows Unlock, as on Android 8 and 9.
 - Tapping the Since you started widget or shortcut while a file picker or a settings page is open over the app now opens Milestones once, instead of adding a second copy of the app or losing the link.
+- When you log one of two instructions of the same medicine at a dose time, for example one oral and one sublingual tablet, the stock preview in the log sheet now matches what saving leaves.
+- A backup whose plan has rows of one dose with counts adding up past about 2.1 billion is refused as "not a compatible backup" instead of stopping Home from opening.
+- On the spring-forward night, a dose's on-time window ignores a dose in the skipped hour that it silences, so the dose that rings counts as on time when logged a few minutes early or late.
+- A dose logged early, for example from the Plan calendar, no longer shows in Home's Tomorrow or Upcoming list.
+- Granting notification access while the app is starting no longer leaves the Reminders switch off.
+- The Repeat reminders picker, reopened right after you confirm it, shows and confirms the value you just set.
+- On Android 10 with a fingerprint set up, rotating the phone while the unlock dialog is up no longer closes and reopens the dialog.
+- In All Notes, if Back and Discard don't leave the page, the next Back still asks before dropping a new draft.
+- The home-screen widget corrects itself after the clock is set back, even when its rebuild at the time change failed.
 
 ### Changed
 
