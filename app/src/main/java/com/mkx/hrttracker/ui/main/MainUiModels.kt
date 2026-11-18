@@ -1172,6 +1172,7 @@ private fun mainPreviewEntriesForDate(
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId,
 ): List<PlanDayScheduleEntry> {
+    val groupsByUuid = groups.associateBy(MedicationGroup::uuid)
     return buildPlanDaySchedule(
         date = date,
         groups = groups,
@@ -1180,9 +1181,17 @@ private fun mainPreviewEntriesForDate(
         zoneId = zoneId,
         // Only scheduled rows are read, and a plan's rows only look at its own records,
         // which this lookup always finds; other plans' records only feed unplannedEntries.
-        groupsByUuid = groups.associateBy(MedicationGroup::uuid),
+        groupsByUuid = groupsByUuid,
     ).scheduledEntries
-        .filterNot { it.isFulfilled }
+        .filter { row ->
+            // A record logged early or late still takes the dose off the list, as on the Plan
+            // screen's upcoming list and in reminders.
+            MedicationSignature.fromGroupMedication(row.medication) in missingSlotCounts(
+                group = groupsByUuid.getValue(row.groupUuid),
+                slot = MedicationGroupSlotKey(row.scheduleTimeUuid, row.scheduledFor),
+                entries = entries,
+            )
+        }
 }
 
 private fun PlanDayScheduleEntry.toMainUpcomingDoseRow(): MainUpcomingDoseRowUiState =

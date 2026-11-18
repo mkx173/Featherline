@@ -702,6 +702,9 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 dayOfWeek = DayOfWeek.of(dayOfWeek).value,
             )
         }
+        // Rows of one signature (MedicationSignature) add up to one dose; past Int.MAX the sum
+        // wraps, and Home throws while Plan, Batch Add and the reminder pass never return.
+        val countTotalsBySignature = mutableMapOf<List<Any?>, Long>()
         group.medications.forEachIndexed { index, medication ->
             val itemUuid = medication.uuid.parseUuid("medication group item UUID").toString()
             require(seenGroupItemUuids.add(itemUuid)) {
@@ -714,6 +717,26 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 fieldPrefix = "medication group item ${medication.uuid}",
                 medicinePreparationTypesByUuid = medicinePreparationTypesByUuid,
             )
+            val signatureKey = if (validatedMedication.applicationType == MedicationApplicationType.PATCH_OFF) {
+                listOf(MedicationApplicationType.PATCH_OFF)
+            } else {
+                with(validatedMedication) {
+                    listOf(
+                        medicineUuid,
+                        applicationType,
+                        doseInstructionKind,
+                        tabletFractionNumerator,
+                        tabletFractionDenominator,
+                        doseVolumeMl,
+                        doseWeightGrams,
+                    )
+                }
+            }
+            val countTotal = countTotalsBySignature.getOrDefault(signatureKey, 0L) + medication.count
+            require(countTotal <= Int.MAX_VALUE) {
+                "Medication group ${group.uuid} has a dose count past ${Int.MAX_VALUE}."
+            }
+            countTotalsBySignature[signatureKey] = countTotal
             if (validatedMedication.medicineUuid != null) {
                 val referenced = medicineEntitiesByUuid[validatedMedication.medicineUuid]
                 require(referenced?.importedFromExternalTracker != true) {

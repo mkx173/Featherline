@@ -361,7 +361,11 @@ rebuild.
     after it covers it. With 02:30 and 03:00 on Mar 8, the 02:30 dose's
     moment is 03:30, after 03:00's, so only 03:00 rings. With 02:10,
     02:50 and 03:05 (moments 03:10, 03:50 and 03:05), only 03:05 rings,
-    with its repeats. Home shows the doses in the gap as missed;
+    with its repeats. Home shows the doses in the gap as missed, and
+    the valid dose's on-time window ignores a gap dose it silences: its
+    previous dose skips one whose moment is at or after its own, still
+    picked on the wall clock (by instant, 03:05 logged at 03:08 would be
+    outside). A gap dose that rings bounds its neighbours as before;
   - a dose in the hour first armed on its second pass, as for a plan
     created then, keeps its first-pass instant, so the part of its
     repeats still to come rings in the second pass, early on the clock

@@ -1091,6 +1091,62 @@ class BackupRestoreValidationTest {
         assertRejects(snapshot, "must reference an imported medicine")
     }
 
+    // Two rows of one signature whose counts add up past Int.MAX: the sum wraps, Home throws and
+    // the reminder pass never returns. Rows of another signature count apart.
+    @Test
+    fun toValidatedSnapshot_rejectsADoseCountTotalPastIntMax() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000009c0")
+        fun item(
+            index: Int,
+            count: Int,
+            applicationType: String = "ORAL",
+            denominator: Int = 1,
+        ) = BackupMedicationGroupItemSnapshot(
+            uuid = "00000000-0000-0000-0000-0000000009c$index",
+            count = count,
+            medicineUuid = medicineUuid.toString().takeUnless { applicationType == "PATCH_OFF" },
+            applicationType = applicationType,
+            doseInstructionKind = if (applicationType == "PATCH_OFF") "NOOP" else "TABLET_FRACTION",
+            tabletFractionNumerator = 1.takeUnless { applicationType == "PATCH_OFF" },
+            tabletFractionDenominator = denominator.takeUnless { applicationType == "PATCH_OFF" },
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+        )
+        fun snapshot(vararg items: BackupMedicationGroupItemSnapshot) = validationSnapshot(
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                BackupMedicationGroupSnapshot(
+                    uuid = "00000000-0000-0000-0000-0000000009cf",
+                    name = "Group",
+                    colorKey = "ROSE",
+                    notificationsEnabled = false,
+                    schedule = BackupMedicationGroupScheduleSnapshot(
+                        type = "DAILY",
+                        interval = 1,
+                        sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                        weeklyDaysOfWeek = emptyList(),
+                        times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+                    ),
+                    medications = items.toList(),
+                    createdAtEpochMillis = 0L,
+                    updatedAtEpochMillis = 0L,
+                    archivedAtEpochMillis = null,
+                )
+            ),
+        )
+
+        assertRejects(snapshot(item(1, Int.MAX_VALUE), item(2, 1)), "dose count")
+        snapshot(item(1, Int.MAX_VALUE - 1), item(2, 1)).toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        snapshot(item(1, Int.MAX_VALUE), item(2, 1, applicationType = "SUBLINGUAL"))
+            .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        // A whole tablet and half a tablet are two doses.
+        snapshot(item(1, Int.MAX_VALUE), item(2, 1, denominator = 2))
+            .toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+        // Every Remove patch row is one dose.
+        assertRejects(snapshot(item(1, Int.MAX_VALUE, "PATCH_OFF"), item(2, 1, "PATCH_OFF")), "dose count")
+    }
+
     // A slot time, note or anchor date far past four-digit years: no writer leaves them, and
     // they are read as instants.
     @Test

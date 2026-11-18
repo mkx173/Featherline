@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.log
 
-import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -10,55 +9,8 @@ import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.time.LocalDateTime
-import java.util.UUID
 
 class MedicationLogEntryScreenPreviewDoseMagnitudeTest {
-    @Test
-    fun previewFulfilledSlotIsBuiltForAPlanSlot() {
-        val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
-        val scheduleTimeUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
-        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
-
-        val slot = previewFulfilledScheduledSlot(
-            sourceGroupUuid = groupUuid,
-            scheduleTimeUuid = scheduleTimeUuid,
-            scheduledFor = scheduledFor,
-        )
-
-        requireNotNull(slot)
-        assertEquals(groupUuid, slot.groupUuid)
-        assertEquals(scheduleTimeUuid, slot.scheduleTimeUuid)
-        assertEquals(scheduledFor, slot.scheduledFor)
-    }
-
-    @Test
-    fun previewFulfilledSlotIsNullForALogWithNoPlan() {
-        val slot = previewFulfilledScheduledSlot(
-            sourceGroupUuid = null,
-            scheduleTimeUuid = null,
-            scheduledFor = null,
-        )
-
-        assertNull(slot)
-    }
-
-    // An older record with no slot id: its save covers the slot at its exact time, so the
-    // preview does too.
-    @Test
-    fun previewFulfilledSlotIsBuiltForAnOlderRecordWithNoSlotId() {
-        val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
-        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
-
-        val slot = previewFulfilledScheduledSlot(
-            sourceGroupUuid = groupUuid,
-            scheduleTimeUuid = null,
-            scheduledFor = scheduledFor,
-        )
-
-        assertEquals(FulfilledScheduledSlot(groupUuid, null, scheduledFor), slot)
-    }
-
     @Test
     fun previewDoseMagnitudeForMultiUseVialUsesExactEffectiveActualAmount() {
         val medicine = testMedicine(

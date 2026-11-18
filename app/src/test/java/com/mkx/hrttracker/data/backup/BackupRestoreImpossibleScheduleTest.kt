@@ -227,6 +227,30 @@ class BackupRestoreImpossibleScheduleTest {
         assertEquals(listOf(UUID.fromString(BAD_PLAN)), groups.getGroups().map { it.uuid })
     }
 
+    // Two rows of one tablet whose counts add up past Int.MAX: Home throws at launch, and Plan,
+    // Batch Add and the reminder pass never return. The editor can't make it (one row per signature).
+    @Test
+    fun aDoseCountTotalPastIntMax_isRefusedAsNotACompatibleBackup_andKeepsTheUsersPlan() = runBlocking {
+        restoreTheUsersPlan()
+
+        assertRefusedAsIncompatible(backup(plan(GOOD_PLAN, hour = 8), plan(BAD_PLAN, hour = 8).withCounts(Int.MAX_VALUE, 1)))
+        assertTheUsersPlanStands()
+
+        // The rows of another signature count apart: an oral and a sublingual tablet.
+        val twoRoutes = plan(BAD_PLAN, hour = 8).withCounts(Int.MAX_VALUE, 1)
+        val sublingual = twoRoutes.copy(
+            medications = listOf(twoRoutes.medications[0], twoRoutes.medications[1].copy(applicationType = "SUBLINGUAL")),
+        )
+        assertEquals(BackupRestoreOutcome.RESTORED, service.restoreBackupBytes(backup(sublingual), "password"))
+        assertEquals(BackupRestoreOutcome.RESTORED, service.restoreBackupBytes(backup(plan(BAD_PLAN, hour = 8).withCounts(Int.MAX_VALUE - 1, 1)), "password"))
+    }
+
+    private fun BackupMedicationGroupSnapshot.withCounts(vararg counts: Int) = copy(
+        medications = counts.mapIndexed { index, count ->
+            medications.single().copy(uuid = uuid.dropLast(2) + "f$index", count = count)
+        },
+    )
+
     private fun BackupMedicationGroupSnapshot.effectiveFrom(iso: String) = copy(
         schedule = schedule.copy(times = schedule.times.map { it.copy(effectiveFromLocalIso = iso) }),
     )

@@ -5,10 +5,12 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
-import com.mkx.hrttracker.data.repository.ScheduledRunwayCalculator
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockState
 import com.mkx.hrttracker.model.medication.RunwayProjection
@@ -17,6 +19,7 @@ import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
@@ -119,7 +122,7 @@ class EarlyDoseStockPreviewTest {
             assertEquals(RunwayProjection.Days(days = 3, lastFulfillable = today.plusDays(3)), before.runway)
             assertEquals(MedicineStockState.HEALTHY, before.state)
 
-            // The sheet: 13 h early is outside the window, and the slot is still passed as fulfilled.
+            // The sheet: 13 h early is outside the window, and the record still goes to the preview.
             val slotUuid = plan.schedule.timeSlots.single().uuid
             val outsideWindow = shouldWarnScheduleWillNotBeFulfilled(
                 sourceGroupUuid = plan.uuid,
@@ -129,10 +132,24 @@ class EarlyDoseStockPreviewTest {
                 appliedAt = loggedAt.atZone(ZoneOffset.UTC),
             )
             assertTrue(outsideWindow)
-            val fulfilledSlot = previewFulfilledScheduledSlot(plan.uuid, slotUuid, slotAt)
-            assertNotNull(fulfilledSlot)
+            val pending = MedicationLogEntryUiState(
+                resolvedMedicine = medicine,
+                doseInstructionDraft = doseInstructionDraftFromInstruction(
+                    applicationType = MedicationApplicationType.ORAL,
+                    preparationType = MedicinePreparationType.PILL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+                sourceGroupUuid = plan.uuid,
+                scheduleTimeUuid = slotUuid,
+                scheduledFor = slotAt,
+                appliedDate = today,
+                appliedTime = loggedAt.toLocalTime(),
+                appliedZoneId = ZoneOffset.UTC,
+                appliedOffset = ZoneOffset.UTC,
+            ).previewPendingEntry()
+            assertNotNull(pending)
             val afterStock = tracked.copy(unitsRemaining = 3.0)
-            val preview = repository.previewState(medicine.uuid, afterStock, fulfilledSlot)
+            val preview = repository.previewState(medicine.uuid, afterStock, pending)
 
             // The save: one tablet deducted, the record attached to the 20:00 slot.
             val record = testMedicationLogEntry(
@@ -152,16 +169,7 @@ class EarlyDoseStockPreviewTest {
             assertEquals(RunwayProjection.Days(days = 3, lastFulfillable = today.plusDays(3)), saved.runway)
             assertEquals(MedicineStockState.HEALTHY, saved.state)
 
-            // The preview's runway number, as previewProjection computes it (previewState only
-            // returns the state): the real calculator, the cache's (empty) log, the fulfilled slot.
-            val previewRunway = ScheduledRunwayCalculator.computeScheduledRunway(
-                medicine = medicine.copy(stock = afterStock),
-                activeGroups = listOf(plan),
-                logEntries = emptyList(),
-                now = clock.instant(),
-                zoneId = ZoneOffset.UTC,
-                fulfilledSlot = fulfilledSlot,
-            )
+            val previewRunway = repository.previewRunway(medicine.uuid, afterStock, pending)
 
             assertEquals(saved.runway to saved.state, previewRunway to preview)
         } finally {

@@ -24,7 +24,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineStock
@@ -38,9 +37,7 @@ import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.stockMutationPreviewDoseMagnitude
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,27 +165,14 @@ fun MedicationLogEntryScreen(
     ) {
         uiState.shouldWarnScheduleWillNotBeFulfilled()
     }
-    // The dose being logged fulfills this scheduled slot; exclude it from the
-    // preview's runway recompute so a future occurrence is not double-counted
-    // (pre-deducted stock + still-pending occurrence). The saved record covers
-    // its slot even when it is early or late (the committed runway counts any
-    // attached record), so the preview does too, whatever the window says.
-    val previewFulfilledSlot = remember(
-        uiState.sourceGroupUuid,
-        uiState.scheduleTimeUuid,
-        uiState.scheduledFor,
-    ) {
-        previewFulfilledScheduledSlot(
-            sourceGroupUuid = uiState.sourceGroupUuid,
-            scheduleTimeUuid = uiState.scheduleTimeUuid,
-            scheduledFor = uiState.scheduledFor,
-        )
-    }
+    // The record being logged covers its slot once saved (early or late too), for its own
+    // signature and count, so the preview's runway counts it as the save will.
+    val previewPendingEntry = remember(uiState) { uiState.previewPendingEntry() }
     val previewPostMutationState: ((MedicineStock) -> MedicineStockState?)? =
-        remember(previewStateMedicineUuid, previewFulfilledSlot, viewModel) {
+        remember(previewStateMedicineUuid, previewPendingEntry, viewModel) {
             previewStateMedicineUuid?.let { uuid ->
                 { hypothetical: MedicineStock ->
-                    viewModel.previewState(uuid, hypothetical, previewFulfilledSlot)
+                    viewModel.previewState(uuid, hypothetical, previewPendingEntry)
                 }
             }
         }
@@ -213,22 +197,6 @@ fun MedicationLogEntryScreen(
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
         onScheduleFulfillmentWarningDismiss = viewModel::dismissScheduleFulfillmentWarning,
     )
-}
-
-internal fun previewFulfilledScheduledSlot(
-    sourceGroupUuid: UUID?,
-    scheduleTimeUuid: UUID?,
-    scheduledFor: LocalDateTime?,
-): FulfilledScheduledSlot? {
-    return if (sourceGroupUuid != null && scheduledFor != null) {
-        FulfilledScheduledSlot(
-            groupUuid = sourceGroupUuid,
-            scheduleTimeUuid = scheduleTimeUuid,
-            scheduledFor = scheduledFor,
-        )
-    } else {
-        null
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

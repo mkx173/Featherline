@@ -363,7 +363,11 @@ incompatible files are rejected at the cheapest detection point.
      and `ZoneId.of` round-trips
    - value sanity: positive-finite doses, including `equivalentE2Mg`
      on log entries when present; plan dose times with `hourOfDay` in
-     0..23 and `minuteOfHour` in 0..59; a plan's dates in the years
+     0..23 and `minuteOfHour` in 0..59; a plan's item counts, each
+     above 0 and, summed over the items of one medication signature
+     (medicine, route, dose), within an `Int` (the editor keeps one
+     item per signature; past it the sum wraps, and Home throws while
+     Plan, Batch Add and the reminder pass never return); a plan's dates in the years
      0001..9999: its `sinceEpochDay`, each slot's effective start and
      the archive time (the start date picker offers 1900..2100 and other
      starts are the clock or an existing start, so only a hand-edited

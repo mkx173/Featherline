@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.data.repository.FulfilledScheduledSlot
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineStockRepository
@@ -109,9 +108,9 @@ class MedicationLogEntryViewModel @Inject constructor(
     fun previewState(
         medicineUuid: UUID,
         hypotheticalStock: MedicineStock,
-        fulfilledSlot: FulfilledScheduledSlot? = null,
+        pendingEntry: MedicationLogEntry? = null,
     ): MedicineStockState? =
-        medicineStockRepository.previewState(medicineUuid, hypotheticalStock, fulfilledSlot)
+        medicineStockRepository.previewState(medicineUuid, hypotheticalStock, pendingEntry)
 
     fun initialize(
         entryIds: List<String>,
@@ -810,6 +809,46 @@ data class MedicationLogEntryUiState(
     }
 }
 
+/**
+ * The plan record a save of this new log would write, for the stock preview; null for an
+ * edit, a log with no plan slot, or a draft that doesn't save yet.
+ */
+internal fun MedicationLogEntryUiState.previewPendingEntry(): MedicationLogEntry? {
+    if (isEditing) return null
+    val medicine = resolvedMedicine ?: return null
+    val groupUuid = sourceGroupUuid ?: return null
+    val slotScheduledFor = scheduledFor ?: return null
+    return runCatching {
+        val preparationType = medicine.preparation.type
+        val applicationType = resolvedApplicationTypeForDose(
+            preparationType = preparationType,
+            doseInstructionDraft = doseInstructionDraft,
+        )
+        MedicationLogEntry(
+            uuid = UUID(0L, 0L),
+            medicine = medicine,
+            category = medicine.category,
+            applicationType = applicationType,
+            doseInstruction = if (applicationType == MedicationApplicationType.PATCH_OFF) {
+                DoseInstruction.Noop
+            } else {
+                doseInstructionDraft.toDoseInstruction()
+            },
+            equivalentE2Mg = null,
+            sourceGroupUuid = groupUuid,
+            appliedAt = appliedAt().toInstant(),
+            appliedAtTimeZoneId = appliedZoneId.id,
+            scheduledFor = slotScheduledFor,
+            count = resolvedMedicationCountForSave(
+                applicationType = applicationType,
+                countText = countText,
+                preparationType = preparationType,
+            ),
+            scheduleTimeUuid = scheduleTimeUuid,
+        )
+    }.getOrNull()
+}
+
 data class MedicationLogEntryQuickLogRequest(
     val groupId: UUID,
     val scheduleTimeUuid: UUID? = null,
@@ -927,11 +966,12 @@ internal fun buildEditingUiState(
             ?: (hasMatchingSourceGroupSnapshot && sourceGroupIsArchived),
         scheduledFor = representativeEntry.scheduledFor,
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
+            // In the record's zone, as the status readers pick them (isEntryWithinScheduleFulfillmentWindow).
+            matchingSourceGroup?.previousScheduledForBefore(scheduledFor, zoneId = appliedZoneId)
                 ?: sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
+            matchingSourceGroup?.nextScheduledForAfter(scheduledFor, zoneId = appliedZoneId)
                 ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         recordIndicator = medicationLogRecordIndicator(representativeEntry),

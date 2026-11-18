@@ -5,20 +5,33 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
+/**
+ * The dose before [scheduledFor], on the wall clock. It skips a gap dose this dose silences: one
+ * in the spring-forward gap whose moment is at or after this dose's, so it never rings
+ * (docs/reminders.md, the clocks go back or forward) and doesn't narrow this dose's window.
+ */
 fun MedicationGroup.previousScheduledForBefore(
     scheduledFor: LocalDateTime,
     lookbackDays: Long = MaxLookbackForAdjacentDoseDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): LocalDateTime? {
+    // ponytail: only the silencing dose's own window ignores the silent one. A dose before it
+    // (01:50 with 02:10 and 03:05) still has the silent 02:10 as its next; one night a year.
+    val ownMoment = scheduledFor.atZone(zoneId).toInstant()
+    // Ordered by date and time, so the last earlier one that isn't silenced is the answer.
     return occurrencesBetweenInPlanWindow(
         startDate = scheduledFor.toLocalDate().minusDays(lookbackDays),
         endDate = scheduledFor.toLocalDate(),
         zoneId = zoneId,
     )
+        .asReversed()
         .asSequence()
         .map(MedicationGroupSlotOccurrence::scheduledFor)
         .filter { occurrence -> occurrence.isBefore(scheduledFor) }
-        .maxOrNull()
+        .firstOrNull { occurrence ->
+            !(zoneId.rules.getValidOffsets(occurrence).isEmpty() &&
+                !occurrence.atZone(zoneId).toInstant().isBefore(ownMoment))
+        }
 }
 
 fun MedicationGroup.nextScheduledForAfter(
