@@ -6,15 +6,18 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStoreFile
+import com.mkx.hrttracker.data.local.DATABASE_NAME
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -31,6 +34,7 @@ import com.mkx.hrttracker.model.settings.ReminderRepeats
 import com.mkx.hrttracker.model.settings.SecuritySettingsState
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.AppLockSecurityManager
 import com.mkx.hrttracker.util.appLanguageLocale
 import com.mkx.hrttracker.util.appLocales
 import com.mkx.hrttracker.util.systemAppLanguage
@@ -45,7 +49,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -64,12 +67,57 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val SECURITY_SETTINGS_RETRY_DELAY_MILLIS = 1_000L
+private const val SETTINGS_READ_RETRY_DELAY_MILLIS = 1_000L
 private const val TAG = "SettingsRepository"
 
-private val Context.dataStore by preferencesDataStore(
-    name = "settings",
-    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-)
+private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
+private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
+
+/**
+ * What a settings file that can't be parsed is replaced with. Over an existing database the
+ * replacement has Hide screen content on, and the app lock on when the phone can unlock it: the
+ * lock uses the phone's own credential, so turning it on loses nothing. On a phone with none it
+ * stays off, as Settings won't turn it on there; the user couldn't get in. Everything else
+ * comes back as defaults.
+ */
+internal fun settingsCorruptionHandler(
+    databaseExists: () -> Boolean,
+    appLockCanAuthenticate: () -> Boolean,
+) = ReplaceFileCorruptionHandler {
+    if (databaseExists()) {
+        preferencesOf(
+            screenLockProtectionKey to appLockCanAuthenticate(),
+            hideScreenContentKey to true,
+        )
+    } else {
+        emptyPreferences()
+    }
+}
+
+// One store per process for the file, as preferencesDataStore's delegate keeps it; built here
+// because the corruption handler needs the Context to find the database.
+@Volatile
+private var settingsDataStore: DataStore<Preferences>? = null
+private val settingsDataStoreLock = Any()
+
+private val Context.dataStore: DataStore<Preferences>
+    get() = settingsDataStore ?: synchronized(settingsDataStoreLock) {
+        settingsDataStore ?: applicationContext.let { app ->
+            PreferenceDataStoreFactory.create(
+                corruptionHandler = settingsCorruptionHandler(
+                    databaseExists = { app.getDatabasePath(DATABASE_NAME).exists() },
+                    // The check App Lock and Settings use.
+                    appLockCanAuthenticate = {
+                        // A throw here would fail every start with the file still corrupt.
+                        runCatching { AppLockSecurityManager(app).availabilityErrorMessageRes() == null }
+                            .getOrDefault(false)
+                    },
+                ),
+                scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+                produceFile = { app.preferencesDataStoreFile("settings") },
+            )
+        }.also { settingsDataStore = it }
+    }
 
 @Singleton
 class SettingsRepository internal constructor(
@@ -101,8 +149,6 @@ class SettingsRepository internal constructor(
         booleanPreferencesKey("health_connect_weight_sync_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
-    private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
-    private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val pkCalibrationIntroSeenKey = booleanPreferencesKey("pk_calibration_intro_seen")
     private val homeLowStockSectionExpandedKey =
@@ -152,7 +198,8 @@ class SettingsRepository internal constructor(
     internal val isAppLanguageKnown: Boolean get() = appLanguage.value.known
 
     // From settingsState's first read, started at construction (Application.onCreate), before
-    // the activity's first refresh stores this run's language. A failed read gives null.
+    // the activity's first refresh stores this run's language. A failed read is retried, so
+    // this waits for the first one that succeeds.
     private val lastRunAppLanguageTagRead = CompletableDeferred<String?>()
 
     // ponytail: the stored choice as of getCurrentSettings (null when following the system), so a
@@ -166,17 +213,17 @@ class SettingsRepository internal constructor(
 
     private fun activeDataStore(): DataStore<Preferences> = preferencesDataStore
 
-    // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
-    // down the upstream combine. SupervisorJob protects sibling jobs but not the
-    // inner pipeline, so a per-flow .catch is required.
+    // A failed read (an IOException: low memory, EBUSY during fsync) is retried, never shown as
+    // defaults: those would say onboarding isn't done and, through settingsState, which shares
+    // its first collection for the process, would stay on screen after the disk reads again.
     private val storedPreferences: Flow<Preferences> = flow {
         emitAll(activeDataStore().data)
-    }.catch { cause ->
-        if (cause is IOException) {
-            emit(emptyPreferences())
-        } else {
-            throw cause
-        }
+    }.retryWhen { cause, _ ->
+        if (cause !is IOException) return@retryWhen false
+        diagnosticsLogger.warning(TAG, "settings_read_failed_retrying", cause)
+        // ponytail: fixed delay, as securitySettingsState's
+        delay(SETTINGS_READ_RETRY_DELAY_MILLIS)
+        true
     }
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
@@ -267,9 +314,9 @@ class SettingsRepository internal constructor(
     )
 
     // The lock and hide-content settings bypass [storedPreferences] and [settingsState]: the
-    // first turns a read error into defaults (lock off, content visible) and completes, the
-    // second starts from those defaults. Here a failed read is reported as Error, so the app
-    // lock can fail closed, and is retried. Cold: each collector runs its own reads.
+    // first only waits through a failed read, the second starts from defaults (lock off,
+    // content visible). Here a failed read is reported as Error, so the app lock can fail
+    // closed, and is retried. Cold: each collector runs its own reads.
     val securitySettingsState: Flow<SecuritySettingsState> = activeDataStore().data
         .map<Preferences, SecuritySettingsState> { preferences ->
             val stored = preferencesToStoredSettingsState(preferences)
@@ -294,7 +341,7 @@ class SettingsRepository internal constructor(
         return preferencesToStoredSettingsState(preferences).withAppLanguage(appLanguage.value)
     }
 
-    /** The app language tag the last run stored, or null if none was or it can't be read. */
+    /** The app language tag the last run stored, or null if none was; waits for a read to succeed. */
     suspend fun lastRunAppLanguageTag(): String? = lastRunAppLanguageTagRead.await()
 
     /**

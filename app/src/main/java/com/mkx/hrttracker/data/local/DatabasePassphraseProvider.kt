@@ -7,6 +7,7 @@ import android.util.Base64
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -16,11 +17,15 @@ import javax.inject.Singleton
 
 /**
  * The database passphrase can't be read: the stored wrapped passphrase, or the keystore
- * key that unwraps it, is gone. Thrown instead of generating a new one, which couldn't
- * open a database created with the old one and would replace what is left of it. This
- * does not recover a lost key.
+ * key that unwraps it, is gone, or the key under the alias doesn't unwrap it (another key
+ * replaced it, or the stored value is damaged). Thrown instead of generating a new one,
+ * which couldn't open a database created with the old one and would replace what is left
+ * of it. This does not recover a lost key.
  */
-class DatabaseKeyUnavailableException(message: String) : IllegalStateException(message)
+class DatabaseKeyUnavailableException(
+    message: String,
+    cause: Throwable? = null,
+) : IllegalStateException(message, cause)
 
 @Singleton
 class DatabasePassphraseProvider @Inject constructor(
@@ -40,10 +45,21 @@ class DatabasePassphraseProvider @Inject constructor(
         val iv = prefs.getString(KEY_DATABASE_PASSPHRASE_IV, null)
 
         if (encryptedPassphrase != null && iv != null) {
-            val passphrase = decrypt(
-                encryptedBytes = Base64.decode(encryptedPassphrase, Base64.NO_WRAP),
-                iv = Base64.decode(iv, Base64.NO_WRAP)
-            )
+            val passphrase = try {
+                decrypt(
+                    encryptedBytes = Base64.decode(encryptedPassphrase, Base64.NO_WRAP),
+                    iv = Base64.decode(iv, Base64.NO_WRAP)
+                )
+            } catch (e: AEADBadTagException) {
+                // Not the key that wrapped it: v1.4.2 created a new one under the alias when
+                // the old one was lost. Or the stored value is damaged. Neither heals by retrying.
+                throw DatabaseKeyUnavailableException("The keystore key doesn't unwrap the database passphrase.", e)
+            } catch (e: IllegalArgumentException) {
+                // Base64.decode: the stored value isn't Base64.
+                throw DatabaseKeyUnavailableException("The stored database passphrase is damaged.", e)
+            }
+            // ponytail: other keystore failures (UnrecoverableKeyException included) stay untyped;
+            // they may be transient, and the lost-key toast tells the user to clear data.
 
             try {
                 cachePassphrase(passphrase)

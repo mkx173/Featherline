@@ -377,9 +377,12 @@ incompatible files are rejected at the cheapest detection point.
      are allowed — read-time ordering tie-breaks); tracked-date and
      note `dateIso` values must parse as `LocalDate`; note UUIDs must
      parse and be unique; note text is trimmed and must not be blank;
-     and note dates must be unique within the file. Restore also
-     validates that journal `updatedAtEpochMillis` values are not before
-     their corresponding `createdAtEpochMillis` values. Journal
+     and note dates must be unique within the file. A tracked date's,
+     note's or medicine's `updatedAtEpochMillis`, and a medicine's
+     `archivedAtEpochMillis`, before its `createdAtEpochMillis` is raised
+     to `createdAtEpochMillis` rather than rejected: the app writes such
+     rows itself when a row is edited after the wall clock was set back.
+     A medicine's `createdAtEpochMillis` must not be negative. Journal
      `iconKey`, `paletteKey`, and `heroBackgroundKey` values are
      preserved as stored so newer key values can round-trip; the app's
      read-time mappers own fallbacks for unknown keys.

@@ -1220,9 +1220,6 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
         "Tracked date name must not be blank."
     }
     val normalizedDateIso = dateIso.parseLocalDateIso("tracked date dateIso")
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Tracked date $trackedDateUuid updatedAt must not be before createdAt."
-    }
     // pinnedOrder is appended as max+1 (>= 0) on the write path; a negative value
     // would sort ahead of every legitimate pin and silently steal the hero slot.
     require(pinnedOrder == null || pinnedOrder >= 0) {
@@ -1241,7 +1238,8 @@ private fun BackupTrackedDateSnapshot.toValidatedEntity(): TrackedDateEntity {
         heroBackgroundKey = heroBackgroundKey,
         pinnedOrder = pinnedOrder,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
+        // Raised like a medicine's; see BackupMedicineSnapshot.toValidatedEntity.
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
     )
 }
 
@@ -1254,15 +1252,13 @@ private fun BackupNoteSnapshot.toValidatedEntity(): NoteEntity {
     require(normalizedText.isNotEmpty()) {
         "Note $noteUuid text must not be blank."
     }
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Note $noteUuid updatedAt must not be before createdAt."
-    }
     return NoteEntity(
         uuid = noteUuid,
         dateIso = normalizedDateIso,
         text = normalizedText,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
+        // Raised like a medicine's; see BackupMedicineSnapshot.toValidatedEntity.
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
     )
 }
 
@@ -1425,14 +1421,9 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
     require(createdAtEpochMillis >= 0) {
         "Medicine $uuid createdAt must not be negative."
     }
-    require(updatedAtEpochMillis >= createdAtEpochMillis) {
-        "Medicine $uuid updatedAt $updatedAtEpochMillis predates createdAt $createdAtEpochMillis."
-    }
-    if (archivedAtEpochMillis != null) {
-        require(archivedAtEpochMillis >= createdAtEpochMillis) {
-            "Medicine $uuid archivedAt predates createdAt."
-        }
-    }
+    // A row edited or archived after the wall clock was set back has updatedAt or archivedAt
+    // before createdAt. The app writes such rows itself, so restore raises them to createdAt
+    // instead of refusing every later backup. Nothing reads the order of the three.
 
     // Heal legacy/degenerate stock rows on restore so imported containers land
     // canonical (no empty open with sealed stock remaining). Operates on the
@@ -1497,8 +1488,8 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         displayName = displayName?.takeUnless(String::isBlank),
         identityKey = identityKey,
         createdAtEpochMillis = createdAtEpochMillis,
-        updatedAtEpochMillis = updatedAtEpochMillis,
-        archivedAtEpochMillis = archivedAtEpochMillis,
+        updatedAtEpochMillis = maxOf(updatedAtEpochMillis, createdAtEpochMillis),
+        archivedAtEpochMillis = archivedAtEpochMillis?.coerceAtLeast(createdAtEpochMillis),
         // Backups exported before this column existed simply omit it; default
         // to MG (matches both pre-picker behavior and the model default).
         displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,

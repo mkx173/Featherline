@@ -14,6 +14,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.util.Locale
 import javax.inject.Inject
 
@@ -77,8 +79,11 @@ class HrtTrackerApplication : Application() {
 
         applicationScope.launch {
             diagnosticsLogger.info(TAG, "application_settings_initial_load_start")
-            applyDarkMode(settingsRepository.getCurrentSettings().darkModeOption)
-            diagnosticsLogger.info(TAG, "application_settings_initial_load_complete")
+            // A failed read must not end the process; settingsState below retries it.
+            readSettingsOrNull(settingsRepository, diagnosticsLogger)?.let { settings ->
+                applyDarkMode(settings.darkModeOption)
+                diagnosticsLogger.info(TAG, "application_settings_initial_load_complete")
+            }
             settingsRepository.settingsState.collect { settings ->
                 diagnosticsLogger.info(
                     TAG,
@@ -100,7 +105,8 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")
         applicationScope.launch {
             // After a settings read: below API 33 the app language may be known only from it.
-            settingsRepository.getCurrentSettings()
+            // If it fails the channel takes the phone's language, and a later change recreates it.
+            readSettingsOrNull(settingsRepository, diagnosticsLogger)
             reminderNotificationManager.createNotificationChannel()
             diagnosticsLogger.info(TAG, "application_notification_channel_requested")
         }
@@ -194,6 +200,17 @@ internal fun followAndroidAppLanguageSetting(
     if (sdkInt >= Build.VERSION_CODES.TIRAMISU || settingsRepository.isAppLanguageKnown) {
         settingsRepository.refreshAppLanguageOption()
     }
+}
+
+/** The stored settings, or null after logging a failed read (an IOException). */
+internal suspend fun readSettingsOrNull(
+    settingsRepository: SettingsRepository,
+    diagnosticsLogger: AppDiagnosticsLogger,
+): SettingsState? = try {
+    settingsRepository.getCurrentSettings()
+} catch (error: IOException) {
+    diagnosticsLogger.warning("HrtTrackerApplication", "application_settings_read_failed", error)
+    null
 }
 
 /**
