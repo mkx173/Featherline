@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Android 10 with a fingerprint set up, rotating the phone while the unlock dialog is up no longer closes and reopens the dialog.
 - In All Notes, if Back and Discard don't leave the page, the next Back still asks before dropping a new draft.
 - The home-screen widget corrects itself after the clock is set back, even when its rebuild at the time change failed.
+- After the clock is set back a day or more and the rebuild at the time change fails, Home and the home-screen widget no longer show a dose you logged that day as not taken; they wait for a rebuild from your data.
+- The Repeat reminders picker keeps a wheel you turned, or are still turning, when the previous save lands late.
+- Editing a dose opened from Home after a time-zone change no longer warns that it falls outside its window when Home calls it on time.
+- A restored backup whose records on one dose add up past about two billion no longer leaves that dose missing, ringing and owing stock, or counts it again in the estimate.
 
 ### Changed
 
