@@ -1248,10 +1248,8 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun saveGroup_forExistingFreshGroupWithRecords_ignoresBackfillToggle() = runTest {
+    fun saveGroup_forExistingGroupWithRecords_refusesTheBackfillToggle() = runTest {
         val groupUuid = UUID.fromString("08fa3c50-f431-4d29-a0b5-d4dbf22e7095")
-        val savedGroup = slot<MedicationGroupEntity>()
-        val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
@@ -1265,45 +1263,39 @@ class MedicationGroupRepositoryTest {
         )
         coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
 
-        repository.saveGroup(
-            uuid = groupUuid,
-            name = "Group",
-            colorKey = MedicationGroupColorKey.ROSE,
-            schedule = MedicationGroupScheduleInput(
-                type = MedicationGroupScheduleType.DAILY,
-                interval = 1,
-                since = LocalDate.of(2026, 4, 1),
-                weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
-                timeSlots = listOf(
-                    MedicationGroupScheduleTimeInput(
-                        uuid = testScheduleTimeUuid(0),
-                        time = LocalTime.of(8, 0),
-                    ),
-                    MedicationGroupScheduleTimeInput(
-                        uuid = testScheduleTimeUuid(1),
-                        time = LocalTime.of(20, 0),
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = groupUuid,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(0),
+                            time = LocalTime.of(8, 0),
+                        ),
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(1),
+                            time = LocalTime.of(20, 0),
+                        ),
                     ),
                 ),
-            ),
-            medications = emptyList(),
-            includePastScheduledSlots = true,
-            now = Instant.parse("2026-04-30T08:15:00Z"),
-        )
-
-        coVerify {
-            medicationGroupDao.upsertGroupWithItems(
-                group = capture(savedGroup),
-                items = any(),
-                scheduleTimes = capture(savedTimes),
-                weeklyDays = any(),
+                medications = emptyList(),
+                includePastScheduledSlots = true,
+                now = Instant.parse("2026-04-30T08:15:00Z"),
             )
-        }
-        assertEquals(false, savedGroup.captured.includePastScheduledSlots)
-        assertEquals(
-            listOf("2026-04-18T10:00", "2026-04-18T10:00"),
-            savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
+        }.exceptionOrNull()
+
+        assertTrue(
+            "Expected the save refused as LOCKED_BY_RECORDS but got $thrown",
+            (thrown as? MedicationGroupSaveRefusedException)?.refusal == SaveRefusal.LOCKED_BY_RECORDS,
         )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
     }
 
     @Test
@@ -1429,7 +1421,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun saveGroup_forExistingRecreatedGroupWithRecords_ignoresBackfillToggle() = runTest {
+    fun saveGroup_forExistingRecreatedGroupWithRecords_keepsItsSlotsAndOrigin() = runTest {
         val originalGroupUuid = UUID.fromString("aefc640e-c100-4498-b2d0-39d25da81182")
         val groupUuid = UUID.fromString("c26d46fc-5000-4c58-8522-2fc765f4c7db")
         val savedGroup = slot<MedicationGroupEntity>()
@@ -1467,7 +1459,7 @@ class MedicationGroupRepositoryTest {
                 ),
             ),
             medications = emptyList(),
-            includePastScheduledSlots = true,
+            includePastScheduledSlots = false,
             now = Instant.parse("2026-04-30T08:15:00Z"),
         )
 
@@ -1827,6 +1819,7 @@ class MedicationGroupRepositoryTest {
                 testScheduleTimeUuid(0) to LocalTime.of(9, 30),
             ),
             medications = emptyList(),
+            includePastScheduledSlots = false,
             now = now,
         )
 
@@ -1982,6 +1975,7 @@ class MedicationGroupRepositoryTest {
                     testScheduleTimeUuid(1) to LocalTime.of(10, 0),
                 ),
                 medications = emptyList(),
+                includePastScheduledSlots = false,
                 now = Instant.parse("2026-04-30T09:00:00Z"),
             )
         }.exceptionOrNull()
@@ -2012,6 +2006,7 @@ class MedicationGroupRepositoryTest {
             "readded" to listOf(saved.copy(uuid = null)),
             "application type" to listOf(saved.copy(applicationType = MedicationApplicationType.SUBLINGUAL)),
             "dose" to listOf(saved.copy(doseInstruction = DoseInstruction.TabletFraction(1, 2))),
+            "count" to listOf(saved.copy(count = 2)),
             "medicine" to listOf(saved.copy(medicineUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000000"))),
         )
 
@@ -2024,12 +2019,26 @@ class MedicationGroupRepositoryTest {
 
     @Test
     fun saveGroup_keepsTheItemCountsOfAPlanWithRecords() = runTest {
-        // The editor shows some legacy counts as 1, and can't change a count once the plan has
-        // records, so the stored count stands rather than the save failing on it.
+        // The editor shows a legacy count it can't edit as 1 (a patch removal here), and a plan
+        // with records keeps its counts, so the stored count stands rather than the save failing.
         val groupUuid = UUID.fromString("d5037093-0f98-4f24-a0d4-f4fb93a8d216")
         val itemUuid = UUID.fromString("d5037093-0f98-4f24-a0d4-f4fb93a8d217")
         val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
-        lockedPlanWithOneItem(groupUuid, itemUuid, medicineUuid, count = 2)
+        lockedPlanWithOneItem(groupUuid, itemUuid, medicineUuid)
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(8, 0)),
+            items = listOf(
+                testGroupItemEntity(uuid = itemUuid.toString(), groupUuid = groupUuid.toString(), medicineUuid = null)
+                    .copy(
+                        count = 2,
+                        applicationType = MedicationApplicationType.PATCH_OFF.name,
+                        doseInstructionKind = DoseInstructionKind.NOOP.name,
+                        tabletFractionNumerator = null,
+                        tabletFractionDenominator = null,
+                    ),
+            ),
+        )
         val savedItems = slot<List<MedicationGroupItemEntity>>()
 
         saveLockedPlan(
@@ -2037,9 +2046,9 @@ class MedicationGroupRepositoryTest {
             listOf(
                 MedicationGroupMedicationInput(
                     uuid = itemUuid,
-                    medicineUuid = medicineUuid,
-                    applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    medicineUuid = null,
+                    applicationType = MedicationApplicationType.PATCH_OFF,
+                    doseInstruction = DoseInstruction.Noop,
                     count = 1,
                 )
             ),
@@ -2128,6 +2137,7 @@ class MedicationGroupRepositoryTest {
                 startAt = LocalDateTime.of(2026, 4, 1, 2, 0),
             ),
             medications = emptyList(),
+            includePastScheduledSlots = false,
             now = Instant.parse("2026-04-30T09:00:00Z"),
         )
 

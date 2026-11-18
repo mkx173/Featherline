@@ -1146,7 +1146,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery {
             medicationLogRepository.saveBackfillEntries(capture(savedEntries), deductStock = false)
-        } returns Unit
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -1223,7 +1223,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         } returns savedGroupUuid
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
-        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = false) } returns Unit
+        coEvery { medicationLogRepository.saveBackfillEntries(any(), deductStock = false) } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
@@ -1288,7 +1288,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             coEvery { medicationLogRepository.getEntries() } returns emptyList()
             coEvery {
                 medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
-            } returns Unit
+            } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
             coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
 
             val viewModel = MedicationGroupEditorViewModel(
@@ -1362,7 +1362,8 @@ class MedicationGroupEditorDeleteRecordsTest {
             } coAnswers {
                 recordGenerationStarted = true
                 delay(1)
-                Unit
+                // A dose logged meanwhile: the write trims one, and the toast counts what it wrote.
+                firstArg<Collection<MedicationLogEntryInput>>().drop(1)
             }
             coEvery {
                 medicationReminderScheduler.rescheduleGroup(
@@ -1410,9 +1411,9 @@ class MedicationGroupEditorDeleteRecordsTest {
 
             advanceUntilIdle()
 
-            assertEquals(3, viewModel.uiState.value.createdPastScheduledSlotRecordCount)
+            assertEquals(2, viewModel.uiState.value.createdPastScheduledSlotRecordCount)
             assertNull(callbackResult)
-            assertEquals(3, callbackSavedRecordCount)
+            assertEquals(2, callbackSavedRecordCount)
             coVerify(exactly = 1) {
                 medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
             }
@@ -1457,7 +1458,7 @@ class MedicationGroupEditorDeleteRecordsTest {
                     capture(savedEntries),
                     deductStock = false
                 )
-            } returns Unit
+            } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
             coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
 
             val viewModel = MedicationGroupEditorViewModel(

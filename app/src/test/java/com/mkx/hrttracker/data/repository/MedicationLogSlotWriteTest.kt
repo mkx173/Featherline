@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
+import com.mkx.hrttracker.util.MedicationDayBoundary
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -226,11 +227,36 @@ class MedicationLogSlotWriteTest {
         assertEquals("spironolactone stock", 10.0, stockOf(spironolactone), 0.0)
     }
 
+    @Test
+    fun aNightOwlsPastMidnightDoseLoggedTwiceIsWrittenOnce() = runTest {
+        val plan = seedPlan(time = LocalTime.of(1, 0), dayBoundary = MedicationDayBoundary.FourAm)
+        // Nov 7's 01:00 dose: its medication day is Nov 7, its records are dated Nov 8.
+        val at = LocalDateTime.of(2026, 11, 8, 1, 0)
+        val missing = buildMissingScheduledLogEntries(
+            group = plan,
+            slot = MedicationReminderSlot(plan.uuid, at, plan.schedule.timeSlots.single().uuid),
+            entries = emptyList(),
+            appliedAt = at.plusMinutes(5),
+        )
+        suspend fun onTheSlot() = database.medicationLogDao().getEntries()
+            .filter { entry -> entry.scheduledForIso == at.toString() }
+            .sumOf { entry -> entry.count }
+
+        logRepository.saveNewEntries(missing)
+        assertEquals("the first write logs the dose", 3, onTheSlot())
+        logRepository.saveNewEntries(missing)
+
+        assertEquals("the second finds it logged", 3, onTheSlot())
+        assertEquals("estradiol stock", 8.0, stockOf(estradiol), 0.0)
+        assertEquals("spironolactone stock", 9.0, stockOf(spironolactone), 0.0)
+    }
+
     // A morning plan: 2 estradiol tablets and 1 spironolactone tablet at 08:00.
     private suspend fun seedPlan(
         estradiolDose: DoseInstruction = wholeTablet,
         scheduleTimeUuid: UUID? = null,
         time: LocalTime = LocalTime.of(8, 0),
+        dayBoundary: MedicationDayBoundary = MedicationDayBoundary.Midnight,
     ): MedicationGroup {
         if (database.medicineDao().getByUuid(estradiol.uuid.toString()) == null) {
             database.medicineDao().insert(estradiol.toEntity())
@@ -247,6 +273,7 @@ class MedicationLogSlotWriteTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(time),
                 timeSlots = listOf(MedicationGroupScheduleTimeInput(uuid = scheduleTimeUuid, time = time)),
+                dayBoundary = dayBoundary,
             ),
             medications = listOf(
                 MedicationGroupMedicationInput(

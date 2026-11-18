@@ -180,6 +180,8 @@ private fun PlanBatchAddScreenContent(
         mutableStateOf(false)
     }
     val saveFailureMessage = stringResource(R.string.plan_batch_add_failure)
+    // Another writer can log the batch's doses between the preview and the save.
+    val saveEmptyMessage = stringResource(R.string.group_schedule_backfill_records_empty)
     val savedEntryCount = uiState.savedEntryCount ?: 0
     val saveSuccessMessage = pluralStringResource(
         R.plurals.plan_batch_add_success,
@@ -242,8 +244,9 @@ private fun PlanBatchAddScreenContent(
             // in retained UI state, so a config-change race can't drop it.
             if (warning != null) {
                 onStockWarning(warning)
-            } else if (savedEntryCount > 0) {
-                Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
+            } else {
+                val message = if (savedEntryCount > 0) saveSuccessMessage else saveEmptyMessage
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
             onSavedStateConsumed()
             onStockWarningConsumed()

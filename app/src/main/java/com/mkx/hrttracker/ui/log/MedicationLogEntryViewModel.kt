@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.isCompatibleWith
 import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
+import com.mkx.hrttracker.model.medication.normalizeMedicationCount
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.PostLogStockWarning
@@ -38,7 +39,6 @@ import com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction
 import com.mkx.hrttracker.ui.medication.effectiveActualDoseAmount
 import com.mkx.hrttracker.ui.medication.medicationLogRecordIndicator
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
-import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave

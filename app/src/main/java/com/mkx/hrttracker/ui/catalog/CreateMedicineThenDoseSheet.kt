@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.reminder.PostLogStockWarning
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.ActualAmountRulerCard
@@ -36,7 +37,6 @@ import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
-import com.mkx.hrttracker.ui.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter

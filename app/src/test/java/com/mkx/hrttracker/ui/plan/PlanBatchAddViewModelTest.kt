@@ -710,7 +710,7 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
-    fun buildPlanBatchAddEntries_skipsPlannedSlotWhenRecordAlreadyExists() {
+    fun buildPlanBatchAddEntries_addsOnlyWhatAPartlyLoggedSlotMisses() {
         val groupUuid = UUID.fromString("865b9574-199f-4bbb-a90b-07b2738bd1ee")
         val existingSlot = LocalDateTime.of(2026, 4, 10, 9, 0)
         val remainingSlot = LocalDateTime.of(2026, 4, 10, 21, 0)
@@ -743,12 +743,12 @@ class PlanBatchAddViewModelTest {
             zoneId = ZoneId.of("UTC"),
         )
 
-        val entries = plan.entries
-        assertEquals(2, entries.size)
-        assertEquals(2, plan.skippedEntryCount)
+        // 09:00 has 1 of 3 estradiol and no spironolactone: 2 estradiol and 1 spironolactone left.
         assertEquals(
-            listOf(remainingSlot, remainingSlot),
-            entries.map { entry -> entry.scheduledFor })
+            listOf(existingSlot to 2, existingSlot to 1, remainingSlot to 3, remainingSlot to 1),
+            plan.entries.map { entry -> entry.scheduledFor to entry.count },
+        )
+        assertEquals(0, plan.skippedEntryCount)
     }
 
     @Test
@@ -880,7 +880,7 @@ class PlanBatchAddViewModelTest {
                 any(),
                 deductStock = true
             )
-        } returns Unit
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
         coEvery { medicineStockRepository.projectAllOnce(any()) } returnsMany listOf(
             listOf(
                 stockProjection(
@@ -1035,7 +1035,7 @@ class PlanBatchAddViewModelTest {
                 any(),
                 deductStock = false
             )
-        } returns Unit
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().toList() }
 
         val viewModel = PlanBatchAddViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -1099,6 +1099,7 @@ class PlanBatchAddViewModelTest {
         } coAnswers {
             writeGate.await()
             writeCompleted = true
+            firstArg<Collection<MedicationLogEntryInput>>().toList()
         }
 
         val viewModel = PlanBatchAddViewModel(
@@ -1476,6 +1477,92 @@ class PlanBatchAddViewModelTest {
             settingsRepository = settingsRepository,
             appTimeSource = FakeAppTimeSource(initialMinute = now),
         )
+    }
+
+    @Test
+    fun saveSelectedRange_reportsWhatTheWriteWrote() = runTest {
+        // Apr 8-10 at 09:00: three doses offered; one logged meanwhile, so the write trims it.
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 8),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
+        )
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+        val medicineStockRepository = mockk<MedicineStockRepository>()
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState(remindersEnabled = true))
+        every { medicineStockRepository.getCachedProjections() } returns emptyList()
+        every { medicineStockRepository.observeProjections() } returns flowOf(emptyList())
+        coEvery {
+            medicationLogRepository.saveBackfillEntries(any(), deductStock = false)
+        } coAnswers { firstArg<Collection<MedicationLogEntryInput>>().drop(1) }
+        val viewModel = PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+            medicineStockRepository = medicineStockRepository,
+            appTimeSource = FakeAppTimeSource(initialMinute = LocalDateTime.of(2026, 4, 10, 12, 0)),
+        )
+        advanceUntilIdle()
+        viewModel.selectGroup(group.uuid)
+        advanceUntilIdle()
+        assertEquals(3, viewModel.uiState.value.entryCount)
+
+        viewModel.saveSelectedRange()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(2, viewModel.uiState.value.savedEntryCount)
+    }
+
+    @Test
+    fun buildPlanBatchAddStockPreviewItems_showsThePlansDose_notAPartlyLoggedTimesRest() {
+        val medicine = estradiolMedicine().copy(
+            stock = com.mkx.hrttracker.model.medication.MedicineStock(
+                trackingEnabled = true,
+                unitsRemaining = 10.0,
+                unitsLastTotal = 10.0,
+            )
+        )
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(medicine = medicine, count = 2)),
+        )
+        val entry = MedicationLogEntryInput(
+            medicineUuid = medicine.uuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = group.uuid,
+            appliedAt = Instant.EPOCH,
+            count = 2,
+        )
+
+        // 08:00 has 1 of 2 tablets logged, so its entry comes first with the 1 left.
+        val items = buildPlanBatchAddStockPreviewItems(
+            entriesToAdd = listOf(entry.copy(count = 1), entry),
+            stockProjections = listOf(
+                stockProjection(medicine, com.mkx.hrttracker.model.medication.MedicineStockState.HEALTHY),
+            ),
+            group = group,
+        )
+
+        assertEquals(2, items.single().medicationCount)
+        assertEquals(7.0, items.single().afterStock.unitsRemaining!!, 0.0)
     }
 
     private fun medicationGroup(

@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.isScheduledAt
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.model.medication.time
+import com.mkx.hrttracker.model.medication.normalizeMedicationCount
 import com.mkx.hrttracker.util.MedicationDayBoundary
 import com.mkx.hrttracker.util.dateTimeOn
 import com.mkx.hrttracker.util.medicationDay
@@ -372,14 +373,10 @@ class MedicationGroupRepository @Inject constructor(
                     saved = savedGroup,
                     schedule = schedule,
                     medications = medications,
+                    includePastScheduledSlots = includePastScheduledSlots,
                     hasRecords = hasExistingRecords,
                     records = plannedRecords,
                 )?.let { refusal -> throw MedicationGroupSaveRefusedException(groupUuid, refusal) }
-                val resolvedIncludePastScheduledSlots = if (hasExistingRecords) {
-                    checkNotNull(existingGroupRow).includePastScheduledSlots
-                } else {
-                    includePastScheduledSlots
-                }
                 val isRecordLocked = plannedRecords.isNotEmpty()
                 if (isRecordLocked) {
                     val lockedExistingGroup = checkNotNull(existingGroup)
@@ -406,8 +403,7 @@ class MedicationGroupRepository @Inject constructor(
                     schedule.dayBoundary.endsAtFourAm
                 }
                 val didBackfillModeChange = existingGroupRow != null &&
-                        !hasExistingRecords &&
-                        existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
+                        existingGroupRow.includePastScheduledSlots != includePastScheduledSlots
                 val scheduleStartLocal = schedule.startAt ?: schedule.since.atStartOfDay()
                 val existingScheduleTimesByUuid = existingGroup
                     ?.scheduleTimes
@@ -416,8 +412,8 @@ class MedicationGroupRepository @Inject constructor(
                 val preparationTypesByMedicineUuid = database.resolvePreparationTypesByMedicineUuid(
                     medications = medications,
                 )
-                // A locked plan's counts can't be edited, and the editor shows some legacy ones
-                // as 1, so its stored counts stand.
+                // saveRefusal keeps a locked plan's counts as the editor shows them, and it shows
+                // some legacy ones as 1, so the stored counts stand.
                 val lockedItemCounts = if (isRecordLocked) {
                     checkNotNull(existingGroup).items.associate { item -> item.uuid to item.count }
                 } else {
@@ -437,7 +433,7 @@ class MedicationGroupRepository @Inject constructor(
                         updatedAtEpochMillis = nowEpochMillis,
                         archivedAtEpochMillis = existingGroupRow?.archivedAtEpochMillis,
                         archivedAtLocalIso = existingGroupRow?.archivedAtLocalIso,
-                        includePastScheduledSlots = resolvedIncludePastScheduledSlots,
+                        includePastScheduledSlots = includePastScheduledSlots,
                         replacedByGroupUuid = existingGroupRow?.replacedByGroupUuid,
                         // Only carried: nothing reads it any more.
                         recreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid,
@@ -482,7 +478,7 @@ class MedicationGroupRepository @Inject constructor(
                             }
                         }
                         val effectiveFromLocal = when {
-                            resolvedIncludePastScheduledSlots ->
+                            includePastScheduledSlots ->
                                 scheduleStartLocal.toString()
 
                             didBackfillModeChange ->
@@ -672,15 +668,17 @@ data class MedicationGroupScheduleInput(
  * Why saving [schedule] and [medications] over the plan [saved] is refused, or null when it may
  * be. The editor asks it as a time is picked and at Save, and the repository at commit, so all
  * three refuse the same drafts for the same reason. Editing ([isEditing]) a plan with no [saved]
- * is editing one deleted since. Any record ([hasRecords]) keeps the plan's day ending and its
- * slots' medicines; a planned one ([records]) keeps its slots and items too, and stays an
- * occurrence of its slot, from the plan's start on.
+ * is editing one deleted since. Any record ([hasRecords]) keeps the plan's day ending, its past
+ * option ([includePastScheduledSlots]) and its slots' medicines; a planned one ([records]) keeps
+ * its slots and items (counts included) too, and stays an occurrence of its slot, from the plan's
+ * start on.
  */
 internal fun saveRefusal(
     isEditing: Boolean,
     saved: MedicationGroup?,
     schedule: MedicationGroupScheduleInput,
     medications: List<MedicationGroupMedicationInput>,
+    includePastScheduledSlots: Boolean,
     hasRecords: Boolean,
     records: List<MedicationGroupSlotKey>,
 ): SaveRefusal? {
@@ -693,7 +691,11 @@ internal fun saveRefusal(
         val savedItem = medication.uuid?.let(savedItems::get)
         savedItem != null && savedItem.medicineUuid != medication.medicineUuid
     }
-    if (repointsASlot || schedule.dayBoundary != saved.schedule.dayBoundary) {
+    if (
+        repointsASlot ||
+        schedule.dayBoundary != saved.schedule.dayBoundary ||
+        includePastScheduledSlots != saved.includePastScheduledSlots
+    ) {
         return SaveRefusal.LOCKED_BY_RECORDS
     }
     if (records.isEmpty()) return null
@@ -712,7 +714,13 @@ internal fun saveRefusal(
                 savedItem != null &&
                         savedItem.medicineUuid == medication.medicineUuid &&
                         savedItem.applicationType == medication.applicationType &&
-                        savedItem.doseInstruction == medication.doseInstruction
+                        savedItem.doseInstruction == medication.doseInstruction &&
+                        // As the editor shows it: a count it can't edit shows as 1.
+                        medication.count == normalizeMedicationCount(
+                            applicationType = savedItem.applicationType,
+                            count = savedItem.count,
+                            preparationType = savedItem.medicine?.preparation?.type,
+                        )
             }
     return if (keepsItems) null else SaveRefusal.LOCKED_BY_RECORDS
 }

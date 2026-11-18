@@ -13,9 +13,11 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
@@ -25,7 +27,9 @@ import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isScheduledAt
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
 import com.mkx.hrttracker.reminder.PostLogStockWarning
+import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import com.mkx.hrttracker.reminder.captureStockStatesForLog
 import com.mkx.hrttracker.reminder.resolvePostLogStockWarning
 import com.mkx.hrttracker.util.AppTimeSource
@@ -128,6 +132,7 @@ class PlanBatchAddViewModel @Inject constructor(
         val stockPreviewItems = buildPlanBatchAddStockPreviewItems(
             entriesToAdd = entryPlan.entries,
             stockProjections = projections,
+            group = selectedGroup,
         )
         val deductStockAvailability = when {
             selectedGroup == null -> DeductStockAvailability.NO_GROUP
@@ -324,7 +329,7 @@ class PlanBatchAddViewModel @Inject constructor(
             } else {
                 emptyMap()
             }
-            val saveResult = runCatching {
+            val savedEntries = runCatching {
                 // The user already confirmed the batch; entry teardown (back
                 // press racing the 1-frame nav-lock gap) must not tear the
                 // write in half — and reminders must track a write that just
@@ -334,13 +339,11 @@ class PlanBatchAddViewModel @Inject constructor(
                     medicationLogRepository.saveBackfillEntries(
                         entries = entriesToSave,
                         deductStock = shouldDeductStock,
-                    )
-                    runCatching { medicationReminderScheduler.rescheduleAll() }
+                    ).also { runCatching { medicationReminderScheduler.rescheduleAll() } }
                 }
-            }.fold(
-                onSuccess = { null },
-                onFailure = { PlanBatchAddSaveResult.FAILURE },
-            )
+            }
+            val writtenCount = savedEntries.getOrNull()?.size
+            val saveResult = if (savedEntries.isSuccess) null else PlanBatchAddSaveResult.FAILURE
             val isSaved = saveResult == null
             val postLogStockWarning =
                 if (isSaved && shouldDeductStock && affectedMedicineUuids.isNotEmpty()) {
@@ -363,7 +366,7 @@ class PlanBatchAddViewModel @Inject constructor(
                         selectedGroupUuid = null,
                         isSaving = false,
                         isSaved = true,
-                        savedEntryCount = entriesToSave.size,
+                        savedEntryCount = writtenCount,
                         postLogStockWarning = postLogStockWarning,
                         saveResult = null,
                     )
@@ -481,6 +484,8 @@ data class PlanBatchAddStockPreviewItem(
 internal fun buildPlanBatchAddStockPreviewItems(
     entriesToAdd: List<MedicationLogEntryInput>,
     stockProjections: List<MedicineStockProjection>,
+    // The card shows the plan's dose: an entry for a partly logged time carries only what it misses.
+    group: MedicationGroup? = null,
 ): List<PlanBatchAddStockPreviewItem> {
     if (entriesToAdd.isEmpty() || stockProjections.isEmpty()) return emptyList()
 
@@ -519,7 +524,15 @@ internal fun buildPlanBatchAddStockPreviewItems(
             medicine = projection.medicine,
             applicationType = entry.applicationType,
             doseInstruction = entry.doseInstruction,
-            medicationCount = entry.count.coerceAtLeast(1),
+            medicationCount = group?.medications
+                ?.filter { medication ->
+                    medication.medicineUuid == entry.medicineUuid &&
+                            medication.applicationType == entry.applicationType &&
+                            medication.doseInstruction == entry.doseInstruction
+                }
+                ?.sumOf(MedicationGroupMedication::count)
+                ?.takeIf { count -> count > 0 }
+                ?: entry.count.coerceAtLeast(1),
             afterStock = afterStock,
             stockState = projection.state,
             runway = projection.runway,
@@ -562,13 +575,15 @@ internal fun buildPlanBatchAddEntryPlan(
         return PlanBatchAddEntryPlan()
     }
 
-    val fulfilledPlanSlots = existingEntries
-        .asSequence()
-        .filter { entry -> entry.sourceGroupUuid == group.uuid }
-        .mapNotNull(MedicationLogEntry::scheduledFor)
-        .toSet()
     // Pre-start occurrences are saved as manual rows, which aren't matched: a rerun over a
     // range before the plan's start adds them again (F9).
+
+    // A slot's records share its calendar date (isEntryForPlanSlot), so each occurrence reads
+    // only its own date's, not every record.
+    val planRecordsByDate = existingEntries
+        .filter { entry -> entry.sourceGroupUuid == group.uuid }
+        .groupBy { entry -> entry.scheduledFor?.toLocalDate() }
+    val signatureCount = group.medications.distinctBy(MedicationSignature::fromGroupMedication).size
 
     val entries = mutableListOf<MedicationLogEntryInput>()
     var skippedEntryCount = 0
@@ -590,8 +605,18 @@ internal fun buildPlanBatchAddEntryPlan(
             return@forEach
         }
 
-        if (!isBeforePlanStart && occurrence in fulfilledPlanSlots) {
-            skippedEntryCount += group.medications.size
+        if (!isBeforePlanStart) {
+            // A partly logged time gets only what it misses, as saveBackfillEntries trims it.
+            val missing = buildMissingScheduledLogEntries(
+                group = group,
+                slot = MedicationReminderSlot(group.uuid, occurrence, scheduleTime.uuid),
+                entries = planRecordsByDate[occurrence.toLocalDate()].orEmpty(),
+                appliedAt = occurrence,
+                zoneId = zoneId,
+            )
+            entries += missing
+            // One entry per signature with something missing; the rest are logged.
+            skippedEntryCount += signatureCount - missing.size
             return@forEach
         }
 
@@ -602,10 +627,10 @@ internal fun buildPlanBatchAddEntryPlan(
                 medicineUuid = medication.medicineUuid,
                 applicationType = medication.applicationType,
                 doseInstruction = medication.doseInstruction,
-                sourceGroupUuid = if (isBeforePlanStart) null else group.uuid,
-                scheduleTimeUuid = if (isBeforePlanStart) null else scheduleTime.uuid,
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
                 appliedAt = appliedAt.toInstant(),
-                scheduledFor = if (isBeforePlanStart) null else occurrence,
+                scheduledFor = null,
                 count = medication.count,
                 appliedAtTimeZoneId = zoneId.id,
             )

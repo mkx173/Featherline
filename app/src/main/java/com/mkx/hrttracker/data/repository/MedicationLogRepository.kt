@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.Medicine
@@ -444,24 +445,30 @@ class MedicationLogRepository @Inject internal constructor(
     suspend fun saveNewEntries(
         entries: Collection<MedicationLogEntryInput>,
     ): List<MedicationLogEntryInput> {
-        return insertNewEntries(entries, deductStock = true, onlyMissing = true)
+        // A widget or notification acts on a snapshot that can predate a plan edit or a
+        // restore, so the dated slot must still be planned too.
+        return insertNewEntries(entries, deductStock = true, requirePlannedOccurrence = true)
     }
 
-    // Bulk insert used by retrospective backfill flows. Most backfill callers
-    // preserve current stock because the user is reconstructing history they
-    // already lived through. Batch-add can opt into current-stock deduction for
-    // power users who explicitly want the backfilled rows to debit inventory now.
+    /**
+     * Bulk insert used by retrospective backfill flows (Batch Add, the plan editor's past
+     * records). Most backfill callers preserve current stock because the user is reconstructing
+     * history they already lived through; Batch Add can opt into deducting it now. Trimmed as
+     * [saveNewEntries] is, so a dose logged after the caller read the slots isn't logged twice;
+     * the caller built them from past occurrences, so they aren't checked against the plan.
+     * Returns what was written.
+     */
     suspend fun saveBackfillEntries(
         entries: Collection<MedicationLogEntryInput>,
         deductStock: Boolean = false,
-    ) {
-        insertNewEntries(entries, deductStock = deductStock, onlyMissing = false)
+    ): List<MedicationLogEntryInput> {
+        return insertNewEntries(entries, deductStock = deductStock, requirePlannedOccurrence = false)
     }
 
     private suspend fun insertNewEntries(
         entries: Collection<MedicationLogEntryInput>,
         deductStock: Boolean,
-        onlyMissing: Boolean,
+        requirePlannedOccurrence: Boolean,
     ): List<MedicationLogEntryInput> {
         if (entries.isEmpty()) {
             return emptyList()
@@ -469,13 +476,7 @@ class MedicationLogRepository @Inject internal constructor(
 
         return homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                val written = if (onlyMissing) {
-                    // A widget or notification acts on a snapshot that can predate a plan
-                    // edit or a restore, so the dated slot must still be planned too.
-                    database.clampToMissingSlotCounts(entries, requirePlannedOccurrence = true)
-                } else {
-                    entries.toList()
-                }
+                val written = database.clampToMissingSlotCounts(entries, requirePlannedOccurrence)
                 val medicineDao = database.medicineDao()
                 val medicineByUuid = mutableMapOf<UUID, Medicine>()
                 val entities = written.map { entry ->
@@ -539,7 +540,22 @@ class MedicationLogRepository @Inject internal constructor(
         entries: Collection<MedicationLogEntryInput>,
         requirePlannedOccurrence: Boolean,
     ): List<MedicationLogEntryInput> {
+        val slotDates = entries
+            .filter { entry -> entry.sourceGroupUuid != null }
+            .mapNotNull { entry -> entry.scheduledFor?.toLocalDate() }
+        if (slotDates.isEmpty()) return entries.toList()
+        // A record matches its slot by schedule time and calendar date. A backfill covers many
+        // slots of one plan: read the plan, and the records over the batch's dates, once.
+        val recordEntities = medicationLogDao().getScheduledEntriesInWindow(
+            scheduledStartIso = slotDates.min().atStartOfDay().toString(),
+            scheduledEndIso = slotDates.max().plusDays(1).atStartOfDay().toString(),
+        )
+        val recordMedicines = resolveMedicinesForEntries(recordEntities)
+        val recordsByDate = recordEntities
+            .map { entity -> entity.toMedicationLogEntryModel(recordMedicines) }
+            .groupBy { record -> record.scheduledFor?.toLocalDate() }
         val missingBySlot = mutableMapOf<MedicationReminderSlot, MutableMap<MedicationSignature, Int>>()
+        val groups = mutableMapOf<UUID, MedicationGroup?>()
         return entries.mapNotNull { entry ->
             val slot = MedicationReminderSlot(
                 groupUuid = entry.sourceGroupUuid ?: return@mapNotNull entry,
@@ -547,7 +563,17 @@ class MedicationLogRepository @Inject internal constructor(
                 scheduleTimeUuid = entry.scheduleTimeUuid,
             )
             val missing = missingBySlot.getOrPut(slot) {
-                missingCountsAt(slot, requirePlannedOccurrence)
+                val group = groups.getOrPut(slot.groupUuid) {
+                    medicationGroupDao().getGroup(slot.groupUuid.toString())?.let { groupEntity ->
+                        groupEntity.toMedicationGroupModel(resolveMedicinesForGroups(listOf(groupEntity)))
+                    }
+                }
+                missingCountsAt(
+                    group = group,
+                    slot = slot,
+                    records = recordsByDate[slot.scheduledAt.toLocalDate()].orEmpty(),
+                    requirePlannedOccurrence = requirePlannedOccurrence,
+                )
             }
             val signature = entry.signature()
             val count = minOf(entry.count.coerceAtLeast(1), missing[signature] ?: 0)
@@ -559,27 +585,21 @@ class MedicationLogRepository @Inject internal constructor(
         }
     }
 
-    private suspend fun HrtTrackerDatabase.missingCountsAt(
+    /** What [slot] misses, from [records], the records on its calendar date. */
+    private fun missingCountsAt(
+        group: MedicationGroup?,
         slot: MedicationReminderSlot,
+        records: List<MedicationLogEntry>,
         requirePlannedOccurrence: Boolean,
     ): MutableMap<MedicationSignature, Int> {
-        val groupEntity = medicationGroupDao().getGroup(slot.groupUuid.toString())
-            ?: return mutableMapOf()
-        val group = groupEntity.toMedicationGroupModel(resolveMedicinesForGroups(listOf(groupEntity)))
+        if (group == null) return mutableMapOf()
         if (requirePlannedOccurrence && !group.hasReminderOccurrence(slot)) {
             return mutableMapOf()
         }
-        // A record matches its slot by schedule time and calendar date, so read that date.
-        val date = slot.scheduledAt.toLocalDate()
-        val entities = medicationLogDao().getScheduledEntriesInWindow(
-            scheduledStartIso = date.atStartOfDay().toString(),
-            scheduledEndIso = date.plusDays(1).atStartOfDay().toString(),
-        )
-        val medicinesByUuid = resolveMedicinesForEntries(entities)
         return buildMissingScheduledLogEntries(
             group = group,
             slot = slot,
-            entries = entities.map { it.toMedicationLogEntryModel(medicinesByUuid) },
+            entries = records,
             appliedAt = slot.scheduledAt,
         ).associateTo(mutableMapOf()) { missing -> missing.signature() to missing.count }
     }

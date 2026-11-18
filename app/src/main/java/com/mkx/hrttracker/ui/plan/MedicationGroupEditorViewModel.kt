@@ -40,7 +40,7 @@ import com.mkx.hrttracker.ui.medication.applyMedicinePicker
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
-import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
+import com.mkx.hrttracker.model.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
@@ -596,6 +596,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         saved = savedPlan?.takeIf { plan -> plan.uuid.toString() == editingGroupId },
         schedule = toScheduleInput(currentMinute.value),
         medications = medications.map { medication -> medication.toInput() },
+        includePastScheduledSlots = includePastScheduledSlots,
         hasRecords = relatedEntryCount > 0,
         records = plannedRecords,
     )
@@ -1613,10 +1614,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 now = now,
                 zoneId = ZoneId.systemDefault(),
             )
-            medicationLogRepository.saveBackfillEntries(entriesToSave)
             CreatePastScheduledSlotRecordsSaveState(
                 result = null,
-                savedRecordCount = entriesToSave.size,
+                savedRecordCount = medicationLogRepository.saveBackfillEntries(entriesToSave).size,
             )
         }.getOrElse {
             CreatePastScheduledSlotRecordsSaveState(

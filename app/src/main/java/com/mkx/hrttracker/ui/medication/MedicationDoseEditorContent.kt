@@ -56,6 +56,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineStock
 import com.mkx.hrttracker.model.medication.MedicineStockProjection
 import com.mkx.hrttracker.model.medication.MedicineStockState
+import com.mkx.hrttracker.model.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.MedicationCardWithStockSubcard
 import com.mkx.hrttracker.util.labelRes

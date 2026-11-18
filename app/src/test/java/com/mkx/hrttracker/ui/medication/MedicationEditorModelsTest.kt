@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
