@@ -112,7 +112,10 @@ is the single seat for setting and cancelling alarms. Every pass and
 delivery runs under `withReminderScheduleLock`.
 
 - `rescheduleAll(now, repostShown)` — full rebuild from Room. Used by
-  the capability reconciler, startup, Settings, the editor's archive.
+  the capability reconciler, startup, Settings, onboarding, and the
+  writers that can touch any plan: the editor's master switch, archive
+  and record delete, Batch Add, the log editor, History's edits and
+  deletes, a manual log, and a medicine edit.
   `repostShown` reposts every reminder on screen, silently, after a
   restore. A pass that starts with the reconcile-owed flag set reposts
   too, under the lock, so a new process's first pass reposts whichever
@@ -120,8 +123,8 @@ delivery runs under `withReminderScheduleLock`.
   StartupPreloader) runs first.
 - `rescheduleFromHomeSnapshot(snapshot, now)` — the same from an
   already-built `HomeSnapshotRecord`, before the database is warm.
-- `rescheduleGroup(groupUuid, after)` — one plan, after a delivery, a
-  log, an edit, a Skip.
+- `rescheduleGroup(groupUuid, after)` — one plan: after a delivery,
+  Log now, a widget quick-log, the editor's save, and Skip.
 - `skipThrough(groupUuid, doseAt)` — Skip: moves the plan's watermark
   (never back) and reschedules it, in one hold.
 - `claimAlertSound(alertAt)` — the sound rule, with the last sounded
@@ -222,10 +225,13 @@ slots>`, is per plan and dose, so a repeat posts in place, and with no
 category is `CATEGORY_REMINDER`, so a Do Not Disturb that allows
 reminders lets it through.
 
-`reconcileDoseReminderNotifications`, run by every pass, brings the
-reminders on screen in line with the plans, one per plan: one whose dose
-is gone (logged, moved by an edit, plan archived, deleted or muted) is
-cancelled, one whose medications changed is reposted silently in place.
+`reconcileDoseReminderNotifications`, run by `rescheduleAll`,
+`rescheduleGroup`, `cancelReminder` (the only call a deleted plan
+reaches) and `refreshDoseReminderNotifications`, but not by the pass
+from the Home snapshot, brings the reminders on screen in line with the
+plans, one per plan: one whose dose is gone (logged, moved by an edit,
+plan archived, deleted or muted) is cancelled, one whose medications
+changed is reposted silently in place.
 With reminders off, every one goes. Turning Hide medication details on
 or off, and a change of the language the app shows (followed in
 `HrtTrackerApplication`'s `followAppLanguage`), repost every reminder on

@@ -164,8 +164,8 @@ Other date/time call sites:
 
 Known non-locale-sensitive time constants:
 
-- New schedule default time is `LocalTime.of(9, 0)` in `MedicationGroupEditorViewModel.kt`.
-- Widget "last night"/"tonight" bucketing uses 06:00 and 18:00 cutoffs in `WidgetSnapshotBuilder.kt`.
+- New schedule default time is `LocalTime.of(9, 0)` in `MedicationGroupEditorViewModel.kt` (and `DailyScheduleEditor.kt`).
+- Home and widget day sections use fixed buckets in `MedicationDayTimeRange.kt` (00:00, 04:00, 12:00 and 18:00 starts; "Last night" until noon).
 - Calendar week start is user-configurable via `SettingsState.firstDayOfWeekOption` (`FirstDayOfWeekOption` enum: `FOLLOW_SYSTEM`, `SATURDAY`, `SUNDAY`, `MONDAY`). Plan and History calendars and the weekly schedule editor's weekday chips all read it. `FOLLOW_SYSTEM` resolves via `WeekFields.of(systemLocale()).firstDayOfWeek`, where `systemLocale()` (in `util/Localization.kt`) reads the phone's first language so the resolved day reflects the device region, **not** any per-app language override: from API 33 through `LocaleManagerCompat.getSystemLocales`, since `Resources.getSystem()` carries the per-app language first there; below, `Resources.getSystem()`. The 24-hour check for a "use locale default" phone (`uses24HourTimeFormat()`) reads the same `systemLocales()`. Adding a language therefore does not change calendar behavior for existing users; the setting is independent of `AppLanguageOption`. Weekly schedule cadence math in `MedicationGroupSchedule.isScheduledOn` and `PlanBatchAddViewModel` is anchored on each schedule's own `since` date — there is no global Monday/Sunday week boundary at the domain layer.
 
 ## Number, Unit, and Medical Text

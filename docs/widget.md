@@ -124,7 +124,7 @@ widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
 
 The store is also the
-[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L146)
+[`GlanceStateDefinition`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L565)
 for both widgets, so Glance composables read straight from the same
 file via `currentState<WidgetSnapshotState>()`. There is no in-memory
 cache to keep coherent.
@@ -326,9 +326,18 @@ from `widgetAppearanceRepository.currentEffective(null)` (and reads the
 **persisted** settings via `settingsRepository.getCurrentSettings()` for
 its own theme — not the eager `settingsState` placeholder, whose
 pre-DataStore defaults would let a cold-start Save overwrite real
-settings); Save replaces the default entry via `setDefault`, written
-through `@AppScope` so the persist outlives the synchronous
-Save→`finish()`.
+settings); Save sets `RESULT_OK` and replaces the default entry via
+`setDefault` in `@AppScope`, and the activity finishes only once that
+write has landed or failed, so a process death right after `finish()`
+can't lose a save the launcher was told about.
+
+The activity follows the app lock as `MainActivity` does, since its
+preview shows the widget's rows: Hide screen content applies to its
+window, and its content composes once the lock state is read, locked
+or not; while locked it is hidden under the lock screen
+(`HiddenUnderAppLock`), its drafts kept. Only once unlocked does it
+start the database open and, if the database key is lost, toast and
+close as the app does (`StartupPreloader.closeOnLostDatabaseKey`).
 
 ## Update triggers
 
@@ -388,7 +397,9 @@ graph TD
 - **Wall-clock drift.**
   [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
-  one-shot at app start). It reads the persisted snapshot and checks
+  one-shot at app start). It reads the persisted snapshot, then the
+  clock (read the other way round, a record written in between would
+  look built after now), and checks
   whether there is none, whether its `anchorDateEpochDay` is before
   today's calendar date or its `fourAmAnchorDateEpochDay` before the
   medication day at 04:00 (a night-owl plan's rows leave Today at
@@ -529,20 +540,24 @@ the needed logs, and writes them via
 Persisting goes through `HomeSnapshotRepository.runHomeDataMutation`,
 which means the home-snapshot observer in `HomeWidgetManager`
 re-derives the widget snapshot — the callback itself does not need to
-touch the widget store. It then waits for `rebuildNow()` within what is
-left of its 8 s budget, so the run that read the log, and its warm-up
-of Home's estimate, finish before the callback does; out of budget, the
-run carries on in the app scope. The only direct `updateAllHrtWidgets`
-call in this path is the no-op short-circuit, taken when the slot is
-already fulfilled. Any failure from the group read on, a database that
-can't open included, is logged, refreshes the widget and shows the
-"Unable to quick-log dose." toast.
+touch the widget store. `saveNewEntries` decides again under the write
+lock, so a dose the notification or the app logged since the read saves
+nothing. Either way the callback then reschedules the plan's reminder
+(`MedicationReminderScheduler.rescheduleGroup`), whose pass cancels a
+reminder still naming the dose; the Home rebuild doesn't. After a save
+it waits for `rebuildNow()` within what is left of its 8 s budget, so
+the run that read the log, and its warm-up of Home's estimate, finish
+before the callback does; out of budget, the run carries on in the app
+scope. When nothing was saved (the slot already fulfilled) it only
+repaints with `updateAllHrtWidgets`. Any failure from the group read
+on, a database that can't open included, is logged, refreshes the
+widget and shows the "Unable to quick-log dose." toast.
 
 Because the persist runs through `saveNewEntries`, quick-logged doses
 deduct medicine stock for tracking-enabled medicines just like an
 in-app log, and the callback then shows the same worst-severity
-low-stock toast as the notification "Log all" action (see
-[reminders.md](reminders.md#notify)). The widget snapshot itself carries
+low-stock toast as the notification's "Log now" action (see
+[reminders.md](reminders.md#act)). The widget snapshot itself carries
 no stock data; low-stock state surfaces in the app (home section +
 toasts), not on the widget.
 
@@ -569,7 +584,7 @@ target the wrong group. Manual records (which carry
 non-nullable key is safe.
 
 `collapseToGroupRow` in
-[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L120)
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L498)
 is the seat that produces the representative row: it picks the
 strongest status (`DONE` > `OVERDUE` > `DUE_SOON` > `UPCOMING` >
 `LOGGED_OUT_OF_WINDOW`), forwards `groupUuid` / `scheduleTimeUuid`, and
@@ -579,7 +594,7 @@ group.
 ## Highlight deep link
 
 `widgetRowHighlightIntent` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L365)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L489)
 builds the `MainActivity` intent used when the user taps a widget row
 (as distinct from the log button). It uses a `hrttracker://` data URI
 plus `EXTRA_HIGHLIGHT_*` extras so the home screen can scroll to and
@@ -591,7 +606,7 @@ because Android coalesces `PendingIntent`s with equal `data`.
 ## Background widget surface
 
 `WidgetShell` in
-[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L63)
+[`WidgetRows.kt`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/widget/WidgetRows.kt#L149)
 applies the user-configurable background alpha and the rounded
 container, and wraps the entire widget in `clickable(actionStartActivity<MainActivity>())`
 so the top-level tap target is the app, with row-level and

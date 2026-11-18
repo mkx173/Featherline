@@ -12,9 +12,9 @@ val gitCommitCount = providers.exec {
 }.standardOutput.asText.get().trim().toInt()
 ```
 
-See [`app/build.gradle.kts:10-12`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L10-L12). The `play`, `arm64`, and `x64` flavors share the same `versionCode` at any given commit, so Play Bundle and sideload APKs for the same commit map cleanly to each other.
+See [`app/build.gradle.kts:12-14`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L12-L14). The `play`, `arm64`, and `x64` flavors share the same `versionCode` at any given commit, so Play Bundle and sideload APKs for the same commit map cleanly to each other.
 
-`versionName` is static. Debug builds append the git short SHA via [`versionNameSuffix = "-$gitCommitHash"`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L96-L99); the suffix is omitted on release builds.
+`versionName` is static. Debug builds append the git short SHA via [`versionNameSuffix = "-$gitCommitHash"`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L100-L104); the suffix is omitted on release builds.
 
 ## Release artifacts
 
@@ -25,7 +25,7 @@ Two artifacts are produced per release commit, but **only the sideload APK is bu
 
 An x64 APK (`assembleX64Release`, ABI `x86_64`) is available for local emulator or x86_64-device sideload testing, but it is not part of the automated release workflow.
 
-The output filename pattern (`featherline-<abi>-<versionName>-<versionCode>.apk`) makes the artifact's flavor and version unambiguous at a glance. See the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L156-L175) block for the naming logic.
+The output filename pattern (`featherline-<abi>-<versionName>-<versionCode>.apk`) makes the artifact's flavor and version unambiguous at a glance. See the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L190-L209) block for the naming logic.
 
 ## CI workflow
 

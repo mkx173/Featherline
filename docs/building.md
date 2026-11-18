@@ -4,9 +4,9 @@ How to build Featherline from source. The app lives in the `:app` Gradle module 
 
 ## Prerequisites
 
-- JDK 17. The build enforces it via [`jvmToolchain(17)`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L177-L179); newer JDKs work as long as Gradle's `foojay-resolver-convention` plugin (set up in [`settings.gradle.kts`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts)) can auto-provision JDK 17.
+- JDK 17. The build compiles for it ([`JavaVersion.VERSION_17`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L132-L135) and [`JvmTarget.JVM_17`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L211-L215)) but sets no `jvmToolchain`, so Gradle compiles with the JDK it runs on; a newer JDK works. ([`settings.gradle.kts`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts) applies the `foojay-resolver-convention` plugin, which only provisions a JDK for a toolchain request.)
 - A recent Android Studio (Ladybug Feature Drop or newer). The Gradle wrapper pins everything else — the IDE just needs to recognize AGP 9.2.1.
-- Android SDK with `compileSdk = 37` and `targetSdk = 37` available (`minSdk = 26`). Read from [`app/build.gradle.kts`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L34-L61).
+- Android SDK with `compileSdk = 37` and `targetSdk = 37` available (`minSdk = 26`). Read from [`app/build.gradle.kts`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L40-L63).
 - Exact library and plugin versions live in [`gradle/libs.versions.toml`](https://github.com/mkx173/Featherline/blob/main/gradle/libs.versions.toml). Use this as the source of truth — never hand-edit version strings in `build.gradle.kts`.
 
 ## Development environment with devenv
@@ -64,13 +64,13 @@ This produces a signed APK at `app/build/outputs/apk/play/debug/`. The debug bui
 
 ## Flavors and build types
 
-Flavor dimension `distribution` ([`app/build.gradle.kts:37`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L37)):
+Flavor dimension `distribution` ([`app/build.gradle.kts:41`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L41)):
 
 - `play` — App Bundle target. No ABI filter; all ABIs bundled. Used for Play Store submission.
 - `arm64` — APK target. ABI filter `arm64-v8a` only. Used for the GitHub Releases sideload APK.
 - `x64` — APK target. ABI filter `x86_64` only. Used for local emulator or x86_64-device sideload builds.
 
-Build types ([`app/build.gradle.kts:95-110`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L95-L110)):
+Build types ([`app/build.gradle.kts:99-130`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L99-L130)):
 
 - `debug` — `applicationIdSuffix = ".debug"`, `versionNameSuffix = "-<short-sha>"`; uses AGP's debug signing config and the debug-only app name `Featherline Debug`.
 - `release` — `isMinifyEnabled = true`, `isShrinkResources = true`, ProGuard rules applied.
@@ -87,7 +87,7 @@ Useful Gradle tasks:
 
 Manual backup export/restore uses a stable backup app identity (`com.mkx.hrttracker`), not the installed package ID. Backups therefore remain portable between release and debug builds even though their app sandboxes are separate.
 
-The output filename is set in the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L156-L175) block: `featherline-<abi>-<versionName>-<versionCode>.apk` (the root project is named `Featherline` in [`settings.gradle.kts:25`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts#L25)). `<abi>` is `arm64-v8a` for the `arm64` flavor, `x86_64` for the `x64` flavor, and `all-abis` for `play`.
+The output filename is set in the [`androidComponents`](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L190-L209) block: `featherline-<abi>-<versionName>-<versionCode>.apk` (the root project is named `Featherline` in [`settings.gradle.kts:25`](https://github.com/mkx173/Featherline/blob/main/settings.gradle.kts#L25)). `<abi>` is `arm64-v8a` for the `arm64` flavor, `x86_64` for the `x64` flavor, and `all-abis` for `play`.
 
 ## Signing setup
 
@@ -98,7 +98,7 @@ Maintainers populate signing one of two ways:
 1. Create `keystore.properties` at the repo root (gitignored) with `storeFile`, `storePassword`, `keyAlias`, `keyPassword`.
 2. Set the environment variables `RELEASE_KEYSTORE_PATH`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD` (CI uses this path — see [release-process.md](release-process.md)).
 
-The [`signingValue(...)` helper](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L29-L32) checks `keystore.properties` first, falls back to env. If neither source supplies a `storeFile` path, the `release` signing config is *constructed* empty, but release variants still fail at packaging with the missing-`storeFile` error. There is no truly unsigned release build path today.
+The [`signingValue(...)` helper](https://github.com/mkx173/Featherline/blob/main/app/build.gradle.kts#L31-L34) checks `keystore.properties` first, falls back to env. If neither source supplies a `storeFile` path, the `release` signing config is *constructed* empty, but release variants still fail at packaging with the missing-`storeFile` error. There is no truly unsigned release build path today.
 
 ## See also
 

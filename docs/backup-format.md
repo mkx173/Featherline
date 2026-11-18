@@ -128,7 +128,8 @@ flattened into the parent's JSON.
   backup identity (`com.mkx.hrttracker`), and restore rejects other app
   identities.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, AMOLED pure-black, `hazeBlurEnabled`, reminders,
+  adaptive color, AMOLED pure-black, `hazeBlurEnabled`,
+  `classicNavigationBarEnabled`, reminders,
   archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, `pkCalibrationIntroSeen` (the calibration screen's one-time
@@ -328,8 +329,12 @@ runs on `Dispatchers.IO`. Validation is layered into four passes so
 incompatible files are rejected at the cheapest detection point.
 
 1. **Buffer the file.** SAF picker grants are single-use, so the
-   bytes are read into memory up front; later passes re-read the
-   buffer.
+   bytes are read into memory up front (`loadEncryptedBackupBytes`);
+   later passes re-read the buffer (`validateBackupBytes`, then
+   `restoreBackupBytes` with the password). The read stops at once on a
+   file that doesn't start with the magic, and fails past 192 MiB
+   (`MAX_ENCRYPTED_BACKUP_BYTES`); running out of heap before the
+   database is touched fails only the restore, as an `IOException`.
 2. **Pass 1 — envelope shape.**
    [`validateEncryptedBackupContainer`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/backup/BackupCrypto.kt)
    parses magic, version, KDF / cipher / compression identifiers, and
@@ -460,7 +465,9 @@ incompatible files are rejected at the cheapest detection point.
    and the others still run. The restore then returns
    `BackupRestoreOutcome.FOLLOW_UP_FAILED` instead of `RESTORED`,
    and Settings shows "Unable to restore, please try again", the same
-   as any failure that isn't the password's. A reschedule that didn't
+   as any failure that is neither the password's nor the file's (a file
+   that isn't a backup, or fails a validation pass, shows "Selected file
+   is not a compatible backup"). A reschedule that didn't
    run is left to the next app launch.
 
 ## Forward-compatibility policy

@@ -31,7 +31,11 @@ format used for manual backups, see [backup-format.md](backup-format.md).
   the Android Keystore (`MASTER_KEY_ALIAS = "hrt_tracker_database_master_key"`),
   and the resulting ciphertext + IV is persisted to a regular
   `SharedPreferences` file (`hrt_tracker_secure_storage`). The
-  passphrase itself never leaves the device.
+  passphrase itself never leaves the device. It is made only while no
+  database file exists: a lost passphrase or key, or a key that doesn't
+  unwrap it, throws `DatabaseKeyUnavailableException` instead of making
+  a new one, and the app toasts that the data must be cleared and closes
+  (`StartupPreloader.closeOnLostDatabaseKey`).
 
 ## Entities
 

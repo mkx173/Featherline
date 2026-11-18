@@ -56,7 +56,7 @@ are organized by role:
   sub-packages plus `components`, `navigation`, `theme`.
 - [`di`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
 - [`reminder`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
-  capability reconciliation, notification text and channels. 18 files;
+  capability reconciliation, notification text and channels. 15 files;
   documented in detail in [reminders.md](reminders.md).
 - [`startup`](https://github.com/mkx173/Featherline/tree/8e46ab59d3328a389c20e588bd1e62174dcb8b19/app/src/main/java/com/mkx/hrttracker/startup) — Hilt-eager startup
   preloader and timing instrumentation. Two files.
@@ -415,6 +415,21 @@ opened while its route is animating out is held back, and if the route
 is no longer the current back-stack destination its open state is
 cleared via `onDismissRequest` (per-route signal provided by the
 NavHost) so it cannot reappear on the next visit.
+
+A deep link (a reminder's or a widget row's tap to its dose; an anchor
+shortcut's or anchor widget's tap to milestones, the same
+`EXTRA_OPEN_MILESTONES` extra from `anchorOpenMilestonesIntent`) waits
+while a write holds the lock (`isBusy`) or the app lock is up
+(`homeDeepLinkNavigationAction`, `milestonesDeepLinkWaits`). A Home
+deep link leaving a page with unsaved edits asks first
+(`unsavedChanges.leaveBackStack`) and is dropped, highlight included,
+if the user keeps editing; otherwise open modal windows close
+(`dismissModalsAndAwait`) before it navigates.
+`MainActivity.onCreate` follows the deep link in its launch intent only
+on a cold start (`parsesLaunchIntent`): an activity restored after
+process death or a configuration change, or a Recents relaunch
+(`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`), would otherwise replay the
+task's old one; a fresh tap arrives through `onNewIntent`.
 
 Transition motion is centralized in
 [`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
