@@ -137,7 +137,7 @@ internal fun isSlotFulfilled(
     val loggedCounts = slotLogs
         .groupBy(MedicationSignature::fromLogEntry)
         .mapValues { (_, entriesForSignature) ->
-            entriesForSignature.sumOf { entry -> entry.count }
+            entriesForSignature.recordedCount()
         }
 
     return requiredCounts.all { (signature, requiredCount) ->
@@ -161,7 +161,7 @@ internal fun missingSlotCounts(
     val loggedCounts = entries
         .filter { entry -> isEntryForPlanSlot(group = group, slot = slot, entry = entry) }
         .groupBy(MedicationSignature::fromLogEntry)
-        .mapValues { (_, logs) -> logs.sumOf(MedicationLogEntry::count) }
+        .mapValues { (_, logs) -> logs.recordedCount() }
     return medications
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapValues { (signature, signatureMedications) ->
@@ -170,6 +170,14 @@ internal fun missingSlotCounts(
         }
         .filterValues { missingCount -> missingCount > 0 }
 }
+
+/**
+ * The records' counts added up, at most Int.MAX_VALUE. Restore checks only that each count is
+ * above 0, so a hand-edited backup can hold records whose Int sum wraps; a plan's count is an Int,
+ * so the cap changes no comparison with it.
+ */
+internal fun List<MedicationLogEntry>.recordedCount(): Int =
+    sumOf { entry -> entry.count.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 internal fun hasMatchingSlotRecord(
     group: MedicationGroup,

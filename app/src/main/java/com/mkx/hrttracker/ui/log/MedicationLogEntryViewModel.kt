@@ -965,14 +965,21 @@ internal fun buildEditingUiState(
         sourceGroupIsArchived = matchingSourceGroup?.isArchived()
             ?: (hasMatchingSourceGroupSnapshot && sourceGroupIsArchived),
         scheduledFor = representativeEntry.scheduledFor,
+        // In the record's zone, as the status readers pick them (isEntryWithinScheduleFulfillmentWindow).
+        // A loaded plan's neighbours win even when null: the snapshot's were picked in the device zone.
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            // In the record's zone, as the status readers pick them (isEntryWithinScheduleFulfillmentWindow).
-            matchingSourceGroup?.previousScheduledForBefore(scheduledFor, zoneId = appliedZoneId)
-                ?: sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            if (matchingSourceGroup != null) {
+                matchingSourceGroup.previousScheduledForBefore(scheduledFor, zoneId = appliedZoneId)
+            } else {
+                sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            }
         },
         sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
-            matchingSourceGroup?.nextScheduledForAfter(scheduledFor, zoneId = appliedZoneId)
-                ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            if (matchingSourceGroup != null) {
+                matchingSourceGroup.nextScheduledForAfter(scheduledFor, zoneId = appliedZoneId)
+            } else {
+                sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
+            }
         },
         recordIndicator = medicationLogRecordIndicator(representativeEntry),
         countText = normalizeMedicationCount(

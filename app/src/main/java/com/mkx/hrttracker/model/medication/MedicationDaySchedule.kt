@@ -127,7 +127,7 @@ fun buildPlanDaySchedule(
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val outsideWindowLogs = outsideWindowLogsBySignature[signature].orEmpty()
                         .sortedBy(MedicationLogEntry::appliedAt)
-                    val loggedCount = matchingLogs.sumOf { entry -> entry.count }
+                    val loggedCount = matchingLogs.recordedCount()
                     val isFulfilled = loggedCount >= requiredCount
                     val lastFulfillingEntry = matchingLogs.lastOrNull()
                     val lastOutsideWindowEntry = outsideWindowLogs.lastOrNull()

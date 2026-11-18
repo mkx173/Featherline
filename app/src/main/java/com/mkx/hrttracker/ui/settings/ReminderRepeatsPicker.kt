@@ -8,7 +8,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,17 +44,34 @@ internal fun ReminderRepeatsPickerDialog(
 ) {
     val counts = ReminderRepeats.COUNTS
     val intervals = ReminderRepeats.INTERVALS_MINUTES
-    // Keyed on repeats: a save confirmed a moment ago can land after the picker reopened, and the
-    // wheels then move to it. The key is part of the saveable key, so after a process death the
-    // wheels restore what was on screen once the same repeats loads.
-    val (countState, intervalState) = key(repeats) {
-        rememberWheelPickerState(
-            itemCount = counts.size,
-            initialIndex = counts.indexOf(repeats.count).coerceAtLeast(0),
-        ) to rememberWheelPickerState(
-            itemCount = intervals.size,
-            initialIndex = intervals.indexOf(repeats.intervalMinutes).coerceAtLeast(0),
-        )
+    // Keyed on a saved seed that follows repeats only while both wheels still show it: a save
+    // confirmed a moment ago can land after the picker reopened, and untouched wheels move to it,
+    // while a turned wheel keeps the user's choice. The seed is saveable, so after a process death
+    // turned wheels come back as they were and untouched ones follow the default, then the stored
+    // repeats once it loads.
+    // ponytail: "untouched" means "rests on the seed", so a wheel turned away and back follows a
+    // late save again; track touches on the wheel if that matters.
+    var seedCount by rememberSaveable { mutableIntStateOf(repeats.count) }
+    var seedInterval by rememberSaveable { mutableIntStateOf(repeats.intervalMinutes) }
+    val seedCountIndex = counts.indexOf(seedCount).coerceAtLeast(0)
+    val seedIntervalIndex = intervals.indexOf(seedInterval).coerceAtLeast(0)
+    val (countState, intervalState) = key(seedCount, seedInterval) {
+        rememberWheelPickerState(itemCount = counts.size, initialIndex = seedCountIndex) to
+            rememberWheelPickerState(itemCount = intervals.size, initialIndex = seedIntervalIndex)
+    }
+    // A drag moves only value and a tap sets index first, so both are checked: a wheel counts as
+    // touched from the first pixel. Derived, so a drag doesn't recompose the dialog per frame.
+    val untouched by remember(countState, intervalState, seedCountIndex, seedIntervalIndex) {
+        derivedStateOf {
+            countState.index == seedCountIndex && countState.value == seedCountIndex.toFloat() &&
+                intervalState.index == seedIntervalIndex && intervalState.value == seedIntervalIndex.toFloat()
+        }
+    }
+    if (untouched && (seedCount != repeats.count || seedInterval != repeats.intervalMinutes)) {
+        SideEffect {
+            seedCount = repeats.count
+            seedInterval = repeats.intervalMinutes
+        }
     }
     val off = stringResource(R.string.settings_reminder_repeats_off)
     val countLabels = counts.map { count -> if (count == 0) off else count.toString() }
