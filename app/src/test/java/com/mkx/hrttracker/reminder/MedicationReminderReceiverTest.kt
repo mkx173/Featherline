@@ -282,7 +282,7 @@ class MedicationReminderReceiverTest {
         handleDoseReminder(
             groupUuid = group.uuid,
             alertAt = alertAt,
-            now = alertAt.plusSeconds(1),
+            clock = { alertAt.plusSeconds(1) },
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,
@@ -309,7 +309,7 @@ class MedicationReminderReceiverTest {
         handleDoseReminder(
             groupUuid = groupUuid,
             alertAt = alertAt.toInstant(ZoneOffset.UTC),
-            now = now.toInstant(ZoneOffset.UTC),
+            clock = { now.toInstant(ZoneOffset.UTC) },
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,

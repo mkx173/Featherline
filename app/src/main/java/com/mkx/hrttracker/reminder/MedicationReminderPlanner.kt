@@ -113,11 +113,14 @@ internal fun reminderDosesFrom(instant: Instant, repeats: ReminderRepeats, zone:
     LocalDateTime.ofInstant(instant.minus(Duration.ofMinutes(repeats.spanMinutes)), zone).minusDays(1)
 
 /**
- * Every alert of the plan's doses from [dosesFrom] on, in order. A dose rings while it misses some
- * medication and is after the plan's skip watermark: at its own instant (its wall time in [zone],
- * so a time the clocks skip rings once they have, and one they repeat rings on its first pass),
- * then [ReminderRepeats.count] times more, [ReminderRepeats.intervalMinutes] apart in real time,
- * and never at or after the instant of the plan's next dose. Nothing is stored per alert.
+ * Every alert of the plan's doses from [dosesFrom] on, in instant order. A dose rings while it
+ * misses some medication and is after the plan's skip watermark: at its own instant (its wall time
+ * in [zone], so a time the clocks skip rings once they have, and one they repeat rings on its
+ * first pass), then [ReminderRepeats.count] times more, [ReminderRepeats.intervalMinutes] apart in
+ * real time, and never at or after the instant of the plan's next dose: the earliest instant of
+ * any later dose. That is the next dose's own but on a spring-forward night, where a later dose
+ * after the gap comes before one in it: 02:10 (03:10) rings nothing when 03:05 follows, as the
+ * 03:05 reminder covers it (decision V7). Nothing is stored per alert.
  */
 internal fun MedicationGroup.reminderAlerts(
     dosesFrom: LocalDateTime,
@@ -126,7 +129,7 @@ internal fun MedicationGroup.reminderAlerts(
     skippedThrough: LocalDateTime?,
     zone: ZoneId = ZoneId.systemDefault(),
 ): Sequence<ReminderAlert> =
-    occurrencesInPlanWindowFrom(start = dosesFrom).withNextDoseAt().flatMap { (dose, nextDoseAt) ->
+    occurrencesInPlanWindowFrom(start = dosesFrom).withNextDoseAt(zone).flatMap { (dose, nextDose) ->
         val doseAt = dose.scheduledFor
         val rings = (skippedThrough == null || doseAt.isAfter(skippedThrough)) &&
                 // A dose logged early or late, even outside its window, is taken.
@@ -139,23 +142,36 @@ internal fun MedicationGroup.reminderAlerts(
             emptySequence()
         } else {
             val first = doseAt.atZone(zone).toInstant()
-            val nextDose = nextDoseAt?.atZone(zone)?.toInstant()
             (0..repeats.count).asSequence()
                 .map { k -> ReminderAlert(doseAt, first.plus(Duration.ofMinutes(k.toLong() * repeats.intervalMinutes))) }
                 .takeWhile { alert -> nextDose == null || alert.alertAt.isBefore(nextDose) }
         }
     }
 
-/** Each occurrence with the plan's next dose time after it, or null past its last. */
-private fun Sequence<MedicationGroupSlotOccurrence>.withNextDoseAt():
-        Sequence<Pair<MedicationGroupSlotOccurrence, LocalDateTime?>> = sequence {
-    val atSameTime = mutableListOf<MedicationGroupSlotOccurrence>()
-    for (occurrence in this@withNextDoseAt) {
-        if (atSameTime.isNotEmpty() && occurrence.scheduledFor.isAfter(atSameTime.first().scheduledFor)) {
-            atSameTime.forEach { earlier -> yield(earlier to occurrence.scheduledFor) }
-            atSameTime.clear()
+/**
+ * Each occurrence with the earliest instant of the plan's doses after it in wall time, or null
+ * past its last.
+ */
+private fun Sequence<MedicationGroupSlotOccurrence>.withNextDoseAt(zone: ZoneId):
+        Sequence<Pair<MedicationGroupSlotOccurrence, Instant?>> = sequence {
+    val source = iterator()
+    val ahead = ArrayDeque<MedicationGroupSlotOccurrence>()
+    fun at(index: Int): MedicationGroupSlotOccurrence? =
+        ahead.getOrNull(index) ?: if (source.hasNext()) source.next().also(ahead::addLast) else null
+    while (true) {
+        val dose = at(0) ?: break
+        ahead.removeFirst()
+        var nextDose: Instant? = null
+        var index = 0
+        while (true) {
+            val later = at(index++) ?: break
+            if (!later.scheduledFor.isAfter(dose.scheduledFor)) continue
+            // Wall times map to instants in order but across a gap, which moves a dose later, so a
+            // dose past the earliest one's instant read as a wall time is after it.
+            if (nextDose != null && later.scheduledFor.isAfter(LocalDateTime.ofInstant(nextDose, zone))) break
+            val laterAt = later.scheduledFor.atZone(zone).toInstant()
+            if (nextDose == null || laterAt.isBefore(nextDose)) nextDose = laterAt
         }
-        atSameTime += occurrence
+        yield(dose to nextDose)
     }
-    atSameTime.forEach { last -> yield(last to null) }
 }

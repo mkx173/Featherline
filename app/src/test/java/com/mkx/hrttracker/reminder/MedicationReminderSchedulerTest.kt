@@ -1173,7 +1173,7 @@ class MedicationReminderSchedulerTest {
         handleDoseReminder(
             groupUuid = groupUuid,
             alertAt = testInstant(alertAt),
-            now = testInstant(now),
+            clock = { testInstant(now) },
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,

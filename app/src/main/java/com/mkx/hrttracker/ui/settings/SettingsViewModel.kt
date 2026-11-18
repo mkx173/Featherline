@@ -293,8 +293,10 @@ class SettingsViewModel @Inject constructor(
         launchSettingsMutation {
             settingsRepository.setHideMedicationDetails(hidden)
             // Reminders on screen show or hide their medications too, reposted silently.
-            runReminderSideEffectBestEffort {
-                medicationReminderScheduler.refreshDoseReminderNotifications()
+            withContext(NonCancellable) {
+                runReminderSideEffectBestEffort {
+                    medicationReminderScheduler.refreshDoseReminderNotifications()
+                }
             }
         }
     }

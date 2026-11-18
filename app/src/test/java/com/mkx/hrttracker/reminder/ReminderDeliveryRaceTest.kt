@@ -374,7 +374,7 @@ class ReminderDeliveryRaceTest {
             groupUuid = plan.uuid,
             alertAt = armedFor,
             legacyScheduledAt = legacyScheduledAt,
-            now = testInstant(now),
+            clock = { testInstant(now) },
             deadline = TimeSource.Monotonic.markNow() + 8.seconds,
             appScope = backgroundScope,
             settingsRepository = settingsRepository,

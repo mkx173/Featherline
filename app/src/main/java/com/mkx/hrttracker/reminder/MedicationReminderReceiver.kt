@@ -74,7 +74,6 @@ class MedicationReminderReceiver : BroadcastReceiver() {
             alertAt = alertAt,
             legacyScheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
                 ?.let { value -> runCatching { LocalDateTime.parse(value) }.getOrNull() },
-            now = Instant.now(),
             deadline = deadline,
             appScope = appScope,
             settingsRepository = settingsRepository,
@@ -90,9 +89,10 @@ class MedicationReminderReceiver : BroadcastReceiver() {
 }
 
 /**
- * Posts the plan's reminder for its latest alert from [alertAt] up to [now], then arms its next
- * alert, and finishes the broadcast once it is done. Only the plan's own doses: plans that share
- * an alert time each post their own, and only the first to arrive sounds.
+ * Posts the plan's reminder for its latest alert from [alertAt] up to the clock, read once it
+ * holds the lock, then arms its next alert, and finishes the broadcast once it is done. Only the
+ * plan's own doses: plans that share an alert time each post their own, and only the first to
+ * arrive sounds.
  */
 internal fun handleDoseReminder(
     groupUuid: UUID,
@@ -100,8 +100,8 @@ internal fun handleDoseReminder(
     alertAt: Instant?,
     /** The dose time a v1.4.2 alarm carried. */
     legacyScheduledAt: LocalDateTime? = null,
-    /** When the broadcast was received. */
-    now: Instant,
+    /** Read under the lock, not at receipt: a delivery can wait there past the plan's next alert. */
+    clock: () -> Instant = Instant::now,
     /** The end of the broadcast's budget, counted from its receipt. */
     deadline: TimeMark,
     appScope: CoroutineScope,
@@ -117,8 +117,7 @@ internal fun handleDoseReminder(
 ) {
     appScope.launch {
         runCatching {
-            val settings = settingsRepository.getCurrentSettings()
-            if (!settings.remindersEnabled) {
+            if (!settingsRepository.getCurrentSettings().remindersEnabled) {
                 diagnosticsLogger.info(
                     TAG,
                     "reminder_receiver_master_disabled groupUuid=$groupUuid alertAt=$alertAt"
@@ -130,6 +129,11 @@ internal fun handleDoseReminder(
             // One hold from the check to the reschedule: a pass in between would arm this
             // alert again, and that alarm would pass the check too.
             withReminderScheduleLock {
+                // The clock and the repeats as of the hold: a delivery that waited for the lock
+                // past the plan's next alert rings that one once, and a repeat received before
+                // repeats were turned off rings nothing.
+                val now = clock()
+                val repeats = settingsRepository.getCurrentSettings().reminderRepeats
                 if (!medicationReminderScheduler.awaitsReminderDelivery(groupUuid, alertAt)) {
                     diagnosticsLogger.info(
                         TAG,
@@ -141,7 +145,6 @@ internal fun handleDoseReminder(
                     val since = alertAt
                         ?: legacyScheduledAt?.atZone(zone)?.toInstant()
                         ?: now
-                    val repeats = settings.reminderRepeats
                     val group = medicationGroupRepository.getGroup(groupUuid)
                     val entries = medicationLogRepository.getScheduledGroupEntriesSince(
                         reminderDosesFrom(minOf(since, now), repeats, zone)

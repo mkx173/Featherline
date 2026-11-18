@@ -122,10 +122,14 @@ internal fun buildMedicationReminderBundle(
                 entries = entries,
             )
             // A dose logged late, outside its window, is taken: only what the slot
-            // still misses is reminded, and nothing once it misses nothing.
-            val displayedMedications = group.medications.filter { medication ->
-                MedicationSignature.fromGroupMedication(medication) in missingCounts
-            }
+            // still misses is reminded, and nothing once it misses nothing. One row per
+            // medication, with what is left of it, as Log now writes.
+            val displayedMedications = group.medications
+                .distinctBy(MedicationSignature::fromGroupMedication)
+                .mapNotNull { medication ->
+                    missingCounts[MedicationSignature.fromGroupMedication(medication)]
+                        ?.let { missing -> medication.copy(count = missing) }
+                }
             if (displayedMedications.isEmpty()) {
                 return@mapNotNull null
             }

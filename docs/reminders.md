@@ -80,16 +80,19 @@ sequenceDiagram
 [`MedicationReminderPlanner.kt`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderPlanner.kt):
 
 - `reminderAlerts(dosesFrom, entries, repeats, skippedThrough)` — every
-  alert of a plan's doses from a time on, in order. A dose rings while
+  alert of a plan's doses from a time on, in instant order. A dose rings while
   `missingSlotCounts` says it misses some medication (a dose logged
   early or late, even outside its window, is taken) and it is after the
   plan's skip watermark. Its alerts are the dose time plus k × the
-  interval, k = 0..count, before the plan's next dose (`withNextDoseAt`).
+  interval, k = 0..count, before the plan's next dose (`withNextDoseAt`):
+  the earliest moment of any later dose, which on a spring-forward night
+  can be a dose after the gap that comes before one in it.
 - `nextReminderAlert(after, …)` — the first alert strictly after a
   time. An alert at exactly `now` has rung, so arming it again
   would ring a just-tapped reminder again. Startup and the other writers
   pass no time, so the scheduler reads `Instant::now` under its lock;
-  only the receiver passes `after`, the instant it received the alarm.
+  only the receiver passes `after`, the instant it read under the lock
+  for its delivery.
 - `latestDueReminderAlert(since, now, …)` — the latest alert from the
   armed one up to now: what a delivery rings for. A late delivery rings
   only that one, not each alert it was late for, and only while it is
@@ -159,7 +162,8 @@ dose's ring at its new local time was lost.
 ### Receive
 
 - [`MedicationReminderReceiver`](../app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderReceiver.kt)
-  — reads the master switch, then in one hold of the lock: checks the
+  — reads the master switch, then in one hold of the lock: reads the
+  clock and the repeats, checks the
   stored instant, posts the plan's reminder for its latest due alert
   if that alert is under an hour old (reading the switch again just
   before), marks it delivered, and arms
@@ -209,7 +213,8 @@ Follow system that is the phone's language mapped to a supported one, as
 the screens show it, not the application context's own.
 
 A reminder carries the plan name as its text, the dose's date and time
-as its subtext, the medications in its expanded text (or only the plan
+as its subtext, the medications in its expanded text, each with the
+count the dose still misses, as Log now records it (or only the plan
 name with Hide medication details on), Skip and Log now actions, and a
 delete intent. Its tag, `medication-reminder/<doseAt>/<hash of its
 slots>`, is per plan and dose, so a repeat posts in place, and with no
@@ -349,11 +354,12 @@ rebuild.
   gap: a dose in it rings once the clocks have skipped, an hour later.
   Repeats are real time, so they stay i minutes apart across a change.
   Known limits:
-  - on the spring-forward day, a dose in the gap and the plan's next
-    dose under an hour after it (02:30 and 03:00 on Mar 8): the 02:30
-    dose doesn't ring, because its moment (03:30) comes after the next
-    dose's (03:00). The 03:00 reminder covers it, and Home shows 02:30
-    as missed;
+  - on the spring-forward day, a dose in the gap with a later dose of
+    the plan whose moment comes first doesn't ring: the valid dose
+    after it covers it. With 02:30 and 03:00 on Mar 8, the 02:30 dose's
+    moment is 03:30, after 03:00's, so only 03:00 rings. With 02:10,
+    02:50 and 03:05 (moments 03:10, 03:50 and 03:05), only 03:05 rings,
+    with its repeats. Home shows the doses in the gap as missed;
   - a dose in the hour first armed on its second pass, as for a plan
     created then, keeps its first-pass instant, so the part of its
     repeats still to come rings in the second pass, early on the clock

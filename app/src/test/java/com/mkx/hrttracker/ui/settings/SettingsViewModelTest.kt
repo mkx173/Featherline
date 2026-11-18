@@ -693,6 +693,28 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun setHideMedicationDetails_theRepostOutlivesSettings() = runTest {
+        coEvery { settingsRepository.setHideMedicationDetails(any()) } just Runs
+        val repostGate = CompletableDeferred<Unit>()
+        var reposted = false
+        coEvery { medicationReminderScheduler.refreshDoseReminderNotifications() } coAnswers {
+            repostGate.await()
+            reposted = true
+        }
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setHideMedicationDetails(true)
+        runCurrent()
+        // Settings' owner goes, as when its activity finishes, while the reminders are reposted.
+        viewModel.viewModelScope.cancel()
+        repostGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue("the reminders on screen were reposted", reposted)
+    }
+
+    @Test
     fun setRemindersEnabled_reschedulesWhenEnablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
