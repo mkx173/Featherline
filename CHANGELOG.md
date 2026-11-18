@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The medium home-screen widget no longer shows an empty space below Today when nothing is scheduled today and you already took last night's dose, for example after archiving the group. It shows "Nothing scheduled today" instead.
 - In a weekly schedule, the day-of-week letters are centered in their buttons on narrow phones like the Galaxy S20 instead of sitting slightly to the right.
 - In Add stock, the Add button is no longer available when the amount is 0 and stock tracking is on, for example after tapping + and then −.
+- In Adjust stock, tapping the stock card puts the cursor at the end of the amount instead of the start, also after + or − or a quick-add chip.
 - In History, after you delete the last record of a month you're viewing, swiping to the next month no longer briefly enables the previous-month button.
 - History now lets you select dates with records even when they fall after today in the device's time zone, including dates in the next month. Those records also appear in calendar indicators and month summaries.
 - The home-screen widget's Coming up list now includes manual records and archived groups like Home, and the widget's Coming up list appears at 18:00 as on Home. On Home and the widget, Last night now stays until noon instead of 06:00.

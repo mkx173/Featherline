@@ -54,8 +54,11 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -133,7 +136,6 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -2498,11 +2500,9 @@ private fun NoteEditorCard(
     // Set when a save fails while another editor is open: the latch then holds only this card's
     // failed draft, and the tap that reopens it releases the latch. Saveable for the same reason.
     var saveFailed by rememberSaveable { mutableStateOf(false) }
-    // TextFieldValue (not a bare String) so editing can begin with the cursor at the tapped
-    // character (see [beginEditingAtCursor]); its selection also survives process death via the Saver.
-    var draft by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(text, TextRange(text.length)))
-    }
+    // A TextFieldState so editing can begin with the cursor at the tapped character (see
+    // [beginEditingAtCursor]); rememberTextFieldState saves its text and selection, unkeyed.
+    val draft = rememberTextFieldState(initialText = text)
     // The text the draft was seeded from. When the note changes under the draft (its save lands, a
     // new note appears, the composer moves to another day, or All Notes edited it while this screen
     // was away), a draft you haven't touched takes the new text, so Save can't write the older one
@@ -2512,7 +2512,7 @@ private fun NoteEditorCard(
     // is not an edit.
     var draftSeed by rememberSaveable { mutableStateOf(text) }
     if (draftSeed != text) {
-        if (draft.text.trim() == draftSeed.trim() && !savePending) draft = TextFieldValue(text, TextRange(text.length))
+        if (draft.text.toString().trim() == draftSeed.trim() && !savePending) draft.setTextAndPlaceCursorAtEnd(text)
         draftSeed = text
     }
     var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
@@ -2582,9 +2582,12 @@ private fun NoteEditorCard(
     // prompt and for any tap that doesn't land on the text itself. A held draft (a save in flight,
     // or a failed one) is what the idle text shows, so it is what opens; otherwise the saved text.
     val openAtCursor = { cursorOffset: Int? ->
-        val seed = if (savePending) draft.text else text
+        val seed = if (savePending) draft.text.toString() else text
         val offset = (cursorOffset ?: seed.length).coerceIn(0, seed.length)
-        draft = TextFieldValue(seed, TextRange(offset))
+        draft.edit {
+            replace(0, length, seed)
+            selection = TextRange(offset)
+        }
         editingExistingNote = text.isNotEmpty()
         releaseFailedSave()
         controller.begin(identity)
@@ -2611,7 +2614,7 @@ private fun NoteEditorCard(
     // one, writes nothing and just reverts to the saved text; an existing note's blank one offers
     // to delete the note instead (the editor stays open if you keep it).
     val saveEditing = saveEditing@{
-        val trimmed = draft.text.trim()
+        val trimmed = draft.text.toString().trim()
         if (trimmed.isEmpty() && text.isNotEmpty()) {
             isDeleteConfirmationVisible = true
             return@saveEditing
@@ -2623,7 +2626,7 @@ private fun NoteEditorCard(
             pendingSaveText = trimmed
             pendingSaveId = onSave(trimmed)
         } else if (text.isNotEmpty()) {
-            draft = TextFieldValue(text, TextRange(text.length))
+            draft.setTextAndPlaceCursorAtEnd(text)
         }
         finishEditing()
     }
@@ -2636,7 +2639,7 @@ private fun NoteEditorCard(
     // only copy.
     val cancelEditing = {
         val revertTo = if (savePending) pendingSaveText else text.ifEmpty { null }
-        if (revertTo != null) draft = TextFieldValue(revertTo, TextRange(revertTo.length))
+        if (revertTo != null) draft.setTextAndPlaceCursorAtEnd(revertTo)
         finishEditing()
     }
     val latestCancelEditing by rememberUpdatedState(cancelEditing)
@@ -2644,7 +2647,7 @@ private fun NoteEditorCard(
 
     // What closing the editor would lose: the draft, unless it is what Cancel goes back to.
     val hasUnsavedDraft = isEditing &&
-        draft.text.trim() != (if (savePending) pendingSaveText.orEmpty() else text).trim()
+        draft.text.toString().trim() != (if (savePending) pendingSaveText.orEmpty() else text).trim()
     SideEffect {
         controller.reportUnsaved(identity, hasUnsavedDraft)
         if (isEditing) controller.openField = focusRequester
@@ -2726,7 +2729,7 @@ private fun NoteEditorCard(
                             Modifier
                         }
                         Text(
-                            text = draft.text,
+                            text = draft.text.toString(),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             onTextLayout = { idleTextLayout = it },
@@ -2736,8 +2739,7 @@ private fun NoteEditorCard(
                         )
                     } else {
                         ComposerTextField(
-                            value = draft,
-                            onValueChange = { draft = it },
+                            state = draft,
                             focusRequester = focusRequester,
                             onFocused = {
                                 if (isEditing) {
@@ -2819,7 +2821,7 @@ private fun NoteEditorCard(
             if (firstCompositionSettled) runCatching { focusRequester.requestFocus() }
         } else {
             val kept = if (savePending) pendingSaveText else text
-            if (kept != null) draft = TextFieldValue(kept, TextRange(kept.length))
+            if (kept != null) draft.setTextAndPlaceCursorAtEnd(kept)
         }
         firstCompositionSettled = true
     }
@@ -2859,7 +2861,7 @@ private fun NoteEditorCard(
             if (!shown && pendingSaveId != landedWhileAwayId) return@LaunchedEffect
             pendingSaveId = null
             hold(false)
-            if (!isEditing) draft = TextFieldValue(text, TextRange(text.length))
+            if (!isEditing) draft.setTextAndPlaceCursorAtEnd(text)
         } else {
             pendingSaveId = null
             val openEditor = controller.activeEditorId
@@ -3038,8 +3040,7 @@ private fun TodayComposerPrompt(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ComposerTextField(
-    value: TextFieldValue,
-    onValueChange: (TextFieldValue) -> Unit,
+    state: TextFieldState,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onImeAction: () -> Unit,
@@ -3060,8 +3061,7 @@ private fun ComposerTextField(
         label = "composer-field-min-height",
     )
     BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+        state = state,
         modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { if (it.isFocused) onFocused() },
@@ -3071,8 +3071,8 @@ private fun ComposerTextField(
         // path as the Save button, matching the calibration notes field's onDone. The field stays
         // multiline for display.
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onImeAction() }),
-        decorationBox = { innerTextField ->
+        onKeyboardAction = { onImeAction() },
+        decorator = TextFieldDecorator { innerTextField ->
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = minHeight)) {
                 innerTextField()
             }
