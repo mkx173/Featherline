@@ -86,9 +86,10 @@ sequenceDiagram
   plan's skip watermark. Its alerts are the dose time plus k × the
   interval, k = 0..count, before the plan's next dose (`withNextDoseAt`).
 - `nextReminderAlert(after, …)` — the first alert strictly after a
-  time. An alert at exactly `now` has rung, and the startup `now` is
-  truncated to the minute, so arming it again would ring a just-tapped
-  reminder again.
+  time. An alert at exactly `now` has rung, so arming it again
+  would ring a just-tapped reminder again. Startup and the other writers
+  pass no time, so the scheduler reads `Instant::now` under its lock;
+  only the receiver passes `after`, the instant it received the alarm.
 - `latestDueReminderAlert(since, now, …)` — the latest alert from the
   armed one up to now: what a delivery rings for. A late delivery rings
   only that one, not each alert it was late for, and only while it is

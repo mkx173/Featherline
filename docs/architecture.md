@@ -174,7 +174,7 @@ entities stay inside `data/`.
 [`data/local`](https://github.com/mkx173/Featherline/tree/main/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 13 `@Entity` data classes, the 8 DAOs,
 the migration objects, and the SQLCipher passphrase provider. The
-current schema is version 10 (the medicine-identity refactor reset the
+current schema is version 12 (the medicine-identity refactor reset the
 schema and dropped the legacy v1–v29 migration chain; `MIGRATION_2_3`
 and `MIGRATION_3_4` then added the stock columns on `medicines`,
 `MIGRATION_4_5` added the `doseAmountDelta` column,
@@ -182,8 +182,11 @@ and `MIGRATION_3_4` then added the stock columns on `medicines`,
 index, `MIGRATION_6_7` added external-import provenance,
 `MIGRATION_7_8` added the `tracked_dates` and `notes` journal tables,
 `MIGRATION_8_9` added the `heroBackgroundKey` column to
-`tracked_dates`, and `MIGRATION_9_10` added the
-`e2_calibration_metadata` table).
+`tracked_dates`, `MIGRATION_9_10` added the
+`e2_calibration_metadata` table, `MIGRATION_10_11` added the Health
+Connect `weightMeasuredAtEpochMillis` column on `user_profile`, and
+`MIGRATION_11_12` added each plan's `dayEndsAtFourAm` night-owl column
+on `medication_groups`).
 See
 [data-model.md](data-model.md) for the per-entity breakdown.
 
@@ -482,8 +485,9 @@ reads Room to build them.
   (`HomeSnapshotGenerationStore`, mirrored in memory as `generation`),
   runs the write, and asks the worker for a run. Nothing is cleared: the
   published state stays for the screens already showing it, but it is
-  no longer current. `invalidate()` does the same with no write, for the
-  journal's hero anchor, which `JournalRepository` observes;
+  no longer current. `invalidate()` does the same with no write; nothing in
+  production calls it now that tracked-date writes go through the gate
+  themselves;
   `retryCalibration()`, the calibration page's Try again, also raises
   the requested fit epoch.
 - **The worker.** One coroutine drains a conflated request channel, so

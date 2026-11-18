@@ -50,14 +50,18 @@ in the same sense the reminder planner is: given a `HomeSnapshotRecord`,
 the widget's estimate, a `SettingsState`, and a `LocalDateTime`, it
 returns a `WidgetSnapshotRecord` with no side effects.
 
-The builder is the only place the widget reads time-of-day cues:
+The builder takes its time-of-day cues from
+`buildMedicationDaySections(...)` (`MedicationDaySections.kt`, shared
+with Home), whose windows are in `MedicationDayTimeRange.kt`:
 
-- Before 6 AM, it walks the previous day's schedule with a 6 PM evening
-  cutoff and tags those rows with `WidgetDoseChip.LAST_NIGHT`.
-- After 6 PM, it walks tomorrow's schedule out to 6 AM and tags those
-  rows with `WidgetDoseChip.COMING_UP`.
+- Until noon of the current medication day (`isLastNightVisible`), the
+  previous medication day's evening rows (18:00 on, and for a night-owl
+  plan 00:00-04:00 too) are tagged `WidgetDoseChip.LAST_NIGHT`.
+- From 18:00 (for a night-owl plan, from midnight; `isComingUpVisible`),
+  the next medication day's first bucket (00:00-04:00, or for a
+  night-owl plan 04:00-12:00) is tagged `WidgetDoseChip.COMING_UP`.
 - Today's `scheduledEntries` and `unplannedEntries` from
-  `buildPlanDaySchedule(...)` become the main rows.
+  `sections.todaySchedule` become the main rows.
 
 Each `WidgetDoseRow` carries the identity (`groupUuid`,
 `scheduleTimeUuid`, `medicationUuid`, `entryUuid`), the resolved status
@@ -483,10 +487,13 @@ Two render paths exist in
   `updateAppWidget` reuses the launcher's existing `LazyColumn` collection
   adapter, the composed `RemoteViews` tree must keep the same shape across
   updates, or the adapter recycles a stale/blank item view.
-- **`updateAllHrtWidgets(context)`** — `glanceUpdateAll` for both sizes;
-  the worker and quick-log paths call it when the snapshot hasn't
-  changed (nothing new to push). The large widget below API 33 also reuses
-  `glanceUpdateAll` (for that one size) as its `pushHrtWidgets` fallback.
+- **`updateAllHrtWidgets(context)`** — reads the stored snapshot
+  (`WidgetSnapshotStore.readSnapshot()`) and repaints both sizes through
+  `pushHrtWidgets`; the daily refresh worker and quick-log paths call it
+  when the snapshot hasn't changed (nothing new to push), and a resize
+  calls it once the drag settles, since a bare
+  session `updateAll` stalls in the background. Below API 33 the large
+  widget's part of `pushHrtWidgets` is `glanceUpdateAll` for that one size.
 
 ## Quick-log action
 

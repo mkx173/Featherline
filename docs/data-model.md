@@ -509,8 +509,9 @@ Eight DAO interfaces, each backing the entities in its namesake area.
   table to match the supplied lists in one atomic step.
 - [`MedicationLogDao`](https://github.com/mkx173/Featherline/blob/main/app/src/main/java/com/mkx/hrttracker/data/local/MedicationLogDao.kt)
   — log inserts, batch reads by ID, the
-  `getLatestEntryByCategoryOnOrBefore` query, schedule-time renames
-  (`updateScheduledForTimeForEntries`), the
+  `getLatestEntryByCategoryOnOrBefore` query, schedule-time moves
+  (`moveScheduledForEntries`, which sets the new time and shifts the
+  date by a day offset), the
   `reclassifyEntriesForDeletedGroup` step that nulls out group
   references rather than dropping rows, and the
   `observeScheduledEntriesInWindow` / `getScheduledEntriesInWindow`
