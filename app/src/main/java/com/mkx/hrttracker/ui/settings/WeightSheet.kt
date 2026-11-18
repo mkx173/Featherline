@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.foundation.layout.Box
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -162,12 +161,8 @@ private fun rememberHealthConnectWeightSync(
                 } else {
                     Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
                 }
-                denial.onOpenSettings()
-                try {
-                    context.startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                    // Health Connect (or Play) went away; the card shows it as unavailable.
-                }
+                // If Health Connect (or Play) went away, nothing opens; the card shows it as unavailable.
+                denial.openSettings(context, intent)
             },
         )
     }

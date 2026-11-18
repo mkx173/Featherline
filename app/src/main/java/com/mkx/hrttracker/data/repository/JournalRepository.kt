@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.journal.HeroBackground
 import com.mkx.hrttracker.model.journal.Note
 import com.mkx.hrttracker.model.journal.PinOrder
 import com.mkx.hrttracker.model.journal.TrackedDate
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -46,6 +49,7 @@ class JournalRepository @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val anchorSnapshotStore: AnchorSnapshotStore,
     @param:AppScope private val appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     // Warm, synchronously-readable caches of the journal's reactive sources.
     // Eagerly shared on appScope (the repository is constructed at app start via
@@ -58,8 +62,8 @@ class JournalRepository @Inject constructor(
     // nowhere downstream (an empty list here means the journal really is empty).
     // Every consumer reads null as "wait / skip": filterNotNull below skips it, so
     // awaitTrackedDates waits past an error window and the snapshot writer never
-    // persists an error as an empty journal. The live observe* flows below keep
-    // their own emptyList fallback and remain the UI's reactive source.
+    // persists an error as an empty journal. The live observe* flows below handle
+    // errors their own way (see their retry helpers) and remain the UI's reactive source.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val trackedDatesCache: StateFlow<List<TrackedDate>?> =
         databaseHolder.databaseFlow.flatMapLatest { db ->
@@ -247,7 +251,7 @@ class JournalRepository @Inject constructor(
                 db.journalDao()
                     .observeTrackedDates()
                     .map { rows -> rows.map { it.toModel() } }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .retryRecoverableDatabaseError(emptyList())
             }
         }
 
@@ -260,7 +264,7 @@ class JournalRepository @Inject constructor(
                 db.journalDao()
                     .observePinnedTrackedDates()
                     .map { rows -> rows.map { it.toModel() } }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .retryRecoverableDatabaseError(emptyList())
             }
         }
 
@@ -268,12 +272,13 @@ class JournalRepository @Inject constructor(
     fun observeNotesOnOrAfter(fromDate: LocalDate): Flow<List<Note>> =
         databaseHolder.databaseFlow.flatMapLatest { db ->
             if (db == null) {
-                flowOf(emptyList())
+                // Nothing yet: "no notes" here would stay on screen through a failed first read.
+                emptyFlow()
             } else {
                 db.journalDao()
                     .observeNotesOnOrAfter(fromDate.toString())
                     .map { rows -> rows.map { it.toModel() } }
-                    .catchRecoverableDatabaseError(emptyList())
+                    .retryNoteRead("notes_on_or_after")
             }
         }
 
@@ -281,12 +286,13 @@ class JournalRepository @Inject constructor(
     fun observeNoteForDate(date: LocalDate): Flow<Note?> =
         databaseHolder.databaseFlow.flatMapLatest { db ->
             if (db == null) {
-                flowOf(null)
+                // As above: null would read as "no note" and be saved over.
+                emptyFlow()
             } else {
                 db.journalDao()
                     .observeNoteForDate(date.toString())
                     .map { it?.toModel() }
-                    .catchRecoverableDatabaseError(null)
+                    .retryNoteRead("note_for_date")
             }
         }
 
@@ -298,7 +304,7 @@ class JournalRepository @Inject constructor(
             } else {
                 db.journalDao()
                     .observeAllNotesCount()
-                    .catchRecoverableDatabaseError(0)
+                    .retryRecoverableDatabaseError(0)
             }
         }
 
@@ -310,9 +316,33 @@ class JournalRepository @Inject constructor(
             } else {
                 db.journalDao()
                     .observeNotesCountBefore(beforeDate.toString())
-                    .catchRecoverableDatabaseError(0)
+                    .retryRecoverableDatabaseError(0)
             }
         }
+
+    // For the note reads: a failed read emits nothing and reads again, so the screen keeps what it
+    // last read (or keeps loading) instead of an empty fallback. "No note" is what the Today
+    // composer and the note cards read as nothing to keep, and Save would then replace the real
+    // note with what was typed into the empty editor. The wait doubles from 5 s to 60 s through a
+    // run of failures, and the run's first failure is logged once; a read that works ends the run.
+    // The wait is a plain delay, so it runs on virtual time under runTest; a test that ends with a
+    // read still failing must cancel the ViewModel's scope, or runTest's last advanceUntilIdle never
+    // returns.
+    private fun <T> Flow<T>.retryNoteRead(what: String): Flow<T> = flow {
+        var failures = 0
+        emitAll(
+            onEach { failures = 0 }.retryWhen { error, _ ->
+                if (error is CancellationException) throw error
+                if (error !is Exception) throw error
+                if (failures == 0) {
+                    diagnosticsLogger.warning(TAG, "note_read_failed_retrying what=$what", error)
+                }
+                delay(noteReadRetryDelayMs(failures))
+                failures++
+                true
+            }
+        )
+    }
 
     suspend fun getTrackedDateEntities(): List<TrackedDateEntity> =
         databaseHolder.get().journalDao().getTrackedDates()
@@ -506,14 +536,15 @@ private fun <T> Flow<T>.catchRecoverableDatabaseError(fallback: T): Flow<T> =
         emit(fallback)
     }
 
-// For the app-lifetime stateIn caches only: catch alone COMPLETES the flow after one
+// For the app-lifetime stateIn caches: catch alone COMPLETES the flow after one
 // recoverable error, and since databaseFlow never re-emits, the eagerly-shared cache
 // would freeze at the fallback for the rest of the process — every anchor surface and
 // the Milestones screen degrading permanently on a single transient read error. Emit
 // the fallback (consumers read it as "not usable"), then resubscribe the DAO flow.
-// The per-collection observe* flows keep plain catch: they get a fresh subscription
-// per screen entry and recover naturally.
-// ponytail: 5 fixed retries per process (retryWhen's attempt never resets on success);
+// The observe* flows use it too: the Journal and All Notes ViewModels share them Eagerly for
+// their own lives, so a flow that completed on its fallback would never read again.
+// ponytail: 5 fixed retries per process, per subscription for observe* (retryWhen's attempt
+// never resets on success);
 // add reset-on-success bookkeeping if errors spread over a process lifetime show up.
 private fun <T> Flow<T>.retryRecoverableDatabaseError(fallback: T): Flow<T> =
     retryWhen { error, attempt ->
@@ -525,5 +556,11 @@ private fun <T> Flow<T>.retryRecoverableDatabaseError(fallback: T): Flow<T> =
         }
     }.catchRecoverableDatabaseError(fallback)
 
+// 5 s, 10 s, 20 s, 40 s, then 60 s.
+internal fun noteReadRetryDelayMs(failuresBefore: Int): Long =
+    (DB_READ_RETRY_DELAY_MS shl minOf(failuresBefore, 4)).coerceAtMost(NOTE_READ_MAX_RETRY_DELAY_MS)
+
+private const val TAG = "JournalRepository"
+private const val NOTE_READ_MAX_RETRY_DELAY_MS = 60_000L
 private const val DB_READ_MAX_RETRIES = 5L
 private const val DB_READ_RETRY_DELAY_MS = 5_000L

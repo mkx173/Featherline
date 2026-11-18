@@ -514,6 +514,27 @@ class TodayComposerSaveTest {
         }
     }
 
+    /** The same when only a space was typed: a draft that differs only by whitespace is untouched (C1). */
+    @Test
+    fun anEditorWithOnlyATrailingSpace_takesTheNoteEditedWhileAway_soSaveWritesNothing() {
+        notes.value = listOf(Note(id = "june-16", date = june16, text = "A"))
+        setContent()
+        composeRule.onNodeWithTag(composerField).performClick()
+        composeRule.onNodeWithTag(composerField).performTextInput(" ")
+        composeRule.onNodeWithTag(composerField).assertTextEquals("A ")
+
+        // Nothing asks on the way to See all notes; today's note is edited there.
+        navigateAwayAndBack({ putNote(june16, "New text") })
+        composeRule.onNodeWithText(context.getString(R.string.unsaved_changes_confirmation)).assertDoesNotExist()
+
+        assertComposerOpenWith("New text")
+        composeRule.onNodeWithTag(composerField).performImeAction()
+        composeRule.runOnIdle {
+            assertEquals(emptyList<String>(), saves)
+            assertEquals("New text", notes.value.single().text)
+        }
+    }
+
     /** NoPhantomEditor: a new note lands while its field is reopened. */
     @Test
     fun aNewNoteThatLandsWhileItsFieldIsReopened_keepsTheEditorOnTheNote() {

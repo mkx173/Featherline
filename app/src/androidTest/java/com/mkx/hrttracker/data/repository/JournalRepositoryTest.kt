@@ -24,11 +24,13 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -588,19 +590,20 @@ class JournalRepositoryTest {
     }
 
     @Test
-    fun observers_emitFallbacks_whenDatabaseFlowEmitsNull() = runBlocking {
+    fun observers_emitFallbacksOrNothing_whenDatabaseFlowEmitsNull() = runBlocking {
         databaseFlow.value = null
 
         assertEquals(emptyList<String>(), repo.observeTrackedDates().first().map { it.name })
         assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
-        assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
-        assertNull(repo.observeNoteForDate(today).first())
         assertEquals(0, repo.observeAllNotesCount().first())
         assertEquals(0, repo.observeNotesCountBefore(today).first())
+        // The note reads emit nothing rather than "no notes", which would stay through a failed read.
+        assertNull(withTimeoutOrNull(500) { repo.observeNotesOnOrAfter(today).map { "emitted" }.first() })
+        assertNull(withTimeoutOrNull(500) { repo.observeNoteForDate(today).map { "emitted" }.first() })
     }
 
     @Test
-    fun observers_emitFallbacks_whenDaoFlowsThrowRecoverableError() = runBlocking {
+    fun observers_emitFallbacksOrNothing_whenDaoFlowsThrowRecoverableError() = runBlocking {
         val journalDao = mockk<JournalDao>()
         every { journalDao.observeTrackedDates() } returns flow {
             throw IllegalStateException("tracked dates failed")
@@ -631,10 +634,12 @@ class JournalRepositoryTest {
 
         assertEquals(emptyList<String>(), repo.observeTrackedDates().first().map { it.name })
         assertEquals(emptyList<String>(), repo.observePinnedTrackedDates().first().map { it.name })
-        assertEquals(emptyList<String>(), repo.observeNotesOnOrAfter(today).first().map { it.text })
-        assertNull(repo.observeNoteForDate(today).first())
         assertEquals(0, repo.observeAllNotesCount().first())
         assertEquals(0, repo.observeNotesCountBefore(today).first())
+        // The note reads emit nothing rather than "no notes", which an editor would save over.
+        // Mapped to a marker: an emitted null would pass a bare assertNull too.
+        assertNull(withTimeoutOrNull(500) { repo.observeNotesOnOrAfter(today).map { "emitted" }.first() })
+        assertNull(withTimeoutOrNull(500) { repo.observeNoteForDate(today).map { "emitted" }.first() })
     }
 
     @Test

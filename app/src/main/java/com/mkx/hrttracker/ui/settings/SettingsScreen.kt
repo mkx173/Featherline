@@ -483,13 +483,12 @@ fun SettingsScreen(
         }
     }
     val onOpenNotificationSettings = {
-        notificationAccessDenial.onOpenSettings()
-        try {
-            context.startActivity(
-                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            )
-        } catch (_: ActivityNotFoundException) {
+        val opened = notificationAccessDenial.openSettings(
+            context,
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+        )
+        if (!opened) {
             Toast.makeText(context, reminderNotificationsUnavailableMessage, Toast.LENGTH_SHORT).show()
         }
     }

@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.components
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -28,12 +31,27 @@ import javax.inject.Singleton
 class AccessDenial {
     var isDenied by mutableStateOf(false)
 
-    /** The message opened the settings screen; [RETURNED] once the screen resumes after it. */
+    /**
+     * The message opened the settings screen; [RETURNED] once the screen resumes after it. A
+     * returned trip ends at the next pause, and also when the screen or sheet that follows the
+     * denial leaves composition: the denial stays for the session, but a later grant is not the
+     * return from this trip.
+     */
     private var trip = Trip.NONE
 
-    /** The message opened the settings screen that grants access. */
-    fun onOpenSettings() {
+    /**
+     * The message's trip: opens [intent], the settings screen that grants access. False, with no
+     * trip, if it can't be opened.
+     */
+    fun openSettings(context: Context, intent: Intent): Boolean {
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            return false
+        }
+        // After the start is fine: the screen's pause for it comes after this returns.
         trip = Trip.OPENED
+        return true
     }
 
     internal fun onResume() {
@@ -41,6 +59,14 @@ class AccessDenial {
     }
 
     internal fun onPause() {
+        if (trip == Trip.RETURNED) trip = Trip.NONE
+    }
+
+    // Only a returned trip: one still away survives a recreation (a font-size change, "Don't keep
+    // activities"), and the restored page or sheet (its open flag is saveable) sees the real return.
+    // ponytail: a trip still away when a deep link closes the sheet stays open with no observer, so
+    // reopening the sheet later counts as its return. End it on the deep link if that shows up.
+    internal fun onLeave() {
         if (trip == Trip.RETURNED) trip = Trip.NONE
     }
 
@@ -100,7 +126,11 @@ fun FollowAccessDenial(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Nothing here sees the screen's pauses now, and a sheet closes without one.
+            denial.onLeave()
+        }
     }
     val latestOnAccessAllowed by rememberUpdatedState(onAccessAllowed)
     LaunchedEffect(denial, hasAccess) {

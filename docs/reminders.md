@@ -281,6 +281,14 @@ had.
   restarts. Allowed on the return from the message's trip to Android's
   settings, reminders turn on; allowed any other way, the message goes
   and the switch can be tapped again, but nothing turns on by itself.
+  The trip ends at the first pause after the return, and also when the
+  page or sheet that showed the message leaves composition after the
+  return (a sheet closes without a pause); none starts if the settings
+  screen can't be opened (`AccessDenial.openSettings`). The denial itself
+  stays. A trip still away survives a recreation of the activity: the
+  restored page or sheet sees the return. Known limit: a trip still away
+  when a deep link closes the weight sheet stays open, so the sheet's
+  next opening counts as its return.
   Exact-alarm access has its own message, as before. Onboarding's
   notification step and a plan editor's switch have their own flows.
 

@@ -1,9 +1,12 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
@@ -29,6 +32,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -66,6 +71,7 @@ class SettingsReminderSwitchTest {
         composeRule.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides screen) {
                 if (shown) {
+                    val context = LocalContext.current
                     FollowAccessDenial(
                         denial = denial,
                         hasAccess = access,
@@ -96,7 +102,9 @@ class SettingsReminderSwitchTest {
                                 else -> denial.isDenied = true
                             }
                         },
-                        onOpenNotificationSettings = denial::onOpenSettings,
+                        onOpenNotificationSettings = {
+                            denial.openSettings(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS))
+                        },
                         onRequestExactAlarmAccess = {},
                         onScreenLockProtectionToggle = {},
                         onAppLockGracePeriodOptionChange = {},
@@ -138,6 +146,35 @@ class SettingsReminderSwitchTest {
         shown = true
         screen.moveTo(Lifecycle.State.RESUMED)
         composeRule.waitForIdle()
+    }
+
+    /**
+     * Takes the content out of composition and back with the screen resumed throughout, as a sheet
+     * closes and opens again: nothing pauses.
+     */
+    private fun closeAndReopen(whileClosed: () -> Unit = {}) {
+        shown = false
+        composeRule.waitForIdle()
+        whileClosed()
+        composeRule.waitForIdle()
+        shown = true
+        composeRule.waitForIdle()
+    }
+
+    /** Later in the session: the app is left, access is granted there, and the app comes back. */
+    private fun grantElsewhere() {
+        screen.moveTo(Lifecycle.State.CREATED)
+        access = true
+        screen.moveTo(Lifecycle.State.RESUMED)
+    }
+
+    /** The message's trip to the settings screen and back, with nothing granted there. */
+    private fun ungrantedTrip(messageText: String) {
+        composeRule.onNodeWithText(messageText).performScrollTo().performClick()
+        screen.moveTo(Lifecycle.State.STARTED)
+        screen.moveTo(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+        assertEquals(emptyList<Boolean>(), enables)
     }
 
     @Test
@@ -190,6 +227,34 @@ class SettingsReminderSwitchTest {
         assertEquals(emptyList<Boolean>(), enables)
         assertEquals(false, messageShows())
         remindersRow().assertIsEnabled()
+    }
+
+    @Test
+    fun reminders_contentGoneAfterAnUngrantedTrip_aLaterGrantElsewhere_turnsNothingOn() {
+        access = false
+        setSettings(AccessDenials().notifications)
+        remindersRow().performClick()
+        ungrantedTrip(message)
+
+        closeAndReopen(whileClosed = ::grantElsewhere)
+
+        assertEquals(emptyList<Boolean>(), enables)
+        assertEquals(false, messageShows())
+    }
+
+    @Test
+    fun reminders_aMessageWhoseSettingsDontOpen_takesNoTrip() {
+        shadowOf(RuntimeEnvironment.getApplication()).checkActivities(true)
+        access = false
+        setSettings(AccessDenials().notifications)
+        remindersRow().performClick()
+        composeRule.onNodeWithText(message).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        grantElsewhere()
+        composeRule.waitForIdle()
+
+        assertEquals(emptyList<Boolean>(), enables)
     }
 
     @Test
@@ -248,7 +313,7 @@ class SettingsReminderSwitchTest {
         setWeightSheet(denial)
         assertEquals(true, messageShows(healthConnectMessage))
 
-        leaveAndReturn() // The sheet closed, and opened again.
+        closeAndReopen()
 
         assertEquals(true, messageShows(healthConnectMessage))
         syncSwitch().assertIsNotEnabled()
@@ -293,5 +358,70 @@ class SettingsReminderSwitchTest {
         assertEquals(emptyList<Boolean>(), enables)
         assertEquals(false, messageShows(healthConnectMessage))
         syncSwitch().assertIsEnabled()
+    }
+
+    @Test
+    fun healthConnect_sheetClosedAfterAnUngrantedTrip_aLaterGrantElsewhere_turnsNothingOn() {
+        access = false
+        val denial = AccessDenials().healthConnect
+        denial.isDenied = true
+        setWeightSheet(denial)
+        ungrantedTrip(healthConnectMessage)
+
+        // The sheet closes with Settings under it resumed; it opens again after a grant elsewhere.
+        closeAndReopen(whileClosed = ::grantElsewhere)
+
+        assertEquals("sync turned on by a grant made another way", emptyList<Boolean>(), enables)
+    }
+
+    @Test
+    fun healthConnect_sheetOpenWhenTheAppIsLeftAfterAnUngrantedTrip_aLaterGrantElsewhere_turnsNothingOn() {
+        access = false
+        val denial = AccessDenials().healthConnect
+        denial.isDenied = true
+        setWeightSheet(denial)
+        ungrantedTrip(healthConnectMessage)
+
+        screen.moveTo(Lifecycle.State.CREATED)
+        closeAndReopen {
+            access = true
+            screen.moveTo(Lifecycle.State.RESUMED)
+        }
+
+        assertEquals(emptyList<Boolean>(), enables)
+    }
+
+    @Test
+    fun healthConnect_accessAllowedOnTheTrip_turnsSyncOn_evenIfTheActivityIsRecreatedMeanwhile() {
+        access = false
+        val denial = AccessDenials().healthConnect
+        denial.isDenied = true
+        setWeightSheet(denial)
+        composeRule.onNodeWithText(healthConnectMessage).performClick()
+        // Away in Health Connect: the activity is recreated (a font-size change, "Don't keep
+        // activities"), so the sheet leaves composition, and access is allowed there.
+        screen.moveTo(Lifecycle.State.CREATED)
+        closeAndReopen { access = true }
+        screen.moveTo(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(true), enables)
+    }
+
+    @Test
+    fun healthConnect_aMessageWhoseSettingsDontOpen_takesNoTrip() {
+        shadowOf(RuntimeEnvironment.getApplication()).checkActivities(true)
+        access = false
+        val denial = AccessDenials().healthConnect
+        denial.isDenied = true
+        setWeightSheet(denial)
+        composeRule.onNodeWithText(healthConnectMessage).performClick()
+        composeRule.waitForIdle()
+
+        // Health Connect is back and granted; the sheet, open all along, sees the return.
+        grantElsewhere()
+        composeRule.waitForIdle()
+
+        assertEquals(emptyList<Boolean>(), enables)
     }
 }

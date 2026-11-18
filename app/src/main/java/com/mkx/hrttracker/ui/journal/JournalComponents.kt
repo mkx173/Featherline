@@ -2492,10 +2492,12 @@ private fun NoteEditorCard(
     // new note appears, the composer moves to another day, or All Notes edited it while this screen
     // was away), a draft you haven't touched takes the new text, so Save can't write the older one
     // over it. One you edited keeps your edit, and one held for a save keeps the text it sent (the
-    // outcome effect below shows the note once the save lands).
+    // outcome effect below shows the note once the save lands). Untouched compares trimmed text, as
+    // Save and the unsaved-draft check do: a draft that differs only by leading or trailing spaces
+    // is not an edit.
     var draftSeed by rememberSaveable { mutableStateOf(text) }
     if (draftSeed != text) {
-        if (draft.text == draftSeed && !savePending) draft = TextFieldValue(text, TextRange(text.length))
+        if (draft.text.trim() == draftSeed.trim() && !savePending) draft = TextFieldValue(text, TextRange(text.length))
         draftSeed = text
     }
     var isDeleteConfirmationVisible by rememberSaveable(identity) { mutableStateOf(false) }
