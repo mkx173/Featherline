@@ -34,6 +34,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -772,6 +773,10 @@ class SettingsRepositoryTest {
             val first = SettingsRepository(dataStore)
             repostsIn(first) {
                 first.setAppLanguageOption(AppLanguageOption.ENGLISH)
+                // Landed before the next change, as below: else the start store's zh-Hans can be
+                // on disk while a write computed under English is still on its way, and the next
+                // repository's first read can come between them.
+                awaitStoredAppLanguageTag("en")
                 first.setAppLanguageOption(null)
             }
             awaitStoredAppLanguageTag("zh-Hans")
@@ -955,8 +960,9 @@ class SettingsRepositoryTest {
             coEvery { refreshDoseReminderNotifications() } answers { reposts++ }
         }
         repository.lastRunAppLanguageTag()
-        // Unconfined: it collects each change as it is made, on the thread making it.
-        val run = backgroundScope.launch(Dispatchers.Unconfined) {
+        // Unconfined: it collects each change as it is made, on the thread making it. Undispatched:
+        // it takes the start language before the actions run, and can't be cancelled before then.
+        val run = backgroundScope.launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {
             followAppLanguage(
                 languages = repository.shownAppLanguage,
                 lastLanguageTag = repository::lastRunAppLanguageTag,
