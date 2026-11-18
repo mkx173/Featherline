@@ -46,6 +46,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Android 8 to 12, the home-screen widgets, the widget settings screen and reminders that come while the app isn't open use the language chosen in the app instead of the phone's. Under Follow system, the widget settings screen is in the same language as the app.
 - The "Medicine already exists" message and the message on a home-screen shortcut to a removed date are in the app's language.
 - A restore that fails for a reason other than the password says "Unable to restore, please try again" instead of blaming the password or the file.
+- On the night the clocks spring forward, a plan's first dose after the jump now rings, with its repeats, even when the plan also has doses in the skipped hour. Those doses don't ring and show as missed on Home.
+- A reminder for a dose you logged only part of, for example one of two tablets, now shows only what is left to take.
+- A reminder that arrives late no longer sounds twice a few seconds apart, and a repeat already on its way no longer rings after you turn repeats off.
+- On the night the clocks fall back, a dose logged during the repeated hour keeps its time. Saving it without changing the time no longer moves it an hour earlier, the log editor shows the same offset as Plan and Home, and a dose logged in the second pass of that hour, from the log sheet, a medicine's page, a reminder's Log now or the widget, is stamped at the moment you tap. A blood test entered or edited in that hour keeps its time too, and is used in the estimate as soon as its time comes.
+- On the two days the clocks change, whether a dose counts as on time is decided in real time, matching its offset label.
+- The message after saving in another time zone names the zone in the app's language.
+- When you log a dose early or late, the stock preview in the log sheet now matches what saving leaves.
+- If a dose is logged while the plan editor is saving and the save is refused, the editor locks at once instead of up to a minute later.
+- Home's upcoming list, the antiandrogen card and the Plan upcoming list now show doses more than 90 days away, as reminders already did.
+- Renaming a medicine no longer fails because of a preparation you didn't change.
+- A backup whose dose times or plan start dates are impossible is refused as "not a compatible backup" instead of replacing your data and leaving the app stuck at start. Importing from another tracker skips a dose or lab whose time is far outside years 1 to 9999, for example a time given in seconds, with the usual invalid-row warning.
+- In Journal, a Today note left open for 30 days or more keeps its text, and saving it moves Today back to today. After the oldest note in the 30-day list ages out at midnight with unsaved edits, opening another note no longer asks about the lost draft.
+- Tapping a widget's log button when the app's data can't be opened now says "Unable to quick-log dose." instead of doing nothing.
+- After you travel west, the home-screen widget no longer shows the later day's doses.
+- A sheet or dialog that was opening as the app locked no longer shows over the lock screen when you come back.
+- A Back swipe while a dose or a new medicine is saving no longer leaves its sheet shrunk, in the log sheet, on a medicine's page and in onboarding.
+- In the widget settings window with App Lock on, cancelling the unlock prompt while it loads shows the Unlock button instead of a blank window, and locking again no longer discards the choices you made.
+- On Android 10, Back on the PIN screen leaves you on the lock screen with its Unlock button instead of opening the PIN screen again. With a fingerprint set up, leaving the fingerprint prompt with Home and coming back also shows Unlock, as on Android 8 and 9.
+- Tapping the Since you started widget or shortcut while a file picker or a settings page is open over the app now opens Milestones once, instead of adding a second copy of the app or losing the link.
 
 ### Changed
 
